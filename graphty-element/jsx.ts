@@ -93,19 +93,27 @@ export interface GraphtyElementJSXProps {
      */
     edgeWeightPath?: Graphty["edgeWeightPath"];
     /**
-     * Sets the edge time column. Updates graph configuration.
+     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
      */
     edgeTimePath?: Graphty["edgeTimePath"];
     /**
-     * Sets the node time column. Updates graph configuration.
+     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
      */
     nodeTimePath?: Graphty["nodeTimePath"];
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
+    /**
+     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration.
+     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
     /**
@@ -260,6 +268,10 @@ export interface GraphtyElementJSXProps {
      */
     renderer?: Graphty["renderer"];
     /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    renderPath?: Graphty["renderPath"];
+    /**
      * Sets the threshold and applies it immediately.
      *
      * A value that is not a whole number of 0 or more is reported and then ignored, leaving the
@@ -321,19 +333,27 @@ export interface GraphtyElementJSXProps {
      */
     "edge-weight-path"?: string;
     /**
-     * Sets the edge time column. Updates graph configuration.
+     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
      */
     "edge-time-path"?: string;
     /**
-     * Sets the node time column. Updates graph configuration.
+     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
      */
     "node-time-path"?: string;
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    "edge-time-end-path"?: string;
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    "node-time-end-path"?: string;
+    /**
+     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     "edge-time-unit"?: string;
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration.
+     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     "node-time-unit"?: string;
     /**
@@ -407,6 +427,10 @@ export interface GraphtyElementJSXProps {
      * Sets detailed profiling mode. Enables hierarchical timing and advanced stats collection.
      */
     "enable-detailed-profiling"?: boolean;
+    /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    "render-path"?: string;
     /**
      * Sets the threshold and applies it immediately.
      *

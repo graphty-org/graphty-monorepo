@@ -207,6 +207,21 @@ const LABEL_RESIDUE: Readonly<Record<string, string>> = {
         "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
         "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
         "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.centerX":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.centerY":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.radius":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
     "backgroundColor.opacity":
         "The panel behind a label takes a plain colour from the vocabulary's `background`, which " +
         "carries its own alpha when it is written as `#rrggbbaa`.",
@@ -231,6 +246,17 @@ function namedBlockOf(
         reason,
     }));
 }
+
+/**
+ * A label block's table (`table`), published only for an edge's own label (`edge.labelTable`), where it is waived for
+ * every other block.
+ */
+const TABLE_RESIDUE: Readonly<Record<string, string>> = {
+    table:
+        "A label laid out as a table of cells is published for an edge's own label (`edge.labelTable`), as a " +
+        "node's is through `node.labelTable` on its shape. A table for a node's label block, a tooltip, an " +
+        "external label or an arrow's caption has no file format behind it that draws one.",
+};
 
 /**
  * Every declared style field no style channel can change, with the reason for each and whether
@@ -289,6 +315,14 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // caption and no channel could ask for one.
     ...namedBlockOf("edge", "arrowHead.text", LABEL_RESIDUE),
     ...namedBlockOf("edge", "arrowTail.text", LABEL_RESIDUE),
+    ...[
+        ["node", "label"],
+        ["node", "tooltip"],
+        ["node", "xlabel"],
+        ["edge", "xlabel"],
+        ["edge", "arrowHead.text"],
+        ["edge", "arrowTail.text"],
+    ].flatMap(([target, prefix]) => namedBlockOf(target as "node" | "edge", prefix, TABLE_RESIDUE)),
 ];
 
 /**

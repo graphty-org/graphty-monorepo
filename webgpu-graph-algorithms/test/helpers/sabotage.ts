@@ -56,6 +56,8 @@ const GRID_TEST = "test/primitives/grid.test.ts";
 const PYRAMID_TEST = "test/primitives/grid-pyramid.test.ts";
 const GRID_INSPECT_TEST = "test/layouts/grid-inspect.test.ts";
 const COMPACT_TEST = "test/primitives/compact.test.ts";
+const CLUSTER_TEST = "test/layouts/clusters.test.ts";
+const COLLIDE_TEST = "test/layouts/collision.test.ts";
 const FRONTIER_TEST = "test/primitives/frontier.test.ts";
 const ADVANCE_TEST = "test/primitives/advance.test.ts";
 const BFS_TEST = "test/algorithms/bfs.test.ts";
@@ -329,8 +331,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // oldForce never stored: iteration 2's swing becomes m |F| instead of m |F - F_old| (paper mode)
             name: "store-old-skipped",
-            find: "if (SWING_MODE == 0u) { store_old(i, f); }",
-            replace: "if (SWING_MODE == 2u) { store_old(i, f); }",
+            find: "if (SWING_MODE == 0u) { store_old(i, select(f, vec3f(0.0), fixed)); }",
+            replace: "if (SWING_MODE == 2u) { store_old(i, select(f, vec3f(0.0), fixed)); }",
             minFactor: 10,
             test: TRACE_TEST,
         },
@@ -695,6 +697,145 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "let dst = offsets[d * P.groups] + rank[lid.x];",
             minFactor: 10,
             test: RADIX_TEST,
+        },
+    ]),
+    "cluster-centroid": Object.freeze([
+        {
+            // the last members of every community are left out of its centroid
+            name: "last-member-skipped",
+            find: "k < end;",
+            replace: "k + 1u < end;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            // a centroid by count, not by mass
+            name: "mass-ignored",
+            find: "acc = acc + vec4f(p.xyz * p.w, p.w);",
+            replace: "acc = acc + vec4f(p.xyz, 1.0);",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            // every community reads the first one's members
+            name: "first-community-only",
+            find: "start = clusterStart[c];",
+            replace: "start = clusterStart[0];",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+    ]),
+    "cluster-pull": Object.freeze([
+        {
+            name: "pull-sign-flipped",
+            find: "let d = total.xyz / total.w - p.xyz;",
+            replace: "let d = p.xyz - total.xyz / total.w;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            // the pull replaces what K2 wrote instead of adding to it
+            name: "attraction-overwritten",
+            find: "force[3u * i + 1u] = force[3u * i + 1u] + pull * d.y;",
+            replace: "force[3u * i + 1u] = pull * d.y;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            name: "unclustered-row-pulled",
+            find: "if (c == 0xffffffffu) { return; }",
+            replace: "if (c == 0xffffffffu) { force[3u * i] = force[3u * i] + 1.0; return; }",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            name: "fr-law-linear",
+            find: "pull = P.clusterStrength * length(d) / P.frK;",
+            replace: "pull = P.clusterStrength;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            name: "spring-coefficient-dropped",
+            find: "pull = pull * P.springCoefficient;",
+            replace: "pull = pull * 1.0;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+    ]),
+    "collide-cell-key": Object.freeze([
+        {
+            // every node in one bucket: gather reads only the first cellMax entries, so far pairs are missed
+            name: "one-bucket",
+            find: "cellKey[i] = collide_key(collide_cell(pos[i].xyz));",
+            replace: "cellKey[i] = 0u;",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            // the cell a node is keyed by is not the cell gather looks in
+            name: "key-off-by-one-cell",
+            find: "lowbias32(((u.x * 73856093u)",
+            replace: "lowbias32((((u.x + 1u) * 73856093u)",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            // the sort's values no longer name the rows
+            name: "values-shifted",
+            find: "cellVal[i] = i;",
+            replace: "cellVal[i] = (i + 1u) % P.n;",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+    ]),
+    "collide-gather": Object.freeze([
+        {
+            // a pair pulls together instead of pushing apart
+            name: "push-sign-flipped",
+            find: "return d * ((reach - dist) / dist * share);",
+            replace: "return d * ((dist - reach) / dist * share);",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            // a free node leaves half the push to a partner that cannot take it
+            name: "fixed-partner-ignored",
+            find: "let share = select(0.5, 1.0, mask_bit(fixedMask[j >> 5u], j));",
+            replace: "let share = 0.5;",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            // an inert row pushes like a live one
+            name: "inert-row-pushes",
+            find: "if (pj.w <= 0.0) { return vec3f(0.0); }",
+            replace: "",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+    ]),
+    "collide-apply": Object.freeze([
+        {
+            name: "moves-dropped",
+            find: "pos[i] = vec4f(p.xyz + moves[i].xyz, p.w);",
+            replace: "pos[i] = vec4f(p.xyz, p.w);",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            name: "moves-reversed",
+            find: "pos[i] = vec4f(p.xyz + moves[i].xyz, p.w);",
+            replace: "pos[i] = vec4f(p.xyz - moves[i].xyz, p.w);",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            name: "mass-lost",
+            find: "pos[i] = vec4f(p.xyz + moves[i].xyz, p.w);",
+            replace: "pos[i] = vec4f(p.xyz + moves[i].xyz, 1.0);",
+            minFactor: 10,
+            test: COLLIDE_TEST,
         },
     ]),
     "grid-cell-key": Object.freeze([

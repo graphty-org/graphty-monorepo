@@ -1,13 +1,16 @@
-import { EntityChip, MenuCheckItem, ModalFooter } from "@graphty/compact-mantine";
+import { EntityChip, MenuCheckItem, ModalFooter, PopoutManager } from "@graphty/compact-mantine";
 import type { ExportLoss } from "@graphty/graphty-element";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { type GraphSession, projectFileName } from "@graphty/graphty-element/session";
-import { Alert, Badge, Button, Group, Input, Menu, Select, Text } from "@mantine/core";
+import { Alert, Badge, Button, Group, Input, Menu, Select, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { sourceName } from "../data-place/words";
 import { useAsyncValue } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { OptionsForm } from "../options/OptionsForm";
+import { SettingsPopout } from "../options/SettingsPopout";
+import { splitOptions } from "../options/splitOptions";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     type DataChoices,
@@ -17,8 +20,9 @@ import {
     fileName,
     formatRows,
     previewOf,
+    writesNoStyles,
 } from "./choices";
-import { isStyleLoss, layersBackWords, listedStyleLosses, type LossRow, lossRows } from "./lossWords";
+import { isStyleLoss, layersBackWords, listedStyleLosses, type LossRow, lossRows, lossSummary } from "./lossWords";
 
 /** Why a file was not written: the export's refusals (its E_ losses) as rows, else a label from its error code. */
 type Failure = readonly LossRow[] | string;
@@ -87,11 +91,63 @@ function LossList({ rows }: Readonly<{ rows: readonly LossRow[] }>): React.JSX.E
     );
 }
 
+/**
+ * What a file loses, as one counted line with a Details disclosure that shows the rows (tier 4,
+ * R14).
+ * @param props - Component props
+ * @param props.lead - the words before the line, such as "Lost in GEXF"; none when a title says it.
+ * @param props.rows - the loss rows.
+ * @returns the line and, when open, the rows.
+ */
+function LossSummary({ lead, rows }: Readonly<{ lead?: string; rows: readonly LossRow[] }>): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    const line = lossSummary(rows);
+    return (
+        <>
+            <Group gap={4} wrap="nowrap" align="baseline">
+                <Text size="xs" span>
+                    {lead === undefined ? line.charAt(0).toUpperCase() + line.slice(1) : `${lead}: ${line}`}
+                </Text>
+                <Button
+                    size="xs"
+                    variant="subtle"
+                    aria-expanded={open}
+                    onClick={() => {
+                        setOpen(!open);
+                    }}
+                >
+                    Details
+                </Button>
+            </Group>
+            {open ? <LossList rows={rows} /> : null}
+        </>
+    );
+}
+
+/**
+ * A catalog option name in sentence case, as every label in the app is ("Include Styles" reads
+ * "Include styles"): each word after the first lower case, but a word with two capitals (an
+ * acronym, "IDs").
+ * @param name - the catalog's plain name.
+ * @returns the label.
+ */
+function sentenceCase(name: string): string {
+    return name
+        .split(" ")
+        .map((word, index) => (index === 0 || /[A-Z].*[A-Z]/.test(word) ? word : word.toLowerCase()))
+        .join(" ");
+}
+
+/** The Format list's groups: the formats a spreadsheet opens, then every network file. */
+const TABLE_FORMATS: ReadonlySet<string> = new Set(["csv"]);
+
 /** Props for DataOutput. */
 interface DataOutputProps {
     choices: DataChoices;
     onChange: (choices: DataChoices) => void;
     onCancel: () => void;
+    /** Called when the format's settings popover opens or closes: the dialog leaves Escape to it. */
+    onSettingsOpen?: (opened: boolean) => void;
     /** Closes the dialog with a notice, and lists the file under Recent. */
     onDone: (message: string, file?: string) => void;
 }
@@ -125,50 +181,81 @@ function exportColumns(session: GraphSession, kinds: readonly ("node" | "edge")[
     return [...columns.values()];
 }
 
-/** One scope the reader can pick, with how many nodes it writes. */
+/** How many nodes and edges a scope covers. */
+interface Rows {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/** One scope the reader can pick, with how many nodes and edges it covers. */
 interface ScopeOption {
     readonly value: DataScope;
-    readonly label: string;
-    readonly nodes: number;
+    readonly name: string;
+    readonly rows: Rows;
 }
 
 /**
- * The scopes on offer and their node counts: All, Shown, Selection (when something is selected)
- * and each kept set that holds a node.
+ * The scopes on offer and their counts: All, Shown, Selection (when something is selected), each
+ * kept set that holds a node or an edge and, with two or more sources loaded, each source.
  * @param session - the element's session.
- * @returns the options.
+ * @returns the options; All first.
  */
 async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
-    const total = session.data.statistics().nodeCount;
-    const [shown, selected, ...sets] = await Promise.all([
+    const { nodeCount, edgeCount } = session.data.statistics();
+    const loads = session.data.sources();
+    const [shown, selected, bySource, ...sets] = await Promise.all([
         session.scope.count("visible"),
         session.scope.count("selection"),
+        Promise.all(
+            (loads.length > 1 ? loads : []).map(async (load) => ({
+                load,
+                count: await session.scope.count({
+                    define: { kind: "rule", where: { kind: "source", sources: [load.key] }, reading: "clipped" },
+                }),
+            })),
+        ),
         ...session.sets.list().map(async (set) => ({ set, count: await session.scope.count({ set: set.id }) })),
     ]);
+    const holds = (rows: Rows): boolean => rows.nodes + rows.edges > 0;
     return [
-        { value: "all", label: `All ${formatNumber(total)}`, nodes: total },
-        {
-            value: "shown",
-            label: `Shown ${formatNumber(shown.nodes)} of ${formatNumber(total)}`,
-            nodes: shown.nodes,
-        },
-        ...(selected.nodes > 0
-            ? [
-                  {
-                      value: "selection" as const,
-                      label: `Selection ${formatNumber(selected.nodes)}`,
-                      nodes: selected.nodes,
-                  },
-              ]
-            : []),
+        { value: "all", name: "All", rows: { nodes: nodeCount, edges: edgeCount } },
+        { value: "shown", name: "Shown", rows: shown },
+        ...(holds(selected) ? [{ value: "selection" as const, name: "Selection", rows: selected }] : []),
         ...sets
-            .filter(({ count }) => count.nodes > 0)
-            .map(({ set, count }) => ({
-                value: `set:${set.id}` as const,
-                label: `${set.name} ${formatNumber(count.nodes)}`,
-                nodes: count.nodes,
-            })),
+            .filter(({ count }) => holds(count))
+            .map(({ set, count }) => ({ value: `set:${set.id}` as const, name: set.name, rows: count })),
+        ...bySource.map(({ load, count }) => ({
+            value: `source:${load.key}` as const,
+            name: sourceName(load),
+            rows: count,
+        })),
     ];
+}
+
+/**
+ * How many of a kind a scope writes, against the whole graph's: "18", or "17 of 18".
+ * @param part - the scope's count.
+ * @param whole - the whole graph's count.
+ * @returns the words.
+ */
+function ofWhole(part: number, whole: number): string {
+    return part === whole ? formatNumber(whole) : `${formatNumber(part)} of ${formatNumber(whole)}`;
+}
+
+/**
+ * A scope's entry in the Scope list, counting the rows the file holds: the chosen table's (nodes or
+ * edges), or nodes and edges for a network file.
+ * @param option - the scope.
+ * @param all - the whole graph's counts.
+ * @param kinds - what the file holds.
+ * @returns the label, "Shown 17 of 18" or "All 12 nodes, 14 edges".
+ */
+function scopeLabel(option: ScopeOption, all: Rows, kinds: readonly ("node" | "edge")[]): string {
+    if (kinds.length === 1) {
+        const kind = kinds[0] === "edge" ? "edges" : "nodes";
+        return `${option.name} ${ofWhole(option.rows[kind], all[kind])}`;
+    }
+    return `${option.name} ${ofWhole(option.rows.nodes, all.nodes)} nodes, ${ofWhole(option.rows.edges, all.edges)} edges`;
 }
 
 /**
@@ -187,7 +274,7 @@ function partName(part: unknown): string {
  */
 function optionWords(option: OptionDescriptor): { label: string; choice: (value: string) => string } {
     return {
-        label: option.plainName,
+        label: sentenceCase(option.plainName),
         choice: (value) => option.values?.find((entry) => entry.value === value)?.label ?? value,
     };
 }
@@ -223,13 +310,19 @@ function exportTarget(
  * @param session - the element's session.
  * @param table - a CSV's table, when the file holds one.
  * @param choices - the data choices.
- * @returns the columns, the chosen names, and the names to write (undefined for every column).
+ * @returns the record kinds the file holds, the columns, the chosen names, and the names to write
+ *     (undefined for every column).
  */
 function columnsWritten(
     session: GraphSession | null,
     table: string | undefined,
     choices: DataChoices,
-): { columns: ExportColumn[]; chosen: readonly string[]; written: readonly string[] | undefined } {
+): {
+    kinds: readonly ("node" | "edge")[];
+    columns: ExportColumn[];
+    chosen: readonly string[];
+    written: readonly string[] | undefined;
+} {
     let kinds: ("node" | "edge")[] = ["node", "edge"];
     if (table !== undefined) {
         kinds = table === "edges" ? ["edge"] : ["node"];
@@ -238,7 +331,7 @@ function columnsWritten(
     const chosen = choices.columns ?? columns.filter((column) => !column.hidden).map((column) => column.name);
     // Every column is written when none is left out, so the export keeps what this list cannot name.
     const written = chosen.length === columns.length ? undefined : chosen;
-    return { columns, chosen, written };
+    return { kinds, columns, chosen, written };
 }
 
 /**
@@ -255,17 +348,29 @@ function writableOptions(session: GraphSession, row: Row): readonly OptionDescri
 }
 
 /**
- * How many nodes the scope writes, as a node chip.
+ * How many records of each kind the file holds the scope writes, one chip per kind.
  * @param props - Component props
- * @param props.nodes - the scope's nodes.
- * @param props.total - every node.
- * @returns the chip.
+ * @param props.kinds - the record kinds the file holds.
+ * @param props.rows - the scope's rows.
+ * @param props.all - every row.
+ * @returns the chips.
  */
-function ScopeChip({ nodes, total }: Readonly<{ nodes: number; total: number }>): React.JSX.Element {
+function ScopeChips({
+    kinds,
+    rows,
+    all,
+}: Readonly<{ kinds: readonly ("node" | "edge")[]; rows: Rows; all: Rows }>): React.JSX.Element {
     return (
-        <EntityChip kind="node">
-            {nodes === total ? formatNumber(total) : `${formatNumber(nodes)} of ${formatNumber(total)}`}
-        </EntityChip>
+        <>
+            {kinds.map((kind) => {
+                const part = kind === "edge" ? "edges" : "nodes";
+                return (
+                    <EntityChip key={kind} kind={kind}>
+                        {ofWhole(rows[part], all[part])}
+                    </EntityChip>
+                );
+            })}
+        </>
     );
 }
 
@@ -284,6 +389,20 @@ function FailureAlert({ failure }: Readonly<{ failure: Failure }>): React.JSX.El
 }
 
 /**
+ * A field's row with a control at its end, as a Select's `inputContainer`.
+ * @param trailing - the control, if any.
+ * @returns what draws the row around the field.
+ */
+function withTrailing(trailing: React.ReactNode): (input: React.ReactNode) => React.JSX.Element {
+    return (input) => (
+        <Group gap={4} wrap="nowrap">
+            <div style={{ flex: 1, minWidth: 0 }}>{input}</div>
+            {trailing}
+        </Group>
+    );
+}
+
+/**
  * The Data output: one Format row per file type graphty-element writes (each format's export
  * variants, such as CSV's tables), the row's key options and the rest behind an Advanced fold, the
  * scope and the columns written, what the format cannot hold (the export's losses, as compact
@@ -293,10 +412,17 @@ function FailureAlert({ failure }: Readonly<{ failure: Failure }>): React.JSX.El
  * @param props.choices - The data choices
  * @param props.onChange - Called with new choices
  * @param props.onCancel - Closes the dialog
+ * @param props.onSettingsOpen - Called when the format's settings popover opens or closes
  * @param props.onDone - Closes the dialog with a notice
  * @returns The output's body and footer
  */
-export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<DataOutputProps>): React.JSX.Element {
+export function DataOutput({
+    choices,
+    onChange,
+    onCancel,
+    onSettingsOpen,
+    onDone,
+}: Readonly<DataOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
     const [preview, setPreview] = useState<{ lines: string; notes: readonly LossRow[] } | null>(null);
@@ -314,11 +440,17 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const { keyed, table, name } = exportTarget(choices, row, project);
     const binary = format?.binary === true;
     const formatName = row?.plainName ?? format?.plainName ?? choices.format;
+    // The one hint where styles are lost; the project file (Graphty JSON) holds the whole project.
+    const noStyles = choices.format !== "graphty" && writesNoStyles(format);
+    const formatItems = (table: boolean): { value: string; label: string }[] =>
+        rows
+            .filter((entry) => TABLE_FORMATS.has(entry.format) === table)
+            .map((entry) => ({ value: entry.id, label: entry.plainName }));
 
-    const { columns, chosen, written } = columnsWritten(session, table, choices);
+    const { kinds, columns, chosen, written } = columnsWritten(session, table, choices);
     const scopes = useAsyncValue(() => (session === null ? null : scopeOptions(session)), session === null ? 0 : 1);
     const scope = scopes?.find((option) => option.value === choices.scope);
-    const total = scopes?.[0]?.nodes;
+    const all = scopes?.[0]?.rows;
     const options = row === undefined ? {} : dataExportOptions(row, choices, written);
     const optionsKey = JSON.stringify(options);
 
@@ -354,7 +486,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
 
     /**
      * Writes the file and hands it over; first, unless the reader already said to save anyway,
-     * stops at a warning when the format loses part of the styles.
+     * stops at a warning when a format that keeps styles loses part of them.
      * @param anyway - the reader saw the warning and chose to save.
      */
     const save = async (anyway = false): Promise<void> => {
@@ -372,7 +504,9 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 setFailure(failureOf(undefined, losses));
                 return;
             }
-            const lost = result.losses.filter(isStyleLoss);
+            // A format that writes no styles at all says so under Format ("No styles"), so its
+            // export saves at once; only a format that keeps some styles and loses others stops.
+            const lost = noStyles ? [] : result.losses.filter(isStyleLoss);
             if (!anyway && lost.length > 0) {
                 setStyleLosses(lost);
                 return;
@@ -387,6 +521,20 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         }
     };
 
+    const { key, advanced } = splitOptions(row === undefined || session === null ? [] : writableOptions(session, row));
+    const optionsOf = (shown: readonly OptionDescriptor[]): React.JSX.Element | null =>
+        session === null ? null : (
+            <OptionsForm
+                session={session}
+                options={shown}
+                values={keyed}
+                words={optionWords}
+                onChange={(option, value) => {
+                    onChange({ ...choices, values: { ...choices.values, [option]: value } });
+                }}
+            />
+        );
+
     return (
         <>
             <div className="ws-export-main">
@@ -397,15 +545,30 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                     <Select
                         ref={formatField}
                         label="Format"
-                        data={rows.map((entry) => ({
-                            value: entry.id,
-                            label:
-                                formats.find((each) => each.id === entry.format)?.styles?.write === "rules"
-                                    ? `${entry.plainName} (keeps style layers)`
-                                    : entry.plainName,
-                        }))}
+                        description={noStyles ? "No styles" : undefined}
+                        // The hint under the box, so Format lines up with the field beside it.
+                        inputWrapperOrder={["label", "input", "description", "error"]}
+                        data={[
+                            { group: "Tables", items: formatItems(true) },
+                            { group: "Network files", items: formatItems(false) },
+                        ]}
                         value={rowId}
                         allowDeselect={false}
+                        // The format's rarer settings: the settings button at the end of its row.
+                        inputContainer={withTrailing(
+                            advanced.length === 0 ? null : (
+                                // Its own floating layer: the page's is under this modal.
+                                <PopoutManager key={row?.id}>
+                                    <SettingsPopout
+                                        label="Format settings"
+                                        changed={advanced.some((o) => keyed[o.name] !== undefined)}
+                                        onOpenChange={onSettingsOpen}
+                                    >
+                                        <Stack gap={8}>{optionsOf(advanced)}</Stack>
+                                    </SettingsPopout>
+                                </PopoutManager>
+                            ),
+                        )}
                         onChange={(id) => {
                             const picked = rows.find((entry) => entry.id === id);
                             if (picked !== undefined) {
@@ -413,22 +576,13 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                             }
                         }}
                     />
-                    {row === undefined || session === null ? null : (
-                        <OptionsForm
-                            // A new row starts with its Advanced fold closed.
-                            key={row.id}
-                            session={session}
-                            options={writableOptions(session, row)}
-                            values={keyed}
-                            words={optionWords}
-                            onChange={(option, value) => {
-                                onChange({ ...choices, values: { ...choices.values, [option]: value } });
-                            }}
-                        />
-                    )}
+                    {optionsOf(key)}
                     <Select
                         label="Scope"
-                        data={(scopes ?? []).map(({ value, label }) => ({ value, label }))}
+                        data={(scopes ?? []).map((option) => ({
+                            value: option.value,
+                            label: all === undefined ? option.name : scopeLabel(option, all, kinds),
+                        }))}
                         value={scope === undefined ? null : choices.scope}
                         placeholder="--"
                         allowDeselect={false}
@@ -463,8 +617,8 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                                     ))}
                                 </Menu.Dropdown>
                             </Menu>
-                            {scope === undefined || total === undefined ? null : (
-                                <ScopeChip nodes={scope.nodes} total={total} />
+                            {scope === undefined || all === undefined ? null : (
+                                <ScopeChips kinds={kinds} rows={scope.rows} all={all} />
                             )}
                         </Group>
                     </Input.Wrapper>
@@ -472,7 +626,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 {failure !== null ? <FailureAlert failure={failure} /> : null}
                 {failure === null && styleLosses !== null ? (
                     <Alert color="orange" role="alertdialog" title={`Styles lost in ${formatName}`}>
-                        <LossList rows={lossRows(listedStyleLosses(format, styleLosses))} />
+                        <LossSummary rows={lossRows(listedStyleLosses(format, styleLosses))} />
                         <Text size="xs" c="dimmed">
                             {layersBackWords(format, styleLosses)}
                         </Text>
@@ -494,8 +648,8 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                     </Alert>
                 ) : null}
                 {failure === null && styleLosses === null && preview !== null && preview.notes.length > 0 ? (
-                    <Alert color="yellow" role="note" title={`Lost in ${formatName}`}>
-                        <LossList rows={preview.notes} />
+                    <Alert color="yellow" role="note">
+                        <LossSummary lead={`Lost in ${formatName}`} rows={preview.notes} />
                     </Alert>
                 ) : null}
                 <pre

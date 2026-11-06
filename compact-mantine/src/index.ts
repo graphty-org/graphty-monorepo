@@ -19,6 +19,7 @@ export {
 } from "./theme";
 
 // Component exports
+export { CardList } from "./components/cards";
 export { CompactColorInput } from "./components/CompactColorInput";
 export { ControlGroup } from "./components/ControlGroup";
 export { ControlSection } from "./components/ControlSection";
@@ -45,10 +46,12 @@ export { SplitButton, ToggleIconButton } from "./components/buttons";
 
 // Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), the file source
 // with its drop hook and file picker, focus put on a field by program with its ring drawn, and the
-// scrub gesture a number field's handle uses, for a property row whose label scrubs its value.
+// scrub gesture a number field's handle uses, for a property row whose label scrubs its value, and
+// the check column of a themed list's option, for an option drawn with more than its label.
 export { ComboInput, FileSource, pickFiles, SearchInput, useFileDrop, VariablePill } from "./components/inputs";
-export { focusWithRing } from "./components/inputs/listbox";
+export { FieldCaret, focusWithRing, ListboxCheck } from "./components/inputs/listbox";
 export { type ScrubCallbacks, useScrub } from "./components/inputs/useScrub";
+export { LISTBOX_CLASS_NAMES } from "./theme/components/inputs";
 
 // Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
 // the toast, the tooltip's shortcut label (8.1-8.6), and the tooltip for a menu's button.
@@ -188,6 +191,7 @@ export { colorWord, isLightColor, mixHex, normalizeHexa } from "./utils/color-ut
 export { isRtl } from "./utils/rtl";
 
 // Type exports
+export type { CardListItem, CardListProps } from "./components/cards";
 export type {
     ActionRowProps,
     ActivationEvent,

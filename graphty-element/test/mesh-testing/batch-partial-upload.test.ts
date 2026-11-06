@@ -1,0 +1,421 @@
+/**
+ * What a batch sends to the GPU while ranged uploads are on: the slots written, in runs, and the
+ * whole buffer in every case a run cannot answer for. The engine counts the floats it is handed;
+ * test/browser/batch-partial-upload.test.ts reads the same uploads back out of a real GPU buffer.
+ */
+import { ArcRotateCamera, Buffer, Mesh, MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+
+import { ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
+import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
+import { MAX_RUNS } from "../../src/meshes/DirtyRuns";
+import {
+    EDGE_STATIC_FLOATS,
+    JOIN_FLOATS_PER_PIECE,
+    JOIN_TEMPLATE_POSITIONS,
+    WIDENED_FLOATS_PER_PIECE,
+} from "../../src/meshes/edgeJoinShader";
+import { EdgeLineBatch, forceExpandedLines } from "../../src/meshes/EdgeLineBatch";
+import { batchUploadFrames } from "../../src/meshes/FrameRoster";
+
+const SLOTS = 100_000;
+const VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
+const MATRIX_FLOATS = 16;
+/** Ten slots with gaps between them, none of them slot 0. */
+const TEN_SLOTS = Array.from({ length: 10 }, (_, i) => (i + 1) * 9_000);
+const SRC = new Vector3(0, 0, 0);
+const DST = new Vector3(1, 2, 3);
+
+describe("partial uploads", () => {
+    let scene: Scene;
+    /** Every upload the engine was handed, in floats. */
+    let uploads: number[];
+
+    beforeEach(() => {
+        scene = new Scene(new NullEngine());
+        // A scene with no camera refuses to render, and rendering is what uploads.
+        scene.activeCamera = new ArcRotateCamera("camera", 0, 0, 10, Vector3.Zero(), scene);
+        uploads = [];
+        vi.spyOn(scene.getEngine(), "updateDynamicVertexBuffer").mockImplementation((_buffer, data, _at, length) => {
+            uploads.push((length ?? (data as Float32Array).byteLength) / Float32Array.BYTES_PER_ELEMENT);
+        });
+    });
+
+    afterEach(() => {
+        forceExpandedLines(null);
+        vi.restoreAllMocks();
+        scene.dispose();
+    });
+
+    /** Start counting from a frame with nothing left to upload, with the switch on. */
+    function settle(on = true): void {
+        scene.render();
+        batchUploadFrames.rangedUploads(scene).on = on;
+        uploads.length = 0;
+    }
+
+    /**
+     * What one frame uploaded.
+     * @returns Each upload's floats.
+     */
+    function frame(): number[] {
+        scene.render();
+        return uploads.splice(0);
+    }
+
+    function sum(values: readonly number[]): number {
+        return values.reduce((total, value) => total + value, 0);
+    }
+
+    /**
+     * A batch of joined lines with every slot placed.
+     * @param shape - How it is drawn.
+     * @param shape.expanded - As one plain mesh rather than as instances.
+     * @param shape.widened - With a static buffer.
+     * @param slots - How many slots.
+     * @returns The batch.
+     */
+    function lines({ expanded = false, widened = false }, slots = SLOTS): EdgeLineBatch {
+        forceExpandedLines(expanded);
+        const mesh = CustomLineRenderer.createJoinedLineMesh({ width: 0.2, color: "#336699", widened }, scene);
+        return filled(new EdgeLineBatch(mesh, scene), slots);
+    }
+
+    /**
+     * A batch drawn from a thin-instance matrix per slot, with every slot placed.
+     * @param slots - How many slots.
+     * @returns The batch.
+     */
+    function matrixLines(slots = SLOTS): EdgeLineBatch {
+        return filled(new EdgeLineBatch(new Mesh("edge-style-test", scene), scene), slots);
+    }
+
+    function filled(batch: EdgeLineBatch, slots: number): EdgeLineBatch {
+        for (let i = 0; i < slots; i++) {
+            batch.place(batch.acquire(), SRC, DST);
+        }
+
+        return batch;
+    }
+
+    /**
+     * A batch of caps with every slot placed.
+     * @param billboard - Whether it reads direction, size and color per slot.
+     * @param slots - How many slots.
+     * @returns The batch.
+     */
+    function caps(billboard: boolean, slots = SLOTS): ArrowCapBatch {
+        const mesh = MeshBuilder.CreateBox("cap", {}, scene);
+        const batch = new ArrowCapBatch(mesh, "3d|test", scene, billboard);
+        for (let i = 0; i < slots; i++) {
+            batch.placeAt(batch.acquire(), SRC, DST);
+        }
+
+        return batch;
+    }
+
+    describe("ten hides in a large batch upload ten slots", () => {
+        const cases = [
+            { name: "plain", make: () => lines({}), floats: JOIN_FLOATS_PER_PIECE },
+            { name: "widened", make: () => lines({ widened: true }), floats: WIDENED_FLOATS_PER_PIECE },
+            { name: "expanded", make: () => lines({ expanded: true }), floats: JOIN_FLOATS_PER_PIECE * VERTICES },
+            { name: "matrix", make: () => matrixLines(), floats: MATRIX_FLOATS },
+            { name: "caps", make: () => caps(false), floats: MATRIX_FLOATS },
+        ];
+
+        for (const { name, make, floats } of cases) {
+            it(name, () => {
+                const batch = make();
+                settle();
+
+                for (const slot of TEN_SLOTS) {
+                    batch.setDrawn(slot, false);
+                }
+
+                assert.deepEqual(
+                    frame(),
+                    TEN_SLOTS.map(() => floats),
+                );
+            });
+        }
+
+        it("widened and expanded together, with static values", () => {
+            const batch = lines({ expanded: true, widened: true });
+            settle();
+
+            for (const slot of TEN_SLOTS) {
+                batch.setDrawn(slot, false);
+                batch.writeStatic(slot, new Float32Array(EDGE_STATIC_FLOATS).fill(slot));
+            }
+
+            assert.strictEqual(sum(frame()), 10 * VERTICES * (WIDENED_FLOATS_PER_PIECE + EDGE_STATIC_FLOATS));
+            assert.deepEqual([...(batch.staticOf(TEN_SLOTS[3]) ?? [])].slice(0, 1), [TEN_SLOTS[3]]);
+        });
+
+        it("caps with billboard buffers", () => {
+            const batch = caps(true);
+            settle();
+
+            for (const slot of TEN_SLOTS) {
+                batch.placeAt(slot, DST, SRC);
+                batch.setAppearance(slot, 2, "#ff0000");
+                batch.setClip(slot, 0.5);
+            }
+
+            // A matrix, a direction, a size, a color and a clip.
+            assert.strictEqual(sum(frame()), 10 * (MATRIX_FLOATS + 3 + 1 + 3 + 1));
+        });
+    });
+
+    describe("runs", () => {
+        it("merges neighbors however they arrive", () => {
+            const batch = lines({});
+            settle();
+
+            for (const slot of [502, 500, 501, 502, 700]) {
+                batch.setDrawn(slot, false);
+            }
+
+            assert.deepEqual(frame(), [3 * JOIN_FLOATS_PER_PIECE, JOIN_FLOATS_PER_PIECE]);
+        });
+
+        it("keeps the limit's worth of runs, and one more is a single whole upload", () => {
+            const batch = lines({});
+            settle();
+            const spaced = (count: number): void => {
+                for (let i = 1; i <= count; i++) {
+                    batch.setDrawn(i * 2, false);
+                }
+            };
+
+            spaced(MAX_RUNS);
+            assert.lengthOf(frame(), MAX_RUNS);
+
+            spaced(MAX_RUNS + 1);
+            assert.deepEqual(frame(), [SLOTS * JOIN_FLOATS_PER_PIECE]);
+        });
+
+        it("uploads whole past half the slots", () => {
+            const batch = lines({}, 100);
+            settle();
+
+            for (let i = 1; i <= 51; i++) {
+                batch.setDrawn(i * 1, false);
+            }
+
+            assert.deepEqual(frame(), [100 * JOIN_FLOATS_PER_PIECE]);
+        });
+
+        it("a layout pass is a whole upload", () => {
+            const batch = lines({}, 1_000);
+            settle();
+
+            for (let slot = 0; slot < 1_000; slot++) {
+                batch.place(slot, DST, SRC);
+            }
+
+            assert.deepEqual(frame(), [1_000 * JOIN_FLOATS_PER_PIECE]);
+        });
+
+        it("does nothing on a frame with nothing written", () => {
+            lines({}, 100);
+            settle();
+
+            assert.deepEqual(frame(), []);
+        });
+    });
+
+    describe("slot 0", () => {
+        it("a line batch gives a run at slot 0 its count", () => {
+            const batch = lines({});
+            settle();
+            const update = vi.spyOn(Buffer.prototype, "updateDirectly");
+
+            batch.setDrawn(0, false);
+            frame();
+
+            const [data, at, count] = update.mock.calls[0];
+            assert.strictEqual((data as Float32Array).length, JOIN_FLOATS_PER_PIECE);
+            assert.strictEqual(at, 0);
+            assert.strictEqual(count, 1, "with no count Babylon would keep this short view as the buffer's data");
+        });
+
+        for (const [name, make] of [
+            ["a matrix batch", () => matrixLines()],
+            ["a cap batch", () => caps(false)],
+        ] as const) {
+            it(`${name} uploads whole, because a thin-instance partial update takes no count`, () => {
+                const batch = make();
+                settle();
+                const partial = vi.spyOn(batch.mesh, "thinInstancePartialBufferUpdate");
+
+                batch.setDrawn(0, false);
+                batch.setDrawn(50, false);
+
+                assert.deepEqual(frame(), [SLOTS * MATRIX_FLOATS]);
+                assert.strictEqual(partial.mock.calls.length, 0);
+            });
+        }
+
+        it("a cap's billboard buffer still uploads only the run, with its count", () => {
+            const batch = caps(true);
+            settle();
+
+            batch.setClip(0, 0.25);
+
+            assert.deepEqual(frame(), [1]);
+        });
+    });
+
+    describe("an expanded batch repeats only the slots written", () => {
+        const WRITTEN = 10;
+        const UNTOUCHED = 20;
+
+        /**
+         * Mark two slots' rows of a per-vertex copy with a value no write leaves there.
+         * @param copy - The copy.
+         * @param width - Floats in a row.
+         * @returns Reads each slot's rows back: whether they still hold the mark.
+         */
+        function poison(copy: Float32Array, width: number): (slot: number) => boolean {
+            const rows = (slot: number): Float32Array =>
+                copy.subarray(slot * VERTICES * width, (slot + 1) * VERTICES * width);
+            rows(WRITTEN).fill(-1);
+            rows(UNTOUCHED).fill(-1);
+            return (slot) => rows(slot).every((value) => value === -1);
+        }
+
+        function copies(batch: EdgeLineBatch): { slots: Float32Array; statics: Float32Array } {
+            return (batch as unknown as { expanded: { slots: Float32Array; statics: Float32Array } }).expanded;
+        }
+
+        it("in its slots", () => {
+            const batch = lines({ expanded: true }, 64);
+            settle();
+            const poisoned = poison(copies(batch).slots, JOIN_FLOATS_PER_PIECE);
+
+            batch.setDrawn(WRITTEN, false);
+            frame();
+
+            assert.isFalse(poisoned(WRITTEN), "the slot written is copied");
+            assert.isTrue(poisoned(UNTOUCHED), "the slot not written is left alone");
+        });
+
+        it("in its static values", () => {
+            const batch = lines({ expanded: true, widened: true }, 64);
+            settle();
+            const poisoned = poison(copies(batch).statics, EDGE_STATIC_FLOATS);
+
+            batch.writeStatic(WRITTEN, new Float32Array(EDGE_STATIC_FLOATS).fill(5));
+            frame();
+
+            assert.isFalse(poisoned(WRITTEN), "the slot written is copied");
+            assert.isTrue(poisoned(UNTOUCHED), "the slot not written is left alone");
+        });
+    });
+
+    describe("a write the runs cannot answer for", () => {
+        for (const [name, make, floats] of [
+            ["lines", () => lines({}), JOIN_FLOATS_PER_PIECE],
+            ["caps", () => caps(false), MATRIX_FLOATS],
+        ] as const) {
+            it(`the switch turning on after a write in the same frame uploads ${name} whole`, () => {
+                const batch = make();
+                settle(false);
+
+                batch.setDrawn(10, false);
+                batchUploadFrames.rangedUploads(scene).on = true;
+                batch.setDrawn(20, false);
+
+                assert.deepEqual(frame(), [SLOTS * floats]);
+                batch.setDrawn(30, false);
+                assert.deepEqual(frame(), [floats], "the next frame is ranged");
+            });
+
+            it(`the switch turning off before the upload uploads ${name} whole`, () => {
+                const batch = make();
+                settle();
+
+                batch.setDrawn(10, false);
+                batchUploadFrames.rangedUploads(scene).on = false;
+
+                assert.deepEqual(frame(), [SLOTS * floats]);
+            });
+
+            it(`a restored context uploads ${name} whole`, () => {
+                const batch = make();
+                settle();
+
+                batch.setDrawn(10, false);
+                batchUploadFrames.contextRestored(scene);
+
+                assert.deepEqual(frame(), [SLOTS * floats]);
+            });
+        }
+
+        it("an expanded batch that grows uploads whole, since its copies start empty", () => {
+            const batch = lines({ expanded: true }, 32);
+            settle();
+
+            batch.setDrawn(3, false);
+            batch.place(batch.acquire(), SRC, DST);
+
+            assert.deepEqual(frame(), [33 * VERTICES * JOIN_FLOATS_PER_PIECE]);
+        });
+
+        it("a batch that grows keeps its runs, since the new buffer starts from the array", () => {
+            const batch = lines({}, 32);
+            settle();
+
+            batch.setDrawn(3, false);
+            batch.place(batch.acquire(), SRC, DST);
+
+            assert.deepEqual(frame(), [JOIN_FLOATS_PER_PIECE, JOIN_FLOATS_PER_PIECE]);
+        });
+    });
+
+    describe("with the switch off", () => {
+        it("a line batch makes today's one call", () => {
+            const batch = lines({}, 100);
+            settle(false);
+            const update = vi.spyOn(Buffer.prototype, "updateDirectly");
+
+            for (const slot of [10, 20, 30]) {
+                batch.setDrawn(slot, false);
+            }
+
+            frame();
+            assert.strictEqual(update.mock.calls.length, 1);
+            const [data, at, count] = update.mock.calls[0];
+            assert.isAbove((data as Float32Array).length, 100 * JOIN_FLOATS_PER_PIECE - 1);
+            assert.strictEqual((data as Float32Array).byteOffset, 0);
+            assert.strictEqual(at, 0);
+            assert.strictEqual(count, 100);
+        });
+
+        it("a matrix batch and a cap batch make today's one call", () => {
+            for (const batch of [matrixLines(100), caps(false, 100)]) {
+                settle(false);
+                const updated = vi.spyOn(batch.mesh, "thinInstanceBufferUpdated");
+                const partial = vi.spyOn(batch.mesh, "thinInstancePartialBufferUpdate");
+
+                batch.setDrawn(10, false);
+                batch.setDrawn(20, false);
+                frame();
+
+                assert.deepEqual(updated.mock.calls, [["matrix"]]);
+                assert.strictEqual(partial.mock.calls.length, 0);
+            }
+        });
+
+        it("a billboard buffer makes today's one call for each buffer written", () => {
+            const batch = caps(true, 100);
+            settle(false);
+
+            batch.setClip(10, 0.5);
+            batch.setClip(20, 0.5);
+
+            assert.deepEqual(frame(), [100]);
+        });
+    });
+});

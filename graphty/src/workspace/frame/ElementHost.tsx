@@ -69,14 +69,15 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
     const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
     const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
-    const layoutBehavior = useMemo(
+    const layoutBehavior = useMemo<NonNullable<GraphtyElement["layoutBehavior"]>>(
         () => ({
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
             node: { depthIndependentSize: sameSize, ...(outlineWidth === null ? {} : { outlineWidth }) },
             rendering: { onDemand: true },
-            // The inspector opens beside the canvas and narrows it, before or after the first
-            // framing is final; framing again on a resize draws the same picture either way (#5097).
-            camera: { pivotOnSelection: true, refitOnResize: true },
+            // A pick moves the camera; a filter card's Select or an undo does not. The inspector
+            // opens beside the canvas and narrows it, before or after the first framing is final;
+            // framing again on a resize draws the same picture either way (#5097).
+            camera: { pivotOnSelection: true, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
         }),
         [allLabelsShown, labelsAvoid, sameSize, outlineWidth],
     );
@@ -101,7 +102,10 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         }
 
         const place = (): void => {
-            element.attributionOffset = Math.max(0, canvas.clientHeight - dock.offsetTop + TOOLBAR_GAP);
+            // A hidden toolbar (under the selection workspace) leaves the attribution at the edge.
+            element.attributionOffset = dock.hidden
+                ? 0
+                : Math.max(0, canvas.clientHeight - dock.offsetTop + TOOLBAR_GAP);
         };
         place();
         const observer = new ResizeObserver(place);

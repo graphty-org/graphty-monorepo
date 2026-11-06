@@ -6,13 +6,15 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, measureArrow } from "./associate";
+import { arrowheadEdge, associate, measureArrow } from "./associate";
 import { compareOracle } from "./compare-oracle";
 import {
     arrowShapeOf,
     boxOfPoints,
     type PArrow,
     type PEdge,
+    piecedArrowShapeOf,
+    type PNode,
     type Prim,
     type PScene,
     type Pt,
@@ -55,13 +57,17 @@ const WEDGE: Pt[] = [
     [263, 100],
 ];
 
+/** The one pixel stroke yEd draws its arrowheads' lines in. */
+const thin: NonNullable<Prim["stroke"]> = { color: "#505050", opacity: 1, width: 1, dash: null, dashClass: "solid" };
+
 /**
  * What the reader finds of an oracle drawing of a -> b: its line and one filled head at b's end.
  * @param line - the line's points
  * @param head - the head's outline, filled
+ * @param stroked - the stroke the head is drawn with instead of a fill
  * @returns the scene read
  */
-function read(line: Pt[], head: Pt[]): PScene {
+function read(line: Pt[], head: Pt[], stroked?: Prim["stroke"], strokes: readonly Pt[][] = [], pen = thin): PScene {
     let index = 0;
     const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
         index: index++,
@@ -88,7 +94,16 @@ function read(line: Pt[], head: Pt[]): PScene {
             points: line,
             stroke: { color: "#505050", opacity: 1, width: 1.5, dash: null, dashClass: "solid" },
         }),
-        prim({ tag: "path", points: head, fill: paint }),
+        ...(head.length === 0
+            ? []
+            : [
+                  prim({
+                      tag: "path",
+                      points: head,
+                      ...(stroked === undefined ? { fill: paint } : { stroke: stroked }),
+                  }),
+              ]),
+        ...strokes.map((points) => prim({ tag: "line", kind: "path", closed: false, points, stroke: pen })),
     ];
     const hint: PScene = {
         side: "graphty",
@@ -210,6 +225,24 @@ describe("vis-network's crow", () => {
         [134.03, -715.83],
     ];
 
+    it("reads a bar drawn as a stroke across the line as a solid tee as long as its stroke is wide", () => {
+        // yEd's dash on a line running aslant: a line there and back, its coordinates rounded to four places
+        const bar: Pt[] = [
+            [281.8395, 95.5659],
+            [281.8399, 104.5617],
+            [281.8395, 95.5659],
+        ];
+        assert.strictEqual(arrowShapeOf(bar, [1, 0]), "tee");
+        const stroke = { color: "#333333", opacity: 1, width: 1, dash: null, dashClass: "solid" } as const;
+        const line: Pt[] = [
+            [120, 100],
+            [281, 100],
+        ];
+        const [head] = read(line, bar, stroke).edges[0]?.arrows ?? [];
+        assert.deepEqual([head.shape, head.filled, head.length, head.color], ["tee", true, 1, "#333333"]);
+        assert.closeTo(head.width, 9, 0.01);
+    });
+
     it("reads a vee turned back as no crow's foot, and a crow with a tine along the line as one", () => {
         assert.strictEqual(arrowShapeOf(visCrow, [1, 0]), "inverted-vee");
         assert.strictEqual(arrowShapeOf(graphvizCrow, [1, 0]), "crow");
@@ -222,5 +255,175 @@ describe("vis-network's crow", () => {
         );
         assert.strictEqual(o.edges[0]?.arrows[0]?.shape, "inverted-vee");
         assert.deepEqual(failing(o, graphtyAs(o, { shape: "crow" })), ["edge.arrowShape"]);
+    });
+
+    /** yEd's line, stopped 9 px short of b's outline at x 280 where a crow's foot's fork stands, as `<line>` elements. */
+    const stopped: Pt[] = [
+        [120, 100],
+        [271, 100],
+    ];
+
+    it("reads yEd's crow's foot, three strokes from one fork, as one crow", () => {
+        // yed-graphml-specimen-arrows: three <line>s from (-10, 0) to (2, 8), (2, 0) and (2, -8) off the line's end
+        const fork: Pt = [270, 100];
+        const tines: Pt[][] = [
+            [fork, [282, 108]],
+            [fork, [282, 100]],
+            [fork, [282, 92]],
+        ];
+        const [head, ...more] = read(stopped, [], undefined, tines).edges[0]?.arrows ?? [];
+        assert.lengthOf(more, 0);
+        assert.deepEqual([head.end, head.shape, head.length, head.width], ["target", "crow", 12, 16]);
+    });
+
+    it("reads yEd's concave arrow, two strokes from its tip, as one open vee", () => {
+        // yed-graphml-specimen-arrows: M0 0 Q-6 0 -10 -6 and M0 0 Q-6 0 -10 6 at the line's end
+        const arm = (side: number): Pt[] => [
+            [280, 100],
+            [274.5, 100 + 0.75 * side],
+            [270, 100 + 6 * side],
+        ];
+        const [head] = read(stopped, [], undefined, [arm(1), arm(-1)]).edges[0]?.arrows ?? [];
+        assert.deepEqual([head.shape, head.filled, head.length, head.width], ["vee", false, 10, 12]);
+    });
+
+    it("reads one stroke across a line's end as a bar, and two as two parts", () => {
+        // yed-graphml-specimen-arrows crows_foot_one_mandatory: <line>s 6 and 15 back, 16 long, the line running on
+        const bar = (x: number): Pt[] => [
+            [x, 92],
+            [x, 108],
+        ];
+        const toNode: Pt[] = [
+            [120, 100],
+            [280, 100],
+        ];
+        const heads = read(toNode, [], undefined, [bar(274), bar(265)]).edges[0]?.arrows ?? [];
+        assert.deepEqual(
+            heads.map((h) => [h.shape, h.filled]),
+            [
+                ["tee", true],
+                ["tee", true],
+            ],
+        );
+    });
+
+    it("reads a row of a bar and a circle behind it from the line's end back", () => {
+        // yed-graphml-specimen-arrows crows_foot_one_optional: a bar 6 back and a circle 15 back, the circle nearer the
+        // bar's ends than the line's end
+        const toNode: Pt[] = [
+            [120, 100],
+            [280, 100],
+        ];
+        const bar: Pt[] = [
+            [274, 92],
+            [274, 108],
+        ];
+        const heads = read(toNode, disc(265, 100, 5), thin, [bar]).edges[0]?.arrows ?? [];
+        assert.deepEqual(
+            heads.map((h) => h.shape),
+            ["tee", "circle"],
+        );
+    });
+
+    it("counts a bar behind a crow's foot as a part, though it is one pixel deep", () => {
+        const fork: Pt = [270, 100];
+        const strokes: Pt[][] = [
+            [fork, [282, 108]],
+            [fork, [282, 100]],
+            [fork, [282, 92]],
+            [
+                [265, 92],
+                [265, 108],
+            ],
+        ];
+        const o = read(stopped, [], undefined, strokes);
+        assert.deepEqual(
+            o.edges[0]?.arrows.map((h) => h.shape),
+            ["crow", "tee"],
+        );
+        assert.notInclude(failing(o, o), "edge.arrowParts");
+    });
+
+    it("leaves another line's strokes and a fork with no head's shape unread as this line's head", () => {
+        const fork: Pt = [270, 100];
+        const tines: Pt[][] = [
+            [fork, [282, 108]],
+            [fork, [282, 92]],
+        ];
+        const other = { ...thin, color: "#ff0000" };
+        assert.lengthOf(read(stopped, [], undefined, tines, other).edges[0]?.arrows ?? [], 0);
+        // both strokes to one side of the line: half an arrow's shape, no open arrow's arms
+        const aside: Pt[][] = [
+            [fork, [282, 120]],
+            [fork, [282, 100]],
+        ];
+        assert.lengthOf(read(stopped, [], undefined, aside).edges[0]?.arrows ?? [], 0);
+    });
+
+    it("leaves a short stroke along a line or off its end unread as a head", () => {
+        const stub: Pt[] = [
+            [262, 100],
+            [271, 100],
+        ];
+        assert.lengthOf(read(stopped, [], undefined, [stub]).edges[0]?.arrows ?? [], 0);
+    });
+
+    it("reads two strokes crossing on the line as a cross, solid, in its stroke's color", () => {
+        // yEd's cross: one path M177 309 L185 317 Z M185 309 L177 317 Z, filled black, stroked in the line's color
+        const pieces: Pt[][] = [
+            [
+                [272, 96],
+                [280, 104],
+            ],
+            [
+                [280, 96],
+                [272, 104],
+            ],
+        ];
+        assert.strictEqual(piecedArrowShapeOf(pieces, [1, 0]), "cross");
+        const notCrossing: Pt[][] = [pieces[0], pieces[0].map(([x, y]): Pt => [x + 8, y])];
+        assert.isNull(piecedArrowShapeOf(notCrossing, [1, 0]));
+    });
+
+    it("takes a head centered exactly on a small node's outline for its line's, not the node's", () => {
+        // yed-graphml-specimen-arrows transparent_circle: a disc 8 across on the outline of a node 10 across
+        const n: PNode = {
+            id: "n",
+            cx: 338,
+            cy: 641,
+            w: 10,
+            h: 10,
+            shape: "ellipse",
+            fill: null,
+            stroke: null,
+            label: null,
+        };
+        const e: PEdge = {
+            id: "n->m#g0",
+            source: "n",
+            target: "m",
+            points: [
+                [343, 641],
+                [409, 641],
+            ],
+            stroke: null,
+            arrows: [],
+            label: null,
+        };
+        const ring: Prim = {
+            index: 0,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(disc(343, 641, 4)),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: thin,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            points: disc(343, 641, 4),
+        };
+        assert.strictEqual(arrowheadEdge(ring, [e], [n])?.end, "source");
     });
 });

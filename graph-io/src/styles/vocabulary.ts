@@ -28,7 +28,8 @@ export type StyleValueKind =
     | "weight"
     | "textAlign"
     | "position"
-    | "labelFit";
+    | "labelFit"
+    | "labelBox";
 
 /**
  * The value kind of every neutral property, per target.
@@ -58,6 +59,9 @@ export const STYLE_PROPERTIES: {
         ["fillGradientColors", "text"],
         ["fillGradientStops", "text"],
         ["fillGradientKind", "text"],
+        ["fillGradientCenterX", "signed"],
+        ["fillGradientCenterY", "signed"],
+        ["fillGradientRadius", "number"],
         ["labelSize", "number"],
         ["labelWrapWidth", "number"],
         ["labelWrapTrailingSpace", "boolean"],
@@ -96,6 +100,9 @@ export const STYLE_PROPERTIES: {
         ["outerBorderStyle", "borderStyle"],
         ["outerBorderOffset", "number"],
         ["outerBorderCount", "number"],
+        ["raisedBorderWidth", "number"],
+        ["raisedBorderLightColor", "color"],
+        ["raisedBorderDarkColor", "color"],
         ["underlayColor", "color"],
         ["underlayOpacity", "opacity"],
         ["underlayPadding", "number"],
@@ -134,6 +141,7 @@ export const STYLE_PROPERTIES: {
         ["labelPadding", "number"],
         ["labelCornerRadius", "number"],
         ["labelLineHeight", "number"],
+        ["labelBox", "labelBox"],
         ["image", "text"],
         ["imageFit", "text"],
         ["imageFallback", "text"],
@@ -167,6 +175,7 @@ export const STYLE_PROPERTIES: {
         ["stripeOpacities", "text"],
         ["stripeDirection", "text"],
         ["stripeSize", "number"],
+        ["stripeFrame", "text"],
         ["chartKind", "text"],
         ["chartValues", "text"],
         ["chartColors", "text"],
@@ -292,6 +301,7 @@ export const STYLE_PROPERTIES: {
         ["labelOutlineOpacity", "opacity"],
         ["labelBorderOpacity", "opacity"],
         ["labelPadding", "number"],
+        ["labelTable", "text"],
         ["labelCornerRadius", "number"],
         ["labelLineHeight", "number"],
         ["sourceLabel", "text"],
@@ -370,6 +380,7 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
     ["weight", ["normal", "bold"]],
     ["textAlign", ["left", "center", "right"]],
     ["labelFit", ["inside", "bounds"]],
+    ["labelBox", ["words", "words-at-side", "target-width"]],
     [
         "position",
         [

@@ -125,7 +125,14 @@ describe("the layer panel's behavior", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
+        // The cards of two selected layers: one alone opens the selection editor.
+        await userEvent.keyboard("{Control>}");
+        await userEvent.click(await treeRow("Everything"));
+        await userEvent.keyboard("{/Control}");
         if (screen.queryByRole("combobox", { name: "Find an attribute" }) === null) {
+            if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
+                await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+            }
             const nodes = await screen.findByRole("group", { name: "Which nodes" });
             await userEvent.click(within(nodes).getByRole("button", { name: "Add a condition" }));
         }

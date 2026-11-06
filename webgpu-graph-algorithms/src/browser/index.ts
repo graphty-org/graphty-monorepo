@@ -5,11 +5,13 @@
  */
 
 import { GpuContext } from "../context.js";
+import { captureCaps } from "../device/caps.js";
 import { WebGpuGraphError } from "../errors.js";
 import { manageAccelerator } from "../managed.js";
 import type { GpuContextOptions, ProbeResult } from "../types/context.js";
 import type { AcquireAcceleratorOptions, ManagedAccelerator } from "../types/managed.js";
 
+export { summarizeAdapter } from "../device/acquire.js";
 export type {
     AcceleratorDeclined,
     AcceleratorReady,
@@ -67,6 +69,24 @@ export function requestGpuContext(options?: BrowserGpuOptions): Promise<GpuConte
 }
 
 /**
+ * A context on a device someone else owns and draws with: the caps a device of our own would have, so the same
+ * kernels are chosen, and no uncaptured-error sink, because that device's errors are the owner's. A browser
+ * whose device has no `adapterInfo` (Safari, Chromium before 132) leaves the adapter's names empty and the
+ * subgroup sizes 0, which the kernels floor to the smallest size any adapter has.
+ * @param device - the device
+ * @returns the context
+ */
+function adoptDevice(device: GPUDevice): GpuContext {
+    const wgslFeatures = navigatorGpu()?.wgslLanguageFeatures ?? [];
+    const { adapterInfo } = device as { adapterInfo?: GPUAdapterInfo };
+    const caps =
+        adapterInfo === undefined
+            ? { runtime: "browser" as const, wgslFeatures: new Set<string>(wgslFeatures) }
+            : captureCaps(device, adapterInfo, "browser", wgslFeatures);
+    return GpuContext.from(device, caps, { errorSink: false });
+}
+
+/**
  * The managed accelerator on navigator.gpu: probe, context, device self-check and accelerator on the first
  * `current()`, a new device after a loss, disposal by `dispose()`. A software adapter is declined unless
  * `acceptSoftware` is set. The same function as the `./acquire` subpath resolves to in a browser.
@@ -76,14 +96,19 @@ export function requestGpuContext(options?: BrowserGpuOptions): Promise<GpuConte
 export function acquireAccelerator(options?: AcquireAcceleratorOptions): ManagedAccelerator {
     return manageAccelerator(
         {
-            probe: (o, rejectSoftware) => probeBrowserWebGpu({ powerPreference: o.powerPreference, rejectSoftware }),
-            open: (o, probe, rejectSoftware) =>
-                requestGpuContext({
-                    adapter: probe.adapter ?? undefined,
-                    powerPreference: o.powerPreference,
-                    rejectSoftware,
-                    warnUnreleasedSnapshots: o.warnUnreleasedSnapshots,
-                }),
+            probe: (o, rejectSoftware) =>
+                o.device === undefined
+                    ? probeBrowserWebGpu({ powerPreference: o.powerPreference, rejectSoftware })
+                    : Promise.resolve({ ok: true, code: "OK", reason: null, adapter: null, summary: null }),
+            open: async (o, probe, rejectSoftware) =>
+                o.device === undefined
+                    ? requestGpuContext({
+                          adapter: probe.adapter ?? undefined,
+                          powerPreference: o.powerPreference,
+                          rejectSoftware,
+                          warnUnreleasedSnapshots: o.warnUnreleasedSnapshots,
+                      })
+                    : adoptDevice(o.device),
             noWebGpuFix: () =>
                 (globalThis as { isSecureContext?: boolean }).isSecureContext === false
                     ? "serve the page over https or from localhost: WebGPU needs a secure context"

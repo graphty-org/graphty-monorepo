@@ -117,14 +117,35 @@ describe("estimateCost: the synchronous answer", () => {
 
     it("uses the pair term for a heavy algorithm", () => {
         const estimate = estimateCost({
-            algorithm: "girvan-newman",
-            descriptor: algorithmByKey("girvan-newman"),
+            algorithm: "markov-clustering",
+            descriptor: algorithmByKey("markov-clustering"),
             statistics: statistics(),
         });
 
         assert.equal(estimate.costClass, "heavy");
         assert.closeTo(estimate.seconds, (1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
         assert.include(estimate.basis, "n * m");
+    });
+
+    it("charges Girvan-Newman a betweenness pass per round, up to its round bound", () => {
+        const estimate = estimateCost({
+            algorithm: "girvan-newman",
+            descriptor: algorithmByKey("girvan-newman"),
+            statistics: statistics({ nodeCount: 4000 }),
+        });
+        // The default bound is 1,000 rounds, each one edge betweenness over n = 4,000, m = 4,000.
+        const round = (4000 * (4000 + 4000)) / (11 * DEFAULT_COST_RATES.heavyPairsPerSecond);
+
+        assert.equal(estimate.costClass, "heavy");
+        assert.closeTo(estimate.seconds, 1000 * round, 1e-6);
+        assert.isAbove(estimate.seconds, 60, "minutes, never the 6 seconds one round would take");
+        const capped = estimateCost({
+            algorithm: "girvan-newman",
+            descriptor: algorithmByKey("girvan-newman"),
+            statistics: statistics({ nodeCount: 4000 }),
+            params: { maxIterations: 3 },
+        });
+        assert.closeTo(capped.seconds, 3 * round, 1e-9);
     });
 
     it("charges betweenness one BFS per source rather than the class' pair term", () => {

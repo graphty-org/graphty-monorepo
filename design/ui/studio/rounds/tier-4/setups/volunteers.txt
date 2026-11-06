@@ -1,0 +1,7 @@
+# volunteers.graphml open (24 volunteers), ranked by PageRank as Grace left it last time
+--click Open a file
+--upload volunteers.graphml
+--key Shift+A
+--type PageRank
+--click PageRank
+--click Run

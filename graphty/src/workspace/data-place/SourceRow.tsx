@@ -1,13 +1,15 @@
-import { ContextMenu, EntityChip } from "@graphty/compact-mantine";
+import { ContextMenu, EntityChip, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { LoadedSource } from "@graphty/graphty-element/session";
-import { ActionIcon, Menu, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Menu, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import type { SourceRowCommand } from "../commands/registry";
+import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { joinMatch, serverCount, sourceName } from "./words";
+import { IssuesList } from "../table/IssuesList";
+import { countWords, joinMatch, joinWords, serverCount, sourceName } from "./words";
 
 const KIND_ICONS: Readonly<Record<LoadedSource["kind"], React.ReactNode>> = {
     file: <GLYPHS.file size={14} aria-hidden />,
@@ -25,6 +27,21 @@ const HOVER_ICONS: Readonly<Record<NonNullable<SourceRowCommand["icon"]>, React.
 /** The row's own Rename, listed among the registered commands. */
 const RENAME_ORDER = 80;
 
+/** The glyph each row menu item draws before its label, as the Style "+" items do. */
+const ITEM_GLYPHS: Readonly<Record<string, React.ReactNode>> = {
+    "source.edit-join": <GLYPHS.join size={14} aria-hidden />,
+    "source.replace": <GLYPHS.upload size={14} aria-hidden />,
+    "source.load-more": <GLYPHS.loadMore size={14} aria-hidden />,
+    "source.refresh": <GLYPHS.refresh size={14} aria-hidden />,
+    "source.select-nodes": <GLYPHS.selection size={14} aria-hidden />,
+    "source.rename": <GLYPHS.rename size={14} aria-hidden />,
+    "source.export": <GLYPHS.saveLocal size={14} aria-hidden />,
+    "source.remove": <GLYPHS.delete size={14} aria-hidden />,
+};
+
+/** The key shown at an item's right: the window key that does the same, or the row's own F2. */
+const ITEM_KEYS: Readonly<Record<string, string>> = { "source.export": "Mod+E", "source.rename": "F2" };
+
 /**
  * The name being edited in place: Enter or leaving it commits, Escape cancels.
  * @param props - Component props
@@ -38,6 +55,8 @@ function RenameInput({
 }: Readonly<{ name: string; onDone: (name: string | null) => void }>): React.JSX.Element {
     const [text, setText] = useState(name);
     const input = useRef<HTMLInputElement>(null);
+    // Tab leaves the field for the row's next control, which commits: no keyboard trap.
+    const tabbing = useRef(false);
     // Focused once the menu that opened it has closed and handed focus back to its button, so
     // that hand-back is not taken as leaving the field.
     useEffect(() => {
@@ -63,7 +82,11 @@ function RenameInput({
                 // The menu that opened it hands focus back to its button in the same row, and the
                 // window losing focus blurs the field too: neither is the reader leaving it.
                 const to = event.relatedTarget;
-                if (to instanceof Node && event.currentTarget.closest(".dp-source")?.contains(to) === true) {
+                if (
+                    !tabbing.current &&
+                    to instanceof Node &&
+                    event.currentTarget.closest(".dp-source")?.contains(to) === true
+                ) {
                     event.currentTarget.focus();
                     return;
                 }
@@ -72,6 +95,7 @@ function RenameInput({
                 }
             }}
             onKeyDown={(event) => {
+                tabbing.current = event.key === "Tab";
                 if (event.key === "Enter") {
                     onDone(text);
                 } else if (event.key === "Escape") {
@@ -83,10 +107,98 @@ function RenameInput({
 }
 
 /**
+ * The row's warning chip: the load's open issues, counted; it opens the one issue list
+ * (`IssuesList`, the table's) for that load in a popover on the row. It stays while the popover is
+ * open, so settling the last issue leaves the list and the focus where they are.
+ * @param props - Component props
+ * @param props.source - the load
+ * @param props.name - its name
+ * @returns the chip, or null when the load has no open issue
+ */
+function IssuesChip({ source, name }: Readonly<{ source: LoadedSource; name: string }>): React.JSX.Element | null {
+    const { session } = useWorkspace();
+    const [opened, setOpened] = useState(false);
+    const count = session?.data.issues().filter((issue) => issue.source === source.key).length ?? 0;
+    if (count === 0 && !opened) {
+        return null;
+    }
+    // Every issue fixed while the list is open: a check, not a warning reading "0".
+    const done = count === 0;
+    const issues = `${String(count)} ${count === 1 ? "issue" : "issues"} in ${name}`;
+    const icon = done ? (
+        <GLYPHS.check size={14} aria-hidden />
+    ) : (
+        <GLYPHS.warning size={14} className="ws-issue-icon" aria-hidden />
+    );
+    return (
+        <PopoutManager>
+            <Popout opened={opened} onOpenChange={setOpened}>
+                <Popout.Trigger>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        color={done ? "gray" : "yellow"}
+                        className="dp-source-issues"
+                        leftSection={icon}
+                        aria-label={done ? `No issues left in ${name}` : issues}
+                        aria-haspopup="dialog"
+                        aria-expanded={opened}
+                    >
+                        {done ? null : formatNumber(count)}
+                    </Button>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={360}
+                    placement="right"
+                    alignment="start"
+                    header={{ variant: "title", title: `Issues in ${name}` }}
+                >
+                    <Popout.Content>
+                        <IssuesList source={source.key} />
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        </PopoutManager>
+    );
+}
+
+/**
+ * A Sources row's count chips, named in words ("13 nodes, 18 edges"); none for a count of 0.
+ * @param props - Component props
+ * @param props.source - the load
+ * @returns the chips, or nothing
+ */
+function SourceCounts({ source }: Readonly<{ source: LoadedSource }>): React.JSX.Element | null {
+    const counted = countWords(source);
+    if (counted === "") {
+        return null;
+    }
+    return (
+        <>
+            <Tooltip label={counted}>
+                <span className="dp-source-chips" aria-hidden>
+                    {source.counts.nodes === 0 ? null : (
+                        // A server load's chip reads "100 of 171" when its source says how many it holds.
+                        <EntityChip kind="node">{serverCount(source.counts.nodes, source.total)}</EntityChip>
+                    )}
+                    {source.counts.edges === 0 ? null : (
+                        <EntityChip kind="edge">{formatNumber(source.counts.edges)}</EntityChip>
+                    )}
+                </span>
+            </Tooltip>
+            <VisuallyHidden>{counted}</VisuallyHidden>
+        </>
+    );
+}
+
+/**
  * One Sources row (spec section 3.2): the kind's icon, the name, the node and edge chips (none for
- * a count of 0); a joined table's link and matched rows; a server load's node chip "500 of 40,000". On hover
- * or focus, Load more, Refresh and "..." take the chips' place, and a running one stays drawn busy. Its menu (right-click, Shift+F10 or "...") lists every registered Sources row command
- * that applies, and Rename.
+ * a count of 0, named "13 nodes, 18 edges"); a joined table's matched rows when some did not join; a
+ * server load's node chip "500 of 40,000". The name gives way last and shows in full in a tooltip.
+ * On hover or focus, Load more, Refresh and "..." appear after the chips, and a running one stays
+ * drawn busy. Its menu (right-click, Shift+F10 or "...") lists every registered Sources row command
+ * that applies, and Rename. A load with open issues shows a warning chip with their count, which
+ * opens its issue list.
  * @param props - Component props
  * @param props.source - the load
  * @param props.selected - whether it is the selected row
@@ -134,9 +246,14 @@ export function SourceRow({
     };
     const match = joinMatch(source);
     const menuItems = items.map((item) => (
-        <Menu.Item key={item.id} onClick={item.run}>
-            {item.label}
-        </Menu.Item>
+        <CommandMenuItem
+            key={item.id}
+            icon={ITEM_GLYPHS[item.id]}
+            label={item.label}
+            shortcut={ITEM_KEYS[item.id]}
+            reason={null}
+            onRun={item.run}
+        />
     ));
 
     return (
@@ -153,27 +270,40 @@ export function SourceRow({
                     {renaming ? (
                         <RenameInput name={name} onDone={rename} />
                     ) : (
-                        <button type="button" className="dp-source-main" aria-pressed={selected} onClick={onSelect}>
+                        <button
+                            type="button"
+                            className="dp-source-main"
+                            aria-pressed={selected}
+                            onClick={onSelect}
+                            // A double-click or F2 renames the row, as in the layer tree; its menu shows the key.
+                            onDoubleClick={() => {
+                                setRenaming(true);
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "F2") {
+                                    event.preventDefault();
+                                    setRenaming(true);
+                                }
+                            }}
+                        >
                             <span className="dp-source-icon">{KIND_ICONS[source.kind]}</span>
-                            <span className="dp-source-name">{name}</span>
-                            {match === null ? null : (
-                                <span className="dp-quiet" aria-label={`${match} matched`}>
-                                    {match}
-                                </span>
-                            )}
-                            <span className="dp-source-chips">
-                                {source.counts.nodes === 0 ? null : (
-                                    // A server load's chip reads "100 of 171" when its source says how many it holds.
-                                    <EntityChip kind="node">
-                                        {serverCount(source.counts.nodes, source.total)}
-                                    </EntityChip>
-                                )}
-                                {source.counts.edges === 0 ? null : (
-                                    <EntityChip kind="edge">{formatNumber(source.counts.edges)}</EntityChip>
+                            <span className="dp-source-label">
+                                <Tooltip label={name} openDelay={500}>
+                                    <span className="dp-source-name">{name}</span>
+                                </Tooltip>
+                                {match === null ? null : (
+                                    <Tooltip label={joinWords(source)}>
+                                        <span className="dp-quiet" aria-hidden>
+                                            {match}
+                                        </span>
+                                    </Tooltip>
                                 )}
                             </span>
+                            {match === null ? null : <VisuallyHidden>{joinWords(source)}</VisuallyHidden>}
+                            <SourceCounts source={source} />
                         </button>
                     )}
+                    {renaming ? null : <IssuesChip source={source} name={name} />}
                     <span className="dp-source-actions">
                         {commands.flatMap((command) =>
                             command.icon === undefined
@@ -200,7 +330,12 @@ export function SourceRow({
                         )}
                         <Menu position="bottom-end">
                             <Menu.Target>
-                                <ActionIcon variant="subtle" size="sm" aria-label={`${name} menu`}>
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    className="dp-source-more"
+                                    aria-label={`${name} menu`}
+                                >
                                     <GLYPHS.more size={14} aria-hidden />
                                 </ActionIcon>
                             </Menu.Target>

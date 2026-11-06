@@ -344,6 +344,27 @@ describe("session.shaders", () => {
         assert.lengthOf(s.shaders.list(), 0);
     });
 
+    it("does not hold a check its disposed host abandoned against the next host", async () => {
+        const { session: s } = await session();
+        const controller = shadersControllerOf(s);
+        const taken = fakeHost();
+        const asked = new Promise<(error: Error) => void>((answer) => {
+            taken.check = () =>
+                new Promise((_resolve, reject) => {
+                    answer(reject);
+                });
+        });
+        controller?.attach(taken);
+        const checking = s.shaders.check(TINT);
+        const abandon = await asked;
+
+        controller?.attach(fakeHost());
+        abandon(new Error("The graph was disposed."));
+        await checking;
+
+        assert.isTrue((await s.shaders.check(TINT)).ok, "the next host compiles the text itself");
+    });
+
     it("is ready once the host passes it, and turns off when the GPU is lost while it drew", async () => {
         const { session: s } = await session();
         const host = fakeHost();

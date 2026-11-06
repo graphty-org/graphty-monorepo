@@ -182,7 +182,7 @@ async function drag(scene: Drawn, id: string): Promise<void> {
     }
 
     const steps = scene.session.history.steps.length;
-    const start = node.mesh.position.clone();
+    const start = node.drawnPosition.clone();
     handler.onDragStart(start);
     handler.onDragUpdate(start.add(new Vector3(40, 30, 0)));
     handler.onDragEnd();

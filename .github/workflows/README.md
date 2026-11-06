@@ -63,6 +63,7 @@ the existing semver ranges, or none. An agent adds its fresh review by running `
 | `dependency-review.yml`, `dependabot-automerge.yml`             | Advisories against the dependencies a pull request changes; auto-merge for Dependabot's security updates                                                                                                                                                                                           |
 | `results-service.yml`                                           | Deploys the results store, the release scheduler and the nx remote cache Workers from master                                                                                                                                                                                                       |
 | `pipeline-health.yml`, `pipeline-health-pages.yml`              | Tests the pipeline health backend; publishes https://health.graphty.app                                                                                                                                                                                                                            |
+| `render-proof.yml`                                              | By dispatch on a branch: the whole of the `render-parity` and `forced-batched` test projects (design/rendering/row-renderer.md 7); gates nothing                                                                                                                                                   |
 | `restricted-cpu-stress.yml`                                     | Weekly: every gating shard under half the runner's CPU; files one issue per load-sensitive test                                                                                                                                                                                                    |
 | `gpu-weekly-paired.yml`                                         | Weekly: the paired T4 benchmark, master against the latest release                                                                                                                                                                                                                                 |
 | `links-weekly.yml`                                              | Weekly: every external link; one `dead-links` issue                                                                                                                                                                                                                                                |
@@ -93,6 +94,10 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
   in `release-approvals.json`.
 - **Verdict**, written to the store: `green-clean`, `green-images`, `red` or `owner-item`. A red attempt 1 is
   re-run once on the same commit (`release-rerun.yml`) before anything is filed.
+- **Owner item**: a lane that failed on an account, not on code, so no code change fixes it: the LLM lane's refused
+  key or balance, or the T4 job refused by machine.dev before it ran (a failed step named `Machine: <why>`, such as
+  out of credit). Nothing is re-run, bisected or filed as red; the owner hears why through `Release status`. Once
+  the account is restored, `gh run rerun <run id> --failed` tests the lane again, and passing is not filed as flaky.
 - **Red**: one "Full run red: <lane> on <sha>" issue (`bug`, `priority:critical`) and one `bisect.yml` run,
   which names the merge to revert or fix forward. A merge whose message says `Fixes #N` for that issue starts a
   restart at once (`mode: restart`, from ci.yml's `release-due`) and closes it; `Refs #N` lets the red run finish
@@ -113,7 +118,8 @@ from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candi
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
 head promotes to nightly; a green-images one when the owner's screenshot approval merges
-(`mode: promote-nightly`). The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
+(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `rejected`, comments the
+gate's reason on the "Nightly held on" issue (opening one when the store names none) and fails the run. The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
 nothing and the next full run undoes it): anyone's `gh workflow run nightly-abandon.yml --ref master -f
 reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
 capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master
@@ -162,9 +168,10 @@ expires after 2 days (https://docs.npmjs.com/trusted-publishers/):
 The shards, their commands, groups and measured durations are in `tools/ci-test-matrix.mjs`
 (`./tools/run-tests.sh --list`). A pull request runs only the shards of affected packages, and within a shard
 only the selected test files where `test-select-rules.json` allows file-level selection; the full run runs all
-of them (27 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
+of them (31 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
 nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affects only the packages whose
-resolved dependencies changed. `graphty-element-lifecycle` runs only in the full run.
+resolved dependencies changed. `graphty-element-lifecycle` and `graphty-element-fidelity-1` to `-4` (the style
+fidelity gate over every oracle, in four slices) run only in the full run.
 
 ## Visual review
 

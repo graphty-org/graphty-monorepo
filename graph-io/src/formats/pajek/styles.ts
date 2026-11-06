@@ -397,6 +397,9 @@ const PAJEK_OUTLINES: ReadonlyMap<string, readonly (readonly [number, number])[]
 /** A diamond's `q` where the line sets none (Pajek's shipped SHAPES.CFG). */
 const PAJEK_DIAMOND_Q = 0.001;
 
+/** The shapes `phi` turns whole, about their center (`shapeRotation`), where it turns no corners. */
+const TURNED_WHOLE: ReadonlySet<string> = new Set(["ellipse", "other:cross", "other:man", "other:woman"]);
+
 /**
  * A vertex's outline where Pajek draws one no named shape is: a diamond is Pajek's six-cornered one, its top and bottom
  * cut `q` of its half width wide (`pajek-specimen-node-shapes`: `q 0.001` by default, `q 0.5` a hexagon, `q 1` a
@@ -405,10 +408,9 @@ const PAJEK_DIAMOND_Q = 0.001;
  * it). ponytail: the corners are fractions of the size the line gives (`x_fact`, `y_fact`); a turned shape whose width
  * and height the Draw window's Size of Vertices or vectors scale apart is turned in the wrong box. An ellipse keeps
  * its shape and is turned whole (`shapeRotation`, clockwise): `pajek-specimen-node-shapes` `phi-30-ellipse-wide` is
- * drawn 30 x 20 turned 30 degrees. ponytail: a turned cross, man or woman is drawn unturned. Pajek's SVG export draws
- * a cross as an ellipse where graphty draws a plus, so a turned plus's box is not Pajek's and the label beside it
- * lands across a band edge (`pajek-synth-vertices` v5); a turned man's box covers its neighbors in the scorecard's
- * box test (v22, v31 beside man 32). Turn them once those read as Pajek draws them.
+ * drawn 30 x 20 turned 30 degrees. So are a cross, a man and a woman (`TURNED_WHOLE`): `pajek-synth-vertices` v5, a
+ * cross 20 x 30 at `phi 60`, is drawn 27.8 x 22.9, and woman 41 at `phi 60` lies on her side, as do
+ * `pajek-specimen-node-shapes` `phi-30-man` and `phi-90-man`.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param shape - its shape
@@ -426,7 +428,7 @@ function readOutline(get: Param, put: Put, shape: StyleValue | null): void {
     ];
     const corners = shape === "diamond" ? diamond : PAJEK_OUTLINES.get(String(shape));
     if (corners === undefined) {
-        if (phi % 360 !== 0 && shape === "ellipse") {
+        if (phi % 360 !== 0 && TURNED_WHOLE.has(String(shape))) {
             put("shapeRotation", -phi);
         }
         return;
@@ -576,7 +578,15 @@ function readLabelPosition(
     turn: number | null = null,
 ): void {
     const [lr, lphi, fos] = [get("lr"), get("lphi"), get("fos")];
-    if (lr === null && lphi === null && fos === null && ownSize === null && !turn) {
+    const toMiddle = baselineToMiddle(get("font"));
+    if (
+        lr === null &&
+        lphi === null &&
+        fos === null &&
+        ownSize === null &&
+        !turn &&
+        toMiddle === PAJEK_BASELINE_TO_MIDDLE
+    ) {
         return;
     }
     const radius = lr === null ? PAJEK_LABEL_RADIUS : canonNumber(lr, at("labelPosition"));
@@ -585,7 +595,7 @@ function readLabelPosition(
     if (radius === null || angle === null || size === null) {
         return;
     }
-    const [x, y] = labelOffset(radius, angle, size, turn ?? 0);
+    const [x, y] = labelOffset(radius, angle, size, turn ?? 0, toMiddle);
     put("labelPosition", "center");
     put("labelOffsetX", x);
     put("labelOffsetY", y);
@@ -600,15 +610,16 @@ function readLabelPosition(
  * @param angle - `lphi`, degrees counterclockwise
  * @param size - the label's size
  * @param turn - the label's rotation, degrees clockwise
+ * @param toMiddle - how far above its baseline the label's middle is, per unit of its size (`baselineToMiddle`)
  * @returns the offset across and down
  */
-function labelOffset(radius: number, angle: number, size: number, turn = 0): [number, number] {
+function labelOffset(radius: number, angle: number, size: number, turn: number, toMiddle: number): [number, number] {
     if (radius === 0) {
         return [0, 0];
     }
     const t = (angle * Math.PI) / 180;
     const u = (turn * Math.PI) / 180;
-    const rise = PAJEK_BASELINE_TO_MIDDLE * size;
+    const rise = toMiddle * size;
     const round = (v: number): number => Number(v.toFixed(9)) + 0;
     return [round(radius * Math.cos(t) + rise * Math.sin(u)), round(-radius * Math.sin(t) - rise * Math.cos(u))];
 }
@@ -627,6 +638,21 @@ const PAJEK_LABEL_SIZE = 15;
  * (Liberation Sans: 0.905 and 0.212), the face Pajek draws its labels in by default.
  */
 const PAJEK_BASELINE_TO_MIDDLE = 0.3465;
+
+/** The same of Courier (Liberation Mono: 0.833 and 0.3), which a label's `font` can ask for (`pajek-synth-vertices` v29). */
+const COURIER_BASELINE_TO_MIDDLE = 0.2665;
+
+/**
+ * How far above its baseline a label's middle is in a font, per unit of its size. ponytail: Arial and Courier are the
+ * faces measured in Pajek's drawings; add a face here when a sample draws a label in it.
+ * @param font - the label's font, as written (`Courier-Bold`) or read (`Courier, monospace`), or null
+ * @returns the distance
+ */
+function baselineToMiddle(font: unknown): number {
+    return typeof font === "string" && /^\s*courier/i.test(font)
+        ? COURIER_BASELINE_TO_MIDDLE
+        : PAJEK_BASELINE_TO_MIDDLE;
+}
 
 /**
  * One line's style: its color, width and pattern. Pajek draws an edge (undirected) twice as wide as an arc of the
@@ -829,7 +855,7 @@ function readLineLabelPlace(get: Param, put: Put, at: At, run: Run | null, direc
     const turn = (((direction ?? lineDirection(get, run, along + 0.5)) - la) % 360) + 360;
     // the baseline runs through the point; the words' middle is above it in the label's own turned frame
     const up = (turn * Math.PI) / 180;
-    const rise = PAJEK_BASELINE_TO_MIDDLE * size;
+    const rise = baselineToMiddle(get("font")) * size;
     put("labelPosition", "center");
     put("labelOffsetX", round(along * run[0] + lr * Math.cos(t) + rise * Math.sin(up)));
     put("labelOffsetY", round(along * run[1] - lr * Math.sin(t) - rise * Math.cos(up)));
@@ -1763,7 +1789,7 @@ function polarOf(get: Get): [number, number] | null {
         return null;
     }
     const size = get("labelSize");
-    const up = y + PAJEK_BASELINE_TO_MIDDLE * (typeof size === "number" ? size : PAJEK_LABEL_SIZE);
+    const up = y + baselineToMiddle(get("labelFont")) * (typeof size === "number" ? size : PAJEK_LABEL_SIZE);
     const round = (v: number): number => Number(v.toFixed(6)) + 0;
     const lr = round(Math.hypot(x, up));
     return lr === 0 ? null : [lr, round(((((Math.atan2(-up, x) * 180) / Math.PI) % 360) + 360) % 360)];

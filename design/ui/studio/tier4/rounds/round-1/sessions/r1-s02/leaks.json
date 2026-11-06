@@ -1,0 +1,10 @@
+{
+ "checked": "2026-10-30T11:35:11.480Z",
+ "briefing": "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/tmp/studio-sessions/tier4/rounds/round-1/sessions/r1-s02/briefing.md",
+ "transcripts": [
+  "/home/apowers/.claude/projects/-home-apowers-Projects-graphty-monorepo/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/workflows/wf_5a571c29-2ad/agent-aa8f17bbf3adc1520.jsonl",
+  "/home/apowers/.claude/projects/-home-apowers-Projects-graphty-monorepo/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/workflows/wf_5a571c29-2ad/agent-aada2a33f9068dd67.jsonl"
+ ],
+ "calls": 37,
+ "leaks": []
+}

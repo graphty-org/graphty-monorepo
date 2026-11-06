@@ -52,10 +52,11 @@ import {
     type NodeEventDetail,
     nodeEventDetail,
 } from "./events";
-import type { EnabledFeatures } from "./features/resolve";
+import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/resolve";
 import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -83,7 +84,7 @@ import {
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import { type RenderQuality, shadersControllerOf, type ShaderSettings } from "./session/shaders";
-import type { ProgressChange } from "./session/shared";
+import type { CodedFact, ProgressChange } from "./session/shared";
 import { attachCredentials } from "./session/sources/credentialLookup";
 import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
@@ -757,6 +758,8 @@ export class Graphty extends LitElement {
         const controller = this.#ensureAcceleration();
 
         if (!controller.disposed) {
+            // The first update calls init, and on a shared device the accelerator waits for it.
+            this.#graph.expectRenderer();
             void controller.start();
         }
 
@@ -833,6 +836,11 @@ export class Graphty extends LitElement {
         this.#settingUp = false;
         super.firstUpdated(changedProperties);
         // Every attribute the page declared is in, so this is when the session settles its features.
+        for (const [name, value] of this.#heldTimeFields) {
+            this.#setTimeField(name, value);
+        }
+        this.#heldTimeFields.clear();
+        this.#releaseUrlPair?.();
         this.dispatchEvent(
             new CustomEvent("graphty-features", { detail: this.session.features, bubbles: true, composed: true }),
         );
@@ -1138,6 +1146,16 @@ export class Graphty extends LitElement {
      */
     get enabledFeatures(): EnabledFeatures {
         return this.session.features;
+    }
+
+    /**
+     * The attributes refused because their experiment is off, one fact per attribute:
+     * `{ code: "E_FEATURE_OFF", params: { feature, key } }`, where `key` names the property. Complete
+     * by the time `graphty-features` fires for what was set before the first render.
+     * @returns The refusals.
+     */
+    get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[] {
+        return [...this.#refusedFeatures.values()];
     }
     #autosaveRestoreValue: "auto" | "manual" = "auto";
     #autosaveOptionsValue: Partial<AutosaveOptions> = {};
@@ -1452,6 +1470,40 @@ export class Graphty extends LitElement {
         });
     }
 
+    /** What {@link Graphty.refusedFeatures} reports, by property, so setting one again adds nothing. */
+    readonly #refusedFeatures = new Map<string, CodedFact<"E_FEATURE_OFF">>();
+    /** The time attributes set before the first render, when the experiments are not settled yet. */
+    readonly #heldTimeFields = new Map<string, string | undefined>();
+
+    /**
+     * A time attribute as set: held until the first render, else the setting in effect.
+     * @param name - The field, which is also the property's name.
+     * @returns The value.
+     */
+    #timeField(name: string): string | undefined {
+        return this.#heldTimeFields.has(name)
+            ? this.#heldTimeFields.get(name)
+            : (this.#setting(`data.knownFields.${name}`) as string | undefined);
+    }
+
+    /**
+     * Set one of the timeline's attributes. With the experiment off it is refused and changes
+     * nothing; before the first render it waits to find out, as `features` may come later.
+     * @param name - The field, which is also the property's name.
+     * @param value - The value.
+     */
+    #setTimeField(name: string, value: string | undefined): void {
+        if (this.#settingUp) {
+            this.#heldTimeFields.set(name, value);
+        } else if (this.session.features.enabled.includes("timeline")) {
+            this.#setKnownField(name, value);
+        } else if (value !== undefined && value !== null && value !== "") {
+            const refusal = featureOff("timeline", name);
+            this.#refusedFeatures.set(name, { code: "E_FEATURE_OFF", params: { feature: "timeline", key: name } });
+            console.error(`<graphty-element>: ${name} was refused.`, refusal);
+        }
+    }
+
     /**
      * Array of node data objects to visualize.
      * @remarks
@@ -1660,7 +1712,7 @@ export class Graphty extends LitElement {
             // configuration as assigned, so re-assigning the same type re-assigns that pair.
             const loaded = this.#loadedPair;
             const config =
-                loaded?.type === value && this.#source().type === value
+                loaded?.type === value && this.#pairType() === value
                     ? loaded.config
                     : (this.#source().config ?? this.#assigned.config);
             this.#importSource({ type: value, config });
@@ -1689,7 +1741,7 @@ export class Graphty extends LitElement {
     set dataSourceConfig(value: Record<string, unknown> | undefined) {
         const oldValue = this.dataSourceConfig;
         if (value !== undefined && value !== null) {
-            this.#importSource({ type: this.#source().type ?? this.#assigned.type, config: value });
+            this.#importSource({ type: this.#pairType() ?? this.#assigned.type, config: value });
         }
 
         this.requestUpdate("dataSourceConfig", oldValue);
@@ -1763,13 +1815,32 @@ export class Graphty extends LitElement {
         // A pair whose load has not settled -- waiting behind autosave or behind a load asked for
         // earlier that is still reading, or still reading itself -- is not in the graph yet, and
         // may not even be dispatched: the pair as assigned is the one a half assigned now pairs with.
-        if (this.#pairQueued || this.#pairLoads > 0) {
+        if (this.#pairQueued || this.#pairLoads > 0 || this.#releaseUrlPair !== undefined) {
             return this.#assigned;
         }
 
         const dispatcher = dispatcherOf(this.#graph.getSession());
         const pending = dispatcher.pendingCommand(ELEMENT_SOURCE) as { source: ImportSource } | undefined;
-        return pending?.source ?? (dispatcher.state.graph.values.get(SOURCE_VALUE) as ImportSource | undefined) ?? {};
+        return pending?.source ?? this.#graphSource() ?? {};
+    }
+
+    /**
+     * The source the graph records.
+     * @returns Its description, or undefined when it records none.
+     */
+    #graphSource(): ImportSource | undefined {
+        const { values } = dispatcherOf(this.#graph.getSession()).state.graph;
+        return values.get(SOURCE_VALUE) as ImportSource | undefined;
+    }
+
+    /**
+     * The type a half assigned now pairs with: the source's, but `"url"` for a graph a `"url"` pair
+     * loaded, whose source records the format that was found.
+     * @returns The type; undefined when none is set.
+     */
+    #pairType(): string | undefined {
+        const source = this.#source();
+        return source === this.#urlPairSource ? "url" : source.type;
     }
 
     /**
@@ -1829,6 +1900,66 @@ export class Graphty extends LitElement {
             return Promise.resolve();
         }
 
+        return this.#settingUp && this.#readsUrl(source) ? this.#holdUrlPair(setup) : this.#joinLoadLine(source, setup);
+    }
+
+    /**
+     * Whether a pair is a URL for the element to find the format of, rather than a type to look up.
+     * @param source - The pair.
+     * @returns True for `"url"` with a URL, when no source of any kind is registered under that name.
+     */
+    #readsUrl(source: ImportSource): boolean {
+        return (
+            source.type === "url" &&
+            typeof source.config?.url === "string" &&
+            Graphty.#sourceIdOf("url") === null &&
+            !DataSource.getRegisteredTypes().includes("url")
+        );
+    }
+
+    /**
+     * Keep a `"url"` pair out of the load line until the first update, when `features` is settled
+     * and says whether the element finds the format. An element nobody connected in this tick and
+     * that asks for no timeline will not get there: its pair loads now, as an unknown format.
+     * @param setup - Whether the page declared it before the first update.
+     * @returns Settles once the pair's load ran or failed.
+     */
+    #holdUrlPair(setup: boolean): Promise<void> {
+        this.#heldUrlPair ??= new Promise<void>((resolve) => {
+            this.#releaseUrlPair = () => {
+                this.#releaseUrlPair = undefined;
+                this.#heldUrlPair = undefined;
+                const { type, config } = this.#assigned;
+                // Nothing to load when clearData dropped the pair, or another type replaced it.
+                resolve(
+                    type === "url" && config !== undefined ? this.#joinLoadLine({ type, config }, setup) : undefined,
+                );
+            };
+            queueMicrotask(() => {
+                if (!this.isConnected && !resolveFeatures(this.#featuresValue).enabled.includes("timeline")) {
+                    this.#releaseUrlPair?.();
+                }
+            });
+        });
+        return this.#heldUrlPair;
+    }
+
+    /** The `"url"` pair load waiting for the first update; see {@link #holdUrlPair}. */
+    #heldUrlPair: Promise<void> | undefined;
+
+    /** Runs the held `"url"` pair's load; set only while one is held. */
+    #releaseUrlPair: (() => void) | undefined;
+
+    /** What the graph recorded for the last `"url"` pair it loaded; see {@link #pairType}. */
+    #urlPairSource: ImportSource | undefined;
+
+    /**
+     * Take a pair's place in the load line, and load it when its turn comes.
+     * @param source - The pair.
+     * @param setup - Whether the page declared it before the first update.
+     * @returns Settles once the load ran or failed.
+     */
+    #joinLoadLine(source: ImportSource, setup: boolean): Promise<void> {
         const line = loadLineOf(dispatcherOf(this.#graph.getSession()));
         this.#pairNext = { source, setup, clears: line.clears };
         if (this.#pairWaiting !== undefined) {
@@ -1916,8 +2047,17 @@ export class Graphty extends LitElement {
             return loadSourcePair(this.#graph, type, config, {
                 coalesce: ELEMENT_SOURCE,
                 setup,
+                findsUrlFormat:
+                    !this.#settingUp && this.#readsUrl(source) && this.session.features.enabled.includes("timeline"),
+                readFailed: (error) => {
+                    this.#reportLoadFailure(error);
+                },
             }).then(
-                () => undefined,
+                () => {
+                    if (type === "url") {
+                        this.#urlPairSource = this.#graphSource();
+                    }
+                },
                 () => {
                     // A failed pair was not loaded, so assigning it again retries it. The load
                     // reported the failure on the data-loading channel before it rejected.
@@ -2202,19 +2342,21 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element edge-time-path="sent"></graphty-element>
+     * <graphty-element features="timeline" edge-time-path="sent"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
      */
     @property({ attribute: "edge-time-path" })
     get edgeTimePath(): string | undefined {
-        return this.#setting("data.knownFields.edgeTimePath") as string | undefined;
+        return this.#timeField("edgeTimePath");
     }
     /**
-     * Sets the edge time column. Updates graph configuration.
+     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
      */
     set edgeTimePath(value: string | undefined) {
-        this.#setKnownField("edgeTimePath", value);
+        this.#setTimeField("edgeTimePath", value);
     }
 
     /**
@@ -2222,19 +2364,67 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element node-time-path="published"></graphty-element>
+     * <graphty-element features="timeline" node-time-path="published"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
      */
     @property({ attribute: "node-time-path" })
     get nodeTimePath(): string | undefined {
-        return this.#setting("data.knownFields.nodeTimePath") as string | undefined;
+        return this.#timeField("nodeTimePath");
     }
     /**
-     * Sets the node time column. Updates graph configuration.
+     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
      */
     set nodeTimePath(value: string | undefined) {
-        this.#setKnownField("nodeTimePath", value);
+        this.#setTimeField("nodeTimePath", value);
+    }
+
+    /**
+     * The edge column that says when each edge ends, beside `edge-time-path`: the edge then exists
+     * for a span. A missing end is open. A list of spells takes `session.time.setField`.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element features="timeline" edge-time-path="opened" edge-time-end-path="closed"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
+     */
+    @property({ attribute: "edge-time-end-path" })
+    get edgeTimeEndPath(): string | undefined {
+        return this.#timeField("edgeTimeEndPath");
+    }
+    /**
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    set edgeTimeEndPath(value: string | undefined) {
+        this.#setTimeField("edgeTimeEndPath", value);
+    }
+
+    /**
+     * The node column that says when each node ends, beside `node-time-path`: the node then exists
+     * for a span. A missing end is open. A list of spells takes `session.time.setField`.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element features="timeline" node-time-path="hired" node-time-end-path="left"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
+     */
+    @property({ attribute: "node-time-end-path" })
+    get nodeTimeEndPath(): string | undefined {
+        return this.#timeField("nodeTimeEndPath");
+    }
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    set nodeTimeEndPath(value: string | undefined) {
+        this.#setTimeField("nodeTimeEndPath", value);
     }
 
     /**
@@ -2244,16 +2434,18 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element edge-time-path="ts" edge-time-unit="s"></graphty-element>
+     * <graphty-element features="timeline" edge-time-path="ts" edge-time-unit="s"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
      */
     @property({ attribute: "edge-time-unit" })
     get edgeTimeUnit(): string | undefined {
-        return this.#setting("data.knownFields.edgeTimeUnit") as string | undefined;
+        return this.#timeField("edgeTimeUnit");
     }
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     set edgeTimeUnit(value: string | undefined) {
         if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
@@ -2262,7 +2454,7 @@ export class Graphty extends LitElement {
             return;
         }
 
-        this.#setKnownField("edgeTimeUnit", value);
+        this.#setTimeField("edgeTimeUnit", value);
     }
 
     /**
@@ -2271,16 +2463,18 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element node-time-path="year" node-time-unit="ordinal"></graphty-element>
+     * <graphty-element features="timeline" node-time-path="year" node-time-unit="ordinal"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
      */
     @property({ attribute: "node-time-unit" })
     get nodeTimeUnit(): string | undefined {
-        return this.#setting("data.knownFields.nodeTimeUnit") as string | undefined;
+        return this.#timeField("nodeTimeUnit");
     }
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration.
+     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     set nodeTimeUnit(value: string | undefined) {
         if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
@@ -2289,7 +2483,7 @@ export class Graphty extends LitElement {
             return;
         }
 
-        this.#setKnownField("nodeTimeUnit", value);
+        this.#setTimeField("nodeTimeUnit", value);
     }
 
     /**
@@ -4800,6 +4994,28 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the element is still framing the graph on its own: a layout is settling, or a framing
+     * it owes has not landed, and nobody has placed the camera since. A camera read now is not where
+     * the element will leave it, so a consumer that borrows the view and hands it back calls
+     * `zoomToFit()` instead of restoring what it read.
+     * @returns True while the element's own framing is under way.
+     * @example
+     * ```typescript
+     * const framing = element.framing;
+     * const camera = element.getCameraState();
+     * // ... the canvas is used for something else, then:
+     * if (framing) {
+     *     element.zoomToFit();
+     * } else {
+     *     await element.setCameraState(camera);
+     * }
+     * ```
+     */
+    get framing(): boolean {
+        return this.#graph.framing;
+    }
+
+    /**
      * Wait for every queued operation to finish.
      *
      * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be
@@ -4864,6 +5080,27 @@ export class Graphty extends LitElement {
         timeoutMs?: number;
     }): Promise<void> {
         return this.#graph.waitForStableFrame(options);
+    }
+
+    /**
+     * Resolve once every style change made so far is drawn on the canvas.
+     *
+     * `session.styles.settled()` resolves when the repaint passes have ended, but on a large graph
+     * the renderer applies their paint over many frames, so the canvas can show the old colors for
+     * seconds after it. This waits for the last batch too. Unlike {@link Graphty.waitForStableFrame}
+     * it does not wait for the layout or the camera, so a running layout never holds it, and it
+     * never rejects: an element removed from the page ends the wait.
+     * @returns Promise that resolves once the canvas shows every style change made so far.
+     * @beta
+     * @since 3.34.0
+     * @example
+     * ```typescript
+     * await element.session.styles.add(layer);
+     * await element.waitForPainted();
+     * ```
+     */
+    async waitForPainted(): Promise<void> {
+        return this.#graph.waitForPainted();
     }
 
     /**
@@ -5830,6 +6067,46 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("renderer", oldValue);
+    }
+
+    /**
+     * How nodes are drawn: `"objects"` (the default), a mesh per node, or `"batched"`, every
+     * eligible node of one look in one draw call. A node a batch cannot draw stays an object, with
+     * no change to the picture. It can change at any time.
+     * @returns The path asked for.
+     * @example
+     * ```html
+     * <graphty-element render-path="batched"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "render-path" })
+    get renderPath(): RenderPath {
+        return this.#graph.renderPath;
+    }
+    /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    set renderPath(value: RenderPath) {
+        const oldValue = this.#graph.renderPath;
+
+        try {
+            this.#graph.setRenderPath(value);
+        } catch (error) {
+            console.error(
+                `<graphty-element>: ${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`,
+            );
+            return;
+        }
+
+        this.requestUpdate("renderPath", oldValue);
+    }
+
+    /**
+     * How many nodes and edges each render path is drawing, as of the last frame.
+     * @returns The counts.
+     */
+    get rowCounts(): RowCounts {
+        return this.#graph.rowCounts;
     }
 
     /**

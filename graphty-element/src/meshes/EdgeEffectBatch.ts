@@ -1,4 +1,4 @@
-import { type Matrix, type Mesh, type Scene, type ShaderMaterial, ShaderStore, Vector3 } from "@babylonjs/core";
+import { type Matrix, type Mesh, type Scene, type ShaderMaterial, Vector3 } from "@babylonjs/core";
 
 import { motionOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
@@ -7,7 +7,7 @@ import { edgeShaderProgram } from "../shaders/runtime/edgePrograms";
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
 import { SCENE_BLOCK } from "../shaders/runtime/wrap";
 import { noteBloomMesh } from "./BloomPass";
-import { CustomLineRenderer } from "./CustomLineRenderer";
+import { CustomLineRenderer, type JoinedLineOptions } from "./CustomLineRenderer";
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import type { NodeShaderData } from "./NodeShaderDrawing";
 import { ViewWatch } from "./viewWatch";
@@ -37,6 +37,10 @@ export interface ShadedLineOptions {
     readonly opacity: number;
     /** Whether `width` is in world units (the 2D view). */
     readonly worldWidth: boolean;
+    /** The line's fade by its length on screen, if it has one. */
+    readonly fade?: JoinedLineOptions["fade"];
+    /** Whether the line is drawn without alpha blending. */
+    readonly opaque?: boolean;
 }
 
 /** Scratch for the on-screen test, so the per-frame walk allocates nothing. */
@@ -67,7 +71,6 @@ export function shadedLineMesh(
     const { descriptor, glsl } = shader.registration;
     const name = `graphtyEdge${role}${shader.hash.slice(0, 24)}`;
     const program = edgeShaderProgram(role, descriptor, glsl);
-    ShaderStore.ShadersStore[`${name}FragmentShader`] = program.fragment;
     let blend: "combine" | "premultiplied" | "add" = "combine";
     if (role === "along") {
         blend = descriptor.blend === "add" ? "add" : "premultiplied";
@@ -79,8 +82,10 @@ export function shadedLineMesh(
             color: line.color,
             opacity: line.opacity,
             worldWidth: line.worldWidth,
-            program: { ...program, fragment: name },
+            program: { ...program, name },
             blend,
+            fade: line.fade,
+            opaque: line.opaque,
         },
         scene,
     );

@@ -7,7 +7,17 @@
 import { assert, describe, it } from "vitest";
 
 import { associate } from "./associate";
-import { boxOfPoints, isLettering, type PEdge, type PNode, type Prim, type PScene, type Pt } from "./primitives";
+import { compareOracle } from "./compare-oracle";
+import {
+    boxOfPoints,
+    isLettering,
+    type PEdge,
+    type PNode,
+    type Prim,
+    type PScene,
+    type Pt,
+    type PText,
+} from "./primitives";
 
 /** A closed outline sampled evenly by arc length, as the SVG reader samples a path's subpath. */
 function evenly(pts: readonly Pt[], step = 0.25): Pt[] {
@@ -179,5 +189,96 @@ describe("lettering drawn as glyph outlines", () => {
             o.strays.map((s) => s.stroke ?? s.fill),
             ["#ffffff", "#000000"],
         );
+    });
+
+    it("reads rows of lettering inside a node's box as its label, its rows judged and its words not", () => {
+        // yEd's HTML label: each row one path of glyph outlines, inside the node's box
+        const ink = { color: "#000000", opacity: 1, gradient: null };
+        const rows = [word(315, 275), word(315, 288), word(315, 301)];
+        const fix: [string, number, number][] = [
+            ["a", 100, 100],
+            ["b", 500, 100],
+            ["c", 100, 500],
+            ["d", 500, 500],
+        ];
+        const nodeOf = (id: string, cx: number, cy: number, size: number): PNode => ({
+            id,
+            cx,
+            cy,
+            w: size,
+            h: size,
+            shape: "rect",
+            fill: null,
+            stroke: null,
+            label: null,
+        });
+        const square = (cx: number, cy: number, half: number): Pt[] => [
+            [cx - half, cy - half],
+            [cx + half, cy - half],
+            [cx + half, cy + half],
+            [cx - half, cy + half],
+            [cx - half, cy - half],
+        ];
+        let index = 0;
+        const prim = (points: Pt[], over: Partial<Prim>): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(points),
+            points,
+            closed: true,
+            corners: 4,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        const paint = { color: "#cccccc", opacity: 1, gradient: null };
+        const prims = [
+            ...fix.map(([, x, y]) => prim(square(x, y, 20), { fill: paint })),
+            prim(square(340, 290, 50), { fill: paint }),
+            ...rows.map((r) => prim(r.flat(), { fill: ink, lettering: true })),
+        ];
+        const words: PText = {
+            content: "one line of words",
+            x: 340,
+            y: 290,
+            box: { x0: 200, y0: 285, x1: 480, y1: 295 },
+            sizePx: 10,
+            family: "DejaVu Sans",
+            weight: 400,
+            style: "normal",
+            anchor: "middle",
+            rotation: 0,
+            color: "#000000",
+            opacity: 1,
+        };
+        const g: PScene = {
+            side: "graphty",
+            width: 600,
+            height: 600,
+            background: "#ffffff",
+            nodes: [
+                ...fix.map(([id, x, y]) => nodeOf(id, x, y, 40)),
+                { ...nodeOf("n", 340, 290, 100), fill: paint, label: words },
+            ],
+            edges: [],
+            groups: [],
+            texts: [],
+            strays: [],
+        };
+        const o = associate(prims, 600, 600, g).scene;
+        const label = o.nodes.find((n) => n.id === "n")?.label;
+        assert.strictEqual(label?.content, "");
+        assert.strictEqual(label?.lines?.length, 3);
+        assert.deepEqual(o.strays, []);
+        const { failures, properties } = compareOracle("t", o, g, null);
+        assert.notProperty(failures, "label.present");
+        // the words are unknown and so unjudged; that graphty draws one line where the program drew three is not
+        assert.strictEqual(properties["label.text"].n, 0);
+        assert.strictEqual(properties["label.size"].n, 0);
+        assert.property(failures, "label.lines");
     });
 });

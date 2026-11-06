@@ -229,12 +229,6 @@
     line-height: 18px;
 }
 
-/* The base layer's Which row: plain text, not a control, at the panel's reading color. */
-.ws-which-base {
-    padding: 4px 0;
-    line-height: 18px;
-}
-
 /* One condition card: its header (name, count, x), its Match select and its editor. */
 .ws-card {
     position: relative;
@@ -492,4 +486,26 @@
    column and adds no name to the label column. */
 .ws-field-sub {
     padding-inline-start: var(--ws-label, 80px);
+}
+
+/* The value picker's list: rows stay inside it, cut short at their tail (WhichPicker.tsx). */
+.mantine-ScrollArea-content.ws-list-content {
+    display: block;
+}
+
+/* A step's checklist over 8 values holds the height of its 8 rows (and the no-value row) whatever
+   a search leaves, so the controls under it never move. */
+.ws-checklist-fixed {
+    min-height: calc(9 * 18px);
+}
+
+/* A style's setting, drawn under the style's row ("Size" under Halo): its name indented under the
+   style's name. */
+.ws-row[data-setting] .ws-field-name {
+    padding-inline-start: 12px;
+}
+
+/* A style's own "+" beside its name in the label column. */
+.ws-row-add {
+    flex: none;
 }

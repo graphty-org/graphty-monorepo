@@ -36,7 +36,7 @@ describe("what a legend block reaches", () => {
 
         const blocks = s.styles.legend();
         assert.isUndefined(blocks.find((block) => block.layerId === all.id)?.scope);
-        assert.deepEqual(blocks.find((block) => block.layerId === picked.id)?.scope, { count: 3, of: 5 });
+        assert.deepEqual(blocks.find((block) => block.layerId === picked.id)?.scope, { count: 3, of: 5, visible: 5 });
     });
 
     it("counts only the elements drawn once a filter step hides some", async () => {
@@ -60,12 +60,12 @@ describe("what a legend block reaches", () => {
         const blocks = s.styles.legend();
         assert.deepEqual(
             blocks.find((block) => block.layerId === picked.id)?.scope,
-            { count: 2, of: 5 },
+            { count: 2, of: 5, visible: 3 },
             "a, the one picked node hidden, is not counted",
         );
         assert.deepEqual(
             blocks.find((block) => block.layerId === agencies.id)?.scope,
-            { count: 0, of: 5 },
+            { count: 0, of: 5, visible: 3 },
             "a layer whose every node is hidden counts none",
         );
     });

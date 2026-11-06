@@ -5,6 +5,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
 import {
+    assertCommunitiesLumped,
     assertDistinctPicture,
     assertGraphLoaded,
     assertHeavyEdgesShorter,
@@ -68,6 +69,11 @@ const meta: Meta = {
             control: { type: "number" },
             table: { category: "Spring Layout" },
             name: "layoutConfig.seed",
+        },
+        springNodeGap: {
+            control: { type: "number" },
+            table: { category: "Spring Layout" },
+            name: "layoutConfig.nodeGap",
         },
 
         // Circular layout controls
@@ -366,6 +372,64 @@ export const Spring: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "Spring");
+
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
+/**
+ * ForceAtlas2 pulling Louvain's communities into lumps with `clusterBy`: the layout names the run's field before the run
+ * exists, and moves when it lands.
+ */
+export const ClusterBy: Story = {
+    args: {
+        setup: storySetup({ viewMode: "2d", algorithms: ["graphty:louvain"], preSteps: 100, stepMultiplier: 20 }),
+        runAlgorithmsOnLoad: true,
+        layout: "forceatlas2",
+        layoutConfig: { dim: 2, seed: 12, clusterBy: "results.louvain.group", clusterStrength: 4 },
+    },
+    parameters: {
+        controls: {
+            include: ["layoutConfig.clusterStrength"],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "ClusterBy");
+
+        await assertCommunitiesLumped(scene, "louvain", 0.3);
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
+/**
+ * Spring with `nodeGap`: nodes drawn large, kept apart by their drawn size, so none covers another. Beside the Spring
+ * story, whose nodes stay points to the layout. `preSteps` matches Spring's, for the same reason.
+ */
+export const NodeGap: Story = {
+    args: {
+        setup: storySetup({ viewMode: "2d", preSteps: 50, node: { "node.size": 12 } }),
+        layout: "spring",
+        layoutConfig: { dim: 2 },
+        springK: null,
+        springIterations: 50,
+        springScale: 1,
+        springSeed: 12,
+        springNodeGap: 2,
+    },
+    parameters: {
+        controls: {
+            // A control left out here does not reach the layout, so `layoutConfig.seed` has to stay.
+            include: [
+                "layoutConfig.k",
+                "layoutConfig.iterations",
+                "layoutConfig.scale",
+                "layoutConfig.seed",
+                "layoutConfig.nodeGap",
+            ],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "NodeGap");
 
         await assertDistinctPicture(scene, "Layout/2D");
     },

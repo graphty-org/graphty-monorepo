@@ -3,10 +3,16 @@
  * a Ghost row pinned directly below Selected paints them; they never count as visible.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { ElementSession } from "../../../src/session/types";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /**
  * A process trace: ten steps, node i at step i, and edge i -> i + 1 at step i + 1.
@@ -91,6 +97,47 @@ describe("timeline ghosts", () => {
         await session.time.setSettings({ outside: "hide" });
         assert.isNull(session.visibility.ghosts());
         assert.strictEqual(session.styles.counts(nodePart).matched, 0);
+        session.dispose();
+    });
+
+    it("carries the ghosts through slides by their rows, and starts over when more moved", async () => {
+        const session = await trace();
+        await session.time.window({ from: 2, to: 5 });
+        await session.time.setSettings({ outside: "ghost" });
+        const { visibility } = session;
+        const assertGhosts = (when: string): void => {
+            const ghosts = visibility.ghosts();
+            const drawnNodes = visibility.drawnMasks.nodes();
+            const drawnEdges = visibility.drawnMasks.edges();
+            const shownNodes = visibility.masks.nodes();
+            const shownEdges = visibility.masks.edges();
+            for (let row = 0; row < drawnNodes.count; row++) {
+                const ghost = drawnNodes.has(row) && !shownNodes.has(row);
+                assert.strictEqual(ghosts?.node[row] === 1, ghost, `${when}: node ${String(row)}`);
+            }
+
+            for (let row = 0; row < drawnEdges.count; row++) {
+                const ghost = drawnEdges.has(row) && !shownEdges.has(row);
+                assert.strictEqual(ghosts?.edge[row] === 1, ghost, `${when}: edge ${String(row)}`);
+            }
+        };
+
+        // Sliding twice steps by rows: the same bytes come back, brought forward.
+        await session.time.seek(2.5, { commit: false });
+        const kept = visibility.ghosts()?.node;
+        for (const from of [3, 3.5, 4]) {
+            await session.time.seek(from, { commit: false });
+            assert.strictEqual(visibility.ghosts()?.node, kept, `at ${String(from)}`);
+            assertGhosts(`at ${String(from)}`);
+        }
+
+        // A filter moves what is drawn, so every row is read again.
+        await session.visibility.set({ kind: "range", attribute: "step", min: 2 });
+        assert.notStrictEqual(visibility.ghosts()?.node, kept);
+        assertGhosts("under a filter");
+        await session.time.seek(4, { commit: false });
+        await session.time.seek(4.5, { commit: false });
+        assertGhosts("sliding under the filter");
         session.dispose();
     });
 

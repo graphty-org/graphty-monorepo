@@ -38,6 +38,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_MODEL_NAME_TAKEN",
     "E_MODEL_UNKNOWN_ASSET",
     "E_MODEL_DIGEST_MISMATCH",
+    // a node picture that cannot be loaded (issue #4515)
+    "E_IMAGE_LOAD",
     // the network sources (design/graph-io/network-sources-design.md section 8), experimental
     "E_SOURCE_BLOCKED",
     "E_SOURCE_AUTH",
@@ -70,6 +72,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_OPTION",
     "E_OPTION_RANGE",
     "E_UNKNOWN_ATTRIBUTE",
+    "E_FEATURE_OFF",
     "E_NO_TIME_FIELD",
     "E_UNKNOWN_ALGORITHM",
     "E_UNKNOWN_LAYOUT",
@@ -127,6 +130,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
     "E_NO_WEBGL",
+    "E_SHADER_REFUSED",
     "E_MISSING_PACKAGE",
     "E_UNSUPPORTED",
     "E_READONLY",
@@ -158,6 +162,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_CHANNEL":
         case "E_UNKNOWN_OPTION":
         case "E_UNKNOWN_ATTRIBUTE":
+        case "E_FEATURE_OFF":
         case "E_NO_TIME_FIELD":
         case "E_UNKNOWN_ALGORITHM":
         case "E_UNKNOWN_LAYOUT":
@@ -211,6 +216,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
         case "E_NO_WEBGL":
+        case "E_SHADER_REFUSED":
         case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":
@@ -244,6 +250,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MODEL_NAME_TAKEN":
         case "E_MODEL_UNKNOWN_ASSET":
         case "E_MODEL_DIGEST_MISMATCH":
+        case "E_IMAGE_LOAD":
             return "model";
         case "E_SOURCE_BLOCKED":
         case "E_SOURCE_AUTH":

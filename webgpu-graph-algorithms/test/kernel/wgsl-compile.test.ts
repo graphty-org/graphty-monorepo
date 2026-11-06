@@ -73,6 +73,11 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("radix-hist")).toBe(1);
         expect(counts.get("radix-scatter")).toBe(1);
         expect(counts.get("grid-cell-key")).toBe(1);
+        expect(counts.get("cluster-centroid")).toBe(1);
+        expect(counts.get("cluster-pull")).toBe(4);
+        expect(counts.get("collide-cell-key")).toBe(1);
+        expect(counts.get("collide-gather")).toBe(1);
+        expect(counts.get("collide-apply")).toBe(1);
         expect(counts.get("grid-centroid")).toBe(1);
         expect(counts.get("grid-centroid-hub")).toBe(1);
         expect(counts.get("grid-downsample")).toBe(1);

@@ -150,6 +150,29 @@ describe("an end caption placed on the line", () => {
     });
 });
 
+describe("a node's raised border", () => {
+    test("draws four strips along the inside of its box through a style layer, and none without a width", async () => {
+        const strips = async (width: number): Promise<number> => {
+            graph?.dispose();
+            container?.remove();
+            await oneEdge(
+                {},
+                {
+                    "node.raisedBorderWidth": width,
+                    "node.raisedBorderLightColor": "#ffff00",
+                    "node.raisedBorderDarkColor": "#b28e00",
+                },
+            );
+            assert(graph);
+            const node = graph.getDataManager().nodes.get("A");
+            assert(node);
+            return node.decorationPieces.filter((p) => p.kind === "shape").length;
+        };
+        assert.strictEqual(await strips(0.1), 4);
+        assert.strictEqual(await strips(0), 0);
+    });
+});
+
 describe("a node's outer border", () => {
     test("is a ring outside the border, its offset beyond it, in its own color", async () => {
         await oneEdge(
@@ -312,7 +335,7 @@ describe("a half arrow's line and barb (#5490)", () => {
     });
 });
 
-describe("an open cap's outline (#4253)", () => {
+describe("an open cap's outline width (#5800)", () => {
     /**
      * How thick the drawn frame of an open box is across its line, in pixels: its outer side less its inner side.
      * @returns the frame's thickness
@@ -325,12 +348,13 @@ describe("an open cap's outline (#4253)", () => {
     }
 
     test.each([1, 2])(
-        "open-box is outlined as thick as its line (width %s) and in its color, whatever its size",
+        "open-box with an outline width of its line's (%s) is outlined as thick as its line, whatever its size",
         async (width) => {
             for (const size of [2, 4]) {
                 await oneEdge({
                     "edge.arrowHead": "open-box",
                     "edge.arrowHeadSize": size,
+                    "edge.arrowHeadOutlineWidth": width,
                     "edge.width": width,
                     "edge.color": "#123456",
                 });
@@ -344,6 +368,18 @@ describe("an open cap's outline (#4253)", () => {
             }
         },
     );
+
+    test("unset, open-box keeps its own frame, a share of the cap's size", async () => {
+        const frames: number[] = [];
+        for (const size of [2, 4]) {
+            await oneEdge({ "edge.arrowHead": "open-box", "edge.arrowHeadSize": size, "edge.width": 1 });
+            frames.push(boxFrame());
+            assert(graph);
+            graph.dispose();
+            container?.remove();
+        }
+        assert.closeTo(frames[1], 2 * frames[0], 1);
+    });
 });
 
 describe("a vee turned round, vis-network's crow (#5491)", () => {

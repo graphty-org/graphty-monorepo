@@ -7,18 +7,28 @@ import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { costLine, optionWords } from "../analyze/words";
-import { OptionsForm } from "../options/OptionsForm";
+import { selectionWorkspaceOn } from "../features";
+import { OptionRow, OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
 import { engineOf, isDrawn, LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
-import { columnFitWords, layoutErrorWords, locationFieldWords, optionEffectWords } from "./refusalWords";
+import { columnFitWords, layoutErrorWords, locationFieldWords } from "./refusalWords";
 import { TransitionRow } from "./TransitionRow";
 
 /** The location map's id, whose form names the columns it read and picks the map it draws on. */
 const MAP_LAYOUT = "location-map";
 
-/** The map's options that name its location columns: Data > Fields designates them instead. */
-const LOCATION_OPTIONS: ReadonlySet<string> = new Set(["location", "latitude", "longitude"]);
+/**
+ * The map's options its form does not draw: Data > Fields designates its location columns, Shape
+ * is its 3D | 2D, and a reader has no use for another name for the same choice in Projection.
+ */
+const MAP_UNDRAWN_OPTIONS: ReadonlySet<string> = new Set([
+    "location",
+    "latitude",
+    "longitude",
+    "mapDimension",
+    "projection",
+]);
 
 /**
  * The columns the map reads: the ones its options name, else what the element says (the
@@ -98,45 +108,12 @@ function shapeOf(values: Readonly<Record<string, unknown>>, drawn: "2d" | "3d" |
 }
 
 /**
- * How a layout's options are offered in the view it would be drawn in.
- * @param session - The element's session.
- * @param descriptor - The layout.
- * @param drawnIn - The view the layout would be drawn in.
- * @returns `drawnOnly`: the one value the view draws for an option it does not draw as asked
- *     (the map's Map type in 2D), else undefined; `defaultOnly`: whether an option is so; and
- *     `inView`: a set of values as the view draws them.
+ * The map's shape: the map it asks for, which is the element's default 3D map unless it says 2D.
+ * @param values - the values.
+ * @returns "2d" or "3d".
  */
-function viewChoices(
-    session: GraphSession,
-    descriptor: LayoutDescriptor,
-    drawnIn: "2d" | "3d",
-): {
-    drawnOnly: (option: OptionDescriptor) => unknown;
-    defaultOnly: (option: OptionDescriptor) => boolean;
-    inView: (asked: Record<string, unknown>) => Record<string, unknown>;
-} {
-    // An option the 2D view does not draw (the map's Map type) offers only the value the view
-    // draws instead, as the element names it, else its default.
-    const drawnOnly = (option: OptionDescriptor): unknown => {
-        const effect = session.layout.optionInEffect(descriptor.id, option.name, drawnIn);
-        if (typeof option.default !== "string" || effect.code !== "setting.notIn2d") {
-            return undefined;
-        }
-        return effect.params.drawn ?? option.default;
-    };
-    const defaultOnly = (option: OptionDescriptor): boolean => drawnOnly(option) !== undefined;
-    // Shown as the value the view draws; the reader's own choice is kept for the 3D view.
-    const inView = (asked: Record<string, unknown>): Record<string, unknown> => {
-        const shown = { ...asked };
-        for (const option of descriptor.options) {
-            const drawn = drawnOnly(option);
-            if (drawn !== undefined) {
-                shown[option.name] = drawn;
-            }
-        }
-        return shown;
-    };
-    return { drawnOnly, defaultOnly, inView };
+function mapShapeOf(values: Readonly<Record<string, unknown>>): "2d" | "3d" {
+    return values.mapDimension === "2d" ? "2d" : "3d";
 }
 
 /**
@@ -154,7 +131,7 @@ function ApplyRow({
     differs,
 }: Readonly<{ reason: string | null; seconds: number; differs: boolean }>): React.JSX.Element {
     return (
-        <Group justify="space-between" wrap="nowrap">
+        <Group justify="space-between" wrap="nowrap" className="ws-layout-apply">
             <Text size="xs" c={reason === null ? "dimmed" : "red"}>
                 {reason ?? costLine(seconds)}
             </Text>
@@ -170,17 +147,23 @@ function ApplyRow({
  * @param picked - The shape picked.
  * @param start - What the form started with, when the shape picked is the one it is drawn in.
  * @param values - The form's values.
+ * @param isMap - Whether the layout is the map, whose shape is its `mapDimension`, not its `dim`.
  * @returns The values.
  */
 function shapePicked(
     picked: "2d" | "3d",
     start: Readonly<Record<string, unknown>> | null,
     values: Record<string, unknown>,
+    isMap: boolean,
 ): Record<string, unknown> {
+    const key = isMap ? "mapDimension" : "dim";
     if (start !== null) {
-        // Back to what is drawn: its own dim (or none).
-        const { dim: _dim, ...rest } = values;
-        return start.dim === undefined ? rest : { ...rest, dim: start.dim };
+        // Back to what is drawn: its own value (or none).
+        const { [key]: _shape, ...rest } = values;
+        return start[key] === undefined ? rest : { ...rest, [key]: start[key] };
+    }
+    if (isMap) {
+        return { ...values, mapDimension: picked };
     }
     return { ...values, dim: picked === "2d" ? 2 : 3 };
 }
@@ -191,30 +174,42 @@ function shapePicked(
  * @param props.id - The layout's id, for the label's id
  * @param props.shape - The shape asked for
  * @param props.onPick - Called with the shape picked
+ * @param props.row - Drawn as a line of the `selection-workspace` forms
  * @returns The field
  */
 function ShapeField({
     id,
     shape,
     onPick,
-}: Readonly<{ id: string; shape: "2d" | "3d"; onPick: (picked: "2d" | "3d") => void }>): React.JSX.Element {
-    return (
+    row,
+}: Readonly<{
+    id: string;
+    shape: "2d" | "3d";
+    onPick: (picked: "2d" | "3d") => void;
+    row: boolean;
+}>): React.JSX.Element {
+    const control = (
+        <SegmentedControl
+            {...(row ? { "aria-label": "Shape" } : { "aria-labelledby": `layout-shape-${id}` })}
+            fullWidth
+            value={shape}
+            data={[
+                { value: "3d", label: "3D" },
+                { value: "2d", label: "2D" },
+            ]}
+            onChange={(picked) => {
+                onPick(picked === "2d" ? "2d" : "3d");
+            }}
+        />
+    );
+    return row ? (
+        <OptionRow label="Shape">{control}</OptionRow>
+    ) : (
         <Stack gap={2}>
             <Text size="xs" id={`layout-shape-${id}`}>
                 Shape
             </Text>
-            <SegmentedControl
-                aria-labelledby={`layout-shape-${id}`}
-                fullWidth
-                value={shape}
-                data={[
-                    { value: "3d", label: "3D" },
-                    { value: "2d", label: "2D" },
-                ]}
-                onChange={(picked) => {
-                    onPick(picked === "2d" ? "2d" : "3d");
-                }}
-            />
+            {control}
         </Stack>
     );
 }
@@ -225,18 +220,45 @@ function ShapeField({
  * @param props.values - The form's values
  * @param props.edit - Writes the form's values
  * @param props.onReshuffle - Applies the layout with a new random seed
+ * @param props.row - Drawn as a line of the `selection-workspace` forms
  * @returns The fields
  */
 function SeedField({
     values,
     edit,
     onReshuffle,
+    row,
 }: Readonly<{
     values: Record<string, unknown>;
     edit: (next: Record<string, unknown>) => void;
     onReshuffle: () => void;
+    row: boolean;
 }>): React.JSX.Element {
     const seed = typeof values.seed === "number" ? values.seed : undefined;
+    if (row) {
+        return (
+            <OptionRow
+                label="Seed"
+                after={
+                    <Button size="compact-xs" variant="default" onClick={onReshuffle}>
+                        Reshuffle
+                    </Button>
+                }
+            >
+                <PanelField
+                    label="Seed"
+                    kind="number"
+                    width="fill"
+                    value={seed ?? LAYOUT_SEED}
+                    step={1}
+                    decimalScale={0}
+                    onChange={(next) => {
+                        edit({ ...values, seed: Number(next) });
+                    }}
+                />
+            </OptionRow>
+        );
+    }
     return (
         <Group gap={8} wrap="nowrap" align="flex-end">
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -406,22 +428,18 @@ export function LayoutForm({
         }
     }, [focusButton]);
 
-    const arranged = isCurrent ? current.arrangedDimension : undefined;
-    const shape = shapeOf(values, values.dim === start.values.dim ? arranged : undefined);
-    const startShape = shapeOf(start.values, arranged);
-    const showShape = shapeChoice && current.dimension === "3d" && descriptor.maxDimensions === 3;
-
-    // The map's form: the columns it reads (designated in Data > Fields), the warnings about what
-    // they held, Surface offering only the flat map in 2D, and the map it draws on.
+    // The map's form: its Shape picks the map, and it names the columns it reads (designated in
+    // Data > Fields), the warnings about what they held, and the map it draws on.
     const isMap = descriptor.id === MAP_LAYOUT;
+    const arranged = isCurrent ? current.arrangedDimension : undefined;
+    const drawnShape = values.dim === start.values.dim ? arranged : undefined;
+    const shape = isMap ? mapShapeOf(values) : shapeOf(values, drawnShape);
+    const startShape = isMap ? mapShapeOf(start.values) : shapeOf(start.values, arranged);
+    const showShape = shapeChoice && current.dimension === "3d" && descriptor.maxDimensions === 3;
     const { mapDrawn, reads, read } = mapLines({ session, element, values, isMap, isCurrent });
     const differs = layoutDiffers({ isCurrent, engine, descriptor, current, values, read, reads });
     const reason = unavailable(session, descriptor, values);
     const estimate = session.estimate({ op: "layout.set", id: descriptor.id, engine, options: values });
-
-    // The view the layout would be drawn in: the 2D view draws every layout flat.
-    const drawnIn = current.dimension === "2d" ? "2d" : shape;
-    const { drawnOnly, defaultOnly, inView } = viewChoices(session, descriptor, drawnIn);
 
     const edit = (next: Record<string, unknown>): void => {
         setValues(next);
@@ -429,10 +447,8 @@ export function LayoutForm({
     };
     const apply = (asked: Record<string, unknown>): void => {
         setError(null);
-        // The reader's own values: one the 2D view does not draw is kept for the 3D view.
-        const options = asked;
         session.layout
-            .set(descriptor.id, engine === undefined ? { options } : { engine, options })
+            .set(descriptor.id, engine === undefined ? { options: asked } : { engine, options: asked })
             .then(onApplied, (failure: unknown) => {
                 setError(
                     layoutErrorWords(failure) ??
@@ -455,7 +471,7 @@ export function LayoutForm({
         edit(next);
     };
     const pickShape = (picked: "2d" | "3d"): void => {
-        edit(shapePicked(picked, picked === startShape ? start.values : null, values));
+        edit(shapePicked(picked, picked === startShape ? start.values : null, values, isMap));
     };
 
     // One note under Location: what the columns held.
@@ -463,14 +479,12 @@ export function LayoutForm({
         .flatMap((w) => locationFieldWords(w.code, w.params) ?? [])
         .join("; ");
     const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => optionWords(descriptor.id, option);
-    const disabledReason = (option: OptionDescriptor): string | null =>
-        defaultOnly(option)
-            ? null
-            : optionEffectWords(session.layout.optionInEffect(descriptor.id, option.name, drawnIn).code);
 
     const takesSeed = descriptor.options.some((o) => o.name === "seed");
+    const row = selectionWorkspaceOn(session);
     const seed = takesSeed ? (
         <SeedField
+            row={row}
             values={values}
             edit={edit}
             onReshuffle={() => {
@@ -493,14 +507,14 @@ export function LayoutForm({
                 }
             }}
         >
-            <Stack gap={8}>
+            <Stack gap={row ? 4 : 8} className={row ? "ws-options-rows" : undefined}>
                 {header}
-                {descriptor.description === "" ? null : (
+                {descriptor.description === "" || row ? null : (
                     <Text size="xs" c="dimmed">
                         {descriptor.description}
                     </Text>
                 )}
-                {showShape ? <ShapeField id={descriptor.id} shape={shape} onPick={pickShape} /> : null}
+                {showShape ? <ShapeField id={descriptor.id} shape={shape} onPick={pickShape} row={row} /> : null}
                 {current.dimension === "3d" && descriptor.maxDimensions === 2 ? (
                     <Text size="xs" c="dimmed">
                         Draws flat
@@ -525,19 +539,15 @@ export function LayoutForm({
                                 o.name !== "dim" &&
                                 o.name !== "seed" &&
                                 o.name !== "map" &&
-                                !(isMap && LOCATION_OPTIONS.has(o.name)),
-                        )
-                        .map((o) =>
-                            defaultOnly(o) ? { ...o, values: o.values?.filter((v) => v.value === drawnOnly(o)) } : o,
+                                !(isMap && MAP_UNDRAWN_OPTIONS.has(o.name)),
                         )}
-                    values={inView(values)}
+                    values={values}
                     words={words}
                     canUseSelectedNode
                     onChange={(name, value) => {
                         edit({ ...values, [name]: value });
                     }}
-                    advanced={seed}
-                    disabledReason={disabledReason}
+                    after={seed}
                     choiceNote={(_option, refusal) => columnFitWords(refusal) ?? ""}
                 />
                 <TransitionRow session={session} />

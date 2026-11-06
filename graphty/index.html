@@ -25,9 +25,139 @@
         <meta property="og:image:alt" content="graphty" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:image" content="https://graphty.app/open-graph-1200x630.png" />
+        <style>
+            #boot {
+                --boot-bg: #ffffff;
+                --boot-ink: #2a3045;
+                --boot-accent: #97c800;
+                position: fixed;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 24px;
+                background: var(--boot-bg);
+                color: var(--boot-ink);
+                font:
+                    14px/1.4 system-ui,
+                    sans-serif;
+            }
+            @media (prefers-color-scheme: dark) {
+                #boot {
+                    --boot-bg: #14161f;
+                    --boot-ink: #9aa3b8;
+                    --boot-accent: #c4f23a;
+                }
+            }
+            #boot svg {
+                width: 64px;
+                height: 64px;
+            }
+            #boot .bar {
+                display: block;
+                width: 96px;
+                height: 3px;
+                border-radius: 2px;
+                overflow: hidden;
+                background: color-mix(in srgb, var(--boot-ink) 20%, transparent);
+            }
+            #boot .bar::after {
+                content: "";
+                display: block;
+                width: 40%;
+                height: 100%;
+                border-radius: 2px;
+                background: var(--boot-accent);
+                animation: boot-slide 1.2s ease-in-out infinite;
+            }
+            @keyframes boot-slide {
+                from {
+                    transform: translateX(-100%);
+                }
+                to {
+                    transform: translateX(250%);
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                #boot .bar::after {
+                    animation: none;
+                    width: 100%;
+                    opacity: 0.5;
+                }
+            }
+            #boot .failed,
+            #boot.failed .bar {
+                display: none;
+            }
+            #boot.failed .failed {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+            }
+            #boot button {
+                font: inherit;
+                padding: 6px 14px;
+                border: 1px solid currentColor;
+                border-radius: 4px;
+                background: none;
+                color: inherit;
+                cursor: pointer;
+            }
+        </style>
+        <script>
+            // A script that fails to load leaves the loading screen up with nothing coming, so
+            // say so instead. Load errors do not bubble, hence the capture phase.
+            addEventListener(
+                "error",
+                function (e) {
+                    var boot = document.getElementById("boot");
+                    if (boot && e.target instanceof HTMLScriptElement) {
+                        boot.className = "failed";
+                        boot.setAttribute("aria-label", "Could not load graphty");
+                        // The script's own error names only the entry point: a module it imports
+                        // that failed shows only in the browser's resource timings, a moment later.
+                        setTimeout(function () {
+                            var all = performance.getEntriesByType("resource");
+                            // Another origin's status reads 0 whether it failed or not.
+                            var failed = all.filter(function (r) {
+                                var bad = r.responseStatus === 0 || r.responseStatus >= 400;
+                                return bad && r.name.indexOf(location.origin) === 0;
+                            });
+                            console.error(
+                                "graphty failed to load: " + failed.length + " of " + all.length + " requests failed",
+                                failed.slice(0, 20).map(function (r) {
+                                    return r.responseStatus + " " + r.name;
+                                }),
+                            );
+                        }, 500);
+                    }
+                },
+                true,
+            );
+        </script>
     </head>
     <body>
-        <div id="root"></div>
+        <div id="root">
+            <output id="boot" aria-label="Loading graphty">
+                <!-- The mark from public/favicon.svg -->
+                <svg viewBox="0 0 64 64" aria-hidden="true">
+                    <g stroke="currentColor" fill="none">
+                        <line x1="40.32" y1="18.47" x2="54.25" y2="12.9" stroke-width="5.5" />
+                        <line x1="27.76" y1="30.73" x2="23.05" y2="41.73" stroke-width="5.5" />
+                        <circle cx="31.5" cy="22" r="9.5" stroke-width="6" />
+                        <circle cx="19.5" cy="50" r="9" stroke-width="6" />
+                    </g>
+                    <circle cx="54.25" cy="12.9" r="6" fill="var(--boot-accent)" />
+                </svg>
+                <span class="bar"></span>
+                <span class="failed">
+                    Could not load graphty
+                    <button type="button" onclick="location.reload()">Reload</button>
+                </span>
+            </output>
+        </div>
         <script type="module" src="/src/main.tsx"></script>
     </body>
 </html>

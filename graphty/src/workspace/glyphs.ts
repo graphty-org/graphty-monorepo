@@ -7,10 +7,13 @@
 import type { ReadableValueKind } from "@graphty/graphty-element/catalog";
 import {
     Activity,
+    ArrowDown,
     ArrowDownToLine,
+    ArrowDownUp,
     ArrowLeftToLine,
     ArrowRight,
     ArrowRightToLine,
+    ArrowUp,
     ArrowUpToLine,
     Blend,
     Boxes,
@@ -29,6 +32,7 @@ import {
     CircleDot,
     CircleHelp,
     CircleSlash,
+    ClipboardPaste,
     Clock,
     Code,
     Columns3,
@@ -51,6 +55,7 @@ import {
     Hash,
     Highlighter,
     History,
+    Hourglass,
     KeyRound,
     Layers,
     LayoutGrid,
@@ -62,6 +67,7 @@ import {
     ListOrdered,
     ListPlus,
     LoaderCircle,
+    LocateFixed,
     Lock,
     LockKeyhole,
     LockKeyholeOpen,
@@ -78,6 +84,7 @@ import {
     Network,
     Orbit,
     Paintbrush,
+    Palette,
     Pause,
     Pencil,
     Pin,
@@ -90,7 +97,6 @@ import {
     Search,
     Server,
     Settings,
-    Settings2,
     Shapes,
     Share2,
     Shuffle,
@@ -100,6 +106,9 @@ import {
     Square,
     SquareArrowOutUpRight,
     SquareDashed,
+    SquaresIntersect,
+    SquaresSubtract,
+    SquaresUnite,
     StepBack,
     StepForward,
     StickyNote,
@@ -121,6 +130,7 @@ import {
     Workflow,
     X,
     Zap,
+    ZoomOut,
 } from "lucide-react";
 
 import type { SourceKind } from "./data-place/words";
@@ -142,6 +152,8 @@ export const GLYPHS = {
     measure: ChartColumn,
     run: Shapes,
     group: Circle,
+    // Draw a selection's groups in their colors while picking.
+    groupColors: Palette,
     layer: Paintbrush,
     // A folder of style layers, and the marks a layer row carries.
     folder: Folder,
@@ -205,14 +217,24 @@ export const GLYPHS = {
     more: MoreHorizontal,
     rename: Pencil,
     duplicate: Copy,
+    paste: ClipboardPaste,
     // Pin a style row above or below the unpinned rows, and let it go.
     pinTop: ArrowUpToLine,
     pinBottom: ArrowDownToLine,
     unpin: PinOff,
+    // Move a row one place up or down its list (Mod+[ and Mod+]).
+    moveUp: ArrowUp,
+    moveDown: ArrowDown,
     ungroup: Ungroup,
     undo: Undo2,
     redo: Redo2,
     add: Plus,
+    // A selection step's verbs, Figma's boolean glyphs: Add (union), Except (subtract), Keep (intersect).
+    union: SquaresUnite,
+    subtract: SquaresSubtract,
+    intersect: SquaresIntersect,
+    // A step whose result depends on where it sits in its list.
+    order: ArrowDownUp,
     // Take a value or a row out of a list.
     remove: Minus,
     // Delete a thing for good (a note).
@@ -254,6 +276,8 @@ export const GLYPHS = {
     // The start page's turning graph.
     play: Play,
     pause: Pause,
+    // A selection whose step waits for the reader's Run (its run was removed).
+    waiting: Hourglass,
     stop: Square,
     key: KeyRound,
     // The Data place's Fields entries a column glyph does not name.
@@ -267,7 +291,6 @@ export const GLYPHS = {
     tags: Tags,
     toggle: ToggleLeft,
     server: Server,
-    serverOptions: Settings2,
     openExternal: SquareArrowOutUpRight,
     tableFile: Table2,
     // A sample source, and a server source's Load more and Refresh.
@@ -279,6 +302,10 @@ export const GLYPHS = {
     stepForward: StepForward,
     // The whole span of the data: the window opened wide.
     allTime: MoveHorizontal,
+    // The histogram zoomed back out to the whole span.
+    wholeTimeline: ZoomOut,
+    // The window moved to where the selection is.
+    jumpToSelection: LocateFixed,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

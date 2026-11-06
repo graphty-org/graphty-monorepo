@@ -5,6 +5,8 @@
 ```ts
 
 import { AbstractMesh } from '@babylonjs/core';
+import { ActionManager } from '@babylonjs/core';
+import { BoundingBox } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { ColumnHandle } from '@graphty/graph-format';
@@ -48,10 +50,12 @@ import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
+import { Plane } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { PropertyValues } from 'lit';
 import { Quaternion } from '@babylonjs/core';
+import { RawTexture } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import type { RetryOptions } from '@graphty/graph-io';
 import { Scene } from '@babylonjs/core';
@@ -67,6 +71,7 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
+import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
@@ -92,6 +97,7 @@ export interface GraphtyElementJSXProps {
     "edge-dst-id-path"?: string;
     "edge-id-path"?: string;
     "edge-src-id-path"?: string;
+    "edge-time-end-path"?: string;
     "edge-time-path"?: string;
     "edge-time-unit"?: string;
     "edge-weight-path"?: string;
@@ -104,6 +110,7 @@ export interface GraphtyElementJSXProps {
     "node-data"?: string;
     "node-id-path"?: string;
     "node-label-path"?: string;
+    "node-time-end-path"?: string;
     "node-time-path"?: string;
     "node-time-unit"?: string;
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
@@ -248,6 +255,7 @@ export interface GraphtyElementJSXProps {
     "pixel-ratio"?: string;
     "position-scale"?: string;
     "render-on-demand"?: boolean;
+    "render-path"?: string;
     "repeated-edges"?: string;
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
@@ -271,6 +279,7 @@ export interface GraphtyElementJSXProps {
     edgeDstIdPath?: Graphty["edgeDstIdPath"];
     edgeIdPath?: Graphty["edgeIdPath"];
     edgeSrcIdPath?: Graphty["edgeSrcIdPath"];
+    edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
     edgeTimePath?: Graphty["edgeTimePath"];
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     edgeWeightPath?: Graphty["edgeWeightPath"];
@@ -289,6 +298,7 @@ export interface GraphtyElementJSXProps {
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];
+    nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
     nodeTimePath?: Graphty["nodeTimePath"];
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
     // (undocumented)
@@ -297,6 +307,7 @@ export interface GraphtyElementJSXProps {
     positionScale?: Graphty["positionScale"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];
+    renderPath?: Graphty["renderPath"];
     repeatedEdges?: Graphty["repeatedEdges"];
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];

@@ -118,10 +118,11 @@ fn grid_near_field(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocat
         f = f + gravity_force(pi);
         let fnew = load_force(i) + f;
         store_force(i, fnew);
-        if (SWING_MODE == 1u) {                                    // NetworkX: positions and forces mixed, every node (7.2)
+        let free = !mask_bit(fixedMask[i >> 5u], i);                               // a pinned node says nothing about the speed (#3255)
+        if (SWING_MODE == 1u && free) {                            // NetworkX: positions and forces mixed, every free node (7.2)
             sw = pi.w * length(pi.xyz - fnew);
             tr = 0.5 * pi.w * length(pi.xyz + fnew);
-        } else if (!mask_bit(fixedMask[i >> 5u], i)) {             // paper: free nodes only
+        } else if (free) {             // paper: free nodes only
             let fold = load_old(i);
             sw = pi.w * length(fnew - fold);
             tr = 0.5 * pi.w * length(fnew + fold);

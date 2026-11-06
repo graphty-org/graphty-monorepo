@@ -384,6 +384,14 @@ function settled(
         return { target: { kind: "all" }, notes };
     }
 
+    // The reader's selection as it is now, including one an earlier call of this message made.
+    if (raw.toLowerCase() === SELECTION_WORD) {
+        return {
+            target: { kind: "ids", ids: kind === "node" ? session.selection.nodes : session.selection.edges },
+            notes,
+        };
+    }
+
     if (raw === "") {
         throw new ToolRefusal("AI_ARG_INVALID", { path: "where", expected: 'a selector, or "all"' });
     }

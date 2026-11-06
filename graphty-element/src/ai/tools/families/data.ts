@@ -492,17 +492,20 @@ function narrowedOptions(
     args: Record<string, unknown>,
     format: string,
     options: Record<string, unknown>,
-): Record<string, unknown> {
-    const { target } = settleTarget(tx, args, "node", boundIds(args, "node") !== undefined);
+): { options: Record<string, unknown>; nodes: number } {
+    const { target } =
+        args.whole === true
+            ? { target: undefined }
+            : settleTarget(tx, args, "node", boundIds(args, "node") !== undefined);
     if (target === undefined || target.kind === "all") {
-        return options;
+        return { options, nodes: idsOf(tx, { kind: "all" }, "node", 1).total };
     }
 
     const { ids } = idsOf(tx, target, "node");
     requireMatch(ids.length, target);
     const scope: ExportScope = { nodes: ids };
     const nodeTable = format === "csv" && options.table === undefined && options.variant !== "neo4j";
-    return { ...options, scope, ...(nodeTable ? { table: "nodes" } : {}) };
+    return { options: { ...options, scope, ...(nodeTable ? { table: "nodes" } : {}) }, nodes: ids.length };
 }
 
 /**
@@ -518,7 +521,7 @@ export function exportGraphTool(catalog: CatalogView): ToolDefinition {
         plainName: "Export",
         core: false,
         description:
-            "Writes the target and the edges between its nodes as a file in a catalog format, and hands it to the reader's application to save: the target the call names, else all of the selection the message is about, else the whole graph. The graphty format holds only the whole graph. You receive only its size, never the document.",
+            'Writes the target and the edges between its nodes as a file in a catalog format, and hands it to the reader\'s application to save: the target the call names (where "selection" is the current selection), else all of the selection the message is about, else the whole graph; whole: true writes the whole graph whatever the message is about. The graphty format holds only the whole graph. You receive its size and how many nodes it holds, never the document.',
         example: { action: "export", format: "graphml" },
         actions: [
             {
@@ -526,6 +529,10 @@ export function exportGraphTool(catalog: CatalogView): ToolDefinition {
                 summary: "Export the target in a format.",
                 fields: {
                     ...targetFields,
+                    whole: z
+                        .boolean()
+                        .optional()
+                        .describe("true: the whole graph, even when the message is about a selection."),
                     format: nameField(formats, "Format."),
                     options: z
                         .record(z.string(), z.unknown())
@@ -549,7 +556,7 @@ export function exportGraphTool(catalog: CatalogView): ToolDefinition {
                         });
                     }
 
-                    const options = narrowedOptions(tx, args, format, parsed.data);
+                    const { options, nodes } = narrowedOptions(tx, args, format, parsed.data);
                     const renderer = graph as unknown as {
                         exportGraph?: (id: FormatId, options: object) => Promise<ExportResult>;
                     };
@@ -564,7 +571,7 @@ export function exportGraphTool(catalog: CatalogView): ToolDefinition {
                     });
                     const data = await result.text();
                     host.emit({ type: "ai-export-ready", format, data, losses: result.losses });
-                    return ok(undefined, { format, bytes: data.length, losses: result.losses.length });
+                    return ok(undefined, { format, bytes: data.length, nodes, losses: result.losses.length });
                 },
             },
         ],

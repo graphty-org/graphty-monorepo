@@ -97,9 +97,10 @@ describe("a run says it painted", () => {
         await scripted.say("rank them", [UNSTYLED]);
         await scripted.say("now color by it", [APPLY]);
 
-        const effects = (scripted.controller.getConversation()?.messages ?? []).flatMap((message) =>
-            message.role === "assistant" ? (message.effects ?? []) : [],
-        );
+        // Each also names the ranking's leader as found.
+        const effects = (scripted.controller.getConversation()?.messages ?? [])
+            .flatMap((message) => (message.role === "assistant" ? (message.effects ?? []) : []))
+            .filter((effect) => effect.code !== "AI_EFFECT_FOUND");
         assert.deepEqual(
             effects.map((effect) => effect.code),
             ["AI_EFFECT_RUN", "AI_EFFECT_RUN"],

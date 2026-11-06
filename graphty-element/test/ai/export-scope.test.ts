@@ -100,6 +100,28 @@ describe("export_graph writes what the message is about", () => {
         assert.lengthOf(await written(false, EDGES), 24);
     });
 
+    it("writes the whole graph on a bound message when the call asks for the whole graph", async () => {
+        assert.lengthOf(await written(true, { ...NODES, whole: true }), 24);
+        assert.lengthOf(await written(true, { ...EDGES, whole: true }), 24);
+    });
+
+    it("reads where selection as the current selection on an unbound message", async () => {
+        assert.lengthOf(await written(false, { ...NODES, where: "selection" }), 5);
+        assert.lengthOf(await written(false, { ...EDGES, where: "selection" }), 3);
+    });
+
+    it("refuses where selection when nothing is selected, and writes no file", async () => {
+        const session = await assistantSession({ nodes: VOLUNTEERS, edges: RING }, ["assistant"]);
+        const assistant = new ScriptedAssistant(session, { gate: false });
+        assistant.engine.push(
+            callsTurn([{ tool: "export_graph", args: { ...NODES, where: "selection" } }]),
+            textTurn("done"),
+        );
+        await assistant.controller.execute("save the selection");
+        assert.strictEqual(assistant.lastResults()[0].code, "AI_EMPTY_MATCH");
+        assert.isUndefined(assistant.events.find((event) => event.type === "ai-export-ready"));
+    });
+
     it("refuses a target that holds nothing, and writes no file", async () => {
         const { code, data } = await exported(false, { ...NODES, where: "data.hours > `100`" });
 

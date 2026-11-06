@@ -82,7 +82,8 @@ export async function awaitRun(run: Run, signal: AbortSignal): Promise<void> {
 }
 
 /**
- * A finished run as an effect. A run with no number to range over (a path) names no elements.
+ * A finished run as an effect. A run with no number to range over (a path) names no elements; a
+ * run that ranks its elements also names its leader as found.
  * @param session - The session.
  * @param run - The run.
  * @param painted - What it painted, when the call knows better than the run's first decision.
@@ -96,11 +97,17 @@ export async function runEffects(
 ): Promise<AiEffect[]> {
     const params = { run: run.id, algorithm: run.algorithm, ...painted };
     const target: AiTarget = { range: { run: run.id } };
+    // A run that ranks its elements found its leader: the node an answer about it names.
+    const summary = run.result?.summary();
+    const leader =
+        summary !== undefined && summary.groups === undefined && summary.top.length > 0
+            ? foundEffects("results", { nodes: 1 }, { top: { run: run.id, n: 1 } })
+            : [];
     try {
         const { nodes } = await session.selection.count(target);
-        return [{ code: "AI_EFFECT_RUN", params: { ...params, nodes }, target }];
+        return [{ code: "AI_EFFECT_RUN", params: { ...params, nodes }, target }, ...leader];
     } catch {
-        return [{ code: "AI_EFFECT_RUN", params }];
+        return [{ code: "AI_EFFECT_RUN", params }, ...leader];
     }
 }
 

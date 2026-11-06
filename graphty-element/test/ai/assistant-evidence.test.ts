@@ -229,16 +229,32 @@ describe("effects", () => {
             [{ tool: "results", args: { action: "top", run: "degree", k: 1 } }],
         );
 
-        const [, selection, found, read] = effectsOf(assistant);
+        const [, , selection, found, read] = effectsOf(assistant);
         assert.deepEqual(
             effectsOf(assistant).map((effect) => effect.code),
-            ["AI_EFFECT_RUN", "AI_EFFECT_SELECTION", "AI_EFFECT_FOUND", "AI_EFFECT_FOUND"],
+            ["AI_EFFECT_RUN", "AI_EFFECT_FOUND", "AI_EFFECT_SELECTION", "AI_EFFECT_FOUND", "AI_EFFECT_FOUND"],
         );
         assert.deepEqual(selection.params, { nodes: 2, edges: 0 });
         assert.deepEqual(found.params, { nodes: 2 });
         assert.deepEqual(read.params, { nodes: 1 });
         assert.lengthOf(session.selection.nodes, 2);
         assert.strictEqual((await session.selection.count(selection.target!)).nodes, 2);
+    });
+
+    it("a ranking run names its leader as found, a target that selects the top node", async () => {
+        const session = await assistantSession(undefined, ON);
+        const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
+        await assistant.say("which is the most connected?", [
+            { tool: "run_algorithm", args: { action: "run", name: "degree", style: false } },
+        ]);
+
+        const leader = effectsOf(assistant).find((effect) => effect.code === "AI_EFFECT_FOUND");
+        assert.exists(leader, "the run's leader is found");
+        assert.deepEqual(leader.params, { nodes: 1 });
+        const run = session.runs.list().at(-1);
+        const top = run?.result?.summary().top[0] as { id?: unknown } | undefined;
+        await session.selection.apply(leader.target!, "replace");
+        assert.deepEqual(session.selection.nodes.map(String), [String(top?.id)]);
     });
 
     it("words every other kind of change as a code with its facts", async () => {
@@ -265,13 +281,14 @@ describe("effects", () => {
             [
                 "AI_EFFECT_LAYOUT",
                 "AI_EFFECT_RUN",
+                "AI_EFFECT_FOUND",
                 "AI_EFFECT_SELECTION",
                 "AI_EFFECT_DATA",
                 "AI_EFFECT_DATA",
                 "AI_EFFECT_OTHER",
             ],
         );
-        const [layout, run, selection, removed, changed, other] = effects;
+        const [layout, run, , selection, removed, changed, other] = effects;
         assert.deepEqual(layout.params, { layout: "circular" });
         assert.strictEqual(run.params.nodes, 5);
         assert.deepEqual(selection.params, { nodes: 2, edges: 0 });

@@ -622,6 +622,8 @@ export class UpdateManager implements Manager {
      */
     rebindScene(camera: CameraManager): void {
         this.camera = camera;
+        // The new scene's switch starts off, so the next pass must write it if a window is in force.
+        this.rangedUploads = false;
         this.watchFrames();
     }
 

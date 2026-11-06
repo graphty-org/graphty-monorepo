@@ -3,6 +3,7 @@
  * masks, a real UpdateManager follows them, and stand-ins for `Node` and `Edge` count what the pass
  * asks of them. The real objects are drawn in test/browser/time-changed-rows.test.ts.
  */
+import type { Scene as BabylonScene } from "@babylonjs/core";
 import { assert, beforeAll, describe, it, vi } from "vitest";
 
 import { createGraphSession } from "../../session";
@@ -12,6 +13,7 @@ import type { GraphContext } from "../../src/managers/GraphContext";
 import type { LayoutManager } from "../../src/managers/LayoutManager";
 import type { StatsManager } from "../../src/managers/StatsManager";
 import { UpdateManager, type ViewMasks } from "../../src/managers/UpdateManager";
+import { batchUploadFrames } from "../../src/meshes/FrameRoster";
 import type { NodeRenderState } from "../../src/Node";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
 import type { ElementSession } from "../../src/session/types";
@@ -89,6 +91,10 @@ interface Scene {
     readonly manager: UpdateManager;
     readonly nodes: readonly CountingNode[];
     readonly edges: readonly CountingEdge[];
+    /** The Babylon scene the manager is on now. */
+    babylon(): BabylonScene;
+    /** Move the manager to a new Babylon scene, as opening the WebGPU engine does. */
+    replaceBabylon(): void;
     /** Run the part of a frame that follows the masks, and return the work it did. */
     frame(): { nodeWrites: number; edgeWrites: number; updates: number };
     assertDrawnAsMasks(when: string): void;
@@ -131,13 +137,15 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         },
     } as unknown as DataManager;
     const observable = { add: () => null, remove: () => true };
-    const babylon = {
-        onAfterRenderObservable: observable,
-        onBeforeDrawPhaseObservable: observable,
-        onNewMeshAddedObservable: observable,
-        onMeshRemovedObservable: observable,
-        getEngine: () => ({ onResizeObservable: observable }),
-    };
+    const newBabylon = (): BabylonScene =>
+        ({
+            onAfterRenderObservable: observable,
+            onBeforeDrawPhaseObservable: observable,
+            onNewMeshAddedObservable: observable,
+            onMeshRemovedObservable: observable,
+            getEngine: () => ({ onResizeObservable: observable }),
+        }) as unknown as BabylonScene;
+    let babylon = newBabylon();
     const monitor = { beginMonitoring: () => undefined, endMonitoring: () => undefined };
     const manager = new UpdateManager(
         null as never,
@@ -177,6 +185,11 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         manager,
         nodes,
         edges,
+        babylon: () => babylon,
+        replaceBabylon() {
+            babylon = newBabylon();
+            manager.rebindScene(null as never);
+        },
         frame,
         assertDrawnAsMasks(when) {
             const hidden = session.visibility.showContext ? "context" : "hidden";
@@ -393,5 +406,33 @@ describe("changed rows reach the renderer", () => {
         assert.strictEqual(work.edgeWrites, EDGES);
         assert.strictEqual(work.nodeWrites, scene.nodes.length);
         assert.strictEqual(work.updates, EDGES, "a revealed edge still forces the walk");
+    });
+});
+
+describe("the ranged upload switch", () => {
+    beforeAll(() => {
+        setDefaultFeatures(["timeline"]);
+    });
+
+    it("stays off with the experiment off, even with a window in force", async () => {
+        const scene = await sceneOf({ timeline: () => false, timeWindow: () => true });
+        scene.manager.syncViewMasks();
+        assert.isFalse(batchUploadFrames.rangedUploads(scene.babylon()).on);
+    });
+
+    it("turns on with the experiment on and a window in force", async () => {
+        const scene = await sceneOf({ timeline: () => true, timeWindow: () => true });
+        scene.manager.syncViewMasks();
+        assert.isTrue(batchUploadFrames.rangedUploads(scene.babylon()).on);
+    });
+
+    it("turns on in the new scene when the engine changes with a window in force", async () => {
+        const scene = await sceneOf({ timeline: () => true, timeWindow: () => true });
+        scene.manager.syncViewMasks();
+
+        scene.replaceBabylon();
+        assert.isFalse(batchUploadFrames.rangedUploads(scene.babylon()).on, "a new scene starts off");
+        scene.manager.syncViewMasks();
+        assert.isTrue(batchUploadFrames.rangedUploads(scene.babylon()).on);
     });
 });

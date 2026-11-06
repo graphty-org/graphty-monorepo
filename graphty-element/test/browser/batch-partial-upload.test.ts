@@ -9,6 +9,7 @@ import { ArcRotateCamera, Buffer, Engine, Logger, Mesh, MeshBuilder, Scene, Vect
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { isGraphtyError } from "../../src/errors";
 import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import { ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
@@ -468,6 +469,15 @@ describe("the element's switch", () => {
 
     it("stays off with the timeline off", async () => {
         const element = await timedElement("");
+        element.setAttribute("edge-time-path", "t");
+        let refused: unknown = null;
+        try {
+            await element.session.time.window({ from: 500, to: 600, step: 10, nodes: "ends" });
+        } catch (error) {
+            refused = error;
+        }
+
+        assert.isTrue(isGraphtyError(refused) && refused.code === "E_FEATURE_OFF");
         await drawn(element);
 
         assert.isFalse(batchUploadFrames.rangedUploads(element.graph.getScene()).on);

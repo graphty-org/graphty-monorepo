@@ -3140,6 +3140,18 @@ export function compareOracle(
             j.add("stray.present", "stray", id, matched ? 0 : 1, s.text ?? s.fill ?? s.stroke, matched);
             return { ...s, matched };
         });
+    // a band a clip cuts from a node's paint (`bands`): graphty draws a piece over that part of the face, in its color
+    for (const n of oracle.nodes) {
+        for (const b of n.bands ?? []) {
+            const shown = gShapes.some(
+                ({ s, box }) =>
+                    strayIou(box, b.box) >= T.strayIoU && s.fill !== null && deltaE(s.fill, b.color) <= T.colorDeltaE,
+            );
+            const { x0, y0, x1, y1 } = b.box;
+            const at = [x0, y0, x1, y1].map(Math.round).join(",");
+            j.add("stray.present", "stray", `band@${at}`, shown ? 0 : 1, b.color, shown);
+        }
+    }
     // an annotation graphty draws where the oracle draws nothing like it: a box, or words the oracle draws nowhere near;
     // a picture or a stripe graphty draws over a node's face is drawn where the program draws one as part of a node
     const oBoxes = [

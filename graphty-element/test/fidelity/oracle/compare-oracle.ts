@@ -3364,6 +3364,66 @@ function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number, mid
 const SIDES: readonly Side[] = ["before", "start", "center", "end", "after"];
 
 /**
+ * A label's box where its font's line stands, not where the browser's rounded reading left it (`PText.lineDrop`): a
+ * place against a node is told apart by a quarter of the font size, and the reading is off by up to a pixel.
+ * @param t - the label
+ * @returns its box
+ */
+function lineBox(t: PText): PBox {
+    const drop = t.lineDrop ?? 0;
+    return { ...t.box, y0: t.box.y0 - drop, y1: t.box.y1 - drop };
+}
+
+/**
+ * Whether graphty's words are in another face than the oracle's, as `label.family` judges it.
+ * @param o - the oracle's label
+ * @param g - graphty's label
+ * @returns true when they differ
+ */
+function otherFace(o: PText, g: PText): boolean {
+    const face = programFace(o.family);
+    if (face !== null) {
+        return face !== browserFace(g.family);
+    }
+    const fontClass = programFontClass(o.family);
+    return fontClass !== null && fontClass !== browserFontClass(g.family);
+}
+
+/**
+ * Where graphty's label reaches across its box if its words were as wide as the oracle's. Another face makes a line of
+ * another width, which is `label.family`'s to judge; what `label.anchor` asks is whether the label stands in the
+ * oracle's place, so it keeps whichever of its start, middle or end is nearest the oracle's
+ * (gml-synthetic-coverage 9: 0.1 px from yEd's left edge, in Courier New where yEd drew Dialog, 1.3 px wider).
+ * @param o - the oracle's label
+ * @param ob - the oracle's box
+ * @param g - graphty's label
+ * @param gb - graphty's box
+ * @returns the label's two ends, in graphty's pixels
+ */
+function atOracleWidth(o: PText, ob: PBox, g: PText, gb: PBox): [number, number] {
+    const k = g.sizePx / o.sizePx;
+    const width = (o.box.x1 - o.box.x0) * k;
+    const off = (ends: (b: PBox) => number, box: (b: PBox) => number): number =>
+        Math.abs((ends(o.box) - box(ob)) * k - (ends(g.box) - box(gb)));
+    const middleOf = (b: PBox): number => (b.x0 + b.x1) / 2;
+    const [start, middle, end] = [
+        off(
+            (b) => b.x0,
+            (b) => b.x0,
+        ),
+        off(middleOf, middleOf),
+        off(
+            (b) => b.x1,
+            (b) => b.x1,
+        ),
+    ];
+    if (middle <= start && middle <= end) {
+        return [middleOf(g.box) - width / 2, middleOf(g.box) + width / 2];
+    }
+    return start <= end ? [g.box.x0, g.box.x0 + width] : [g.box.x1 - width, g.box.x1];
+}
+
+/**
  * Whether graphty's label is in the oracle's place against its box: on each axis its side, or one it reaches by
  * moving at most a small slack along that axis (a side only changes in order, before to after, as a label moves).
  * @param o - the oracle's label
@@ -3396,9 +3456,11 @@ export function sameAnchor(
         const hi = SIDES.indexOf(sideOn(g0 + slack, g1 + slack, c0, c1, gtol, gmid));
         return want >= lo && want <= hi;
     };
+    const [gx0, gx1] = o.sizePx > 0 && otherFace(o, g) ? atOracleWidth(o, ob, g, gb) : [g.box.x0, g.box.x1];
+    const line = lineBox(o);
     return (
-        axis(o.box.x0, o.box.x1, ob.x0, ob.x1, g.box.x0, g.box.x1, gb.x0, gb.x1) &&
-        axis(o.box.y0, o.box.y1, ob.y0, ob.y1, g.box.y0, g.box.y1, gb.y0, gb.y1)
+        axis(o.box.x0, o.box.x1, ob.x0, ob.x1, gx0, gx1, gb.x0, gb.x1) &&
+        axis(line.y0, line.y1, ob.y0, ob.y1, g.box.y0, g.box.y1, gb.y0, gb.y1)
     );
 }
 
@@ -3410,7 +3472,8 @@ export function sameAnchor(
  */
 export function labelAnchor(t: PText, b: PBox): string {
     const tol = Math.max(ORACLE_TOLERANCES.labelAnchorOfSize * t.sizePx, 0.5);
-    return `${sideOn(t.box.x0, t.box.x1, b.x0, b.x1, tol)}/${sideOn(t.box.y0, t.box.y1, b.y0, b.y1, tol)}`;
+    const line = lineBox(t);
+    return `${sideOn(t.box.x0, t.box.x1, b.x0, b.x1, tol)}/${sideOn(line.y0, line.y1, b.y0, b.y1, tol)}`;
 }
 
 /**

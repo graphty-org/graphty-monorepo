@@ -116,6 +116,11 @@ export interface PText {
     x: number;
     y: number;
     box: PBox;
+    /**
+     * The oracle's side only: how far `box`, the browser's reading, stands under the line the font lays out, in pixels.
+     * The browser rounds a font's ascent and descent to whole pixels.
+     */
+    lineDrop?: number;
     /** Font size in the side's pixels. */
     sizePx: number;
     family: string;

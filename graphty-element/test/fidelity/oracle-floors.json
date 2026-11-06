@@ -12576,7 +12576,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.976,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -12637,7 +12637,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.976,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -24358,7 +24358,7 @@
             "raster.nodeOutline": 0.92,
             "raster.edge": 0.88,
             "raster.arrowhead": 0.91,
-            "raster.label": 0.96,
+            "raster.label": 0.97,
             "raster.canvas": 0.99
         },
         "gml-dunnart-planar-orthogonal@matched": {
@@ -26067,7 +26067,7 @@
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.94,
             "raster.edge": 0.89,
-            "raster.label": 0.81,
+            "raster.label": 0.95,
             "raster.canvas": 0.99,
             "label.backgroundBox": 1
         },
@@ -26345,9 +26345,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96,
-            "raster.label": 0.94,
+            "raster.label": 0.95,
             "raster.canvas": 0.99,
             "label.backgroundBox": 1
         },
@@ -26422,9 +26422,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.98,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96,
-            "raster.label": 0.86,
+            "raster.label": 0.95,
             "raster.canvas": 0.99
         },
         "gml-specimen-labels-p3@matched": {
@@ -27652,7 +27652,7 @@
             "label.opacity": 1,
             "label.family": 0.562,
             "label.lines": 1,
-            "label.anchor": 0.938,
+            "label.anchor": 0.963,
             "label.alongLine": 0.5,
             "label.offLine": 0.429,
             "label.outline": 1,
@@ -27693,11 +27693,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.92,
             "raster.edge": 0.91,
             "raster.arrowhead": 0.9,
-            "raster.label": 0.83,
+            "raster.label": 0.87,
             "raster.canvas": 0.98,
             "stray.extra": 1,
             "label.backgroundBox": 1
@@ -27728,7 +27728,7 @@
             "label.opacity": 1,
             "label.family": 0.562,
             "label.lines": 1,
-            "label.anchor": 0.938,
+            "label.anchor": 0.963,
             "label.alongLine": 0.5,
             "label.offLine": 0.429,
             "label.outline": 1,
@@ -27939,11 +27939,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.88,
-            "raster.edge": 0.8,
+            "raster.nodeBody": 0.93,
+            "raster.nodeOutline": 0.89,
+            "raster.edge": 0.83,
             "raster.arrowhead": 0.89,
-            "raster.label": 0.84,
+            "raster.label": 0.86,
             "raster.canvas": 0.98
         },
         "gml-yed-pmodel@matched": {
@@ -28203,11 +28203,11 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.89,
+            "raster.nodeOutline": 0.9,
             "raster.edge": 0.81,
-            "raster.arrowhead": 0.89,
-            "raster.label": 0.87,
-            "raster.canvas": 0.96
+            "raster.arrowhead": 0.9,
+            "raster.label": 0.94,
+            "raster.canvas": 0.97
         },
         "graphml-galaxy-lcms-workflow@matched": {
             "node.present": 1,
@@ -28330,11 +28330,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.95,
             "raster.edge": 0.93,
             "raster.arrowhead": 0.95,
-            "raster.label": 0.91,
+            "raster.label": 0.94,
             "raster.canvas": 0.99,
             "stray.extra": 1,
             "label.align": 1
@@ -28467,7 +28467,7 @@
             "raster.nodeOutline": 0.92,
             "raster.edge": 0.83,
             "raster.arrowhead": 0.9,
-            "raster.label": 0.91,
+            "raster.label": 0.92,
             "raster.canvas": 0.98,
             "label.backgroundBox": 1
         },
@@ -28733,7 +28733,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.93,
+            "raster.nodeOutline": 0.94,
             "raster.edge": 0.83,
             "raster.arrowhead": 0.92,
             "raster.label": 0.94,
@@ -28821,7 +28821,7 @@
             "label.family": 0,
             "label.lines": 1,
             "label.align": 1,
-            "label.anchor": 0.925,
+            "label.anchor": 0.944,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -28859,7 +28859,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.9,
+            "raster.nodeBody": 0.91,
             "raster.nodeOutline": 0.92,
             "raster.edge": 0.92,
             "raster.arrowhead": 0.9,
@@ -28893,7 +28893,7 @@
             "label.family": 0,
             "label.lines": 1,
             "label.align": 1,
-            "label.anchor": 0.925,
+            "label.anchor": 0.944,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -29082,7 +29082,7 @@
             "label.opacity": 1,
             "label.family": 0.882,
             "label.lines": 1,
-            "label.anchor": 0.941,
+            "label.anchor": 0.971,
             "label.outline": 1,
             "label.background": 0.971,
             "label.backgroundBox": 0.875,
@@ -29121,11 +29121,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.93,
             "raster.nodeOutline": 0.93,
-            "raster.edge": 0.86,
-            "raster.arrowhead": 0.87,
-            "raster.label": 0.86,
+            "raster.edge": 0.88,
+            "raster.arrowhead": 0.88,
+            "raster.label": 0.88,
             "raster.canvas": 0.98
         },
         "graphml-synthetic-nodes@matched": {
@@ -29154,7 +29154,7 @@
             "label.opacity": 1,
             "label.family": 0.882,
             "label.lines": 1,
-            "label.anchor": 0.941,
+            "label.anchor": 0.971,
             "label.outline": 1,
             "label.background": 0.971,
             "label.backgroundBox": 0.875,
@@ -29263,12 +29263,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.93,
             "raster.edge": 0.93,
             "raster.arrowhead": 0.97,
-            "raster.label": 0.89,
-            "raster.canvas": 0.98
+            "raster.label": 0.95,
+            "raster.canvas": 0.99
         },
         "graphml-yed-voctomix@matched": {
             "node.present": 1,
@@ -39429,7 +39429,7 @@
             "background": 1,
             "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.96,
-            "raster.label": 0.82,
+            "raster.label": 0.87,
             "raster.canvas": 0.98,
             "label.backgroundBox": 0.333
         },
@@ -39480,7 +39480,7 @@
             "background": 1,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.99,
-            "raster.label": 0.83,
+            "raster.label": 0.95,
             "raster.canvas": 0.99,
             "label.backgroundBox": 0
         },
@@ -39615,9 +39615,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
-            "raster.label": 0.93,
+            "raster.label": 0.94,
             "raster.canvas": 0.99
         },
         "yed-graphml-specimen-labels-p2": {
@@ -39656,7 +39656,7 @@
             "background": 1,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
-            "raster.label": 0.9,
+            "raster.label": 0.91,
             "raster.canvas": 0.99
         },
         "yed-graphml-specimen-labels-p2@matched": {
@@ -39889,7 +39889,7 @@
             "background": 1,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
-            "raster.label": 0.85,
+            "raster.label": 0.9,
             "raster.canvas": 0.99,
             "stray.extra": 1
         },
@@ -56587,22 +56587,6 @@
                 "to": 0.75,
                 "reason": "first judgment of this sheet after the yEd references changed (2026-11-04, #3109): yEd refuses the file, so these are draw.io's stand-in drawing judged by the corrected comparator, not yEd's; followed up in #5792",
                 "date": "2026-11-04"
-            }
-        },
-        "yed-graphml-specimen-labels": {
-            "label.anchor": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "drawing: with yEd's own label box these two labels sit on the line between two label.anchor places, not off where yEd drew them: gml-synthetic-coverage 9 has yEd's left edge to 0.1 px but narrower words (Courier New where yEd drew Dialog), and yed-graphml-specimen-labels two-labels has yEd's box while yEd draws a line's words about 0.7 px below its box's middle (graph-io/test/fidelity/oracles/ISSUES.md, #4247)",
-                "date": "2026-11-05"
-            }
-        },
-        "yed-graphml-specimen-labels@matched": {
-            "label.anchor": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "drawing: with yEd's own label box these two labels sit on the line between two label.anchor places, not off where yEd drew them: gml-synthetic-coverage 9 has yEd's left edge to 0.1 px but narrower words (Courier New where yEd drew Dialog), and yed-graphml-specimen-labels two-labels has yEd's box while yEd draws a line's words about 0.7 px below its box's middle (graph-io/test/fidelity/oracles/ISSUES.md, #4247)",
-                "date": "2026-11-05"
             }
         }
     }

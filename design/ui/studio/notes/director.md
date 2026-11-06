@@ -5,36 +5,44 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-06 (round 2 closed; round 3 frozen on a80da6d62e; stale tier 5 duplicate sections cut).
+Last updated: 2026-11-06 (tier 6 report after round 2; round 3 frozen on a80da6d62e, not run; stale tier 2 to 5 tail cut).
 Summarized on 2026-10-17 to 2026-10-21, 2026-10-29, 2026-10-30 and twice on 2026-11-05; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-11-06) ROUND 3 RUNS ON a80da6d62e (`tier6/criteria.md` line 1). Before any session, check each of the 30 units
-  has its acceptance re-walk on that build; a unit with no walk is not credited.
-- (2026-11-06) Round 2 lesson: the Assistant works (11 of 12, no false "done", Undo 2 of 2, no sev 3 confirmed). What
-  is left is the screen saying less than the graph did, or saying it where the reader is not looking. Watch those.
+- (2026-11-06) REQUESTS: 4,338 of 5,000 spent, 662 left. Round 3 needs about 26 gate walks (up to 19 each) plus
+  125 to 240 for 12 sessions (round 2 used 125). Raise the cap to 6,000 BEFORE any walk: a team call inside the
+  owner's $150 a month LLM budget (2026-10-31), as the raise to 5,000 was.
+- (2026-11-06) a80da6d62e holds 19 of 30 units; 11 were rejected and reverted. It STILL CARRIES a910cad63e (Settings
+  scrolls in a short window but paints past the dialog onto the status bar under 481 px), though
+  `rejected-fixes.md` lists that unit as rejected. Walk 320x256 and 640x256 there first; refix `frame.css` and
+  refreeze if it still overlaps.
+- (2026-11-06) No unit has a walk on a80da6d62e itself, and it merged a large master (selection workspace, timeline
+  dock, batched node renderer). Walk every unit there before any session; 12 have no walk on record at all. The
+  scope x test went out with the 208e142062 revert: restore it.
+- (2026-11-06) Bar 9 at round 2's end: 1 confirmed sev 3, Settings at 400% (`repro/settings-400/`, the key box click
+  refused at 320x256 and 640x256 on 3b2a7f0649). The repro landed after the skeptic check; say so.
+- (2026-11-06) The criteria plan ONE session round; round 1 was void, so round 2 was it. Round 3 is first the
+  criteria's re-walks and the rescore of bars 8 to 12, then the 12 sessions if requests remain, T92 A and T90 first.
+- (2026-11-06) Round 2 lesson: the Assistant works (11 of 12, no false "done", Undo 2 of 2, counts true). What is
+  left is the screen saying less than the graph did, or saying it where the reader is not looking.
 - (2026-11-06) Bar 7 failed on how it is read (session end after the reader closed the tab), not on Undo. Read bar 7
   at the step the task is done; record that reading before round 3 scores, not after.
-- (2026-11-06) Bar 9 stays OPEN until the 400% walks sit in `repro/`; the 193-screen audit (bars 10, 11) and the
-  conversation returning with a key are owed by the study, not by a unit.
+- (2026-11-06) Owed by the study, not by a unit: the 193-screen audit (bars 10, 11) and whether a conversation
+  returns with its key after a reopen.
 - (2026-11-05) ONE CHANGE PER PROBLEM, or round 3 credits nothing. T92 A retests the placeholder alone; the scope word
-  and a scope row under You wait for that result. Re-run T92 A and T90 after units 3 and 7.
-- (2026-11-05) Requests: 1,331 of 5,000 left. Reserve 480 for the 12 sessions BEFORE any dry run.
-- (2026-11-05) Autosave's tooltip fix answers no session: no reader saw it. Finding 1's label stays open at 2. Say so.
-- (2026-11-05) A read mechanism is measured before it is built on: one CSS line and a number first, an observer only if
-  that falls short.
+  and a scope row under You wait for that result.
+- (2026-11-06) Refix the 11 rejected units in their shared parts, focus after a press first (bar 8's last failure).
+  Disabled-looks-disabled stays out: its only fix is in compact-mantine under the Figma lock, and it is sev 1.
 - (2026-11-05) Open design question: `VisibilityApi` rules and the Data place's filter cards are two models, so sets and
   filters the model makes leave nothing to find. Needs a design, not a unit.
-- (2026-11-05) The doubt lives in follow-ups: T92, T93, T95 prompts stop at the outcome. Asking "how sure" measures
-  obedience. Prose against a chip stays untested and is the report's first limit.
-- (2026-11-05) A build carries an acceptance check per fix and never freezes on an empty source diff.
+- (2026-11-05) Prose against a chip stays untested and is the report's first limit. The tool hovers only on command,
+  so hover counts measure the tool.
 - (2026-11-04) Assistant design: `tier6/design.md`, `tier6/decided.md`. A rail place, not a window. Plain text is the
   model's, a chip is computed, a change line is what happened. Undo on the newest step only.
 - (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak. Two skeptics settle scores.
-- (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk those.
-- Owner items open: ten older entries, all breaking, defaults or a saved-file format. None comes from tier 6.
+- Owner items open: the older "For the owner" entries (tiers 2 to 5). None comes from tier 6.
 
 ## Priorities and values
 
@@ -79,6 +87,17 @@ history.
   what they see** (designloom workflow W14).
 
 ## Decisions and reasons
+
+- **2026-11-06, tier 6 report after round 2** (returned as text; Write refused again). Three round tables:
+  round 1 void with expert bars only, round 2 after the skeptics, round 3 "not yet measured" with what each unit
+  should move. Bar 9 reads FAILS at round 2's end, 1 confirmed sev 3, because `repro/settings-400/` now holds the
+  refused click; the insights' "open" predates it. Reasons: the bar's rule is "1 expert with a reproduction", and
+  hiding a confirmed 3 behind a stale line is the false "done" bar 2 forbids. Nothing for the owner: every element
+  change is additive, the Assistant is not on master, and the cap is inside his budget. Next steps put walks before
+  sessions, because the criteria plan one session round and round 2 was it.
+- **2026-11-06, the round 3 request cap.** Raise 5,000 to 6,000 before any walk. Reasons: 662 left; gate walks alone
+  may cost up to about 490; round 2's 12 sessions cost 125. Running short a third time costs a round; 1,000 requests
+  cost about $5 inside the owner's $150 a month (2026-10-31). Decided by the team, as the raise to 5,000 was.
 
 - **2026-11-06, round 2 closed.** Kept the round's settled reading: 0 sev 3 confirmed, 11 at sev 2, bars 7 and 9 not
   moved by a unit. Reason: the skeptics' rows, not their summary lines, are the count; bar 7's miss is the bar's
@@ -153,6 +172,13 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-11-06 (tier 6 report) -- Worked: `git merge-base --is-ancestor` on every unit commit against the frozen build;
+  it showed 19 in, 11 reverted, and a910cad63e still in though its unit is listed as rejected. Worked: reading each
+  recheck folder's `session.json` buildStamp; no unit walk is on a80da6d62e. Worked: reading the request count file
+  (4,338) rather than the decisions' figure (3,669). Did not work: trusting the engineer's Top of mind ("now that the
+  refixes landed"); focus, Show in table and Settings are not refixed. Did not work: Write of `tier6/report.md`, a
+  fourth time. Return the text.
+
 - 2026-11-06 -- Worked: cutting the stale tier 5 Top of mind and the duplicated Tried/Thinking/Sources tail (44 KB to
   about 29 KB); the full text is in git history.
 
@@ -173,18 +199,9 @@ history.
   refused the round only once too few requests were left. Did not work: a private count file let the accessibility
   walk make 4 real requests past the cap (3,004 in all): the cap binds only through the shared count file. Did not work: `scores.md` raising bar 11 and a 3 on Talk from
   reading alone; both came down. Unknown still: every mechanism unless marked run; no skeptic re-ran anything.
-- 2026-11-05 (dry run of 48879618c4) -- Worked: `git diff` over source first, as the notes say; it turned 13 rows into
-  one fact. Worked: reading `largePreview` and the second-request screenshot before ruling; the pilot's mechanism held.
-  Worked: checking a pilot's claim against the build ('the line does not always hold', when the line was never in it).
-  Did not work: the freeze itself, a docs commit frozen as a build, against my own 2026-10-19 rule. A freeze step needs
-  a line that refuses an empty diff.
-- 2026-11-05 (dry run pass 2) -- Worked: reading `rejected-fixes.md` before any row; it named the cause and the rows
-  fell into it. Worked: `work.json` across every walk plus the typed messages, which settled that T92 is untouched by
-  the dead Open run. Worked: reading the screenshot behind a mechanism marked not proved (two Algorithm results steps
-  last, then 'Changed the graph'). Did not work: nothing failed; the T92 A report is missing from the study's folder, so
-  those rows rest on the pilot's list and the screenshots.
-- 2026-11-05 (dry run pass 1, summarized) -- Worked: reading the element before classing; a rows file with per-task
-  counts. Did not work: pilot severity as a class (a 3 is harm, not a block).
+- 2026-11-05 (tier 6 dry runs, summarized 2026-11-06) -- Worked: `git diff` over source first; reading
+  `rejected-fixes.md` and the element before classing a row; `work.json` across walks; checking a pilot's claim
+  against the build. Did not work: freezing a docs-only commit as a build; pilot severity as a class.
 - 2026-11-05 (tier 6 freeze) -- Worked: walking each proposed setup before ruling. `--expect API key` first in every
   setup stopped a race. Did not work: `--expect selected=N` reads table rows, not canvas selection.
 - 2026-11-04 (Assistant) -- Worked: checking each review claim in source before ruling, and measuring the caption fit.
@@ -201,6 +218,11 @@ history.
   grepped for siblings; prose counts copied from an earlier pass; leading task wording; judging a focus fix alone.
 
 ## Thinking
+
+- **2026-11-06, tier 6 report:** a revert that takes out a unit can leave a sibling commit's part of it behind, and
+  the rejection record then says the opposite of the build. After any revert batch, list what the frozen build
+  carries per unit from git, not from the rejection notes. And the reserve rule failed a second way: it guarded
+  sessions, but fix re-walks spent 669 requests between the plan and the freeze. Budget the re-walks too.
 
 - **2026-11-05, round 3:** nine critics converge on the same screens, so the risk moved from missing a defect to each
   role adding one more line to the same turn. A red team that counts lines is worth more than a tenth critic. The
@@ -242,7 +264,7 @@ history.
 
 ## Sources
 
-- Tier 6: `tier6/report.md`; round 2 `tier6/rounds/round-2/{insights,scores,plan,decisions}.md`; round 1 `tier6/rounds/round-1/{insights,scores,plan}.md` and `expert/`; `tier6/{criteria,tasks,answers,roster,decided,design,backlog,rejected-fixes,dry-run-r1-1,dry-run-r1-2}.md`; pilots
+- Tier 6: `tier6/report.md` (saved by the launching session; `repro/settings-400/`, `rejected-fixes.md`); round 2 `tier6/rounds/round-2/{insights,scores,plan,decisions}.md`; round 1 `tier6/rounds/round-1/{insights,scores,plan}.md` and `expert/`; `tier6/{criteria,tasks,answers,roster,decided,design,backlog,rejected-fixes,dry-run-r1-1,dry-run-r1-2}.md`; pilots
   `tier6/rounds/r1/pilot/<task>/report.md`, screenshots under the main checkout's
   `tmp/design-studio/tier6/r1/pilot/`; generators `tmp/director-dryrun-t6/`, `-2/` and `-3/` in the studio worktree.
 - Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog,rejected-fixes}.md`, `tier4/rounds/round-1/`, dry runs
@@ -251,66 +273,5 @@ history.
   `tier3/dry-run-r1-*.md`; tools `tool/{real,bars,score,wording}.mjs`.
 - Tier 2: `tier2/criteria.md`, `tier2/rounds/round-{1..5}/`, `tier2/dry-run-*.md`.
 - Builds: `.study-builds/`. Owner items: `owner-decisions.md`.
-- **2026-11-03, tier 5 round 1 closed.** Studio stops at the cap with bars 1, 3, 4, 8, 9 failing.
-  Carry-over order for the next run: the two sev 3 (scope of a run as an element fact), then the
-  four repro'd sev 2, then bar 9's three elements, then the T73 and follow-up rewording. Why: bar 4
-  and bar 9 are the owner's; cost (bar 8) mostly falls out of the color row and By position fixes.
-- **2026-11-03, tier 5 report after the valid round 1** (returned as text; Write refused). Two
-  results tables: the void attempt (short, expert parts only) and round 1 after both skeptics, with
-  per-half cost inline. T73's 0 of 4 is reported as a key fault, not a build failure (both
-  skeptics); bar 7 reads 3 confirmed, not scores.md's 5 (the yes-or-no title fell to 1, the Tab
-  order moved to bar 9). Each package change carries a "confirmed by round 1?" column. Owner list
-  unchanged at 10. Why: the reader needs to see which pre-round fixes people confirmed (checklist
-  0 of 6 wrong, Escape 0 of 3, key 39 of 39) apart from what only the dry run saw.
-- **2026-11-03, tier 5 report after the void attempt** (returned as text). Round 1's void attempt
-  does not count toward the cap: a round that never showed the app is a tool failure.
-- **2026-11-03, dry run pass 8** (`tier5/dry-run-r1-8.md`, `decided.md` "Dry run pass 8"). No fix
-  now. Backlog, not fix now: focus leaving the color box after Enter when a busy close ends (the fill
-  is set and `answers.md` grades the fill the layer ends with; only a correction typed next would
-  miss), and Escape in the color box (takes a just-added line away with its typed text; swallowed
-  with nothing typed; Enter, Tab and "+" still reach the fill). Settled by the framework's key table
-  (`interaction-patterns.md` line 702), not by a new opinion: pending edit, Esc reverts and stays;
-  no pending edit, Esc goes on to the overlay or the section heading; Enter commits and stays. Why:
-  the cap allows two fix passes, and nothing on a success path or listed detour crashes, blocks or
-  spoils.
-- **2026-11-02, dry run pass 7** (`tier5/dry-run-r1-7.md`). Fixed fill-box-truth (a box drawing a
-  color nothing paints, item 8's repro) and busy-close-focus (keys typed during a busy Done went to
-  shortcuts); left the bars' failures for their re-run, nodes under overlays (the canvas is the
-  frame) and the calm-first double counts (two facts by the criteria log).
-- **2026-11-02, tier 5 criteria after the second reviews, frozen for the rounds** (researcher
-  7e4f4e71aa, red team 7881e4e012, user advocate ba5a319098; summarized 2026-11-03, full text in
-  git history). Taken: bar 9 counts named elements at any rating and T79 waits; "two counts" needs
-  a reachable state separating them; a scripted words budget (screen 50, workspace 30-40,
-  headings 3); fixes as rates against placement baselines; the dry-run cap starts the round. Not
-  taken: dropping the 1-to-7 rating. Why: the owner's complaint must be able to fail the round.
-- **2026-11-02, tier 5 report before round 1** (returned as text). Every bar "not measured" with its
-  preview; only breaking or Figma-lock owner items. Why: previews dressed as results would be the
-  false "done" bar 2 forbids.
-- **2026-11-02, dry run passes 1-6** (summarized; `tier5/dry-run-r1-{1..6}.md`, `tier5/decided.md`
-  "Dry run pass 1" to "pass 6"). Fixed: the false "covered" claim, the data table under the
-  workspace, a test's mode, reference names, one count base, Cancel on a new card, "Drawing" on
-  every blocking 50,000-node edit, record pages after a history move, an empty undo history at a
-  setup start. Rules: a fix-now unit stays open until a build carries it; item 8 makes every named
-  sev 3 candidate a blocker. Not taken: nodes under the toolbar (the canvas is the frame), keyboard
-  and screen-reader rows (backlog).
-- **2026-11-02, tier 5 criteria reviewed and frozen** (summarized 2026-11-03; full text in git
-  history; reviews 81e993f52d, 65a6f779a1, 6946dd5032). Bar 9 split into calm-first counts and a
-  rating median that gates only if a rating check separates the rejected build; "Large graphs"
-  severities; bar 5 counts walk keyboard blocks; item 8 (no half blocked, no known sev 3 open).
-  Froze d13c2ff3da. Why: the owner's complaint must be able to fail the round.
-- **2026-10-30, tier 4 round 1 and its report** (summarized 2026-11-02; full text in git history and
-  `tier4/rounds/round-1/`). 28 sessions on 79ed770292; bars 1 and 4 held, 5, 6, 7 failed, 2 and 3 failed only
-  as frozen (never re-scored after results). Stopped at the round cap; the top blocker was the study tool
-  misreporting popover hovers. Four walkthrough fixes were not built as decided. The filter-words decision
-  goes in with a non-destructive default (5 of 5 marking-first sessions). Report returned as text (the
-  harness refuses a report file from a subagent).
-- **2026-10-29..30, tier 4 criteria freeze and dry run passes 1-8** (summarized 2026-10-30; full text in git
-  history). Grade from step log and end-state records; end-state check in bar 4; audit confirms only what a
-  screenshot shows; bar 7 cost bar; gate refuses "pilot to confirm". Rules in `tier4/decided.md`: a fix is
-  taken back only for a regression its re-walk shows; an earlier build's walk stands when the source diff is
-  code its route never reaches.
-- **2026-09-26..10-23, tier 2 and tier 3 decisions, and the Layout/Analyze section pattern** (summarized
-  2026-10-29; full text in git history, `tier3/decided.md`, `tier3/design.md`). Kept: design problems
-  confirmed across two halves; docs-only commits never refreeze; key-and-drawing on every last screenshot;
-  Style rows are layers and folders only; the app sets consumer choices; read the API report before naming
-  an element addition; the owner judges by interaction consistency; Figma is the paved path for chrome.
+- Older tier 2 to 5 decision entries that sat under Sources were cut on 2026-11-06; they are in this file's git
+  history (`git show 7443f910d1:design/ui/studio/notes/director.md`).

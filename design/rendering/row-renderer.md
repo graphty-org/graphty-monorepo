@@ -205,6 +205,16 @@ end or both batched, under a moved, turned and scaled graph root, and counts 0 r
 - `RowTable.measure` still reads the mesh, the one read left: `Node.measureRow` steps around the row reads so paint sees the mesh and not the table's own
   old values. Stage 11 has to measure from the source mesh and the style.
 
+As built (stage 15, first pull request): `EDGE_PULLED` is in `meshes/edgeJoinShader.ts` and `PulledLineBatch` (`meshes/PulledLineBatch.ts`) draws
+with it, from `CustomLineRenderer.createJoinedLineMesh({ pulled: true })`. No edge uses it yet: `Edge` joining it behind the internal switch, the
+6-vertex program, the stray pixel, `render-parity` with the switch on and WebGPU are the stage's later pull requests. The draw is the join
+template's 30 indices per piece, `piece * 14 + k`, so `gl_VertexID / 14` names the piece; the material declares no attribute. A piece pulls
+only a straight line between node centres, written as `EdgeLineBatch.place` writes one (neighbours its own ends, run zero), so its vertex inputs
+equal a placed slot's. A row of w = 0, or a freed piece (rows -1), puts every point at the origin, as a hidden slot does.
+`test/browser/pulled-edge-lines.test.ts` holds it on SwiftShader WebGL with anti-aliasing, for screen, world and minimum widths: 0 pixels differ
+from the placed line at rest, after every row moves (0 edge bytes uploaded), and with a row at w = 0 and a piece freed. Found building it: the
+batch must not dispose its mesh with its textures, since `rowPosition` belongs to the row table.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 
@@ -258,6 +268,17 @@ and each candidate's matrix is multiplied by the root's, so an XR gesture change
   tie `scene.pick` then answers the other row, and the scan keeps the lower row, the section 9 rule. Only a pick on an open table can
   see this, and a batched row has no place in `scene.meshes` to lose.
 - An exact tie between a row and an object mesh goes to the row, whose mesh was built first.
+
+As built (stage 9): `NodePointerRoster.byId` names nodes, not handlers, and `Node.dragHandler` is an accessor that
+builds the handler on first read, on both paths, so a node the pointer never reaches has none (`dragHandlersBuilt`
+counts them). A batched row's click and double-click arrive as Babylon's own `POINTERTAP` and `POINTERDOUBLETAP`, so
+the click detection is the one the actions use; the roster names the node from the picked mesh, else from
+`pickNodeId`, and answers only when `NodeBatches.draws(node)`. The shared actions skip such a node, since its hidden
+proxy still carries them until stage 11. The roster sets `hoverCursor` over a batched row after Babylon resets the
+cursor. The shared `ActionManager` is built at scene setup only under `"objects"`; under `"batched"` the first mesh
+makes it, which while proxies exist is the first node. Two corrections to the stage 9 row: `XRInputHandler` was
+already on the merged ray pick (`pickRayAsDrawn`, stage 5), and the one XR laser proxy moves to stage 11, since with
+hidden proxies the predicate alone serves and nothing could prove the proxy before the meshes go.
 
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by

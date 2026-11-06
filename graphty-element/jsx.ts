@@ -101,6 +101,14 @@ export interface GraphtyElementJSXProps {
      */
     nodeTimePath?: Graphty["nodeTimePath"];
     /**
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
+    /**
      * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
@@ -332,6 +340,14 @@ export interface GraphtyElementJSXProps {
      * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
      */
     "node-time-path"?: string;
+    /**
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    "edge-time-end-path"?: string;
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    "node-time-end-path"?: string;
     /**
      * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */

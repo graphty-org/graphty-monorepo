@@ -1050,9 +1050,13 @@ const TIME_API: Readonly<Record<string, Door>> = {
                             nodeTimePath: null,
                             nodeTimeUnit: null,
                             nodeTimeParseZone: null,
+                            nodeTimeEndPath: null,
+                            nodeTimeSpellsPath: null,
                             edgeTimePath: "t",
                             edgeTimeUnit: null,
                             edgeTimeParseZone: null,
+                            edgeTimeEndPath: null,
+                            edgeTimeSpellsPath: null,
                         },
                     },
                 },
@@ -1385,6 +1389,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             nodeTimePath: assigns("t", [
                 { op: "config.set", values: { data: { knownFields: { nodeTimePath: "t" } } } },
+            ]),
+            edgeTimeEndPath: assigns("t", [
+                { op: "config.set", values: { data: { knownFields: { edgeTimeEndPath: "t" } } } },
+            ]),
+            nodeTimeEndPath: assigns("t", [
+                { op: "config.set", values: { data: { knownFields: { nodeTimeEndPath: "t" } } } },
             ]),
             edgeTimeUnit: assigns("s", [
                 { op: "config.set", values: { data: { knownFields: { edgeTimeUnit: "s" } } } },
@@ -2051,6 +2061,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodeVersion: RENDER,
             nodeCache: RENDER,
             edgesByIndex: READ,
+            nodesByIndex: READ,
             isLoading: READ,
             heldCounts: READ,
             rankSets: READ,

@@ -339,6 +339,15 @@ export class NodeBatches {
     }
 
     /**
+     * Whether a batch draws this node now, rather than its own mesh.
+     * @param node - The node.
+     * @returns True when it does.
+     */
+    draws(node: Node): boolean {
+        return this.groupOf.get(node)?.batched === true;
+    }
+
+    /**
      * A node was painted: put it where it now belongs.
      * @param node - The node.
      */

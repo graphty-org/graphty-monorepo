@@ -455,6 +455,34 @@ export class DataManager implements Manager {
         return this.edgeRows;
     }
 
+    /**
+     * Render objects by their store node index, the nodes' {@link edgesByIndex}: built on the first
+     * read after the node set changed or a freeze renumbered it, so O(n) per data change and never
+     * per step of a time window. Sparse, as that one is.
+     * @returns The nodes by row, read-only.
+     * @internal
+     */
+    get nodesByIndex(): readonly (Node | undefined)[] {
+        if (this.nodeRowsVersion !== this.nodeVersion) {
+            this.nodeRows = [];
+            for (const node of this.nodes.values()) {
+                if (node.index !== INVALID_INDEX) {
+                    this.nodeRows[node.index] = node;
+                }
+            }
+
+            this.nodeRowsVersion = this.nodeVersion;
+        }
+
+        return this.nodeRows;
+    }
+
+    /** What {@link nodesByIndex} answers, as of {@link nodeRowsVersion}. */
+    private nodeRows: (Node | undefined)[] = [];
+
+    /** The {@link nodeVersion} {@link nodeRows} was built at. */
+    private nodeRowsVersion = -1;
+
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
 

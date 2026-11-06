@@ -1002,14 +1002,7 @@ function readNodeStyle(
     putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
     putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
-    const aspect = INTRINSIC_ASPECTS.get(shape ?? "");
-    const keep = !refs.yfiles26 && treeAttr(style.e, "keepIntrinsicAspectRatio") === "true";
-    if (aspect !== undefined && size !== null && keep) {
-        // the shape is drawn at its own proportions, as large as fits the box, about its center; a yFiles for HTML
-        // 2.6 file's is drawn to the whole box (yed-live-graphml-specimen-node-shapes-p2)
-        put("width", Math.min(size.width, size.height * aspect));
-        put("height", Math.min(size.height, size.width / aspect));
-    }
+    putIntrinsicSize(refs, style, shape, size, put);
     if (shape === "round-rectangle") {
         put("cornerRadius", ROUND_RECTANGLE_CORNER);
     } else if (shape === "pill" && size !== null) {
@@ -1028,6 +1021,33 @@ function readNodeStyle(
 const INTRINSIC_ASPECTS: ReadonlyMap<string, number> = new Map([
     ["star5", (2 * Math.sin((2 * Math.PI) / 5)) / (1 + Math.cos(Math.PI / 5))],
 ]);
+
+/**
+ * Sizes a ShapeNodeStyle whose shape has proportions of its own and keeps them (`keepIntrinsicAspectRatio`): as large
+ * as fits its box, about its center. A yFiles for HTML 2.6 file's is drawn to the whole box
+ * (yed-live-graphml-specimen-node-shapes-p2).
+ * @param refs - the references
+ * @param style - the style
+ * @param shape - its shape's lookup key
+ * @param size - the node's size
+ * @param put - receives the values
+ */
+function putIntrinsicSize(
+    refs: References,
+    style: StyleObject,
+    shape: string | null,
+    size: Size | null,
+    put: PutValue,
+): void {
+    const aspect = INTRINSIC_ASPECTS.get(shape ?? "");
+    if (aspect === undefined || size === null || refs.yfiles26) {
+        return;
+    }
+    if (treeAttr(style.e, "keepIntrinsicAspectRatio") === "true") {
+        put("width", Math.min(size.width, size.height * aspect));
+        put("height", Math.min(size.height, size.width / aspect));
+    }
+}
 
 /**
  * A ShapeNodeStyle `shape` as a lookup key: lowercase, underscores as hyphens.

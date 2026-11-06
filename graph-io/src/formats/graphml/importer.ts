@@ -1098,7 +1098,10 @@ class GraphmlReader implements XmlHandler {
      * @param value - the tree
      */
     private finishPortData(key: KeyEntry, port: Record<string, unknown>, value: unknown): void {
-        const node = this.nodes[this.nodes.length - 1];
+        const node = this.nodes.at(-1);
+        if (node === undefined) {
+            return;
+        }
         port[key.name] = value;
         node.ports ??= [];
         if (!node.ports.includes(port)) {

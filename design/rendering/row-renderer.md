@@ -143,9 +143,10 @@ As built (stage 11, first pull request): `Node.mesh` is an accessor over the pri
 and `releaseNodeMesh` reads it through a module-private reader set in the class's static block. `Edge.ts` reads a node's mesh only on
 the object path, through `drawnPickMesh`. `local/node-mesh-funnel` now covers `Node.ts` and `Edge.ts` too, so the only read of the
 accessor left in `src` is `Graph.getNodeMesh`. Nothing changes yet for a consumer's read: the accessor answering by making the row an
-object row, and batched rows losing their mesh, are the stage's later pull requests. One consequence for tests:
-`edge-trim-mirror.test.ts` counts reads of the accessor, which internal code no longer makes, so until batched rows lose their mesh it
-proves only that no consumer-path read happens; the lint rule carries the rest.
+object row, and batched rows losing their mesh, are the stage's later pull requests. One consequence for tests: internal code no
+longer reads the accessor, so `edge-trim-mirror.test.ts` cannot count reads of it (the lint rule does not help either: it matches
+only `.mesh`, not `drawnPickMesh`). The test instead sets each batched row's mesh to a counting proxy for the call and counts every
+use of it, however it reaches `#mesh`; with the batched branch of `getInterceptPoints` removed it counts 436 uses on one edge.
 
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror

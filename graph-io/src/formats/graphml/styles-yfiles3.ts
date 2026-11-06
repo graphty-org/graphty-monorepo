@@ -36,6 +36,7 @@ import {
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
+import { bpmnPicture, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
 
 /** How deep a chain of shared references is followed. */
 const MAX_REFERENCE_DEPTH = 16;
@@ -342,7 +343,11 @@ function strokeOf(refs: References, v: unknown): Stroke | typeof NULL | null {
         }
     }
     const w = prop(x, "thickness");
-    return { color: paintOf(refs, prop(x, "fill"), null), width: typeof w === "string" ? w : 1, line };
+    return {
+        color: paintOf(refs, prop(x, "fill"), null),
+        width: typeof w === "string" ? w : (treeText(treeChild(w, "Double")) ?? 1),
+        line,
+    };
 }
 
 /**
@@ -621,15 +626,16 @@ const BPMN_LINES: ReadonlyMap<string, { readonly width?: number; readonly line?:
 ]);
 
 /**
- * Reads a `bpmn:` node style: `background` and `outline` paint the shape its kind draws. The markers, icons and
- * second rings inside it are not read. yFiles' own GroupNodeStyle has the same local name, and neither color.
+ * Reads a `bpmn:` node style: `background` and `outline` paint the shape its kind draws, and its symbols are drawn as
+ * a picture over it (`bpmnPicture`). yFiles' own GroupNodeStyle has the same local name, and neither color.
  * @param refs - the references
  * @param style - the style
+ * @param size - the node's size
  * @param put - receives the values
  * @param at - the sites
  * @returns true when the style is one of these
  */
-function readBpmnStyle(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
+function readBpmnStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): boolean {
     const look = BPMN_STYLES.get(style.tag);
     const background = prop(style, "background");
     const outline = prop(style, "outline");
@@ -660,32 +666,120 @@ function readBpmnStyle(refs: References, style: StyleObject, put: PutValue, at: 
     if (look.cornerRadius !== undefined) {
         put("cornerRadius", look.cornerRadius);
     }
+    if (size !== null) {
+        putBpmnPicture(refs, style, size, put, at);
+    }
     return true;
 }
 
 /**
- * Reads a UMLNodeStyle as yEd Live 8.5.16 draws it (`yed-live-graphml-specimen-node-shapes-p7`): a box with corners of
- * 10, outlined in its `fill` 2 wide, its model's `className` in white at the top. yEd Live sizes the box from its rows
- * as it loads the file, so the stored size is what is read; the sections and their rows are not drawn.
+ * Writes the picture of a BPMN node's symbols, in its `iconColor` (black unset), where it has any.
  * @param refs - the references
  * @param style - the style
+ * @param size - the node's size
  * @param put - receives the values
  * @param at - the sites
  */
-function readUmlStyle(refs: References, style: StyleObject, put: PutValue, at: SiteOf): void {
+function putBpmnPicture(refs: References, style: StyleObject, size: Size, put: PutValue, at: SiteOf): void {
+    const paint = paintOf(refs, prop(style, "iconColor") ?? BLACK, null);
+    const color = paint === null || paint === NULL ? null : canonColor(paint.raw, paint.dialect, at("image"));
+    const picture = bpmnPicture(style.tag, (name) => treeAttr(style.e, name), size, color?.color ?? "#000000");
+    if (picture !== null) {
+        put("image", picture);
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/** How far under the top of a UMLNodeStyle yEd Live writes its class's name, past where `inside-top` puts it. */
+const UML_NAME_DROP = 13;
+
+/**
+ * The words of a UMLClassModel: its name's neighbours and its two sections.
+ * @param model - the model's element
+ * @returns the words
+ */
+function umlClass(model: unknown): UmlClass {
+    const rows = (name: string): string[] =>
+        treeChildren(treeChild(treeChild(model, `UMLClassModel.${name}`), "Array"), "String").map(
+            (row) => treeText(row) ?? "",
+        );
+    return {
+        stereotype: treeAttr(model, "stereotype") ?? "",
+        constraint: treeAttr(model, "constraint") ?? "",
+        sections: [
+            { name: "Attributes", rows: rows("attributes"), open: treeAttr(model, "attributesOpen") !== "false" },
+            { name: "Operations", rows: rows("operations"), open: treeAttr(model, "operationsOpen") !== "false" },
+        ],
+    };
+}
+
+/**
+ * Reads a UMLNodeStyle as yEd Live 8.5.16 draws it (`yed-live-graphml-specimen-node-shapes-p7`): a box with corners of
+ * 10, outlined in its `fill` 2 wide, its model's `className` in white at the top, and its sections drawn as a picture
+ * over it (`umlDrawing`) at the size they need.
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the node's stored size
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readUmlStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): void {
     const fill = paintOf(refs, prop(style, "fill"), null);
     putPaint(fill, "fill", "fillOpacity", put, at);
     putStroke({ color: fill, width: 2, line: "solid" }, put, at);
     put("shape", "round-rectangle");
     put("cornerRadius", 10);
     const model = refs.deref(prop(style, "model"));
-    const name =
-        model === null || model === NULL || typeof model !== "object" ? undefined : treeAttr(model.e, "className");
+    if (model === null || model === NULL || typeof model !== "object") {
+        return;
+    }
+    const name = treeAttr(model.e, "className");
     if (name !== undefined) {
         put("label", canonText(name, at("label")));
         put("labelColor", "#ffffff");
         put("labelPosition", "inside-top");
+        put("labelOffsetY", UML_NAME_DROP);
     }
+    const color = fill === null || fill === NULL ? null : canonColor(fill.raw, fill.dialect, at("fill"));
+    const drawing = umlDrawing(umlClass(model.e), size ?? { width: 0, height: 0 }, color?.color ?? "none");
+    put("width", drawing.width);
+    put("height", drawing.height);
+    put("image", drawing.picture);
+    put("imageFit", "fill");
+}
+
+/**
+ * Reads a style that draws a picture: an ImageNodeStyle's `href` and a ColoredIconNodeStyle's `image`, stretched to the
+ * node, with no body but an ImageNodeStyle's background. yEd Live 8.5.16 draws the icon in its own colors whatever its
+ * `color` (`yed-live-graphml-specimen-node-shapes-p7`).
+ * @param refs - the references
+ * @param style - the style
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns true when the style is one of these
+ */
+function readPictureStyle(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
+    if (style.tag !== "ImageNodeStyle" && style.tag !== "ColoredIconNodeStyle") {
+        return false;
+    }
+    const src = treeAttr(style.e, "href") ?? treeText(treeChild(style.e, `${style.tag}.image`));
+    if (src === undefined || src === null) {
+        return true;
+    }
+    const fill = prop(style, "backgroundFill");
+    const stroke = prop(style, "backgroundStroke");
+    if (fill === undefined && stroke === undefined) {
+        put("shape", "none");
+    } else {
+        putPaint(paintOf(refs, fill, null), "fill", "fillOpacity", put, at);
+        putStroke(strokeOf(refs, stroke), put, at);
+        put("shape", treeAttr(style.e, "backgroundShape") === "ELLIPSE" ? "ellipse" : "rectangle");
+    }
+    put("image", src.trim());
+    put("imageFit", "fill");
+    put("imageClip", "none");
+    return true;
 }
 
 /** How far yEd Live 8.5.16's GroupNodeStyle frames its panel on a side with no tab (`yed-live-graphml-specimen-groups`). */
@@ -793,11 +887,14 @@ function readNodeStyle(
         return;
     }
     const style = st;
-    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, put, at)) {
+    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, size, put, at)) {
         return;
     }
     if (style.tag === "UMLNodeStyle") {
-        readUmlStyle(refs, style, put, at);
+        readUmlStyle(refs, style, size, put, at);
+        return;
+    }
+    if (readPictureStyle(refs, style, put, at)) {
         return;
     }
     putPaint(

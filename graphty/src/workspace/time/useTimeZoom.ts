@@ -76,7 +76,7 @@ function zoomed(
  * the thumb, which holds on to the document until it sees one; `pinched` tells the release apart.
  * @param dock - the dock.
  * @param zoomAt - zooms by a factor about a screen x.
- * @param pinched - set from the second finger until the next gesture starts.
+ * @param pinched - set from the second finger until the next press or key.
  * @returns stops following.
  */
 function followPinch(
@@ -125,17 +125,26 @@ function followPinch(
             event.stopPropagation();
         }
     };
+    // An arrow key on a thumb ends in the same release handler, and must not read as the pinch's.
+    // The slider acts on the key in React's capture phase at the root, so this listens above it.
+    const key = (): void => {
+        if (fingers.size === 0) {
+            pinched.current = false;
+        }
+    };
     dock.addEventListener("pointerdown", down, true);
     dock.addEventListener("pointermove", move, true);
     dock.addEventListener("pointerup", up, true);
     dock.addEventListener("pointercancel", up, true);
     dock.addEventListener("touchmove", touchMove, true);
+    dock.ownerDocument.addEventListener("keydown", key, true);
     return () => {
         dock.removeEventListener("pointerdown", down, true);
         dock.removeEventListener("pointermove", move, true);
         dock.removeEventListener("pointerup", up, true);
         dock.removeEventListener("pointercancel", up, true);
         dock.removeEventListener("touchmove", touchMove, true);
+        dock.ownerDocument.removeEventListener("keydown", key, true);
     };
 }
 

@@ -277,6 +277,30 @@ describe("the timeline dock on the real element", () => {
         assert.equal(session.history.position, before);
     });
 
+    it("moves the window by an arrow key on a thumb after a pinch, as one history step", async () => {
+        const { session, dock } = await openDock();
+        const whole = brushOf(dock);
+        const span = whole.max - whole.min;
+        const from = Math.round(whole.min + span * 0.3);
+        const to = Math.round(whole.min + span * 0.7);
+        await windowOn(session, from, to);
+        // Window moves in quick succession merge: a step of another kind keeps the key's its own.
+        await act(async () => {
+            await session.time.setSettings({ results: "keep" });
+        });
+        await pinchOver(plotOf(dock), 120);
+        await axisNarrowed(dock, whole);
+        const before = session.history.position;
+
+        within(dock).getByRole("slider", { name: "Window end" }).focus();
+        await userEvent.keyboard("{ArrowRight}");
+
+        await waitFor(() => {
+            assert.isAbove(windowOf(session).to, to);
+        });
+        assert.equal(session.history.position, before + 1);
+    });
+
     it("keeps a window's width when its body is dragged with the axis cutting it off", async () => {
         const { session, dock } = await openDock();
         const { from, to } = await windowCutOff(session, dock);

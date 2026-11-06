@@ -454,7 +454,7 @@ export interface TimeApi {
      * The IANA zone the timeline reads in now: the window's, then the setting's, and always UTC over
      * a year column. Write a date in this zone and it reads as the bins and the window do.
      */
-    readonly zone: string;
+    readonly timeZone: string;
     /** How windows move: results, mode, step and missing, with every default filled in. */
     readonly settings: TimeSettings;
     /**
@@ -618,7 +618,7 @@ export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
         atStart: false,
         atEnd: false,
         playing: false,
-        zone: UTC_ZONE,
+        timeZone: UTC_ZONE,
         settings: DEFAULT_TIME_SETTINGS,
         mode: DEFAULT_TIME_SETTINGS.mode,
         interval: DEFAULT_INTERVAL,
@@ -1352,15 +1352,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const loadHoldsBuilds = (): boolean => sources.timeline?.() !== false && (sources.loading?.() ?? null) !== null;
 
     /**
-     * The unit the designated field reads in, for a read that needs only that. During a load it
-     * comes from the designation or the last index of this reading, since no build may start.
+     * The unit the designated field reads in, as far as is known without a build: the designation's,
+     * or the last index's of this reading.
      * @returns The unit, or undefined when nothing says yet.
      */
-    const unitNow = (): TimeUnit | undefined => {
-        if (!loadHoldsBuilds()) {
-            return indexNow()?.unit;
-        }
-
+    const unitKnown = (): TimeUnit | undefined => {
         const field = fieldNow();
         if (field === null) {
             return undefined;
@@ -1368,6 +1364,13 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         return (field.edges ?? field.nodes)?.unit ?? (index?.reading === readingOf(field) ? index.unit : undefined);
     };
+
+    /**
+     * The unit the designated field reads in, for a read that needs only that. During a load no
+     * build may start, so it is what is known already.
+     * @returns The unit, or undefined when nothing says yet.
+     */
+    const unitNow = (): TimeUnit | undefined => (loadHoldsBuilds() ? unitKnown() : indexNow()?.unit);
 
     /**
      * The index once a field is designated: the one built for it beforehand, when the data has not
@@ -2499,8 +2502,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return current !== null && isLast(current);
         },
 
-        get zone() {
-            return zoneOf(undefined, cursor ?? visibility.window);
+        get timeZone() {
+            const window = cursor ?? visibility.window;
+
+            return unitKnown() === "year" ? UTC_ZONE : (window?.timeZone ?? settingsNow().timeZone);
         },
 
         get settings() {

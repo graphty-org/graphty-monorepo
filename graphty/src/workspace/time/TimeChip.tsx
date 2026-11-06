@@ -21,7 +21,7 @@ export function TimeChip(): React.JSX.Element | null {
         return null;
     }
     const window = session.time.current;
-    const words = windowWords(window, unitOf(session), session.time.zone);
+    const words = windowWords(window, unitOf(session), session.time.timeZone);
     return (
         <Group gap={0} wrap="nowrap" className="tl-chip">
             <Tooltip label={`Time: ${words}`}>

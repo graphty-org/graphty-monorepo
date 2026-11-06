@@ -6389,8 +6389,8 @@ export interface TimeApi {
         readonly to: number;
     } | null;
     stepBy(count: number): Promise<TimeStepEvent>;
+    readonly timeZone: string;
     window(window: TimeWindowInput | null): Run<FilterResult>;
-    readonly zone: string;
 }
 
 // @beta

@@ -908,7 +908,7 @@ function FieldRow({
 function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element {
     const { time } = session;
     const window = time.current;
-    const words = window === null ? null : windowWords(window, unitOf(session), session.time.zone);
+    const words = window === null ? null : windowWords(window, unitOf(session), session.time.timeZone);
     const side = time.field?.edges === undefined ? "nodes" : "edges";
     const extent = time.extent();
     // The element's own counts: the window's one bin, of every timed element on the field's side.
@@ -1061,7 +1061,7 @@ export function FilterChip(): React.JSX.Element | null {
     const window = session.time.field === null ? null : session.time.current;
     const on = [
         ...hiding.map((c) => conditionWords(session, c.rule)),
-        ...(window === null ? [] : [`Time ${windowWords(window, unitOf(session), session.time.zone)}`]),
+        ...(window === null ? [] : [`Time ${windowWords(window, unitOf(session), session.time.timeZone)}`]),
         ...(savedWindow ? ["Time window"] : []),
     ];
     const name = chipName(words, on);

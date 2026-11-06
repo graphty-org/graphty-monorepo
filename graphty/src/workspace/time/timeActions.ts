@@ -92,7 +92,7 @@ export function announceWindow(session: GraphSession, store: WorkspaceStore, mov
     const counts =
         moved === undefined ? "" : `, ${formatCount(moved.entered)} entered, ${formatCount(moved.left)} left`;
     store.set({
-        announcement: `${windowWords(window, unitOf(session), session.time.zone)}: ${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}${counts}`,
+        announcement: `${windowWords(window, unitOf(session), session.time.timeZone)}: ${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}${counts}`,
     });
 }
 
@@ -318,5 +318,5 @@ export function timeValue(session: GraphSession, value: unknown, date: boolean):
     } else if (typeof value === "string" || typeof value === "number") {
         at = session.time.parse(String(value));
     }
-    return at === null ? value : instantWords(at, "ms", undefined, session.time.zone);
+    return at === null ? value : instantWords(at, "ms", undefined, session.time.timeZone);
 }

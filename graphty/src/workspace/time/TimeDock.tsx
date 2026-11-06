@@ -453,7 +453,7 @@ export function TimeDock(): React.JSX.Element | null {
     const onEdges = time.field?.edges !== undefined;
     const noun = onEdges ? "edge" : "node";
     const window: TimeWindow | null = time.current;
-    const { zone } = time;
+    const { timeZone: zone } = time;
     const whole = time.bins({ maxCount }) ?? [];
     const all = time.bins({ ...view, maxCount }) ?? [];
     const visible = time.bins({ ...view, maxCount, scope: "visible" }) ?? [];

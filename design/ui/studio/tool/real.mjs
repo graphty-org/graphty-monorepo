@@ -120,14 +120,17 @@ import {
     unplant,
     wordsOnScreen,
     workGone,
+    workUnread,
 } from "./measure.mjs";
 import {
+    callsShort,
     capLine,
     countFileOf,
     GEMINI_ROUTE,
     geminiKey,
     geminiRouter,
     scanForKey,
+    sessionSlots,
     siteFile,
     TIER6_CAP,
     usesAssistant,
@@ -768,7 +771,15 @@ function gateCheck(rd) {
     const tier = tierOf(rd);
     const tier3 = tier === "3";
     const own = tier === "3" || tier === "4";
-    for (const name of own ? ["bars", "bars-light"] : ["bars"]) {
+    if (usesAssistant(tier)) {
+        const short = callsShort(countFileOf(MAIN, tier), planRows(rd).length);
+        if (short) problems.push(short);
+    }
+    // a tier whose criteria say no bar is scored by a script has no bars run to wait for
+    const scripted = !/No bar here is scored by a script/.test(
+        readFileSync(join(tierFiles(rd), "criteria.md"), "utf8"),
+    );
+    for (const name of own ? ["bars", "bars-light"] : scripted ? ["bars"] : []) {
         const bj = join(rd, name, "bars.json");
         let bars = null;
         try {
@@ -1034,6 +1045,7 @@ async function start(dir, how, sr, task, keys) {
     const log = openSync(join(dir, "session.log"), "a");
     let child = null,
         exited = null;
+    if (tier6(dir)) await closeWarm();
     if (!(await claimWarm(dir, sr, keys))) {
         child = spawn(
             gate,
@@ -1044,6 +1056,7 @@ async function start(dir, how, sr, task, keys) {
                 env: {
                     ...process.env,
                     ...(GPU ? { BROWSER_GPU: "1" } : {}),
+                    ...sessionSlots(tierOf(dir), process.env),
                     ...(keys ? { REAL_KEYS_ONLY: "1" } : {}),
                 },
             },
@@ -1098,7 +1111,18 @@ async function start(dir, how, sr, task, keys) {
         dist,
     };
     const r = await ask(dir, { op: "start", setup, task: t && t.task + t.half, followUp, route });
-    return say(r);
+    const failed = say(r);
+    // nobody works in a session whose setup failed: it would keep its browser until the idle timeout
+    if (r.code) {
+        await ask(dir, { op: "end", force: true }).catch(() => {});
+        await socketGone(dir);
+    }
+    return failed;
+}
+// The session process has closed, or will not: its socket goes either way
+async function socketGone(dir) {
+    for (let i = 0; existsSync(sockOf(dir)) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
+    await rm(sockOf(dir), { force: true });
 }
 
 // ---------- the session process: one browser, one page, a socket ----------
@@ -1292,7 +1316,8 @@ async function serve(dir, sr) {
                     else if (req.op === "tier-facts") r = { out: [], code: 0, data: await tierFacts(s) };
                     else if (req.op === "plant-gemini") r = await plantGemini(s);
                     else if (req.op === "plant-dom") r = await plantDom(s, req.kind);
-                    else if (req.op === "end" && s.followUp && !s.followUpGiven) r = await giveFollowUp(s);
+                    else if (req.op === "end" && s.followUp && !s.followUpGiven && !req.force)
+                        r = await giveFollowUp(s);
                     else if (req.op === "end") r = await opEnd(s);
                     else r = { out: [`unknown request ${req.op}`], code: 2 };
                 } catch (e) {
@@ -1385,6 +1410,26 @@ async function claimWarm(dir, sr, keys) {
     }
     return false;
 }
+// A tier 6 session never takes a warm browser, and one left by an earlier session stands outside the
+// session cap in a slot above 4, so the tier's starts close them all and wait for them to go. A ready
+// one is asked, not signaled: a claim may be under way, and a signal would kill the session it became.
+async function closeWarm() {
+    for (const f of existsSync(WARM_DIR) ? readdirSync(WARM_DIR) : []) {
+        const pid = Number(f.match(/-(\d+)\.(sock|warming)$/)?.[1]);
+        if (!pid || !alive(pid)) continue;
+        if (f.endsWith(".sock")) {
+            const r = await askAt(join(WARM_DIR, f), { op: "close" }).catch(() => null);
+            if (!r?.ok) continue;
+        } else {
+            try {
+                process.kill(-pid, "SIGTERM");
+            } catch {
+                // already gone
+            }
+        }
+        for (let i = 0; alive(pid) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
+    }
+}
 // In the warm browser: open the app, settle, then wait on the pool's socket for one claim
 async function warmUp(s, browser, http) {
     s.warmSince = Date.now();
@@ -1424,6 +1469,10 @@ async function warmUp(s, browser, http) {
                 buf += d;
                 if (!buf.includes("\n")) return;
                 const req = JSON.parse(buf.slice(0, buf.indexOf("\n")));
+                if (req.op === "close" && !taken) {
+                    c.end(JSON.stringify({ ok: true }) + "\n");
+                    return quit("a tier 6 start closed it");
+                }
                 // one claim only: the first takes it, any other is told to try the next
                 if (req.op !== "claim" || taken) return c.end(JSON.stringify({ ok: false }) + "\n");
                 taken = true;
@@ -1841,6 +1890,8 @@ async function opStart(s, setup, route) {
     if (!s.warm) await opening(s, out);
     await settle(s, out);
     const commit = commitOf();
+    const hidden = under(s.dir, SCRATCH);
+    s.hadSetup = setup.length > 0;
     await writeFile(
         join(s.dir, "session.json"),
         JSON.stringify(
@@ -1855,7 +1906,9 @@ async function opStart(s, setup, route) {
                 viewport: VIEWPORT,
                 renderer: s.renderer,
                 started: new Date().toISOString(),
-                setup: setup.map((x) => x.join(" ")),
+                // a participant's folder is theirs to read, and a setup's steps can name what the task
+                // measures ("--expect 14 nodes selected"); the setup file holds them for the graders
+                setup: hidden ? setup.length : setup.map((x) => x.join(" ")),
                 task: s.task ?? null,
                 // the follow-up's words stay out of the participant's folder; only whether it was given
                 followUp: s.followUp ? "held until --end" : "none",
@@ -1886,8 +1939,9 @@ async function opStart(s, setup, route) {
         });
         // nor a hover: the setup's last click left the pointer on a control (a row stays lit in 01.png)
         await s.page.mouse.move(-1, -1);
-        await writeFile(join(s.dir, "setup.log"), said.join("\n") + "\n");
-        if (r.code || r.missed) {
+        const failed = r.code || r.missed;
+        await writeFile(join(s.dir, "setup.log"), hidden && !failed ? "" : said.join("\n") + "\n");
+        if (failed) {
             out.push(`SETUP FAILED: a setup step did not work (setup.log):`, ...said.map((l) => "  " + l));
             code = 1;
         }
@@ -1940,9 +1994,11 @@ async function opEnd(s) {
         end = { error: e.message.split("\n")[0] };
     }
     const start = JSON.parse(await readFile(join(s.dir, "work-start.json"), "utf8").catch(() => "null"));
+    // a list that read nothing reports nothing gone, which reads as a clean session
+    const unread = workUnread(start, end, s.hadSetup);
     await writeFile(
         join(s.dir, "work.json"),
-        JSON.stringify({ start, end, gone: workGone(start, end) }, null, 1) + "\n",
+        JSON.stringify({ start, end, gone: workGone(start, end), ...(unread ? { unread } : {}) }, null, 1) + "\n",
     );
     // the whole style tree at the end beside the start's, and what changed in it, for the graders
     const stylesEnd = await s.page.evaluate(styleTree).catch((e) => ({ error: e.message.split("\n")[0] }));
@@ -1962,7 +2018,8 @@ async function opEnd(s) {
     const data = await s.page.evaluate(dataState).catch((e) => ({ error: e.message.split("\n")[0] }));
     await writeFile(join(s.dir, "data.json"), JSON.stringify(data, null, 1) + "\n");
     const capped = s.gemini?.capped ? [capLine(s.gemini.file)] : [];
-    return { out: [...capped, `session ended: ${s.dir}`], code: 0, end: true };
+    const notRead = unread ? [`FAIL: work.json says nothing about what is gone: ${unread}`] : [];
+    return { out: [...capped, ...notRead, `session ended: ${s.dir}`], code: unread ? 1 : 0, end: true };
 }
 // What the studio's bars read on the page as it is now (bars.mjs): axe, controls sharing a name,
 // focus fallen to the page, the app's words on screen, bar 10's cut text and raw strings. A plant
@@ -2165,6 +2222,16 @@ async function plantDom(s, kind) {
                 document.body.append(c);
                 b.onmouseleave = () => c.remove();
             };
+            document.body.append(b);
+            return;
+        }
+        if (kind === "going") {
+            // a control the app removes while the click still waits for it to hold still
+            const b = document.createElement("button");
+            b.textContent = "Planted going";
+            Object.assign(b.style, { position: "fixed", left: "600px", top: "10px", zIndex: 99999 });
+            b.animate({ left: ["600px", "700px"] }, { duration: 300, iterations: Infinity });
+            setTimeout(() => b.remove(), 1500);
             document.body.append(b);
             return;
         }
@@ -2667,7 +2734,15 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
             } else {
                 if (f.at) out.push(`${verb === "hover" ? "hovered" : "clicked"} ${f.desc}`);
                 if (verb === "hover") await Promise.all([forgetTips(page), forgetPops(page)]);
-                await act(page, f, verb, CLICKS[a], clickMs).catch((e) => {
+                await act(page, f, verb, CLICKS[a], clickMs).catch(async (e) => {
+                    // the app took the control away between the lookup and the click (a dialog
+                    // closing): to a person it is simply not there
+                    const gone = /not attached to the DOM/.test(e.message) && (await find(page, v)).miss;
+                    if (gone) {
+                        out.push(gone);
+                        missed++;
+                        return;
+                    }
                     // Playwright counts its wait after the click (for navigations it may have started)
                     // inside the limit: a click its call log says was done landed, and was only slow
                     if (callLog(e).some((l) => / action done$/.test(l))) {
@@ -3333,7 +3408,9 @@ async function prove() {
                 !pngs(own4).length,
             `exit ${r.status} ${r.stdout}${r.stderr}`,
         );
-        const later = spawn(process.execPath, [self, "--start", own4, "empty"], {
+        const givenSetup = join(base, "participant-setup.txt");
+        await writeFile(givenSetup, "--click role=button:Samples\n--click A club that split in two\n");
+        const later = spawn(process.execPath, [self, "--start", own4, `setup:${givenSetup}`], {
             env: { ...full, REAL_SLOT_WAIT_SECONDS: "120" },
         });
         let said = "";
@@ -3348,6 +3425,12 @@ async function prove() {
             "the same start, run again, starts the session once the slot frees",
             status === 0 && pngs(own4).includes("01.png") && existsSync(sockOf(own4)),
             `exit ${status} ${said}`,
+        );
+        const rec = JSON.parse(readFileSync(join(own4, "session.json"), "utf8"));
+        check(
+            "a participant's folder does not hold the setup's steps",
+            rec.setup === 2 && readFileSync(join(own4, "setup.log"), "utf8") === "",
+            JSON.stringify(rec.setup),
         );
         node(["--end", own4]);
     }
@@ -3430,6 +3513,13 @@ async function prove() {
         check(
             "a click that lands but whose wait after it runs past the limit is reported as landed, not missed",
             /^slow click \(landed\): "Planted slow"/m.test(x.out) && !/could not click/.test(x.out),
+            x.out,
+        );
+        await ask(A, { op: "plant-dom", kind: "going" });
+        x = step(A, "--click", "Planted going");
+        check(
+            "a control the app removes during the click is a plain miss, in no Playwright words",
+            /^nothing on screen is called "Planted going"/m.test(x.out) && !/could not click/.test(x.out),
             x.out,
         );
         // a tooltip dismissed by CSS, and an empty one, are no tooltip; Everything has none of its own
@@ -3627,12 +3717,11 @@ async function prove() {
         r.status === 1 && /SETUP FAILED/.test(r.stdout),
         `exit ${r.status} ${r.stdout}`,
     );
-    node(["--end", C]);
+    check("a failed setup leaves no session running", !existsSync(sockOf(C)), readdirSync(C).join(" "));
     // a setup click on a control that never becomes clickable (Redo, with nothing to redo) fails the start
     const C2 = join(base, "session-c2");
     await writeFile(setup, "--click role=button:Samples\n--click A club that split in two\n--click Redo\n");
     r = node(["--start", C2, `setup:${setup}`]);
-    node(["--end", C2]);
     check(
         "a setup click on a control that never becomes clickable fails the start",
         r.status === 1 &&
@@ -4009,6 +4098,7 @@ async function proveTier6(base, check, step, warmEnv) {
         ready > 0 && !/took over warm browser/.test(log),
         `${ready} ready; session.log: ${log.slice(0, 300)}`,
     );
+    check("a tier 6 start closes the warm browsers it can never take", !warmOnes().ready.length, "still ready");
     step(T, "--click", "New project");
     const facts = (await ask(T, { op: "tier-facts" })).data;
     check(
@@ -4130,10 +4220,7 @@ if (mode === "--serve") {
             code: 0,
             end: true,
         }));
-        if (r.end) {
-            for (let i = 0; existsSync(sockOf(args[1])) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
-            await rm(sockOf(args[1]), { force: true });
-        }
+        if (r.end) await socketGone(args[1]);
         ended = !!r.end;
         code = say(r);
     }

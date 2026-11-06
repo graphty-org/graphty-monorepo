@@ -124,7 +124,7 @@ sessions adds `--keys`.
 | ---- | ------------------------------ | ------------------------------- | --------------------------------------------------------- |
 | T90  | empty                          | empty                           | First-time setup is the task.                             |
 | T91  | connected-volunteers-sized.txt | connected-yeast.txt             | The task is the change, on top of A's saved work.         |
-| T92  | connected-sources-selected.txt | connected-yeast.txt             | As T91; A leaves a selection the reader did not make.     |
+| T92  | connected-sources-open.txt     | connected-yeast.txt             | As T91; A leaves a selection the reader did not make.     |
 | T93  | connected-volunteers.txt       | connected-yeast.txt             | As T91.                                                   |
 | T94  | connected-lesmis-poster.txt    | connected-volunteers-thanks.txt | The colleague's finished look must be there at the start. |
 | T95  | connected-volunteers.txt       | connected-yeast.txt             | As T91.                                                   |
@@ -139,7 +139,7 @@ sessions adds `--keys`.
 | T90 B getting it going, sources                 | Sam             | `empty --keys`                          |
 | T91 A a change, volunteers                      | Ruth            | `setup:connected-volunteers-sized.txt`  |
 | T91 B a change, yeast genes                     | Maren           | `setup:connected-yeast.txt`             |
-| T92 A a question, sources                       | Dev             | `setup:connected-sources-selected.txt`  |
+| T92 A a question, sources                       | Dev             | `setup:connected-sources-open.txt`      |
 | T92 B a question, yeast genes                   | Maren           | `setup:connected-yeast.txt`             |
 | T93 A taking people out, volunteers             | Dev             | `setup:connected-volunteers.txt`        |
 | T93 B taking genes out, yeast genes             | Sam             | `setup:connected-yeast.txt --keys`      |

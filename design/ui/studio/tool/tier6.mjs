@@ -6,9 +6,17 @@ import { dirname, join, relative } from "node:path";
 import { parseEnv } from "node:util";
 
 export const TIER6_CAP = 3000;
+// the criteria's round plan: at most 4 participants live at once, each under about 40 calls
+export const TIER6_LIVE = 4;
+export const TIER6_SESSION_CALLS = 40;
 export const GEMINI_ROUTE = "https://generativelanguage.googleapis.com/**";
 
 export const usesAssistant = (tier) => tier === "6";
+
+// The gate's cap for a session of this tier. A session never takes a warm browser and a plain GPU
+// command may take 8 slots, so nothing else holds the round to the criteria's 4. BROWSER_SLOTS wins.
+export const sessionSlots = (tier, env) =>
+    usesAssistant(tier) ? { BROWSER_SLOTS: env.BROWSER_SLOTS || String(TIER6_LIVE) } : {};
 
 // What the session's server answers at this path instead of a file in the build, or null. It names
 // no site, so the app stays "unknown" and the header shows no site chip.
@@ -31,22 +39,33 @@ export const countFileOf = (main, tier) =>
 export const capLine = (file, cap = TIER6_CAP) =>
     `the tier's cap of ${cap} Gemini requests is reached (${file}): further calls are refused`;
 
+const requestCount = (file) => {
+    try {
+        return statSync(file).size;
+    } catch {
+        return 0;
+    }
+};
+
+// Why the calls left cannot carry a round of this many sessions, or null. A session the cap stops is
+// void, so the gate says so before the first one starts.
+export function callsShort(file, sessions, cap = TIER6_CAP) {
+    const left = cap - requestCount(file);
+    const need = sessions * TIER6_SESSION_CALLS;
+    return left < need
+        ? `${left} of the tier's ${cap} Gemini requests are left and ${sessions} sessions may use ${need} (${file}): a session the cap stops is void`
+        : null;
+}
+
 // Counts one request: one appended byte, the file's size the count, so sessions side by side share
 // it with no read-modify-write. A refused request adds nothing.
 // ponytail: two appends racing at the very end can each read the other's byte, so the cap may refuse
 // a request or two early; it can never allow one over the cap.
 export function takeRequest(file, cap = TIER6_CAP) {
     mkdirSync(dirname(file), { recursive: true });
-    const size = () => {
-        try {
-            return statSync(file).size;
-        } catch {
-            return 0;
-        }
-    };
-    if (size() >= cap) return { ok: false, count: size() };
+    if (requestCount(file) >= cap) return { ok: false, count: requestCount(file) };
     appendFileSync(file, "x");
-    const count = size();
+    const count = requestCount(file);
     return { ok: count <= cap, count };
 }
 

@@ -1,12 +1,24 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
-import { geminiKey, geminiRouter, scanForKey, siteFile, takeRequest, TIER6_CAP } from "./tier6.mjs";
+import {
+    callsShort,
+    geminiKey,
+    geminiRouter,
+    scanForKey,
+    sessionSlots,
+    siteFile,
+    takeRequest,
+    TIER6_CAP,
+} from "./tier6.mjs";
 
+const here = dirname(fileURLToPath(import.meta.url));
 const scratch = () => mkdtempSync(join(tmpdir(), "tier6-"));
 const FAKE = "planted-fake-key-0123456789";
 
@@ -29,6 +41,58 @@ test("the counter reaches the cap under parallel appends and never allows one ov
     assert.ok(total <= TIER6_CAP, `${total} allowed`);
     assert.ok(total >= TIER6_CAP - 6, `${total} allowed`);
     assert.equal(takeRequest(file).ok, false);
+});
+
+test("a tier 6 session is held to the criteria's 4 live browsers; another tier and BROWSER_SLOTS are not", () => {
+    assert.deepEqual(sessionSlots("6", {}), { BROWSER_SLOTS: "4" });
+    assert.deepEqual(sessionSlots("6", { BROWSER_SLOTS: "2" }), { BROWSER_SLOTS: "2" });
+    assert.deepEqual(sessionSlots("2", {}), {});
+});
+
+test("the calls left must carry every session of the round at its limit", () => {
+    const file = join(scratch(), "count");
+    assert.equal(callsShort(file, 12), null);
+    writeFileSync(file, "x".repeat(TIER6_CAP - 480));
+    assert.equal(callsShort(file, 12), null);
+    writeFileSync(file, "x".repeat(TIER6_CAP - 479));
+    assert.match(callsShort(file, 12), /^479 of the tier's 3000 Gemini requests are left and 12 sessions may use 480/);
+});
+
+test("the gate of a tier whose criteria score no bar by a script asks for no bars run, and holds it to the cap", async () => {
+    const studio = resolve(here, "..");
+    const tier = join(studio, "tier6/rounds");
+    const rd = join(tier, "round-97");
+    const frozen = readFileSync(join(studio, "tier6/criteria.md"), "utf8").match(/build ([0-9a-f]{7,40})/)[1];
+    const walk = async (name) => {
+        const d = join(tier, "r97/pilot/T91A", name);
+        await mkdir(d, { recursive: true });
+        await writeFile(join(d, "session.json"), JSON.stringify({ commit: frozen, keyboardOnlyMode: false }));
+        await writeFile(join(d, "01.png"), "");
+    };
+    const count = join(scratch(), "count");
+    const gate = () =>
+        spawnSync(process.execPath, [join(here, "real.mjs"), "--gate", rd], {
+            encoding: "utf8",
+            env: { ...process.env, REAL_TIER: "", REAL_GEMINI_COUNT: count },
+        });
+    const clean = () => Promise.all([rd, join(tier, "r97")].map((d) => rm(d, { recursive: true, force: true })));
+    await clean();
+    try {
+        await mkdir(rd, { recursive: true });
+        await writeFile(join(rd, "plan.md"), "| r97-s01 | T91 | A: volunteers | Ruth | `empty` |\n");
+        await walk("success");
+        await walk("detours");
+        writeFileSync(count, "x".repeat(TIER6_CAP - 39));
+        let r = gate();
+        assert.equal(r.status, 1, r.stdout);
+        assert.match(r.stdout, /^FAIL: 39 of the tier's 3000 Gemini requests are left/m);
+        writeFileSync(count, "x".repeat(TIER6_CAP - 40));
+        r = gate();
+        assert.equal(r.status, 0, r.stdout);
+        assert.doesNotMatch(r.stdout, /bars/);
+    } finally {
+        await clean();
+    }
 });
 
 test("refuses at the cap, and a refused request does not grow the count", () => {

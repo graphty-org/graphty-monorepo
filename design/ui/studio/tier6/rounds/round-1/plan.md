@@ -25,7 +25,7 @@ starts" table. This plan changes neither.
 | r1-s02 | T90 | B: sources, sources.graphml | Sam | `empty --keys` |
 | r1-s03 | T91 | A: volunteers as saved, volunteers.graphml | Ruth | `setup:connected-volunteers-sized.txt` |
 | r1-s04 | T91 | B: yeast genes, yeast-galactose.graphml | Maren | `setup:connected-yeast.txt` |
-| r1-s05 | T92 | A: sources left selected, sources.graphml | Dev | `setup:connected-sources-selected.txt` |
+| r1-s05 | T92 | A: sources left selected, sources.graphml | Dev | `setup:connected-sources-open.txt` |
 | r1-s06 | T92 | B: yeast genes, yeast-galactose.graphml | Maren | `setup:connected-yeast.txt` |
 | r1-s07 | T93 | A: volunteers, volunteers.graphml | Dev | `setup:connected-volunteers.txt` |
 | r1-s08 | T93 | B: yeast genes, yeast-galactose.graphml | Sam | `setup:connected-yeast.txt --keys` |
@@ -40,8 +40,8 @@ The plan above is complete and all 12 briefings write, but three of the criteria
 may start" items do not hold on this build yet (checked 2026-11-05).
 
 1. `real.mjs --gate` on this folder exits 1, and `--start` refuses every session here until it passes.
-   No half has a walk on 3b2a7f0649, T90 B's and T93 B's keyboard walks included, and `bars/bars.json`
-   is missing. The second dry run left only its scripted pass under `r1d2/`, and walks of 48879618c4
+   No half has a walk on 3b2a7f0649, T90 B's and T93 B's keyboard walks included, and fewer Gemini
+   requests are left than the 12 sessions may use. The second dry run left only its scripted pass under `r1d2/`, and walks of 48879618c4
    do not count, because the app code differs. Never write the "Gate evidence" section by hand.
 2. `../../answers.md` was last matched to 48879618c4, and this build holds the fixes for what several
    of its lines describe: T92 A after the x, T92 B's "at least 6", T91 A's chip of 15. A session graded

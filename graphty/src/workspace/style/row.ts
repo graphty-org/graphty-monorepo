@@ -150,9 +150,8 @@ export interface LabelRow {
 }
 
 /**
- * The row "Add label line" writes to: the inspected layer row, else Everything (the starting
- * Everything row when the project has one, as the Graph tree lists it) -- the rows Text "+" writes
- * to when the reader is on them.
+ * The row "Add label line" writes to: the inspected layer row, else the row that paints the whole
+ * graph, else a new layer -- the rows Text "+" writes to when the reader is on them.
  * @param session - the element's session.
  * @param inspected - what is inspected, if anything.
  * @returns the row.
@@ -165,10 +164,10 @@ export function labelRow(
     if (inspected?.kind === "layer-row" && id !== undefined && findTreeRow(session.styles.tree(), id) !== undefined) {
         return { row: treeRowLayers(session, id), inspected: { kind: "layer-row", id } };
     }
-    const starting = startingEverything(session);
-    return starting === undefined
+    const whole = wholeGraphRow(session);
+    return whole === undefined
         ? { row: everythingRow(session), fresh: EVERYTHING_LAYER, inspected: { kind: "everything-row" } }
-        : { row: treeRowLayers(session, starting), inspected: { kind: "layer-row", id: starting } };
+        : { row: treeRowLayers(session, whole), inspected: { kind: "layer-row", id: whole } };
 }
 
 /**
@@ -961,20 +960,20 @@ export function startFor(
 }
 
 /**
- * The starting Everything row: the tree row whose layers carry graphty-element's Everything
- * template (`startingRows`).
+ * The row a write lands on when the reader has chosen none: the lowest row of the tree that selects
+ * every element, whatever it is called and whoever made it. A layer a first edit added beside the
+ * element's own look ({@link EVERYTHING_LAYER}) stays in {@link everythingRow}.
  * @param session - the element's session.
- * @returns its id, or undefined when the tree has none.
+ * @returns its id, or undefined when no row does.
  */
-export function startingEverything(session: GraphSession): string | undefined {
-    const layer = session.styles
+export function wholeGraphRow(session: GraphSession): string | undefined {
+    const tree = session.styles.tree();
+    return session.styles
         .list()
-        .find((each) => each.source.by === "template" && each.source.templateId === EVERYTHING_TEMPLATE);
-    return layer === undefined ? undefined : (layer.row ?? layer.id);
+        .filter((layer) => layer.selector.match === "everything" && layer.userData?.[EVERYTHING_KEY] !== true)
+        .map((layer) => layer.row ?? layer.id)
+        .find((id) => findTreeRow(tree, id) !== undefined);
 }
-
-/** The template id graphty-element gives the Everything starting row's layers. */
-export const EVERYTHING_TEMPLATE = "graphty:starting-everything";
 
 /**
  * The palettes a set of layers or groups can be told apart by: the categorical ones.

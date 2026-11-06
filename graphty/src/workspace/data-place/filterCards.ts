@@ -20,7 +20,7 @@ import { valueWord } from "../inspector/words";
 import { selectionWords } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
-import { timelineOn } from "../time/timeActions";
+import { panelsInView, timelineOn } from "../time/timeActions";
 import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
 import { sourceName } from "./words";
 
@@ -67,7 +67,7 @@ export const TIME_ROW = "time-window";
  * @param store - the chrome store.
  */
 export function openTimeCard(store: WorkspaceStore): void {
-    store.set({ page: "panels", place: "data", inspected: { kind: "filter-step", id: TIME_ROW } });
+    store.set({ page: "panels", place: "data", inspected: { kind: "filter-step", id: TIME_ROW }, ...panelsInView() });
 }
 
 /** `openFilterDraft`'s target that opens the Filters section's "+" list. */
@@ -81,7 +81,7 @@ export const PLUS = "+";
  */
 export function openFilterDraft(store: WorkspaceStore, target: string): void {
     draftOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    store.set({ page: "panels", place: "data", filterDraft: target });
+    store.set({ page: "panels", place: "data", filterDraft: target, ...panelsInView() });
 }
 
 /** What held focus when `openFilterDraft` was asked: the card opens a render later, on the Data place. */

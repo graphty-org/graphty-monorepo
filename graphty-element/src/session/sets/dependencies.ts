@@ -8,6 +8,7 @@
  * |---------------------------------------------------------|-------------------------------------|
  * | a `member` leaf `{ set: id }`                            | that set (follows it)               |
  * | a `member` leaf `"visible"`, `"selection"`, `"search"`   | the visibility filter, the selection, the search |
+ * | a `state` leaf                                         | the selection, which it is as live as |
  * | a `member` leaf `"largest-component"`; `component`, `degree`, `neighborhood`, `isolated`, `self-loop`, `repeated-edge` | topology (the snapshot) |
  * | a path `results.<run>.<field>` a query or `threshold` reads | that run (follows its current execution) |
  * | an `item` leaf without `run`                            | that result (follows its current run) |
@@ -193,6 +194,10 @@ class Collector {
             case "repeated-edge":
             case "source":
                 this.add({ kind: "topology" });
+                return;
+            case "state":
+                // Live as the selection is, so whatever cannot follow the one refuses the other.
+                this.add({ kind: "selection" });
                 return;
             case "member":
                 this.scope(node.of);

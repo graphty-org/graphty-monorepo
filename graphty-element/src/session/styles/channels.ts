@@ -697,6 +697,7 @@ export interface ChannelValues {
     "node.xlabelLocation": LabelLocation;
     "node.xlabelOffsetX": number;
     "node.xlabelOffsetY": number;
+    "edge.labelTable": string;
     "edge.xlabel": string;
     "edge.xlabelStyle": LabelStyle;
     "edge.xlabelLocation": LabelLocation;
@@ -4795,6 +4796,23 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "xlabel.offsetY",
         renderable: true,
         caveat: "How far the external label is moved down from where its location puts it, in scene units.",
+    },
+    "edge.labelTable": {
+        channel: "edge.labelTable",
+        target: "edge",
+        plainName: "Edge Label Table",
+        shortName: "Label table",
+        group: "text",
+        accepts: "text",
+        stylePath: "label.table",
+        renderable: true,
+        caveat:
+            "The edge's label laid out as a table of cells, in the JSON `node.labelTable` takes " +
+            '(`{ "rows": [{ "cells": [{ "lines": [{ "text": "a" }] }] }] }` is one cell), its lengths in the ' +
+            "label's own units (its font size's). The label is then the table: its fills, its cells' outlines " +
+            "(in the label's border color, else its text color), its rules and its lines are drawn in place of " +
+            "the words, with no margin or padding round it, and the label's border stands for the table's own " +
+            "outline. Pictures in cells are not drawn.",
     },
     "edge.xlabel": {
         channel: "edge.xlabel",

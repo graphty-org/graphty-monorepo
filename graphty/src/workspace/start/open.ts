@@ -26,6 +26,7 @@ import { routeToReplace } from "../replace/commands";
 import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
 import { newProjectId, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
+import { panelsInView } from "../time/timeActions";
 
 /**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
@@ -223,7 +224,7 @@ async function drawFirst(
         workspace.set({ ends: { load: load.key, source: null, target: null } });
     }
     if (!ready) {
-        workspace.set({ dockOpen: true, dockMaximized: true, place: "data" });
+        workspace.set({ dockOpen: true, dockMaximized: true, place: "data", ...panelsInView() });
     } else if (session.data.issues().length > 0) {
         workspace.set({ dockOpen: true });
     }

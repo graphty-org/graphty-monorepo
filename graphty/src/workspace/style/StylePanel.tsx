@@ -29,8 +29,8 @@ import {
     selectionRow,
     sourceName,
     startingAdds,
-    startingEverything,
     type Target,
+    wholeGraphRow,
 } from "./row";
 import { Section } from "./Section";
 import { useFocusLine } from "./useFocusLine";
@@ -57,9 +57,8 @@ function defaultRow(
     switch (inspected?.kind) {
         case undefined:
         case "everything-row": {
-            // The starting Everything row holds the base look when the project has one.
-            const starting = startingEverything(session);
-            return starting === undefined ? everythingRow(session) : treeRowLayers(session, starting);
+            const whole = wholeGraphRow(session);
+            return whole === undefined ? everythingRow(session) : treeRowLayers(session, whole);
         }
         case "measure-row":
         case "run-row": {
@@ -131,7 +130,7 @@ export function StylePanel({ layers, rowId }: Readonly<StylePanelProps>): React.
     const everything =
         layers === undefined &&
         (inspected?.kind ?? "everything-row") === "everything-row" &&
-        startingEverything(session) === undefined;
+        wholeGraphRow(session) === undefined;
     // Keyed by the row, so an empty label line is dropped when the row changes.
     return (
         <RowStyle

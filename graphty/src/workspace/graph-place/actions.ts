@@ -3,6 +3,7 @@ import type { GraphSession, LayerId, RowSpec, StyleRow, StyleRowPlace } from "@g
 import { errorWords } from "../project/words";
 import { hoverRecipe } from "../selection/hoverRecipe";
 import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
+import { panelsInView } from "../time/timeActions";
 import { findTreeRow, paintingParts } from "./rows";
 
 /**
@@ -109,7 +110,7 @@ export async function addLayer(session: GraphSession, store: WorkspaceStore, aft
             focusAddButton();
         }
     });
-    store.set({ page: "panels", place: "graph", inspected: { kind: "layer-row", id } });
+    store.set({ page: "panels", place: "graph", inspected: { kind: "layer-row", id }, ...panelsInView() });
     setTimeout(() => {
         // Focus the row first: the name field hands focus back to what held it when it opened,
         // so naming ends on the new row.

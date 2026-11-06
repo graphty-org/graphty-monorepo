@@ -278,7 +278,11 @@ export interface GraphGenericEvent {
         // framing it, and a frame has been drawn in that state. `graph-settled` fires one pass
         // earlier -- the instant the layout stops, before the final framing has even been asked
         // for -- so anything that photographs, records or measures the view wants this one.
-        | "graph-frame-stable";
+        | "graph-frame-stable"
+        // Emitted when the first frame that shows the graph's nodes has been drawn: the moment a
+        // page can take its loading placeholder away. Fired again when a graph emptied of every
+        // node draws its next nodes. `frames` is the element's frame count.
+        | "graph-first-frame";
     [key: string]: unknown;
 }
 

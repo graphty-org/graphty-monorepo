@@ -481,6 +481,22 @@ describe("graphmlImporter keys and data", () => {
         expect(column(snapshot, "edges", "targetport")).toEqual(["p2"]);
     });
 
+    it("keeps a port's yFiles data in its node's ports column, and a save says it does not write it", async () => {
+        const keys = `<key id="ps" for="port" attr.name="PortStyle" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/PortStyle"/>
+<key id="pv" for="port" attr.name="plain" attr.type="int"/>\n`;
+        const body = `<node id="a"><port name="p0"><data key="ps"><y:Style kind="event"/></data><data key="pv">1</data></port></node><node id="b"/>`;
+        const { snapshot, report } = await load(doc(body, "directed", keys));
+        // the plain port key is not kept, the yFiles one is
+        expect(codes(report)).toEqual([GRAPHML_ISSUE.KEY_DOMAIN_UNSUPPORTED, GRAPHML_ISSUE.PORT_DECLARATION]);
+        expect(snapshot.nodes.require("ports").meta.origin?.type).toBe("port");
+        expect(column(snapshot, "nodes", "ports")).toEqual([
+            [{ name: "p0", PortStyle: { "y:Style": { "@_kind": "event" } } }],
+            undefined,
+        ]);
+        expect(graphmlExporter.check(snapshot).map((n) => n.code)).toContain(GRAPHML_LOSS.PORTS_DROPPED);
+        expect(await graphmlExporter.exportToString(snapshot)).not.toContain("PortStyle");
+    });
+
     it("says where a misplaced GraphML element belongs instead of calling it foreign", async () => {
         const message = async (body: string): Promise<string | undefined> =>
             (await load(doc(body))).report.issues.find((i) => i.code === GRAPHML_ISSUE.UNKNOWN_ELEMENT)?.message;

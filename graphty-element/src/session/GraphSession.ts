@@ -183,6 +183,7 @@ import {
     STRUCTURE_PATHS,
 } from "./styles/sources";
 import { paintingOf } from "./styles/StylesApi";
+import type { EdgeAgeFade } from "./time/ageFade";
 import { numericBound } from "./time/parse";
 import { createTimeApi, gatedTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
 import { isTimeZone } from "./time/zone";
@@ -222,8 +223,14 @@ import type {
     TransactionOptions,
     TransactionScope,
 } from "./types";
-import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
+import {
+    createVisibilityApi,
+    type FilterSources,
+    type FilterValueSource,
+    type SessionVisibilityApi,
+} from "./visibility";
 import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
+import type { SlideCounts } from "./visibility/slide";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -412,6 +419,8 @@ interface SessionParts {
     readonly timelineOn: () => boolean;
     /** Stops playback, for `dispose()`. */
     readonly stopTime: () => void;
+    /** What the renderer fades edges by age with; see {@link ElementSession.edgeAges}. */
+    readonly edgeAges: () => EdgeAgeFade | null;
     /** The style stack, with the element's own layers already at the bottom of it. */
     readonly styles: SessionStylesApi;
     /** The project's shaders, and whether each may run. */
@@ -555,6 +564,8 @@ class Session implements ElementSession {
     private readonly shadersController: ShadersController;
     /** Stops playback. */
     private readonly stopTime: () => void;
+    /** See {@link ElementSession.edgeAges}. */
+    readonly edgeAges: () => EdgeAgeFade | null;
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
@@ -626,6 +637,7 @@ class Session implements ElementSession {
         this.visibility = parts.visibility;
         this.time = parts.time;
         this.stopTime = parts.stopTime;
+        this.edgeAges = parts.edgeAges;
         this.styles = parts.styles;
         this.shaders = parts.shaders.api;
         this.shadersController = parts.shaders;
@@ -2432,6 +2444,7 @@ function repaintAgainstCurrentData(
             meshStyleOf: (target, key) => engine.meshStyleOf(target, key),
             meshCount: (target) => engine.meshCount(target),
             lastPainted: (target) => engine.lastPainted(target),
+            lastPaintRowsOnly: () => engine.lastPaintRowsOnly(),
             onPainted: (listener) => engine.onPainted(listener),
             painting: () => engine.painting(),
             problems: () => engine.problems(),
@@ -2612,7 +2625,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     // Set once the style stack exists: what a selection change repaints.
     let repaintSelected = (): void => undefined;
-    let repaintGhosts = (): void => undefined;
+    let repaintGhosts = (_moved?: SlideCounts): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
     // hands a run's derived layer to it. A thunk rather than a captured object for the reason the
@@ -2624,6 +2637,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Moves whenever the selection, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
+    // Set once the selection and the filter exist: what a `state` leaf and a state layer read.
+    let elementInState: NonNullable<FilterSources["inState"]> = () => false;
     // The query engine, late-bound for the same reason: it reads the style layers' selector
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
@@ -2959,6 +2974,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
         focus: () => focusedNode(),
+        inState: (state, target, index) => elementInState(state, target, index),
+        stateRevision: () => stateRevision,
         // The runs a union step's measure reads: built once the runs and the estimate exist.
         stepRuns: () => stepRunsRef.current,
         edit: () => openEdit(),
@@ -3021,8 +3038,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             repaintGhosts();
             publish(watchers, "visibility:changed", change);
         },
-        onSlide: () => {
-            repaintGhosts();
+        onSlide: (moved) => {
+            repaintGhosts(moved);
         },
         onMaskVersion: advanceTick,
         selection: {
@@ -3259,9 +3276,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 nodeTimeUnit: known.nodeTimeUnit ?? null,
                 // A saved zone stays saved with the timeline off or a name this engine lacks, unread.
                 nodeTimeParseZone: readableZone(known.nodeTimeParseZone),
+                nodeTimeEndPath: known.nodeTimeEndPath ?? null,
+                nodeTimeSpellsPath: known.nodeTimeSpellsPath ?? null,
                 edgeTimePath: known.edgeTimePath,
                 edgeTimeUnit: known.edgeTimeUnit ?? null,
                 edgeTimeParseZone: readableZone(known.edgeTimeParseZone),
+                edgeTimeEndPath: known.edgeTimeEndPath ?? null,
+                edgeTimeSpellsPath: known.edgeTimeSpellsPath ?? null,
             };
         },
         declarations: () => dispatcher.state.attributes,
@@ -3280,6 +3301,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
     });
     timeInternals = time.internals;
+    dispatcher.services.timeFieldChanged = () => {
+        publish(watchers, "time:field", { field: time.api.field });
+    };
 
     const results = createResultsApi({
         entry: (id) => runEntry(runs, id),
@@ -3482,16 +3506,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // step: each change repaints exactly the elements whose state moved, when a layer reads one.
     const readsState = (): boolean =>
         stack?.compiled().some((entry) => entry.layer.selector.match === "state") ?? false;
-    const repaintStates = (dirty: ElementIndices): void => {
+    const repaintStates = (dirty: ElementIndices, rowsOnly = false): void => {
         if (dirty.node.length > 0 || dirty.edge.length > 0) {
             stateRevision++;
+            // A rule reading a state follows it through its live scope.
+            notifier.notify({ kind: "state" });
         }
         if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0) || !readsState()) {
             return;
         }
 
         painter
-            .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
+            .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined, rowsOnly })
             .catch((error: unknown) => {
                 if (!teardown.signal.aborted) {
                     console.error("[graphty] Could not repaint the layers reading the selection.", error);
@@ -3535,14 +3561,36 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The ghosts as last repainted: a window move, a slide or the ghost setting repaints the
     // elements that became or stopped being ghosts.
     let paintedGhosts: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
-    repaintGhosts = (): void => {
+    let seenGhosts: ReturnType<typeof visibility.ghosts> = null;
+    repaintGhosts = (moved?: SlideCounts): void => {
+        const ghosts = visibility.ghosts();
+        // A slide can carry the same bytes forward with different rows in them.
+        if (ghosts !== seenGhosts || moved !== undefined) {
+            seenGhosts = ghosts;
+            stateRevision++;
+            notifier.notify({ kind: "state" });
+        }
+
         if (!readsState()) {
             paintedGhosts = null;
             return;
         }
 
-        const ghosts = visibility.ghosts();
         if (ghosts === null && paintedGhosts === null) {
+            return;
+        }
+
+        // The same bytes, brought forward by the slide's rows: those rows are all that moved.
+        if (moved !== undefined && ghosts !== null && ghosts.node === paintedGhosts?.node) {
+            const { enteredNodes, leftNodes, enteredEdges, leftEdges } = moved.rows;
+            paintedGhosts = ghosts;
+            repaintStates(
+                {
+                    node: [...Array.from(enteredNodes), ...Array.from(leftNodes)],
+                    edge: [...Array.from(enteredEdges), ...Array.from(leftEdges)],
+                },
+                true,
+            );
             return;
         }
 
@@ -3615,6 +3663,26 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const id = focusedNode();
         return id === null ? undefined : nodeIndex(id);
     });
+    elementInState = (state, target, index) => {
+        if (state === "ghosted") {
+            return visibility.ghosted(target, index);
+        }
+
+        if (state === "pinned") {
+            return target === "node" && store.store.positions.isPinned(index);
+        }
+
+        const owner = requireSelection(selection);
+        if (state === "hovered") {
+            return (
+                target === "node" &&
+                ((owner.hovered !== null && nodeIndex(owner.hovered) === index) ||
+                    (owner.hoverPreview && owner.nodeMembers().has(index)))
+            );
+        }
+
+        return (target === "node" ? owner.nodeMembers() : owner.edgeMembers()).has(index);
+    };
     const styles = createStylesApi({
         dispatcher,
         elements: {
@@ -3622,26 +3690,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             nodeIndex,
             edgeIndex,
             scope: (spec: Scope) => layerScopes.live(spec),
-            inState: (state, target, index) => {
-                if (state === "ghosted") {
-                    return visibility.ghosted(target, index);
-                }
-
-                if (state === "pinned") {
-                    return target === "node" && store.store.positions.isPinned(index);
-                }
-
-                const owner = requireSelection(selection);
-                if (state === "hovered") {
-                    return (
-                        target === "node" &&
-                        ((owner.hovered !== null && nodeIndex(owner.hovered) === index) ||
-                            (owner.hoverPreview && owner.nodeMembers().has(index)))
-                    );
-                }
-
-                return (target === "node" ? owner.nodeMembers() : owner.edgeMembers()).has(index);
-            },
+            inState: elementInState,
             hover: hoverSource,
             focus: focusSource,
         },
@@ -4124,6 +4173,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         stopTime: () => {
             time.internals.dispose();
         },
+        edgeAges: () => (timelineOn() ? time.internals.edgeAges() : null),
         styles,
         stopStyleEdits: () => {
             teardown.abort(new DOMException("The session was disposed.", "AbortError"));

@@ -45,6 +45,7 @@ import { assertRuleTree, parseScope } from "../../catalog/sets/parse";
 import type {
     AttributeLeafNodes,
     EdgeId,
+    ElementState,
     NodeId,
     Path,
     Query,
@@ -71,7 +72,7 @@ import {
     visibilityCycle,
 } from "../sets/dependencies";
 import { normalizeText, textMatcher } from "../text";
-import { numericBound, readTimeValue } from "../time/parse";
+import { numericBound, readTimeValue, spanEnd, spellPairs } from "../time/parse";
 import { isTimeZone } from "../time/zone";
 import { slideCounters } from "./slide";
 import {
@@ -108,6 +109,23 @@ export type TimeStep = number | "hour" | "day" | "week" | "month" | "quarter" | 
 export interface TimeWindow {
     /** The attribute carrying the instant, such as `data.timestamp`. */
     readonly attribute: Path;
+    /**
+     * The attribute carrying where each element ends, such as `data.left`: an element is inside
+     * when it starts before `to` and ends after `from`. A missing end is open; a missing start is
+     * open when an end is present. Left out, `attribute` holds instants. `session.time` fills it in
+     * from the designated field.
+     * @experimental timeline
+     * @beta
+     */
+    readonly end?: Path;
+    /**
+     * The attribute carrying a list of `{ start, end }`, `[start, end]` or bare instants, such as
+     * `data.spells`: an element holding one is inside when any of them is, whatever `attribute` and
+     * `end` hold. `session.time` fills it in from the designated field.
+     * @experimental timeline
+     * @beta
+     */
+    readonly spells?: Path;
     /** The first instant inside the window: a number, or a string `Date.parse` understands. */
     readonly from: number | string;
     /** The first instant past the window, in the same form as `from`. */
@@ -182,6 +200,16 @@ export interface TimePlayback {
     readonly outside?: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in; default `"UTC"`. */
     readonly timeZone?: string;
+    /**
+     * Fade by age: the opacity, 0 to 1, that edges starting at the window's first instant draw at,
+     * rising to full at its end. Default 1, no fade. It applies to edges timed by an instant or a
+     * span, with `outside: "hide"`; elsewhere it does nothing and `session.time.notices()` says why
+     * (`time.age-fade-inactive`). A line drawn with `line.blending` false stays opaque, and so do
+     * straight animated lines (`line.animationSpeed`) and patterned lines other than a dash or dot line that
+     * bends or curves.
+     * @experimental timeline
+     */
+    readonly ageFade?: number;
 }
 
 /** One kind's instants for a time column, parsed once: per row, NaN where there is none. */
@@ -190,6 +218,22 @@ export interface TimeInstants {
     readonly rows: Float64Array;
     /** How many rows have one. */
     readonly timed: number;
+    /** A kind of spans' spans; null or absent for a kind of instants. */
+    readonly spans?: TimeSpans | null;
+}
+
+/** One kind's spans, row by row: a span holds a window `[from, to)` when `start < to && end > from`. */
+export interface TimeSpans {
+    /** Where each span starts, a row's spans side by side; an open start is `-Infinity`. */
+    readonly starts: Float64Array;
+    /** Where each ends; an open end is `Infinity`, and an instant the next float above it. */
+    readonly ends: Float64Array;
+    /** Where each row's spans start, with one more entry than rows. */
+    readonly first: Uint32Array;
+    /** The end attribute they were read from, when they were. */
+    readonly end?: Path;
+    /** The spells attribute they were read from, when they were. */
+    readonly spells?: Path;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -328,6 +372,15 @@ export interface FilterSources {
      */
     readonly focus?: () => NodeId | null;
     /**
+     * Whether an element is in a state now: what a `state` leaf reads. Absent refuses that leaf,
+     * as the visibility filter does, since it cannot follow the reader.
+     * @param state - Which state.
+     * @param target - Nodes or edges.
+     * @param index - The dense index.
+     * @returns True when it is.
+     */
+    readonly inState?: (state: ElementState, target: "node" | "edge", index: number) => boolean;
+    /**
      * Whether a union step can be evaluated now, or why it waits (its run is computing, needed,
      * paused, failed or stale), and the result a `measure` leaf reads. Absent refuses `measure`.
      */
@@ -438,6 +491,7 @@ const FILTER_KINDS = [
     "repeated-edge",
     "source",
     "edges",
+    "state",
     "member",
     "item",
     "threshold",
@@ -726,6 +780,7 @@ function assertFilter(filter: RuleTree): void {
         case "item":
         case "threshold":
         case "text":
+        case "state":
         case "hops":
         case "touching":
         case "nonempty":
@@ -894,10 +949,51 @@ export function assertVisibility(
 /**
  * Whether a window asks for what only the timeline experiment applies.
  * @param window - The window, or null for none.
- * @returns True when it names `nodes: "ends"` or `missing: "outside"`.
+ * @returns True when it names `nodes: "ends"`, `missing: "outside"`, an `end` or `spells`.
  */
 export function windowNeedsTimeline(window: TimeWindow | null): boolean {
-    return window?.nodes === "ends" || window?.missing === "outside";
+    return (
+        window?.nodes === "ends" ||
+        window?.missing === "outside" ||
+        window?.end !== undefined ||
+        window?.spells !== undefined
+    );
+}
+
+/**
+ * Refuse a state leaf, alone or in a union's steps, where nothing follows the reader. A union's
+ * other leaves are checked as it is read; a state never can be there.
+ * @param rule - The leaf.
+ * @param sources - What this session can evaluate with.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED`.
+ */
+function assertStatesEvaluable(rule: RuleTree, sources: FilterSources): void {
+    if (sources.inState !== undefined) {
+        return;
+    }
+
+    switch (rule.kind) {
+        case "state":
+            throw unsupported("state", "a view that follows the reader");
+        case "union":
+            for (const branch of rule.branches) {
+                for (const step of branch.steps) {
+                    assertStatesEvaluable(step.rule, sources);
+                }
+            }
+
+            return;
+        case "all":
+        case "any":
+            rule.of.forEach((member) => {
+                assertStatesEvaluable(member, sources);
+            });
+            return;
+        case "not":
+            assertStatesEvaluable(rule.of, sources);
+            return;
+        default:
+    }
 }
 
 /**
@@ -918,6 +1014,15 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
             reason: "time-zone",
             value: window.timeZone,
         });
+    }
+
+    // With the timeline off they are not read, so any value stays saved as it came.
+    if (window !== null && sources.timeline?.() !== false) {
+        for (const path of [window.end, window.spells]) {
+            if (path !== undefined) {
+                assertPath(path, "window");
+            }
+        }
     }
 
     const check = (each: RuleTree): void => {
@@ -965,6 +1070,10 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
                     throw unsupported("source", "a record of what each load supplied");
                 }
 
+                return;
+            case "state":
+            case "union":
+                assertStatesEvaluable(each, sources);
                 return;
             case "all":
             case "any":
@@ -1913,6 +2022,25 @@ function fold(tests: readonly (ElementTest | null)[], mode: "all" | "any"): Elem
 }
 
 /**
+ * A state leaf's two halves.
+ * @param context - The compile context.
+ * @param state - The state.
+ * @returns The halves.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED` when nothing here follows the reader.
+ */
+function stateTests(context: CompileContext, state: ElementState): CompiledHalves {
+    const { inState } = context.sources;
+    if (inState === undefined) {
+        throw unsupported("state", "a view that follows the reader");
+    }
+
+    return {
+        node: (index) => inState(state, "node", index),
+        edge: (index) => inState(state, "edge", index),
+    };
+}
+
+/**
  * Compile one filter into its node half and its edge half.
  * @param filter - The filter.
  * @param context - The compile context.
@@ -1942,6 +2070,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: null, edge: edgeQueryTest(context, filter.where) };
         case "source":
             return sourceTests(context, filter.sources, filter.side);
+        case "state":
+            return stateTests(context, filter.state);
         case "member": {
             if (context.sources.scope === undefined) {
                 throw unsupported("member", "a scope resolver");
@@ -2428,17 +2558,115 @@ export function windowBounds(window: TimeWindow, sources: FilterSources): readon
  */
 export function windowReadsRecords(graph: GraphSnapshot, window: TimeWindow, sources: FilterSources): boolean {
     const { values } = sources;
-    const indexed = sources.instants?.(window.attribute) ?? null;
+    const indexed = windowInstants(window, sources);
     if (values === undefined) {
         return false;
     }
 
+    const paths = windowPaths(window, sources.timeline?.() !== false);
+
     return (
         ((indexed?.node ?? null) === null &&
-            carries(graph.nodeCount, (index) => values.nodeValue(index, window.attribute))) ||
+            paths.some((path) => carries(graph.nodeCount, (index) => values.nodeValue(index, path)))) ||
         ((indexed?.edge ?? null) === null &&
-            carries(graph.edgeCount, (index) => values.edgeValue(index, window.attribute)))
+            paths.some((path) => carries(graph.edgeCount, (index) => values.edgeValue(index, path))))
     );
+}
+
+/**
+ * The attributes a window reads of a record.
+ * @param window - The window.
+ * @param timeline - Whether the timeline is on: off, its `end` and `spells` stay saved, unread.
+ * @returns The paths, `attribute` first.
+ */
+function windowPaths(window: TimeWindow, timeline: boolean): readonly Path[] {
+    const { attribute, end, spells } = window;
+
+    return timeline ? [attribute, ...[end, spells].filter((path) => path !== undefined)] : [attribute];
+}
+
+/**
+ * The index a window can read: the designated column's, unless the window's end and spells differ
+ * from the field's, which only its records can answer.
+ * @param window - The window.
+ * @param sources - Where the index is read.
+ * @returns Each kind's instants, or null.
+ */
+export function windowInstants(window: TimeWindow, sources: FilterSources): ReturnType<WindowIndexReader> {
+    const indexed = sources.instants?.(window.attribute) ?? null;
+    if (indexed === null || sources.timeline?.() === false) {
+        return indexed;
+    }
+
+    // A kind of spans reads the window's end and spells for each key it names, so a window naming
+    // none reads instants; nodes may name only an end and edges only spells. A kind of instants
+    // takes any window some kind's spans read.
+    const kinds = [indexed.node?.spans, indexed.edge?.spans];
+    const names = (key: "end" | "spells"): boolean =>
+        window[key] === undefined || kinds.some((spans) => spans?.[key] === window[key]);
+    const reads = (spans: TimeSpans | null | undefined): boolean =>
+        spans === null ||
+        spans === undefined ||
+        ((spans.end ?? window.end) === window.end && (spans.spells ?? window.spells) === window.spells);
+
+    return names("end") && names("spells") && kinds.every(reads) ? indexed : null;
+}
+
+/** What reads a designated column's index. */
+type WindowIndexReader = NonNullable<FilterSources["instants"]>;
+
+/**
+ * One record's spans, as the index reads them: its spells, else no time with no bound, else an
+ * instant with no end attribute, else one span.
+ * @param window - The window.
+ * @param index - The row.
+ * @param read - Reads the row's value.
+ * @returns The spans; none for a row with no time.
+ */
+function recordSpans(
+    window: TimeWindow,
+    index: number,
+    read: (index: number, path: Path) => unknown,
+): readonly (readonly [number, number])[] {
+    const span = (start: number | null, end: number | null): readonly [number, number] => {
+        const from = start ?? Number.NEGATIVE_INFINITY;
+        return [from, spanEnd(from, end ?? Number.POSITIVE_INFINITY)];
+    };
+    const pairs = window.spells === undefined ? [] : spellPairs(read(index, window.spells));
+    if (pairs.length > 0) {
+        return pairs.flatMap(([start, end]) => {
+            const [from, to] = [instantOf(start), instantOf(end)];
+            return from === null && to === null ? [] : [span(from, to)];
+        });
+    }
+
+    const start = instantOf(read(index, window.attribute));
+    if (window.end === undefined) {
+        return start === null ? [] : [span(start, start)];
+    }
+
+    const end = instantOf(read(index, window.end));
+
+    return start === null && end === null ? [] : [span(start, end)];
+}
+
+/**
+ * Whether any of a row's spans overlaps a window.
+ * @param spans - The kind's spans.
+ * @param index - The row.
+ * @param from - The window's start.
+ * @param to - The window's end.
+ * @returns The answer, or null for a row with no spans.
+ */
+function spansInside(spans: TimeSpans, index: number, from: number, to: number): boolean | null {
+    const { starts, ends, first } = spans;
+    for (let at = first[index]; at < first[index + 1]; at++) {
+        if (starts[at] < to && ends[at] > from) {
+            return true;
+        }
+    }
+
+    return first[index] === first[index + 1] ? null : false;
 }
 
 /**
@@ -2462,7 +2690,8 @@ function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: 
     const timeline = context.sources.timeline?.() !== false;
     const missingInside = !timeline || window.missing !== "outside";
     const holdsInstants = context.sources.holdsInstants?.(window) ?? timeline;
-    const indexed = holdsInstants ? (context.sources.instants?.(window.attribute) ?? null) : null;
+    const indexed = holdsInstants ? windowInstants(window, context.sources) : null;
+    const paths = windowPaths(window, timeline);
 
     /**
      * The test of one kind: whether its instant falls inside the half-open window. An element
@@ -2486,13 +2715,31 @@ function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: 
             }
 
             mark.seen = true;
-            const { rows } = parsed;
+            const { rows, spans } = parsed;
+            if (spans !== null && spans !== undefined) {
+                return (index) => spansInside(spans, index, from, to) ?? missingInside;
+            }
 
             return (index) => inside(Number.isNaN(rows[index]) ? null : rows[index]);
         }
 
-        if (!missingInside && !carries(count, (index) => read(index, window.attribute))) {
+        if (!missingInside && !paths.some((path) => carries(count, (index) => read(index, path)))) {
             return null;
+        }
+
+        // Each kind reads only the end and spells it carries, so one kind's columns never time the other.
+        const own = (path: Path | undefined): Path | undefined =>
+            path !== undefined && paths.includes(path) && carries(count, (index) => read(index, path))
+                ? path
+                : undefined;
+        const kindWindow: TimeWindow = { ...window, end: own(window.end), spells: own(window.spells) };
+        if (kindWindow.end !== undefined || kindWindow.spells !== undefined) {
+            const noted = (index: number, path: Path): unknown => readValue(read, index, path, mark);
+
+            return (index) => {
+                const held = recordSpans(kindWindow, index, noted);
+                return held.length === 0 ? missingInside : held.some(([start, end]) => start < to && end > from);
+            };
         }
 
         return (index) => inside(instantOf(readValue(read, index, window.attribute, mark)));

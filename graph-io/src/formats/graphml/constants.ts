@@ -129,6 +129,13 @@ export const TARGET_PORT_COLUMN = "targetport";
 export const PARENT_COLUMN = "parent";
 
 /**
+ * The json node column that keeps the yFiles data of a node's `<port>` elements: one entry per port, its `name` and
+ * each of its yFiles values by its key's name (yEd Live's `PortLocationParameter` and `PortStyle`).
+ * @category Plugin helpers
+ */
+export const PORTS_COLUMN = "ports";
+
+/**
  * The bool node column marking the hub nodes synthesized for hyperedges under `hyperedges: "star"`.
  * @category Plugin helpers
  */
@@ -218,7 +225,7 @@ export const GRAPHML_ISSUE = Object.freeze({
     KEY_MISSING_ID: "E_GRAPHML_KEY_MISSING_ID",
     /** Two `<key>` elements with the same id. */
     DUPLICATE_KEY: DUPLICATE_KEY_CODE,
-    /** A key declared for hyperedges, ports or endpoints (never used). */
+    /** A key declared for hyperedges, ports or endpoints (never used), other than a yFiles port key. */
     KEY_DOMAIN_UNSUPPORTED: "W_GRAPHML_KEY_DOMAIN_UNSUPPORTED",
     /** A `<node>` without an id. */
     MISSING_ID: MISSING_ID_CODE,
@@ -280,7 +287,10 @@ export const GRAPHML_ISSUE = Object.freeze({
     HYPEREDGE_SKIPPED: "W_GRAPHML_HYPEREDGE_SKIPPED",
     /** An endpoint of a hyperedge without a node, or with an unknown type. */
     HYPEREDGE_ENDPOINT: "E_GRAPHML_HYPEREDGE_ENDPOINT",
-    /** `<port>` declarations (and their data) are not kept; sourceport / targetport edge attributes are. */
+    /**
+     * `<port>` declarations are not kept as ports; sourceport / targetport edge attributes are, and a port's yFiles
+     * data is kept in its node's `ports` column.
+     */
     PORT_DECLARATION: "W_GRAPHML_PORT_DECLARATION",
     /** A `sourceport` / `targetport` naming a port its node does not declare (once, with the count). */
     DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
@@ -374,6 +384,8 @@ export const GRAPHML_LOSS = Object.freeze({
     EDGE_ID_TEXT: "W_GRAPHML_EDGE_ID_TEXT",
     /** A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. */
     YFILES_GRAPHICS_STALE: "W_GRAPHML_YFILES_GRAPHICS_STALE",
+    /** The yFiles data of a node's ports (its `ports` column), which a save does not write back as `<port>` elements. */
+    PORTS_DROPPED: "W_GRAPHML_PORTS_DROPPED",
     /** A yEd graphics value that is not valid XML; the save fails with E_COLUMN_TYPE. */
     YFILES_TREE: "E_GRAPHML_YFILES_TREE",
 });

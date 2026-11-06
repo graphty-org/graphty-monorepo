@@ -380,6 +380,7 @@ const DECLARED = [
     "node.xlabelLocation",
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
+    "edge.labelTable",
     "edge.xlabel",
     "edge.xlabelStyle",
     "edge.xlabelLocation",
@@ -411,9 +412,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and ninety-five node channels and one hundred and sixty-two edge channels", () => {
+    it("splits into one hundred and ninety-five node channels and one hundred and sixty-three edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 195);
-        assert.strictEqual(channelsFor("edge").length, 162);
+        assert.strictEqual(channelsFor("edge").length, 163);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -642,6 +643,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.shapeLines",
         "node.shapeTexts",
         "node.labelTable",
+        "edge.labelTable",
         "node.shapeLineWidth",
         "node.gradientColors",
         "node.gradientStops",

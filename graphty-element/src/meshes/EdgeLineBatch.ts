@@ -14,6 +14,9 @@ import {
     VertexBuffer,
 } from "@babylonjs/core";
 
+import { UNTIMED_AGE } from "../session/time/ageFade";
+import { CustomLineRenderer } from "./CustomLineRenderer";
+import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
 import {
     EDGE_STATIC_ATTRIBUTES,
     EDGE_STATIC_FLOATS,
@@ -22,7 +25,7 @@ import {
     JOIN_TEMPLATE_POSITIONS,
     WIDENED_FLOATS_PER_PIECE,
 } from "./edgeJoinShader";
-import { batchUploadFrames } from "./FrameRoster";
+import { batchUploadFrames, type EdgeAgeState, type RangedUploads } from "./FrameRoster";
 import { discreteMeshCount } from "./PatternedLineMesh";
 
 /** Floats in one 4x4 world matrix, which is what a thin-instance slot holds. */
@@ -53,6 +56,12 @@ let expandedOverride: boolean | null = null;
  */
 export function forceExpandedLines(expanded: boolean | null): void {
     expandedOverride = expanded;
+}
+
+/** What a slot draws: its row, which says how old it is when lines fade by age. */
+export interface SlotOwner {
+    /** The edge's row. */
+    readonly index: number;
 }
 
 /** Every mesh an edge line batch draws with, so a teardown can tell a shared batch from an edge's own mesh. */
@@ -117,6 +126,8 @@ export interface EdgeLineMeta {
      * also carries the whole edge's length, and the static values in a buffer of their own.
      */
     widened?: boolean;
+    /** A line drawn without alpha blending (`line.blending` false), which never fades by age. */
+    opaque?: boolean;
 }
 
 /**
@@ -194,8 +205,8 @@ export class EdgeLineBatch {
     /** The GPU buffer the static values are read from. */
     private staticBuffer: Buffer | null = null;
 
-    /** Whether a static value has been written since the last upload. */
-    private staticDirty = false;
+    /** Which static values have been written since the last upload. */
+    private readonly staticRuns = new DirtyRuns();
 
     /** The thin-instance matrices of a batch that is not a joined line; null for a joined one. */
     private matrices: Float32Array | null;
@@ -207,7 +218,34 @@ export class EdgeLineBatch {
      * An expanded batch's slots and static values repeated once per template vertex, so the
      * batch draws as one plain mesh ({@link drawsExpandedLines}); null for an instanced batch.
      */
-    private expanded: { slots: Float32Array; statics: Float32Array | null } | null = null;
+    private expanded: { slots: Float32Array; statics: Float32Array | null; ages: Float32Array | null } | null = null;
+
+    /** The scene's fade by age; see {@link batchUploadFrames}. */
+    private readonly ageState: EdgeAgeState;
+
+    /** Whether this batch can fade by age: a joined line that blends. */
+    private readonly ageable: boolean;
+
+    /** The look last asked for: fading by age or not. Drawn once its program has compiled. */
+    private agedTarget = false;
+
+    /** How many times the look was asked to change, so a compile that finished late is dropped. */
+    private ageSwitches = 0;
+
+    /** Who each slot draws, for its age. */
+    private readonly owners: (SlotOwner | undefined)[] = [];
+
+    /** Each slot's age while the batch fades by age; null otherwise. */
+    private ages: Float32Array | null = null;
+
+    /** The GPU buffer the ages are read from. */
+    private ageBuffer: Buffer | null = null;
+
+    /** Which ages have been written since the last upload. */
+    private readonly ageRuns = new DirtyRuns();
+
+    /** The scene's ages the slots' ages were last written from. */
+    private agesFrom: Float32Array | null = null;
 
     /** Slots handed out so far. Slots at or past this index have never been used. */
     private highWater = 0;
@@ -230,8 +268,11 @@ export class EdgeLineBatch {
     /** Told by this batch that it has emptied, so whoever holds it can forget it. */
     private readonly retire: () => void;
 
-    /** Whether a slot has been written since the last upload. */
-    private dirty = false;
+    /** Which slots have been written since the last upload. */
+    private readonly slotRuns = new DirtyRuns();
+
+    /** The scene's switch for uploading only what was written; see {@link batchUploadFrames}. */
+    private readonly uploads: RangedUploads;
 
     private gone = false;
 
@@ -254,6 +295,7 @@ export class EdgeLineBatch {
         this.mesh = mesh;
         batchMeshes.add(mesh);
         this.retire = retire;
+        this.uploads = batchUploadFrames.rangedUploads(scene);
         const meta = (mesh.metadata ?? {}) as EdgeLineMeta;
         this.pattern = meta.pattern;
         const widened = meta.joinedLine === true && meta.widened === true;
@@ -262,7 +304,16 @@ export class EdgeLineBatch {
         this.slots = new Float32Array(INITIAL_SLOTS * this.stride);
         this.matrices = meta.joinedLine === true ? null : new Float32Array(INITIAL_SLOTS * FLOATS_PER_MATRIX);
         if (meta.joinedLine === true && drawsExpandedLines(scene.getEngine())) {
-            this.expanded = { slots: new Float32Array(0), statics: null };
+            this.expanded = { slots: new Float32Array(0), statics: null, ages: null };
+        }
+
+        this.ageState = batchUploadFrames.edgeAges(scene);
+        this.ageable = meta.joinedLine === true && meta.opaque !== true;
+        // A batch built while lines fade by age starts with the look: it has drawn nothing yet.
+        if (this.ageable && this.ageState.on) {
+            this.agedTarget = true;
+            this.ages = new Float32Array(INITIAL_SLOTS);
+            CustomLineRenderer.setAged(mesh, true, this.ageState);
         }
 
         // An edge line was never a pick candidate and a batch of them is not one either.
@@ -346,7 +397,7 @@ export class EdgeLineBatch {
         }
 
         this.statics.set(values, index * EDGE_STATIC_FLOATS);
-        this.staticDirty = true;
+        this.staticRuns.mark(index, this.uploads.on, this.highWater);
     }
 
     /**
@@ -362,24 +413,33 @@ export class EdgeLineBatch {
 
     /**
      * Take a slot to draw one edge in.
+     * @param owner - The edge it draws, whose row says how old it is when lines fade by age; a slot
+     *     with none draws as the newest.
      * @returns The slot's index, which the caller keeps until it releases it.
      */
-    acquire(): number {
+    acquire(owner?: SlotOwner): number {
         this.live++;
 
-        const recycled = this.free.pop();
+        let index = this.free.pop();
+        if (index === undefined) {
+            if (this.highWater === this.slots.length / this.stride) {
+                this.grow();
+            }
 
-        if (recycled !== undefined) {
-            return recycled;
+            index = this.highWater;
+            this.highWater++;
+            this.setCount();
         }
 
-        if (this.highWater === this.slots.length / this.stride) {
-            this.grow();
+        // ponytail: slots taken while the timeline is off record no edge, so a timeline switched
+        // on later fades them as the newest until they are rebuilt. Record always if that matters.
+        if (this.ageable && this.ageState.track) {
+            this.owners[index] = owner;
+            if (this.ages !== null) {
+                this.ages[index] = this.ageOf(owner);
+                this.ageRuns.mark(index, this.uploads.on, this.highWater);
+            }
         }
-
-        const index = this.highWater;
-        this.highWater++;
-        this.setCount();
 
         return index;
     }
@@ -398,6 +458,10 @@ export class EdgeLineBatch {
         }
 
         this.hide(index);
+        if (this.ageable && this.ageState.track) {
+            this.owners[index] = undefined;
+        }
+
         this.free.push(index);
         this.live--;
         this.slotReleased(index);
@@ -527,44 +591,44 @@ export class EdgeLineBatch {
     }
 
     /**
-     * Upload everything written since the last upload, in one call, up to the high-water mark: the
-     * arrays double, so uploading all of them would send as much again of slots nothing draws.
+     * Upload what was written since the last upload: with ranged uploads off, in one call up to the
+     * high-water mark (the arrays double, so uploading all of them would send as much again of slots
+     * nothing draws), and with them on, one call per run of written slots.
      */
     flush(): void {
         // Babylon rebuilds a thin-instance buffer empty after a lost GL context (it keeps no copy
         // of data uploaded in part), so the first frame after one uploads every slot again.
         if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
-            this.dirty = true;
-            this.staticDirty = this.statics !== null;
+            this.slotRuns.whole();
+            this.ageRuns.whole();
+            if (this.statics !== null) {
+                this.staticRuns.whole();
+            }
         }
 
         if (this.gone) {
             return;
         }
 
-        const { expanded } = this;
-        if (this.staticDirty && this.statics !== null) {
-            this.staticDirty = false;
-            if (expanded?.statics) {
-                repeatPerVertex(this.statics, expanded.statics, this.highWater, EDGE_STATIC_FLOATS);
-                this.staticBuffer?.updateDirectly(expanded.statics, 0, this.highWater * TEMPLATE_VERTICES);
-            } else {
-                this.staticBuffer?.updateDirectly(this.statics, 0, this.highWater);
-            }
+        this.followAges();
+        const { expanded, uploads } = this;
+        if (this.ageRuns.dirty && this.ages !== null) {
+            const runs = this.ageRuns.take(uploads.on);
+            this.send(runs, this.ages, expanded?.ages ?? null, this.ageBuffer, 1);
         }
 
-        const placed = this.dirty;
-        if (this.dirty) {
-            this.dirty = false;
-            if (expanded) {
-                // ponytail: every live piece is copied again when any one moved; copy only the
-                // pieces written since the last upload if a still graph's single moves show up.
-                repeatPerVertex(this.slots, expanded.slots, this.highWater, this.stride);
-                this.buffer?.updateDirectly(expanded.slots, 0, this.highWater * TEMPLATE_VERTICES);
-            } else if (this.buffer) {
-                this.buffer.updateDirectly(this.slots, 0, this.highWater);
+        if (this.staticRuns.dirty && this.statics !== null) {
+            const runs = this.staticRuns.take(uploads.on);
+            this.send(runs, this.statics, expanded?.statics ?? null, this.staticBuffer, EDGE_STATIC_FLOATS);
+        }
+
+        const placed = this.slotRuns.dirty;
+        if (placed) {
+            const runs = this.slotRuns.take(uploads.on);
+            if (this.buffer) {
+                this.send(runs, this.slots, expanded?.slots ?? null, this.buffer, this.stride);
             } else {
-                this.mesh.thinInstanceBufferUpdated("matrix");
+                sendThinInstanceMatrices(this.mesh, runs);
             }
         }
 
@@ -604,6 +668,151 @@ export class EdgeLineBatch {
         this.buffer = null;
         this.staticBuffer?.dispose();
         this.staticBuffer = null;
+        this.ageBuffer?.dispose();
+        this.ageBuffer = null;
+    }
+
+    /**
+     * Follow the scene's fade by age: switch the look when it is turned on or off, and rewrite every
+     * slot's age when the scene's ages are new (an index build or merge). One comparison a frame
+     * otherwise; a step moves only the uniform.
+     */
+    private followAges(): void {
+        if (!this.ageable) {
+            return;
+        }
+
+        const state = this.ageState;
+        if (state.on !== this.agedTarget) {
+            this.switchAges(state.on);
+        }
+
+        if (this.ages !== null && state.ages !== this.agesFrom) {
+            this.agesFrom = state.ages;
+            for (let slot = 0; slot < this.highWater; slot++) {
+                this.ages[slot] = this.ageOf(this.owners[slot]);
+            }
+
+            this.ageRuns.whole();
+        }
+    }
+
+    /**
+     * Turn fading by age on or off. The ages are bound at once and the program compiled aside, so
+     * the lines keep drawing in the old look until the new one is ready; then the material
+     * switches, and the scene is told so the next frame re-reads what it draws.
+     * @param on - Whether lines fade by age.
+     */
+    private switchAges(on: boolean): void {
+        this.agedTarget = on;
+        const turn = ++this.ageSwitches;
+        if (on && this.ages === null) {
+            this.ages = new Float32Array(this.slots.length / this.stride);
+            this.agesFrom = null;
+            this.bindAges();
+        }
+
+        this.ageState.warming++;
+        CustomLineRenderer.warmAged(this.mesh, on).then(
+            () => {
+                this.ageState.warming--;
+                if (this.gone || turn !== this.ageSwitches) {
+                    return;
+                }
+
+                CustomLineRenderer.setAged(this.mesh, on, this.ageState);
+                if (!on) {
+                    this.ages = null;
+                    this.agesFrom = null;
+                    if (this.expanded) {
+                        this.expanded.ages = null;
+                    }
+
+                    this.mesh.removeVerticesData("edgeAge");
+                    this.ageBuffer?.dispose();
+                    this.ageBuffer = null;
+                }
+
+                this.ageState.switched();
+            },
+            () => {
+                this.ageState.warming--;
+                // ponytail: a program that fails to compile leaves the lines in the old look, and
+                // the batch does not try again until the setting changes twice.
+            },
+        );
+    }
+
+    /**
+     * How old a slot's edge is: its start normalized over the data's extent.
+     * @param owner - Who the slot draws.
+     * @returns The age; the newest for a slot with no owner or no time.
+     */
+    private ageOf(owner: SlotOwner | undefined): number {
+        const age = owner === undefined ? undefined : this.ageState.ages?.[owner.index];
+        return age ?? UNTIMED_AGE;
+    }
+
+    /** Hand the ages to the mesh as their own attribute, sized to the slots' capacity. */
+    private bindAges(): void {
+        if (this.ages === null) {
+            return;
+        }
+
+        this.ageBuffer?.dispose();
+        const instanced = this.expanded === null;
+        let data = this.ages;
+        if (this.expanded) {
+            data = new Float32Array(this.ages.length * TEMPLATE_VERTICES);
+            this.expanded.ages = data;
+        }
+
+        const buffer = new Buffer(this.mesh.getEngine(), data, true, 1, false, instanced);
+        this.mesh.setVerticesBuffer(buffer.createVertexBuffer("edgeAge", 0, 1, 1, instanced));
+        this.ageBuffer = buffer;
+        this.ageRuns.whole();
+    }
+
+    /**
+     * Send one buffer's rows to the GPU.
+     *
+     * A RUN IS A VIEW STARTING AT ITS OWN FIRST FLOAT, WITH ITS COUNT. Babylon's engines read the
+     * source from the start of the array and apply the offset to the destination only, and without
+     * a count a run at slot 0 would stay behind as `Buffer._data`, which a lost context rebuilds the
+     * buffer from at the run's size.
+     * @param runs - The runs to send, or null for every row up to the high-water mark.
+     * @param rows - One row per slot.
+     * @param repeated - An expanded batch's per-vertex copy of the rows, or null.
+     * @param buffer - The GPU buffer.
+     * @param width - Floats in a row.
+     */
+    private send(
+        runs: readonly number[] | null,
+        rows: Float32Array,
+        repeated: Float32Array | null,
+        buffer: Buffer | null,
+        width: number,
+    ): void {
+        const spread = repeated === null ? 1 : TEMPLATE_VERTICES;
+        const source = repeated ?? rows;
+        if (runs === null) {
+            if (repeated !== null) {
+                repeatPerVertex(rows, repeated, 0, this.highWater, width);
+            }
+
+            buffer?.updateDirectly(source, 0, this.highWater * spread);
+            return;
+        }
+
+        for (let i = 0; i < runs.length; i += 2) {
+            const [at, end] = [runs[i], runs[i + 1]];
+            if (repeated !== null) {
+                repeatPerVertex(rows, repeated, at, end, width);
+            }
+
+            const from = at * spread * width;
+            buffer?.updateDirectly(source.subarray(from, end * spread * width), from, (end - at) * spread);
+        }
     }
 
     /**
@@ -664,7 +873,7 @@ export class EdgeLineBatch {
         }
 
         this.writeMatrix(index);
-        this.dirty = true;
+        this.slotRuns.mark(index, this.uploads.on, this.highWater);
     }
 
     /**
@@ -712,7 +921,7 @@ export class EdgeLineBatch {
         }
 
         this.writeMatrix(index);
-        this.dirty = true;
+        this.slotRuns.mark(index, this.uploads.on, this.highWater);
     }
 
     /**
@@ -742,7 +951,7 @@ export class EdgeLineBatch {
 
         this.slots.fill(0, index * this.stride, (index + 1) * this.stride);
         this.matrices?.fill(0, index * FLOATS_PER_MATRIX, (index + 1) * FLOATS_PER_MATRIX);
-        this.dirty = true;
+        this.slotRuns.mark(index, this.uploads.on, this.highWater);
     }
 
     /** Tell the mesh how many instances to draw. */
@@ -795,6 +1004,8 @@ export class EdgeLineBatch {
                 });
                 this.staticBuffer = statics;
             }
+
+            this.bindAges();
         }
 
         // Rebuilding the buffer resets the instance count, so the high-water mark is written back.
@@ -811,6 +1022,12 @@ export class EdgeLineBatch {
             const statics = new Float32Array(this.statics.length * 2);
             statics.set(this.statics);
             this.statics = statics;
+        }
+
+        if (this.ages !== null) {
+            const ages = new Float32Array(this.ages.length * 2);
+            ages.set(this.ages);
+            this.ages = ages;
         }
 
         if (this.matrices) {
@@ -844,25 +1061,28 @@ export class EdgeLineBatch {
         const slots = new Float32Array(capacity * TEMPLATE_VERTICES * this.stride);
         const statics =
             this.statics === null ? null : new Float32Array(capacity * TEMPLATE_VERTICES * EDGE_STATIC_FLOATS);
-        this.expanded = { slots, statics };
-        this.dirty = true;
-        this.staticDirty = statics !== null;
+        this.expanded = { slots, statics, ages: null };
+        this.slotRuns.whole();
+        if (statics !== null) {
+            this.staticRuns.whole();
+        }
 
         return slots;
     }
 }
 
 /**
- * Copy each of the first `count` rows of `from` into `TEMPLATE_VERTICES` consecutive rows of `to`:
+ * Copy each row of a run of slots from `from` into `TEMPLATE_VERTICES` consecutive rows of `to`:
  * an instanced attribute spelled as a per-vertex one, which the shader reads the same.
  * @param from - One row per slot.
  * @param to - One row per vertex.
- * @param count - Slots to copy.
+ * @param first - The first slot to copy.
+ * @param end - The slot after the last.
  * @param width - Floats in a row.
  */
-function repeatPerVertex(from: Float32Array, to: Float32Array, count: number, width: number): void {
-    let out = 0;
-    for (let slot = 0; slot < count; slot++) {
+function repeatPerVertex(from: Float32Array, to: Float32Array, first: number, end: number, width: number): void {
+    let out = first * TEMPLATE_VERTICES * width;
+    for (let slot = first; slot < end; slot++) {
         const at = slot * width;
         for (let v = 0; v < TEMPLATE_VERTICES; v++) {
             for (let k = 0; k < width; k++) {

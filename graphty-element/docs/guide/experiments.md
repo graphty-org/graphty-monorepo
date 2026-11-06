@@ -53,7 +53,8 @@ shipped.
 ### `timeline`
 
 Time-series playback over a date or number column: `session.time`, the `time:*` events, and the
-attributes `node-time-path`, `edge-time-path`, `node-time-unit` and `edge-time-unit`. See
+attributes `node-time-path`, `edge-time-path`, `node-time-end-path`, `edge-time-end-path`,
+`node-time-unit` and `edge-time-unit`. See
 [Timeline](./timeline).
 
 ```html

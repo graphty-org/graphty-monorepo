@@ -50,6 +50,8 @@ import {
     shotsInputs,
     shotsPlan,
     storeList,
+    TEST_STEP_LIMIT_MS,
+    withTestDeadline,
 } from "./run-group.mjs";
 
 isolateGit();
@@ -88,6 +90,19 @@ function serve(answer = true) {
         server.listen(0, "127.0.0.1", () => resolve({ url: `http://127.0.0.1:${server.address().port}`, seen })),
     );
 }
+
+describe("the test job's deadline", () => {
+    it("starts with the job's first shard, holds for the rest of the job, and is the test job's alone", () => {
+        const RUNNER_TEMP = mkdtempSync(join(tmpdir(), "deadline-"));
+        const before = Date.now();
+        const first = withTestDeadline({ GITHUB_JOB: "test", RUNNER_TEMP }).GRAPHTY_TEST_DEADLINE;
+        assert.ok(Number(first) >= before + TEST_STEP_LIMIT_MS);
+        assert.equal(withTestDeadline({ GITHUB_JOB: "test", RUNNER_TEMP }).GRAPHTY_TEST_DEADLINE, first);
+        const env = { GITHUB_JOB: "story-tests", RUNNER_TEMP };
+        assert.equal(withTestDeadline(env), env);
+        rmSync(RUNNER_TEMP, { recursive: true, force: true });
+    });
+});
 
 describe("config", () => {
     it("is off without RESULTS_URL, with GRAPHTY_RESULTS=0, and without a credential", () => {

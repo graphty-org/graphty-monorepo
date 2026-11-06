@@ -2551,7 +2551,7 @@ export const TwoDPortsAndLoopRoutes: Story = {
         const ported = edges.find((e) => e.srcId === "a");
         const half = ported?.srcNode.drawnHalfExtents;
         const start = ported?.drawnCurve?.[0];
-        const port = half && ported ? ported.srcNode.mesh.position.add(new Vector3(0.6 * half.x, half.y, 0)) : null;
+        const port = half && ported ? ported.srcNode.drawnPosition.add(new Vector3(0.6 * half.x, half.y, 0)) : null;
         await holds(
             start !== undefined && port !== null && Vector3.Distance(start, port) < 1e-3,
             "the ported edge does not start at its source port",

@@ -28,7 +28,6 @@ import {
     count,
     findTreeRow,
     groupRowOf,
-    isBaseRow,
     isHidden,
     layerCount,
     layerKindWords,
@@ -388,9 +387,9 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     const covered = useWorkspaceState((state) => state.selectionWorkspace?.host === "selector");
     const lastPaints = useRef(new Map<string, Paints>());
     const tree = session.styles.tree();
-    // With no row open, Tab into the tree lands on Everything (else the first row no pin holds),
-    // never on a pinned built-in row such as Hovered that paints nothing until a pointer moves.
-    const restingId = (tree.find((row) => isBaseRow(session, row.id)) ?? tree.find((row) => row.pin === "none"))?.id;
+    // With no row open, Tab into the tree lands on the bottom row no top pin holds, never on a row
+    // pinned on top such as Hovered that paints nothing until a pointer moves.
+    const restingId = tree.find((row) => row.pin !== "top")?.id;
 
     const toItem = (row: StyleRow, folders: readonly StyleRow[]): TreeNodeData => {
         const hidden = isHidden({ row, folders });
@@ -661,11 +660,9 @@ function AddMenu({
                         void (async () => {
                             try {
                                 // Several selected rows go into it, as Figma groups a selection;
-                                // the starting rows and pinned rows stay where they are.
+                                // pinned rows stay where they are.
                                 const tree = session.styles.tree();
-                                const rows = selected.filter(
-                                    (id) => !isBaseRow(session, id) && findTreeRow(tree, id)?.row.pin === "none",
-                                );
+                                const rows = selected.filter((id) => findTreeRow(tree, id)?.row.pin === "none");
                                 const folder = await addFolderOf(session, "New folder", rows.length > 1 ? rows : []);
                                 store.set({ inspected: { kind: "folder-row", id: folder } });
                                 setTimeout(() => {

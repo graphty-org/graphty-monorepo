@@ -39,7 +39,9 @@ colors, the white glow against the dark ones.
 
 Selected and Hovered use the selector `{ match: "state", state: "selected" }` (or `"hovered"`),
 which you can use in any layer of your own. They follow the selection and the pointer as they
-change, and following them is not an undo step.
+change, and following them is not an undo step. Nothing else sets them apart: each is a style on a
+calculated value, so you can rename, move, hide or delete them or narrow them with more conditions
+(the `state` rule leaf in [Selections Built From Steps](./selection-steps.md)).
 
 With `startingRows` on, the selection look is drawn by the Selected row, so recoloring the halo is
 a write to that row (`"node.haloColor"`, `"edge.bandColor"`), and the `selectionStyle` setting

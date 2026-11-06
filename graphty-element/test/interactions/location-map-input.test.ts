@@ -10,7 +10,7 @@
 
 import "../../src/graphty-element";
 
-import { Matrix } from "@babylonjs/core";
+import { Matrix, Vector3 } from "@babylonjs/core";
 import { raySphere } from "babylonjs-map/projection";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
@@ -444,6 +444,28 @@ function edgeLines(element: Graphty): ({ x: number; y: number; z: number }[] | n
     );
 }
 
+/**
+ * How far from its node each end of each edge's line is drawn, in units of the node's own scale:
+ * the same at any zoom for an edge cut back to its node, and off by the drift for one left cut at
+ * an older scale.
+ * @param element - The element.
+ * @returns Each edge's source reach, then its target reach.
+ */
+function edgeReaches(element: Graphty): number[] {
+    return [...element.graph.getDataManager().edges.values()].flatMap((edge) => {
+        const line = edge.drawnCurve;
+        assert.isNotNull(line, "the edge is drawn as a curve");
+        const start = line?.at(0);
+        const end = line?.at(-1);
+        assert.isDefined(start);
+        assert.isDefined(end);
+        return [
+            Vector3.Distance(start, edge.srcNode.drawnPosition) / edge.srcNode.mesh.scaling.x,
+            Vector3.Distance(end, edge.dstNode.drawnPosition) / edge.dstNode.mesh.scaling.x,
+        ];
+    });
+}
+
 describe("the map's dimension and the view", () => {
     it("draws the globe in 3D by default, the 2D map with straight edges in 2D, and the globe again in 3D", async () => {
         const element = await mounted("3d");
@@ -652,6 +674,11 @@ describe("zooming a map whose nodes keep their size on screen", () => {
     // back to its nodes' new surfaces on each one: on the OpenFlights sample's 36,906 routes that
     // was about 300 ms a step, so the wheel and W zoomed slow and choppy while turning stayed
     // smooth. The work is counted: edges cut per zoom step.
+    //
+    // A view that holds still is cut exactly, and a notch the browser is slow to deliver holds it
+    // still between two notches. So when the cuts fall depends on the machine: a late notch can move
+    // the last cut onto the last notch, or finish it before the zoom's loop ends, with nothing left
+    // to cut afterwards. What does not depend on it is where the edges end once the view is at rest.
     it("cuts edges back to the nodes only as the scale drifts, then exactly where the zoom stops", async () => {
         const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" });
         const stats = element.getStatsManager();
@@ -659,30 +686,49 @@ describe("zooming a map whose nodes keep their size on screen", () => {
         cleanups.push(() => {
             stats.disableProfiling();
         });
+        const scene = element.graph.getScene();
+        let frames = 0;
+        const counting = scene.onAfterRenderObservable.add(() => {
+            frames++;
+        });
+        cleanups.push(() => {
+            counting.remove();
+        });
         const counter = "edges.retrimmedForNodeScale";
         const edges = element.graph.getDataManager().edges.size;
         const scale = (): number => element.graph.getNode("CHI")?.mesh.scaling.x ?? Number.NaN;
+        const reachAtRest = edgeReaches(element);
         stats.resetCounter(counter);
         const steps = 12;
+        // A notch's own two drawn frames, and the two its delivery takes on a free machine.
+        const framesANotch = 4;
         let scaledSteps = 0;
+        let lateNotches = 0;
         for (let step = 0; step < steps; step++) {
             const before = scale();
+            const started = frames;
             await wheel(element, CENTER, -100);
             // Two drawn frames a notch, as a wheel's notches come: far fewer than a held view's.
-            await drawnFrames(element.graph.getScene(), 2);
+            await drawnFrames(scene, 2);
             scaledSteps += scale() === before ? 0 : 1;
+            lateNotches += frames - started > framesANotch ? 1 : 0;
         }
 
         const whileZooming = stats.getCounter(counter);
         assert.isAtLeast(scaledSteps, steps - 1, "every notch scaled the nodes");
-        // Cut on every step, the zoom cut every edge each time: steps * edges.
-        assert.isAtMost(whileZooming, (steps * edges) / 2, "edges are cut at most every other step");
+        // Cut on every step, the zoom cut every edge each time: steps * edges. A late notch may add
+        // one round of its own, since the view really did hold still for it.
+        assert.isAtMost(whileZooming, (steps / 2 + lateNotches) * edges, "edges are cut at most every other step");
 
         await applied(element);
-        assert.isAbove(stats.getCounter(counter), whileZooming, "the edges are cut again once the zoom stops");
+        assert.isBelow(scale(), 1, "the zoom shrank the nodes");
+        const reachAfter = edgeReaches(element);
+        reachAtRest.forEach((reach, i) => {
+            assert.closeTo(reachAfter[i], reach, 1e-3, `edge end ${String(i)} meets its node where the zoom stopped`);
+        });
         const held = stats.getCounter(counter);
         await applied(element);
-        assert.strictEqual(stats.getCounter(counter), held, "and not again while the view holds still");
+        assert.strictEqual(stats.getCounter(counter), held, "the edges are not cut again while the view holds still");
     });
 });
 

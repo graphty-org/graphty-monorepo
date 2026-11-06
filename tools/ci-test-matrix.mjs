@@ -48,7 +48,8 @@
  *   "never"                 never run it locally
  */
 
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -70,7 +71,7 @@ const ELEMENT_BROWSER_PARTS = 8;
 
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
 const ELEMENT_REPORTERS =
-    "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}";
+    "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} ${GRAPHTY_RUNNING_TESTS:+--reporter=../tools/running-tests.mjs}";
 
 /** How many CI parts the `large-graph` project splits into: one per LargeGraph.*.real-element.test.tsx file. */
 export const LARGE_GRAPH_PARTS = 4;
@@ -549,7 +550,9 @@ export const STORY_RUNS = {
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
  * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS), graphty-large-graph-1 to -4 (one file each, at most about 10 minutes)
- * and graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it).
+ * graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it)
+ * and graphty-element-gpu-loss (11.2 minutes of vitest in full run 42255498419; small-browser took 28 minutes
+ * with it and reached its deadline before the layout and cytoscape-extensions storybooks ran, #6035).
  */
 export const GROUPS = {
     "small-node": [
@@ -570,7 +573,6 @@ export const GROUPS = {
         "visual-review",
         "webgpu-graph-algorithms-browser",
         "graphty-element-webgpu",
-        "graphty-element-gpu-loss",
         "algorithms-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
@@ -679,7 +681,7 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
                 : { ...e, coverage: `${s.shard}=${coverageFile(s)}` };
         });
     for (const [name, names] of Object.entries(GROUPS)) {
-        const members = names.map((n) => shards.find((s) => s.shard === n)).filter(wanted);
+        const members = names.map((n) => shards.find((s) => s.shard === n)).filter((s) => s && wanted(s));
         if (members.length > 0) {
             include.push(groupEntry(name, members));
         }
@@ -827,6 +829,25 @@ export function outputLines(affected, only, light, pullRequest = false, shards =
 }
 
 /**
+ * Whether the checked-out commit has a vitest project this shard names. A full run's candidate is often older than
+ * the workflow, whose tools/ are overlaid on it (tools/own-tools-overlay.test.mjs), so SHARDS can name a project the
+ * commit does not have yet; vitest then fails with "No projects matched the filter" (#5996). Such an older commit
+ * still runs those tests, in the project that held them before. A shard with no --project, or whose config file is
+ * not there to read, fits: only a project that is certainly missing leaves a shard out.
+ * @param shard a SHARDS entry
+ * @param [root] the checkout
+ * @returns false when the shard's config holds none of the projects it names
+ */
+export function fitsCheckout(shard, root = fileURLToPath(new URL("..", import.meta.url))) {
+    const command = shard["test-command"];
+    const projects = [...command.matchAll(/--project=(\S+)/g)].map((m) => m[1].replace(`-${ON_SUFFIX}`, ""));
+    const config = join(root, shard.package, /--config[= ](\S+)/.exec(command)?.[1] ?? "vitest.config.ts");
+    if (projects.length === 0 || !existsSync(config)) return true;
+    const text = readFileSync(config, "utf8");
+    return projects.some((p) => text.includes(`"${p}"`));
+}
+
+/**
  * The --only argument as a list of shard names.
  * @param arg the argument's JSON text, or undefined when it was not given
  * @returns the names, or undefined for no filter
@@ -889,9 +910,15 @@ function main() {
     }
 
     const light = values.plan === undefined ? undefined : JSON.parse(readFileSync(values.plan, "utf8"));
+    const shards = SHARDS.filter((s) => fitsCheckout(s));
+    const dropped = SHARDS.filter((s) => !shards.includes(s)).map((s) => s.shard);
+    if (dropped.length > 0) {
+        console.error(`::notice::this commit has no vitest project for these shards, left out: ${dropped.join(" ")}`);
+    }
     console.log(`affected=${JSON.stringify(affected)}`);
     try {
-        for (const line of outputLines(affected, only, light, values["pull-request"] === true)) console.log(line);
+        const pullRequest = values["pull-request"] === true;
+        for (const line of outputLines(affected, only, light, pullRequest, shards)) console.log(line);
     } catch (e) {
         console.error(`::error::${e.message}`);
         process.exit(1);

@@ -226,6 +226,7 @@ const KNOWN_LEAVES = new Set([
     "self-loop",
     "repeated-edge",
     "source",
+    "state",
     "threshold",
 ]);
 

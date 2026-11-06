@@ -25,6 +25,7 @@ import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
+import { batchUploadFrames } from "../meshes/FrameRoster";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
@@ -33,6 +34,7 @@ import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
+import type { EdgeAgeFade } from "../session/time/ageFade";
 import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { mapCorners } from "./BasemapManager";
@@ -288,6 +290,24 @@ export interface ViewMasks {
      * @returns True while ghosts are drawn.
      */
     readonly ghost?: () => boolean;
+    /**
+     * Whether the timeline experiment is on. Only with it on does a pass follow a mask by its
+     * changed rows; off, every pass is the walk it always was.
+     * @returns True while the experiment is on.
+     */
+    readonly timeline?: () => boolean;
+    /**
+     * Whether a time window is in force, read only while {@link ViewMasks.timeline} is on. While
+     * one is, the batches upload the slots a step wrote rather than whole buffers.
+     * @returns True while a window is in force.
+     */
+    readonly timeWindow?: () => boolean;
+    /**
+     * What edges fade by age with (the timeline's `ageFade`), read only while
+     * {@link ViewMasks.timeline} is on, once a frame.
+     * @returns The ages and the window, or null while nothing fades.
+     */
+    readonly ageFade?: () => EdgeAgeFade | null;
 }
 
 /** The version a mask that is not there reports, which no real mask can hold. */
@@ -451,6 +471,8 @@ export class UpdateManager implements Manager {
 
     /** Where the two masks are read from, or null while nothing has been bound. */
     private viewMasks: ViewMasks | null = null;
+    /** Whether the scene's batches are uploading only what they wrote. */
+    private rangedUploads = false;
 
     /** The mask versions the meshes on screen were last brought into line with. */
     private appliedNodeSelection = NO_MASK_VERSION;
@@ -553,6 +575,15 @@ export class UpdateManager implements Manager {
      */
     private drewWithEveryShader = false;
 
+    /**
+     * Whether a frame has drawn the graph's nodes since the graph last held none; see
+     * {@link UpdateManager.graphIsDrawn}.
+     */
+    private nodesDrawn = false;
+
+    /** Whether the frame now being drawn has every node mesh's shader, while none has been drawn. */
+    private drawingNodes = false;
+
     /** Watches the engine for a new canvas size; see {@link UpdateManager.viewMoved}. */
     private resizeWatcher: Nullable<Observer<AbstractEngine>> = null;
 
@@ -641,6 +672,8 @@ export class UpdateManager implements Manager {
      */
     rebindScene(camera: CameraManager): void {
         this.camera = camera;
+        // The new scene's switch starts off, so the next pass must write it if a window is in force.
+        this.rangedUploads = false;
         this.watchFrames();
     }
 
@@ -655,6 +688,9 @@ export class UpdateManager implements Manager {
             this.noteFrameDrawn();
         });
         this.drawPhaseWatcher = scene.onBeforeDrawPhaseObservable.add(() => {
+            if (!this.nodesDrawn) {
+                this.drawingNodes = this.dataManager.nodes.size > 0 && this.everyDrawnMeshIsReady();
+            }
             this.drewWithEveryShader =
                 !this.stateIsFinished || this.drawnFrameIsFinished || this.everyDrawnMeshIsReady();
         });
@@ -738,6 +774,81 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Switch the scene's batches to uploading only what they wrote while a time window is in force.
+     * With the timeline off or no window, the switch was never touched and this writes nothing.
+     * @param masks - What the renderer reads.
+     */
+    private followTimeWindow(masks: ViewMasks): void {
+        const ranged = masks.timeline?.() === true && masks.timeWindow?.() === true;
+        if (ranged !== this.rangedUploads) {
+            this.rangedUploads = ranged;
+            batchUploadFrames.rangedUploads(this.graphContext.getScene()).on = ranged;
+        }
+    }
+
+    /**
+     * Hand the scene's lines the fade by age the session asks for: whether it is on, the edges'
+     * ages and the window the uniform carries. With the timeline off or the setting at 1 the
+     * state is never touched and every line keeps today's program.
+     * @param masks - What the renderer reads.
+     */
+    private followAgeFade(masks: ViewMasks): void {
+        batchUploadFrames.edgeAges(this.graphContext.getScene()).track = masks.timeline?.() === true;
+        if (!this.ageFadeOwed(masks)) {
+            return;
+        }
+
+        // Nothing else asks a graph drawn on demand for a frame: no mask moves.
+        this.pending.changed();
+        const fade = UpdateManager.ageFadeOf(masks);
+        const state = batchUploadFrames.edgeAges(this.graphContext.getScene());
+        if (fade === null) {
+            state.on = false;
+            return;
+        }
+
+        state.on = true;
+        state.ages = fade.ages;
+        state.window[0] = fade.from;
+        state.window[1] = fade.to;
+        state.window[2] = fade.fade;
+        state.switched = this.ageSwitched;
+    }
+
+    /**
+     * The fade by age the session asks for.
+     * @param masks - What the renderer reads.
+     * @returns The fade, or null for none.
+     */
+    private static ageFadeOf(masks: ViewMasks): EdgeAgeFade | null {
+        return masks.timeline?.() === true ? (masks.ageFade?.() ?? null) : null;
+    }
+
+    /**
+     * Whether the fade by age the session asks for differs from the one the lines draw with.
+     * @param masks - What the renderer reads.
+     * @returns True when the next pass has a fade to hand the lines.
+     */
+    private ageFadeOwed(masks: ViewMasks): boolean {
+        const fade = UpdateManager.ageFadeOf(masks);
+        const { on, ages, window } = batchUploadFrames.edgeAges(this.graphContext.getScene());
+        if (fade === null) {
+            return on;
+        }
+
+        return !on || ages !== fade.ages || window[0] !== fade.from || window[1] !== fade.to || window[2] !== fade.fade;
+    }
+
+    /**
+     * A line switched to or from fading by age, and so between the opaque and the transparent
+     * pass, which a frozen list of what is drawn would never see: no mask moved.
+     */
+    private readonly ageSwitched = (): void => {
+        this.forceEdgeWalk();
+        this.pending.changed();
+    };
+
+    /**
      * Bring the meshes into line with the two masks.
      *
      * THE WHOLE POINT IS THE DELTA. A pass costs one integer comparison when nothing has moved,
@@ -772,6 +883,8 @@ export class UpdateManager implements Manager {
         // an unbind, which is the one state nobody asked for.
         const masks = this.viewMasks ?? EMPTY_MASKS;
         this.followElementSets();
+        this.followTimeWindow(masks);
+        this.followAgeFade(masks);
 
         const nodeSelection = masks.selection?.nodes() ?? null;
         const edgeSelection = masks.selection?.edges() ?? null;
@@ -802,6 +915,16 @@ export class UpdateManager implements Manager {
         // out of date. See `settleActiveMeshFreeze`.
         this.sceneChanged = true;
 
+        // A time window's slide says which rows it moved, so a step costs those rows and not the
+        // graph. Anything else that moved a mask answers null here and walks, as below.
+        const sameLook =
+            masks.timeline?.() === true &&
+            this.appliedAnything &&
+            showContext === this.appliedShowContext &&
+            ghost === this.appliedGhost;
+        const nodeRows = sameLook ? (nodeVisibility?.changedSince(this.appliedNodeVisibility) ?? null) : null;
+        const edgeRows = sameLook ? (edgeVisibility?.changedSince(this.appliedEdgeVisibility) ?? null) : null;
+
         // With what is drawn unchanged, only the selection moved: touch the elements that leave
         // it and the ones in it, not the whole graph. A visibility or context change rewrites its
         // mask wholesale, so that one still walks everything.
@@ -813,17 +936,28 @@ export class UpdateManager implements Manager {
         const edgeSelectionOnly =
             this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility && ghost === this.appliedGhost;
 
-        if (nodesMoved && nodeSelectionOnly) {
-            this.applyNodeSelection(nodeSelection);
-        } else if (nodesMoved) {
-            this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
-        }
-
-        if (edgesMoved && edgeSelectionOnly) {
-            this.applyEdgeSelection(edgeSelection);
-        } else if (edgesMoved) {
-            this.applyEdgeMasks(edgeVisibility, edgeSelection);
-        }
+        this.applyMove(nodeRows, nodesMoved, nodeSelectionOnly, nodeSelectionVersion !== this.appliedNodeSelection, {
+            rows: (rows) => {
+                this.applyNodeRows(rows, nodeVisibility, showContext);
+            },
+            selection: () => {
+                this.applyNodeSelection(nodeSelection);
+            },
+            walk: () => {
+                this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
+            },
+        });
+        this.applyMove(edgeRows, edgesMoved, edgeSelectionOnly, edgeSelectionVersion !== this.appliedEdgeSelection, {
+            rows: (rows) => {
+                this.applyEdgeRows(rows, edgeVisibility);
+            },
+            selection: () => {
+                this.applyEdgeSelection(edgeSelection);
+            },
+            walk: () => {
+                this.applyEdgeMasks(edgeVisibility, edgeSelection);
+            },
+        });
 
         this.appliedNodeSelection = nodeSelectionVersion;
         this.appliedEdgeSelection = edgeSelectionVersion;
@@ -832,6 +966,93 @@ export class UpdateManager implements Manager {
         this.appliedShowContext = showContext;
         this.appliedGhost = ghost;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Bring one kind of element into line by the cheapest way that is exact.
+     * @param rows - The rows a slide moved, or null when they are not known.
+     * @param moved - Whether anything of this kind moved.
+     * @param selectionOnly - Whether only its selection did.
+     * @param selectionMoved - Whether its selection did, which a click during play does in the same
+     *     pass as the window.
+     * @param apply - The three ways.
+     * @param apply.rows - Show and hide by rows.
+     * @param apply.selection - Follow the selection.
+     * @param apply.walk - Walk every element.
+     */
+    private applyMove(
+        rows: readonly number[] | null,
+        moved: boolean,
+        selectionOnly: boolean,
+        selectionMoved: boolean,
+        apply: { rows(rows: readonly number[]): void; selection(): void; walk(): void },
+    ): void {
+        if (rows !== null) {
+            apply.rows(rows);
+            if (selectionMoved) {
+                apply.selection();
+            }
+        } else if (moved && selectionOnly) {
+            apply.selection();
+        } else if (moved) {
+            apply.walk();
+        }
+    }
+
+    /**
+     * Show and hide only the nodes on some rows. A row with no render object yet has nothing drawn.
+     * @param rows - The rows a slide moved.
+     * @param nodeVisibility - The visible nodes.
+     * @param showContext - Whether hidden nodes are drawn faintly.
+     */
+    private applyNodeRows(
+        rows: readonly number[],
+        nodeVisibility: ElementMask<NodeId> | null,
+        showContext: boolean,
+    ): void {
+        const { nodesByIndex } = this.dataManager;
+        const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+
+        for (const row of rows) {
+            nodesByIndex[row]?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState);
+        }
+    }
+
+    /**
+     * Show and hide only the edges on some rows. A revealed edge is placed by its own update this
+     * frame (see {@link UpdateManager.applyEdgeMasks} for why it needs one), with no walk of every
+     * edge, unless {@link UpdateManager.hasSupportPoint} says a support point is involved.
+     * @param rows - The rows a slide moved.
+     * @param edgeVisibility - The visible edges.
+     */
+    private applyEdgeRows(rows: readonly number[], edgeVisibility: ElementMask<EdgeId> | null): void {
+        const { edgesByIndex } = this.dataManager;
+
+        for (const row of rows) {
+            const edge = edgesByIndex[row];
+            const visible = edgeVisibility?.has(row) === true;
+
+            if (edge?.setRenderVisible(visible) === true) {
+                if (visible) {
+                    this.edgesToPlace.push(edge);
+                }
+
+                if (this.hasSupportPoint(edge)) {
+                    this.forceEdgeWalk();
+                }
+            }
+        }
+    }
+
+    /**
+     * Whether an edge wants a support point or the support points still hold one for it. Support
+     * points push on each other, and only a walk of every edge tells them who is in the model and
+     * under what forces, so a change to such an edge reaches more than the edge.
+     * @param edge - The edge, after the change.
+     * @returns True when the change needs a walk.
+     */
+    private hasSupportPoint(edge: Edge): boolean {
+        return edge.supportEdge() !== null || this.dataManager.supportPoints.pointOf(edge) !== null;
     }
 
     /**
@@ -1101,6 +1322,9 @@ export class UpdateManager implements Manager {
     /** The edges a repaint touched since the last edge pass, which that pass places. */
     private edgesToPlace: Edge[] = [];
 
+    /** Whether the repaint under way has painted an edge with a support point. */
+    private paintedSupportPoint = false;
+
     /** What a repaint looks up on each of its frames, kept until it ends; a version says when it went stale. */
     private paintIndex: {
         rows: { version: number; map: Map<number, Node> } | null;
@@ -1129,23 +1353,44 @@ export class UpdateManager implements Manager {
         const least = minimumWorkPerFrame() ? 0 : Math.ceil(this.dataManager.edges.size / REPAINT_FRAMES);
 
         do {
-            for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
-                const edge = this.dataManager.edgesByIndex[index];
-                const paint = edge === undefined ? null : painter.edgePaint(index);
-
-                if (edge !== undefined && paint !== null) {
-                    edge.applySessionPaint(paint);
-                    this.edgesToPlace.push(edge);
-                    painted++;
-                }
-            }
+            painted += this.paintEdgeBatch(painter);
         } while (painter.hasPendingEdges && (performance.now() < deadline || painted < least));
 
         // Visiting every edge on each frame made a repaint cost its frames times the edges: a
-        // million edges take about a thousand frames, and those walks were most of a 100,000-node load.
+        // million edges take about a thousand frames, and those walks were most of a 100,000-node
+        // load. A time window's slide changes nothing but the rows it painted, so what this frame
+        // places is all of it, unless it painted an edge with a support point: a layer can change
+        // who has one and the forces on it.
         if (!painter.hasPendingEdges) {
-            this.forceEdgeWalk();
+            if (!painter.takeEdgesRowsOnly() || this.paintedSupportPoint) {
+                this.forceEdgeWalk();
+            }
+
+            this.paintedSupportPoint = false;
         }
+    }
+
+    /**
+     * Paint one batch of pending edges.
+     * @param painter - Where the paint is read from.
+     * @returns How many edges were painted.
+     */
+    private paintEdgeBatch(painter: StylePainter): number {
+        let painted = 0;
+
+        for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
+            const edge = this.dataManager.edgesByIndex[index];
+            const paint = edge === undefined ? null : painter.edgePaint(index);
+
+            if (edge !== undefined && paint !== null) {
+                edge.applySessionPaint(paint);
+                this.edgesToPlace.push(edge);
+                this.paintedSupportPoint ||= this.hasSupportPoint(edge);
+                painted++;
+            }
+        }
+
+        return painted;
     }
 
     /**
@@ -1200,6 +1445,8 @@ export class UpdateManager implements Manager {
      * @param deadline - When this frame's paint budget runs out.
      */
     private syncNodeStyles(painter: StylePainter, deadline: number): void {
+        // A rebuilt mesh leaves the scene's mesh count as it was, and a frozen scene draws the old one.
+        this.sceneChanged = true;
         const rows = this.nodesByRow();
 
         // ONE BATCH, AND SO ONE TEARDOWN, A FRAME. A batch that rebuilds a mesh pays a pass over
@@ -1236,7 +1483,9 @@ export class UpdateManager implements Manager {
         // moving the node, so the frame that finishes the repaint visits every edge. The frames in
         // between walk no edge: on a graph of 36,906 edges that walk was most of every frame a
         // repaint was spread over. A frame that resized a node places only that node's edges again.
-        if (!painter.hasPendingNodes) {
+        // A time window's slide changes nothing but the rows it painted, and the lines above placed
+        // the edges of any node of those that changed size or was rebuilt.
+        if (!painter.hasPendingNodes && !painter.takeNodesRowsOnly()) {
             this.forceEdgeWalk();
             this.paintIndex = { rows: null, incident: null };
         }
@@ -1708,6 +1957,11 @@ export class UpdateManager implements Manager {
         work.watch("view", "a filter or a selection has not been drawn yet", () => this.viewMasksPending());
         work.watch("view", "the camera is still moving to the selection", () => this.followingSelection);
         work.watch(
+            "view",
+            "a fade by age has not been drawn yet",
+            () => this.ageFadeOwed(this.viewMasks ?? EMPTY_MASKS) || batchUploadFrames.edgeAges(scene()).warming > 0,
+        );
+        work.watch(
             "curves",
             "the curves through their support points are still settling",
             () => !this.dataManager.supportPoints.resting,
@@ -1820,6 +2074,7 @@ export class UpdateManager implements Manager {
      * a consumer can wait for the frame rather than for the layout.
      */
     private noteFrameDrawn(): void {
+        this.noteNodesDrawn();
         if (!this.stateIsFinished || this.drawnFrameIsFinished) {
             return;
         }
@@ -1843,6 +2098,30 @@ export class UpdateManager implements Manager {
         this.fitRead = null;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
         this.wakeOwedWaiters();
+    }
+
+    /**
+     * Announces the first frame that shows the graph's nodes, once per arrival of data: a graph
+     * emptied of every node is announced again when its next nodes are drawn.
+     */
+    private noteNodesDrawn(): void {
+        if (this.dataManager.nodes.size === 0) {
+            this.nodesDrawn = false;
+            return;
+        }
+        if (this.nodesDrawn || !this.drawingNodes) {
+            return;
+        }
+        this.nodesDrawn = true;
+        this.eventManager.emit("graph-first-frame", { frames: this.frameCount });
+    }
+
+    /**
+     * Whether a frame showing the graph's nodes has been drawn since the graph last held none.
+     * @returns True once the nodes are on screen.
+     */
+    get graphIsDrawn(): boolean {
+        return this.nodesDrawn && this.dataManager.nodes.size > 0;
     }
 
     /**
@@ -2884,6 +3163,14 @@ export class UpdateManager implements Manager {
      */
     meshesShownOrHidden(): void {
         this.sceneChanged = true;
+    }
+
+    /**
+     * Whether a node's size follows the view, which a node batch cannot draw yet.
+     * @returns True under `depthIndependentSize` or a map's `nodeScale: "screen"`.
+     */
+    get nodesScaledByView(): boolean {
+        return this.depthSizingPivot() !== null || this.screenScaled !== null;
     }
 
     /**

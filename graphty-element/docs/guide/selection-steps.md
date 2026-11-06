@@ -83,6 +83,41 @@ holds no node matches nothing. A filter condition cannot follow the pointer: `"s
 `"hovered-or-selected"` are frozen to the nodes they hold when it is written, and the step records
 `frozenFrom`.
 
+A step can also read what the reader is doing, with the rule leaf `{ kind: "state", state }`:
+`"selected"`, `"hovered"`, `"pinned"` or `"ghosted"` (outside the time window, so a selection on it
+reads `within: "graph"`). It is a calculated value like any other, so it takes Add, Keep and Except
+beside other conditions, and a layer on it repaints as the state moves, with no undo step:
+
+```ts
+// The selected nodes, except the pinned ones.
+await session.styles.add({
+    name: "Selected and free",
+    target: "node",
+    selector: {
+        match: "rule",
+        where: {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "none",
+                    steps: [
+                        { op: "add", rule: { kind: "state", state: "selected" } },
+                        { op: "except", rule: { kind: "state", state: "pinned" } },
+                    ],
+                },
+            ],
+        },
+    },
+    set: { "node.color": "#ff8800" },
+});
+```
+
+`{ match: "state", state }` is the same condition on its own, `selectorRule(selector, { states: true })`
+reads it as the leaf, and `selectorStates(selector)` lists the states any selector reads. A kept set and a visibility filter do
+not follow the reader, so they refuse a `state` leaf.
+
 `computedOn: "so-far"` ranks a step over its input instead of the base: "the top 3 by degree among
 the staff". `degree`, `graphty.degree` and the other structure paths read with no run.
 

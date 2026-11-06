@@ -92,6 +92,23 @@ At those sizes a frame is spent on the CPU -- the element's own update and Babyl
 what to draw -- and under WebGL the GPU itself is busy for a small part of it (GPU time under
 WebGPU is not yet measured). That is why `webgl` stays the default.
 
+## Drawing many nodes at once
+
+By default every node is a mesh of its own. `render-path="batched"` draws every node that shares a
+look in one draw call instead, and the picture stays the same:
+
+```html
+<graphty-element render-path="batched"></graphty-element>
+```
+
+The path can change at any time. A node a batch cannot draw yet (one with a border, a label, a
+picture or transparency, say) stays a mesh, and so do the other nodes of its shape and size.
+`rowCounts` says how many nodes each path is drawing:
+
+```js
+const { batchedNodes, objectNodes } = element.rowCounts;
+```
+
 ## Drawing only when something changes
 
 Whichever renderer draws, the element draws a new frame on every animation frame by default, even

@@ -76,4 +76,31 @@ describe("the start page's graph, starting still", () => {
             unmount();
         }
     });
+
+    it("covers the graph's box with a loading placeholder until the element has drawn the nodes", async () => {
+        const { unmount } = render(
+            <HeroTurns.Provider value={false}>
+                <Workspace store={createWorkspaceStore()} />
+            </HeroTurns.Provider>,
+        );
+        try {
+            const placeholder = await waitFor(() => {
+                const found = document.querySelector<HTMLElement>(".ws-land-live output.ws-land-loading");
+                assert.isNotNull(found);
+                return found;
+            });
+            assert.equal(placeholder.getAttribute("aria-label"), "Loading graph");
+            const hero = await waitFor(() => {
+                const found = document.querySelector<ElementUnderTest>("graphty-element[data-start-page]");
+                assert.isTrue(found?.isGraphDrawn);
+                return found;
+            });
+            await waitFor(() => {
+                assert.isTrue(placeholder.hasAttribute("data-done"), "the placeholder goes once the nodes are drawn");
+            });
+            assert.isTrue(hero.isGraphDrawn);
+        } finally {
+            unmount();
+        }
+    });
 });

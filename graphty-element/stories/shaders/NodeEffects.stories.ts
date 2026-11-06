@@ -197,7 +197,7 @@ async function clickTarget(scene: Drawn, parameters: Record<string, unknown>): P
         return;
     }
 
-    await real.click(scene.graph.canvas, scene.element.worldToScreen(node.mesh.getAbsolutePosition()));
+    await real.click(scene.graph.canvas, scene.element.worldToScreen(node.drawnWorldPosition));
     await untilFrames("the click selects the node", () => scene.element.getSelectedNode()?.id === TARGET);
 }
 

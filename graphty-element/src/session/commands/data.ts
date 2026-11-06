@@ -50,6 +50,7 @@ import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from ".
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { Selector } from "../styles/selector";
+import { designateDeclaredTime } from "../time/declared";
 import type {
     HistoryCode,
     JoinRecord,
@@ -933,6 +934,8 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
             await repickEdges(picked, ctx);
         }
 
+        // The time field the file declares, designated in this same step.
+        await designateDeclaredTime(outcome?.reader?.declaredTime, ctx);
         // The file's styles, and the previous file's layers swept, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (layoutChoiceOf(command) === "recommended") {

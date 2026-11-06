@@ -154,6 +154,30 @@ export async function dragAcross(element: Element, dx: number, at?: { x: number;
 }
 
 /**
+ * Drags a finger sideways from the middle of an element, as the reader drags a thumb or a handle on
+ * a touch screen.
+ * @param element - Where the finger goes down.
+ * @param dx - How far it moves, in CSS pixels of the test page; negative moves left.
+ */
+export async function swipeAcross(element: Element, dx: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    const frame = window.frameElement;
+    const scale = frame === null ? 1 : frame.getBoundingClientRect().width / window.innerWidth;
+    const steps = 10;
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    for (let step = 1; step <= steps; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x: x + (dx * scale * step) / steps, y }],
+        });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/**
  * Puts a finger down on the middle of an element and keeps it there, still, until `released`
  * settles, then lifts it: a touch hold that lasts as long as the test's condition takes, never a
  * fixed time.
@@ -184,4 +208,91 @@ export async function tap(element: Element): Promise<void> {
     await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/**
+ * Spreads two fingers apart over an element, or brings them together with a negative distance, as
+ * on a touch screen.
+ * @param element - What the fingers land on, either side of its middle.
+ * @param spread - How far each finger moves away from the middle, in CSS pixels.
+ */
+export async function pinchOver(element: Element, spread: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    const gap = 80;
+    const fingers = (apart: number): { id: number; x: number; y: number }[] => [
+        { id: 0, x: x - apart, y },
+        { id: 1, x: x + apart, y },
+    ];
+    const steps = 6;
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(gap) });
+    for (let step = 1; step <= steps; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: fingers(gap + (spread * step) / steps),
+        });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/**
+ * Holds one finger still on an element, puts a second beside it and moves that one away, as on a
+ * touch screen: the first finger lands before anyone can know a pinch is coming.
+ * @param element - What the first finger lands on, in its middle.
+ * @param spread - How far the second finger moves right, in CSS pixels.
+ */
+export async function pinchFrom(element: Element, spread: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    const gap = 80;
+    const fingers = (apart: number): { id: number; x: number; y: number }[] => [
+        { id: 0, x, y },
+        { id: 1, x: x + apart, y },
+    ];
+    const steps = 6;
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 0, x, y }] });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(gap) });
+    for (let step = 1; step <= steps; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: fingers(gap + (spread * step) / steps),
+        });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/**
+ * Makes the browser a touch screen for what `run` does, so the styles for a coarse pointer apply,
+ * and puts it back after.
+ * @param run - What to do on it.
+ * @returns settles once the browser is back.
+ */
+export async function onTouchScreen(run: () => Promise<void>): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    try {
+        await run();
+    } finally {
+        await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    }
+}
+
+/**
+ * Sets the browser's own time zone for what `run` does, and puts it back after.
+ * @param zone - An IANA zone name.
+ * @param run - What to do in it.
+ * @returns settles once the zone is back.
+ */
+export async function inBrowserZone(zone: string, run: () => Promise<void>): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    await session.send("Emulation.setTimezoneOverride", { timezoneId: zone });
+    try {
+        await run();
+    } finally {
+        await session.send("Emulation.setTimezoneOverride", { timezoneId: "" });
+    }
 }

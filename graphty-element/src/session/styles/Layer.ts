@@ -424,6 +424,11 @@ export interface RepaintContext {
      * @param progress - What changed.
      */
     report(progress: RunProgressReport): void;
+    /**
+     * True when the elements named are all that changed, so the renderer places what is painted
+     * and visits nothing else: a time window's slide.
+     */
+    readonly rowsOnly?: boolean;
 }
 
 /** How much a repaint actually painted, which is what the change announcement carries. */

@@ -431,6 +431,23 @@ describe("reading text in a zone", () => {
         session.dispose();
     });
 
+    it("names the zone it reads in: the window's, then the setting's, and UTC over a year column", async () => {
+        const session = await edgesAt(SPREAD);
+        await session.time.setField({ edges: { start: "at" } });
+        assert.strictEqual(session.time.timeZone, "UTC");
+        await session.time.setSettings({ timeZone: LOS_ANGELES });
+        assert.strictEqual(session.time.timeZone, LOS_ANGELES);
+        await session.time.window({ from: SPREAD[0], to: SPREAD[1], timeZone: NEW_YORK });
+        assert.strictEqual(session.time.timeZone, NEW_YORK);
+        session.dispose();
+
+        const years = await edgesAt([1995, 2001]);
+        await years.time.setSettings({ timeZone: LOS_ANGELES });
+        await years.time.setField({ edges: { start: "at", unit: "year" } });
+        assert.strictEqual(years.time.timeZone, "UTC");
+        years.dispose();
+    });
+
     it("reads a year column's text in UTC whatever the zone", async () => {
         const session = await edgesAt(["1995-06", "2001-01"]);
         await session.time.setField({ edges: { start: "at", unit: "year", parseZone: LOS_ANGELES } });

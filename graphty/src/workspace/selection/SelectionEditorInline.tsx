@@ -159,7 +159,7 @@ interface SelectionEditorProps {
 }
 
 /** The rule kinds a step takes with no test: picking one applies it, and the pane shows no test. */
-const NO_TEST_KINDS = new Set<RuleTree["kind"]>(["isolated", "self-loop", "repeated-edge"]);
+const NO_TEST_KINDS = new Set<RuleTree["kind"]>(["isolated", "self-loop", "repeated-edge", "state"]);
 
 /**
  * Whether a picked value has a test to set: a structure value applies as it is picked.
@@ -1568,6 +1568,7 @@ export function SelectionEditorInline({
                     branch={addingBranch}
                     open={adding.open}
                     hostPicks={hostPicks}
+                    host={host}
                     onPick={(stepRule) => {
                         pick(addingBranch, adding.op, stepRule);
                     }}
@@ -2183,6 +2184,7 @@ function stateWord(
  * @param props.rule - the selection
  * @param props.branch - the group
  * @param props.open - whether the value picker opens at once
+ * @param props.host - where the selection is edited
  * @param props.hostPicks - the host's own picker entries
  * @param props.onPick - takes the value's rule
  * @param props.onCancel - takes the step back (the picker closed with nothing chosen)
@@ -2194,6 +2196,7 @@ function NewStepPane({
     branch,
     open: openAtFirst,
     hostPicks,
+    host,
     onPick,
     onCancel,
 }: Readonly<{
@@ -2202,6 +2205,7 @@ function NewStepPane({
     branch: UnionBranch;
     open: boolean;
     hostPicks: readonly PickSection[];
+    host: Host;
     onPick: (stepRule: RuleTree) => void;
     onCancel: () => void;
 }>): React.JSX.Element {
@@ -2223,7 +2227,7 @@ function NewStepPane({
                 fields={open ? pickerFields(session, sideOf(rule), rule.within) : []}
                 used={usedPaths(rule, branch)}
                 placeholder="Find attributes, results"
-                sections={open ? [...hostPicks, ...pickSections(session, rule, choose)] : []}
+                sections={open ? [...hostPicks, ...pickSections(session, rule, choose, host)] : []}
                 opened={open}
                 seed={seed}
                 onAdd={(field) => {

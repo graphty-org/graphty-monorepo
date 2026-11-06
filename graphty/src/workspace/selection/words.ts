@@ -21,7 +21,7 @@ import { formatNumber } from "../inspector/words";
 import { type Card, cardFields, cardOf, cardWords, type Side } from "../style/cards";
 import { NATURAL, valueName } from "../style/words";
 import type { Verb } from "./model";
-import { isRelative, referenceOf, stepCard, WHILE } from "./values";
+import { isRelative, referenceOf, STATE_WORDS, stepCard, WHILE } from "./values";
 
 /** A verb's word, Figma's name for it, and the words a search finds it by. Verbs are words everywhere. */
 export const VERB_WORDS: Readonly<Record<Verb, { word: string; figma: string; aliases: readonly string[] }>> = {
@@ -187,6 +187,18 @@ const STRUCTURE: Partial<Record<RuleTree["kind"], string>> = {
 };
 
 /**
+ * The name of a value that takes no test: a structure leaf, the largest component, a state.
+ * @param rule - the step's rule.
+ * @returns the name, or undefined for a value with a test.
+ */
+function testlessName(rule: RuleTree): string | undefined {
+    if (rule.kind === "state") {
+        return STATE_WORDS[rule.state];
+    }
+    return rule.kind === "member" && rule.of === "largest-component" ? "Largest component" : STRUCTURE[rule.kind];
+}
+
+/**
  * A step's value and test, as its row says them: the value ("Degree", "Betweenness", "Within 1 hop
  * of") and the short test ("6 to 10", "Valjean"), or the inert word in its place.
  * @param session - the element's session.
@@ -233,12 +245,9 @@ function ruleStepWords(
     if (isRelative(rule)) {
         return { value: relativeName(rule), test: referenceWords(session, referenceOf(rule)) };
     }
-    const structure = STRUCTURE[rule.kind];
-    if (structure !== undefined) {
-        return { value: structure, test: "" };
-    }
-    if (rule.kind === "member" && rule.of === "largest-component") {
-        return { value: "Largest component", test: "" };
+    const plain = testlessName(rule);
+    if (plain !== undefined) {
+        return { value: plain, test: "" };
     }
     if (rule.kind === "measure") {
         const descriptor = session.catalog.algorithms().find((each) => each.key === rule.algorithm);

@@ -215,6 +215,10 @@ export interface ScopeSources {
     readonly supplied?: FilterSources["supplied"];
     /** The hovered node, else a lone selected node. Absent refuses a step's `"hovered-or-selected"`. */
     readonly focus?: FilterSources["focus"];
+    /** Whether an element is in a state. Absent refuses a `state` leaf. */
+    readonly inState?: FilterSources["inState"];
+    /** Moves whenever an element's state does. */
+    readonly stateRevision?: () => number;
     /** The runs a union step's `measure` leaf reads, once built. Absent refuses `measure`. */
     readonly stepRuns?: () => StepRuns | undefined;
     /**
@@ -766,6 +770,16 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     };
 
     /**
+     * What a `state` leaf and a step's focus read: the pointer and the selection, live.
+     * @returns The readers the sources supply.
+     */
+    const stateReaders = (): Pick<ResolveContext, "focus" | "inState" | "stateRevision"> => ({
+        ...(sources.focus === undefined ? {} : { focus: sources.focus }),
+        ...(sources.inState === undefined ? {} : { inState: sources.inState }),
+        ...(sources.stateRevision === undefined ? {} : { stateRevision: sources.stateRevision }),
+    });
+
+    /**
      * What a resolution reads now, but the captures.
      * @returns The context over the current snapshot.
      */
@@ -786,7 +800,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         ...(sources.matchEdges === undefined ? {} : { matchEdges: sources.matchEdges }),
         ...(sources.values === undefined ? {} : { values: sources.values }),
         ...(sources.supplied === undefined ? {} : { supplied: sources.supplied }),
-        ...(sources.focus === undefined ? {} : { focus: sources.focus }),
+        ...stateReaders(),
         ...(sources.stepRuns === undefined ? {} : { steps: lateStepRuns(sources.stepRuns) }),
         ...(sources.result === undefined ? {} : { result: sources.result }),
         ...(sources.fieldKinds === undefined ? {} : { fieldKinds: sources.fieldKinds }),

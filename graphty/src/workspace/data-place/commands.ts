@@ -8,6 +8,7 @@ import {
     type SourceRowCommand,
 } from "../commands/registry";
 import type { WorkspaceStore } from "../state/store";
+import { panelsInView } from "../time/timeActions";
 import { openFilterDraft, selectRule } from "./filterCards";
 import { remap } from "./words";
 
@@ -214,6 +215,7 @@ const COLUMN_HEADER_COMMANDS: readonly ColumnHeaderCommand[] = [
                     page: "panels",
                     place: "data",
                     inspected: { kind: "attribute", id: attribute.path },
+                    ...panelsInView(),
                 });
             }
         },

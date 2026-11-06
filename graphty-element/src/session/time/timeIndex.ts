@@ -1,6 +1,9 @@
 /**
  * @file The index of a designated time column: every row's instant, and the instants sorted with
- * the row of each.
+ * the row of each. A kind with an end or spells holds spans: each timed row is one or more
+ * `[start, end)` stretches, sorted once by start and once by end. An instant is a span ending at the
+ * next float above it, which is why a kind of instants needs nothing more: its starts and ends are
+ * the same arrays.
  *
  * ONE READ. A build copies the column's raw values once; the unit, the notices and the parsing all
  * read that copy, so a million record lookups happen once however many questions the values answer.
@@ -13,13 +16,15 @@
  */
 
 import type { CodedFact } from "../shared";
-import type { TimeInstants } from "../visibility/filter";
+import type { TimeInstants, TimeSpans } from "../visibility/filter";
 import {
     type InstantReading,
     isDateShaped,
     isNumericText,
     newUnitTally,
     readInstant,
+    spanEnd,
+    spellPairs,
     tallyUnit,
     type TimeUnit,
     unitOfTally,
@@ -90,10 +95,18 @@ interface ParseTally {
     readonly examples: string[];
 }
 
-/** One kind's instants: per row, and sorted with the row of each. */
+/** One kind's time: per row, and sorted with the row of each. */
 export interface KindIndex extends TimeInstants {
+    /** Where each span starts, ascending; for a kind of instants, the instants. */
     readonly sorted: Float64Array;
+    /** The row of each. */
     readonly perm: Uint32Array;
+    /** Where each span ends, ascending; a kind of instants has `sorted` here. */
+    readonly sortedEnd: Float64Array;
+    /** The row of each; a kind of instants has `perm` here. */
+    readonly endPerm: Uint32Array;
+    /** The spans row by row; null for a kind of instants. */
+    readonly spans: IndexedSpans | null;
     readonly counts: TimeCounts;
     readonly loose: number;
     readonly examples: readonly string[];
@@ -106,6 +119,14 @@ export interface KindIndex extends TimeInstants {
     /** Whether every instant is a whole number. */
     readonly whole: boolean;
     readonly tally: Readonly<ColumnTally>;
+}
+
+/** A kind's spans, with what only the index's readers ask of them. */
+interface IndexedSpans extends TimeSpans {
+    /** The first and the last finite bound. */
+    readonly bounds: readonly [number, number];
+    /** What each column held that did not read as time. */
+    readonly notices: readonly CodedFact<TimeNoticeCode>[];
 }
 
 /** The index of the designated field over one snapshot. */
@@ -135,6 +156,16 @@ export interface KindPlan {
     readonly unit: TimeUnit | undefined;
     /** The zone text with no offset reads in; absent, text reads as it does with the timeline off. */
     readonly zone: string | undefined;
+    /** The kind's end column, as a column and how it reads. */
+    readonly end?: SpanColumn;
+    /** The kind's spells column. */
+    readonly spells?: SpanColumn;
+}
+
+/** A column a kind's spans read beside its start. */
+export interface SpanColumn {
+    readonly column: string;
+    readonly read: (row: number) => unknown;
 }
 
 /** A build: the kinds it reads and what it is keyed on. */
@@ -360,10 +391,12 @@ function tallyValue(tally: ColumnTally, value: unknown): void {
 /**
  * Copy the rows of a column, from a row on: the one read of the records.
  * @param plan - The kind.
+ * @param plan.count - How many rows.
+ * @param plan.read - Reads one.
  * @param start - The first row.
  * @returns The raw values.
  */
-function* copyColumn(plan: KindPlan, start: number): IndexWork<unknown[]> {
+function* copyColumn(plan: Pick<KindPlan, "count" | "read">, start: number): IndexWork<unknown[]> {
     const raw = new Array<unknown>(plan.count - start);
     for (let from = start; from < plan.count; from += CHUNK) {
         const to = Math.min(from + CHUNK, plan.count);
@@ -438,6 +471,41 @@ function isBareNumber(value: unknown): boolean {
         (typeof value === "number" && Number.isFinite(value)) ||
         (typeof value === "string" && !isDateShaped(value) && isNumericText(value))
     );
+}
+
+/**
+ * The earliest and latest instant a designation reads from a column.
+ * @param raw - Every value of the column.
+ * @param zone - The zone text with no offset reads in.
+ * @param given - The unit it reads in; left out, the values say.
+ * @returns The span, or undefined when the column reads as plain steps or holds no instant.
+ */
+export function columnSpan(
+    raw: readonly unknown[],
+    zone: string,
+    given?: TimeUnit,
+): { readonly from: number; readonly to: number } | undefined {
+    const tally = newTally();
+    for (const value of raw) {
+        tallyValue(tally, value);
+    }
+
+    const { unit, datesOnly } = readingOf(tally, given);
+    if (unit === "ordinal") {
+        return undefined;
+    }
+
+    let from = Infinity;
+    let to = -Infinity;
+    for (const value of raw) {
+        const { at } = datesOnly && isBareNumber(value) ? { at: Number.NaN } : readInstant(value, unit, zone);
+        if (!Number.isNaN(at)) {
+            from = Math.min(from, at);
+            to = Math.max(to, at);
+        }
+    }
+
+    return from > to ? undefined : { from, to };
 }
 
 /**
@@ -583,6 +651,9 @@ function kindOf(parts: {
         timed,
         sorted,
         perm,
+        sortedEnd: sorted,
+        endPerm: perm,
+        spans: null,
         counts: Object.freeze({ timed, untimed, unparsed }),
         loose: parsed.loose,
         examples: Object.freeze([...parsed.examples]),
@@ -594,19 +665,340 @@ function kindOf(parts: {
     };
 }
 
+/** Spans a build has found so far, row by row. */
+interface SpanList {
+    readonly starts: Float64Array;
+    readonly ends: Float64Array;
+    /** The row of each span. */
+    readonly owner: Uint32Array;
+    /** Where each row's spans start; one more entry than rows. */
+    readonly first: Uint32Array;
+    size: number;
+    low: number;
+    high: number;
+}
+
 /**
- * Read one kind's column once and sort it.
+ * Add one span: a missing start is open when an end is present, a missing end always is.
+ * @param list - The spans so far.
+ * @param row - Its row.
+ * @param start - The start, or NaN.
+ * @param end - The end, or NaN.
+ */
+function addSpan(list: SpanList, row: number, start: number, end: number): void {
+    const from = Number.isNaN(start) ? Number.NEGATIVE_INFINITY : start;
+    const to = spanEnd(from, Number.isNaN(end) ? Number.POSITIVE_INFINITY : end);
+    list.starts[list.size] = from;
+    list.ends[list.size] = to;
+    list.owner[list.size++] = row;
+    const last = Number.isFinite(end) && end > from ? end : from;
+    // An open start reaches below its end: the tick before it, so a window from the extent holds it.
+    list.low = Math.min(list.low, Number.isFinite(from) ? from : end - 1);
+    list.high = Math.max(list.high, last);
+}
+
+/** The raw bounds of every row's spells, one list, and where each row's start. */
+interface RawSpells {
+    readonly bounds: unknown[];
+    readonly first: Uint32Array;
+}
+
+/**
+ * Flatten a spells column.
+ * @param raw - Each row's value.
+ * @returns Its bounds, two to a spell.
+ */
+function* flatSpells(raw: readonly unknown[]): IndexWork<RawSpells> {
+    const bounds: unknown[] = [];
+    const first = new Uint32Array(raw.length + 1);
+    for (let row = 0; row < raw.length; row++) {
+        for (const [start, end] of spellPairs(raw[row])) {
+            bounds.push(start, end);
+        }
+
+        first[row + 1] = bounds.length / 2;
+        if (row % CHUNK === 0) {
+            yield;
+        }
+    }
+
+    return { bounds, first };
+}
+
+/**
+ * Add a row's spells, each one holding at least one bound.
+ * @param list - The spans.
+ * @param row - The row.
+ * @param spells - Every spell's two bounds.
+ * @param from - The row's first spell.
+ * @param to - Past the row's last spell.
+ */
+function addSpells(list: SpanList, row: number, spells: Float64Array, from: number, to: number): void {
+    for (let at = from; at < to; at++) {
+        const start = spells[2 * at];
+        const end = spells[2 * at + 1];
+        if (!Number.isNaN(start) || !Number.isNaN(end)) {
+            addSpan(list, row, start, end);
+        }
+    }
+}
+
+/**
+ * Add a row's one span from its start and end: an instant for a kind with no end column, else the
+ * span when either bound is known.
+ * @param list - The spans.
+ * @param row - The row.
+ * @param start - The row's start.
+ * @param ends - Each row's end, or null for a kind with no end column.
+ */
+function addRowSpan(list: SpanList, row: number, start: number, ends: Float64Array | null): void {
+    if (ends === null) {
+        if (!Number.isNaN(start)) {
+            addSpan(list, row, start, start);
+        }
+    } else if (!Number.isNaN(start) || !Number.isNaN(ends[row])) {
+        addSpan(list, row, start, ends[row]);
+    }
+}
+
+/**
+ * The spans of each row, by the first rule that applies: spells, else no bound and no time, else an
+ * instant for a kind with no end column, else one span.
+ * @param count - How many rows.
+ * @param columns - What the rows hold.
+ * @param columns.rows - Each row's start.
+ * @param columns.ends - Each row's end, or null for a kind with no end column.
+ * @param columns.spells - Every spell's two bounds, or null.
+ * @param columns.spellFirst - Where each row's spells start.
+ * @returns The spans, and how many rows hold none.
+ */
+function* rowSpans(
+    count: number,
+    columns: {
+        readonly rows: Float64Array;
+        readonly ends: Float64Array | null;
+        readonly spells: Float64Array | null;
+        readonly spellFirst: Uint32Array | null;
+    },
+): IndexWork<SpanList> {
+    const { rows, ends, spells, spellFirst } = columns;
+    const room = count + (spells?.length ?? 0) / 2;
+    const list: SpanList = {
+        starts: new Float64Array(room),
+        ends: new Float64Array(room),
+        owner: new Uint32Array(room),
+        first: new Uint32Array(count + 1),
+        size: 0,
+        low: Number.POSITIVE_INFINITY,
+        high: Number.NEGATIVE_INFINITY,
+    };
+    for (let row = 0; row < count; row++) {
+        const spellAt = spellFirst?.[row] ?? 0;
+        const spellEnd = spellFirst?.[row + 1] ?? 0;
+        if (spells !== null && spellEnd > spellAt) {
+            addSpells(list, row, spells, spellAt, spellEnd);
+        } else {
+            addRowSpan(list, row, rows[row], ends);
+        }
+
+        list.first[row + 1] = list.size;
+        if (row % CHUNK === 0) {
+            yield;
+        }
+    }
+
+    return list;
+}
+
+/**
+ * Whether a row holds any value at all, for a row with no spans: one holding only values that do
+ * not read as time is unparsed, not untimed.
+ * @param raws - The columns' raw values.
+ * @param row - The row.
+ * @returns True when one of them holds a value.
+ */
+function holdsValue(raws: readonly (readonly unknown[] | null)[], row: number): boolean {
+    return raws.some((raw) => {
+        const value = raw?.[row];
+        return value !== undefined && value !== null && value !== "" && !(Array.isArray(value) && value.length === 0);
+    });
+}
+
+/**
+ * Parse a whole column into a new array.
+ * @param raw - The raw values.
+ * @param reading - How to read them.
+ * @param reading.unit - Their unit.
+ * @param reading.datesOnly - Whether they hold dates alone.
+ * @param zone - The zone a value with none is read in.
+ * @param tally - What parsing finds.
+ * @yields After each chunk.
+ * @returns The instants.
+ */
+function* parseColumn(
+    raw: readonly unknown[],
+    reading: { readonly unit: TimeUnit; readonly datesOnly: boolean },
+    zone: string | undefined,
+    tally: ParseTally,
+): IndexWork<Float64Array> {
+    const out = new Float64Array(raw.length);
+    yield* parseInto(out, 0, raw, reading, zone, tally);
+    return out;
+}
+
+/**
+ * Count the rows holding a span, and the rows holding none whose values do not read as time.
+ * @param first - Where each row's spans start.
+ * @param count - How many rows.
+ * @param raws - The columns' raw values.
+ * @returns Both counts.
+ */
+function countRows(
+    first: Uint32Array,
+    count: number,
+    raws: readonly (readonly unknown[] | null)[],
+): { readonly timed: number; readonly unparsed: number } {
+    let timed = 0;
+    let unparsed = 0;
+    for (let row = 0; row < count; row++) {
+        if (first[row] !== first[row + 1]) {
+            timed++;
+        } else if (holdsValue(raws, row)) {
+            unparsed++;
+        }
+    }
+
+    return { timed, unparsed };
+}
+
+/**
+ * Sort spans by one of their bounds.
+ * @param list - The spans.
+ * @param bound - That bound, per span.
+ * @yields After each chunk.
+ * @returns The bounds ascending, and the row of each.
+ */
+function* sortSpans(
+    list: SpanList,
+    bound: Float64Array,
+): IndexWork<{ readonly sorted: Float64Array; readonly perm: Uint32Array }> {
+    const ids = new Uint32Array(list.size);
+    for (let at = 0; at < ids.length; at++) {
+        ids[at] = at;
+    }
+
+    const order = yield* radixArgsort(bound, ids);
+    const sorted = yield* gather(bound, order);
+    for (let at = 0; at < order.length; at++) {
+        order[at] = list.owner[order[at]];
+    }
+
+    return { sorted, perm: order };
+}
+
+/**
+ * A new tally of parsing.
+ * @returns It.
+ */
+function newParseTally(): ParseTally {
+    return { untimed: 0, unparsed: 0, loose: 0, whole: true, examples: [] };
+}
+
+/**
+ * The notice for one column of a kind of spans.
+ * @param column - The column, when the kind has one.
+ * @param tally - What parsing it found.
+ * @returns The notice, if any value failed.
+ */
+function spanNotice(column: string | undefined, tally: ParseTally): CodedFact<TimeNoticeCode>[] {
+    return column === undefined || tally.unparsed === 0
+        ? []
+        : [{ code: "time.unparsed", params: { path: column, count: tally.unparsed, examples: tally.examples } }];
+}
+
+/**
+ * Read a kind with an end or spells: each column once, then its spans, sorted both ways. Its unit
+ * comes from every value it holds, so a column of spells alone reads as a start column does.
  * @param plan - The kind.
+ * @param path - The start column.
  * @yields After each chunk.
  * @returns The index.
  */
-function* buildKind(plan: KindPlan): IndexWork<KindIndex> {
+function* buildSpans(plan: KindPlan, path: string): IndexWork<KindIndex> {
+    const { count, zone } = plan;
+    const raw = yield* copyColumn(plan, 0);
+    const rawEnds = plan.end === undefined ? null : yield* copyColumn({ count, read: plan.end.read }, 0);
+    const rawSpells = plan.spells === undefined ? null : yield* copyColumn({ count, read: plan.spells.read }, 0);
+    const flat = rawSpells === null ? null : yield* flatSpells(rawSpells);
+    const tally = newTally();
+    yield* tallyAll(tally, raw);
+    yield* tallyAll(tally, rawEnds ?? []);
+    yield* tallyAll(tally, flat?.bounds ?? []);
+    const reading = readingOf(tally, plan.unit);
+    const parsed = newParseTally();
+    const endParsed = newParseTally();
+    const spellParsed = newParseTally();
+    const rows = yield* parseColumn(raw, reading, zone, parsed);
+    const ends = rawEnds === null ? null : yield* parseColumn(rawEnds, reading, zone, endParsed);
+    const spells = flat === null ? null : yield* parseColumn(flat.bounds, reading, zone, spellParsed);
+
+    const list = yield* rowSpans(count, { rows, ends, spells, spellFirst: flat?.first ?? null });
+    const starts = list.starts.subarray(0, list.size);
+    const stops = list.ends.subarray(0, list.size);
+    const byStart = yield* sortSpans(list, starts);
+    const byEnd = yield* sortSpans(list, stops);
+    const { timed, unparsed } = countRows(list.first, count, [raw, rawEnds, rawSpells]);
+
+    const whole = parsed.whole && endParsed.whole && spellParsed.whole;
+    const kind = kindOf({
+        rows,
+        sorted: byStart.sorted,
+        perm: byStart.perm,
+        parsed: { ...parsed, whole, untimed: count - timed - unparsed, unparsed },
+        tally,
+        reading,
+    });
+
+    return {
+        ...kind,
+        timed,
+        counts: Object.freeze({ ...kind.counts, timed }),
+        sortedEnd: byEnd.sorted,
+        endPerm: byEnd.perm,
+        spans: {
+            starts,
+            ends: stops,
+            first: list.first,
+            ...(plan.end === undefined ? {} : { end: `data.${plan.end.column}` }),
+            ...(plan.spells === undefined ? {} : { spells: `data.${plan.spells.column}` }),
+            bounds: [list.low, list.high],
+            notices: [
+                ...spanNotice(path, parsed),
+                ...spanNotice(plan.end?.column, endParsed),
+                ...spanNotice(plan.spells?.column, spellParsed),
+            ],
+        },
+    };
+}
+
+/**
+ * Read one kind's column once and sort it.
+ * @param plan - The kind.
+ * @param path - The column.
+ * @yields After each chunk.
+ * @returns The index.
+ */
+function* buildKind(plan: KindPlan, path: string): IndexWork<KindIndex> {
+    if (plan.end !== undefined || plan.spells !== undefined) {
+        return yield* buildSpans(plan, path);
+    }
+
     const raw = yield* copyColumn(plan, 0);
     const tally = newTally();
     yield* tallyAll(tally, raw);
     const reading = readingOf(tally, plan.unit);
     const rows = new Float64Array(plan.count);
-    const parsed: ParseTally = { untimed: 0, unparsed: 0, loose: 0, whole: true, examples: [] };
+    const parsed = newParseTally();
     yield* parseInto(rows, 0, raw, reading, plan.zone, parsed);
     const ids = timedRows(rows, 0, plan.count - parsed.untimed - parsed.unparsed);
     yield;
@@ -655,12 +1047,18 @@ function* mergeSorted(
  * @param kind - The index so far.
  * @param plan - The kind now.
  * @yields After each chunk.
- * @returns The index, or null when the new rows change how the whole column reads.
+ * @returns The index, or null when the new rows change how the whole column reads, or the kind
+ *     holds spans, which a build reads whole.
  */
 function* mergeKind(kind: KindIndex, plan: KindPlan): IndexWork<KindIndex | null> {
     const start = kind.rows.length;
     if (plan.count === start) {
         return kind;
+    }
+
+    // ponytail: spans rebuild on an append; merge them as instants merge if streamed interval data needs it.
+    if (kind.spans !== null) {
+        return null;
     }
 
     const raw = yield* copyColumn(plan, start);
@@ -740,19 +1138,96 @@ export function lowerBound(sorted: ArrayLike<number>, at: number): number {
 }
 
 /**
- * How many rows of a kind fall in each bin.
+ * The first sorted position past a value.
+ * @param sorted - Ascending values.
+ * @param at - The value.
+ * @returns The position, `sorted.length` when no value is above.
+ */
+function upperBound(sorted: ArrayLike<number>, at: number): number {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (sorted[mid] <= at) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+
+    return lo;
+}
+
+/**
+ * How many spans have ended by a window starting at a value: those whose end is not above it.
+ * Instants hold their own values as ends, each really the next float up, so one at the value has
+ * not ended.
+ * @param index - The kind.
+ * @param index.sorted - Where spans start.
+ * @param index.sortedEnd - Where they end.
+ * @param from - The value.
+ * @returns The position in `sortedEnd`.
+ */
+export function endedBy(
+    { sorted, sortedEnd }: { readonly sorted: Float64Array; readonly sortedEnd: Float64Array },
+    from: number,
+): number {
+    return sortedEnd === sorted ? lowerBound(sorted, from) : upperBound(sortedEnd, from);
+}
+
+/**
+ * How many spans of a kind each bin overlaps, counting only some rows: the kept starts before a
+ * bin's end, less the kept ends by its start.
  * @param index - The kind's index.
- * @param index.sorted - The instants, ascending.
- * @param index.perm - The row of each.
+ * @param bounds - The bins' edges, ascending.
+ * @param keep - One byte per row.
+ * @returns The counts, one per bin.
+ */
+function keptSpans(index: BinnedKind, bounds: readonly number[], keep: Uint8Array): number[] {
+    const { sorted, perm, endPerm } = index;
+    const counts = new Array<number>(bounds.length - 1).fill(0);
+    let started = 0;
+    let ended = 0;
+    let startAt = 0;
+    let endAt = 0;
+    for (let bin = 0; bin < counts.length; bin++) {
+        for (const stop = endedBy(index, bounds[bin]); endAt < stop; endAt++) {
+            ended += keep[endPerm[endAt]];
+        }
+
+        for (const stop = lowerBound(sorted, bounds[bin + 1]); startAt < stop; startAt++) {
+            started += keep[perm[startAt]];
+        }
+
+        counts[bin] = started - ended;
+    }
+
+    timeIndexCounters.binned += startAt + endAt;
+
+    return counts;
+}
+
+/** What a histogram reads of a kind. */
+type BinnedKind = Pick<KindIndex, "sorted" | "perm" | "sortedEnd" | "endPerm">;
+
+/**
+ * How many rows of a kind fall in each bin: of a kind of spans, how many spans overlap it.
+ * @param index - The kind's index.
  * @param bounds - The bins' edges, ascending.
  * @param keep - One byte per row, `1` for a row that counts; null to count them all.
  * @returns The counts, one per bin.
  */
-export function countBins(
-    { sorted, perm }: { readonly sorted: Float64Array; readonly perm: Uint32Array },
-    bounds: readonly number[],
-    keep: Uint8Array | null,
-): number[] {
+export function countBins(index: BinnedKind, bounds: readonly number[], keep: Uint8Array | null): number[] {
+    const { sorted, perm, sortedEnd } = index;
+    if (sortedEnd !== sorted) {
+        return keep === null
+            ? Array.from(
+                  { length: bounds.length - 1 },
+                  (_, bin) => lowerBound(sorted, bounds[bin + 1]) - endedBy(index, bounds[bin]),
+              )
+            : keptSpans(index, bounds, keep);
+    }
+
     const counts = new Array<number>(bounds.length - 1).fill(0);
     let start = lowerBound(sorted, bounds[0]);
     for (let bin = 0; bin < counts.length; bin++) {
@@ -782,8 +1257,8 @@ export function countBins(
  * @returns The index.
  */
 export function* buildField(plan: FieldPlan): IndexWork<FieldIndex> {
-    const node = plan.node === null ? null : yield* buildKind(plan.node);
-    const edge = plan.edge === null ? null : yield* buildKind(plan.edge);
+    const node = plan.node === null ? null : yield* buildKind(plan.node, plan.path);
+    const edge = plan.edge === null ? null : yield* buildKind(plan.edge, plan.path);
 
     return fieldOf(plan, node, edge);
 }
@@ -807,6 +1282,43 @@ export function* mergeField(built: FieldIndex, plan: FieldPlan): IndexWork<Field
 }
 
 /**
+ * A kind's first and last finite bounds.
+ * @param kind - The kind.
+ * @returns Them; null when no row is timed.
+ */
+export function kindBounds(kind: KindIndex): readonly [number, number] | null {
+    if (kind.sorted.length === 0) {
+        return null;
+    }
+
+    return kind.spans?.bounds ?? [kind.sorted[0], kind.sorted[kind.sorted.length - 1]]; // NOSONAR(S7755): noUncheckedIndexedAccess is off, so [length - 1] keeps the element type that .at() widens to undefined
+}
+
+/**
+ * The first and last bounds of a row: of all its spans, open ones infinite.
+ * @param kind - The kind.
+ * @param row - The row.
+ * @returns Them; null for a row with no time.
+ */
+export function rowBounds(kind: KindIndex, row: number): readonly [number, number] | null {
+    const { spans, rows } = kind;
+    if (spans === null) {
+        return Number.isNaN(rows[row]) ? null : [rows[row], rows[row]];
+    }
+
+    const { starts, ends, first } = spans;
+    let from = Number.POSITIVE_INFINITY;
+    let last = Number.NEGATIVE_INFINITY;
+    for (let at = first[row]; at < first[row + 1]; at++) {
+        from = Math.min(from, starts[at]);
+        // An instant's end is one float past it: its own bound is its start.
+        last = Math.max(last, ends[at] === spanEnd(starts[at], starts[at]) ? starts[at] : ends[at]);
+    }
+
+    return first[row] === first[row + 1] ? null : [from, last];
+}
+
+/**
  * The notices one designated field's values call for.
  * @param built - The index.
  * @returns The notices.
@@ -818,7 +1330,7 @@ export function noticesOf(built: FieldIndex | null): readonly CodedFact<TimeNoti
             continue;
         }
 
-        if (kind.counts.unparsed > 0) {
+        if (kind.spans === null && kind.counts.unparsed > 0) {
             notices.push({
                 code: "time.unparsed",
                 params: { path: built.path, count: kind.counts.unparsed, examples: kind.examples },
@@ -832,6 +1344,8 @@ export function noticesOf(built: FieldIndex | null): readonly CodedFact<TimeNoti
         if (kind.suspect !== null) {
             notices.push({ code: "time.unit-suspect", params: { path: built.path, suggested: kind.suspect } });
         }
+
+        notices.push(...(kind.spans?.notices ?? []));
     }
 
     return Object.freeze(notices);

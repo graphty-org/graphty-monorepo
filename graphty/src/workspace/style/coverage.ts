@@ -351,6 +351,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.labelOutlineOpacity": NOT_PLACED,
     "edge.labelBorderOpacity": NOT_PLACED,
     "edge.labelPadding": NOT_PLACED,
+    "edge.labelTable": NOT_PLACED,
     "edge.labelCornerRadius": NOT_PLACED,
     "edge.labelLineHeight": NOT_PLACED,
     "edge.labelOffsetX": NOT_PLACED,

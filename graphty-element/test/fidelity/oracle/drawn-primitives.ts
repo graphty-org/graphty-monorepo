@@ -534,6 +534,34 @@ function pictureParts(
 }
 
 /**
+ * The outlines of the cells of the tables graphty draws edge labels as (`label.table`: a Graphviz HTML-like table
+ * label's cells), as free shapes: the oracle draws each cell's outline as a polygon of its own, which no label takes
+ * (its label background is the table's own fill and outline), so each is judged against graphty's by its box
+ * (stray.present, stray.extra), and a cell graphty leaves out or draws elsewhere still fails.
+ * @param scene - the scene
+ * @param drawn - `readDrawn` of the same frame
+ * @returns the cells, as strays without their index
+ */
+function labelCells(
+    scene: Scene,
+    drawn: DrawnGraph,
+): { tag: string; kind: "shape"; box: PBox; fill: null; stroke: null; text: null }[] {
+    return scene.edges.flatMap((e) => {
+        const label = drawn.edges.get(e.id)?.label;
+        return label === undefined || label === null || !label.enabled
+            ? []
+            : (label.cells ?? []).map((box) => ({
+                  tag: "label-cell",
+                  kind: "shape" as const,
+                  box,
+                  fill: null,
+                  stroke: null,
+                  text: null,
+              }));
+    });
+}
+
+/**
  * The arrowheads graphty draws on edges it draws no line for (Gephi's swallowed curved edge keeps its arrowhead,
  * `gexf-sigma-ediaspora`), as free shapes: no line carries them on either side, so the oracle's are strays, and each
  * is judged against graphty's by its box (stray.present, stray.extra). One wholly inside an opaque node is drawn under
@@ -874,6 +902,7 @@ export function drawnPrimitives(
                 })),
             ]),
             ...linelessCaps(scene, drawn),
+            ...labelCells(scene, drawn),
             ...parts.shapes,
         ].map((s, index) => ({ index, ...s })),
     };

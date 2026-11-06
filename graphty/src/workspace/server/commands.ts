@@ -18,6 +18,7 @@ import {
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { newProjectId, type WorkspaceStore } from "../state/store";
+import { panelsInView } from "../time/timeActions";
 import { kindName } from "./words";
 
 /** The `dialog` value that opens the server form beside the Sources section. */
@@ -357,6 +358,7 @@ export function openServerForm(store: WorkspaceStore, kind: string | null = null
         ...(state.project === null ? { project: { name: "Untitled", id: newProjectId(state) }, inspected: null } : {}),
         page: "panels",
         place: "data",
+        ...panelsInView(),
         dialog: SERVER_DIALOG,
         serverKind: kind,
     }));

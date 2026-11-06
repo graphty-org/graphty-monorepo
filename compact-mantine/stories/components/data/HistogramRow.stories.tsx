@@ -1,8 +1,18 @@
 import { Box, DirectionProvider, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import React from "react";
+import React, { useState } from "react";
+import { expect, within } from "storybook/test";
 
-import { AdvancedButton, HistogramRow, LabelsProvider, MetricRow, PANEL_GRID, SparklineRow } from "../../../src";
+import {
+    AdvancedButton,
+    type HistogramBin,
+    type HistogramBrushProps,
+    HistogramRow,
+    LabelsProvider,
+    MetricRow,
+    PANEL_GRID,
+    SparklineRow,
+} from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 import { StoryState, StoryStates } from "../../helpers/story-panel";
 
@@ -271,4 +281,103 @@ export const RightToLeft: Story = {
             </Box>
         </DirectionProvider>
     ),
+};
+
+/** Emails sent each week over twelve weeks: a quiet start, a launch in week 7, then back to normal. */
+const WEEKLY = [18, 22, 20, 25, 21, 24, 61, 30, 23, 19, 26, 22];
+/** What a filter keeps of each week: the bars drawn over the ghosts of the whole. */
+const KEPT = [6, 9, 7, 8, 5, 10, 34, 12, 8, 6, 9, 7];
+/** One person's emails each week: the overlay line. */
+const ONE_PERSON = [1, 2, 0, 3, 1, 2, 9, 4, 1, 0, 2, 1];
+/** The window: weeks 6 to 8. */
+const WINDOW: readonly [number, number] = [5, 8];
+
+/**
+ * The weekly bars, each with its range on the axis.
+ * @param options - What each bar carries besides its count.
+ * @param options.window - Dim the bars outside this range and light those in it.
+ * @param options.kept - Draw these counts over ghosts of the whole.
+ * @returns The bins.
+ */
+function weeks(options: { window?: readonly [number, number]; kept?: readonly number[] } = {}): HistogramBin[] {
+    return WEEKLY.map((count, index) => {
+        const inside = options.window === undefined || (index >= options.window[0] && index < options.window[1]);
+        const shown = options.kept?.[index] ?? count;
+        return {
+            label: `Week ${String(index + 1)}: ${String(count)} emails`,
+            count: shown,
+            from: index,
+            to: index + 1,
+            ...(options.kept === undefined ? {} : { ghost: count }),
+            ...(options.window === undefined ? {} : { highlighted: inside && shown > 0, dimmed: !inside }),
+        };
+    });
+}
+
+/**
+ * A brush over the twelve weeks that follows its own gestures.
+ * @param props - Component props
+ * @param props.bins - The bars.
+ * @param props.overlay - A line over the bars.
+ * @returns The row.
+ */
+function BrushedWeeks({ bins, overlay }: Readonly<{ bins: HistogramBin[]; overlay?: number[] }>): React.JSX.Element {
+    const [value, setValue] = useState<[number, number]>([WINDOW[0], WINDOW[1]]);
+    const brush: HistogramBrushProps = {
+        min: 0,
+        max: WEEKLY.length,
+        step: 1,
+        value,
+        startLabel: "Window start",
+        endLabel: "Window end",
+        bodyLabel: "Window",
+        valueText: (at, thumb) => `Week ${String(thumb === 0 ? at + 1 : at)}`,
+        rangeText: (range) => `Weeks ${String(range[0] + 1)} to ${String(range[1])}`,
+        thumbLabel: (at) => `Week ${String(at + 1)}`,
+        onChangeEnd: setValue,
+    };
+    return (
+        <HistogramRow
+            label="Emails over time"
+            bins={bins}
+            minLabel="Week 1"
+            maxLabel="Week 12"
+            brush={brush}
+            {...(overlay === undefined ? {} : { overlay: { label: "One person over time", values: overlay } })}
+        />
+    );
+}
+
+/**
+ * With a brush: a range on the axis, dragged by either thumb or by its body over the bars, and
+ * moved by the arrow keys. `brush` takes the scale's ends, the step and the range; each bin's
+ * `from` and `to` place it on that scale.
+ */
+export const WithBrush: Story = {
+    render: (): React.JSX.Element => <BrushedWeeks bins={weeks()} />,
+};
+
+/** The start thumb focused from the keyboard: it shows its `thumbLabel`, here the week under it. */
+export const BrushThumbFocused: Story = {
+    render: (): React.JSX.Element => <BrushedWeeks bins={weeks({ window: WINDOW })} />,
+    play: async ({ canvasElement }) => {
+        const thumb = within(canvasElement).getByRole("slider", { name: "Window start" });
+        thumb.focus();
+        await expect(thumb).toHaveFocus();
+    },
+};
+
+/** The bars outside the range `dimmed`, and the ones inside it `highlighted`. */
+export const DimmedBars: Story = {
+    render: (): React.JSX.Element => <BrushedWeeks bins={weeks({ window: WINDOW })} />,
+};
+
+/** Each bar's `ghost` behind its `count`: what a filter left out, still on the axis. */
+export const GhostBars: Story = {
+    render: (): React.JSX.Element => <BrushedWeeks bins={weeks({ window: WINDOW, kept: KEPT })} />,
+};
+
+/** An `overlay` line over the bars, on the same scale: one person's share of the whole. */
+export const OverlayLine: Story = {
+    render: (): React.JSX.Element => <BrushedWeeks bins={weeks({ window: WINDOW })} overlay={ONE_PERSON} />,
 };

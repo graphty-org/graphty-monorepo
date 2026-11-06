@@ -5,9 +5,10 @@ import { selectionWorkspaceOn } from "../features";
 import { focusInspectorTitle, focusIsLost } from "../frame/focus";
 import type { GLYPHS } from "../glyphs";
 import { errorWords } from "../project/words";
+import { panelsInView } from "../time/timeActions";
 import { addLayer, deleteRow, duplicateRow, orNotice, selectWhatItPaints, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
-import { findTreeRow, isBaseRow } from "./rows";
+import { findTreeRow } from "./rows";
 
 /**
  * A command on one row of the style tree. Every door to it -- the row's context menu, the
@@ -33,20 +34,6 @@ export interface RowCommand {
     readonly run: (ctx: CommandContext, row: StyleRow) => void | Promise<void>;
 }
 
-/** Why the Everything row holding the base look keeps its pin. */
-const BASE_STAYS = "Everything holds the base look and stays at the bottom";
-
-/**
- * Whether a row holds the base look.
- * @param session - the session.
- * @param row - the row.
- * @returns true when it does.
- */
-const holdsBase = (session: GraphSession | null, row: StyleRow): boolean => isBaseRow(session, row.id);
-
-/** Why the base layer cannot be deleted: its own reason, drawn under Delete. */
-const BASE_KEPT = "Everything holds the base look, so it cannot be deleted";
-
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;
 
@@ -66,10 +53,7 @@ function pinCommand(pin: StyleRowPin, label: string, icon: keyof typeof GLYPHS):
         rowKeys: [],
         // Unpin only where there is a pin to take off.
         applies: (row) => pin !== "none" || row.pin !== "none",
-        disabled: (row, session) => {
-            if (holdsBase(session, row)) {
-                return BASE_STAYS;
-            }
+        disabled: (row) => {
             if (row.pin !== pin) {
                 return null;
             }
@@ -168,7 +152,7 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
             // A menu hands focus back to its opener 10 ms after it closes (Mantine's
             // useFocusReturn), which would blur the new field and close it at once.
             setTimeout(() => {
-                workspace.set({ page: "panels", place: "graph", renamingRow: row.id });
+                workspace.set({ page: "panels", place: "graph", renamingRow: row.id, ...panelsInView() });
             }, MENU_FOCUS_RETURN_MS);
         },
     },
@@ -311,7 +295,7 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
         group: "remove",
         rowKeys: ["Delete", "Backspace"],
         applies: () => true,
-        disabled: (row, session) => (holdsBase(session, row) ? BASE_KEPT : null),
+        disabled: () => null,
         run: async ({ session, workspace }, row) => {
             if (session !== null) {
                 await orNotice(workspace, `delete ${row.name}`, deleteRow(session, workspace, row));
@@ -381,7 +365,7 @@ export const registration = defineRegistration({
             keywords: ["search", "node", "name"],
             disabled: ({ session }) => (session === null ? "Nothing is open" : null),
             run: ({ workspace }) => {
-                workspace.set({ page: "panels", place: "graph" });
+                workspace.set({ page: "panels", place: "graph", ...panelsInView() });
                 // The Graph place may only now be drawn; focus once it is. Text already in the box
                 // is selected, so the next search replaces it, as every find key does.
                 requestAnimationFrame(() => {

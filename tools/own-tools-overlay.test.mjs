@@ -5,9 +5,12 @@
 // and actions", git archive "$GITHUB_SHA" -- so a commit that predates a fix never runs the unfixed tool. The jobs
 // that must run the checked-out commit's own tools/ are listed below with the reason. The overlay extracts over the
 // commit's copies and never deletes them first: the commit's own configs (eslint.config.js importing
-// tools/eslint-rules/) still need files the workflow's commit may have removed (issue #5311).
+// tools/eslint-rules/) still need files the workflow's commit may have removed (issue #5311). Data a package's tests
+// or lint read does not live in tools/: the overlay would judge an older commit's code by a newer commit's data
+// (issue #5996), so it sits in the package and stays the commit's own.
 // Run: node tools/own-tools-overlay.test.mjs (WORKFLOWS=<dir> checks another tree's workflows)
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -78,6 +81,22 @@ export function problems(file, text) {
     return out;
 }
 
+/** A path to a data file in the root tools/, not in a folder of that name inside a package. */
+export const TOOLS_DATA = /(^|[^\w./-])(\.{1,2}\/)*tools\/[\w./-]+\.(json|jsonl|txt|csv|ya?ml)\b/;
+
+/** Where a path into tools/ is no data a commit's tests read under the overlay. */
+const NOT_PACKAGE_CODE = [
+    ":!tools",
+    ":!.github",
+    ":!.claude",
+    ":!design",
+    ":!*.md",
+    ":!**/CHANGELOG*",
+    ":!.gitattributes",
+    ":!githerd", // retired; it names these files in the repositories it watched
+    ":!eslint.config.js", // pipeline-health's tsconfig; the Lint job keeps the commit's own tools/ (OWN_TOOLS)
+];
+
 const dir = process.env.WORKFLOWS ?? fileURLToPath(new URL("../.github/workflows/", import.meta.url));
 const all = () =>
     readdirSync(dir)
@@ -103,6 +122,23 @@ describe("jobs on another commit run the workflow's own tools and actions", () =
         assert.equal(problems("x.yml", yml(`${checkout}${deleting}`)).length, 1);
         const own = "      - uses: actions/checkout@v7\n        with: { ref: master }\n";
         assert.deepEqual(problems("x.yml", yml(`${own}      - run: node tools/full-run.mjs pick\n`)), []);
+    });
+
+    it("leaves no data of a package's tests or lint in tools/, where the overlay would replace it", () => {
+        const root = fileURLToPath(new URL("..", import.meta.url));
+        const pattern = TOOLS_DATA.source.replaceAll(String.raw`\w`, "a-zA-Z0-9_");
+        const grep = spawnSync("git", ["grep", "-n", "-I", "-E", pattern, "--", ".", ...NOT_PACKAGE_CODE], {
+            cwd: root,
+            encoding: "utf8",
+        });
+        assert.deepEqual([grep.stdout, grep.status], ["", 1]); // git grep exits 1 when nothing matches
+    });
+
+    it("recognizes a read of tools/ data, and not a package's own tools folder", () => {
+        assert.match(`import a from "../../tools/baseline.json?raw";`, TOOLS_DATA);
+        assert.match(`new URL("../../../tools/baseline.json", import.meta.url)`, TOOLS_DATA);
+        assert.doesNotMatch(`join(ROOT, "src/mcp/tools/baseline.json")`, TOOLS_DATA);
+        assert.doesNotMatch(`import { a } from "../../tools/helper.mjs";`, TOOLS_DATA);
     });
 
     it("names a reason for every job it lets run the commit's own tools/", () => {

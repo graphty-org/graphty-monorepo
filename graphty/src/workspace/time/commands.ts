@@ -1,5 +1,5 @@
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { seekEdge, stepWindow, timelineOn, togglePlay } from "./timeActions";
+import { jumpToSelection, seekEdge, stepWindow, timelineOn, togglePlay } from "./timeActions";
 
 /**
  * Why a timeline command cannot run now, or null.
@@ -30,7 +30,7 @@ function timelineShown({ session }: CommandContext): boolean {
  */
 const inExperiment = { feature: "timeline" } as const;
 
-/** The timeline's commands: show or hide it (T), step back and forward (comma, period), jump to either end (Shift with them) and play or pause. */
+/** The timeline's commands: show or hide it (T), step back and forward (comma, period), jump to either end (Shift with them) or to the selection, and play or pause. */
 export const registration = defineRegistration({
     owner: "time",
     commands: [
@@ -107,6 +107,20 @@ export const registration = defineRegistration({
             run: ({ session, workspace }) => {
                 if (session !== null) {
                     seekEdge(session, workspace, "end");
+                }
+            },
+        },
+        {
+            id: "time.jump-selection",
+            label: "Jump time to the selection",
+            group: "View",
+            keywords: ["timeline", "window", "selected", "span"],
+            shown: timelineShown,
+            ...inExperiment,
+            disabled: noTimeline,
+            run: ({ session, workspace }) => {
+                if (session !== null) {
+                    jumpToSelection(session, workspace);
                 }
             },
         },

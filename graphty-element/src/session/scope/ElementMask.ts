@@ -133,8 +133,20 @@ export class ElementMask<TId> {
     /** Bumped whenever a mutation actually changed the membership. */
     private revision = 0;
 
-    /** The rows the last rewrite changed, while no other write has come after it. */
-    private rewritten: MaskRows | null = null;
+    /**
+     * The rows of each rewrite since `movesFrom`, one entry per version, oldest first, or null when
+     * no rewrite has come since the last other write. Only a time window's slide rewrites.
+     */
+    private moves: MaskRows[] | null = null;
+
+    /** The version the oldest entry of `moves` started from. */
+    private movesFrom = 0;
+
+    /** How many rows `moves` holds. */
+    private movedRows = 0;
+
+    /** The mask a read-only copy answers `changedSince` from, because a copy keeps no log. */
+    private live: ElementMask<TId> | null = null;
 
     /** Told of every version bump. */
     private readonly onVersion: (() => void) | undefined;
@@ -169,7 +181,7 @@ export class ElementMask<TId> {
     /** Move the version on, and tell whoever asked to be told. */
     private bump(): void {
         this.revision += 1;
-        this.rewritten = null;
+        this.moves = null;
         this.onVersion?.();
     }
 
@@ -464,8 +476,9 @@ export class ElementMask<TId> {
      * this call only, so the staleness contract holds.
      * @param write - Writes `1` or `0` into rows below {@link ElementMask.count}, and lists the
      *     rows it took in and out of the set, each once.
-     * @param keepUpTo - The most changed rows {@link ElementMask.lastRows} keeps: past it, a reader
-     *     of the mask reads all of it anyway.
+     * @param keepUpTo - The most changed rows {@link ElementMask.changedSince} keeps: past it, a
+     *     reader of the mask reads all of it anyway. The oldest moves go first, so a reader that
+     *     keeps up is never sent back to reading every row by the moves it has already read.
      * @returns What `write` returned.
      */
     rewrite<TRows extends MaskRows>(write: (bytes: U8) => TRows, keepUpTo = Number.POSITIVE_INFINITY): TRows {
@@ -473,8 +486,8 @@ export class ElementMask<TId> {
         const changed = rows.entered.length + rows.left.length;
         if (changed > 0) {
             this.members += rows.entered.length - rows.left.length;
+            this.logMove(rows, keepUpTo);
             this.revision += 1;
-            this.rewritten = changed <= keepUpTo ? rows : null;
             this.onVersion?.();
         }
 
@@ -482,12 +495,58 @@ export class ElementMask<TId> {
     }
 
     /**
-     * What the last {@link ElementMask.rewrite} changed, so a reader follows the mask by rows.
-     * @returns The rows that brought the mask to its current version, or null when another write
-     *     came after, or there were too many to keep.
+     * Keep one rewrite's rows, and let go of the oldest past the cap.
+     * @param rows - The rows it changed.
+     * @param keepUpTo - The most rows to keep.
      */
-    get lastRows(): MaskRows | null {
-        return this.rewritten;
+    private logMove(rows: MaskRows, keepUpTo: number): void {
+        if (this.moves === null) {
+            this.moves = [];
+            this.movesFrom = this.revision;
+            this.movedRows = 0;
+        }
+
+        this.moves.push(rows);
+        this.movedRows += rows.entered.length + rows.left.length;
+        while (this.movedRows > keepUpTo) {
+            const oldest = this.moves[0];
+            this.moves.shift();
+            this.movesFrom += 1;
+            this.movedRows -= oldest.entered.length + oldest.left.length;
+        }
+    }
+
+    /**
+     * The rows that changed after a version, so a reader follows the mask by rows. Any write but a
+     * {@link ElementMask.rewrite} says nothing about its rows, so this only answers across rewrites.
+     * @param version - The {@link ElementMask.version} the reader last read.
+     * @returns The rows, once per move that changed them, or null when the reader has to read every
+     *     row: another write came after that version, or too many rows did. A read-only copy
+     *     answers from the live mask.
+     */
+    changedSince(version: number): readonly number[] | null {
+        if (this.live !== null) {
+            return this.live.changedSince(version);
+        }
+
+        if (version === this.revision) {
+            return [];
+        }
+
+        if (this.moves === null || version < this.movesFrom || version > this.revision) {
+            return null;
+        }
+
+        const changed: number[] = [];
+        for (let at = version - this.movesFrom; at < this.moves.length; at++) {
+            for (const rows of [this.moves[at].entered, this.moves[at].left]) {
+                for (let row = 0; row < rows.length; row++) {
+                    changed.push(rows[row]);
+                }
+            }
+        }
+
+        return changed;
     }
 
     /**
@@ -502,6 +561,7 @@ export class ElementMask<TId> {
         copy.rows = this.rows;
         copy.members = this.members;
         copy.revision = this.revision;
+        copy.live = this;
         for (const verb of MUTATORS) {
             Object.defineProperty(copy, verb, {
                 value: (): never => {

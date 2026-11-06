@@ -5,6 +5,7 @@ import { selectionWorkspaceOn } from "../features";
 import { focusInspectorTitle, focusIsLost } from "../frame/focus";
 import type { GLYPHS } from "../glyphs";
 import { errorWords } from "../project/words";
+import { panelsInView } from "../time/timeActions";
 import { addLayer, deleteRow, duplicateRow, orNotice, selectWhatItPaints, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
 import { findTreeRow, isBaseRow } from "./rows";
@@ -168,7 +169,7 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
             // A menu hands focus back to its opener 10 ms after it closes (Mantine's
             // useFocusReturn), which would blur the new field and close it at once.
             setTimeout(() => {
-                workspace.set({ page: "panels", place: "graph", renamingRow: row.id });
+                workspace.set({ page: "panels", place: "graph", renamingRow: row.id, ...panelsInView() });
             }, MENU_FOCUS_RETURN_MS);
         },
     },
@@ -381,7 +382,7 @@ export const registration = defineRegistration({
             keywords: ["search", "node", "name"],
             disabled: ({ session }) => (session === null ? "Nothing is open" : null),
             run: ({ workspace }) => {
-                workspace.set({ page: "panels", place: "graph" });
+                workspace.set({ page: "panels", place: "graph", ...panelsInView() });
                 // The Graph place may only now be drawn; focus once it is. Text already in the box
                 // is selected, so the next search replaces it, as every find key does.
                 requestAnimationFrame(() => {

@@ -339,6 +339,15 @@ export class NodeBatches {
     }
 
     /**
+     * Whether a batch draws this node now, rather than its own mesh.
+     * @param node - The node.
+     * @returns True when it does.
+     */
+    draws(node: Node): boolean {
+        return this.groupOf.get(node)?.batched === true;
+    }
+
+    /**
      * Whether some object rows are drawn by something other than their own mesh (a shader
      * surface hides its source), so a picture of what is drawn does not show them.
      * @returns True when one is.

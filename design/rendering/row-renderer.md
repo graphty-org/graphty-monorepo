@@ -260,6 +260,17 @@ and each candidate's matrix is multiplied by the root's, so an XR gesture change
   see this, and a batched row has no place in `scene.meshes` to lose.
 - An exact tie between a row and an object mesh goes to the row, whose mesh was built first.
 
+As built (stage 9): `NodePointerRoster.byId` names nodes, not handlers, and `Node.dragHandler` is an accessor that
+builds the handler on first read, on both paths, so a node the pointer never reaches has none (`dragHandlersBuilt`
+counts them). A batched row's click and double-click arrive as Babylon's own `POINTERTAP` and `POINTERDOUBLETAP`, so
+the click detection is the one the actions use; the roster names the node from the picked mesh, else from
+`pickNodeId`, and answers only when `NodeBatches.draws(node)`. The shared actions skip such a node, since its hidden
+proxy still carries them until stage 11. The roster sets `hoverCursor` over a batched row after Babylon resets the
+cursor. The shared `ActionManager` is built at scene setup only under `"objects"`; under `"batched"` the first mesh
+makes it, which while proxies exist is the first node. Two corrections to the stage 9 row: `XRInputHandler` was
+already on the merged ray pick (`pickRayAsDrawn`, stage 5), and the one XR laser proxy moves to stage 11, since with
+hidden proxies the predicate alone serves and nothing could prove the proxy before the meshes go.
+
 As built (stage 10): `render/NodeIdTarget.ts`, created and disposed with the `"batched"` path. Six things differ from the text above:
 
 - A node read is one pixel, not a window. On WebGL it is synchronous: a stale target is drawn on the spot and read with

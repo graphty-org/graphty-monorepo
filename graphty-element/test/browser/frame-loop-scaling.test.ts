@@ -710,6 +710,46 @@ describe("a repaint of every node", () => {
         }
     });
 
+    // The walk that ends a repaint is owed by whichever kind of element the repaint painted, so a
+    // repaint of one kind has to bring it alone. The timeline is off here, as it is by default.
+    for (const [kind, spec] of [
+        ["nodes", { target: "node", set: { "node.color": "#123456" } }],
+        ["edges", { target: "edge", set: { "edge.color": "#123456" } }],
+    ] as const) {
+        it(`visits every edge once, on the last frame, after a repaint of only ${kind}`, async () => {
+            const size = 400;
+            const minimumWork = minimumWorkPerFrame();
+            const element = await mount(size);
+            try {
+                const { graph } = element;
+                assert.notInclude(graph.getSession().features.enabled, "timeline");
+                const painter = graph.getStylePainter();
+                const manager = updateManagerOf(graph);
+                // The load painted both kinds, and what is left of it would be part of this repaint.
+                manager.syncStyles(Number.POSITIVE_INFINITY);
+                assert.isFalse(painter.hasPending, "the load is drawn");
+                setMinimumWorkPerFrame(true);
+                await graph.getSession().styles.add({ name: "One kind", selector: { match: "everything" }, ...spec });
+                await settled(graph);
+                const walk = vi.spyOn(manager, "forceEdgeWalk");
+
+                let frames = 0;
+                while (painter.hasPending && frames < size) {
+                    assert.strictEqual(walk.mock.calls.length, 0, "no walk before the repaint is drawn");
+                    manager.syncStyles(0);
+                    frames++;
+                }
+
+                assert.isAbove(frames, 1, "the repaint was spread over frames");
+                assert.strictEqual(walk.mock.calls.length, 1);
+            } finally {
+                vi.restoreAllMocks();
+                setMinimumWorkPerFrame(minimumWork);
+                element.remove();
+            }
+        });
+    }
+
     // A load paints every element, over as many frames as the graph needs, and draws nothing until
     // the last one. Visiting every edge on each of those frames cost a 100,000-node, 1,000,000-edge
     // load about a thousand walks of a million edges: 190-436 s, where the paint itself took 30 s.

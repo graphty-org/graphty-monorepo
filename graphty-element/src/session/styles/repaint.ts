@@ -257,6 +257,11 @@ export interface ElementPaint {
      */
     lastPainted(target: SelectorTarget): ArrayLike<number>;
     /**
+     * Whether the last pass was asked for with `rowsOnly`. Read as {@link ElementPaint.lastPainted} is.
+     * @returns True when what it painted is all that changed.
+     */
+    lastPaintRowsOnly(): boolean;
+    /**
      * Be told what a pass painted, at the end of that pass and before any other can begin.
      *
      * THE ONLY SAFE MOMENT TO READ {@link ElementPaint.lastPainted}, and reading it anywhere else
@@ -1168,6 +1173,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     /** Who is told what a pass painted, in the order they asked. */
     const painted = new Set<() => void>();
 
+    /** Whether the pass announcing was asked for with `rowsOnly`. */
+    let rowsOnly = false;
+
     /**
      * Tell everyone what this pass painted, while its dirty set is still its own.
      *
@@ -2002,6 +2010,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         context.report({ phase: "painting", completed: node.painted, total });
         const edge = await paintTarget(edges, stack, context, node.deadline, skipBelow);
         context.report({ phase: "painting", completed: total, total });
+        rowsOnly = context.rowsOnly === true;
         announcePainted();
 
         return { nodes: node.painted, edges: edge.painted };
@@ -2318,6 +2327,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
         meshCount(target: SelectorTarget): number {
             return stores[target].meshes.size;
+        },
+
+        lastPaintRowsOnly(): boolean {
+            return rowsOnly;
         },
 
         lastPainted(target: SelectorTarget): ArrayLike<number> {

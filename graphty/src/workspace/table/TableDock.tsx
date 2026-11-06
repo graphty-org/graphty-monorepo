@@ -19,6 +19,7 @@ import { runName } from "../runWords";
 import { formatCount, useNumberFormats } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { panelsInView } from "../time/timeActions";
 import {
     columnChoices,
     columnSummary,
@@ -498,7 +499,9 @@ function MaximizeButton({
             aria-pressed={maximized}
             onClick={() => {
                 // Maximized, the configuration (Sources, Fields, Filters) is the Data place's.
-                store.set(maximized ? { dockMaximized: false } : { dockMaximized: true, place: "data" });
+                store.set(
+                    maximized ? { dockMaximized: false } : { dockMaximized: true, place: "data", ...panelsInView() },
+                );
             }}
         >
             {maximized ? <GLYPHS.minimize size={16} aria-hidden /> : <GLYPHS.maximize size={16} aria-hidden />}

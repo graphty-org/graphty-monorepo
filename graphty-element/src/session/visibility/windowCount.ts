@@ -286,13 +286,10 @@ export class WindowCounter {
         const { inFrom, inTo } = rows;
         const { endCount, node } = this.state;
         this.noteEnds(inFrom, inTo);
-        this.edgesIn += passingEdges(this.ends, inFrom, inTo, this.passing);
+        this.edgesIn +=
+            node === null ? passingEdges(this.ends, inFrom, inTo, this.passing) : this.markOwn(inFrom, inTo, 1);
         if (endCount !== null) {
             this.nodesIn += endsUp(this.ends, inFrom, inTo, endCount, this.passing);
-        }
-
-        if (node !== null) {
-            this.markOwn(inFrom, inTo, 1);
         }
     }
 
@@ -303,30 +300,33 @@ export class WindowCounter {
     private edgesLeave(rows: Crossed): void {
         const { outFrom, outTo } = rows;
         const { endCount, node } = this.state;
-        this.edgesOut += passingEdges(this.ends, outFrom, outTo, this.passing);
+        this.edgesOut +=
+            node === null ? passingEdges(this.ends, outFrom, outTo, this.passing) : this.markOwn(outFrom, outTo, 0);
         if (endCount !== null) {
             this.nodesOut += endsDown(this.ends, outFrom, outTo, endCount, this.passing);
-        }
-
-        if (node !== null) {
-            this.markOwn(outFrom, outTo, 0);
         }
     }
 
     /**
-     * Write whether a stretch of edges passes its own tests.
+     * Write whether a stretch of edges passes its own tests, for nodes that cross to read.
      * @param start - The first sorted position.
      * @param end - One past the last.
      * @param now - 1 when it passes.
+     * @returns How many of them have both ends passing.
      */
-    private markOwn(start: number, end: number, now: 0 | 1): void {
-        const { own, ends } = this;
+    private markOwn(start: number, end: number, now: 0 | 1): number {
+        const { own, ends, passing } = this;
         const perm = this.state.edge?.index.perm ?? NO_ROWS;
+        let edges = 0;
         for (let at = start; at < end; at++) {
-            if (ends[2 * at] !== HIDDEN) {
+            const from = ends[2 * at];
+            if (from !== HIDDEN) {
                 own[perm[at]] = now;
+                edges += passing[from] & passing[ends[2 * at + 1]];
             }
         }
+
+        return edges;
     }
 
     /**

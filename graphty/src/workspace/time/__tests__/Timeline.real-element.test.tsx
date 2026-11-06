@@ -574,6 +574,32 @@ describe("the Overview and the import of time", () => {
         });
     });
 
+    it("makes the field one of intervals from the End row, and the window holds what spans it", async () => {
+        const store = createWorkspaceStore({ project: { name: "Spans", id: 1 }, place: "data" });
+        render(<Workspace store={store} registrations={REGISTRATIONS} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const data = "source,target,began,ended\na,b,2025-01-01,2025-03-01\nb,c,2025-02-01,2025-02-02\n";
+        await session.data.import({ type: "csv", config: { data }, name: "Spans" });
+        await pickField("began");
+        await userEvent.click(await dataPlace().findByRole("combobox", { name: "Edge time end" }));
+        await userEvent.click(await screen.findByRole("option", { name: "ended" }));
+        const live = session;
+        await waitFor(() => {
+            assert.deepEqual(live.time.field?.edges, { start: "began", end: "ended" });
+        });
+
+        // Feb 15 is inside the first edge's span and after the second one ended.
+        await live.time.window({ from: Date.UTC(2025, 1, 15), to: Date.UTC(2025, 1, 16) });
+        assert.deepEqual([...live.visibility.edgeMask()], [1, 0]);
+    });
+
     it("shows and hides the timeline from its toolbar button and the T key", async () => {
         const { session } = await open();
         assert.isNull(screen.queryByRole("button", { name: "Timeline" }), "no toggle without a time field");

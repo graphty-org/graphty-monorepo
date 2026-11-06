@@ -615,8 +615,12 @@ export abstract class DataSource {
     get declaredFileLayout(): FileLayout | null;
     get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    // @beta
+    get declaredTime(): TimeField | null;
     protected declareFileLayout(layout: FileLayout | null): void;
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
+    // @beta
+    protected declareTime(field: TimeField): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
@@ -1872,6 +1876,8 @@ export { ImportError }
 export interface ImporterSourceOptions<Opts> {
     readonly importOptions?: Partial<Opts & CommonImportOptions>;
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImporterReport) => string | null;
+    // @beta
+    readonly time?: (snapshot: GraphSnapshot, report: ImporterReport) => TimeField | null;
 }
 
 export { ImportInput }
@@ -3109,6 +3115,26 @@ export interface SuggestedName {
     // (undocumented)
     readonly label: string;
 }
+
+// @beta
+export interface TimeField {
+    // (undocumented)
+    readonly edges?: TimeSource;
+    // (undocumented)
+    readonly nodes?: TimeSource;
+}
+
+// @beta
+export interface TimeSource {
+    readonly end?: Path;
+    readonly parseZone?: string;
+    readonly spells?: Path;
+    readonly start: Path;
+    readonly unit?: TimeUnit;
+}
+
+// @beta
+export type TimeUnit = "ms" | "s" | "year" | "ordinal";
 
 // @public
 export interface TransitionDescriptor {

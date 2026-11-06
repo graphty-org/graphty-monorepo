@@ -121,6 +121,37 @@ starts the extent one unit before that end, so the extent as a window shows it. 
 spans overlapping it, so a long element counts in every bar it crosses, and an element with two spells
 in one bar counts twice there.
 
+## Files that declare their time
+
+Some formats say which columns hold time, and the element designates them as the file loads, in the
+load's own step: undoing the load takes the field back with it. A time field already set, by an
+attribute or a saved project, is kept.
+
+- **GEXF** with `mode="dynamic"`: on each of nodes and edges that has times, `start`, `end` and
+  `spells`, or `timestamp` and `timestamps` with `timerepresentation="timestamp"`. A `timestamps` list
+  reaches each record as a list of instants, so a window holds an element when one of them is inside.
+  `timeformat="date"` and `"dateTime"` read as dates, `"integer"` and `"double"` as plain steps.
+- **XGMML** (Cytoscape DynNetwork): `start` and `end`, on a kind that has both.
+
+```js
+g.session.on("time:field", ({ field }) => console.log(field));
+await g.session.data.import({ type: "gexf", config: { url: "dynamics.gexf" } });
+```
+
+A reader of your own format declares its time the same way, from its parse:
+
+```js
+class SpansSource extends DataSource {
+    async *sourceFetchData() {
+        this.declareTime({ edges: { start: "from", end: "until" } });
+        yield* this.chunkData(nodes, edges);
+    }
+}
+```
+
+`DataSource.fromImporter` takes a `time` option instead: a function of the imported graph returning
+the field, or null.
+
 ## Reading the data's time
 
 After `await time.ready`, these answer at once:

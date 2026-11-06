@@ -507,6 +507,7 @@ export const READ_ONLY: readonly string[] = [
     "DataSource.declareDirection",
     "DataSource.declareFileLayout",
     "DataSource.declareGraphValues",
+    "DataSource.declareTime",
     "DataSource.fetchWithRetry",
     "DataSource.fromImporter",
     "DataSource.fromSource",

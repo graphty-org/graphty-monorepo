@@ -13,6 +13,8 @@ permissions:
 env:
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
+    # Bounds a failed cache restore's wait to one minute instead of ten (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
 
 jobs:
     proof:
@@ -35,6 +37,7 @@ jobs:
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
             - run: pnpm exec nx run graphty-element:build
+            - uses: ./.github/actions/drop-microsoft-apt-source
             - run: pnpm exec playwright install --with-deps chromium
               working-directory: graphty-element
             - run: pnpm exec vitest run --project=${{ matrix.run.project }}

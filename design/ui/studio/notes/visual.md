@@ -5,47 +5,41 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-11-05 (tier 6 round 1 closed). Summarized on 2026-10-21: the tier 2
-rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
+Last updated: 2026-11-05 (tier 6 round 2 critique). Summarized on 2026-10-21 and 2026-11-05: the tier 2
+rounds, the bulk-edit iterations and the tier 3 iterations are condensed below; the full text is
 in git history of this file.
 
 ## Top of mind
 
-1. (2026-11-05) Tier 6 round 1 closed with no reader: all 24 sessions were refused, so every finding is
-   what is on screen, never what a reader paid. The studio is stopped until the owner rules on the
-   Gemini cap (3,000 of 3,000 used). The walk report: `tier6/rounds/round-1/expert/visual.md`.
-2. My "three marks collapse" lead did not hold as a finding. A real change keeps its line with no chip
-   (`decided.md`); only a gap to the 4.6 drawing survives, and table 6.6 draws no chip. "Reads as prose"
-   is a question for T92, not a fix to lead with. Read the design's table as well as its drawing.
-3. "State text at 9 px" is now a hypothesis: the size is fact, the gap is 2 px, and design 8 fits the
-   scope line and the microphone line, not clearly the disclosure or the question. Selection also
-   shows as chips and an inspector title. T90 and T92 decide.
-4. Name the cause only after tracing it to the rendered CSS: my starters fix (`justify="flex-start"`)
-   was already in the source and inert; compact-mantine applies it only to a full-width button. Likely
-   `fullWidth` in graphty, not run.
-5. Kept at 2 and mine to check first on the fixed build: one result with two names on a screen
-   (Influence, PageRank, Degree, Connections); the question as the smallest, palest text on its card
-   (fix in `Waiting.tsx`, not the locked theme). I never reached the question card.
-6. Left edges: 3 or 4 measured (65, 73, 81, and 101 with steps open), but severity 1. Design 4.4 aligns
-   only the You and Assistant headings. Count edges against what the design asks for.
-7. When the Gemini cap lifts, walk first: question card, 429, failure during a change, the change
-   notices. A failed key through OpenAI costs no Gemini request; Settings > General > Dark switches
-   theme with a request waiting, so one paid message shows a card in both themes.
-8. A visual finding needs a reader who paid or a scripted repro to hold sev 3. Mark "watch" with the
-   task that would show it, and let the sessions raise it. It held again: nothing of mine was cut for
-   its rating.
-9. Check previews and approved surfaces against the outcome first: tier 4's worst problems were there.
-10. compact-mantine is Figma-locked: PageList hover = selected fill, dark dropdown with no edge go to
-    the owner, never into code. No tier 6 finding touches it.
-11. Read `decided.md` before rating: unfinished decisions are not new findings. This means every
-    clause, including how it scopes a chip or a line.
-12. Tier 4's open items still stand: the join preview's tags, the clipped join ratio, the header
-    glyph following the column's kind, the filter card's Hide default.
-13. Focus visibility, `colorWord` hue names and the purple "Layer" token are open from tier 3.
-14. A study-tool defect once made false findings: before trusting "nothing appeared on hover", look at
-    the screenshot, and check the point still holds that control (a log that grew moves everything).
-15. Tool habits: `REAL_SLOT_WAIT_SECONDS=500` on `--start`; crop with a small PIL script in
-    `tmp/<task>/`; `--hover-at` on the name text itself.
+1. (2026-11-05) Tier 6 round 2 closed with readers: 11 of 12 succeeded, no confirmed sev 3. My critique
+   proposes: `position: relative` on the log, the question at body size, a blank line between a turn's
+   replies, the composer's words agreeing with the scope line, a selected count in the table.
+2. Two scrollbars and the reply's hidden end are probably one defect: a chip's absolute hidden span
+   escapes the log (no `position` on `.ws-assistant-log`), `.ws-panel-body` overflows, its bar narrows
+   the log after it reached the foot, the whole log rewraps, and `following` stays true so no Jump shows.
+   Traced in source and on `r2-s01/18.png`, not measured. Check `.ws-panel-body` scrollHeight first.
+3. My "scope line at 9 px" size fix would not have saved Dev: he read the line at step 2 and asked
+   anyway. Size is still design 8, but the words are what failed, and the placeholder contradicts it.
+4. A reader paying changes what a fix must do: ask of every old proposal whether it would have changed
+   that reader's path, not only whether the rule asks for it.
+5. Chip-hover evidence is void: hovering is a deliberate tool command, so "nobody hovered" measures the
+   tool. The same goes for "no reader saw the tooltip": a true tooltip fixes the promise, not r2-s09.
+6. The question card is traced: `Radio.Group label` draws `.cm-field-label`, 9/14 secondary. Fix in
+   `Waiting.tsx` with `<Text span size="sm" fw={600}>` as the label; never touch the locked token.
+7. Keep the failure row's warning glyph proposal small: no reader paid for its look; it rides on the
+   rewrite the row needs anyway.
+8. One result, two names is confirmed by readers (Closeness over Reach, Louvain over Communities). The
+   line's name is not in `words.ts`; it comes from the catalog. Content and engineer own the fix.
+9. Name the cause only after tracing it to the rendered CSS. A prop already set did nothing in round 1.
+10. A visual finding needs a reader who paid or a scripted repro to hold sev 3; mark "watch" otherwise.
+11. Check previews and approved surfaces against the outcome first: tier 4's worst problems were there.
+12. compact-mantine is Figma-locked: no finding here touches it. `DataTable` already has `scrollToRow`;
+    what I could not find is an element fact giving a selected row's place in the table's order.
+13. Read `decided.md` before rating, every clause. Unfinished decisions are not new findings.
+14. Open from earlier tiers: the join preview's tags, the clipped join ratio, focus visibility,
+    `colorWord` hue names, the purple "Layer" token.
+15. Tool habits: `REAL_SLOT_WAIT_SECONDS=500` on `--start`; crop with PIL in `tmp/<task>/`; `--hover-at`
+    on the name text itself; check a point still holds its control after the log grew.
 
 ## Priorities and values
 
@@ -68,6 +62,15 @@ in git history of this file.
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- **2026-11-05 (tier 6 round 2 critique):** Merged insights 7's two halves. Reason: the insights call the
+  scrollbars cosmetic and the cut reply a separate cost, but `r2-s01/18.png` shows the log about 75 px
+  short of its foot (by the thumb) with no Jump to newest, which is what a late rewrap would give.
+- **2026-11-05:** Dropped size as the fix for scope finding 5, kept it for design 8. Reason: Dev read the
+  line. Proposed the placeholder agreeing with the line, not a warning that fires on every selection.
+- **2026-11-05:** Said yes to a Colored row on the open ruling: the key shows the paint while the turn
+  says only Computed (`r2-s10/05.png`). It is the existing row, so no new look.
+- **2026-11-05:** Challenged the Autosave label's 2 as a separate look defect: after Undo "saved" is true.
 
 - **2026-11-05 (tier 6 round 1 closed):** Withdrew "fix the marks first". Reason: `decided.md` says a turn
   with a real change keeps its line alone, 6.6 draws no chip, and the line sits on the Open run and Undo
@@ -129,64 +132,11 @@ in git history of this file.
 
 - **2026-10-14, round 6:** Round 6: per-group chits show the group's whole look (shape in its color); when a palette runs out, color and shape cycles are offset so no two groups share both; clamped histogram ranges hatched; degree histogram bins chosen by the element with a budget so large graphs never draw thousands of slivers.
 
-- 2026-10-13 (tier 3 pause): Backed iteration 4's plan to move every property's settings into one
-  button per kind section instead of my single-row proposal (gear at the row's end): it frees the
-  name column entirely and matches Figma's Type settings, at the cost of one more click for rare
-  settings. Reason: the name is the row's only identifier; rare settings can afford a click.
-- 2026-10-13 (tier 3 pause): Kept the painted-over mark against Figma, but inside the field as a
-  dimmed value plus tooltip, not a separate glyph in the name column. Reason: one mark per problem,
-  and the value itself is what misleads.
-- 2026-10-13 (tier 3 iteration 3): Rated the cut property names severity 3, not 2: the name is the
-  only thing that says what a row is, it is cut on three of seven rows of every layer in both
-  themes and at every width, and "C." next to "Comm..." leaves a row with no readable word. One
-  path proposed: move the gear to the right-hand columns, where effect entries already put it.
-- 2026-10-13 (tier 3 iteration 3): Grouped "the value says what the canvas does not draw" as the
-  sev 2 theme instead of six separate polish items; each is a different owner (app, element,
-  compact-mantine), so they stay separate findings with one shared heading in the summary.
-- 2026-10-13 (tier 3 iteration 3): Owned the Verdana fallback by graphty-element and flagged that
-  the fix changes a default string (the element decides whether that is breaking); the app may set
-  a font with a fallback as its own choice meanwhile. Read in source: label looks already use
-  "Verdana, sans-serif", the bare default does not.
-- 2026-10-13 (tier 3 iteration 3): Kept the selection ring at severity 2: it now meets contrast on
-  Fantine, but on the route's hub at size 1 it is still lost under edges and the label, which is
-  the case iteration 2 named.
-
-- 2026-10-12 (tier 3 iteration 2): Kept "one community, two names" at severity 3 though it went
-  from three names to two: the Values tab is where a reader goes to read groups, and its "5" is
-  the key's "Group 2". Severity follows what misleads, not how much was fixed.
-- 2026-10-12 (tier 3 iteration 2): Rated the route's raw query severity 3 (criteria: a raw field
-  path on a success path). Owned it by graphty-element first, since the iteration's decision was
-  that every run layer's rule is readable; the app's verbatim printing of expressions is second.
-- 2026-10-12 (tier 3 iteration 2): Kept new labels at about 4 px at severity 2, unchanged, rather
-  than raising it: same evidence as iteration 1, no new reason.
-- 2026-10-12 (tier 3 iteration 2): Rated the stacked fields severity 2 and tied it to the owner's
-  panel-length question and to Figma's paired rows; the cause is three reserved 24 px columns in a
-  240 px panel, so the wrap rule never pairs. One path: let the reserved columns be shared by a
-  pair, not per field. Proposed in the critique, not here.
-
-- 2026-10-12 (tier 3 iteration 1): Rated Label settings' unreachable lower half severity 3, not 4:
-  the top half (color, type, box) holds the common fields and nothing a task needs is lost yet,
-  but 60% of the label's settings cannot be seen. Owner compact-mantine, because the clamp is in
-  the shared Popout and every tall popout inherits it.
-- 2026-10-12 (tier 3 iteration 1): Rated "real app has no starting rows" severity 3 and owned it by
-  the app: the reviewed stories set `startingRows`, the app never does, so the owner approved a
-  tree no reader meets and every Clear tooltip names a hidden layer.
-- 2026-10-12 (tier 3 iteration 1): Grouped field-state and Clear inconsistencies as one theme with
-  one rule to fix, not twenty fixes, per "one path per problem".
-
-- 2026-10-12 (tier 3): Proposed one Add strip of toggle icons per kind over "+" per section and
-  over always-shown empty rows. Reason: on the mock's grid the dimmed titles cost about 440 px of
-  the route layer's 770; the strip is the owner's "toggle on/off" without a toggle on every row.
-- 2026-10-12 (tier 3): Group visibility follows the rule, not today's count, so sections do not
-  jump while data loads; disabled stays reserved for "unavailable".
-- 2026-10-12 (tier 3): Shape, arrow and pattern icons should come from graphty-element
-  (`previewStyle`), since an app icon cannot tell icosphere from sphere and plugin shapes would
-  have none. Proposed, not decided.
-- 2026-10-12 (tier 3): Domain and clamp become one handle gesture; "keep as percentiles on re-run"
-  picks which is saved. Needs the element to say what a binding paints (`styles.paintAt`), so the
-  app does not compute a scale.
-- 2026-10-12 (tier 3): Saved label looks are copies (a reader preference) until the element keeps
-  linked looks in the style document.
+- **Tier 3 pause and iterations 1 to 3 (2026-10-12 to 2026-10-13), condensed:** settings moved to one
+  button per kind section, freeing the name column; the painted-over mark sits inside the field as a dimmed
+  value; cut names, the raw query, Label settings' unreachable half and "no starting rows" rated 3, stacked
+  fields and new labels 2; one Add strip per kind; visibility follows the rule, not the count; shape icons
+  should come from the element; severity follows what misleads, not how much was fixed.
 
 - 2026-10-21 (round 1 closed): a visual finding keeps sev 3 only with a reader who paid for it
   or a scripted repro; both my sev 3 claims (key over nodes, empty picker) fell to 2 without one.
@@ -201,6 +151,11 @@ in git history of this file.
   the designated kind. Reason: the settled insights, after two skeptic checks.
 
 ## Tried: worked / did not work
+
+- 2026-11-05 worked: reading a cited screen for what is absent (no Jump to newest) and the scrollbar thumb
+  for what is below the fold; it joined two findings the insights kept apart.
+- 2026-11-05 worked: reading other experts' round 1 reports; the engineer already held the hidden span.
+- 2026-11-05 did not work: my round 1 scope fix, tested against what Dev actually did.
 
 - 2026-11-05 did not work: proposing a prop without tracing it to the rendered CSS (starters); the prop
   was already set and did nothing.
@@ -299,6 +254,8 @@ in git history of this file.
 
 ## Sources
 
+- `design/ui/studio/tier6/rounds/round-2/insights.md`, `scores.md`, `sessions/r2-s01/18.png`, `r2-s07/05.png`, `09.png`;
+  `graphty/src/workspace/frame/frame.css:97`; `compact-mantine/src/theme/css/00-foundation.css.ts:201`
 - `design/ui/studio/tier6/rounds/round-1/insights.md` (settled findings 5, 9, 10, 11, 12 are the visual ones)
 - `design/ui/studio/tier6/rounds/round-1/expert/visual.md` (tier 6 round 1 walkthrough, 23 findings);
   sessions in `expert/visual/v1-light`, `v2-sources-dark`, `v3-yeast-900`

@@ -199,6 +199,14 @@ export interface TimePlayback {
     readonly outside?: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in; default `"UTC"`. */
     readonly timeZone?: string;
+    /**
+     * Fade by age: the opacity, 0 to 1, that edges starting at the window's first instant draw at,
+     * rising to full at its end. Default 1, no fade. It applies to edges timed by an instant or a
+     * span, with `outside: "hide"`; elsewhere it does nothing and `session.time.notices()` says why
+     * (`time.age-fade-inactive`). A line drawn with `line.blending` false stays opaque.
+     * @experimental timeline
+     */
+    readonly ageFade?: number;
 }
 
 /** One kind's instants for a time column, parsed once: per row, NaN where there is none. */

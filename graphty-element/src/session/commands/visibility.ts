@@ -269,6 +269,11 @@ function assertPlayback(playback: TimePlayback | null, timeline: boolean): void 
         throw bad("step", step);
     }
 
+    const { ageFade } = playback;
+    if (ageFade !== undefined && !(typeof ageFade === "number" && ageFade >= 0 && ageFade <= 1)) {
+        throw bad("ageFade", ageFade);
+    }
+
     if (timeline && playback.timeZone !== undefined && !isTimeZone(playback.timeZone)) {
         throw bad("timeZone", playback.timeZone, "time-zone");
     }

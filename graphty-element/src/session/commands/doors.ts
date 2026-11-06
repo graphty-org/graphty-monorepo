@@ -2010,6 +2010,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SESSION,
             paint: READ,
+            edgeAges: READ,
             publishModelChange: EVENTS,
             emptyClick: EVENTS,
             elementClick: EVENTS,

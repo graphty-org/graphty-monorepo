@@ -34,6 +34,7 @@ import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
+import type { EdgeAgeFade } from "../session/time/ageFade";
 import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { mapCorners } from "./BasemapManager";
@@ -301,6 +302,12 @@ export interface ViewMasks {
      * @returns True while a window is in force.
      */
     readonly timeWindow?: () => boolean;
+    /**
+     * What edges fade by age with (the timeline's `ageFade`), read only while
+     * {@link ViewMasks.timeline} is on, once a frame.
+     * @returns The ages and the window, or null while nothing fades.
+     */
+    readonly ageFade?: () => EdgeAgeFade | null;
 }
 
 /** The version a mask that is not there reports, which no real mask can hold. */
@@ -768,6 +775,39 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Hand the scene's lines the fade by age the session asks for: whether it is on, the edges'
+     * ages and the window the uniform carries. With the timeline off or the setting at 1 the
+     * state is never touched and every line keeps today's program.
+     * @param masks - What the renderer reads.
+     */
+    private followAgeFade(masks: ViewMasks): void {
+        const fade = masks.timeline?.() === true ? (masks.ageFade?.() ?? null) : null;
+        const state = batchUploadFrames.edgeAges(this.graphContext.getScene());
+        if (fade === null) {
+            if (state.on) {
+                state.on = false;
+            }
+
+            return;
+        }
+
+        state.on = true;
+        state.ages = fade.ages;
+        state.window[0] = fade.from;
+        state.window[1] = fade.to;
+        state.window[2] = fade.fade;
+        state.switched = this.ageSwitched;
+    }
+
+    /**
+     * A line switched to or from fading by age, and so between the opaque and the transparent
+     * pass, which a frozen list of what is drawn would never see: no mask moved.
+     */
+    private readonly ageSwitched = (): void => {
+        this.forceEdgeWalk();
+    };
+
+    /**
      * Bring the meshes into line with the two masks.
      *
      * THE WHOLE POINT IS THE DELTA. A pass costs one integer comparison when nothing has moved,
@@ -803,6 +843,7 @@ export class UpdateManager implements Manager {
         const masks = this.viewMasks ?? EMPTY_MASKS;
         this.followElementSets();
         this.followTimeWindow(masks);
+        this.followAgeFade(masks);
 
         const nodeSelection = masks.selection?.nodes() ?? null;
         const edgeSelection = masks.selection?.edges() ?? null;

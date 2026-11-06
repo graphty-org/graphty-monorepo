@@ -9,6 +9,21 @@ export interface RangedUploads {
 }
 
 /**
+ * A scene's fade by age, which its joined line batches read; see {@link FrameRoster.edgeAges}.
+ * Times are normalized over the data's extent.
+ */
+export interface EdgeAgeState {
+    /** Whether lines fade by age. Off until the timeline's `ageFade` setting asks for it. */
+    on: boolean;
+    /** Each edge row's start, or null while off. A new array means every slot's age is rewritten. */
+    ages: Float32Array | null;
+    /** The window's start, its end and the opacity at its start, which the uniform carries. */
+    readonly window: [from: number, to: number, fade: number];
+    /** Called when a batch's lines have switched program, so the next frame re-reads what it draws. */
+    switched: () => void;
+}
+
+/**
  * The per-frame callbacks of one kind of element (a label's depth fade, a label's animation, an
  * edge's moving texture), behind ONE `onBeforeRenderObservable` observer per scene.
  *
@@ -26,6 +41,24 @@ export class FrameRoster {
     private readonly restored = new WeakSet<Scene>();
     /** Each scene's switch; see {@link FrameRoster.rangedUploads}. */
     private readonly ranged = new WeakMap<Scene, RangedUploads>();
+    /** Each scene's fade by age; see {@link FrameRoster.edgeAges}. */
+    private readonly aged = new WeakMap<Scene, EdgeAgeState>();
+
+    /**
+     * A scene's fade by age: off by default, so a line is built and drawn as it always was. A
+     * batch holds this object and reads it once a frame.
+     * @param scene - The scene.
+     * @returns Its state.
+     */
+    edgeAges(scene: Scene): EdgeAgeState {
+        let state = this.aged.get(scene);
+        if (!state) {
+            state = { on: false, ages: null, window: [0, 1, 1], switched: (): void => undefined };
+            this.aged.set(scene, state);
+        }
+
+        return state;
+    }
 
     /**
      * Whether a scene's batches upload only the slots written rather than whole buffers. Off by

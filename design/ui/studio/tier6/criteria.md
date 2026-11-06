@@ -1,4 +1,4 @@
-The study runs on build 3b2a7f0649 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier6-r1d2-3b2a7f0649
+The study runs on build a80da6d62e served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier6-r3-a80da6d62e
 
 Frozen on 2026-11-05 for the tier 6 rounds.
 
@@ -298,3 +298,7 @@ dry run twice. The owner is told why, once.
       more.
     - "Seen while writing this key": each kept item now says what the sessions on 3b2a7f0649 showed and
       what the fixed build does; the refused key is down to 2, as round 2 scored it.
+- 2026-11-06: the study moves from build 3b2a7f0649 (`.study-builds/tier6-r1d2-3b2a7f0649`) to build
+  a80da6d62e (`.study-builds/tier6-r3-a80da6d62e`) for round 3, which holds round 2's kept fixes and the
+  latest master. No bar changed. Round 2's change that said an Assistant failure once was taken out, so
+  a failed turn's end row is an alert each time it is drawn.

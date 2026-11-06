@@ -760,6 +760,24 @@ function columnOf(path: string): string {
 }
 
 /**
+ * The end and spells columns of the designated field, when a window reads that field's start.
+ * @param field - The designated field, if any.
+ * @param attribute - The column the window reads.
+ * @returns The field's end and spells columns, or neither for another column.
+ */
+function fieldBoundsOf(
+    field: TimeField | null,
+    attribute: string,
+): { readonly end: TimeSource["end"]; readonly spells: TimeSource["spells"] } {
+    const designated = field?.edges ?? field?.nodes;
+    if (designated === undefined || columnOf(attribute) !== columnOf(designated.start)) {
+        return { end: undefined, spells: undefined };
+    }
+
+    return { end: field?.edges?.end ?? field?.nodes?.end, spells: field?.edges?.spells ?? field?.nodes?.spells };
+}
+
+/**
  * The refusal for a malformed timeline call.
  * @param message - What is wrong.
  * @param details - The offending values, with a `reason` code.
@@ -1807,9 +1825,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             field.nodes === undefined &&
             columnOf(attribute) === columnOf(field.edges.start);
         const nodes = input.nodes ?? (followsEdges ? "ends" : undefined);
-        const onField = designated !== undefined && columnOf(attribute) === columnOf(designated.start);
-        const end = input.end ?? (onField ? (field?.edges?.end ?? field?.nodes?.end) : undefined);
-        const spells = input.spells ?? (onField ? (field?.edges?.spells ?? field?.nodes?.spells) : undefined);
+        const own = fieldBoundsOf(field, attribute);
+        const end = input.end ?? own.end;
+        const spells = input.spells ?? own.spells;
         const missing = input.missing ?? (settings.missing === "inside" ? undefined : settings.missing);
         const mode = input.mode ?? (settings.mode === "sliding" ? undefined : settings.mode);
         const timeZone = zoneOf(input.timeZone);

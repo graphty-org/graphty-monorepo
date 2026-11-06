@@ -691,6 +691,42 @@ function* flatSpells(raw: readonly unknown[]): IndexWork<RawSpells> {
 }
 
 /**
+ * Add a row's spells, each one holding at least one bound.
+ * @param list - The spans.
+ * @param row - The row.
+ * @param spells - Every spell's two bounds.
+ * @param from - The row's first spell.
+ * @param to - Past the row's last spell.
+ */
+function addSpells(list: SpanList, row: number, spells: Float64Array, from: number, to: number): void {
+    for (let at = from; at < to; at++) {
+        const start = spells[2 * at];
+        const end = spells[2 * at + 1];
+        if (!Number.isNaN(start) || !Number.isNaN(end)) {
+            addSpan(list, row, start, end);
+        }
+    }
+}
+
+/**
+ * Add a row's one span from its start and end: an instant for a kind with no end column, else the
+ * span when either bound is known.
+ * @param list - The spans.
+ * @param row - The row.
+ * @param start - The row's start.
+ * @param ends - Each row's end, or null for a kind with no end column.
+ */
+function addRowSpan(list: SpanList, row: number, start: number, ends: Float64Array | null): void {
+    if (ends === null) {
+        if (!Number.isNaN(start)) {
+            addSpan(list, row, start, start);
+        }
+    } else if (!Number.isNaN(start) || !Number.isNaN(ends[row])) {
+        addSpan(list, row, start, ends[row]);
+    }
+}
+
+/**
  * The spans of each row, by the first rule that applies: spells, else no bound and no time, else an
  * instant for a kind with no end column, else one span.
  * @param count - How many rows.
@@ -724,21 +760,10 @@ function* rowSpans(
     for (let row = 0; row < count; row++) {
         const spellAt = spellFirst?.[row] ?? 0;
         const spellEnd = spellFirst?.[row + 1] ?? 0;
-        for (let at = spellAt; spells !== null && at < spellEnd; at++) {
-            const [start, end] = [spells[2 * at], spells[2 * at + 1]];
-            if (!Number.isNaN(start) || !Number.isNaN(end)) {
-                addSpan(list, row, start, end);
-            }
-        }
-
-        const start = rows[row];
-        const end = ends?.[row] ?? Number.NaN;
-        if (spellEnd === spellAt) {
-            if (ends === null && !Number.isNaN(start)) {
-                addSpan(list, row, start, start);
-            } else if (ends !== null && (!Number.isNaN(start) || !Number.isNaN(end))) {
-                addSpan(list, row, start, end);
-            }
+        if (spells !== null && spellEnd > spellAt) {
+            addSpells(list, row, spells, spellAt, spellEnd);
+        } else {
+            addRowSpan(list, row, rows[row], ends);
         }
 
         list.first[row + 1] = list.size;
@@ -762,6 +787,53 @@ function holdsValue(raws: readonly (readonly unknown[] | null)[], row: number): 
         const value = raw?.[row];
         return value !== undefined && value !== null && value !== "" && !(Array.isArray(value) && value.length === 0);
     });
+}
+
+/**
+ * Parse a whole column into a new array.
+ * @param raw - The raw values.
+ * @param reading - How to read them.
+ * @param reading.unit - Their unit.
+ * @param reading.datesOnly - Whether they hold dates alone.
+ * @param zone - The zone a value with none is read in.
+ * @param tally - What parsing finds.
+ * @yields After each chunk.
+ * @returns The instants.
+ */
+function* parseColumn(
+    raw: readonly unknown[],
+    reading: { readonly unit: TimeUnit; readonly datesOnly: boolean },
+    zone: string | undefined,
+    tally: ParseTally,
+): IndexWork<Float64Array> {
+    const out = new Float64Array(raw.length);
+    yield* parseInto(out, 0, raw, reading, zone, tally);
+    return out;
+}
+
+/**
+ * Count the rows holding a span, and the rows holding none whose values do not read as time.
+ * @param first - Where each row's spans start.
+ * @param count - How many rows.
+ * @param raws - The columns' raw values.
+ * @returns Both counts.
+ */
+function countRows(
+    first: Uint32Array,
+    count: number,
+    raws: readonly (readonly unknown[] | null)[],
+): { readonly timed: number; readonly unparsed: number } {
+    let timed = 0;
+    let unparsed = 0;
+    for (let row = 0; row < count; row++) {
+        if (first[row] !== first[row + 1]) {
+            timed++;
+        } else if (holdsValue(raws, row)) {
+            unparsed++;
+        }
+    }
+
+    return { timed, unparsed };
 }
 
 /**
@@ -831,32 +903,16 @@ function* buildSpans(plan: KindPlan, path: string): IndexWork<KindIndex> {
     const parsed = newParseTally();
     const endParsed = newParseTally();
     const spellParsed = newParseTally();
-    const rows = new Float64Array(count);
-    const ends = rawEnds === null ? null : new Float64Array(count);
-    const spells = flat === null ? null : new Float64Array(flat.bounds.length);
-    yield* parseInto(rows, 0, raw, reading, zone, parsed);
-    if (ends !== null && rawEnds !== null) {
-        yield* parseInto(ends, 0, rawEnds, reading, zone, endParsed);
-    }
-
-    if (spells !== null && flat !== null) {
-        yield* parseInto(spells, 0, flat.bounds, reading, zone, spellParsed);
-    }
+    const rows = yield* parseColumn(raw, reading, zone, parsed);
+    const ends = rawEnds === null ? null : yield* parseColumn(rawEnds, reading, zone, endParsed);
+    const spells = flat === null ? null : yield* parseColumn(flat.bounds, reading, zone, spellParsed);
 
     const list = yield* rowSpans(count, { rows, ends, spells, spellFirst: flat?.first ?? null });
     const starts = list.starts.subarray(0, list.size);
     const stops = list.ends.subarray(0, list.size);
     const byStart = yield* sortSpans(list, starts);
     const byEnd = yield* sortSpans(list, stops);
-    let timed = 0;
-    let unparsed = 0;
-    for (let row = 0; row < count; row++) {
-        if (list.first[row] !== list.first[row + 1]) {
-            timed++;
-        } else if (holdsValue([raw, rawEnds, rawSpells], row)) {
-            unparsed++;
-        }
-    }
+    const { timed, unparsed } = countRows(list.first, count, [raw, rawEnds, rawSpells]);
 
     const whole = parsed.whole && endParsed.whole && spellParsed.whole;
     const kind = kindOf({

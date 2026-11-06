@@ -62,6 +62,7 @@ export default function AiProviderSection({
     const [confirming, setConfirming] = useState(false);
     const [keySaved, setKeySaved] = useState(false);
     const keyField = useRef<HTMLInputElement>(null);
+    const saveButton = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         if (element !== null && saved !== null) {
             void linked(element, store, saved).catch(() => undefined);
@@ -184,8 +185,9 @@ export default function AiProviderSection({
                         setKey(event.currentTarget.value);
                         setProblem(null);
                     }}
-                    onBlur={() => {
-                        if (key.trim() !== "") {
+                    onBlur={(event) => {
+                        // Save checks the key itself: a line drawn on the way to Save moves Save from under the press.
+                        if (key.trim() !== "" && event.relatedTarget !== saveButton.current) {
                             setProblem(checkKey(key.trim()));
                         }
                     }}
@@ -233,6 +235,7 @@ export default function AiProviderSection({
             ) : (
                 <Group gap={6}>
                     <Button
+                        ref={saveButton}
                         size="xs"
                         onClick={() => {
                             void save();

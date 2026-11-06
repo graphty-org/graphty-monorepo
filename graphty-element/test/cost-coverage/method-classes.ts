@@ -938,7 +938,6 @@ export const READ_ONLY: readonly string[] = [
     "ReadonlyElementPositions.read",
     "RenderManager.applyBackground",
     "RenderManager.applyLighting",
-    "RenderManager.frameDrawn",
     "RenderManager.getRenderStats",
     "RenderManager.holdFrames",
     "RenderManager.requestFrame",

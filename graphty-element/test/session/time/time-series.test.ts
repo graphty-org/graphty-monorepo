@@ -8,6 +8,7 @@ import { isGraphtyError } from "../../../src/errors";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { TimeSeriesRow } from "../../../src/session/time/series";
 import type { TimeStepEvent } from "../../../src/session/time/TimeApi";
+import { slideCounters } from "../../../src/session/visibility/slide";
 import { type Harness, makeSession } from "../helpers";
 
 // The timeline is an experiment: this file's sessions switch it on.
@@ -241,6 +242,156 @@ describe("time.series", () => {
         const untimed = plain.edges.filter((edge) => edge.w === undefined).length;
         const last = rows[rows.length - 1];
         assert.strictEqual(last.visible.edges, plain.edges.length - untimed);
+    });
+
+    it("gives sliding rows when asked, whatever the settings and the window in force say", async () => {
+        const { session } = await daily(5);
+        await session.time.setSettings({ mode: "cumulative" });
+        const wanted = [
+            [0, DAY],
+            [DAY, 2 * DAY],
+            [2 * DAY, 3 * DAY],
+            [3 * DAY, 4 * DAY],
+            [4 * DAY, 5 * DAY],
+        ];
+        const slid = await session.time.series({ step: DAY, mode: "sliding" });
+        assert.deepEqual(
+            slid.rows.map((row) => [row.from, row.to]),
+            wanted,
+        );
+        assert.deepEqual(
+            slid.rows.map((row) => row.visible.edges),
+            [1, 1, 1, 1, 1],
+        );
+
+        await session.time.window({ from: 0, to: DAY, step: DAY, mode: "sliding" });
+        const inForce = await session.time.series();
+        assert.deepEqual(
+            inForce.rows.map((row) => [row.from, row.to]),
+            wanted,
+        );
+    });
+
+    it("plays sliding windows when asked to, under cumulative settings", async () => {
+        const { session } = await daily(5);
+        await session.time.setSettings({ mode: "cumulative" });
+        const steps = await new Promise<number[]>((resolve) => {
+            const seen: number[] = [];
+            const off = session.on("time:step", (step) => {
+                seen.push(step.from);
+                if (seen.length === 2) {
+                    off();
+                    resolve(seen);
+                }
+            });
+            session.time.play({ motion: "steps", mode: "sliding", step: DAY, interval: 0 });
+        });
+        session.time.pause();
+        assert.deepEqual(steps, [0, DAY]);
+    });
+
+    it("grows a cumulative series that starts before the data", async () => {
+        const { session } = await daily(10);
+        const { rows } = await session.time.series({ step: DAY, mode: "cumulative", from: -5 * DAY });
+        assert.strictEqual(rows.length, 15);
+        assert.isTrue(rows.every((row) => row.from === -5 * DAY));
+        assert.deepEqual(
+            rows.map((row) => row.visible.edges),
+            [0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        );
+    });
+
+    it("makes each window one step wide, whatever the width of the window in force", async () => {
+        const { session } = await daily(6);
+        await session.time.window({ from: 0, to: 3 * DAY, step: DAY });
+        const { rows } = await session.time.series();
+        assert.isTrue(rows.every((row) => row.to - row.from === DAY));
+    });
+
+    for (const directed of [true, false]) {
+        for (const missing of ["inside", "outside"] as const) {
+            for (const field of ["edges", "nodes", "both"] as const) {
+                it(`counts as a full pass does (${directed ? "directed" : "undirected"}, ${field}, missing ${missing}, self-loops)`, async () => {
+                    const next = random(29);
+                    const span = 600;
+                    const timed = (): { w?: number } => (next() < 0.15 ? {} : { w: Math.floor(next() * span) });
+                    const nodes = Array.from({ length: 40 }, (_, at) => ({
+                        id: `n${String(at)}`,
+                        kind: at % 4 === 0 ? "hub" : "leaf",
+                        ...(field === "edges" ? {} : timed()),
+                    }));
+                    const edges = Array.from({ length: 160 }, (_, at) => {
+                        const src = Math.floor(next() * 40);
+                        return {
+                            src: `n${String(src)}`,
+                            // Every eighth edge is a self-loop.
+                            dst: `n${String(at % 8 === 0 ? src : Math.floor(next() * 40))}`,
+                            kind: at % 5 === 0 ? "weak" : "strong",
+                            ...(field === "nodes" ? {} : timed()),
+                        };
+                    });
+                    const harness = makeSession({ directed });
+                    harness.add(nodes, edges);
+                    const { session } = harness;
+                    await session.time.setField({
+                        ...(field === "edges" ? {} : { nodes: { start: "w" } }),
+                        ...(field === "nodes" ? {} : { edges: { start: "w" } }),
+                    });
+                    await session.visibility.setSteps([
+                        {
+                            id: "s1",
+                            on: true,
+                            rule: { kind: "categories", attribute: "data.kind", values: ["leaf", "strong"] },
+                        },
+                    ]);
+                    // A window sets what a series reads of `missing`; the step is narrower than a burst of rows.
+                    await session.time.window({ from: 0, to: 70, step: 70, missing });
+                    const { rows } = await session.time.series({ step: 70, measures: ["nodes"] });
+
+                    let was = { nodes: new Array<number>(40).fill(0), edges: new Array<number>(160).fill(0) };
+                    const gone = (now: readonly number[], then: readonly number[]): number =>
+                        then.filter((shown, at) => shown === 1 && now[at] === 0).length;
+                    for (const row of rows) {
+                        await session.time.window({ from: row.from, to: row.to, step: 70, missing });
+                        const now = {
+                            nodes: [...session.visibility.nodeMask()],
+                            edges: [...session.visibility.edgeMask()],
+                        };
+                        assert.deepEqual(row.visible, {
+                            nodes: now.nodes.filter((shown) => shown === 1).length,
+                            edges: now.edges.filter((shown) => shown === 1).length,
+                        });
+                        assert.deepEqual(row.entered, {
+                            nodes: gone(was.nodes, now.nodes),
+                            edges: gone(was.edges, now.edges),
+                        });
+                        assert.deepEqual(row.left, {
+                            nodes: gone(now.nodes, was.nodes),
+                            edges: gone(now.edges, was.edges),
+                        });
+                        was = now;
+                    }
+                });
+            }
+        }
+    }
+
+    it("reads each timed row and its edges a bounded number of times, with no mask pass", async () => {
+        const { harness } = seeded(200, 7, 1000, true);
+        const { session } = harness;
+        await session.time.setField({ nodes: { start: "w" }, edges: { start: "w" } });
+        await session.time.ready;
+        const graph = session.snapshot();
+        // The masks on screen catch up on their first read: that pass is not the series'.
+        assert.isNotNull(session.visibility.summary);
+        const was = { ...slideCounters };
+        const { rows } = await session.time.series({ step: 10 });
+        assert.isAtLeast(rows.length, 100);
+        // Twice across the window each, and a node crossing reads its edges in both directions.
+        const bound = 2 * (graph.nodeCount + graph.edgeCount) + 4 * 2 * graph.edgeCount;
+        assert.isAtMost(slideCounters.rows - was.rows, bound);
+        assert.strictEqual(slideCounters.jumps, was.jumps);
+        assert.strictEqual(slideCounters.full, was.full);
     });
 
     it("works out density, doubled for an undirected graph and null under two nodes", async () => {

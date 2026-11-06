@@ -15,7 +15,7 @@
  * a filter change, with no window; `binsWindowed` the same under a window, which reads the filter's
  * tests again where the masks cannot answer.
  *
- * `series` is a whole `time.series` of 100 windows spanning the data, on scratch masks.
+ * `series` is a whole `time.series` of 100 windows spanning the data, counted with no mask written.
  *
  * Two more cases time only the build, the one budget that depends on where the values live: edge
  * records loaded through `session.data`, as an application's are, and date text with no offset read

@@ -125,6 +125,7 @@ import {
 } from "./filter";
 import { bytesOf, type FilterBytes, slideCounters, type SlideCounts, type SlideTarget, WindowSlider } from "./slide";
 import { assertSteps } from "./steps";
+import { WindowCounter } from "./windowCount";
 
 // ---------------------------------------------------------------------------------------------
 // What visibility answers with
@@ -523,8 +524,7 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     slideWindow(window: TimeWindow | null): SlideCounts | null;
     /**
-     * A run that moves windows over masks of its own, so nothing on screen, in the project or in
-     * history moves. It describes the graph and the filter as they stand when `work` opens the walk.
+     * A run that moves windows of its own, so nothing on screen, in the project or in history moves. It describes the graph and the filter as they stand when `work` opens the walk.
      * @param algorithm - What the run is.
      * @param params - What it was asked for.
      * @param options - A signal, and a progress handler.
@@ -770,12 +770,12 @@ const IMMEDIATE: RunQueueContext = {
 /** An edit's run has nothing on a queue to cancel. */
 const NO_TICKET: RunTicket = { cancel: () => undefined };
 
-/** Windows moved over masks of their own, away from what is on screen. */
+/** Windows moved one after another, later each time, away from what is on screen. */
 export interface WindowWalk {
     /** Whether the graph walked is directed. */
     readonly directed: boolean;
     /**
-     * Move to a window. The first move compares with nothing showing.
+     * Move to a window no earlier than the last. The first move compares with nothing showing.
      * @param window - The window.
      * @returns What it shows, and what came and went.
      */
@@ -980,6 +980,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let lastDurationMs = 0;
     /** The time window a cursor slid through the masks, which the masks hold until the next pass. */
     const slider = new WindowSlider();
+    let recordsRead: { readonly key: readonly unknown[]; readonly reads: boolean } | null = null;
     let slid = false;
     /** What the last slide wrote the masks from, so recording that window can adopt them. */
     let slidTo: (MaskTag & { readonly snapshot: GraphSnapshot; readonly window: TimeWindow }) | null = null;
@@ -2062,6 +2063,23 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
+     * Whether a window reads records, kept while the index stands: asking scans every record of a
+     * kind the field does not time, and any change to the data drops the index.
+     * @param graph - The snapshot.
+     * @param window - The window.
+     * @param instants - The designated field's index.
+     * @returns True when an index alone cannot say what the window keeps.
+     */
+    const readsRecords = (graph: GraphSnapshot, window: TimeWindow, instants: SlideTarget["instants"]): boolean => {
+        const key = [graph, window.attribute, instants?.node, instants?.edge];
+        if (recordsRead === null || !sameInputs(recordsRead.key, key)) {
+            recordsRead = { key, reads: windowReadsRecords(graph, window, sources) };
+        }
+
+        return recordsRead.reads;
+    };
+
+    /**
      * What a slide moves.
      * @param graph - The snapshot.
      * @param rule - The filter's rule.
@@ -2086,13 +2104,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         filterBytes: () => filterBytesOf(graph),
         bounds: (moved) => windowBounds(moved, sources),
         evaluate: evaluateWindow,
-        readsRecords: (moved) => windowReadsRecords(graph, moved, sources),
+        readsRecords: (moved) => readsRecords(graph, moved, instants),
         instants,
     });
 
     /**
-     * Windows over masks of their own, from the graph and the filter as they stand. The index is
-     * read at the first move and kept, so a graph that changes under a walk does not reach it.
+     * Windows counted away from what is on screen, from the graph and the filter as they stand: by
+     * the index alone when it says what a window keeps, else by a full pass over masks of their own.
+     * The index is read at the first move and kept, so a graph that changes under a walk does not
+     * reach it.
      * @returns The walk.
      */
     const openWalk = (): WindowWalk => {
@@ -2105,20 +2125,30 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         edges.grow(graph.edgeCount);
         const walker = new WindowSlider();
         let target: SlideTarget | null = null;
+        let counter: WindowCounter | null | undefined;
 
         return {
             directed: graph.directed,
             move(window) {
-                target ??= {
-                    ...slideTarget(graph, rule, nodes, edges, sources.instants?.(window.attribute) ?? null, (moved) => {
+                target ??= slideTarget(
+                    graph,
+                    rule,
+                    nodes,
+                    edges,
+                    sources.instants?.(window.attribute) ?? null,
+                    (moved) => {
                         slideCounters.full++;
                         nodes.clear();
                         edges.clear();
                         const compiled = compileVisibility(graph, rule, moved, passSources(graph));
                         runPass({ compiled, edges, graph, nodes });
-                    }),
-                    scratch: true,
-                };
+                    },
+                );
+                counter = counter === undefined ? WindowCounter.open(target, window) : counter;
+                if (counter !== null) {
+                    return counter.move(window, target);
+                }
+
                 const { entered, left } = walker.move(target, window);
 
                 return {

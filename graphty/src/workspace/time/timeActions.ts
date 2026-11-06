@@ -62,6 +62,15 @@ export function stepWindow(session: GraphSession, store: WorkspaceStore, count: 
 }
 
 /**
+ * Starts playback at a speed. Stepped playback waits for each frame, so it never outruns the drawing.
+ * @param session - the element's session.
+ * @param speed - the speed.
+ */
+export function playAt(session: GraphSession, speed: number): void {
+    session.time.play({ interval: intervalOf(speed), waitForRender: true });
+}
+
+/**
  * Starts or stops playback at the reader's speed.
  * @param session - the element's session.
  * @param store - the chrome store.
@@ -74,7 +83,7 @@ export function togglePlay(session: GraphSession, store: WorkspaceStore): void {
         return;
     }
     try {
-        time.play({ interval: intervalOf(store.get().timeSpeed), waitForRender: true });
+        playAt(session, store.get().timeSpeed);
     } catch {
         store.set({ notice: { message: "The timeline could not play." } });
     }

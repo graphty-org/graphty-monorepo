@@ -1704,9 +1704,11 @@ export class RenderManager implements Manager {
 
     /**
      * Settles once the next frame is drawn, or as soon as none is coming: a hold, a load holding the
-     * draw, a hidden page, a lost context, a stopped loop, or a loop resting on a finished picture.
-     * It listens only while someone waits.
+     * draw, a hidden page, a lost context or a stopped loop. A loop resting on a finished picture
+     * draws for it: a new frame observer is a frame someone waits for. It listens
+     * only while someone waits.
      * @returns Settles as above; never rejects.
+     * @internal
      */
     frameDrawn(): Promise<void> {
         if (!this.frameComing()) {
@@ -1714,7 +1716,6 @@ export class RenderManager implements Manager {
         }
 
         const { engine, scene } = this;
-        const { rested } = this.ticks;
 
         return new Promise((resolve) => {
             const end = (): void => {
@@ -1726,7 +1727,7 @@ export class RenderManager implements Manager {
             };
             const drawn = scene.onAfterRenderObservable.add(end);
             const ticked = engine.onEndFrameObservable.add(() => {
-                if (this.ticks.rested !== rested || !this.frameComing()) {
+                if (!this.frameComing()) {
                     end();
                 }
             });

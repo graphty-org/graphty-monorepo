@@ -112,9 +112,10 @@ Each row has `from`, `to`, the `visible` counts of nodes and edges, what `entere
 the row before (in the first row, everything it shows entered), and a value for each measure in
 `values`. The measures are `"nodes"`, `"edges"` and `"density"`, which is null under two nodes.
 
-The windows are the ones stepping would show, under the same filter. It takes `step`, `mode`,
-`timeZone`, and `from` and `to` to cover part of the data. Each one left out comes from the window in
-force, else the settings. A series holds at most 10,000 windows.
+Each window is one step wide, or in `"cumulative"` mode grows by a step, whatever the width of the
+window in force: the windows stepping shows from the first window of that step, under the same
+filter. It takes `step`, `mode`, `timeZone`, and `from` and `to` to cover part of the data. Each one
+left out comes from the window in force, else the settings. A series holds at most 10,000 windows.
 
 `series` returns a run: `run.progress` says how many windows are done and `run.cancel()` stops it.
 You can also pass `signal` and `onProgress`.

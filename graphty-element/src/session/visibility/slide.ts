@@ -32,12 +32,6 @@ const BUDGET_SHARE = 4;
 /** The rows a move may always walk: under this, flat loops have nothing to win. */
 const MIN_BUDGET = 32;
 
-/**
- * What one row crossing the window costs walked, in rows read by flat loops: it moves two ends'
- * counts and re-tests its nodes and edges one by one, measured at a million edges.
- */
-const WALK_COST = 16;
-
 /** The share of the graph a mask keeps as a changed-row list: past it, a reader reads every row. */
 const ROW_LIST_SHARE = 8;
 
@@ -89,8 +83,6 @@ export interface SlideTarget {
     readonly readsRecords: (window: TimeWindow) => boolean;
     /** The designated field's index per kind, or null for a kind it does not time. */
     readonly instants: { readonly node: TimeInstants | null; readonly edge: TimeInstants | null } | null;
-    /** Whether the masks start empty and only this slide writes them, so its first move needs no full pass. */
-    readonly scratch?: boolean;
 }
 
 /** Elements that came into view and went out of it on one move. */
@@ -109,7 +101,7 @@ export interface SlideCounts {
 }
 
 /** One kind's place in its sorted index. */
-interface KindState {
+export interface KindState {
     readonly index: SlideInstants;
     /** Whether each row is inside the window (an untimed row by the `missing` rule). */
     readonly inside: Uint8Array;
@@ -119,7 +111,7 @@ interface KindState {
 }
 
 /** One direction of the graph's adjacency. */
-type Arcs = Pick<GraphSnapshot, "rowPtr" | "colIdx" | "arcToEdge">;
+export type Arcs = Pick<GraphSnapshot, "rowPtr" | "colIdx" | "arcToEdge">;
 
 /** The rows of one kind a small move took in and out of view. */
 interface MovedRows {
@@ -128,7 +120,7 @@ interface MovedRows {
 }
 
 /** Everything a slide keeps between moves. */
-interface SlideState {
+export interface SlideState {
     readonly graph: GraphSnapshot;
     readonly filter: readonly unknown[];
     readonly attribute: string;
@@ -291,7 +283,7 @@ function nodeShows(state: SlideState, row: number): boolean {
  * @param row - The edge.
  * @returns True when it passes.
  */
-function edgePasses(state: SlideState, row: number): boolean {
+export function edgePasses(state: SlideState, row: number): boolean {
     return (
         (state.edge === null || state.edge.inside[row] === 1) &&
         (state.filterEdges === null || state.filterEdges[row] === 1)
@@ -644,21 +636,6 @@ function countsOf(n: ChangedRows, e: ChangedRows): SlideCounts {
 }
 
 /**
- * Whether flat loops cost less than walking a move. Only a walk over scratch masks asks: no frame
- * waits on it, so it goes by the total, where a play goes by its worst frame.
- * @param state - What the last move left.
- * @param graph - The snapshot.
- * @param distance - The rows the move crosses.
- * @returns True when a jump costs less.
- */
-function flatsWin(state: SlideState, graph: GraphSnapshot, distance: number): boolean {
-    const inWindow = windowRows(state, graph);
-    const edges = inWindow === Number.POSITIVE_INFINITY ? graph.edgeCount : 2 * inWindow;
-
-    return distance > MIN_BUDGET && distance * WALK_COST > graph.nodeCount + edges;
-}
-
-/**
  * Whether what a slide kept still describes the masks, the filter and the field.
  * @param state - What the last move left.
  * @param target - The masks and what they are read from.
@@ -678,6 +655,56 @@ function holdsFor(state: SlideState, target: SlideTarget, window: TimeWindow): b
         state.nodeVersion === target.nodes.version &&
         state.edgeVersion === target.edges.version
     );
+}
+
+/**
+ * What the next moves step from, with the window in place.
+ * @param target - The masks and what they are read from.
+ * @param window - The window.
+ * @returns The state, or null when an index alone cannot say what the window keeps.
+ */
+export function slideState(target: SlideTarget, window: TimeWindow): SlideState | null {
+    const { graph, nodes, edges } = target;
+    const [from, to] = target.bounds(window);
+    const missingInside = window.missing !== "outside";
+    const kindOf = (instants: TimeInstants | null, count: number): KindState | null | undefined => {
+        if (instants === null || instants.timed === 0) {
+            return null;
+        }
+
+        if (!isSlidable(instants)) {
+            return undefined;
+        }
+
+        const kind = { index: instants, inside: new Uint8Array(count), lo: 0, hi: 0 };
+        placeWindow(kind, from, to, missingInside);
+        return kind;
+    };
+    const node = kindOf(target.instants?.node ?? null, graph.nodeCount);
+    const edge = kindOf(target.instants?.edge ?? null, graph.edgeCount);
+    if (node === undefined || edge === undefined || target.instants === null || target.readsRecords(window)) {
+        return null;
+    }
+
+    const filter = target.filterBytes();
+    const ends = window.nodes === "ends";
+
+    return {
+        graph,
+        filter: target.filter,
+        attribute: window.attribute,
+        missingInside,
+        ends,
+        filterNodes: filter.nodes,
+        filterEdges: filter.edges,
+        node,
+        edge,
+        nodeIndex: target.instants.node,
+        edgeIndex: target.instants.edge,
+        endCount: ends ? countEnds(graph, edge, missingInside, filter.edges) : null,
+        nodeVersion: nodes.version,
+        edgeVersion: edges.version,
+    };
 }
 
 /**
@@ -712,73 +739,14 @@ export class WindowSlider {
      */
     private rebuild(target: SlideTarget, window: TimeWindow): SlideCounts {
         const { nodes, edges } = target;
-        this.state = null;
-        if (target.scratch === true && nodes.size === 0 && edges.size === 0) {
-            const state = this.stateFor(target, window);
-            if (state !== null) {
-                this.state = state;
-                return this.rewrite(target, state, [0, 0]);
-            }
-        }
-
         const wasNodes = nodes.bytes();
         const wasEdges = edges.bytes();
         target.evaluate(window);
         const counts = diffCounts(wasNodes, nodes.bytes(), wasEdges, edges.bytes());
         // Null for a kind whose records the window reads: every move is a full pass.
-        this.state = this.stateFor(target, window);
+        this.state = slideState(target, window);
 
         return counts;
-    }
-
-    /**
-     * What the next moves step from, with the window in place.
-     * @param target - The masks and what they are read from.
-     * @param window - The window.
-     * @returns The state, or null when an index alone cannot say what the window keeps.
-     */
-    private stateFor(target: SlideTarget, window: TimeWindow): SlideState | null {
-        const { graph, nodes, edges } = target;
-        const [from, to] = target.bounds(window);
-        const missingInside = window.missing !== "outside";
-        const kindOf = (instants: TimeInstants | null, count: number): KindState | null | undefined => {
-            if (instants === null || instants.timed === 0) {
-                return null;
-            }
-
-            if (!isSlidable(instants)) {
-                return undefined;
-            }
-
-            const kind = { index: instants, inside: new Uint8Array(count), lo: 0, hi: 0 };
-            placeWindow(kind, from, to, missingInside);
-            return kind;
-        };
-        const node = kindOf(target.instants?.node ?? null, graph.nodeCount);
-        const edge = kindOf(target.instants?.edge ?? null, graph.edgeCount);
-        if (node === undefined || edge === undefined || target.instants === null || target.readsRecords(window)) {
-            return null;
-        }
-
-        const filter = target.filterBytes();
-        const ends = window.nodes === "ends";
-
-        return {
-            graph,
-            filter: target.filter,
-            attribute: window.attribute,
-            missingInside,
-            ends,
-            filterNodes: filter.nodes,
-            filterEdges: filter.edges,
-            node,
-            edge,
-            nodeIndex: target.instants.node,
-            edgeIndex: target.instants.edge,
-            endCount: ends ? countEnds(graph, edge, missingInside, filter.edges) : null,
-            nodeVersion: nodes.version,
-            edgeVersion: edges.version,
-        };
     }
 
     /**
@@ -867,10 +835,7 @@ export class WindowSlider {
         const stretches = edgeWas[1] - edgeWas[0] + nodeWas[1] - nodeWas[0];
         const distance = distanceTo(state.edge, from, to) + distanceTo(state.node, from, to);
         // A move inside the window's own length costs less walked than the window does redone.
-        if (
-            distance > Math.max(budget, 2 * stretches) ||
-            (target.scratch === true && flatsWin(state, graph, distance))
-        ) {
+        if (distance > Math.max(budget, 2 * stretches)) {
             return this.jump(target, state, from, to);
         }
 

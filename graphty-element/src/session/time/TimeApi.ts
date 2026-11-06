@@ -490,9 +490,11 @@ export interface TimeApi {
     /** Stop advancing, and record where the window stopped. */
     pause(): void;
     /**
-     * Every window of a step at once, for a chart over time: the same windows stepping shows, under
-     * the same filter, counted without moving what is on screen or touching history. Each option
-     * left out comes from the window in force, else the settings.
+     * Every window of a step at once, for a chart over time: each one step wide (cumulative: growing
+     * a step at a time), whatever the width of the window in force, as stepping from the first window
+     * of that step shows them. They are counted under the same filter, without moving what is on
+     * screen or touching history. Each option left out comes from the window in force, else the
+     * settings.
      * @param options - Step, mode, range, zone and measures.
      * @returns A run resolving to the rows, one per window; it can be cancelled. It rejects with
      *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows, and
@@ -1731,7 +1733,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             from: mode === "cumulative" ? first : start,
             to: addSteps(start, step, 1, zone),
             step,
-            ...(mode === "cumulative" ? { mode } : {}),
+            ...(mode === settingsNow().mode ? {} : { mode }),
             ...zoned(options.timeZone),
         });
     };
@@ -1752,7 +1754,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             from: mode === "cumulative" ? (extent?.from ?? start) : start,
             to: addSteps(start, step, 1, zone),
             step,
-            ...(mode === "cumulative" ? { mode } : {}),
+            ...(mode === settingsNow().mode ? {} : { mode }),
             ...zoned(options.timeZone),
         });
     };
@@ -2356,7 +2358,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * The windows of a series: what stepping from its first window shows, up to its end.
+     * The windows of a series: each one step wide (cumulative: growing a step at a time), as a play
+     * from the first window of that step shows them, up to the series' end.
      * @param options - What the series asked for.
      * @returns The windows; none when nothing has a time.
      */
@@ -2382,8 +2385,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             ...(current?.nodes === undefined ? {} : { nodes: current.nodes }),
             ...(current?.missing === undefined ? {} : { missing: current.missing }),
         });
+        // A cumulative window grows from where it was told, which can lie before the data.
         const next = (window: TimeWindow): TimeWindow =>
-            cumulative ? Object.freeze({ ...advanced(window, 1), from: first.from }) : advanced(window, 1);
+            cumulative
+                ? Object.freeze({ ...window, to: addSteps(boundOf(window, "to"), step, 1, zone) })
+                : advanced(window, 1);
 
         return windowsUntil(first, options.to ?? extent.to, next, (window) => boundOf(window, "to"));
     };

@@ -1,7 +1,7 @@
 /**
  * @file `time.series`: every window of a step in one run, counted as stepping would count them.
  *
- * A series walks the windows over scratch masks ({@link WindowWalk}), so what is on screen, the
+ * A series counts the windows away from the masks ({@link WindowWalk}), so what is on screen, the
  * project and history never see it. Component and algorithm measures need a pass per window and
  * are not here yet: {@link TimeMeasure} is a union so they add to it.
  *
@@ -166,7 +166,7 @@ function valuesOf(
 /**
  * Walk the windows, stopping at a cancel.
  * @param windows - The windows.
- * @param walk - The scratch masks.
+ * @param walk - The walk.
  * @param measures - The measures.
  * @param bounds - A window's bounds as instants.
  * @param context - The run.
@@ -205,7 +205,7 @@ function* rowsOf(
 /**
  * Count every window, a slice at a time, so a long series leaves the thread its frames.
  * @param windows - The windows.
- * @param walk - The scratch masks.
+ * @param walk - The walk.
  * @param measures - The measures.
  * @param bounds - A window's bounds as instants.
  * @param context - The run.

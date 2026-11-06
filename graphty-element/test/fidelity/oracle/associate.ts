@@ -458,17 +458,24 @@ function nodeFrom(
             ? []
             : sorted.filter((s) => s.fill !== null && s.kind !== "image").map((s) => s.box);
     const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
+    const nodeFill = paintedFill ?? filled?.fill ?? null;
+    const bands = shapes.flatMap((s) =>
+        s.uncut !== undefined && s.fill !== null && s.fill.color !== nodeFill?.color
+            ? [{ box: s.box, color: s.fill.color }]
+            : [],
+    );
     const node: PNode = {
         id,
         ...(pictures.length > 0 ? { pictures } : {}),
         ...(faces.length > 0 ? { faces } : {}),
+        ...(bands.length > 0 ? { bands } : {}),
         cx: cx(box),
         cy: cy(box),
         w: bw(box),
         h: bh(box),
         // a dot (an outline of no size, drawn by its round-capped stroke) has no shape to read
         shape,
-        fill: paintedFill ?? filled?.fill ?? null,
+        fill: nodeFill,
         stroke: stroked?.stroke ?? null,
         ring:
             ringPrim === null || ringPrim.stroke === null
@@ -4404,7 +4411,9 @@ function matchBodies(
     const dot = (p: Prim): boolean =>
         p.kind === "shape" && area(p.box) === 0 && (p.stroke?.width ?? 0) > 0 && Math.max(bw(p.box), bh(p.box)) < 1;
     const shapes = free.filter((p) => ((p.kind === "shape" || p.kind === "image") && area(p.box) > 0) || dot(p));
-    const extent = (p: Prim): number => Math.max(bw(p.box), bh(p.box)) + (dot(p) ? (p.stroke?.width ?? 0) : 0);
+    // a fill its clip cuts is matched as the whole shape it was drawn as, each piece the node's (yEd's entity header)
+    const whole = (p: Prim): PBox => p.uncut ?? p.box;
+    const extent = (p: Prim): number => Math.max(bw(whole(p)), bh(whole(p))) + (dot(p) ? (p.stroke?.width ?? 0) : 0);
     // A box drawn tight round a label is its background (Cytoscape's NODE_LABEL_BACKGROUND), a poorer body than any
     // shape near the node; still the body where nothing else is drawn there (vis-network's box fits its label).
     const texts = free.filter((p) => p.text !== null);
@@ -4464,7 +4473,7 @@ function matchBodies(
     for (const [n, at] of spots) {
         const { x: px, y: py, s, reach } = at;
         for (const p of shapes) {
-            const d = Math.hypot(cx(p.box) - px, cy(p.box) - py);
+            const d = Math.hypot(cx(whole(p)) - px, cy(whole(p)) - py);
             const size = extent(p);
             if (d > Math.max(s, 8) * reach) {
                 continue;
@@ -4538,13 +4547,14 @@ function matchBodies(
                     !drawnAlike(q, body) &&
                     !(
                         filledAlike(q, body) &&
-                        Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) > 0.05 * size + 0.5
+                        Math.hypot(cx(whole(q)) - cx(whole(body)), cy(whole(q)) - cy(whole(body))) > 0.05 * size + 0.5
                     ) &&
-                    Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
+                    Math.hypot(cx(whole(q)) - cx(whole(body)), cy(whole(q)) - cy(whole(body))) <= 0.2 * size + 0.5 &&
                     // and over it, not beside it: two flat boxes stacked a little under their height apart are two nodes,
                     // however short that is of their width (cx2-wp1449-tlr: two 45.7 x 10.5 labels 9.6 px apart)
-                    (dot(body) || around(q) || boxIoU(q.box, body.box) >= TWIN_OVERLAP) &&
-                    ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
+                    (dot(body) || around(q) || boxIoU(whole(q), whole(body)) >= TWIN_OVERLAP) &&
+                    ((near(bw(whole(q)) + 1, bw(whole(body)) + 1) && near(bh(whole(q)) + 1, bh(whole(body)) + 1)) ||
+                        around(q)) &&
                     // a group's twin is drawn over its box, not a flat node inside it of about its width
                     (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),
             )

@@ -76,10 +76,14 @@ import {
     FONT_STYLES,
     putOutline,
     putRaisedBorder,
+    putYedEdgeLabel,
+    routeMiddle,
     typeOutline,
     type ValueColumns,
     valueColumns,
     YED_ARROWS,
+    YED_LABEL_BOX_PADDING,
+    YED_LABEL_LINE,
     YED_LINES,
     YED_SHAPES,
     yedArrowLength,
@@ -1318,22 +1322,6 @@ function readGv2gmlRoute(
 }
 
 /**
- * Where graphty-element hangs an edge's label on a route drawn through these points (its centers and bends): the
- * middle of its middle segment, or the joint between its two middle ones; `labelOffsetX` / `labelOffsetY` move it
- * from there.
- * @param points - the route, from the source's center to the target's
- * @returns the point
- */
-function routeMiddle(points: readonly BendPoint[]): BendPoint {
-    const m = points.length - 1;
-    if (m % 2 === 0) {
-        return points[m / 2];
-    }
-    const [a, b] = [points[(m - 1) / 2], points[(m + 1) / 2]];
-    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-}
-
-/**
  * Puts an edge label's offset from where graphty-element hangs it, when the program draws it elsewhere.
  * @param at - the label's center, in the file's coordinates
  * @param middle - where graphty-element hangs it, in the same coordinates
@@ -1413,6 +1401,67 @@ function readOgdfLabelPlace(
         [(route[0][0] + route[1][0]) / 2, (route[0][1] + route[1][1]) / 2],
         routeMiddle(route),
         false,
+        put,
+    );
+}
+
+/** A label's words against their font size, for a yEd GML label, which stores no width. */
+const YED_GML_CHARACTER = 0.55;
+
+/**
+ * A yEd GML edge label's place: the box `x` and `y` store, its top left corner on the page, else its `model` and
+ * `position`, as yEd's GraphML keeps them (`putYedEdgeLabel`). A curved line or a self-loop keeps graphty's place.
+ * @param snapshot - the graph
+ * @param g - the edge's `graphics` value
+ * @param lg - the edge's `LabelGraphics` value
+ * @param e - the edge's row
+ * @param put - receives the values
+ */
+function readYedLabelPlace(
+    snapshot: GraphSnapshot,
+    g: unknown,
+    lg: unknown,
+    e: number,
+    put: (property: string, value: StyleValue | null) => void,
+): void {
+    const label = Array.isArray(lg) ? (lg as unknown[]).find(isRec) : lg;
+    const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
+    const list: unknown[] = Array.isArray(raw) ? raw : [raw].filter(isRec);
+    const [source, target] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+    if (!isRec(label) || typeof label.model !== "string" || source === target) {
+        return;
+    }
+    if (isRec(g) && Number(g.smoothBends) === 1 && list.length > 2) {
+        return;
+    }
+    const [s, t] = [centerOf(snapshot, source), centerOf(snapshot, target)];
+    const route = list.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
+    const text = typeof label.text === "string" ? label.text : "";
+    const size = Number(label.fontSize) || 12;
+    const lines = text.split("\n");
+    const width = Math.max(...lines.map((l) => l.length)) * YED_GML_CHARACTER * size + YED_LABEL_BOX_PADDING;
+    const [x, y] = [Number(label.x), Number(label.y)];
+    const stored = label.x !== undefined && label.y !== undefined && Number.isFinite(x) && Number.isFinite(y);
+    // a slider with no stored box sits somewhere along the line that the file does not say; a free label's box is not
+    // in the file's coordinates
+    if (label.model === "free" || (!stored && label.model.endsWith("_slider"))) {
+        return;
+    }
+    putYedEdgeLabel(
+        [
+            [...s, ...sizeOf(snapshot, source)],
+            [...t, ...sizeOf(snapshot, target)],
+        ],
+        route.length >= 2 ? route : [s, t],
+        {
+            spot: `${label.model}/${typeof label.position === "string" ? label.position : "center"}`,
+            stored: stored ? [x, y, width, lines.length * YED_LABEL_LINE * size + YED_LABEL_BOX_PADDING] : null,
+            storedOnPage: true,
+            distance: 2,
+            width,
+            fontSize: size,
+            lines: lines.length,
+        },
         put,
     );
 }
@@ -1497,6 +1546,17 @@ function readValues(
                 readOgdfLabelPlace(snapshot, cellOf(table, "graphics", i), i, (property, value) => {
                     out.put(i, property, value);
                 });
+            }
+            if (target === "edge" && writer.tool === "yed") {
+                readYedLabelPlace(
+                    snapshot,
+                    cellOf(table, "graphics", i),
+                    cellOf(table, "LabelGraphics", i),
+                    i,
+                    (property, value) => {
+                        out.put(i, property, value);
+                    },
+                );
             }
             if (target === "edge" && writer.vocabulary !== "graphviz") {
                 readLineRoute(

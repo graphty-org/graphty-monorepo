@@ -123,6 +123,7 @@ export class InputManager implements Manager {
      * Move to a scene built to replace the one this manager listens to. Everything of the
      * manager's own stays: its subscribers, its enabled state, its recording and its config.
      * @param context - The new scene, and what goes with it.
+     * @internal
      */
     rebind(context: ManagerContext): void {
         this.context = context;

@@ -232,6 +232,27 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(graph.rowCounts.objectNodes, 0);
     });
 
+    it("send a row's look to the object path when a consumer reads its mesh, for good", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.objectNodes, 0);
+
+        const node = graph.getNode(0);
+        assert.isDefined(node);
+        assert.isFalse(node.mesh.isDisposed(), "the consumer gets the node's own mesh");
+        const mixed = await readFrame(graph);
+        assert.isAbove(graph.rowCounts.objectNodes, 0);
+        assert.isAbove(graph.rowCounts.batchedNodes, 0, "other looks stay on the batch");
+        assert.equal(overBar(mixed, await frameOn(graph, "objects")), 0);
+
+        // The mesh stays the consumer's through a repaint and a trip back to the path.
+        await layer(element, [0], { "node.color": "#f59e0b" });
+        await frameOn(graph, "batched");
+        assert.isAbove(graph.rowCounts.objectNodes, 0);
+    });
+
     it("move a dragged row through the table alone", async () => {
         const element = await mounted(renderer);
         await loaded(element, "2d");
@@ -278,7 +299,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await loaded(element, "3d");
         const { graph } = element;
         for (const node of graph.getNodes()) {
-            node.mesh.scaling.set(1.5, 0.6, 1);
+            node.drawnPickMesh.scaling.set(1.5, 0.6, 1);
         }
 
         const objects = await readFrame(graph);

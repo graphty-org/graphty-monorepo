@@ -129,7 +129,7 @@ function layer(target: "node" | "edge", tag: string, set: Record<string, unknown
  */
 function measuredInput(edge: Edge): EdgeTrimInput {
     const input = edge.trimInput;
-    const [srcMesh, dstMesh] = [edge.srcNode.mesh, edge.dstNode.mesh];
+    const [srcMesh, dstMesh] = [edge.srcNode.drawnPickMesh, edge.dstNode.drawnPickMesh];
     srcMesh.computeWorldMatrix(true);
     dstMesh.computeWorldMatrix(true);
     const srcWorld = srcMesh.getAbsolutePosition();
@@ -510,7 +510,7 @@ function meshReads(nodes: readonly Node[], run: () => void): number {
             return Reflect.has(target, key);
         },
     };
-    const held = nodes.map((node) => node.mesh);
+    const held = nodes.map((node) => node.drawnPickMesh);
     nodes.forEach((node, i) => {
         node.mesh = new Proxy(held[i], count);
     });

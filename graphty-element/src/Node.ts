@@ -443,13 +443,24 @@ export class Node implements ModelUser {
     #record: AdHocData<string | number>;
     /** The node's own mesh. Code in this class reads this field, never {@link Node.mesh}, which is the consumer's. */
     #mesh: AbstractMesh;
+    /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
+    #meshHeld = false;
 
     /**
      * The node's own mesh, for a consumer. Nothing in graphty-element reads it: the element reads
      * the private field, and every other file a `drawn*` accessor (`local/node-mesh-funnel`).
+     * Under `render-path="batched"`, reading it keeps this node drawn by its own mesh from then on,
+     * never by a node batch, so what a consumer does to the mesh shows.
      * @returns The mesh.
      */
     get mesh(): AbstractMesh {
+        if (!this.#meshHeld) {
+            this.#meshHeld = true;
+            if (!this.disposed) {
+                this.context.getNodeBatches?.()?.sync(this);
+            }
+        }
+
         return this.#mesh;
     }
 
@@ -1430,6 +1441,7 @@ export class Node implements ModelUser {
         const style = this.drawnStyle ?? null;
         return (
             style !== null &&
+            !this.#meshHeld &&
             this.#mesh instanceof InstancedMesh &&
             !this.drawnAsGroup &&
             this.drawnModel === null &&

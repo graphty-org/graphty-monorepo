@@ -719,15 +719,18 @@ describe("a repaint of every node", () => {
         it(`visits every edge once, on the last frame, after a repaint of only ${kind}`, async () => {
             const size = 400;
             const minimumWork = minimumWorkPerFrame();
-            setMinimumWorkPerFrame(true);
             const element = await mount(size);
             try {
                 const { graph } = element;
                 assert.notInclude(graph.getSession().features.enabled, "timeline");
-                await graph.getSession().styles.add({ name: "One kind", selector: { match: "everything" }, ...spec });
-                await settled(graph);
                 const painter = graph.getStylePainter();
                 const manager = updateManagerOf(graph);
+                // The load painted both kinds, and what is left of it would be part of this repaint.
+                manager.syncStyles(Number.POSITIVE_INFINITY);
+                assert.isFalse(painter.hasPending, "the load is drawn");
+                setMinimumWorkPerFrame(true);
+                await graph.getSession().styles.add({ name: "One kind", selector: { match: "everything" }, ...spec });
+                await settled(graph);
                 const walk = vi.spyOn(manager, "forceEdgeWalk");
 
                 let frames = 0;

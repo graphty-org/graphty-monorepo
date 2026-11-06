@@ -256,3 +256,22 @@ dry run twice. The owner is told why, once.
 - 2026-11-05: the study moves from build 3549e11129 (`.study-builds/tier6-r1d1-3549e11129`) to build
   48879618c4 (`.study-builds/tier6-r1d1-48879618c4`). No bar changed, and no commit between the two
   touches `graphty`, `graphty-element` or `compact-mantine`.
+- 2026-11-05: `answers.md` now matches the walks of frozen build 48879618c4 for T91 A, T92 A, T92 B and
+  T95 A. No bar and no prompt changed; `tasks.md` is untouched. That build has the same app code as
+  3549e11129, so the second dry run's fixes are not in it, and the key's lines on "Selected 0 nodes" and
+  on rows of 5 or 9 stay.
+    - T91: a chip of 15 under a reply of 9 is no basis, by the ruling on T92 A's rows of 5 or 9; a report
+      of 15 is F, `Build decided: yes`; "Style failed." under the 15 left selected is a failed message,
+      left by the scope x and Send again; a resize alone to the ranking's own top size does not read
+      apart, which applies the key's existing line that the nine must; "Sized 9 nodes" can repeat.
+    - T92 A: after the x the reply can hold no seven at all, and what does bring it is listed; a reader
+      who pressed the x and reports 6 is the same F, marked `Build decided: yes` and reported apart,
+      because the key's earlier line relied on the reply holding a seven; fact 1 can name s10 alone,
+      which is F, `Trap fired: yes`; a row can read 9 beside "6 of the 9", or be missing.
+    - T92 B: "at least 6" under fact 1's selection is named: a report of 6 is F, `Build decided: yes`, and
+      asking again is one more step; a turn that selected its answer has no chip, and the selection in
+      the inspector stands behind it; "Selected 0 nodes" can come once.
+    - T95: a question can come unasked; Open run opens the run where it stayed; a report offering the
+      Assistant's whole-network file as a short list is F, `Build decided: yes`.
+    - "Seen while writing this key" gains the file, the x, the model's cleared selection, the chip of
+      15 and the two changes that leave nothing to find, each rated.

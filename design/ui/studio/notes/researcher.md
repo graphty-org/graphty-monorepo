@@ -10,29 +10,31 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-05) Tier 6 key matches build 3549e11129 for T90 B, T91 A, T92 A, T93 B and T95 A; no bar or
-  prompt changed. The other halves and T94 were not in that batch: check them before the round.
-- (2026-11-05) T92 A's chip row can read 5 or 9 under a right 7 of 12. True counts, so not bar 11, but
-  no backing: a right fact with only that row is F, `Build decided: yes`. Expect it to move bar 1.
+- (2026-11-05) Frozen build 48879618c4 has 3549e11129's app code (diff empty over graphty,
+  graphty-element, compact-mantine), so the second dry run's fixes are NOT in it. The key describes
+  those defects as they stand; match it again if a fixed build is frozen.
+- (2026-11-05) Key matches 48879618c4 for T91 A, T92 A, T92 B, T95 A; no bar or prompt changed. Expect
+  bar 1 to lean on `Build decided`: T92 A after the x, T92 B's "at least 6", T91 A's chip of 15.
+- (2026-11-05) T92 A's x after fact 1 stayed on six on 3 of 3 walks, so `Trap fired` there measures the
+  model's memory, not the scope line. Answer question 1 with those sessions apart.
+- (2026-11-05) A chip that counts something else (T92 A's 5 or 9, T91 A's 15) is a true count, so not
+  bar 11, but no backing: a right fact with only that row is F, `Build decided: yes`.
 - (2026-11-05) Bar 5 may come up "not tested": T95 A's first reply was a plain refusal on 2 of 4
   walks, and T92's replies were often right. T92 A's scope plant holds and is the surest qualifier.
 - (2026-11-05) The tool's key swap makes Google with the OpenAI key work, which real Google would
   refuse. That session shows no failure: graded as seen, reported as a tool artifact.
-- (2026-11-05) A grade a known defect decides carries `Build decided: yes`, as the model's does.
 - (2026-11-05) The main risk is false passes: a bar counted over sessions where its trap never fired,
   a recovery the prompt supplied, a report right after a reflex.
 - (2026-11-05) Ask the doubt question after the first answer, never in the prompt. Grade trust on the
   first report.
 - (2026-11-05) A live model is a second participant: the key states what the reader must conclude,
   never the model's words; `Model decided: yes` where it made a task impossible.
-- (2026-11-05) A prompt's openness sets the bill: prompts ask for concrete things.
 - (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing.
 - (2026-10-30) First check of any pilot finding: the build in its walk's session.json. Then check tool
   lines against images: simulated participants believe a tool line over the screenshot.
 - (2026-10-30) One round cannot both find and confirm fixes; plan the cap so a fix walk fits.
 - (2026-10-21) Graders over-rate on one half: count a 3 only with its behavioral cost. Expert counts
   are not user evidence; an expert-only 3 needs a repro under `repro/`.
-- (2026-10-21) Avoidance is not comprehension; a trap nobody springs proves nothing.
 - (2026-10-21) Leading risk: the key describes most problems graders cite, and every participant is
   one model. Read tasks and key for leading before spending sessions.
 - (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts the
@@ -70,6 +72,18 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-05 (key matched to build 48879618c4):** Ruled T91 A's chip of 15 no basis, as T92 A's 5 or 9;
+  the reply's 9 still is, so only a report of 15 fails. Marked a reader who pressed the x and reports 6
+  `Build decided: yes`, because the earlier line "the reply holds 7" no longer held (2 of 3 replies had
+  no seven), and kept the F: the bar reads the report. Ruled T92 B's "at least 6" a trap fired, since it
+  is a count from reads narrowed to one gene, and asking again one more step, not a wrong turn: the
+  reader did nothing wrong. Ruled a selected answer's inspector as backing. Ruled T91 A's size-only layer
+  F if the reader stops, applying the key's own "must read apart". Added the whole-network file to T95
+  after all: last pass left it out as off path, but a detour reached it on 2 walks and a report offering
+  it says something false. Kept `tasks.md`: no prompt was wrong. Checked: all walks stamped
+  48879618c4c2; `git diff 3549e11129 48879618c4` empty; three files counted (25 lines each); 12 cited
+  screens viewed.
 
 - **2026-11-05 (key matched to build 3549e11129):** Ruled T92 A's row of 5 or 9 no backing, the same way
   T91 A's chip of 63 was ruled: a count of something else is not "something behind" the fact. Kept 7 and
@@ -165,6 +179,11 @@ logged). Their reasons, in short:
   prompt, not the key, when a prompt leads.
 
 ## Tried: worked / did not work
+
+- 2026-11-05 (key match, 48879618c4) -- Worked: the `\s+`-joined asserted script, and viewing the screen
+  rather than the pilot's line: touched-16/05 shows Selection 14 after the x's message, so the key's
+  "with the line reading Whole graph" was true only at the send, and detour-2/11 shows a key card the
+  pilot never quoted ("9 nodes covered by Untrained"). Did not work: nothing failed this pass.
 
 - 2026-11-05 (key match, 3549e11129) -- Worked: the asserted edit script, and reading `route.jsonl`
   to learn what the scope line read at a step: success/11 shows Selection 1 after the message, while

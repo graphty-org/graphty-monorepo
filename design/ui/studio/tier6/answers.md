@@ -4,8 +4,10 @@ Participants never see this file. Tasks: `tasks.md`. Bars: `criteria.md`. Partic
 
 Facts below were computed from the files in `../tool/files/` and walked on build ad16c1f2dd with
 Gemini 3.8 Flash; T90 to T93 and T95 were then matched to every walk of frozen build 8fa33aa786, and
-the routes of T90 B, T91 A, T92 A, T93 B and T95 A to the walks of build 3549e11129. The model's wording varies from run
-to run; these are examples of what it said, not words to require.
+the routes of T90 B, T91 A, T92 A, T93 B and T95 A to the walks of build 3549e11129, and those of T91 A,
+T92 A, T92 B and T95 A to the walks of frozen build 48879618c4. That build has the same app code as
+3549e11129, so the defects below are still on its screens. The model's wording varies from run to run;
+these are examples of what it said, not words to require.
 
 ## How a session is graded
 
@@ -137,7 +139,7 @@ the reader gives the right number with a basis on screen. A: 9 people (`trained`
 **Success path (A, 3 to 5 steps):** the same, sometimes with one more message. The first request can
 paint them, or the reply can find the nine, say "No visual changes were applied yet" and ask how they
 should look; answering paints them on the second message. Either way: "Colored 9 nodes", perhaps
-"Sized 9 nodes", and the key card reads "9 of 24 nodes".
+"Sized 9 nodes", which can appear twice in one turn, and the key card reads "9 of 24 nodes".
 
 A starts from the saved work: PageRank has run, and every dot is colored and sized by it. The ranking
 layer stays; the nine must read apart from the ranking's oranges and browns, and their sizes need not
@@ -156,6 +158,21 @@ HOM3.
 - Two rows of the yeast file hold the text `null` in these columns; neither counts.
 - A basis for the number is the key card's count, the change line or the reply's count. On A the
   reply may have a chip reading 9, with Show in table selecting the nine on the Nodes tab, or no chip.
+- A reader who asks a question first, such as how many have not finished, can get "There are 9 people"
+  over a chip reading 15. The steps hold two reads, 9 then 15, the row keeps the last, and hover, click
+  and Show in table go to the 15 who have finished. It is a true count of what it selects, so it does
+  not count against bar 11, and it is no basis for 9; the reply's own 9 still is. A reader who reports
+  15 is F, `Build decided: yes`.
+- Show in table leaves those 15 as the scope line's Selection 15, so the next message is about them.
+  "Make them stand out" under it ended in "Style failed." "Nothing changed." with Send again, and no
+  reason on screen, the steps giving names and times only. That is a failed message:
+  `Failure: met, recovered` once a later message works, and `Failure read: other`. The scope x then Send again is a way
+  out the screen offered: the nine were styled, and the line went back to Selection 15. Painting the 15
+  would be F.
+- The model may only resize the nine: "Sized 9 nodes", Size 3, no Fill, Which nodes "trained: no, 9
+  nodes", the key card still PageRank's with "9 nodes covered by Untrained". Size 3 is the top of the
+  ranking's own 1 to 3, and the nine keep the ranking's colors, so they do not read apart. A reader who
+  stops there is F; asking for more until they do is on the path.
 - On A the drawing can show only eight of the nine, because the key card covers one dot. A reader who
   reports 8 from the drawing is F, `Build decided: yes`.
 - The model may ask how the reader wants them to look. Answering is on the path.
@@ -169,7 +186,7 @@ that was (the follow-up asks). The prompt does not ask for doubt, so `Checked:` 
 come from the first report.
 
 **T92 A starts with the 14 people (`kind` is person) selected.** The reader did not select them, and
-the prompt does not say so. Walked on ad16c1f2dd, 8fa33aa786 and 3549e11129, the donations question was
+the prompt does not say so. Walked on ad16c1f2dd, 8fa33aa786, 3549e11129 and 48879618c4, the donations question was
 scoped to Selection 14 above the composer, and the reply read "Of the 9 on-record sources in the
 selection, 6 gave donations." The file's answer is 7 of 12. So on A:
 
@@ -177,14 +194,27 @@ selection, 6 gave donations." The file's answer is 7 of 12. So on A:
 - A reader who clears the selection, or asks about everyone, and reports 7 of 12 is S or SD, with
   `Scope noticed: yes`. A reader who reports 6 and says it covers only the selected people has not
   answered the question: F, `Taken on trust: no`, `Scope noticed: yes`.
-- After the x in an ongoing conversation the reply can still lead with six, with the line reading Whole
-  graph: "Six of the individual sources (people) ... Across all entity types in the graph, there are
-  seven", or "6 ... (7 if including Friends of the Waterfront)". The six are the people among the seven,
-  a true count, and a first message gives 7 of the 12 outright. The grade rests on the report: 7 is
-  right, and 6 alone as the file's answer is F and `Trap fired: yes`, whatever the line read.
+- After the x in an ongoing conversation the reply can stay on six, though the line read Whole graph
+  when the message went (the x lasts one message, so the line then returns to the selection). All three
+  walks of 48879618c4 that asked fact 1 first did. It may hold a seven: "Six of the individual sources
+  (people) ... Across all entity types in the graph, there are seven", or "6 ... (7 if including the
+  organization Friends of the Waterfront)". It may hold none: "6 of the 9 on-record sources gave
+  donations." with a chip of 9, or "There are 6 sources on the record who gave donations (out of 9 total
+  on the record).", with no steps and no chip. The six are the people among the seven, a true count.
+- What brings the seven: the x before the first message, a new conversation, or the words themselves
+  ("Count across the whole graph, not my selection"), each giving 7 of the 12. "All the sources in the
+  file" gave six first and then 7 of the 12.
+- The grade rests on the report: 7 is right, and 6 alone as the file's answer is F and `Trap fired: yes`,
+  whatever the line read. A reader who pressed the x and reports 6 with no seven on screen is that F with
+  `Scope noticed: yes` and `Build decided: yes`: the reader read the line and used it, and the number
+  came from the model's earlier turns. Report those sessions apart when answering who caught the
+  selection, since their `Trap fired:` is not about the scope line.
 - Fact 1 under the selection may name a person; Silverline Media, the true answer, is not selected.
-  A person's name given as the file's answer is F, and Open run's Top 10 still has s20 first. The run still covers all 24 nodes, so one reply can
-  give both, s20 for the whole graph and s10 (Victor Szabo) for the selection; reporting s20 is right.
+  One reply gave s20 for the whole graph and s10 (Victor Szabo) for the selection; another named s10 with
+  s20 in brackets; another called s10 the source "across the network" and never named s20. Reporting s20
+  is right. A person's name given as the file's answer is F, `Trap fired: yes`, `Taken on trust: yes`.
+  Open run's Top 10 covers all 24 nodes and has s20 first at 67.68, s10 fourth at 45.4, so a reader who
+  opens it can catch this. With two change lines (24 nodes, 14 nodes), Open run is that 24-node run.
 
 | Half | Fact 1 (betweenness)                                            | Fact 2                                                                                                                                 |
 | ---- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -201,12 +231,24 @@ it. Turning an id into a name, by a Top 10 row or the node, is what takes the pa
 - Fact 1's reply has no chip. It has a change line with Open run, and the run's Values tab holds the
   Top 10.
 - Fact 2's reply may have a chip and Show in table, or neither, or a chip only inside the folded steps.
-  With neither, the check is outside the panel: the table or Find. The turn may end in "Selected 0
-  nodes" twice with "No matches." in its steps, which backs nothing. A right fact 2 reported with only
-  that reply behind it is F, `Build decided: yes`.
+  With neither, the check is outside the panel: the table or Find. A turn that selected its answer has
+  neither, even in its steps ("Exactly 7 genes ...", "Selected 7 nodes"): what stands behind it is the
+  selection, which the inspector reads (7 nodes, gal80Rexp 1.101 to 3.126). The turn may end in "Selected
+  0 nodes", once or twice, with "No matches." in its steps, which backs nothing. A right fact 2 reported
+  with only that reply behind it is F, `Build decided: yes`.
+- On either half fact 1's reply can select what it names, and that selection scopes the next message.
+  On B it did (Selected 1 node, Selection 1), and fact 2 read "at least 6 genes" on 2 of 2 walks, with
+  "I cleared the selection", "Selected 0 nodes", no chip, and the line reading Whole graph: the model's
+  reads stayed on the one gene. "At least 6" is not the count. `Trap fired: yes`. A report of 6 or at
+  least 6 is F, `Taken on trust: yes`, `Build decided: yes`. Asking again for the exact count or the
+  whole network gave 7, with a chip of 7 or with "Selected 7 nodes": one more step on the path, not a
+  wrong turn.
+- A selection left on keeps B's reads inside it, and the reply can say so: "None of the 5 selected
+  genes", chip 5, a true count; after the scope x, 7 with a chip of 7.
 - A's chip row follows the last query, not the sentence, and hover, click and Show in table go to that
   query's nodes. Beside "7 of the 12" it can read 7 (the donors), 12 (those on the record), 9 (the people
-  on the record) or 5 (those on the record who gave nothing); with the 14 selected it can read 14. All
+  on the record) or 5 (those on the record who gave nothing); beside "6 of the 9" it can read 9; with the
+  14 selected it can read 14; or there may be no row. All
   are true counts of what they select, so they do not count against bar 11. Only 7 and 12 back the fact:
   a step's chip of 7 in the folded steps does too. A reader who reports 5 or 9 from the row is F, and a
   right fact 2 with only a row of 5 or 9 behind it is F; both `Build decided: yes`.
@@ -296,16 +338,16 @@ chip of 16 under invented percents on A. They count the query's nodes, not the c
 **Success path (3 steps):** Assistant; ask; read, and report honestly. A question that changes nothing
 may still show a run ("Computed Connections for 24 nodes", "Changed the graph", Undo in the turn and at
 the top), even under "No changes were made to the graph". `work.json` can end with no run all the same,
-and Open run then does nothing and says nothing. None of that is a step or a wrong turn.
+and Open run then does nothing and says nothing. Where the run stayed, Open run opens it, on an empty
+Style tab with the numbers under Values. None of that is a step or a wrong turn.
 
 The prompt asks only what the reader would give; the follow-up asks how far it can be relied on. Grade
 `Taken on trust:` on the first report. `Trap fired: yes` when the reply gives a list or a ranking as
 an answer; a plain refusal is `no`.
 
 First replies come in three shapes: a list with a caveat, a plain refusal, which may offer a proxy list
-if the reader wants one, or a question in the section above the composer ("The graph does not contain
-turnover risk or quit predictions. Which criteria ...?"). On 3549e11129 a question came only when the
-reader asked for one.
+if the reader wants one, or a question in the section above the composer ("The graph does not contain turnover risk or quit predictions. Which criteria ...?"). A question
+can come unasked on the plain request, or because the reader asked for one.
 
 - A question is `no` by itself. If the reader's answer to it brings a list, that list is the reply:
   `yes`. The question's words stay in the turn once answered.
@@ -313,8 +355,12 @@ reader asked for one.
   annotations". On B it can have "No matches for essential." beneath, on a correct answer. A reply like
   that makes this easy; a confident list does not.
 - A reader who declines to give anything and says why: S.
+- A reader may go on to a file. The Assistant's file holds the whole network, on A a header and all 24
+  volunteers with every phone number, under a scope line of Selection 5 and a reply saying the list was
+  exported. Read the session's `downloads/`. A report that offers that file as the list of a few people
+  is F, `Build decided: yes`: it says something wrong about what the reader made.
 
-## Seen while writing this key (build ad16c1f2dd, re-read on 8fa33aa786 and, where it says so, on 3549e11129)
+## Seen while writing this key (build ad16c1f2dd, re-read on 8fa33aa786 and, where it says so, on 3549e11129 and 48879618c4)
 
 These are defects to confirm in the dry run, not study findings. Each is rated and ruled here so that
 bar 9 does not meet a known one by surprise. A rating stands until a session or walk shows otherwise.
@@ -335,3 +381,15 @@ bar 9 does not meet a known one by surprise. A rating stands until a session or 
   a generality fix after the round.
 - **An analysis asked as a question repaints the network** over a look the reader just asked for.
   Severity 2. Keep, and watch it on T92 and T94. On 8fa33aa786 and 3549e11129 it happens on some runs, not all.
+- **The Assistant's file holds the whole network under a narrower scope line.** On 48879618c4 all three
+  files from T95 A held 24 rows under Selection 5. Severity 3 where a reader reaches a file; `decided.md`
+  settles the opposite, and the rule is not in the build.
+- **After the x, a conversation can keep the earlier selection's answer.** 3 of 3 T92 A walks on
+  48879618c4 stayed on six. Severity 3: the scope line's own remedy does not bring the file's answer.
+- **A selection the model cleared still holds the message.** T92 B's "at least 6" under a line reading
+  Whole graph. Severity 3; `decided.md` settles the opposite, and the rule is not in the build.
+- **A chip can back the opposite group.** T91 A's 15 under a reply of 9, on 1 of 2 runs. Severity 3 where
+  the reader reports it or acts on the selection; `decided.md` has the model make the counted read last,
+  and that line is not in the build.
+- **"Saved as a named set" and "Filtered to 5 of 24 nodes" leave nothing to find.** On T95 A neither the
+  Graph place nor the Data place shows them; Undo is the only way back shown. Severity 2.

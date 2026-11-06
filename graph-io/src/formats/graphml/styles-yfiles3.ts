@@ -1794,7 +1794,7 @@ function readEdgeLabelPlace(refs: References, label: unknown, words: string, pat
     let turn = 0;
     const centerOn = (line: readonly BendPoint[]): BendPoint => {
         const spot = edgeLabelSpot(place, box, line);
-        turn = spot.turn;
+        ({ turn } = spot);
         return spot.center;
     };
     putEdgeLabelAt(path.boxes, path.route, centerOn, put);

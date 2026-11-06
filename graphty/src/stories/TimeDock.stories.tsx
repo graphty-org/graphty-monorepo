@@ -96,6 +96,11 @@ async function settled(canvasElement: HTMLElement, element: GraphtyElement): Pro
     return dock;
 }
 
+// No story here for the touch dock at 820px wide, the phone row or the phone sheet open: the visual
+// capture renders every story at one 1200 x 900 viewport with a fine pointer. The phone dock switches
+// on the top window's `matchMedia(PHONE_WIDTH)`, the touch rules on `(pointer: coarse)`, and the
+// sheet's Drawer portals into the top document's body, so a narrower frame inside a story reaches
+// none of them. They need a capture viewport per story first.
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Time dock",
     component: Workspace,

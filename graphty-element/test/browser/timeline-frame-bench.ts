@@ -50,7 +50,7 @@
  */
 import "../../src/graphty-element";
 
-import { SceneInstrumentation } from "@babylonjs/core";
+import { SceneInstrumentation, ShaderMaterial } from "@babylonjs/core";
 import { mulberry32 } from "@graphty/algorithms";
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
@@ -58,7 +58,7 @@ import type { Graphty } from "../../index.js";
 import type { TimeStepEvent } from "../../session.js";
 import { setDefaultFeatures } from "../../src/features/resolve";
 import { DirtyRuns } from "../../src/meshes/DirtyRuns";
-import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import { type EdgeLineBatch, isEdgeLineBatchMesh } from "../../src/meshes/EdgeLineBatch";
 import type { SessionVisibilityApi } from "../../src/session/visibility/VisibilityApi";
 
 /** Whether the run asked for the real GPU; the suites are skipped without it. */
@@ -382,6 +382,15 @@ export function describeFrames(nodes: number): void {
             };
             const { _gl: gl } = engine;
             console.log(`[timeline-frame] renderer="${engine.getGlInfo().renderer}"`);
+            const lines = created.graph.scene.meshes.filter(
+                (mesh) => isEdgeLineBatchMesh(mesh) && mesh.material instanceof ShaderMaterial,
+            );
+            const skipping = lines.filter((mesh) =>
+                (mesh.material as ShaderMaterial).options.defines.includes("#define EDGE_SKIP_HIDDEN"),
+            );
+            console.log(
+                `[timeline-frame] skipHidden=${String(skipping.length)}/${String(lines.length)} edge line batches`,
+            );
             countUploads(gl);
             countFullUploads();
             const updates = created.getUpdateManager();

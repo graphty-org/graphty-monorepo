@@ -326,6 +326,15 @@ void main() {
 #ifdef EDGE_PULLED
     pullEdge();
 #endif
+    // A hidden slot is all zeros (a pulled one has both ends at the origin), and a piece whose
+    // ends meet collapses every vertex to one point below, so it draws nothing either way: skip
+    // the math.
+#ifdef EDGE_SKIP_HIDDEN
+    if (pA == pB) {
+        gl_Position = clipOf(pA);
+        return;
+    }
+#endif
     bool atB = position.x > 0.5;
     float side = position.y;
     bool joinVertex = position.z > 0.5;

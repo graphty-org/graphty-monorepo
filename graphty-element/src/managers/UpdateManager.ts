@@ -466,6 +466,8 @@ export class UpdateManager implements Manager {
     private viewMasks: ViewMasks | null = null;
     /** Whether the scene's batches are uploading only what they wrote. */
     private rangedUploads = false;
+    /** Whether the scene's joined lines are built to skip hidden pieces in the shader. */
+    private skipHiddenEdges = false;
 
     /** The mask versions the meshes on screen were last brought into line with. */
     private appliedNodeSelection = NO_MASK_VERSION;
@@ -658,6 +660,7 @@ export class UpdateManager implements Manager {
         this.camera = camera;
         // The new scene's switch starts off, so the next pass must write it if a window is in force.
         this.rangedUploads = false;
+        this.skipHiddenEdges = false;
         this.watchFrames();
     }
 
@@ -755,11 +758,26 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Build the scene's joined lines from now on with the shader skipping hidden pieces, while the
+     * timeline experiment is on. Off, the switch was never touched and every line keeps today's
+     * program. A line built before a change keeps the program it was built with.
+     * @param masks - What the renderer reads.
+     */
+    private followTimeline(masks: ViewMasks): void {
+        const skip = masks.timeline?.() === true;
+        if (skip !== this.skipHiddenEdges) {
+            this.skipHiddenEdges = skip;
+            batchUploadFrames.skipHiddenEdges(this.graphContext.getScene()).on = skip;
+        }
+    }
+
+    /**
      * Switch the scene's batches to uploading only what they wrote while a time window is in force.
      * With the timeline off or no window, the switch was never touched and this writes nothing.
      * @param masks - What the renderer reads.
      */
     private followTimeWindow(masks: ViewMasks): void {
+        this.followTimeline(masks);
         const ranged = masks.timeline?.() === true && masks.timeWindow?.() === true;
         if (ranged !== this.rangedUploads) {
             this.rangedUploads = ranged;

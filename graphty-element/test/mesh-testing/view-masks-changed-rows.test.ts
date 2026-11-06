@@ -436,3 +436,35 @@ describe("the ranged upload switch", () => {
         assert.isTrue(batchUploadFrames.rangedUploads(scene.babylon()).on);
     });
 });
+
+describe("the hidden-edge skip switch", () => {
+    beforeAll(() => {
+        setDefaultFeatures(["timeline"]);
+    });
+
+    it("stays off with the experiment off", async () => {
+        const scene = await sceneOf({ timeline: () => false, timeWindow: () => true });
+        scene.manager.syncViewMasks();
+        assert.isFalse(batchUploadFrames.skipHiddenEdges(scene.babylon()).on);
+    });
+
+    it("turns on with the experiment on, with or without a window", async () => {
+        const scene = await sceneOf({ timeline: () => true, timeWindow: () => false });
+        scene.manager.syncViewMasks();
+        assert.isTrue(batchUploadFrames.skipHiddenEdges(scene.babylon()).on);
+    });
+
+    it("follows the experiment off and on, and into a new scene", async () => {
+        let on = true;
+        const scene = await sceneOf({ timeline: () => on });
+        on = false;
+        scene.manager.syncViewMasks();
+        assert.isFalse(batchUploadFrames.skipHiddenEdges(scene.babylon()).on);
+
+        on = true;
+        scene.replaceBabylon();
+        assert.isFalse(batchUploadFrames.skipHiddenEdges(scene.babylon()).on, "a new scene starts off");
+        scene.manager.syncViewMasks();
+        assert.isTrue(batchUploadFrames.skipHiddenEdges(scene.babylon()).on);
+    });
+});

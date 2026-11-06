@@ -511,8 +511,9 @@ function meshReads(nodes: readonly Node[], run: () => void): number {
     try {
         run();
     } finally {
-        nodes.forEach((node, i) => {
-            Object.defineProperty(node, "mesh", { configurable: true, writable: true, value: held[i] });
+        // Dropping the counter shows Node's own accessor again, which reads the node's private field.
+        nodes.forEach((node) => {
+            Reflect.deleteProperty(node, "mesh");
         });
     }
 

@@ -137,7 +137,7 @@ export class NodeIdTarget {
     /** A read came since the last draw, so the next frame redraws it. */
     private inUse = false;
     /** Reads waiting for the target to be drawn. */
-    private waiting: (() => void)[] = [];
+    private readonly waiting: (() => void)[] = [];
     private disposed = false;
 
     /**

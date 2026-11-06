@@ -2052,9 +2052,9 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
 }
 
 /**
- * Reads the box of an edge label that is an HTML-like table: its fill (the table's, else a lone cell's), its outline
- * (in the table's color, else the edge's) and the room between the outline and the words.
- * ponytail: the box is the table's outside; the rules between and round its cells need `labelTable` on edge labels
+ * Reads an edge label that is an HTML-like table: the table itself (`labelTable`, laid out by whoever draws it), and
+ * for a reader that does not lay it out, its box: its fill (the table's, else a lone cell's), its outline and its
+ * cells' (in the table's color, else the edge's) and the room between the outline and the words.
  * @param table - the frame of the table the label is, or null
  * @param get - the edge's attributes
  * @param put - receives the values
@@ -2068,16 +2068,18 @@ function readEdgeLabelTable(table: HtmlTableFrame | null, get: Attr, put: Put, a
     const cell = rows.length === 1 && rows[0].cells.length === 1 ? rows[0].cells[0] : null;
     put("labelBackground", fill ?? cell?.fill ?? null);
     put("labelPadding", border + cellSpacing + (cell?.border ?? cellBorder) + (cell?.padding ?? cellPadding));
+    // a text line set as Graphviz sets it, as a node's table label is
+    put("labelTable", JSON.stringify({ ...table.cells, ...HTML_LINE }));
+    readColor(
+        table.color ?? nonEmpty(get("color")) ?? "black",
+        get("colorscheme"),
+        "line",
+        "labelBorderColor",
+        null,
+        put,
+        at,
+    );
     if (border > 0) {
-        readColor(
-            table.color ?? nonEmpty(get("color")) ?? "black",
-            get("colorscheme"),
-            "line",
-            "labelBorderColor",
-            null,
-            put,
-            at,
-        );
         put("labelBorderWidth", border);
     }
 }
@@ -2785,7 +2787,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
             edge.put(e, p, v);
         };
         readEdgeRoute(splineBends(snapshot, e, get(POS_ATTRIBUTE)), () => loops.bendsOf(e, get), get, put);
-        readLabelPlaces(snapshot, places, e, get, put);
+        readLabelPlaces(snapshot, places, e, get, put, cx.edge(e).directed);
     }
     const graph = graphBackground(snapshot, notes);
     readGraphRotation(snapshot, graph);

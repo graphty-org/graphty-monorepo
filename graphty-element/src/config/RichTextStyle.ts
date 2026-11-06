@@ -123,6 +123,11 @@ export const RichTextStyle = z.strictObject({
     // Multiple borders
     borders: z.array(BorderConfig).optional(),
 
+    // The label laid out as a table of cells, as JSON (the `node.labelTable` value: see the `edge.labelTable`
+    // channel). Set, the label is the table: its cells' fills, outlines, rules and lines are drawn in place of the
+    // words, the panel is the table's size with no margin or padding, and its border stands for the table's outline.
+    table: z.string().optional(),
+
     // Margins
     marginTop: z.number().default(5).optional(),
     marginBottom: z.number().default(5).optional(),

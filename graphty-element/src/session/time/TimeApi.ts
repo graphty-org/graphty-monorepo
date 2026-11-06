@@ -40,14 +40,15 @@ import {
     alignTo,
     calendarStepAtLeast,
     calendarStepNear,
+    candidateReading,
     isCalendarStep,
-    isNumericText,
+    newCandidateTally,
     niceAtLeast,
     niceNear,
     numericBound,
-    readInstant,
     readTimeValue,
     stepLength,
+    tallyCandidate,
     TIME_UNITS,
     type TimeUnit,
 } from "./parse";
@@ -485,6 +486,11 @@ export interface TimeApi {
     readonly atStart: boolean;
     /** Whether the window reaches the end of the data. False with no window. */
     readonly atEnd: boolean;
+    /**
+     * The IANA zone the timeline reads in now: the window's, then the setting's, and always UTC over
+     * a year column. Write a date in this zone and it reads as the bins and the window do.
+     */
+    readonly timeZone: string;
     /** How windows move: results, mode, step and missing, with every default filled in. */
     readonly settings: TimeSettings;
     /**
@@ -670,6 +676,7 @@ export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
         atStart: false,
         atEnd: false,
         playing: false,
+        timeZone: UTC_ZONE,
         settings: DEFAULT_TIME_SETTINGS,
         mode: DEFAULT_TIME_SETTINGS.mode,
         interval: DEFAULT_INTERVAL,
@@ -745,10 +752,6 @@ const DEFAULT_INTERVAL = 1000;
 const ATTRIBUTE_PREFIX = "data.";
 /** How many windows an automatic step aims to cut the data's span into. */
 const AUTO_STEPS = 20;
-/** The range a whole number reads as a year in, for the `"ordinal"` suggestion. */
-const YEAR_LIKE = { min: -5000, max: 3000 } as const;
-/** A loose reading counts toward a candidate only with a four-digit year in it. */
-const HAS_YEAR = /\d{4}/;
 
 /**
  * A column name without the `data.` prefix a path carries.
@@ -1079,66 +1082,6 @@ function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: 
     return bounds;
 }
 
-/** What one column's values look like, counted. */
-interface TimeTally {
-    total: number;
-    parsed: number;
-    numbers: number;
-    epochMs: number;
-    epochS: number;
-    years: number;
-}
-
-/**
- * Count one number into a column's tally: is it an epoch in milliseconds or seconds, or a year.
- * @param tally - The tally so far.
- * @param value - The number.
- */
-function tallyNumber(tally: TimeTally, value: number): void {
-    tally.numbers++;
-    tally.epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
-    tally.epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
-    tally.years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
-}
-
-/**
- * Count one value into a column's tally.
- * @param tally - The tally so far.
- * @param value - The value.
- */
-function tallyValue(tally: TimeTally, value: unknown): void {
-    if (value === undefined || value === null || value === "") {
-        return;
-    }
-
-    tally.total++;
-    if (typeof value === "number") {
-        tallyNumber(tally, value);
-    } else if (typeof value === "string" && !isNumericText(value)) {
-        const reading = readInstant(value, "ms");
-        tally.parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
-    }
-}
-
-/**
- * The unit a column of numbers reads in. Numbers read as time only when every one of them looks
- * like an epoch or a year and the column is named for time: a weight of 1 to 10 is no timeline.
- * @param tally - The column's tally.
- * @param name - The column's name.
- * @returns The unit, or undefined when the numbers are not time.
- */
-function numberUnit(tally: TimeTally, name: string): TimeUnit | undefined {
-    if (tally.epochMs === tally.numbers) {
-        return "ms";
-    }
-
-    if (tally.epochS === tally.numbers) {
-        return "s";
-    }
-
-    return tally.years === tally.numbers && /year|date|time|when|period/i.test(name) ? "year" : undefined;
-}
-
 /**
  * One column as a time candidate: walks every value of it.
  * @param sources - What `session.time` reads.
@@ -1156,22 +1099,15 @@ function timeCandidate(
     const attribute = `${ATTRIBUTE_PREFIX}${name}`;
     const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
     const { values } = sources;
-    const tally: TimeTally = { total: 0, parsed: 0, numbers: 0, epochMs: 0, epochS: 0, years: 0 };
+    const tally = newCandidateTally();
     for (let row = 0; row < count; row++) {
-        tallyValue(tally, kind === "node" ? values.nodeValue(row, attribute) : values.edgeValue(row, attribute));
+        tallyCandidate(tally, kind === "node" ? values.nodeValue(row, attribute) : values.edgeValue(row, attribute));
     }
 
-    const { total, numbers } = tally;
-    const allNumbers = numbers > 0 && numbers === total;
-    const unit = allNumbers ? numberUnit(tally, name) : undefined;
-    // A column of numbers counts only when they read in a unit.
-    let { parsed } = tally;
-    if (allNumbers) {
-        parsed = unit === undefined ? 0 : numbers;
-    }
+    const { parsed, unit } = candidateReading(tally, name);
 
     return parsed > 0
-        ? Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) })
+        ? Object.freeze({ kind, column: name, parsed, total: tally.total, ...(unit === undefined ? {} : { unit }) })
         : undefined;
 }
 
@@ -1572,15 +1508,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const loadHoldsBuilds = (): boolean => sources.timeline?.() !== false && (sources.loading?.() ?? null) !== null;
 
     /**
-     * The unit the designated field reads in, for a read that needs only that. During a load it
-     * comes from the designation or the last index of this reading, since no build may start.
+     * The unit the designated field reads in, as far as is known without a build: the designation's,
+     * or the last index's of this reading.
      * @returns The unit, or undefined when nothing says yet.
      */
-    const unitNow = (): TimeUnit | undefined => {
-        if (!loadHoldsBuilds()) {
-            return indexNow()?.unit;
-        }
-
+    const unitKnown = (): TimeUnit | undefined => {
         const field = fieldNow();
         if (field === null) {
             return undefined;
@@ -1588,6 +1520,13 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         return (field.edges ?? field.nodes)?.unit ?? (index?.reading === readingOf(field) ? index.unit : undefined);
     };
+
+    /**
+     * The unit the designated field reads in, for a read that needs only that. During a load no
+     * build may start, so it is what is known already.
+     * @returns The unit, or undefined when nothing says yet.
+     */
+    const unitNow = (): TimeUnit | undefined => (loadHoldsBuilds() ? unitKnown() : indexNow()?.unit);
 
     /**
      * The index once a field is designated: the one built for it beforehand, when the data has not
@@ -2790,6 +2729,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         get atEnd() {
             const current = cursor ?? visibility.window;
             return current !== null && isLast(current);
+        },
+
+        get timeZone() {
+            const window = cursor ?? visibility.window;
+
+            return unitKnown() === "year" ? UTC_ZONE : (window?.timeZone ?? settingsNow().timeZone);
         },
 
         get settings() {

@@ -53,6 +53,26 @@ numbers from 1000 to 2999 are years, epochs are seconds or milliseconds, and any
 plain ordered steps (`"ordinal"`). `time.candidates()` lists the columns that read as time, and
 `time.notices()` reports values that did not.
 
+Before a load, a draft says which columns look like time, and applies nothing. A column looks like
+time when every sampled value is a strict date, or when its name speaks of time (`date`, `time`,
+`timestamp`, `year`, `start`, `end`, `created`, `sent`, `when`, `period`) and every sampled number
+fits an epoch or a calendar year.
+
+```js
+const draft = await g.session.data.prepare(source);
+const found = draft.findings.find((f) => f.code === "time.found");
+if (found) {
+    console.log(found.params.column, found.params.from, found.params.to);
+    await draft.load({ mapping: { tables: { [found.params.table]: { time: found.params.column } } } });
+}
+```
+
+`from` and `to` are epoch milliseconds, the earliest and latest instant the column reads as once
+designated. Each such column also has `looksLike: "time"` in `draft.tables`. A column the element
+already gave a role is not reported, and a load with no `time` role designates nothing. The mapping
+works the same on a file whose format sets its roles, such as JSON or GraphML: on those tables it
+takes `time` and `timeUnit` and nothing else.
+
 ## Elements that exist for a span
 
 A tenure, a contract or a lease has a start and an end. `node-time-end-path` and `edge-time-end-path`
@@ -197,6 +217,9 @@ Days and longer follow the zone's clock, so a day across a clock change is 23 or
 always 60 minutes. A time a change skipped reads as the same distance past the gap, and a time it
 repeated reads as the first of the two. A year column (`unit: "year"`) always reads in UTC, so 1995
 stays 1995 everywhere.
+
+`time.timeZone` is the zone the timeline reads in now, with all of that settled. Write dates in it and
+they match the bins and the window.
 
 `time.parse` reads in `parseZone`. If you show dates in another zone, pass it, so a date a reader
 types means what they see:

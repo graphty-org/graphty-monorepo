@@ -10,16 +10,16 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-05) Tier 6 round 1 is closed and the studio is stopped on one owner decision: raise the Gemini
-  cap (3,000 of 3,000 spent; 4,000 covers about 680 requests, near $3.40) or drop sessions. The "145 left"
-  in `owner-decisions.md` is stale. It holds sessions and model walks, not the fixes or the 400% repro.
+- (2026-11-05) Round 2's plan is written: the same 12 rows as `r2-s01` to `r2-s12`, on the same build. `--gate`
+  exits 1 with 12 `FAIL` lines, so `--start` will refuse all 12 again unless 26 walks exist first. The
+  workflow does not run `--gate`, and round 2 has no pilot step. A second all-VOID round is the likely result.
+- (2026-11-05) The cap is answered: 5,000, 3,000 spent, so requests no longer stop the gate. Only walks do.
 - (2026-11-05) No reader has seen the Assistant: 24 of 24 VOID at `--start`. `insights.md` is the record,
   12 findings, all expert: what is on screen, never what a reader paid. Bars 1 to 7 and 11 nothing to
   count, 8 fails narrower, 10 did not hold on the state list only, 9 and 12 open. Not a verdict.
-- (2026-11-05) Before a session counts: 26 walks, key matched, T92 A's plant checked, `leaksIn` fixed, a
-  launch that checks `--gate`. I proposed fix first, then freeze: no walk exists, so nothing is lost.
-- (2026-11-05) Every first prompt says "a RETURNING user" (24 of 24 sessions, 9 wrongly). A priming
-  source: must go before any session counts. One grader saw it once; grep all logs, not one.
+- (2026-11-05) Open in round 2's `plan.md`, still true: 26 walks; key not matched to 3b2a7f0649; T92 A's plant
+  unseen; "a RETURNING user" still in the workflow's prompt (line 1039; 9 of 12 primed); `leaksIn` unfixed;
+  the restart not logged in `criteria.md` (Director's). Fix before freezing was not taken: same build.
 - (2026-11-05) A `False done: no` on a session that never opened is not a pass. Same for "no leak".
 - (2026-11-05) Expert clean results cover only the screens that expert read: the audit's 0 of 88 missed
   "assistant node style", and whether that is element English or a layer's name is still a reading.
@@ -41,8 +41,8 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
   second participant: the key states what the reader must conclude, never the model's words.
 - (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing. Graders
   over-rate on one half; expert counts are not user evidence; an expert-only 3 needs a repro.
-- (2026-10-30) First check of any pilot finding: the build in its walk's session.json. Then check tool
-  lines against images: simulated participants believe a tool line over the screenshot.
+- (2026-10-30) First check of any pilot finding: the build in its walk's session.json, then tool lines
+  against images: simulated participants believe a tool line over the screenshot.
 
 ## Priorities and values
 
@@ -76,6 +76,15 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-05 (tier 6 round 2 plan):** Took the roster's 12 rows unchanged, in its order. Reason: the
+  weighting asked for has nothing to act on. All 12 halves missed with nothing to count, the criteria
+  hold the round to one session per half, bars 3, 6, 7 and 8 name both sessions of a task, and no path
+  changed (the only app diff from the build to the branch is `words.test.ts`). Follow-ups generated
+  from `tasks.md`, not retyped. Wrote six open items into `plan.md` rather than fixing them: walks are
+  the pilot's, the workflow's prompt and the restart line are not mine, and `Gate evidence` is never
+  hand-written. Checked: 12 briefings, each with the right prompt, start, build, history and no
+  follow-up (`tmp/tier6-r2-plan/check.py`); `--gate` run, exit 1, 12 `FAIL`, no requests line.
 
 - **2026-11-05 (tier 6 round 1 closed):** Read `insights.md` as the round's last word and changed no
   bar or ruling. Carried forward only what a next round needs: the cap decision, the list before a session
@@ -140,13 +149,6 @@ logged). Their reasons, in short:
   limit in each persona's history as money, since the product's reader does pay. Left the
   screen-reader persona to the accessibility expert, since a sixth persona would not fit.
 
-- **2026-10-21 (round 1 insights):** Applied the two skeptics mechanically (two drops = dropped,
-  one = weakened) and settled the only factual disagreement at its source: r1-s15's grade says she
-  left the node's Style tab without a change, and r1-s35 rated the one-node layer 2, so only r1-s53
-  rated it 3 (skeptic 1 was right). Checked the wheel mechanism in `OrbitInputController` (one
-  event clamped to one notch, 0.75% per notch) before writing it: weakened, not dropped, since a
-  notch that small may still be a defect. Viewed every screenshot cited to the owner. Reported
-  bar 1's F as rule-caused, not reader failure, and left the frozen rule alone.
 - **2026-10-30 (tier 4 round 1, folded):** Recorded as findings, not a verdict: bars 2 and 3 were partly
   study artifacts (key definition, the tool's `tooltip: null`, hover counting); 5, 6, 7 and the join
   preview were the product's. All four 3 candidates fell to 2 or below under the skeptics.
@@ -166,6 +168,10 @@ logged). Their reasons, in short:
   prompt, not the key, when a prompt leads.
 
 ## Tried: worked / did not work
+
+- 2026-11-05 (round 2 plan) -- Worked: reading the workflow script itself: it showed no gate check and no
+  pilot before a later round's sessions, and where the RETURNING line comes from. A return schema with no
+  place for a warning: `plan.md` and these notes are the only carriers, so say it in a line nobody can skip.
 
 - 2026-11-05 (round closed) -- Worked: the skeptics' source checks: they moved a bar (11), corrected an
   owner (`frame.css`) and a cause (starters). Did not work: a launch with no gate check, which spent a
@@ -213,12 +219,8 @@ logged). Their reasons, in short:
   two build defects were restated or weakened to tool artifacts. Did not work: bars that require
   "no open severity 3" while no task reaches the backlog 3s; a frozen color rule using CSS keywords.
 
-- 2026-10-17 to 10-21 (key edits, folded) -- Worked: one asserted edit script per pass with
-  `\s+`-joined old strings; prettier on the edited file (`--ignore-path /dev/null --check`);
-  checking a pilot's claim against session.log and one screenshot; grepping the key for stale
-  phrases and old build ids after edits; `git merge-base --is-ancestor` for change-log claims;
-  `grep buildStamp` over session.json per half. Did not work: trusting pilot step totals or "the
-  key already records" lines; copying files into tmp/ to preview prettier; `--no-ignore`.
+- 2026-10-17 to 10-21 (key edits, folded) -- Worked: one asserted edit script per pass; grepping the key
+  for stale phrases and old build ids after edits. Did not work: trusting pilot step totals.
 
 ## Thinking
 

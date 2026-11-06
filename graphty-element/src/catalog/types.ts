@@ -2066,6 +2066,8 @@ export type RuleTree =
           readonly ties?: TopTies;
           /** Strictly above this value. Exactly one cut. */
           readonly above?: number;
+          /** Strictly below this value. Exactly one cut. @since 3.38.0 */
+          readonly below?: number;
       }
     /**
      * The elements whose text for one value passes a text test: "name contains bob", "id matches

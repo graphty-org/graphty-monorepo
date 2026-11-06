@@ -513,7 +513,8 @@ describe("the combined Style panel", () => {
         const layer = await layerOf(session, "Two", selector);
         await clickRow("Two");
         const row = await whichRow();
-        const words = "Rule: data.name == 'Myriel' || data.name == 'Napoleon'";
+        // Each path under the column's name.
+        const words = "Rule: name == 'Myriel' || name == 'Napoleon'";
         assert.include(row.textContent ?? "", words);
         await userEvent.click(row);
         const region = await screen.findByRole("group", { name: "Which nodes" });

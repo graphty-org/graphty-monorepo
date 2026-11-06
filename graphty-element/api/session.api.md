@@ -4517,6 +4517,7 @@ export type RuleTree = {
     readonly top?: number;
     readonly ties?: TopTies;
     readonly above?: number;
+    readonly below?: number;
 }
 /**
 * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -5170,6 +5171,7 @@ export type Selector = {
 // @public
 export function selectorRule(selector: Selector_2, options?: {
     readonly comparisons?: boolean;
+    readonly below?: boolean;
 }): RuleSelector | undefined;
 
 // @public

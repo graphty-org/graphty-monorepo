@@ -147,6 +147,17 @@ describe("rules a layer paints", () => {
         session.dispose();
     });
 
+    it("a threshold below a value paints the nodes strictly below it, as the expression does", async () => {
+        const session = await hundred();
+
+        const ids = await painted(session, { kind: "threshold", path: "data.score", below: 3 });
+        const { nodes } = await session.selection.count({ text: "=data.score < `3`" });
+
+        assert.deepEqual(ids, ["0", "1", "2"]);
+        assert.strictEqual(nodes, ids.length);
+        session.dispose();
+    });
+
     it("the same text leaf in a visibility filter hides the same nodes", async () => {
         const session = await hundred();
         const leaf: RuleTree = { kind: "text", reads: "data.name", mode: "substring", text: "bob" };

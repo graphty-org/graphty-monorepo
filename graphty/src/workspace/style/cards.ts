@@ -17,6 +17,7 @@ import {
     type SourceKey,
 } from "@graphty/graphty-element/session";
 
+import { sessionNamer, whereWords } from "../data-place/filterWords";
 import { sourceName } from "../data-place/words";
 import { edgeName } from "../inspector/words";
 import { countName, readableName, valueFact, valueName } from "./words";
@@ -487,7 +488,7 @@ function leavesOf(session: GraphSession, selector: Selector): Leaves {
             return { leaves: [{ kind: "member", of: selector.of }] };
         default: {
             // A rule typed in find (`donations >= \`10000\``) reads as its cards too.
-            const rule = selectorRule(selector, { comparisons: true });
+            const rule = selectorRule(selector, { comparisons: true, below: true });
             if (rule === undefined) {
                 return selector.match === "expression"
                     ? { leaves: [{ kind: "expression", where: selector.where }] }
@@ -511,7 +512,8 @@ export const isPicked = (card: Card): boolean =>
     "nodes" in card.leaf.of;
 
 /**
- * A fixed list of ids in words: "Picked by hand: 3 nodes", "Picked by hand: 1 node, 2 edges".
+ * A fixed list of ids in words: "Picked: 3 nodes", "Picked: 1 node, 2 edges". Whatever made the
+ * list (the reader's selection, the Assistant, a file), it is a list that does not follow the data.
  * @param nodes - how many nodes it lists.
  * @param edges - how many edges it lists.
  * @returns the words.
@@ -520,7 +522,7 @@ export function pickedWords(nodes: number, edges: number): string {
     const part = (n: number, one: string): string[] =>
         n === 0 && one === "edge" ? [] : [`${String(n)} ${one}${n === 1 ? "" : "s"}`];
     const parts = edges > 0 && nodes === 0 ? part(edges, "edge") : [...part(nodes, "node"), ...part(edges, "edge")];
-    return `Picked by hand: ${parts.join(", ")}`;
+    return `Picked: ${parts.join(", ")}`;
 }
 
 /**
@@ -590,7 +592,7 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
         case "threshold":
             return thresholdCard(leaf, field, elsewhere);
         case "expression":
-            return expressionCard(leaf, field, elsewhere);
+            return expressionCard(session, leaf, field, elsewhere);
         case "categories": {
             const f = field(leaf.attribute);
             return f === undefined
@@ -672,11 +674,13 @@ function thresholdCard(leaf: LeafOf<"threshold">, field: FieldFinder, elsewhere:
     if (f?.kind !== "number") {
         return elsewhere;
     }
-    if (leaf.above !== undefined && leaf.top === undefined) {
-        // "Above 16" has no card of its own (a range card keeps its ends); it is said, kept as it is.
-        return { ...elsewhere, words: `${f.name} above ${num(leaf.above)}` };
+    if (leaf.top === undefined && (leaf.above === undefined) !== (leaf.below === undefined)) {
+        // "Above 16" and "Below -1" have no card of their own (a range card keeps its ends); each is
+        // said, kept as it is.
+        const words = leaf.above === undefined ? `below ${num(leaf.below ?? 0)}` : `above ${num(leaf.above)}`;
+        return { ...elsewhere, words: `${f.name} ${words}` };
     }
-    return leaf.top !== undefined && leaf.above === undefined
+    return leaf.top !== undefined && leaf.above === undefined && leaf.below === undefined
         ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top }
         : elsewhere;
 }
@@ -686,17 +690,23 @@ function thresholdCard(leaf: LeafOf<"threshold">, field: FieldFinder, elsewhere:
  * an ordinary card, "Has a value" (Yes for a yes-or-no column). The element reads the name.
  * ponytail: an empty text reads as "has a value" here while the expression passes none; the card's
  * count says what the card keeps.
+ * @param session - the element's session, to name what a rule no card draws reads.
  * @param leaf - the leaf.
  * @param field - finds a path's field.
  * @param elsewhere - the fixed card for a leaf no card edits.
  * @returns the card.
  */
-function expressionCard(leaf: LeafOf<"expression">, field: FieldFinder, elsewhere: CardOf<"fixed">): Card {
+function expressionCard(
+    session: GraphSession,
+    leaf: LeafOf<"expression">,
+    field: FieldFinder,
+    elsewhere: CardOf<"fixed">,
+): Card {
     const bare = selectorRule({ match: "expression", where: `${leaf.where} != \`null\`` }, { comparisons: true });
     const path = bare === undefined ? undefined : presentPath(bare.where);
     const named = path === undefined ? undefined : field(path);
     if (named === undefined) {
-        return { ...elsewhere, words: ruleWords(leaf.where) };
+        return { ...elsewhere, words: `Rule: ${whereWords(leaf.where, sessionNamer(session))}` };
     }
     return named.kind === "yes-no"
         ? { type: "yes-no", key: keyOf(named), field: named, match: "yes" }
@@ -1056,16 +1066,6 @@ export function cardsName(session: GraphSession, cards: readonly Card[]): string
         [tests.join(" and "), `${tests[0]} and ${rest} more`].find((name) => name.length <= NAME_ROOM) ??
         `${tests[0]} +${rest}`
     );
-}
-
-/**
- * A rule no card draws, in words: the rule as it was typed, its literals without their backticks
- * ("Rule: hours < 20").
- * @param where - the rule.
- * @returns the words.
- */
-function ruleWords(where: string): string {
-    return `Rule: ${where.replaceAll(/`([^`]*)`/g, "$1").trim()}`;
 }
 
 /**

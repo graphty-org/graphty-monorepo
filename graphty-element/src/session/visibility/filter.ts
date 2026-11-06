@@ -1600,10 +1600,12 @@ function thresholdHalf(
         for (const entry of topOfRanking(rankEntries(population), filter.top, filter.ties).entries) {
             hit[entry.id as number] = 1;
         }
-    } else {
-        const cut = filter.above ?? Number.POSITIVE_INFINITY;
+    } else if (filter.above !== undefined || filter.below !== undefined) {
+        // A reserved cut kept opaque (no top, above or below) keeps nothing.
+        const above = filter.above ?? Number.NEGATIVE_INFINITY;
+        const below = filter.below ?? Number.POSITIVE_INFINITY;
         for (const entry of population) {
-            if (entry.value > cut) {
+            if (entry.value > above && entry.value < below) {
                 hit[entry.id] = 1;
             }
         }

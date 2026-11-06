@@ -1,6 +1,6 @@
 /**
  * The layer panel's behavior on the REAL graphty-element and Les Miserables, driven by real clicks
- * and keys: removing the only "Picked by hand" card of an edge layer is said, with Undo, and the
+ * and keys: removing the only "Picked" card of an edge layer is said, with Undo, and the
  * layer's default name says what it covers now; a default name made from several cards is short
  * enough to read whole; an attribute of the other kind is one click from its card on the other
  * tab; a run's group opened from a node's Memberships is its layer row, with the tree's header;

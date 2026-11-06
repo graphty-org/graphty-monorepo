@@ -1244,13 +1244,14 @@ function leafPathOf(path: Path, bare: boolean): Path | undefined {
 
 /**
  * The leaf an ordering comparison with a number reads as: `>=` and `<=` as a range, `>` as
- * "strictly above". `<` has no leaf that matches exactly the same elements.
+ * "strictly above", and with `below`, `<` as "strictly below".
  * @param operator - The comparison, written with the path on the left.
  * @param path - The leaf's path.
  * @param value - The number.
+ * @param below - Whether `<` is read, as a threshold's `below`.
  * @returns The leaf, or undefined.
  */
-function orderingRule(operator: CompareOperator, path: Path, value: number): RuleTree | undefined {
+function orderingRule(operator: CompareOperator, path: Path, value: number, below: boolean): RuleTree | undefined {
     switch (operator) {
         case ">=":
             return { kind: "range", attribute: path, min: value };
@@ -1258,6 +1259,8 @@ function orderingRule(operator: CompareOperator, path: Path, value: number): Rul
             return { kind: "range", attribute: path, max: value };
         case ">":
             return { kind: "threshold", path, above: value };
+        case "<":
+            return below ? { kind: "threshold", path, below: value } : undefined;
         default:
             return undefined;
     }
@@ -1273,20 +1276,29 @@ const FLIPPED: Readonly<Record<CompareOperator, CompareOperator>> = Object.freez
     ">=": "<=",
 });
 
+/** What `expressionRule` reads beyond equality and presence. */
+interface RuleReads {
+    /** Ordering comparisons and bare column names. */
+    readonly comparisons: boolean;
+    /** `<` with a number, as a threshold's `below`; only with `comparisons`. */
+    readonly below: boolean;
+}
+
 /**
  * The rule leaf one parsed expression node reads as, or undefined when it has none.
  * @param node - The node.
- * @param comparisons - Whether ordering comparisons and bare column names are read too.
+ * @param reads - What is read beyond equality and presence.
  * @returns The rule.
  */
-function nodeRule(node: ExpressionNode, comparisons: boolean): RuleTree | undefined {
+function nodeRule(node: ExpressionNode, reads: RuleReads): RuleTree | undefined {
+    const { comparisons } = reads;
     if (node.kind === "group") {
-        return nodeRule(node.inner, comparisons);
+        return nodeRule(node.inner, reads);
     }
 
     if (node.kind === "and") {
-        const left = nodeRule(node.left, comparisons);
-        const right = nodeRule(node.right, comparisons);
+        const left = nodeRule(node.left, reads);
+        const right = nodeRule(node.right, reads);
         return left === undefined || right === undefined ? undefined : { kind: "all", of: [left, right] };
     }
 
@@ -1307,7 +1319,7 @@ function nodeRule(node: ExpressionNode, comparisons: boolean): RuleTree | undefi
         // range leaf does not.
         const operator = node.left.kind === "literal" ? FLIPPED[node.operator] : node.operator;
         return comparisons && typeof value === "number" && Number.isFinite(value)
-            ? orderingRule(operator, path, value)
+            ? orderingRule(operator, path, value, reads.below)
             : undefined;
     }
 
@@ -1342,14 +1354,15 @@ function equalityRule(operator: "==" | "!=", path: Path, value: unknown): RuleTr
  * elements are read: equality with a number or a yes-or-no value, the presence test, and `&&` of
  * those, over a `data.` or `results.` path. With `comparisons`, also `>=` and `<=` with a number
  * (a range), `>` with a number ("strictly above") and a bare column name (`minutes`, which a rule
- * reads as `data.minutes`).
+ * reads as `data.minutes`); with `below` as well, `<` with a number ("strictly below").
  * @param where - The expression.
  * @param comparisons - Whether to read ordering comparisons and bare column names too.
+ * @param below - Whether to read `<` with a number too, as a threshold's `below`.
  * @returns The rule, or undefined when the expression has no exact rule form.
  */
-export function expressionRule(where: Query, comparisons = false): RuleTree | undefined {
+export function expressionRule(where: Query, comparisons = false, below = false): RuleTree | undefined {
     try {
-        return nodeRule(parseExpression(where), comparisons);
+        return nodeRule(parseExpression(where), { comparisons, below });
     } catch {
         return undefined;
     }

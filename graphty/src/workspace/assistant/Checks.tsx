@@ -4,13 +4,14 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Button, Group, Text, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { goToComposer } from "../assistant-door/commands";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, rowName } from "../graph-place/rows";
 import { runName } from "../runWords";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { changeLines, chipName, emptyWords, excludedLine, moreWords, openedWords, WORDS } from "./words";
+import { changeLines, chipName, emptyWords, excludedLine, moreWords, openedWords, turnUndoName, WORDS } from "./words";
 
 type Kind = "node" | "edge";
 
@@ -54,6 +55,8 @@ interface ChipProps {
     readonly kind: Kind;
     readonly count: number;
     readonly target: AiTarget;
+    /** What it belongs to, for its name. */
+    readonly of?: string;
     /** Whether Tab reaches it: its group's one stop. */
     readonly stop: boolean;
     readonly onFocused: () => void;
@@ -66,11 +69,12 @@ interface ChipProps {
  * @param props.kind - nodes or edges
  * @param props.count - how many
  * @param props.target - what it points at
+ * @param props.of - what it belongs to, for its name
  * @param props.stop - whether Tab reaches it
  * @param props.onFocused - called as it takes focus
  * @returns The chip
  */
-function Chip({ kind, count, target, stop, onFocused }: Readonly<ChipProps>): React.JSX.Element {
+function Chip({ kind, count, target, of, stop, onFocused }: Readonly<ChipProps>): React.JSX.Element {
     const { session } = useWorkspace();
     const peeking = useRef(false);
     const peek = (on: boolean): void => {
@@ -89,7 +93,7 @@ function Chip({ kind, count, target, stop, onFocused }: Readonly<ChipProps>): Re
     return (
         <UnstyledButton
             className="ws-assistant-chip cm-focus-outside"
-            aria-label={chipName(kind, count)}
+            aria-label={chipName(kind, count, of)}
             tabIndex={stop ? 0 : -1}
             onPointerEnter={() => {
                 peek(true);
@@ -120,6 +124,8 @@ interface ChipRowProps {
     readonly kinds: readonly Kind[];
     /** Whether it offers Show in table. */
     readonly table?: boolean;
+    /** What the chips belong to (a step, an approval), named on each so two equal counts differ. */
+    readonly of?: string;
 }
 
 /**
@@ -129,9 +135,10 @@ interface ChipRowProps {
  * @param props.target - what the chips point at
  * @param props.kinds - the kinds it names
  * @param props.table - whether it offers Show in table
+ * @param props.of - what the chips belong to
  * @returns The row, or nothing until it is read
  */
-export function ChipRow({ target, kinds, table = false }: Readonly<ChipRowProps>): React.JSX.Element | null {
+export function ChipRow({ target, kinds, table = false, of }: Readonly<ChipRowProps>): React.JSX.Element | null {
     const { store, session } = useWorkspace();
     const live = useLiveCount(target);
     const [stop, setStop] = useState(0);
@@ -168,6 +175,7 @@ export function ChipRow({ target, kinds, table = false }: Readonly<ChipRowProps>
                         key={chip.kind}
                         {...chip}
                         target={target}
+                        of={of}
                         stop={index === Math.min(stop, chips.length - 1)}
                         onFocused={() => {
                             setStop(index);
@@ -221,22 +229,25 @@ function kindsOf(effect: AiEffect): readonly Kind[] {
  * @param props - Component props
  * @param props.effect - the found or empty effect
  * @param props.table - whether it offers Show in table
+ * @param props.of - the step it came from, named on its chips
  * @returns The row, or nothing for an effect that names no elements
  */
 export function ResultRow({
     effect,
     table = false,
-}: Readonly<{ effect: AiEffect; table?: boolean }>): React.JSX.Element | null {
+    of,
+}: Readonly<{ effect: AiEffect; table?: boolean; of?: string }>): React.JSX.Element | null {
+    const { session } = useWorkspace();
     if (effect.code === "AI_EFFECT_EMPTY") {
         return (
             <Group gap={4} wrap="nowrap">
                 <GLYPHS.warning size={12} aria-hidden />
-                <Text size="sm">{emptyWords(effect.params.searched)}</Text>
+                <Text size="sm">{emptyWords(session, effect.params.searched)}</Text>
             </Group>
         );
     }
     return effect.target === undefined ? null : (
-        <ChipRow target={effect.target} kinds={kindsOf(effect)} table={table} />
+        <ChipRow target={effect.target} kinds={kindsOf(effect)} table={table} of={of} />
     );
 }
 
@@ -359,8 +370,11 @@ export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<Cha
                     <Button
                         variant="default"
                         size="compact-xs"
+                        aria-label={turnUndoName(lines[0])}
                         onClick={() => {
                             run("history.undo");
+                            // The button goes with the step it undid.
+                            goToComposer(store);
                         }}
                     >
                         {WORDS["assistant.undo"]}

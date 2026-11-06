@@ -15,34 +15,10 @@ import type {
     RuleTree,
 } from "@graphty/graphty-element/session";
 
-import { valueWord } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
 import { timelineOn } from "../time/timeActions";
-import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
-import { sourceName } from "./words";
-
-/**
- * Reads attribute and node names from the session, as the card words show them.
- * @param session - the element's session.
- * @returns the namer.
- */
-function namerOf(session: GraphSession): Namer {
-    const attributes = session.data.attributes();
-    return {
-        attribute: (path) =>
-            path === "id"
-                ? "Node id"
-                : (attributes.find((a) => a.path === path)?.plainName ?? path.replace(/^data\./, "")),
-        // A node is named by its id until graphty-element publishes its name (#895).
-        node: String,
-        value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),
-        source: (key) => {
-            const load = session.data.sources().find((each) => each.key === key);
-            return load === undefined ? "a removed source" : sourceName(load);
-        },
-    };
-}
+import { filterChangeWords, ruleWords, sessionNamer } from "./filterWords";
 
 /**
  * A rule's words: "weight is at least 4", "in the largest component". A card is named by them.
@@ -51,7 +27,7 @@ function namerOf(session: GraphSession): Namer {
  * @returns the words.
  */
 export function conditionWords(session: GraphSession, rule: RuleTree): string {
-    return ruleWords(rule, namerOf(session));
+    return ruleWords(rule, sessionNamer(session));
 }
 
 /** The Filters row, and the inspected id, of the time window. */

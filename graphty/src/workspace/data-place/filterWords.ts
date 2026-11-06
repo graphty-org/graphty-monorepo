@@ -3,7 +3,18 @@
  * graphty-element's (`visibility.summary`, `visibility.conditionCounts`); every word is the app's.
  */
 
-import type { HistoryCode, NodeId, RuleTree } from "@graphty/graphty-element/session";
+import {
+    type GraphSession,
+    type HistoryCode,
+    type NodeId,
+    renamePaths,
+    type RuleTree,
+    selectorRule,
+} from "@graphty/graphty-element/session";
+
+import { valueWord } from "../inspector/words";
+import { attributeName } from "../style/words";
+import { sourceName } from "./words";
 
 /** What the words read from the session: an attribute's name and a node's name. */
 export interface Namer {
@@ -13,6 +24,50 @@ export interface Namer {
     readonly value?: (path: string, value: string) => string;
     /** A load's name, by its `data.sources()` key; absent writes the key. */
     readonly source?: (key: string) => string;
+}
+
+/**
+ * Reads attribute, value and load names from the session, as the card words show them.
+ * @param session - the element's session.
+ * @returns the namer.
+ */
+export function sessionNamer(session: GraphSession): Namer {
+    const attributes = session.data.attributes();
+    return {
+        attribute: (path) => {
+            const name = attributeName(session, path);
+            return name === path ? path.replace(/^data\./, "") : name;
+        },
+        // A node is named by its id until graphty-element publishes its name (#895).
+        node: String,
+        value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),
+        source: (key) => {
+            const load = session.data.sources().find((each) => each.key === key);
+            return load === undefined ? "a removed source" : sourceName(load);
+        },
+    };
+}
+
+/**
+ * A rule written as an expression, in words: the sentence of the rule graphty-element reads it
+ * as ("gal4RGexp is below -1", "trained is false"), else the expression with each value under
+ * its name and its literals without their backticks.
+ * @param where - the expression.
+ * @param names - reads attribute and value names.
+ * @returns the words.
+ */
+export function whereWords(where: string, names: Namer): string {
+    const rule = selectorRule({ match: "expression", where }, { comparisons: true, below: true });
+    if (rule !== undefined) {
+        return ruleWords(rule.where, names);
+    }
+    try {
+        return renamePaths(where, (path) => names.attribute(path))
+            .replaceAll(/`([^`]*)`/g, "$1")
+            .trim();
+    } catch {
+        return where.trim();
+    }
 }
 
 /**
@@ -33,9 +88,12 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
             return textWords(rule, names);
         case "threshold": {
             const name = names.attribute(rule.path);
-            return rule.top === undefined
+            if (rule.top !== undefined) {
+                return `${name} is among the highest ${String(rule.top)}`;
+            }
+            return rule.below === undefined
                 ? `${name} is above ${String(rule.above ?? "")}`
-                : `${name} is among the highest ${String(rule.top)}`;
+                : `${name} is below ${String(rule.below)}`;
         }
         case "not":
             // "Has no value" is the one negation a condition card makes.

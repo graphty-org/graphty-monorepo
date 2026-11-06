@@ -10,36 +10,28 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-05) Round 2's plan is written: the same 12 rows as `r2-s01` to `r2-s12`, on the same build. `--gate`
-  exits 1 with 12 `FAIL` lines, so `--start` will refuse all 12 again unless 26 walks exist first. The
-  workflow does not run `--gate`, and round 2 has no pilot step. A second all-VOID round is the likely result.
-- (2026-11-05) The cap is answered: 5,000, 3,000 spent, so requests no longer stop the gate. Only walks do.
-- (2026-11-05) No reader has seen the Assistant: 24 of 24 VOID at `--start`. `insights.md` is the record,
-  12 findings, all expert: what is on screen, never what a reader paid. Bars 1 to 7 and 11 nothing to
-  count, 8 fails narrower, 10 did not hold on the state list only, 9 and 12 open. Not a verdict.
-- (2026-11-05) Open in round 2's `plan.md`, still true: 26 walks; key not matched to 3b2a7f0649; T92 A's plant
-  unseen; "a RETURNING user" still in the workflow's prompt (line 1039; 9 of 12 primed); `leaksIn` unfixed;
-  the restart not logged in `criteria.md` (Director's). Fix before freezing was not taken: same build.
+- (2026-11-05) Round 2 ran: the study's first readers. 11 of 12 succeeded, 0 false done, 0 void, 0 Sonnet. Bars
+  1 to 6 hold (4 and 5 weakly), 7, 8, 9 fail, 10 and 11 did not hold, 12 open. `round-2/scores.md` is the record.
+- (2026-11-05) The one confirmed 3: start screen file, changes undone, tab closed, no way back. Its weak point
+  is study-made: the setup opened the file, and Ruth's briefing promised Recent projects. If skeptics hold that,
+  it falls to 2 and bar 9 reads clean. Say so, never hide it.
+- (2026-11-05) The key's 3 on the refused key came down to 2: neither reader blocked or misled. Untested for a
+  reader with one bad key, since the prompt hands over a second.
+- (2026-11-05) Bars 10 and 11 need an audit of the 193 session screens; none has run. Bar 11 found no exception.
+  Don't let "12 graders, 0 exceptions" read as held: the bar names the audit and allows zero.
+- (2026-11-05) Bar 5's pass is suspect: Dev, written to trust, doubted twice. One model plays every persona.
+- (2026-11-05) Readers check through the table, never a chip: 0 of 12 hovered one. That door leaves rows out of
+  view, moves scope and shrinks the drawing. Biggest gap between design and use so far.
+- (2026-11-05) "RETURNING" was in 12 of 12 first prompts, still unfixed: 9 sessions mislabeled. Limits every
+  first-meeting result. CORS lines also reached T90's participants.
+- (2026-11-05) Still open: the 400% claim at 3 has no `repro/`; three rulings (rollback, the x on close, a Colored
+  row for a painting run: sessions now lean yes); `answers.md` unmatched; restart unlogged in `criteria.md`.
 - (2026-11-05) A `False done: no` on a session that never opened is not a pass. Same for "no leak".
-- (2026-11-05) Expert clean results cover only the screens that expert read: the audit's 0 of 88 missed
-  "assistant node style", and whether that is element English or a layer's name is still a reading.
-- (2026-11-05) One open 3: the Settings page gets 0 height in a short, narrow window (`frame.css`, every
-  section, by estimate under about 330 CSS px tall). CSS arithmetic, not measured: `repro/` next, no
-  Gemini needed. Talk came down to 2, Done stays 2: same test, the belief corrects itself.
-- (2026-11-05) Scope moves on about three mechanisms: undo reselect (kept by `decided.md`), Esc clearing,
-  the x lost on close. A chip click is the reader's act. The removal of 1 of 16 needed a walker's sequence.
-- (2026-11-05) Three rulings open, the Director's, none a one-way door: does the kept "selection surviving
-  Undo" cover a rollback; does the x entry reach closing the panel; does a painting run get a Colored row.
-- (2026-11-05) Questions only sessions can answer: does a reader press Done on a typed key (T90, bar 3);
-  does a line without a chip read as prose; does the small text decide anything (T90, T92).
-- (2026-11-05) A chip that counts something else (T92 A's 5 or 9, T91 A's 15) is a true count, so not
-  bar 11, but no backing: a right fact with only that row is F. Bar 5 may come up "not tested": T95 A's
-  first reply was a plain refusal on 2 of 4 walks.
 - (2026-11-05) The main risk is false passes: a bar counted over sessions where its trap never fired,
   a recovery the prompt supplied, a report right after a reflex.
 - (2026-11-05) Ask the doubt question after the first answer, never in the prompt. A live model is a
   second participant: the key states what the reader must conclude, never the model's words.
-- (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing. Graders
+- (2026-10-30) A severity 3 needs its cost: a reader blocked, or a wrong belief left standing. Graders
   over-rate on one half; expert counts are not user evidence; an expert-only 3 needs a repro.
 - (2026-10-30) First check of any pilot finding: the build in its walk's session.json, then tool lines
   against images: simulated participants believe a tool line over the screenshot.
@@ -77,51 +69,19 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
-- **2026-11-05 (tier 6 round 2 plan):** Took the roster's 12 rows unchanged, in its order. Reason: the
-  weighting asked for has nothing to act on. All 12 halves missed with nothing to count, the criteria
-  hold the round to one session per half, bars 3, 6, 7 and 8 name both sessions of a task, and no path
-  changed (the only app diff from the build to the branch is `words.test.ts`). Follow-ups generated
-  from `tasks.md`, not retyped. Wrote six open items into `plan.md` rather than fixing them: walks are
-  the pilot's, the workflow's prompt and the restart line are not mine, and `Gate evidence` is never
-  hand-written. Checked: 12 briefings, each with the right prompt, start, build, history and no
-  follow-up (`tmp/tier6-r2-plan/check.py`); `--gate` run, exit 1, 12 `FAIL`, no requests line.
+- **2026-11-05 (tier 6 round 2 scoring):** Scored all 12 bars by hand from the 12 grades, routes and logs. Kept
+  r2-s09's F (bar 7 reads the end state) and its 3 (blocked is the criteria's test), and wrote the case against
+  it beside it. Took the key's refused-key 3 to 2: the key says a rating stands until a session shows otherwise.
+  Settled r2-s11's `Trap fired` by the key's own line, and showed bar 5 holds on either reading. Scored bars 10
+  and 11 "did not hold", not held, because their named source read no session. Dropped a bundled row of two
+  different acts from the confirmed list; narrowed the Undo row to one act; took Figma 18 out of bar 12's tally
+  (a severity 1). Ignored `truth_on_screen`: it means something only with a false done. Reason: every claim on
+  a screen or a trace. Checked: 125 calls, 21 logs, 193 screens by script; viewed 10 screens; read `remember`,
+  `findKept`, the tool's pickers. Proposed nothing to `decided.md`; rulings stay the Director's.
 
-- **2026-11-05 (tier 6 round 1 closed):** Read `insights.md` as the round's last word and changed no
-  bar or ruling. Carried forward only what a next round needs: the cap decision, the list before a session
-  counts, the one open 3, the three rulings, the questions left for readers. Reason: the study stops on
-  spending, not on the design, so the notes must not read as a result.
-
-- **2026-11-05 (tier 6 round 1 insights, skeptics applied):** Two drops = dropped, one = weakened, as
-  before. 0 of 9 problems dropped; 3 kept, 5 weakened, the 8-finding keyboard row split. Talk to 2, 400%
-  stays 3 with the owner corrected to `frame.css`. Moved bar 11 to nothing to count: its words say "in
-  every session", and `decided.md` says a selection is no graph change. Bar 10 now rests on the state
-  list, not "assistant node style". Settled two disputes at source: `k1` route shows the x from step 50,
-  so the model made the selection (skeptic 2 right, skeptic 1's step 84 was a later press); `07.png` is
-  the Delete step. Found one thing neither saw: `k1/74.png` is a second walk with a selection and no
-  line, so "one turn in one walk" was wrong. Left `decided.md` and `scores.md` alone: rulings are the
-  Director's. Reason: a claim stands only on a screen or a trace. Viewed 29, 26, 37, 38, 07, 08, 17,
-  `k1/74`, `k1/99`, `k1/100`, `k5/05`.
-
-- **2026-11-05 (tier 6 round 1 scoring, no session ran):** Scored all 12 bars as frozen, in three kinds
-  (nothing to count, fails on expert evidence, open) so "none holds" cannot read as a design failure.
-  Ruled the 24 `False done: no` lines no pass. Scored bar 9 as open, not as held: 0 confirmed means
-  nothing tested when both routes (participants, `repro/`) are empty. Used the wider confirmed rule
-  (expert plus audit) for the problem list and said bar 9's is narrower. Failed bars 10 and 11 against
-  the audit's clean line, after viewing `figma/w1/42.png`, `engineer/setup-1200x900/29.png`,
-  `a11y/k1/99.png`. Held Done-drops-a-key at 2: the screen stays honest and retyping recovers, as the
-  dry run ruled; kept Talk and 400% open at 3. Kept the x-forgotten removal at 2: the reply and line
-  said 1 from the selection. Proposed, did not apply: restart with no re-run spent, and fix before
-  freezing; both the Director's. Left `owner-decisions.md` alone: the cap item is already there.
-  Checked: 24 grades, `--gate` (13 FAIL lines), count file 3,000 bytes, 108 = 20 + 21 + 29 + 38,
-  `words.test.ts` 36 of 36, 42 participant logs for the prompt.
-
-- **2026-11-05 (tier 6 round 1 plan):** Took the roster's table as written, in its order, T90 first:
-  12 sessions fill the cap with one per half, so there was nothing to trade. Left the frozen pieces
-  alone and put what still blocks the round in the plan's "Open before the first session". Did not write
-  the gate's evidence by hand or walk the halves: the section exists so a round cannot start unwalked,
-  and walking is the pilot's job. Checked: 12 briefings on 3b2a7f0649 with the right start, none holding
-  a follow-up; every follow-up word for word and every row against `tasks.md` and `roster.md`; gate
-  run, exit 1; `git log 48879618c4..3b2a7f0649` shows 125 commits over the app code.
+- **2026-11-05 (tier 6 round 1, folded):** Plan took the roster's 12 rows; 24 VOID at `--start`, no gate check.
+  Scored as nothing to count, fails on expert evidence, or open, so "none holds" could not read as a failure.
+  Skeptics moved bar 11 to nothing to count and Talk to 2. Left `decided.md` alone. Round 2 plan: same 12 rows.
 
 - **2026-11-05 (key matched to 8fa33aa786, 3549e11129, 48879618c4, folded):** Split each mismatch three
   ways: a door the key got wrong is rewritten, a defect giving another number gets a grading line, a
@@ -169,27 +129,15 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
-- 2026-11-05 (round 2 plan) -- Worked: reading the workflow script itself: it showed no gate check and no
-  pilot before a later round's sessions, and where the RETURNING line comes from. A return schema with no
-  place for a warning: `plan.md` and these notes are the only carriers, so say it in a line nobody can skip.
+- 2026-11-05 (round 2 scoring) -- Worked: asking of a defect whether the tool could have made it (`--reopen`
+  against `beforeunload`; `--upload` against the file handle), which cleared both at source; a script over the
+  logs, which turned "the first prompt said returning" into 12 of 12; recounting my own table before trusting
+  the headline (24 rows, 19 logs and 8 findings were all wrong in the first draft). Did not work: a regex
+  for "first prompt" that read the follow-up's log first and reported two false negatives.
 
-- 2026-11-05 (round closed) -- Worked: the skeptics' source checks: they moved a bar (11), corrected an
-  owner (`frame.css`) and a cause (starters). Did not work: a launch with no gate check, which spent a
-  whole round's agents to learn nothing about readers.
-
-- 2026-11-05 (round 1 insights) -- Worked: a scan of one control's presence across every route step, which
-  settled where a selection came from in one script; viewing a screenshot cited for another reason, which
-  turned up a second sighting. Did not work: taking either skeptic's origin story from a single step.
-
-- 2026-11-05 (round 1 scoring) -- Worked: running `--gate` myself instead of trusting the grades; one
-  script over all 42 participant logs, which turned one grader's note into 24 of 24; reading routes and
-  source behind each expert 3 before rating it; checking one expert's clean line against another's
-  screens. Did not work: my first draft's sums ("seven other rows", "five focus findings") until I
-  counted them against the reports; a route log as proof of absence (it holds names, not prose).
-
-- 2026-11-05 (round 1 plan) -- Worked: running `--gate` as well as `--brief`: `--brief` alone passes
-  while every `--start` would be refused; one script checking sessions against plan, tasks and roster.
-  Did not work: a grep for follow-up words alone proves little; the script's exact match does.
+- 2026-11-05 (round 1, folded) -- Worked: reading the workflow script itself; `--gate` as well as `--brief`;
+  skeptics' source checks; one script over all logs; a scan of one control across every route step. Did not
+  work: a launch with no gate check; a route log as proof of absence (it holds names, not prose).
 
 - 2026-11-05 (key matches, folded) -- Worked: the `\s+`-joined asserted edit script; viewing the screen
   rather than the pilot's line; `route.jsonl` for what the scope line read at a step; `facts.py`
@@ -223,6 +171,12 @@ logged). Their reasons, in short:
   for stale phrases and old build ids after edits. Did not work: trusting pilot step totals.
 
 ## Thinking
+
+- 2026-11-05 -- A bar that passes because the prompt supplies the exit (bar 4) measures the door, not the
+  message. Neither reader learned the cause and it still held. Word such a bar for what the reader knows after.
+- 2026-11-05 -- A task's failure can sit outside the feature: T94's only F came from a check the reader
+  invented, on a word (Autosave) the study never targeted. End-state grading catches this; keep it.
+- 2026-11-05 -- A persona that behaves unlike its brief tells on the method. Report it beside the bar it props up.
 
 - 2026-11-05 -- A study's budget is part of its validity: a cap reached in preparation leaves findings
   with no reader behind them. Count walks and pilots against the cap before freezing the round's size.
@@ -304,8 +258,8 @@ logged). Their reasons, in short:
 
 ## Sources
 
-- Tier 6 round 1: `tier6/rounds/round-1/scores.md`, `plan.md`, `expert/`; scripts in the worktree's
-  `tmp/tier6-r1-score/`.
+- Tier 6 rounds: `tier6/rounds/round-1/scores.md`, `insights.md`, `expert/`; `round-2/scores.md`, `plan.md`,
+  `repro/`; scripts in the worktree's `tmp/tier6-r1-score/`, `tmp/tier6-r2-score/`.
 - Tier 6: `tier6/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `design.md`, `decided.md`,
   `connected-*.txt` setups; tool: `tool/tier6.mjs`, README "Tier 6 sessions". Pilot walks:
   main checkout `tmp/design-studio/tier6/prep/`.

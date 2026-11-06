@@ -249,6 +249,16 @@ function contentPart(
 }
 
 /**
+ * A part in brackets, or null when it cannot be enumerated.
+ * @param part - The part.
+ * @param open - What opens it.
+ * @returns The bracketed part, or null.
+ */
+function wrapped(part: string | null, open: string): string | null {
+    return part === null ? null : `${open}${part})`;
+}
+
+/**
  * The part of a `state` leaf: the session's state revision.
  * @param context - What the resolution reads.
  * @returns The part.
@@ -300,8 +310,7 @@ function rulePart(
         case "hops":
         case "touching":
         case "nonempty": {
-            const part = referencePart(where.of, context, parts, seen);
-            return part === null ? null : `t(${part})`;
+            return wrapped(referencePart(where.of, context, parts, seen), "t(");
         }
         case "same-value": {
             const path = pathPart(where.path, context);
@@ -327,8 +336,7 @@ function rulePart(
             // cached; give provenance a revision if a source rule shows up hot.
             return null;
         case "member": {
-            const part = scopePart(where.of, context, parts, seen);
-            return part === null ? null : `(${part})`;
+            return wrapped(scopePart(where.of, context, parts, seen), "(");
         }
         case "all":
         case "any":

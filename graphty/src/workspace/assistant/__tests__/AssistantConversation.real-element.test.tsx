@@ -409,7 +409,7 @@ describe("talking to the Assistant", () => {
         assert.strictEqual((await composer()).value, "Please answer");
 
         model.clearError();
-        await userEvent.click(within(row).getByRole("button", { name: "Send again" }));
+        await userEvent.click(within(row.parentElement ?? row).getByRole("button", { name: "Send again" }));
         await screen.findByText("The reply.");
     });
 
@@ -434,7 +434,7 @@ describe("talking to the Assistant", () => {
         await say("Please answer");
         const row = await screen.findByRole("alert");
         assert.notInclude(row.textContent, "bad key");
-        await userEvent.click(within(row).getByRole("button", { name: "AI provider..." }));
+        await userEvent.click(within(row.parentElement ?? row).getByRole("button", { name: "AI provider..." }));
         await screen.findByRole("dialog", { name: "Settings" });
     });
 
@@ -446,8 +446,8 @@ describe("talking to the Assistant", () => {
         await say("Please answer");
         const row = await screen.findByRole("alert");
         assert.include(row.textContent, "Could not reach Google: the connection failed or the key was refused.");
-        within(row).getByRole("button", { name: "Send again" });
-        await userEvent.click(within(row).getByRole("button", { name: "AI provider..." }));
+        within(row.parentElement ?? row).getByRole("button", { name: "Send again" });
+        await userEvent.click(within(row.parentElement ?? row).getByRole("button", { name: "AI provider..." }));
         await screen.findByRole("dialog", { name: "Settings" });
     });
 
@@ -577,6 +577,83 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.isFalse(store.get().assistantTalkPress);
         });
+    });
+
+    it("follows a failure and its Send again to the foot of a long log", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await page.viewport(1440, 400);
+        await open();
+        await openPanel();
+        model.turns = [{ text: "A long answer line.\n".repeat(60), toolCalls: [] }];
+        await say("Tell me a lot");
+        await screen.findByRole("button", { name: "Send" });
+        model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
+        await say("Please answer");
+        const log = screen.getByRole("region", { name: "Conversation" });
+        const atFoot = async (): Promise<void> => {
+            await waitFor(() => {
+                const alerts = screen.getAllByRole("alert");
+                assert.isAtMost(log.scrollHeight - log.scrollTop - log.clientHeight, 1);
+                assert.isAtMost(alerts.at(-1)?.getBoundingClientRect().bottom ?? 0, log.getBoundingClientRect().bottom);
+            });
+        };
+        await atFoot();
+        await userEvent.click(screen.getAllByRole("button", { name: "Send again" }).at(-1) as HTMLElement);
+        await waitFor(() => {
+            assert.strictEqual(model.asked, 3);
+        });
+        await screen.findByRole("button", { name: "Send" });
+        await atFoot();
+        assert.isNull(screen.queryByRole("button", { name: "Jump to newest" }));
+    });
+
+    it("stays at the foot when a taller composer shortens the log", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await page.viewport(1440, 400);
+        await open();
+        await openPanel();
+        model.turns = [{ text: "A long answer line.\n".repeat(60), toolCalls: [] }];
+        await say("Tell me a lot");
+        await screen.findByRole("button", { name: "Send" });
+        const log = screen.getByRole("region", { name: "Conversation" });
+        const before = log.clientHeight;
+        await userEvent.click(await composer());
+        await userEvent.keyboard("one{Shift>}{Enter}{/Shift}two{Shift>}{Enter}{/Shift}three");
+        await waitFor(() => {
+            assert.isBelow(log.clientHeight, before);
+        });
+        await waitFor(() => {
+            assert.isAtMost(log.scrollHeight - log.scrollTop - log.clientHeight, 1);
+        });
+    });
+
+    it("follows failures sent again while the log first overflows", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await page.viewport(1440, 400);
+        await open();
+        await openPanel();
+        model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
+        await say("Please answer");
+        for (let sent = 1; sent < 6; sent++) {
+            await waitFor(() => {
+                assert.lengthOf(screen.getAllByRole("button", { name: "Send again" }), 1);
+            });
+            await userEvent.click(screen.getByRole("button", { name: "Send again" }));
+            await waitFor(() => {
+                assert.strictEqual(model.asked, sent + 1);
+                assert.lengthOf(screen.getAllByRole("alert"), sent + 1);
+            });
+            await screen.findByRole("button", { name: "Send" });
+            await waitFor(() => {
+                const log = screen.getByRole("region", { name: "Conversation" });
+                const alert = screen.getAllByRole("alert").at(-1);
+                assert.isAtMost(
+                    alert?.getBoundingClientRect().bottom ?? Infinity,
+                    log.getBoundingClientRect().bottom,
+                    `the newest failure is in view after send ${String(sent)}`,
+                );
+            });
+        }
     });
 
     it("offers Jump to newest to a reader who scrolled up, and leaves them where they are", async () => {

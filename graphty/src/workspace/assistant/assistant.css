@@ -36,7 +36,10 @@
     min-height: 0;
 }
 
+/* Positioned, so a visually hidden label's absolute box stays inside the scroll and never overflows the
+   panel into a second scrollbar. */
 .ws-assistant-log {
+    position: relative;
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;

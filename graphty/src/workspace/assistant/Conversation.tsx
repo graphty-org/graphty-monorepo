@@ -195,47 +195,59 @@ interface EndRowProps {
     /** Whether the turn left the graph as it was. */
     readonly unchanged: boolean;
     readonly onAgain: (() => void) | null;
+    /** Whether the row is on the newest turn, where a failure can be arriving. */
+    readonly newest: boolean;
 }
 
 /**
- * How a turn ended, in words from its code, with its buttons.
+ * How a turn ended, in words from its code, with its buttons. A failure is the alert only as it
+ * arrives: the row drawn again later (reopening the panel, closing the list) is read, never said
+ * again. The buttons stay out of the alert, so the one going away on the next send changes nothing
+ * it says, and a space keeps its two lines two sentences when read as one.
  * @param props - Component props
  * @param props.words - the words
  * @param props.unchanged - whether nothing changed
  * @param props.onAgain - sends the message again, on the newest turn
+ * @param props.newest - whether the row is on the newest turn
  * @returns The row
  */
-function EndRow({ words, unchanged, onAgain }: Readonly<EndRowProps>): React.JSX.Element {
-    const { run } = useWorkspace();
+function EndRow({ words, unchanged, onAgain, newest }: Readonly<EndRowProps>): React.JSX.Element {
+    const { run, store } = useWorkspace();
+    const due = useWorkspaceState((state) => state.assistantFailureDue);
+    // Taken once: the row keeps its role while it shows, and the next row drawn is not new.
+    const [alert] = useState(() => words.failed && newest && due);
+    useEffect(() => {
+        if (alert) {
+            store.set({ assistantFailureDue: false });
+        }
+    }, [alert, store]);
     return (
-        <div role={words.failed ? "alert" : undefined}>
-            <Text size="sm">{words.line}</Text>
-            <Group justify="space-between" gap={4}>
+        <Group justify="space-between" align="flex-end" gap={4} wrap="nowrap">
+            <div role={alert ? "alert" : undefined}>
+                <Text size="sm">{words.line}</Text>{" "}
                 {words.action !== null && unchanged ? (
                     <Text size="sm">{WORDS["assistant.nothing-changed"]}</Text>
-                ) : (
-                    <span />
-                )}
-                <Group gap={4}>
-                    {(words.action === "again" || words.action === "again-or-provider") && onAgain !== null ? (
-                        <Button variant="default" size="compact-xs" onClick={onAgain}>
-                            {WORDS["assistant.again"]}
-                        </Button>
-                    ) : null}
-                    {words.action === "provider" || words.action === "again-or-provider" ? (
-                        <Button
-                            variant="default"
-                            size="compact-xs"
-                            onClick={() => {
-                                run("settings.assistant");
-                            }}
-                        >
-                            {WORDS["assistant.setup.button"]}
-                        </Button>
-                    ) : null}
-                </Group>
+                ) : null}
+            </div>
+            <Group gap={4} wrap="nowrap">
+                {(words.action === "again" || words.action === "again-or-provider") && onAgain !== null ? (
+                    <Button variant="default" size="compact-xs" onClick={onAgain}>
+                        {WORDS["assistant.again"]}
+                    </Button>
+                ) : null}
+                {words.action === "provider" || words.action === "again-or-provider" ? (
+                    <Button
+                        variant="default"
+                        size="compact-xs"
+                        onClick={() => {
+                            run("settings.assistant");
+                        }}
+                    >
+                        {WORDS["assistant.setup.button"]}
+                    </Button>
+                ) : null}
             </Group>
-        </div>
+        </Group>
     );
 }
 
@@ -283,6 +295,8 @@ interface TurnViewProps {
     readonly provider: string;
     readonly late: boolean;
     readonly onAgain: ((reader: ReaderMessage) => void) | null;
+    /** The reader opened or closed steps: the log stays where it is. */
+    readonly onHold: () => void;
 }
 
 /**
@@ -360,9 +374,17 @@ function TurnEffects({
  * @param props.provider - the provider's id
  * @param props.late - whether the working line shows
  * @param props.onAgain - sends a message again, on the newest turn
+ * @param props.onHold - keeps the log where it is for the reader's own toggle
  * @returns The rows, or nothing with nothing to show
  */
-function ReplyRows({ turn, status, provider, late, onAgain }: Readonly<TurnViewProps>): React.JSX.Element | null {
+function ReplyRows({
+    turn,
+    status,
+    provider,
+    late,
+    onAgain,
+    onHold,
+}: Readonly<TurnViewProps>): React.JSX.Element | null {
     const lastEnded = useWorkspaceState((state) => state.assistantEnded);
     const [stepsOpen, setStepsOpen] = useState(false);
     const running = isRunning(status);
@@ -382,6 +404,7 @@ function ReplyRows({ turn, status, provider, late, onAgain }: Readonly<TurnViewP
                 steps={steps}
                 open={stepsOpen}
                 onToggle={() => {
+                    onHold();
                     setStepsOpen(!stepsOpen);
                 }}
             />
@@ -395,12 +418,14 @@ function ReplyRows({ turn, status, provider, late, onAgain }: Readonly<TurnViewP
                 turn={turn}
                 effects={effects}
                 onMore={() => {
+                    onHold();
                     setStepsOpen(true);
                 }}
             />
             {words === null ? null : (
                 <EndRow
                     words={words}
+                    newest={status !== null}
                     unchanged={!effects.some(isChange)}
                     onAgain={
                         onAgain === null || reader === null
@@ -423,6 +448,7 @@ function ReplyRows({ turn, status, provider, late, onAgain }: Readonly<TurnViewP
  * @param props.provider - the provider's id
  * @param props.late - whether the working line shows
  * @param props.onAgain - sends a message again, on the newest turn
+ * @param props.onHold - keeps the log where it is for the reader's own toggle
  * @returns The turn
  */
 function TurnView(props: Readonly<TurnViewProps>): React.JSX.Element {
@@ -455,7 +481,9 @@ interface ConversationProps {
 export function Conversation({ conversation, status, choice }: Readonly<ConversationProps>): React.JSX.Element {
     const { element, session, store } = useWorkspace();
     const log = useRef<HTMLElement>(null);
+    const rows = useRef<HTMLDivElement>(null);
     const following = useRef(true);
+    const lastTop = useRef(0);
     const [behind, setBehind] = useState(false);
     const running = isRunning(status);
     const late = useLate(running);
@@ -476,11 +504,33 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
             setBehind(true);
         }
     }, [turns.length, status?.streamedText, status?.toolCalls?.length, status?.state, late]);
+    // Rows that draw later (a chip row waits for its count) lengthen the log with no status change,
+    // and the composer growing shortens it.
+    useEffect(() => {
+        const box = log.current;
+        if (rows.current === null || box === null) {
+            return undefined;
+        }
+        const observer = new ResizeObserver(() => {
+            // A reader who opened steps follows again once nothing overflows.
+            following.current ||= box.scrollHeight <= box.clientHeight;
+            if (following.current) {
+                toFoot();
+            }
+        });
+        observer.observe(rows.current);
+        observer.observe(box);
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
     const again = ({ text, via }: ReaderMessage): void => {
         if (element !== null) {
             const scope = scopeKind(session, store.get().assistantScopeDropped);
             void send(element, store, choice, text, { via, scope });
         }
+        // Send again goes with its failure row.
+        goToComposer(store);
     };
     return (
         <div className="ws-assistant-logwrap">
@@ -493,25 +543,35 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
                 onScroll={(event) => {
                     const box = event.currentTarget;
                     const atFoot = box.scrollHeight - box.scrollTop - box.clientHeight <= FOOT_SLACK_PX;
-                    following.current = atFoot;
+                    // Only the reader scrolling up stops following: rows that grew between a scroll to
+                    // the foot and its event leave the foot below without the reader moving.
                     if (atFoot) {
+                        following.current = true;
                         setBehind(false);
+                    } else if (box.scrollTop < lastTop.current) {
+                        following.current = false;
                     }
+                    lastTop.current = box.scrollTop;
                 }}
             >
-                {turns.map((turn, index) => {
-                    const newest = index === turns.length - 1;
-                    return (
-                        <TurnView
-                            key={turn.reader?.id ?? index}
-                            turn={turn}
-                            status={newest ? status : null}
-                            provider={choice.provider}
-                            late={late}
-                            onAgain={newest ? again : null}
-                        />
-                    );
-                })}
+                <div ref={rows}>
+                    {turns.map((turn, index) => {
+                        const newest = index === turns.length - 1;
+                        return (
+                            <TurnView
+                                key={turn.reader?.id ?? index}
+                                turn={turn}
+                                status={newest ? status : null}
+                                provider={choice.provider}
+                                late={late}
+                                onAgain={newest ? again : null}
+                                onHold={() => {
+                                    following.current = false;
+                                }}
+                            />
+                        );
+                    })}
+                </div>
             </section>
             {behind ? (
                 <Button
@@ -524,8 +584,6 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
                         goToComposer(store);
                     }}
                 >
-        // Send again goes with its failure row.
-        goToComposer(store);
                     {WORDS["assistant.jump"]}
                 </Button>
             ) : null}

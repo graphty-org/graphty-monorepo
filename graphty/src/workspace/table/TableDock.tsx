@@ -67,22 +67,13 @@ interface View {
     readonly issue: IssueId | null;
 }
 
-/**
- * The Nodes tab narrowed to some nodes: one group's members (a run's), or the nodes a reply named
- * (no run).
- */
+/** The Nodes tab narrowed to one group's members. */
 interface Members {
-    /** The group's run, or null for nodes no run holds. */
-    readonly run: string | null;
-    /** What the chip reads. */
-    readonly label: string;
-    /** What the chip's x names. */
+    readonly run: string;
+    readonly runLabel: string;
     readonly name: string;
     readonly scope: ScopeInput;
 }
-
-/** The chip for the nodes a reply named. */
-const REPLY_ROWS = "Assistant result";
 
 const EMPTY_VIEW: View = { hidden: [], order: [], sort: null, issue: null };
 
@@ -280,8 +271,8 @@ function recordTotal(session: GraphSession, kind: RecordKind, scope: ScopeInput,
 }
 
 /**
- * The tab's count: "41 edges", or "12 of 41 edges" while a filter step or a members chip
- * narrows it, in the filter chip's words.
+ * The tab's count: "41 edges", or "12 of 41 edges" while a filter step hides some, in the
+ * filter chip's words.
  * @param session - the element's session.
  * @param kind - nodes or edges.
  * @param scope - the records showing.
@@ -289,7 +280,7 @@ function recordTotal(session: GraphSession, kind: RecordKind, scope: ScopeInput,
  */
 function recordCount(session: GraphSession, kind: RecordKind, scope: ScopeInput): string {
     const shown = recordTotal(session, kind, scope);
-    const all = scope === "graph" ? shown : recordTotal(session, kind, "graph");
+    const all = scope === "visible" ? recordTotal(session, kind, "graph") : shown;
     return shown === all ? countOf(all, kind) : `${formatCount(shown)} of ${countOf(all, kind)}`;
 }
 
@@ -307,7 +298,7 @@ function MembersChip({ members, onRemove }: Readonly<{ members: Members; onRemov
             removeButtonProps={{ "aria-label": `Show every node, not only ${members.name}` }}
             onRemove={onRemove}
         >
-            {members.label}
+            {`${members.runLabel}: ${members.name}`}
         </Pill>
     );
 }
@@ -357,7 +348,7 @@ function TableOptions({ kind, store }: Readonly<{ kind: RecordKind; store: Works
  * @returns the key.
  */
 function tableKey(kind: RecordKind, members: Members | null, shown: number | null, issue: string | null): string {
-    const base = members === null || kind === "edge" ? kind : `node:${String(members.run)}:${members.label}`;
+    const base = members === null || kind === "edge" ? kind : `node:${members.run}:${members.name}`;
     const narrowed = issue === null ? base : `${base}:issue:${issue}`;
     return shown === null ? narrowed : `${narrowed}:shown:${String(shown)}`;
 }
@@ -560,9 +551,8 @@ function dockScope(session: GraphSession, tab: string, { members, all }: Arrange
     const active = known ? tab : "nodes";
     const kind: RecordKind = active === "edges" ? "edge" : "node";
     const groupRun = groups.find((run) => `g:${run.id}` === active);
-    // A chip whose run went away (undo, remove) goes with it; one with no run stays.
-    const shownMembers =
-        members !== null && (members.run === null || groups.some((run) => run.id === members.run)) ? members : null;
+    // A chip whose run went away (undo, remove) goes with it.
+    const shownMembers = groups.some((run) => run.id === members?.run) ? members : null;
     // A filter that hides records narrows the table to the shown ones, unless the reader asks for all.
     const { summary } = session.visibility;
     const shownCount = kind === "node" ? summary.visibleNodes : summary.visibleEdges;
@@ -700,26 +690,6 @@ function useAskedIssue(store: WorkspaceStore, setArrangement: React.Dispatch<Rea
 }
 
 /**
- * Show in table from a reply: narrows the Nodes tab to the nodes it named, by id so a row click
- * that moves the selection keeps the rest listed, then forgets the ask.
- * @param store - the chrome store, which holds the ask
- * @param setArrangement - sets the dock's arrangement
- */
-function useAskedNodes(store: WorkspaceStore, setArrangement: React.Dispatch<React.SetStateAction<Arrangement>>): void {
-    const nodesAsked = useWorkspaceState((state) => state.dockNodes);
-    useEffect(() => {
-        if (nodesAsked === null) {
-            return;
-        }
-        setArrangement((now) => ({
-            ...now,
-            members: { run: null, label: REPLY_ROWS, name: `the ${REPLY_ROWS}`, scope: { nodes: nodesAsked } },
-        }));
-        store.set({ dockNodes: null });
-    }, [nodesAsked, store, setArrangement]);
-}
-
-/**
  * The table dock (data prototype spec section 3.5): Nodes, Edges and one item tab per group run;
  * the count; the Columns chooser; the options menu with Export...; Maximize and Close. Every
  * column's configuration is in its header: type, role, warning and origin icons, the issue's
@@ -785,7 +755,6 @@ export function TableDock(): React.JSX.Element {
         setArrangement((now) => ({ ...now, ...change }));
     };
     useAskedIssue(store, setArrangement);
-    useAskedNodes(store, setArrangement);
 
     const close = (
         <ActionIcon
@@ -991,7 +960,7 @@ export function TableDock(): React.JSX.Element {
                             arrange({
                                 members: {
                                     run: groupRun.id,
-                                    label: `${groupRun.label}: ${name}`,
+                                    runLabel: groupRun.label,
                                     name,
                                     scope: membersScope(session, groupRun.id, group),
                                 },

@@ -181,18 +181,8 @@ export function ChipRow({ target, kinds, table = false }: Readonly<ChipRowProps>
                     color="gray"
                     size="compact-xs"
                     onClick={() => {
-                        if (session === null) {
-                            return;
-                        }
-                        // The rows stay listed as ids, so a row click that moves the selection
-                        // keeps the others in view.
-                        void session.selection.apply(target, "replace", { cause: "user" }).then(({ nodes, edges }) => {
-                            const edgesOnly = nodes === 0 && edges > 0;
-                            store.set({
-                                dockOpen: true,
-                                dockTab: edgesOnly ? "edges" : "nodes",
-                                dockNodes: edgesOnly ? null : [...session.selection.nodes],
-                            });
+                        void session?.selection.apply(target, "replace", { cause: "user" }).then(({ nodes, edges }) => {
+                            store.set({ dockOpen: true, dockTab: nodes === 0 && edges > 0 ? "edges" : "nodes" });
                         });
                     }}
                 >

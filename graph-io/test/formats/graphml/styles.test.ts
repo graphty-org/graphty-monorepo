@@ -785,6 +785,28 @@ describe("GraphML styles: yFiles 3", () => {
         expect(String(read("shapeLines")).split(" ")[0]).toBe("-1+2.000,1-3.000");
     });
 
+    it("draws com.yjava bevels and shiny plates as yEd's default: a box in the fill, a solid line of 1", async () => {
+        const { snapshot, styles } = await load(corpusBytes(join(CORPUS, "fidelity/synthetic-nodes.graphml")));
+        const read = (id: string, property: StyleProperty): unknown =>
+            resolveStyles(styles, "node", property, snapshot)[snapshot.ids.indexOf(id)];
+        // BevelNode: color2 #3366FF and a dashed border of 0.5; ShinyPlateNode3: color2 #FFFFFF and a border of 2
+        for (const [id, fill] of [
+            ["generic-12", "#99ccff"],
+            ["generic-15", "#c0c0c0"],
+        ]) {
+            expect(read(id, "shape")).toBe("rectangle");
+            expect(read(id, "fill")).toBe(fill);
+            expect(read(id, "fillGradient") ?? null).toBeNull();
+            expect(read(id, "fillGradientColors") ?? null).toBeNull();
+            expect(read(id, "borderColor")).toBe(fill);
+            expect(read(id, "borderWidth")).toBe(1);
+            expect(read(id, "borderStyle")).toBe("solid");
+        }
+        // BevelNode2's dotted border of 5 and ShinyPlateNode's dash-dot one
+        expect(read("generic-13", "borderWidth")).toBe(1);
+        expect(read("generic-14", "borderStyle")).toBe("solid");
+    });
+
     it("draws no line in a bevel whose border has no color", async () => {
         const { snapshot, styles } = await load(
             corpusBytes(join(CORPUS, "yed-genericnode/awslabs__aws-c-io__slots.graphml")),

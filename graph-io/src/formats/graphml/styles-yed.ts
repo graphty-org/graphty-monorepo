@@ -1198,6 +1198,9 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
         // a yEd table or pool is a rectangle of bands
         return canonEnum("shape", "rectangle", "yed", at("shape"));
     }
+    if (yedDefaultPainted(real)) {
+        return canonEnum("shape", "rectangle", "yed", at("shape"));
+    }
     if (real.type === "GenericNode") {
         const lower = (treeAttr(real.r, "configuration") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
         for (const [word, value] of GENERIC_SHAPES) {
@@ -1217,6 +1220,18 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
 
 /** yEd's gradient: from the fill color at a node's top-left corner to `color2` at its bottom-right one. */
 const YED_GRADIENT_ANGLE = 45;
+
+/**
+ * Whether a GenericNode names a configuration of yEd's old `com.yjava` family (BevelNode, ShinyPlateNode and their
+ * variants), which yEd 3.25 no longer registers under that name: it draws the node with its default painter, a box in
+ * the fill's color and a solid line of 1 in the border's color, without `color2`, the border's width or its dashes
+ * (yed-graphml-specimen-node-shapes-p2, graphml-synthetic-nodes). The same names without the prefix are its bevels.
+ * @param real - the realizer
+ * @returns true for a node yEd draws with its default painter
+ */
+function yedDefaultPainted(real: Realizer): boolean {
+    return real.type === "GenericNode" && /^com\.yjava\./i.test(treeAttr(real.r, "configuration") ?? "");
+}
 
 /**
  * Whether a `y:Fill` paints nothing.
@@ -1245,7 +1260,7 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
         return;
     }
     readColor(treeAttr(fill, "color"), "fill", "fillOpacity", put, at);
-    const second = canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
+    const second = yedDefaultPainted(real) ? null : canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
     if (second !== null) {
         put("fillGradient", second.color);
         put("fillGradientAngle", YED_GRADIENT_ANGLE);
@@ -1609,6 +1624,10 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     readFill(real, put, at);
     const border = treeChild(r, "BorderStyle");
     readBorder(border, put, at);
+    if (yedDefaultPainted(real) && border !== undefined && hasLine(border)) {
+        put("borderWidth", 1);
+        put("borderStyle", canonEnum("borderStyle", "line", "yed", at("borderStyle")));
+    }
     const geometry = treeChild(r, "Geometry");
     const width = canonNumber(treeAttr(geometry, "width"), at("width"));
     const height = canonNumber(treeAttr(geometry, "height"), at("height"));

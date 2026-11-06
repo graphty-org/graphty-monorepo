@@ -56319,22 +56319,6 @@
                 "date": "2026-11-04"
             }
         },
-        "dot-synth-nodes": {
-            "node.gradient": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "Graphviz runs gradientangle to its box's corner (315 on a 59.5 x 36 box changes color along 31.2 degrees on screen); graphty reads it as a 45-degree ramp stretched over the box, so its color changes along 58.5. Exposed when the comparator began reading graphty's ramp as stretched (#5809)",
-                "date": "2026-11-06"
-            }
-        },
-        "dot-synth-nodes@matched": {
-            "node.gradient": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "Graphviz runs gradientangle to its box's corner (315 on a 59.5 x 36 box changes color along 31.2 degrees on screen); graphty reads it as a 45-degree ramp stretched over the box, so its color changes along 58.5. Exposed when the comparator began reading graphty's ramp as stretched (#5809)",
-                "date": "2026-11-06"
-            }
-        },
         "gexf-hsk-chars": {
             "label.present": {
                 "floor": 0.956,

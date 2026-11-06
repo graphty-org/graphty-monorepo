@@ -26,7 +26,7 @@ test("the counter reaches the cap under parallel appends and never allows one ov
     const file = join(scratch(), "count");
     const worker = `import { takeRequest } from ${JSON.stringify(new URL("./tier6.mjs", import.meta.url).href)};
         let n = 0;
-        for (let i = 0; i < 700; i++) if (takeRequest(${JSON.stringify(file)}).ok) n++;
+        for (let i = 0; i < 1100; i++) if (takeRequest(${JSON.stringify(file)}).ok) n++;
         console.log(n);`;
     const run = () =>
         new Promise((done) => {

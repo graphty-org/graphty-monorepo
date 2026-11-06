@@ -20,6 +20,7 @@ import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { openBy } from "../../../test/open";
 import { pickSample, sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { writeAssistantChoice } from "../../assistant-door/provider";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -30,6 +31,9 @@ type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 /** The samples, and their node counts. */
 const FLORENTINE = { name: "Florentine families", nodes: 15 };
 const LES_MIS = { name: "Les Miserables", nodes: 77 };
+
+/** What the element's mock model answers. */
+const MOCK_REPLY = "This is a mock response.";
 
 /** The name the reader gives the project. */
 const RENAMED = "Medici study";
@@ -214,11 +218,13 @@ async function fromAnotherTab(id: string): Promise<string> {
 /**
  * Holds autosave's database busy, so an entry's parts cannot be read until the hold ends; the
  * listing (entries only) still answers. A reopen then waits at its read, as a slow disk makes it.
+ * @param database - the database to hold; autosave's by default.
+ * @param objectStore - its store to hold.
  * @returns ends the hold.
  */
-async function holdParts(): Promise<() => void> {
+async function holdParts(database = DATABASE, objectStore = "blobs"): Promise<() => void> {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open(DATABASE);
+        const request = indexedDB.open(database);
         request.onsuccess = () => {
             resolve(request.result);
         };
@@ -226,7 +232,7 @@ async function holdParts(): Promise<() => void> {
             reject(request.error ?? new Error("the autosave database did not open"));
         };
     });
-    const blobs = db.transaction("blobs", "readwrite").objectStore("blobs");
+    const blobs = db.transaction(objectStore, "readwrite").objectStore(objectStore);
     let held = true;
     // A transaction stays open while it has a request pending.
     const spin = (): void => {
@@ -359,6 +365,124 @@ describe("Workspace autosave with the real graphty-element", () => {
             assert.strictEqual(second.store.get().place, "assistant");
             second.view.unmount();
         } finally {
+            resetSiteConfig();
+        }
+    });
+
+    it("brings back an Assistant left open at a reload by itself, drawn whenever the rail marks it", async () => {
+        resetSiteConfig();
+        await loadSiteConfig(
+            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
+        );
+        try {
+            const first = mountWorkspace();
+            await openBy(first.store, () => pickSample(FLORENTINE.name));
+            const firstRail = await screen.findByRole("toolbar", { name: "Places" });
+            await userEvent.click(await within(firstRail).findByRole("button", { name: "Assistant" }));
+            await screen.findByRole("region", { name: "Assistant" });
+            await leave(openedElement().element, first.view);
+
+            // The reload, with the work's read held back. A click on a rail button marked as the
+            // open place closes it, so the rail must never mark the Assistant without its panel.
+            let markedWithoutPanel = false;
+            const watch = new MutationObserver(() => {
+                const marked = document.querySelector('[data-assistant-door][aria-current="page"]') !== null;
+                const drawn = document.querySelector('section[aria-label="Assistant"]') !== null;
+                markedWithoutPanel ||= marked && !drawn;
+            });
+            watch.observe(document.body, { childList: true, subtree: true, attributes: true });
+            const release = await holdParts();
+            const second = mountWorkspace();
+            // The panel is back with no click, before the work is in.
+            await screen.findByRole("region", { name: "Assistant" });
+            assert.notInclude(
+                screen.getAllByRole("status").map((status) => status.textContent),
+                `Reopened ${FLORENTINE.name}`,
+                "the panel waited for the work",
+            );
+            release();
+            await waitFor(() => {
+                assert.include(
+                    screen.getAllByRole("status").map((status) => status.textContent),
+                    `Reopened ${FLORENTINE.name}`,
+                );
+            });
+            watch.disconnect();
+            assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
+            assert.isFalse(markedWithoutPanel, "the rail marked the Assistant before its panel was drawn");
+            second.view.unmount();
+        } finally {
+            resetSiteConfig();
+        }
+    });
+
+    it("keeps a chat started with New chat while the saved chats and the work load: neither replaces it", async () => {
+        resetSiteConfig();
+        await loadSiteConfig(
+            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
+        );
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await new Promise((resolve) => {
+            indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
+        });
+        try {
+            // A chat about the graph, saved, and the panel left open.
+            const first = mountWorkspace();
+            await openBy(first.store, () => pickSample(FLORENTINE.name));
+            await userEvent.click(
+                within(await screen.findByRole("toolbar", { name: "Places" })).getByRole("button", {
+                    name: "Assistant",
+                }),
+            );
+            await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+            await userEvent.keyboard("First question{Enter}");
+            await within(await screen.findByRole("region", { name: "Chat" })).findByText(MOCK_REPLY);
+            await leave(openedElement().element, first.view);
+
+            // The reload, with the work and the saved chats held back: the reader starts a new chat
+            // and sends before either is in.
+            const release = await holdParts();
+            const releaseChats = await holdParts("graphty-ai", "conversations");
+            const second = mountWorkspace();
+            await userEvent.click(await screen.findByRole("button", { name: "New chat" }));
+            await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+            await userEvent.keyboard("Second question{Enter}");
+            // The saved chats come in, and the turn is in the chat the reader started.
+            releaseChats();
+            await within(await screen.findByRole("region", { name: "Chat" })).findByText(MOCK_REPLY);
+            assert.isNull(
+                within(screen.getByRole("region", { name: "Chat" })).queryByText("First question"),
+                "the saved chat replaced the new one",
+            );
+            release();
+
+            // The work comes in; the chat the reader started stays open, its turn in it.
+            await waitFor(() => {
+                assert.include(
+                    screen.getAllByRole("status").map((status) => status.textContent),
+                    `Reopened ${FLORENTINE.name}`,
+                );
+            });
+            await waitFor(() => {
+                const shown = within(screen.getByRole("region", { name: "Chat" }));
+                assert.isNotNull(shown.queryByText("Second question"), "the turn left the open chat");
+                assert.isNotNull(shown.queryByText(MOCK_REPLY));
+                assert.isNull(shown.queryByText("First question"), "the saved chat replaced the new one");
+            });
+            // The list fills in around it: the open chat first, the saved one after.
+            await userEvent.click(screen.getByRole("button", { name: /^Chats/ }));
+            const list = await screen.findByRole("list", { name: "Chats" });
+            await waitFor(() => {
+                const rows = within(list)
+                    .getAllByRole("listitem")
+                    .map((row) => row.textContent ?? "");
+                assert.strictEqual(rows.length, 2);
+                assert.include(rows[0], "Second question");
+                assert.include(rows[1], "First question");
+            });
+            second.view.unmount();
+        } finally {
+            writeAssistantChoice(null);
             resetSiteConfig();
         }
     });

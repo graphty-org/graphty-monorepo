@@ -1,9 +1,28 @@
-import React, { Suspense, useEffect } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 
+import { keptPlace } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { assistantOn, assistantShown } from "./commands";
 
-const AssistantPanel = React.lazy(() => import("../assistant/AssistantPanel"));
+type PanelModule = typeof import("../assistant/AssistantPanel");
+/** The panel's code once it is in. */
+let loaded: PanelModule["default"] | null = null;
+/**
+ * Fetches the panel's code.
+ * @returns the module.
+ */
+function loadPanel(): Promise<PanelModule> {
+    return import("../assistant/AssistantPanel").then((module) => {
+        loaded = module.default;
+        return module;
+    });
+}
+const AssistantPanel = React.lazy(loadPanel);
+// A reload that kept the Assistant open fetches its code with the frame's, so the panel is drawn
+// when the rail marks the place, and a click meant to open it never lands on a place still loading.
+if (keptPlace().place === "assistant") {
+    void loadPanel();
+}
 const AiProviderSection = React.lazy(() => import("../assistant/AiProviderSection"));
 
 /** Settings' AI provider section, as its section list names it. */
@@ -42,6 +61,10 @@ export function AiProviderPage({
 export function AssistantPlace(): React.JSX.Element | null {
     const { element, store } = useWorkspace();
     const on = assistantOn(element);
+    // Code already in is drawn at once: a lazy component suspends on its first render even then,
+    // and React holds a suspended reveal back about 300 ms, a gap in which the rail marks the place
+    // and a click on it closes a panel the reader never saw. Chosen once, so the panel never remounts.
+    const [Panel] = useState(() => loaded ?? AssistantPanel);
     useEffect(() => {
         if (on === false) {
             store.set({ place: "graph" });
@@ -58,7 +81,7 @@ export function AssistantPlace(): React.JSX.Element | null {
     );
     return on === true ? (
         <Suspense fallback={null}>
-            <AssistantPanel />
+            <Panel />
         </Suspense>
     ) : null;
 }

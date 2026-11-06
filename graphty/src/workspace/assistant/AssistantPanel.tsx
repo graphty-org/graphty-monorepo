@@ -221,16 +221,17 @@ export default function AssistantPanel(): React.JSX.Element {
                                 color="gray"
                                 aria-label={WORDS["assistant.new"]}
                                 onClick={() => {
-                                    void element?.newAiConversation().then(() => {
-                                        // A new chat starts empty: no words left from the last one.
-                                        store.set({
-                                            assistantEnded: null,
-                                            assistantDraft: "",
-                                            assistantSpoken: null,
-                                            assistantRefused: false,
-                                        });
-                                        backToLog();
+                                    // A new chat starts empty: no words left from the last one. Cleared
+                                    // at the press, not when the element answers: an assistant still
+                                    // coming up answers later, and words typed meanwhile are the new chat's.
+                                    store.set({
+                                        assistantEnded: null,
+                                        assistantDraft: "",
+                                        assistantSpoken: null,
+                                        assistantRefused: false,
                                     });
+                                    backToLog();
+                                    void element?.newAiConversation();
                                 }}
                             >
                                 <GLYPHS.add size={14} aria-hidden />

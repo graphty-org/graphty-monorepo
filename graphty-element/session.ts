@@ -104,6 +104,7 @@ export type {
     HistoryClearOptions,
     HistoryCode,
     HistoryOutcome,
+    HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
     ImportOptions,
@@ -323,6 +324,7 @@ export type {
     RunPhase,
     RunProgressReport,
     RunQueue,
+    RunReader,
     RunRecord,
     RunRemoval,
     RunsApi,
@@ -397,6 +399,22 @@ export function defaultReading(result: RunResult, options: ReadingOptions): stri
 
 export type { SavedScope, ScopeApi, ScopeCount, ScopeCountOptions } from "./src/session/scope";
 export { DEFAULT_SCOPE_SAMPLE } from "./src/session/scope";
+// A selection built from branches and ordered steps, read live (`scope.watchSteps`). @beta
+export type {
+    BranchReading,
+    BranchState,
+    ScopeEdit,
+    ScopeStepOptions,
+    StepCheckOptions,
+    StepReading,
+    StepReasonCode,
+    StepsReading,
+    StepState,
+    StepsWatch,
+    ValueHistogram,
+    ValueHistogramOptions,
+} from "./src/session/scope";
+export { DEFAULT_BRANCH_PALETTE } from "./src/session/scope";
 
 // ---------------------------------------------------------------------------------------------
 // Kept sets: named groups, kept selections, communities and paths, as `session.sets`
@@ -489,7 +507,24 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // What is visible: the data scope, never the render set
 // ---------------------------------------------------------------------------------------------
 
-export type { RuleSide, SourceKey, TextMatchMode } from "./src/catalog/types";
+export type {
+    BySizeLeaf,
+    HopsLeaf,
+    MeasureLeaf,
+    MeasureTest,
+    MissingValues,
+    NonemptyLeaf,
+    RuleSide,
+    SameValueLeaf,
+    SourceKey,
+    StepReference,
+    TextMatchMode,
+    TouchingLeaf,
+    UnionBranch,
+    UnionLeaf,
+    UnionStep,
+    ValueKind,
+} from "./src/catalog/types";
 export type {
     AttributeLeafNodes,
     FilterCondition,
@@ -527,9 +562,13 @@ export type {
     TimeField,
     TimeFieldResult,
     TimeIds,
+    TimeMeasure,
     TimeNoticeCode,
     TimePlayMode,
     TimePlayOptions,
+    TimeSeries,
+    TimeSeriesOptions,
+    TimeSeriesRow,
     TimeSettings,
     TimeSource,
     TimeStepEvent,
@@ -641,6 +680,7 @@ export type {
     AgreementOptions,
     BindingPreview,
     BindingPreviewBin,
+    BranchesView,
     ChannelAgreement,
     ChannelCovers,
     ChannelExplanation,

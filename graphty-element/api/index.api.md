@@ -194,6 +194,7 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
 // @public
 export interface AcceleratorFactoryOptions {
     readonly acceptSoftware?: boolean;
+    readonly device?: unknown;
     readonly exactMaxNodes?: number;
 }
 
@@ -2547,7 +2548,7 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace";
 
 // @public
 export interface FindAtLeastRow {
@@ -2750,12 +2751,15 @@ export class Graph implements GraphContext {
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     readonly eventManager: EventManager;
     exitXR(): Promise<void>;
+    // @internal
+    expectRenderer(): void;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
     fetchEdges?: FetchEdgesFn;
     // (undocumented)
     fetchNodes?: FetchNodesFn;
+    get framing(): boolean;
     getAcceleration(): AccelerationController;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
@@ -2970,6 +2974,8 @@ export class Graph implements GraphContext {
         id: string | number;
         [key: string]: unknown;
     }[], options?: QueueableOptions): Promise<void>;
+    // @beta
+    waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
     waitForStableFrame(options?: {
         timeoutMs?: number;
@@ -3263,6 +3269,7 @@ export class Graphty extends LitElement {
     firstUpdated(changedProperties: Map<string, unknown>): void;
     get fitInsets(): FitInsets;
     set fitInsets(value: Partial<FitInsets>);
+    get framing(): boolean;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
     getApiKeyManager(): ApiKeyManager | null;
@@ -3494,6 +3501,8 @@ export class Graphty extends LitElement {
     set viewInsets(value: ViewInsets | undefined);
     get viewMode(): ViewMode | undefined;
     set viewMode(value: ViewMode | undefined);
+    // @beta
+    waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
     waitForStableFrame(options?: {
         timeoutMs?: number;
@@ -4629,6 +4638,8 @@ export class InputManager implements Manager {
     readonly onTouchStart: Observable_2<TouchPoint[]>;
     // (undocumented)
     readonly onWheel: Observable_2<WheelInfo>;
+    // @internal
+    rebind(context: ManagerContext): void;
     requestPointerLock(): Promise<void>;
     setEnabled(enabled: boolean): void;
     startPlayback(events?: RecordedInputEvent[]): Promise<void>;
@@ -5009,6 +5020,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     dragHandler?: NodeDragHandler;
     // @internal
+    drawInBatch(source: AbstractMesh | null): void;
+    // @internal
     get drawnBoundingBox(): BoundingBox;
     // @internal
     get drawnBoundingRadius(): number;
@@ -5023,10 +5036,14 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnInBatch(): boolean;
+    // @internal
     get drawnPickMesh(): AbstractMesh;
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    drawnRayHit(ray: Ray): Vector3 | null;
     // @internal
     get drawnRootScale(): number;
     // @internal
@@ -5361,8 +5378,8 @@ export const NodeStyle: z.ZodObject<{
             uniform: "uniform";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
-            full: "full";
             low: "low";
+            full: "full";
         }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
@@ -6944,6 +6961,8 @@ export class RenderManager implements Manager {
     drawNow(): void;
     // (undocumented)
     engine: Engine | WebGPUEngine;
+    // @internal
+    frameDrawn(): Promise<void>;
     getRenderStats(): {
         fps: number;
         activeMeshes: number;

@@ -7,10 +7,11 @@
  * that never does pays one null check per move.
  */
 
-import { type AbstractEngine, Constants, RawTexture, type Scene, type ThinEngine } from "@babylonjs/core";
+import { type AbstractEngine, Constants, RawTexture, type Scene, type ThinEngine, Vector3 } from "@babylonjs/core";
 import { INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import type { ElementPositions } from "../data/positions";
+import type { Xyz } from "../meshes/edgeRoute";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { Node } from "../Node";
 
@@ -38,6 +39,16 @@ const HIDDEN = 2;
 const SHRUNK = 4;
 /** Measured at least once since it took this row. */
 const KNOWN = 8;
+
+/** What {@link RowTable.extentOf} reads. */
+export interface RowExtent {
+    /** The node's own scale, the same on every axis: a stretched node (a group, a model) is no batch's. */
+    scale: number;
+    /** Its radius when it is round, else null. */
+    round: number | null;
+    /** How far its surface reaches along each axis. */
+    half: Xyz;
+}
 
 /** One float texture and the CPU copy it is uploaded from. */
 class RowTexture {
@@ -234,6 +245,37 @@ export class RowTable {
      */
     get extentTexture(): RawTexture {
         return this.extents.texture;
+    }
+
+    /**
+     * Where a row is drawn.
+     * @param row - The row.
+     * @returns A new vector.
+     */
+    centerOf(row: number): Vector3 {
+        const { floats } = this.positions;
+        const base = row * POSITION_FLOATS;
+        return new Vector3(floats[base], floats[base + 1], floats[base + 2]);
+    }
+
+    /**
+     * What {@link RowTable.measure} wrote of a row, at the size the row is drawn now.
+     * @param row - The row.
+     * @returns Its scale, its radius when it is round, and its half extents.
+     */
+    extentOf(row: number): RowExtent {
+        const { floats } = this.extents;
+        const base = row * EXTENT_FLOATS;
+        const flags = this.flags[row] ?? 0;
+        // a shrunk row keeps its whole size here, and how much of it is drawn in w, which hiding zeroes
+        const part =
+            (flags & SHRUNK) !== 0 && (flags & HIDDEN) === 0 ? this.positions.floats[row * POSITION_FLOATS + 3] : 1;
+        const of = (i: number): number => (floats[base + i] ?? 0) * (part ?? 1);
+        return {
+            scale: of(0),
+            round: ((floats[base + 3] ?? 0) & ROW_EXTENT_ROUND) === 0 ? null : of(1),
+            half: { x: of(4), y: of(5), z: of(6) },
+        };
     }
 
     /**

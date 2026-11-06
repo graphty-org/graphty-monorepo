@@ -1,0 +1,18 @@
+{
+ "route": "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1-void/expert/visual/v2/route.jsonl",
+ "steps": 10,
+ "matched": 8,
+ "diverged": {
+  "step": 9,
+  "steps": [
+   "--click",
+   "Cancel",
+   "--click-at",
+   "1020,348"
+  ],
+  "why": "the step printed other things: recorded [\"at 1020,348: button \\\"Close table\\\"\"], now [\"at 1020,348: div \\\"Condition... Or... Except installed\\\"\"]",
+  "shot": "10.png",
+  "recordedShot": "10.png"
+ },
+ "seconds": 58
+}

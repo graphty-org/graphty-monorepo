@@ -57,7 +57,7 @@ import {
     type Xyz,
 } from "./meshes/edgeRoute";
 import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } from "./meshes/EdgeShaderDrawing";
-import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd } from "./meshes/edgeTrim";
+import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { readColor } from "./meshes/readColor";
@@ -953,8 +953,8 @@ export class Edge {
         // The ray the intercept search aims and casts; its own vectors, never a mesh's, because
         // the search writes into them.
         this.ray = new Ray(
-            this.srcNode.mesh.position.clone(),
-            this.dstNode.mesh.position.subtract(this.srcNode.mesh.position),
+            this.srcNode.drawnPosition.clone(),
+            this.dstNode.drawnPosition.subtract(this.srcNode.drawnPosition),
         );
 
         this.meshKey = paint.meshKey;
@@ -1088,8 +1088,8 @@ export class Edge {
         // render ceiling for edges that are not going to move. It used to sit below a timing call
         // and a lookup into the layout engine, neither of which the early exit needs: the
         // engine's answer is only read further down, for an edge that IS moving.
-        const srcPos = this.srcNode.mesh.position;
-        const dstPos = this.dstNode.mesh.position;
+        const srcPos = this.srcNode.drawnPosition;
+        const dstPos = this.dstNode.drawnPosition;
 
         const srcMoved = !(this._lastSrcPos?.equalsWithEpsilon(srcPos, 0.001) ?? false);
         const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
@@ -2840,8 +2840,8 @@ export class Edge {
             return null;
         }
         return {
-            src: this.srcNode.mesh.position,
-            dst: this.dstNode.mesh.position,
+            src: this.srcNode.drawnPosition,
+            dst: this.dstNode.drawnPosition,
             forces: {
                 model,
                 springLength: line?.supportSpringLength ?? SUPPORT_DEFAULTS.springLength,
@@ -2919,7 +2919,7 @@ export class Edge {
      * @returns The distance.
      */
     private static boxReachOf(node: Node, direction: Vector3): number {
-        return node.surfaceIsBox
+        return node.surfaceIsBox || node.drawnInBatch
             ? surfaceReach(direction, node.drawnHalfExtents, null)
             : boxReach(node.mesh, direction);
     }
@@ -3687,8 +3687,8 @@ export class Edge {
      * @returns The line's ends, stopping short of the arrow head.
      */
     private placeArrowFromCentres(arrowCap: ArrowCap): EdgeLine {
-        const fallbackSrc = this.srcNode.mesh.position;
-        const fallbackDst = this.dstNode.mesh.position;
+        const fallbackSrc = this.srcNode.drawnPosition;
+        const fallbackDst = this.dstNode.drawnPosition;
 
         // Hide arrow if nodes are too close or at same position
         if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
@@ -3969,6 +3969,10 @@ export class Edge {
      * @returns Intersection points for source, destination, and adjusted endpoint
      */
     getInterceptPoints(): InterceptPoint {
+        if (this.srcNode.drawnInBatch || this.dstNode.drawnInBatch) {
+            return this.interceptPointsFromRows();
+        }
+
         const srcMesh = this.srcNode.mesh;
         const dstMesh = this.dstNode.mesh;
 
@@ -4085,6 +4089,43 @@ export class Edge {
     }
 
     /**
+     * {@link getInterceptPoints} with a batch drawing either end: the mirror's answer, reading no batched row's mesh.
+     * An end only a ray reaches is met by the same ray, through its row, or its own mesh on an object row.
+     * @returns The points.
+     */
+    private interceptPointsFromRows(): InterceptPoint {
+        const { srcNode, dstNode, ray } = this;
+        const input = this.trimInput;
+        for (const node of [srcNode, dstNode]) {
+            if (!node.drawnInBatch) {
+                node.drawnWorldMatrix(true);
+            }
+        }
+
+        const srcWorld = srcNode.drawnWorldPosition;
+        const dstWorld = dstNode.drawnWorldPosition;
+        const worldSpan = Vector3.Distance(srcWorld, dstWorld);
+        const span = Math.hypot(input.dst.x - input.src.x, input.dst.y - input.src.y, input.dst.z - input.src.z);
+        const reach = (end: TrimEnd, node: Node, from: Vector3, to: Vector3): number => {
+            if (end.measured !== TRIM_NO_HIT || worldSpan === 0) {
+                return end.measured;
+            }
+
+            ray.origin.copyFrom(from);
+            to.subtractToRef(from, ray.direction);
+            const hit = node.drawnRayHit(ray);
+            return hit === null ? TRIM_NO_HIT : (Vector3.Distance(to, hit) / worldSpan) * span;
+        };
+        const { src, dst, lineEnd } = trimEnds({
+            ...input,
+            source: { ...input.source, measured: reach(input.source, srcNode, dstWorld, srcWorld) },
+            target: { ...input.target, measured: reach(input.target, dstNode, srcWorld, dstWorld) },
+        });
+        const point = (at: Xyz | null): Vector3 | null => (at === null ? null : new Vector3(at.x, at.y, at.z));
+        return { srcPoint: point(src), dstPoint: point(dst), newEndPoint: point(lineEnd) };
+    }
+
+    /**
      * What {@link getInterceptPoints} works from, as numbers, for its mirror (`meshes/edgeTrim.ts`).
      * An end only a ray reaches carries `TRIM_NO_HIT`, for the caller to measure: a shape that is not a
      * box, and a round end across from a non-round one, which the ray meets on its facets.
@@ -4110,8 +4151,8 @@ export class Edge {
         // a line a unit long loses what the arrow head takes from any line
         const tip = new Vector3(1, 0, 0);
         return {
-            src: this.srcNode.mesh.position,
-            dst: this.dstNode.mesh.position,
+            src: this.srcNode.drawnPosition,
+            dst: this.dstNode.drawnPosition,
             source: trimEnd(this.srcNode, this.gapAt("source"), this.dstNode),
             target: trimEnd(this.dstNode, this.gapAt("target"), this.srcNode),
             capBack: 1 - this.lineEndBefore(Vector3.Zero(), tip).x,
@@ -4186,7 +4227,7 @@ export class Edge {
      * @returns The node mesh's scale; 1 when it has none.
      */
     private static capScale(node: Node): number {
-        const scale = node.mesh.scaling.x;
+        const scale = node.drawnScale;
         return Number.isFinite(scale) && scale > 0 ? scale : 1;
     }
 

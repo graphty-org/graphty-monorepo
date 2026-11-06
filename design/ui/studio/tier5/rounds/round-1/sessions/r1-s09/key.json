@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: 16 nodes 16 of 24 nodes",
+   "rows": [
+    {
+     "text": "Color: 16 nodes",
+     "color": "#ffa500"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#ffa500": 16,
+   "#6366f1": 8
+  },
+  "edges": {
+   "#a9a9a9": 63
+  }
+ }
+}

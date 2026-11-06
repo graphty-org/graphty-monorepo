@@ -21,6 +21,7 @@ const RESULTS = process.env.BENCH_RESULTS;
 if (!BASE || !RESULTS) throw new Error("set BENCH_URL and BENCH_RESULTS");
 const DEADLINE_S = Number(process.env.BENCH_DEADLINE_S ?? 570);
 const RENDER_PATH = process.env.BENCH_RENDER_PATH || undefined;
+const RENDERER = process.env.BENCH_RENDERER || undefined;
 const [lib, mode, accel, n, m, dpr, ...flags] = process.argv.slice(2);
 const skip = flags.includes("skip-layout"),
     labels = flags.includes("labels"),
@@ -79,6 +80,7 @@ const out = {
     mode,
     accel,
     renderPath: lib === "graphty" ? RENDER_PATH : undefined,
+    rendererRequest: lib === "graphty" ? RENDERER : undefined,
     n: N,
     m: M,
     dpr: DPR,
@@ -162,7 +164,18 @@ try {
         "setup",
         await page.evaluate(
             ([l, o]) => B.setup(l, o),
-            [lib, { mode, accel, dpr: DPR, labels, renderPath: RENDER_PATH, onDemand: !!process.env.LAYOUT_ONLY }],
+            [
+                lib,
+                {
+                    mode,
+                    accel,
+                    dpr: DPR,
+                    labels,
+                    renderPath: RENDER_PATH,
+                    renderer: RENDERER,
+                    onDemand: !!process.env.LAYOUT_ONLY,
+                },
+            ],
         ),
     );
     const load = await page.evaluate(() => B.load());

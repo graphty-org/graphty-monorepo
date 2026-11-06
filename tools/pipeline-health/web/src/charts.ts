@@ -15,16 +15,17 @@ import {
     type StripSection,
     type TreeNode,
 } from "./contract";
-import { esc, fmtN, fmtTime, fmtUnit, sentence, stripTags } from "./text";
+import { esc, fmtN, fmtTime, fmtUnit, plainText, sentence, stripTags } from "./text";
 
 const CHEV = `<svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><path d="M2 2l6 6-6 6" /></svg>`;
 export const chev = (): string => CHEV;
 
 /**
  * A visually hidden table: the values of a chart.
- * @param caption - The table's caption, naming the chart.
- * @param head - The column headings.
- * @param rows - The table's rows, one array of cell values each.
+ * @param caption - The table's caption, naming the chart, as plain text.
+ * @param head - The column headings, as plain text.
+ * @param rows - The table's rows, one array of cell values each, as plain text: this function escapes every value, so
+ * text that is already HTML goes through plainText first.
  * @returns The table's HTML inside a visually hidden span.
  */
 export function hiddenTable(caption: string, head: string[], rows: (string | number)[][]): string {
@@ -307,10 +308,7 @@ export function sortedBars(
     const table = hiddenTable(
         caption,
         ["item", "value"],
-        items.map((i) => [
-            cellHtml(i.label).replaceAll(/<[^>]+>/g, ""),
-            i.unit === "usd" ? `${fmtN(i.n)} USD` : fmtUnit(i.n, i.unit),
-        ]),
+        items.map((i) => [plainText(cellHtml(i.label)), i.unit === "usd" ? `${fmtN(i.n)} USD` : fmtUnit(i.n, i.unit)]),
     );
     return `<div class="bars">${rows}</div>${table}`;
 }
@@ -493,7 +491,7 @@ export function treeRows(nodes: TreeNode[], href: (route: string) => string, dep
  * @param key - The series' label code.
  * @returns The class name.
  */
-const seriesClass = (key: string): string => `k-${key.slice(key.lastIndexOf(".") + 1).replaceAll("_", "-")}`;
+const seriesClass = (key: string): string => `k-${esc(key.slice(key.lastIndexOf(".") + 1).replaceAll("_", "-"))}`;
 
 /** The Issues charts' plot width in viewBox units; every one of them shares it, so a date sits at one x in all. */
 const PLOT = 960;

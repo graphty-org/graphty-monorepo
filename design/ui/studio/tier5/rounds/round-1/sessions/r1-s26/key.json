@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Oldest 5 of 9 nodes",
+   "rows": [
+    {
+     "text": "Color: Oldest",
+     "color": "#e4572e"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#e4572e": 5,
+   "#6366f1": 6
+  },
+  "edges": {
+   "#a9a9a9": 13
+  }
+ }
+}

@@ -113,7 +113,7 @@ export function withEngine(descriptor: LayoutDescriptor, implementation: LayoutI
 }
 
 /**
- * A layout's key option of one type (one the form draws outside the Advanced fold).
+ * A layout's key option of one type (one that is not marked advanced).
  * @param descriptor - the layout.
  * @param type - the option type.
  * @returns the option, or undefined.

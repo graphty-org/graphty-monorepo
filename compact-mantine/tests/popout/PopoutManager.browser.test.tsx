@@ -1,5 +1,6 @@
-import { MantineProvider } from "@mantine/core";
+import { MantineProvider, Modal, Select } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeAll, describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -853,5 +854,175 @@ describe("usePopoutManager", () => {
         await waitFor(() => {
             expect(screen.queryByTestId("panel-content")).toBeNull();
         });
+    });
+});
+
+describe("PopoutManager outside clicks inside a hosting dialog", () => {
+    /**
+     * A pop-out with one row button, for the hosting-dialog tests.
+     * @param props - children rendered inside the panel content
+     * @param props.children - the panel's content
+     * @returns the pop-out.
+     */
+    function SettingsPopout({ children }: { children?: React.ReactNode }) {
+        return (
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Settings</button>
+                </Popout.Trigger>
+                <Popout.Panel width={220} header={{ variant: "title", title: "Settings" }}>
+                    <Popout.Content>
+                        <span data-testid="settings-content">Settings content</span>
+                        {children}
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        );
+    }
+
+    async function openSettings(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+        await user.click(screen.getByRole("button", { name: "Open Settings" }));
+        expect(await screen.findByTestId("settings-content")).toBeInTheDocument();
+    }
+
+    it("closes a pop-out that lives inside a modal dialog when the reader clicks the dialog's empty space", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <section role="dialog" aria-modal="true" aria-label="Workspace">
+                <div data-testid="workspace-blank" style={{ height: 120 }}>
+                    Blank area
+                </div>
+                <SettingsPopout />
+            </section>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByTestId("workspace-blank"));
+
+        await waitFor(() => {
+            expect(screen.queryByTestId("settings-content")).toBeNull();
+        });
+        expect(screen.getByRole("dialog", { name: "Workspace" })).toBeInTheDocument();
+    });
+
+    it("closes a pop-out inside a Mantine Modal when the reader clicks the modal body", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Modal opened onClose={() => undefined} title="Host modal">
+                <p data-testid="modal-body">Modal body text</p>
+                <SettingsPopout />
+            </Modal>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByTestId("modal-body"));
+
+        await waitFor(() => {
+            expect(screen.queryByTestId("settings-content")).toBeNull();
+        });
+        expect(screen.getByTestId("modal-body")).toBeInTheDocument();
+    });
+
+    it("stays open when the reader picks an option from a portalled Select inside the panel", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <section role="dialog" aria-modal="true" aria-label="Workspace">
+                <SettingsPopout>
+                    <Select aria-label="Match" data={["any", "all"]} />
+                </SettingsPopout>
+            </section>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByRole("combobox", { name: "Match" }));
+        await user.click(await screen.findByRole("option", { name: "all" }));
+
+        expect(screen.getByRole("combobox", { name: "Match" })).toHaveValue("all");
+        expect(screen.getByTestId("settings-content")).toBeInTheDocument();
+    });
+
+    it("stays open when the reader picks a Select option in a pop-out hosted by a Mantine Modal", async () => {
+        const user = userEvent.setup();
+
+        // Mantine portals the Modal and the Select's dropdown into one shared portal node.
+        renderPopout(
+            <Modal opened onClose={() => undefined} title="Host modal">
+                <SettingsPopout>
+                    <Select aria-label="Match" data={["any", "all"]} />
+                </SettingsPopout>
+            </Modal>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByRole("combobox", { name: "Match" }));
+        await user.click(await screen.findByRole("option", { name: "all" }));
+
+        expect(screen.getByRole("combobox", { name: "Match" })).toHaveValue("all");
+        expect(screen.getByTestId("settings-content")).toBeInTheDocument();
+    });
+
+    it("stays open while the reader clicks inside a Modal opened from a panel row", async () => {
+        const user = userEvent.setup();
+
+        /**
+         * A panel row that opens a confirm Modal over the pop-out.
+         * @returns the row.
+         */
+        function ConfirmRow() {
+            const [opened, setOpened] = useState(false);
+            return (
+                <>
+                    <button onClick={() => setOpened(true)}>Delete</button>
+                    <Modal opened={opened} onClose={() => setOpened(false)} title="Confirm">
+                        <p data-testid="confirm-body">Really delete?</p>
+                    </Modal>
+                </>
+            );
+        }
+
+        renderPopout(
+            <SettingsPopout>
+                <ConfirmRow />
+            </SettingsPopout>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByRole("button", { name: "Delete" }));
+        await user.click(await screen.findByTestId("confirm-body"));
+
+        expect(screen.getByTestId("settings-content")).toBeInTheDocument();
+    });
+
+    it("keeps the outer pop-out open on a press inside a nested manager's pop-out", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <section role="dialog" aria-modal="true" aria-label="Workspace">
+                <SettingsPopout>
+                    <PopoutManager>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Color</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Color" }}>
+                                <Popout.Content>
+                                    <span data-testid="color-content">Color content</span>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </PopoutManager>
+                </SettingsPopout>
+            </section>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByRole("button", { name: "Open Color" }));
+        await user.click(await screen.findByTestId("color-content"));
+
+        expect(screen.getByTestId("color-content")).toBeInTheDocument();
+        expect(screen.getByTestId("settings-content")).toBeInTheDocument();
     });
 });

@@ -652,6 +652,50 @@ function clippedBand(el: Element, root: SVGSVGElement): "inside" | "outside" | n
 }
 
 /**
+ * The box a filled shape's own clip keeps of it, where the clip is a box on the screen that cuts the shape: yEd paints
+ * an entity relationship node twice, each time whole, and clips one to its header and the other to the rest. Any other
+ * clip, a box the shape lies inside or one it lies outside, is null: the shape is read whole.
+ * @param el - the shape
+ * @param root - the SVG
+ * @param m - the shape's matrix, which the clip's user space shares
+ * @param shape - the shape's box
+ * @returns the box kept, or null
+ */
+function clipCut(el: Element, root: SVGSVGElement, m: DOMMatrix, shape: PBox): PBox | null {
+    const ref = /url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(el.getAttribute("clip-path") ?? "");
+    const clip = ref === null ? null : root.querySelector(`clipPath[id="${ref[1]}"] > path:only-child`);
+    const corners = straightPathVertices(clip?.getAttribute("d") ?? "")?.map(([x, y]) => at(m, x, y));
+    const box = corners === undefined || corners.length < 4 ? null : boxOfPoints(corners);
+    if (box === null || !corners?.every(([x, y]) => (x === box.x0 || x === box.x1) && (y === box.y0 || y === box.y1))) {
+        return null;
+    }
+    const kept = {
+        x0: Math.max(box.x0, shape.x0),
+        y0: Math.max(box.y0, shape.y0),
+        x1: Math.min(box.x1, shape.x1),
+        y1: Math.min(box.y1, shape.y1),
+    };
+    const cuts = kept.x0 > shape.x0 || kept.y0 > shape.y0 || kept.x1 < shape.x1 || kept.y1 < shape.y1;
+    return cuts && kept.x0 < kept.x1 && kept.y0 < kept.y1 ? kept : null;
+}
+
+/**
+ * The shapes without a cut fill painted over by a solid fill of the same box: nothing of it shows (yEd's panel group
+ * clips a flat fill to its label's band and draws the band over it).
+ * @param prims - the shapes, in drawing order
+ * @returns the shapes a reader sees
+ */
+function withoutHiddenCuts(prims: readonly Prim[]): Prim[] {
+    const same = (a: PBox, b: PBox): boolean =>
+        Math.max(Math.abs(a.x0 - b.x0), Math.abs(a.y0 - b.y0), Math.abs(a.x1 - b.x1), Math.abs(a.y1 - b.y1)) <= 0.5;
+    return prims.filter(
+        (p, i) =>
+            p.uncut === undefined ||
+            !prims.slice(i + 1).some((q) => q.fill !== null && q.fill.opacity === 1 && same(q.box, p.box)),
+    );
+}
+
+/**
  * An outline's points moved out (or in, for a negative distance) by a distance from its box's center on each axis:
  * the middle of the half of its stroke a clip keeps.
  * @param points - the outline
@@ -746,6 +790,8 @@ function measureInJavaFace(el: SVGTextElement, first: string): () => void {
 const SMALL_TEXT_PX = 6;
 /** How much larger. */
 const SMALL_TEXT_SCALE = 100;
+/** The font size a text is laid out again at for `lineDropOf`. */
+const LINE_DROP_PX = 1000;
 
 /**
  * A text's box in its own user units: its laid-out width, and the line box of its font from its baseline. The browser
@@ -786,6 +832,30 @@ function lineBoxOf(el: SVGTextElement, size: number, screenPx: number): DOMRect 
         : new DOMRect(x + (big.x - x) / SMALL_TEXT_SCALE, top, big.width / SMALL_TEXT_SCALE, height);
 }
 
+/**
+ * How far a text's box stands under its font's line, in user units. The browser rounds a font's ascent and descent to
+ * whole pixels at the size it lays the text out, and where that leaves the descent short it moves a pixel from the
+ * ascent to the descent: a 10 px DejaVu Sans line, 9.28 up and 2.36 down, reads 8 up and 3 down, its middle 0.96 px under
+ * the line's (yed-graphml-specimen-labels two-labels, whose line stands exactly 2 px inside yEd's box). Read from the
+ * text laid out again much larger, where the rounding is nothing.
+ * @param el - the text
+ * @param size - its font size in user units
+ * @param box - its box
+ * @returns the distance, down being positive; 0 for a text whose lines place themselves
+ */
+function lineDropOf(el: SVGTextElement, size: number, box: DOMRect): number {
+    if ([...el.children].some((c) => c.localName === "tspan" && (c.hasAttribute("y") || c.hasAttribute("dy")))) {
+        return 0;
+    }
+    const y = el.y.baseVal.numberOfItems > 0 ? el.y.baseVal.getItem(0).value : 0;
+    const before = el.style.fontSize;
+    el.style.fontSize = `${String(LINE_DROP_PX)}px`;
+    const big = el.getBBox();
+    el.style.fontSize = before;
+    const middle = y + ((big.y + big.height / 2 - y) * size) / LINE_DROP_PX;
+    return big.height > 0 ? box.y + box.height / 2 - middle : 0;
+}
+
 function textOf(
     el: SVGTextElement,
     m: DOMMatrix,
@@ -824,6 +894,7 @@ function textOf(
     const restore = measureInJavaFace(el, first);
     const size = Number.parseFloat(cs.fontSize) || 12;
     const bb = lineBoxOf(el, size, size * scale);
+    const lineDrop = bb.width > 0 && bb.height > 0 ? lineDropOf(el, size, bb) * m.d : 0;
     const w = 0.55 * size * content.length;
     let x0 = x;
     if (anchor === "middle") {
@@ -849,6 +920,7 @@ function textOf(
         x: ax,
         y: ay,
         box,
+        ...(lineDrop === 0 ? {} : { lineDrop }),
         sizePx: r3(Number.parseFloat(cs.fontSize) * scale),
         family,
         weight: Math.max(
@@ -1261,6 +1333,14 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 points = bandCenter(points, band === "inside" ? -stroke.width / 4 : stroke.width / 4);
                 stroke = { ...stroke, width: r3(stroke.width / 2) };
             }
+            const uncut = boxOfPoints(points);
+            const cut = fill !== null && stroke === null ? clipCut(el, root, m, uncut) : null;
+            if (cut !== null) {
+                points = points.map(([x, y]) => [
+                    Math.min(cut.x1, Math.max(cut.x0, x)),
+                    Math.min(cut.y1, Math.max(cut.y0, y)),
+                ]);
+            }
             // yEd fills a bar arrowhead's line there and back before stroking it: a fill with nothing inside paints
             // nothing, and the stroke after it stays next to its line (`index` is what says what follows a line)
             if (stroke === null && d !== "" && encloses(d) === false) {
@@ -1346,9 +1426,10 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 ...(twoStrokes !== null && crossedStrokes(twoStrokes) ? { subpaths: twoStrokes } : {}),
                 ...(lettering ? { lettering: true as const } : {}),
                 ...(panel === null ? {} : { panel }),
+                ...(cut === null ? {} : { uncut }),
             });
         }
-        return { width: r3(rect.width), height: r3(rect.height), prims };
+        return { width: r3(rect.width), height: r3(rect.height), prims: withoutHiddenCuts(prims) };
     } finally {
         host.remove();
     }

@@ -1,0 +1,23 @@
+# The river project as the colleague left it: gauges.csv with flows.csv joined onto it, Stone Weir's
+# bad depth made blank, installed read as dates, the gauge that turned up only in flows.csv (G12)
+# removed with its stretch, and each gauge named by its station (11 gauges, 13 stretches)
+--click Open a file
+--upload gauges.csv
+--click Data
+--click Add source
+--click File...
+--upload flows.csv
+--click role=button:Join
+--click Issues in depth_cm
+--click Make blank
+--rclick installed
+--click Type
+--click date
+--click 1 issue in flows.csv
+--click Remove nodes and edges
+--key Escape
+--click Expand gauges.csv
+--click Add to node attributes
+--click Label
+--click role=option:station
+--click role=button:Graph

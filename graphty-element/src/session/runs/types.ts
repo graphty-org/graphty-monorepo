@@ -896,7 +896,32 @@ export interface RunRemoval {
     readonly removedLayers: number;
     /** Which ones, so an undo can name them. */
     readonly layerIds: readonly LayerId[];
+    /**
+     * The selections that read the run's values and are left waiting: a style layer's Which
+     * nodes, or a Data filter condition. Nothing re-runs them unasked; each step waits with
+     * `run-needed` until the reader allows it (`scope.allowRun`).
+     * @beta
+     */
+    readonly selections: readonly RunReader[];
 }
+
+/**
+ * A selection that reads a run's values in one of its steps: a style layer's selector, or a
+ * visibility filter condition. Ids only, so a consumer looks the layer or the condition up live.
+ * More kinds may be added in a minor release; keep a default branch.
+ * @beta
+ */
+export type RunReader =
+    | {
+          /** A style layer whose selector reads the run. */
+          readonly kind: "layer";
+          readonly id: LayerId;
+      }
+    | {
+          /** A visibility filter condition whose rule reads the run. */
+          readonly kind: "filter";
+          readonly id: string;
+      };
 
 /**
  * What became of one style suggestion a run made when it first completed.
@@ -1034,6 +1059,15 @@ export interface RunsApi {
      * @returns What went with it.
      */
     remove(id: RunId): RunRemoval;
+    /**
+     * The selections that read a run's values in one of their steps, which removing the run would
+     * leave waiting: what a confirmation lists before it asks. Layers the run itself painted
+     * (`bindings`) are not among them: they go with it.
+     * @param id - The run id.
+     * @returns The readers, style layers first, then filter conditions.
+     * @beta
+     */
+    readers(id: RunId): readonly RunReader[];
     /**
      * Move every style layer reading a run, as one block and in its own order, to another place
      * in the stack, as one step.

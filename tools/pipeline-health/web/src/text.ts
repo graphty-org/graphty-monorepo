@@ -43,6 +43,21 @@ export function stripTags(h: string): string {
     return h.replaceAll(/<[^<>]*>/g, "");
 }
 
+const NAMED_ENTITY: Record<string, string> = { "&lt;": "<", "&gt;": ">", "&amp;": "&" };
+
+/**
+ * The plain text of esc-escaped HTML: no tags and no character references. It is not safe in a page until esc has
+ * escaped it, so it is what goes to a function that escapes its input, such as hiddenTable.
+ * @param h HTML whose text is already escaped.
+ * @returns The text a reader would see.
+ */
+export function plainText(h: string): string {
+    return stripTags(h).replaceAll(
+        /&(?:#\d{1,3}|lt|gt|amp);/g,
+        (e) => NAMED_ENTITY[e] ?? String.fromCodePoint(Number(e.slice(2, -1))),
+    );
+}
+
 // ---------------------------------------------------------------- clock
 
 /** The page's notion of now: the real clock, or the fixture's clock in fixture mode. */

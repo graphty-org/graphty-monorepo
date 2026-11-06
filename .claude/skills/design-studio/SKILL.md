@@ -213,6 +213,16 @@ owner decision, and only once per item.
 
 Each rule below exists because breaking it cost a run.
 
+- **The round runs the tool's start gate before any session, and stops on the first refusal every
+  session shares.** After the round plan and the tool dry run, the workflow runs
+  `node design/ui/studio/tool/real.mjs --gate <round folder>` and fixes what each `FAIL:` line
+  names until it exits 0 and writes "Gate evidence" into `plan.md`; if it cannot pass, the round
+  stops with that reason. The first two sessions then run alone: when both are void on one refusal
+  line from the tool itself, no other session starts and nothing is re-run. Tier 5 round 1 never ran
+  the gate, so `--start` refused every session with the same line, and the re-run rule launched all
+  30 again into it: 60 sessions burned on one refusal, with the warning already written in the tool
+  dry run's report.
+
 - **Dry run before every round's sessions, to the session-ready bar and no further.** A build is
   ready for sessions when it has no crash and no blocked task or grading-spoiling wrong result on
   any task's success path or listed detours, re-walked after fixing. The dry run fixes only those;

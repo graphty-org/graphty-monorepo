@@ -46,6 +46,16 @@ describe("the oracle SVG reader", () => {
         assert.closeTo(small.middle, large.middle, 0.1);
     });
 
+    it("says how far under its font's line the browser's rounded box of a text stands", () => {
+        // yed-graphml-specimen-labels two-labels: DejaVu Sans is 0.928 em up and 0.236 down, and at 10 px the browser
+        // reads 8 up and 3 down
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <text x="50" y="50" font-family="DejaVu Sans" font-size="10px">Top</text>
+        </svg>`;
+        const t = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : []))[0];
+        assert.closeTo((t.box.y0 + t.box.y1) / 2 - (t.lineDrop ?? 0), 50 - (9.28 - 2.36) / 2, 0.02);
+    });
+
     it("reads the lines of a label drawn under a few pixels high where they stand, not where rounding left them", () => {
         // json-cyjs-winecheese 107: two lines centered at one x, 1.9 px on screen, read 0.4 px apart and so right-aligned
         const label = (anchor: string): string => `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400">

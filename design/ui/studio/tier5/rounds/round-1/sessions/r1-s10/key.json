@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: 7 nodes 7 of 11 nodes",
+   "rows": [
+    {
+     "text": "Color: 7 nodes",
+     "color": "#ffa500"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#ffa500": 7,
+   "#6366f1": 4
+  },
+  "edges": {
+   "#a9a9a9": 13
+  }
+ }
+}

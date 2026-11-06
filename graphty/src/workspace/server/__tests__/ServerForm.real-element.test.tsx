@@ -408,12 +408,14 @@ describe("server sources on the real element", () => {
         assert.isFalse(testButton.disabled);
         assert.isFalse(loadButton.disabled);
 
-        // Rarely used rows wait in Advanced.
-        assert.isNull(within(form).queryByRole("textbox", { name: "Database" }));
+        // Rarely used rows are drawn in the form too: nothing folds or opens from it.
+        assert.isNotNull(within(form).queryByRole("textbox", { name: "Database" }));
+        assert.isNull(within(form).queryByRole("button", { name: /Advanced/ }));
+        assert.isNull(within(form).queryByRole("button", { name: "Expand settings" }));
+        assert.isNotNull(within(form).getByLabelText("Expand limit"));
         await pick(form, "Example", "Hetionet");
         await pick(form, "Example", "Neo4j demo: movies");
         assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "Query" }).checked);
-        await userEvent.click(within(form).getByRole("button", { name: /Advanced/ }));
         assert.equal(within(form).getByRole<HTMLInputElement>("textbox", { name: "Database" }).value, "movies");
         assert.equal(
             within(form).getByRole<HTMLInputElement>("combobox", { name: "Transport" }).value,

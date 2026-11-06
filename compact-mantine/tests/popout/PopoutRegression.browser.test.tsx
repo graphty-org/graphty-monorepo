@@ -525,7 +525,8 @@ describe("Popout Regression Tests", () => {
      * NOTE: Testing the actual floating UI click behavior is unreliable in jsdom
      * because Mantine's Combobox/Select relies on focus and pointer events that
      * jsdom doesn't fully support. The key regression protection is:
-     * 1. MANTINE_FLOATING_SELECTORS in useClickOutside.ts covers all Mantine portals
+     * 1. useClickOutside.ts counts a press in a Menu, a Tooltip or any portal or dialog that does
+     *    not host the open pop-out as inside
      * 2. Manual verification via ComponentCompatibility story in Storybook
      */
     describe("Issue: Clicking floating UI elements should not close Popout (click-outside)", () => {

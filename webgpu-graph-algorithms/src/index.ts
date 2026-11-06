@@ -139,6 +139,7 @@ export type {
     AdapterSummary,
     DeviceCheck,
     DeviceCheckMismatch,
+    FromOptions,
     GpuCaps,
     GpuContextOptions,
     LimitPolicy,

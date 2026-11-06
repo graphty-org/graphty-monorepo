@@ -118,6 +118,7 @@ export type {
     HistoryClearOptions,
     HistoryCode,
     HistoryOutcome,
+    HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
     ImportOptions,

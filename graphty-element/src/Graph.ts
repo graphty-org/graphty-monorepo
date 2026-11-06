@@ -179,6 +179,7 @@ import {
 } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import type { PendingWork } from "./managers/PendingWork";
+import { RecoveringWebGPUEngine } from "./managers/RecoveringWebGPUEngine";
 import {
     openWebGPUEngine,
     type PixelRatio,
@@ -816,12 +817,22 @@ export class Graph implements GraphContext {
     #rendererStatus: RendererStatus | null = null;
     /** Set when {@link Graph.init} starts opening the renderer; from then on the request is fixed. */
     #rendererChosen = false;
+    /** Set once {@link Graph.init} has started or been promised; an accelerator waits only then. */
+    #rendererExpected = false;
+    /** Called when {@link Graph.init} has opened the renderer, or the graph is gone without one. */
+    #rendererOpened: (() => void) | null = null;
+    /** Settles with {@link Graph.#rendererOpened}. */
+    readonly #whenRendererOpened = new Promise<void>((resolve) => {
+        this.#rendererOpened = resolve;
+    });
+    /** What shutdown has to free, set just before it disposes the managers. */
+    #releaseAcceleration: (() => void) | null = null;
     private readonly dataManager: DataManager;
     private readonly layoutManager: LayoutManager;
     private readonly statsManager: StatsManager;
     private readonly updateManager: UpdateManager;
     private readonly algorithmManager: AlgorithmManager;
-    private inputManager: InputManager;
+    private readonly inputManager: InputManager;
     /** While an immersive session is active: its mode and when it started, stamped on steps. */
     private immersiveSince: string | null = null;
 
@@ -976,6 +987,7 @@ export class Graph implements GraphContext {
             // No frame is drawn while a call-shaped run is on the device: a draw of this scene
             // is what the run's readback would otherwise wait behind (issue #390).
             whileRunning: () => this.renderManager.holdFrames(),
+            sharedDevice: () => this.deviceToShare(),
         });
 
         // The headless model, over the store the data manager already owns for the life of the
@@ -1016,6 +1028,8 @@ export class Graph implements GraphContext {
                 scheduler: queueScheduler(this.operationQueue),
                 // What the page declares before the graph first holds data is where history starts.
                 baselineWindow: true,
+                // Late-bound on purpose: a change of renderer replaces the render manager.
+                renderedFrame: () => this.renderManager.frameDrawn(),
             },
         );
 
@@ -1059,33 +1073,7 @@ export class Graph implements GraphContext {
         handGraphPaintToRenderer(this.session);
         // Shaders compile in this scene's engine; the runtime loads on the first one.
         shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
-        // The background shader, group outlines and bloom read the stack and the nodes' places.
-        this.renderManager.bindShaderScene({
-            session: this.session,
-            member: (id) => {
-                const node = this.dataManager.nodes.get(id);
-                const color = node?.paintedColor;
-                if (
-                    node === undefined ||
-                    color === null ||
-                    color === undefined ||
-                    node.getRenderState() !== "visible"
-                ) {
-                    return undefined;
-                }
-
-                const { x, y, z } = node.getPosition();
-                return {
-                    x,
-                    y,
-                    z,
-                    radius: node.drawnRadius,
-                    color: [color.r / 255, color.g / 255, color.b / 255, color.a],
-                };
-            },
-        });
-        // No frame is drawn while an element built from the defaults waits for its style.
-        this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
+        this.bindRenderManager();
         lane.register("graph", async (_rendered, target, dirty) => {
             const { cause } = lane;
             this.dataManager.reconcile(target.graph, dirty, cause);
@@ -1616,6 +1604,17 @@ export class Graph implements GraphContext {
             ["stats", this.statsManager],
             ["render", this.renderManager],
             ["data", this.dataManager],
+            [
+                "acceleration",
+                {
+                    init: () => Promise.resolve(),
+                    // Null when a failed init rolls the managers back: only shutdown lets go.
+                    dispose: () => {
+                        this.#releaseAcceleration?.();
+                        this.#releaseAcceleration = null;
+                    },
+                },
+            ],
             ["layout", this.layoutManager],
             ["update", this.updateManager],
             ["algorithm", this.algorithmManager],
@@ -1628,6 +1627,7 @@ export class Graph implements GraphContext {
             "stats",
             "render",
             "data",
+            "acceleration",
             "layout",
             "update",
             "algorithm",
@@ -1754,11 +1754,29 @@ export class Graph implements GraphContext {
         // touch the store, which belongs to the data manager the lifecycle manager is about to
         // dispose -- nor the controller, which is handed to it and released below.
         this.session.dispose();
+        this.#rendererOpened?.();
+        this.#releaseAcceleration = this.accelerationRelease();
 
-        // The undirected copy of the resident snapshot is looked up HERE, while the data manager
-        // still holds the store that cached it: disposing the managers below replaces that store,
-        // and a lookup afterwards would build a fresh copy no accelerator had ever seen -- so the
-        // release would free nothing and the real buffers would leak. It is looked up only when
+        // Dispose all managers through lifecycle manager
+        this.lifecycleManager.dispose();
+    }
+
+    /**
+     * Reads what the accelerator holds, before any manager is disposed, and returns the release
+     * of it. That runs as a manager of its own: after the layout, whose running simulation would
+     * otherwise step on a dead context, and before the data and the render managers, because
+     * disposing the engine destroys a device the accelerator may share.
+     * @returns Frees the resident snapshot and disposes the controller.
+     */
+    private accelerationRelease(): () => void {
+        // The resident snapshot is read HERE because the managers ahead of the release can read
+        // rows as they go, and on a cleared graph that freezes the fresh store: a snapshot no
+        // accelerator ever uploaded, which would become the resident one.
+        //
+        // Its undirected copy is looked up here too, while the data manager still holds the store
+        // that cached it: disposing that manager replaces that store, and a lookup afterwards
+        // would build a fresh copy no accelerator had ever seen -- so the release would free
+        // nothing and the real buffers would leak. It is looked up only when
         // there is an accelerator with a `release` to hand it to: deriving it is a full CSR
         // symmetrization of the whole edge list, and a graph that ran on the CPU must not pay for
         // one at teardown to feed a release that does nothing.
@@ -1776,21 +1794,16 @@ export class Graph implements GraphContext {
             console.warn("graphty: an undirected copy could not be derived for release", error);
         }
 
-        // Dispose all managers through lifecycle manager
-        this.lifecycleManager.dispose();
+        return () => {
+            // The buffers go after the layout: disposing it is what stops the running simulation,
+            // so by now no simulation can be reading the snapshot whose device memory this frees.
+            this.releaseSnapshot(resident, residentUndirected);
+            this.#resident = null;
+            // Scoped runs' derived inputs go with it; one a run still holds goes when it lets go.
+            peekDerivedInputs(this)?.dispose();
 
-        // The buffers go after the managers, for the reason the controller goes after them too:
-        // disposing the managers is what stops the running layout, so by now no simulation can be
-        // reading the snapshot whose device memory this frees.
-        this.releaseSnapshot(resident, residentUndirected);
-        this.#resident = null;
-        // Scoped runs' derived inputs go with it; one a run still holds goes when that run lets go.
-        peekDerivedInputs(this)?.dispose();
-
-        // The controller goes LAST. Disposing the managers is what stops the running layout
-        // engine, and a simulation stepped after its accelerator's device had been destroyed
-        // would run against a dead context.
-        this.acceleration.dispose();
+            this.acceleration.dispose();
+        };
     }
 
     /**
@@ -1985,10 +1998,39 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Promises that {@link Graph.init} is on its way, so an accelerator looked for from now on
+     * waits for the device the renderer opens. Whoever calls this must call init or shut down.
+     * @internal
+     */
+    expectRenderer(): void {
+        this.#rendererExpected = true;
+    }
+
+    /**
+     * The device the accelerator runs on, when it is the one drawn with. A device a loss has taken
+     * is never the answer: this waits for the engine to have the new one. With no WebGPU renderer
+     * on its way nothing is waited for, since work asked for before an init that may never come
+     * must still finish. Such an accelerator keeps its own device, however the graph opens later.
+     * @returns The device, or undefined for one of the accelerator's own.
+     */
+    private async deviceToShare(): Promise<unknown> {
+        if (this.#rendererRequest === "webgl" || !this.#rendererExpected) {
+            return undefined;
+        }
+
+        await this.#whenRendererOpened;
+        const { engine } = this;
+        return engine instanceof RecoveringWebGPUEngine && engine.sharesDevice
+            ? await engine.drawingDevice()
+            : undefined;
+    }
+
+    /**
      * Opens the renderer asked for. The graph is built on a WebGL engine, because a WebGPU engine
      * initialises asynchronously and the scene cannot exist before it does; so when WebGPU is asked
      * for and available, the scene and everything bound to it is rebuilt here on a fresh canvas --
-     * before the managers are initialised, so nothing has drawn or attached yet.
+     * before the managers are initialised, so nothing has drawn or attached yet. What a consumer
+     * set on the first scene in the meantime moves with it: see {@link openWebGPU}.
      */
     private async openRenderer(): Promise<void> {
         const requested = this.#rendererRequest;
@@ -2010,6 +2052,10 @@ export class Graph implements GraphContext {
         // WebGPU one. Disposing that many node meshes is quadratic (#680), which is what made a
         // 10k-node WebGPU load take 46 s against 3 s under WebGL (#614). Loads wait on the queue
         // instead, and take their turn once the scene they will be drawn on exists.
+        //
+        // The opening view is in force for that whole window, as it is at once on WebGL: a camera
+        // set in it reaches the camera the graph opens with, which the swap then carries over.
+        this.applyOpeningViewMode();
         const queue = this.operationQueue;
         const holdQueue = !queue.getStats().isPaused;
         if (holdQueue) {
@@ -2031,7 +2077,7 @@ export class Graph implements GraphContext {
      */
     private async openWebGPU(requested: RendererRequest): Promise<void> {
         const canvas = this.createCanvas();
-        const opened = await openWebGPUEngine(canvas);
+        const opened = await openWebGPUEngine(canvas, (adapter) => this.acceleration.sharesDevice(adapter));
         // Shut down while the engine was opening: nothing will ever dispose it but this.
         if (this.#teardown.signal.aborted) {
             if (typeof opened !== "string") {
@@ -2057,8 +2103,7 @@ export class Graph implements GraphContext {
             this.reportEngineGone(error);
         };
         const background = this.scene.clearColor;
-        this.renderManager.dispose();
-        this.inputManager.dispose();
+        const previous = this.renderManager;
         const label = this.canvas.getAttribute("aria-label");
         if (label !== null) {
             canvas.setAttribute("aria-label", label);
@@ -2077,17 +2122,29 @@ export class Graph implements GraphContext {
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
-        // A new engine: its shaders compile again there.
-        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
         this.camera = this.renderManager.camera;
         this.camera.onReaderMove = this.#readerMovedCamera;
         this.camera.setViewInsets(this.#viewInsets);
         this.camera.setZoomToPointer(this.#zoomToPointer);
+        this.camera.setInstantGlides(this.#cameraTransitionMs === 0);
+        // Where a consumer put the camera while WebGPU opened. Read before the old one is disposed.
+        this.camera.takeViewOf(previous.camera);
+        previous.dispose();
+        // Same manager, so its listeners, recording and enabled state stay; only the scene moves.
+        this.inputManager.rebind({
+            scene: this.scene,
+            engine: this.engine,
+            canvas: this.canvas,
+            eventManager: this.eventManager,
+        });
+        // A new engine: its shaders compile again there.
+        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
+        this.bindRenderManager();
         this.renderManager.applyLighting(this.#lighting);
+        NodeEffects.setOutlineWidth(this.scene, this.styles.config.behavior.node.outlineWidth);
         this.scene.clearColor = background;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
         this.updateManager.rebindScene(this.camera);
-        this.inputManager = this.createInputManager();
         this.graphContext = new DefaultGraphContext(
             () => this.styles,
             this.dataManager,
@@ -2099,7 +2156,6 @@ export class Graph implements GraphContext {
         );
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
-        this.managers.set("input", this.inputManager);
         this.#rendererStatus = { requested, active: "webgpu", reason: null, drawing: true };
     }
 
@@ -2223,6 +2279,37 @@ export class Graph implements GraphContext {
         return canvas;
     }
 
+    /** Give the render manager what it reads from the graph, on the first scene and on the swap. */
+    private bindRenderManager(): void {
+        // The background shader, group outlines and bloom read the stack and the nodes' places.
+        this.renderManager.bindShaderScene({
+            session: this.session,
+            member: (id) => {
+                const node = this.dataManager.nodes.get(id);
+                const color = node?.paintedColor;
+                if (
+                    node === undefined ||
+                    color === null ||
+                    color === undefined ||
+                    node.getRenderState() !== "visible"
+                ) {
+                    return undefined;
+                }
+
+                const { x, y, z } = node.getPosition();
+                return {
+                    x,
+                    y,
+                    z,
+                    radius: node.drawnRadius,
+                    color: [color.r / 255, color.g / 255, color.b / 255, color.a],
+                };
+            },
+        });
+        // No frame is drawn while an element built from the defaults waits for its style.
+        this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
+    }
+
     /**
      * Builds the input manager over the current scene and canvas.
      * @returns The input manager.
@@ -2259,9 +2346,16 @@ export class Graph implements GraphContext {
             return;
         }
 
+        this.expectRenderer();
+
         try {
             // The renderer is chosen before anything is drawn, and never again.
-            await this.openRenderer();
+            try {
+                await this.openRenderer();
+            } finally {
+                this.#rendererOpened?.();
+            }
+
             // Shut down while the renderer was opening: there is nothing left to initialise.
             if (this.#teardown.signal.aborted) {
                 return;
@@ -4267,6 +4361,20 @@ export class Graph implements GraphContext {
         this.updateManager.enableZoomToFit(true);
     }
 
+    /**
+     * Whether the element is still framing the graph on its own: a layout is settling, or a framing
+     * it owes has not landed, and nobody has placed the camera since. A camera read now is not where
+     * the element will leave it, so a consumer that puts the camera back later frames again instead.
+     * @returns True while the element's own framing is under way.
+     */
+    get framing(): boolean {
+        return (
+            this.#autoFrame &&
+            !this.#cameraPlaced &&
+            !(this.updateManager.zoomToFitCompleted && this.layoutManager.isSettled)
+        );
+    }
+
     // GraphContext implementation methods
 
     /**
@@ -6127,6 +6235,39 @@ export class Graph implements GraphContext {
             wait.gaveUp = true;
             wait.stop?.();
         }
+    }
+
+    /**
+     * Resolve once every style change made so far is drawn on the canvas: the repaint passes have
+     * ended (`styles.settled()`) and the renderer has applied their last batch. A large graph's
+     * repaint is spread over many frames, so `styles.settled()` alone resolves while the canvas
+     * still shows the old colors (ws-polish 3). It does not wait for the layout or the camera, as
+     * {@link Graph.waitForStableFrame} does, and it never rejects: a graph shut down ends the wait.
+     * @returns Promise that resolves once the last repaint batch has been applied.
+     * @beta
+     */
+    async waitForPainted(): Promise<void> {
+        await this.getSession().styles.settled();
+        const painter = this.getStylePainter();
+        const teardown = this.#teardown.signal;
+
+        if (!painter.hasPending || teardown.aborted) {
+            return;
+        }
+
+        await new Promise<void>((resolve) => {
+            const done = (): void => {
+                this.scene.onAfterRenderObservable.remove(observer);
+                teardown.removeEventListener("abort", done);
+                resolve();
+            };
+            const observer = this.scene.onAfterRenderObservable.add(() => {
+                if (!painter.hasPending) {
+                    done();
+                }
+            });
+            teardown.addEventListener("abort", done, { once: true });
+        });
     }
 
     /**

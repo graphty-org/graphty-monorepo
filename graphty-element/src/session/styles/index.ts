@@ -91,6 +91,7 @@ export type { RuleSelector, Selector } from "./selector";
 export { selectorRule } from "./selector";
 export type {
     AgreementOptions,
+    BranchesView,
     DefaultPalettes,
     ElementLayerSpec,
     HighlightSpec,
@@ -101,6 +102,7 @@ export type {
     StyleBatchChange,
     StyleChange,
     StyleFileDocument,
+    StyleRefusal,
     StylesApi,
     StylesSources,
     StyleUpdateOptions,

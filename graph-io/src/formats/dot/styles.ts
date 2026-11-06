@@ -2039,6 +2039,7 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             if (property === "label") {
                 readLabelAlign(raw, cx.names, cx.html, false, put);
                 readHtmlRuns(raw, cx.html, scheme, fontSizeOf(get("fontsize")), put, at);
+                readEdgeLabelTable(htmlTableFrame(raw, cx.html, scheme, at("label")), get, put, at);
             }
         }
     }
@@ -2048,6 +2049,37 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
         put("xlabel", labelText(xlabel, cx.names, cx.html, false, at("xlabel")));
     }
     readEndLabelFace(get, scheme, put, at);
+}
+
+/**
+ * Reads the box of an edge label that is an HTML-like table: its fill (the table's, else a lone cell's), its outline
+ * (in the table's color, else the edge's) and the room between the outline and the words.
+ * ponytail: the box is the table's outside; the rules between and round its cells need `labelTable` on edge labels
+ * @param table - the frame of the table the label is, or null
+ * @param get - the edge's attributes
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeLabelTable(table: HtmlTableFrame | null, get: Attr, put: Put, at: At): void {
+    if (table === null || table.style.includes("invis")) {
+        return;
+    }
+    const { border, cellBorder, cellSpacing, cellPadding, fill, rows } = table.cells;
+    const cell = rows.length === 1 && rows[0].cells.length === 1 ? rows[0].cells[0] : null;
+    put("labelBackground", fill ?? cell?.fill ?? null);
+    put("labelPadding", border + cellSpacing + (cell?.border ?? cellBorder) + (cell?.padding ?? cellPadding));
+    if (border > 0) {
+        readColor(
+            table.color ?? nonEmpty(get("color")) ?? "black",
+            get("colorscheme"),
+            "line",
+            "labelBorderColor",
+            null,
+            put,
+            at,
+        );
+        put("labelBorderWidth", border);
+    }
 }
 
 /**
@@ -2661,6 +2693,27 @@ function writeGraphRotation(graph: GraphSnapshot["graph"], rotation: StyleValue 
 }
 
 /**
+ * Reads the route of an edge: the one it stores, else the loop Graphviz lays itself, whose label `selfRight` hangs
+ * outside it, the box's left side on the loop's far point, level with the node.
+ * ponytail: a node's later loops clear an earlier one's label in Graphviz; here they run through it
+ * @param stored - the bends of its stored route, or null
+ * @param loop - the bends of the loop Graphviz lays, or null for an edge that is no such loop
+ * @param get - the edge's attributes
+ * @param put - receives the values
+ */
+function readEdgeRoute(stored: string | null, loop: () => string | null, get: Attr, put: Put): void {
+    const laid = stored === null ? loop() : null;
+    const bends = stored ?? laid;
+    if (bends !== null) {
+        put("bends", bends);
+    }
+    if (laid !== null && get(LABEL_ATTRIBUTE) !== null) {
+        put("labelPosition", "center");
+        put("labelShiftX", 0.5);
+    }
+}
+
+/**
  * The styles of a DOT file, read the way Graphviz draws it, with Graphviz's defaults beneath: an unfilled black
  * ellipse 54 x 36 labeled with its name, black edges with a target arrow in a directed graph. A file graphty wrote
  * gives back its `graphty.styles` block.
@@ -2728,13 +2781,11 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         if (noEdges) {
             edge.put(e, "visible", false);
         }
-        const bends = splineBends(snapshot, e, get(POS_ATTRIBUTE)) ?? loops.bendsOf(e, get);
-        if (bends !== null) {
-            edge.put(e, "bends", bends);
-        }
-        readLabelPlaces(snapshot, places, e, get, (p, v) => {
+        const put: Put = (p, v) => {
             edge.put(e, p, v);
-        });
+        };
+        readEdgeRoute(splineBends(snapshot, e, get(POS_ATTRIBUTE)), () => loops.bendsOf(e, get), get, put);
+        readLabelPlaces(snapshot, places, e, get, put);
     }
     const graph = graphBackground(snapshot, notes);
     readGraphRotation(snapshot, graph);

@@ -1,0 +1,155 @@
+{
+ "counts": {
+  "totalEdges": 63,
+  "totalNodes": 24,
+  "visibleEdges": 22,
+  "visibleNodes": 14,
+  "selectedNodes": 0,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "volunteers.graphml",
+   "kind": "file",
+   "counts": {
+    "nodes": 24,
+    "edges": 63
+   },
+   "recount": {
+    "nodes": 24,
+    "edges": 63
+   },
+   "chips": {
+    "nodes": 24,
+    "edges": 63
+   },
+   "join": null,
+   "leftOut": null,
+   "mapping": null
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": "label",
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.name",
+   "name": "name",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.role",
+   "name": "role",
+   "type": "category",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.hours",
+   "name": "hours",
+   "type": "integer",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.trained",
+   "name": "trained",
+   "type": "boolean",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.phone",
+   "name": "phone",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  }
+ ],
+ "filters": [
+  {
+   "id": "filter-1",
+   "effect": "keep",
+   "on": true,
+   "within": null,
+   "rule": {
+    "kind": "union",
+    "side": "nodes",
+    "within": "graph",
+    "branches": [
+     {
+      "id": "bmw0ntrsm1",
+      "start": "all",
+      "steps": [
+       {
+        "id": "smw0nts1l2",
+        "op": "keep",
+        "rule": {
+         "kind": "text",
+         "reads": "data.trained",
+         "mode": "exact",
+         "text": "true",
+         "caseSensitive": true
+        }
+       },
+       {
+        "id": "smw0nttmt3",
+        "op": "keep",
+        "rule": {
+         "kind": "range",
+         "attribute": "data.hours",
+         "min": 10
+        },
+        "mode": "range"
+       }
+      ],
+      "color": "#009E73"
+     }
+    ]
+   },
+   "count": {
+    "id": "filter-1",
+    "nodes": {
+     "matched": 14,
+     "total": 24
+    },
+    "edges": null,
+    "unresolved": []
+   },
+   "chips": {}
+  }
+ ],
+ "filter": null,
+ "window": null
+}

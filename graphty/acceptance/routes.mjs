@@ -66,24 +66,60 @@ async function newLayer(u) {
 }
 
 /**
- * The collapsed "Which nodes" (or "Which edges") line of a layer or folder: a click expands it.
+ * Which nodes (or Which edges): one layer's outline opens the selection workspace beside the
+ * canvas with its Edit button; a folder's (several layers') collapsed line opens its condition
+ * cards with a click.
  * @param u the user's hands (README.md)
  */
 async function openWhich(u) {
-    await u.page.getByRole("button", { name: /^Which (nodes|edges),/ }).click();
+    const edit = u.page.getByRole("button", { name: /^Edit Which (nodes|edges)/ });
+    const line = u.page.getByRole("button", { name: /^Which (nodes|edges),/ });
+    await edit.or(line).first().waitFor();
+    if (await edit.isVisible()) {
+        await edit.click();
+        await u.page.locator(".sel-ws").waitFor();
+        return;
+    }
+    await line.click();
 }
 
 /**
- * "Add a condition" in the layer's Which nodes (or Which edges), then the column in its attribute list.
+ * A condition on the column. In the selection workspace: the new step's Value (or And...
+ * for a further step), the column typed into the value picker and Enter; focus lands on the
+ * step's test. In a folder's cards: "Add a condition", then the column in its attribute list.
  * @param u the user's hands (README.md)
- * @param column the column, as the attribute list names it
+ * @param column the column, as the pickers name it
  */
 async function addCondition(u, column) {
-    await u.click("Add a condition");
-    await u.page
-        .getByRole("listbox", { name: "Attributes" })
-        .getByRole("option", { name: new RegExp(`^${column}(,|$)`) })
-        .click();
+    const ws = u.page.locator(".sel-ws");
+    const cards = u.page.getByRole("button", { name: "Add a condition", exact: true });
+    if (!(await ws.isVisible()) && !(await cards.isVisible())) {
+        await openWhich(u);
+    }
+    if (await cards.isVisible()) {
+        await cards.click();
+        await u.page
+            .getByRole("listbox", { name: "Attributes" })
+            .getByRole("option", { name: new RegExp(`^${column}(,|$)`) })
+            .click();
+        return;
+    }
+    const value = ws.getByRole("button", { name: "Value", exact: true });
+    await ((await value.isVisible()) ? value : ws.getByRole("button", { name: /^(And|Add)\.\.\.$/ })).click();
+    await u.page.getByRole("combobox", { name: "Find attributes, results" }).waitFor();
+    await u.type(column);
+    await u.key("Enter");
+}
+
+/**
+ * A yes-or-no step's select ("<column> is"), then Yes or No.
+ * @param u the user's hands (README.md)
+ * @param column the column, as the value picker names it
+ * @param choice "Yes" or "No"
+ */
+async function yesOrNo(u, column, choice) {
+    await u.page.getByRole("combobox", { name: `${column} is` }).click();
+    await u.page.getByRole("option", { name: choice, exact: true }).click();
 }
 
 /**
@@ -396,6 +432,7 @@ export const routes = [
             await addCondition(u, "name");
             await u.type("Mme");
             await u.key("Enter");
+            await u.click("Done");
             await fill(u, "purple");
         },
         checks: {
@@ -412,8 +449,10 @@ export const routes = [
             await newLayer(u);
             await addCondition(u, "name");
             await match(u, "name", "Starts with");
+            await u.page.getByRole("combobox", { name: "name: text to match" }).click();
             await u.type("GAL");
             await u.key("Enter");
+            await u.click("Done");
             await fill(u, "purple");
         },
         checks: {
@@ -430,6 +469,7 @@ export const routes = [
             await openFile(u, "volunteers.graphml");
             await newLayer(u);
             await addCondition(u, "trained");
+            await yesOrNo(u, "trained", "Yes");
             await addCondition(u, "phone");
             await match(u, "phone", "Has no value");
             await u.click("Done");
@@ -448,6 +488,7 @@ export const routes = [
             await openFile(u, "sources.graphml");
             await newLayer(u);
             await addCondition(u, "on_record");
+            await yesOrNo(u, "on_record", "Yes");
             await addCondition(u, "email");
             await match(u, "email", "Has no value");
             await u.click("Done");
@@ -468,6 +509,7 @@ export const routes = [
             await addCondition(u, "hours");
             await u.type("20");
             await u.key("Enter");
+            await u.click("Done");
             await fill(u, "orange");
         },
         checks: {
@@ -485,6 +527,7 @@ export const routes = [
             await addCondition(u, "donations");
             await u.type("10000");
             await u.key("Enter");
+            await u.click("Done");
             await fill(u, "orange");
         },
         checks: {

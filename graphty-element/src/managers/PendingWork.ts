@@ -89,6 +89,11 @@ export class PendingWork {
     /** In the order they were entered: the first pending one names the reason. */
     readonly #watches = new Set<Watch>();
     readonly #listeners = new Set<() => void>();
+    /**
+     * Whether the camera turned by itself on the last pass (`camera.autoRotate`): it never comes to
+     * rest, so nothing waits for work that only a rest ends.
+     */
+    cameraTurnsByItself = false;
 
     /**
      * The picture counter: moved on by every change to the picture and every token released.

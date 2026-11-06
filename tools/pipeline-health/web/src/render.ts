@@ -67,6 +67,7 @@ import {
     MEMBER,
     memberLine,
     partialText,
+    plainText,
     prLink,
     rangeLabel,
     refText,
@@ -355,7 +356,7 @@ export function cellHtml(c: Cell): string {
             return `<span class="mk ${c.state}">${cellHtml(c.cell)}</span>`;
         case "state": {
             const chip = c.state === "idle" ? `<span class="sw low">idle</span>` : stateChip({ state: c.state });
-            return c.link ? `<a class="sw low ln" href="${href(c.link)}">${chip.replaceAll(/<[^>]+>/g, "")}</a>` : chip;
+            return c.link ? `<a class="sw low ln" href="${href(c.link)}">${stripTags(chip)}</a>` : chip;
         }
         case "spark":
             return sparkline(c.spark, clock.generated, "projection by day");
@@ -959,7 +960,8 @@ function bars(s0: BarsSection): string {
     const group = (g: BarsSection["groups"][number]): string => {
         const title = g.head ? sentence(g.head) : null;
         const heading = title === null ? "" : h3(title);
-        const list = g.items.length ? barList(g.items, title ?? caption) : `<p class="empty">none in this range</p>`;
+        const groupCaption = title === null ? caption : plainText(title);
+        const list = g.items.length ? barList(g.items, groupCaption) : `<p class="empty">none in this range</p>`;
         return `<div>${heading}${list}</div>`;
     };
     return `<div class="two">${s.groups.map(group).join("")}</div>`;
@@ -1203,8 +1205,8 @@ function sectionBody(s: Section): string {
     switch (s.kind) {
         case "series":
             return s.chart === "lines" || s.chart === "area"
-                ? lineChart(s, (k) => stripTags(labelText(k)))
-                : barChart(s, (k) => stripTags(labelText(k)));
+                ? lineChart(s, (k) => plainText(labelText(k)))
+                : barChart(s, (k) => plainText(labelText(k)));
         case "strip":
             return minuteStrip(s);
         case "table":
@@ -1286,7 +1288,7 @@ function block(c: CategoryStatus): string {
     } else if (c.others.length > 1) {
         more = `+ ${c.others.length} more`;
     }
-    const aria = [`${name}: ${word}`, ...[by, more].filter(Boolean).map(stripTags)].join(", ");
+    const aria = [`${name}: ${word}`, ...[by, more].filter(Boolean).map(plainText)].join(", ");
     const cls = c.state === "idle" ? "idle" : stateClass(c.state);
     const byHtml = by ? `<span class="by">${lab(by)}</span>` : "";
     const moreHtml = more ? `<span class="by bym">${lab(more)}</span>` : "";

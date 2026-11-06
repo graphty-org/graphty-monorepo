@@ -151,6 +151,7 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
 // @public
 export interface AcceleratorFactoryOptions {
     readonly acceptSoftware?: boolean;
+    readonly device?: unknown;
     readonly exactMaxNodes?: number;
 }
 
@@ -159,6 +160,7 @@ export interface AcceleratorRegistration {
     readonly backend?: "webgpu" | (string & {});
     readonly factory: AcceleratorFactory;
     readonly name: string;
+    readonly sharesDevice?: (adapter: unknown) => boolean;
 }
 
 // @public
@@ -267,6 +269,8 @@ export interface AlgorithmDescriptor {
     fields: readonly FieldDescriptor[];
     // (undocumented)
     key: AlgorithmKey;
+    // @beta
+    keywords?: readonly string[];
     // (undocumented)
     options: readonly OptionDescriptor[];
     // (undocumented)
@@ -965,24 +969,37 @@ export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 // @public
 export interface FieldDescriptor {
     directedOnly?: boolean;
+    // @beta
+    domain?: {
+        readonly min: number;
+        readonly max: number;
+    };
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
     measurement?: Measurement;
+    // @beta
+    missing?: "unreached" | "unmeasured" | (string & {});
     // (undocumented)
     name: string;
     // (undocumented)
     normalization?: string;
+    // @beta
+    order?: readonly (string | number)[];
     // (undocumented)
     path: Path;
     // (undocumented)
     plainName: string;
+    // @beta
+    polarity?: "higher" | "lower";
     // (undocumented)
     technicalName: string;
     // (undocumented)
     type: "number" | "integer" | "boolean" | "string" | "table";
     // (undocumented)
     unit?: string;
+    // @beta
+    unstable?: true;
 }
 
 // @public
@@ -2107,6 +2124,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     dragHandler?: NodeDragHandler;
     // @internal
+    drawInBatch(source: AbstractMesh | null): void;
+    // @internal
     get drawnBoundingBox(): BoundingBox;
     // @internal
     get drawnBoundingRadius(): number;
@@ -2121,10 +2140,14 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnInBatch(): boolean;
+    // @internal
     get drawnPickMesh(): AbstractMesh;
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    drawnRayHit(ray: Ray): Vector3 | null;
     // @internal
     get drawnRootScale(): number;
     // @internal

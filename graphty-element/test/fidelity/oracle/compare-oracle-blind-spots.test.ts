@@ -15,7 +15,7 @@
 import { assert, describe, it } from "vitest";
 
 import { compareOracle, type OracleProperty, type OracleReport } from "./compare-oracle";
-import type { PArrow, PEdge, PGroup, PNode, PScene, Pt } from "./primitives";
+import { type PArrow, type PEdge, type PGroup, PICTURE_PART, type PNode, type PScene, type Pt } from "./primitives";
 
 const node = (id: string, cx: number, cy: number, size: number): PNode => ({
     id,
@@ -345,5 +345,36 @@ describe("planted defects the comparator passed before round 5 (#4272)", () => {
         // graphty's image node draws its picture as the node itself, not over its face
         assert.strictEqual(judge(scene("graphty", pictured, [])), 1);
         assert.strictEqual(judge(scene("graphty", grid(), [])), 0);
+    });
+});
+
+describe("the pieces of an SVG picture drawn over a node (#5789)", () => {
+    const body = node("a", 300, 300, 100);
+    const piece = (x: number): PScene["strays"][number] => ({
+        index: 0,
+        tag: PICTURE_PART,
+        kind: "shape",
+        box: { x0: x, y0: 290, x1: x + 20, y1: 310 },
+        fill: null,
+        stroke: null,
+        text: null,
+    });
+    const oracleWith = (over: Partial<PNode>, strays: PScene["strays"]): PScene => ({
+        ...scene("oracle", [{ ...body, ...over }], []),
+        strays,
+    });
+    const failed = (oracle: PScene, drawn: PScene["strays"]): OracleReport =>
+        compareOracle("t", oracle, { ...scene("graphty", [body], []), strays: drawn }, null, OWN);
+
+    it("passes a piece where the program draws that shape", () => {
+        const r = failed(oracleWith({}, [piece(290)]), [piece(290)]);
+        assert.strictEqual(rate(r, "stray.present"), 1);
+        assert.strictEqual(rate(r, "stray.extra"), 1);
+    });
+
+    it("fails a piece drawn away from the program's shape, both ways", () => {
+        const r = failed(oracleWith({}, [piece(270)]), [piece(310)]);
+        assert.strictEqual(rate(r, "stray.present"), 0);
+        assert.strictEqual(rate(r, "stray.extra"), 0);
     });
 });

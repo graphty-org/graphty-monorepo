@@ -5,12 +5,12 @@
  * and agents run test suites of their own besides, so the machine ran two to four times more test
  * work than it has cores and tests whose own work is a large part of their time limit failed at
  * random. Every vitest run therefore takes one of GRAPHTY_TEST_SLOTS slots before its tests start
- * (default: one per 8 cores, at least 2 -- 4 on a 32-thread machine) and gives it back
- * when it ends. A browser run and a Node run count the same. A Node run would fork one worker per
+ * (default: one per 8 of the machine's cores, at least 2 -- 4 on a 32-thread machine, whatever CPU
+ * affinity the asking process has, so every run counts the same slots) and gives it back when it ends. A browser run and a Node run count the same. A Node run would fork one worker per
  * core by default, so four of them side by side asked for about 130 cores' work (load average 130
  * on 2026-10-12) and CPU-bound tests ran past their time limits; every Node run therefore gets at
  * most its share of the cores, workerShare() = cores / slots (8 on a 32-thread machine with 4
- * slots), as its maxWorkers. A browser run is not lighter: Vitest opens
+ * slots), never more than the cores it may use (1 under `taskset -c 0`), as its maxWorkers. A browser run is not lighter: Vitest opens
  * min(12, cores - 1) pages at once unless the project sets maxWorkers, and one page drawing a real
  * graphty-element through SwiftShader keeps about 1.75 cores busy, so an uncapped run on this
  * 32-thread machine asked for about 21 cores. Every browser project that runs files in parallel
@@ -72,7 +72,7 @@
 
 import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { availableParallelism, constants, tmpdir } from "node:os";
+import { availableParallelism, constants, cpus, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -84,10 +84,11 @@ export const HELD = "GRAPHTY_TEST_SLOT_HELD";
 /**
  * How many runs may hold a slot at once.
  * @param env the environment (GRAPHTY_TEST_SLOTS)
- * @param cores the machine's cores
+ * @param cores the machine's cores: cpus(), not availableParallelism(), which follows this process's CPU
+ *   affinity, and every process must count the same slots (#6001)
  * @returns the slot count; 0 means no limit
  */
-export function slotCount(env = process.env, cores = availableParallelism()) {
+export function slotCount(env = process.env, cores = cpus().length) {
     const set = env.GRAPHTY_TEST_SLOTS;
     if (set === undefined || set === "") {
         return Math.max(2, Math.floor(cores / 8));
@@ -107,11 +108,12 @@ export function slotCount(env = process.env, cores = availableParallelism()) {
  * on the command line still overrides it.
  * @param env the environment (GITHUB_ACTIONS, GRAPHTY_TEST_SLOTS)
  * @param cores the machine's cores
- * @returns max(1, floor(cores / slots)), or undefined (Vitest's own default) when slots are off
+ * @param usable the cores this process may use: a run pinned to one core gains nothing from more workers
+ * @returns max(1, min(usable, floor(cores / slots))), or undefined (Vitest's own default) when slots are off
  */
-export function workerShare(env = process.env, cores = availableParallelism()) {
+export function workerShare(env = process.env, cores = cpus().length, usable = availableParallelism()) {
     const slots = env.GITHUB_ACTIONS === "true" ? 0 : slotCount(env, cores);
-    return slots === 0 ? undefined : Math.max(1, Math.floor(cores / slots));
+    return slots === 0 ? undefined : Math.max(1, Math.min(usable, Math.floor(cores / slots)));
 }
 
 /**
@@ -442,7 +444,7 @@ export function statusLines(dir = slotDir()) {
         `slots: ${slotCount()} in ${dir}`,
         ...tickets.map(
             (t) =>
-                `${t.granted || placeInLine(tickets, t.name) < slotCount() ? "holds" : "waits"} (${lane(t.name)}): pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`,
+                `${t.granted ? "holds" : "waits"} (${lane(t.name)}): pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`,
         ),
     ];
 }

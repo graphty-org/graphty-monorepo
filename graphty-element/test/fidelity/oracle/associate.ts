@@ -322,6 +322,30 @@ function piecesFirst(shapes: readonly Prim[]): Prim | null {
     return fills.some((s) => area(s.box) < 0.95 * whole) ? [...fills].sort((a, b) => a.index - b.index)[0] : null;
 }
 
+/**
+ * The line a reader sees along an outline: a narrower one drawn over it down the same path (yFiles' bevel, a line of 1
+ * over a lighter one of 2), which leaves the wider only a halo either side. A line under half as wide is the gap of a
+ * double line (Cytoscape.js's `double` border, a third of its width), whose outline is the wider.
+ * @param line - the outline
+ * @param shapes - the node's shapes
+ * @returns the narrower line drawn over it, else the outline
+ */
+export function lineOnTop(line: Prim | undefined, shapes: readonly Prim[]): Prim | undefined {
+    const width = line?.stroke?.width;
+    if (line === undefined || width === undefined) {
+        return line;
+    }
+    const along = (s: Prim): boolean =>
+        s.index > line.index &&
+        s.fill === null &&
+        s.stroke !== null &&
+        s.stroke.width < width &&
+        s.stroke.width >= width / 2 &&
+        s.points.length === line.points.length &&
+        s.points.every(([x, y], i) => Math.hypot(x - line.points[i][0], y - line.points[i][1]) <= 0.01);
+    return shapes.filter(along).at(-1) ?? line;
+}
+
 /** The node shapes whose outline is not their box's, nor an ellipse in it: a line ends on their slanted sides. */
 const SLANTED: ReadonlySet<PShape> = new Set(["triangle", "diamond", "hexagon", "octagon"]);
 
@@ -409,9 +433,10 @@ function nodeFrom(
     // of several outlines, the one centered on the body (a line of dots passing the node is not its outline)
     const at = body ?? all[0];
     const off = (s: Prim): number => (at ? Math.hypot(cx(s.box) - cx(at.box), cy(s.box) - cy(at.box)) : 0);
-    const stroked = all
+    const strokedFirst = all
         .filter((s) => s.stroke !== null)
         .sort((a, b) => off(a) - off(b) || area(b.box) - area(a.box) || a.index - b.index)[0];
+    const stroked = lineOnTop(strokedFirst, all);
     // a gradient painted as a picture over the node's whole face (Cytoscape desktop's gradient custom graphics) is the
     // node's fill as a reader sees it, not a picture on it
     const overlap = (a: PBox, b: PBox): number =>
@@ -433,17 +458,24 @@ function nodeFrom(
             ? []
             : sorted.filter((s) => s.fill !== null && s.kind !== "image").map((s) => s.box);
     const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
+    const nodeFill = paintedFill ?? filled?.fill ?? null;
+    const bands = shapes.flatMap((s) =>
+        s.uncut !== undefined && s.fill !== null && s.fill.color !== nodeFill?.color
+            ? [{ box: s.box, color: s.fill.color }]
+            : [],
+    );
     const node: PNode = {
         id,
         ...(pictures.length > 0 ? { pictures } : {}),
         ...(faces.length > 0 ? { faces } : {}),
+        ...(bands.length > 0 ? { bands } : {}),
         cx: cx(box),
         cy: cy(box),
         w: bw(box),
         h: bh(box),
         // a dot (an outline of no size, drawn by its round-capped stroke) has no shape to read
         shape,
-        fill: paintedFill ?? filled?.fill ?? null,
+        fill: nodeFill,
         stroke: stroked?.stroke ?? null,
         ring:
             ringPrim === null || ringPrim.stroke === null
@@ -1420,6 +1452,22 @@ function offPath(q: Pt, pts: readonly Pt[]): number {
     return best;
 }
 
+/** How far apart, in px, two lines between one pair of nodes are drawn to be one line to a reader (`oneRoute`). */
+const ONE_ROUTE_PX = 1;
+
+/**
+ * Whether two lines of one pair of nodes are drawn over one another: one lies along the other, either way round.
+ * yEd stops a line at the back of its arrowhead, so two drawn together may differ in length by a head's length, which
+ * `sameRoute` reads as lines apart (graphml-synthetic-edges n13 -> n14: 6.5 px longer, 0.03 px off).
+ * @param a - one line
+ * @param b - the other
+ * @returns true when they share a route
+ */
+function oneRoute(a: PEdge, b: PEdge): boolean {
+    const along = (x: PEdge, y: PEdge): boolean => x.points.every((q) => offPath(q, y.points) <= ONE_ROUTE_PX);
+    return along(a, b) || along(b, a);
+}
+
 const endOf = (e: PEdge, end: "source" | "target"): Pt =>
     end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]);
 
@@ -1815,6 +1863,7 @@ function openStroke(p: Prim): boolean {
  * @param edges - the edges of the drawing
  * @param nodes - its nodes
  * @param centerLines - whether its lines run on to the nodes' centers
+ * @param drawnAt - where in the drawing each edge found by geometry was drawn
  * @returns each head, its strokes and its outline as one primitive
  */
 function strokedHeads(
@@ -1822,6 +1871,7 @@ function strokedHeads(
     edges: readonly PEdge[],
     nodes: readonly PNode[],
     centerLines: boolean,
+    drawnAt: ReadonlyMap<PEdge, number>,
 ): { e: PEdge; end: "source" | "target"; outline: Prim; parts: readonly Prim[] }[] {
     const ends = (p: Prim): [Pt, Pt] => [p.points[0], p.points.at(-1) ?? p.points[0]];
     const meet = (a: Prim, b: Prim): Pt | null =>
@@ -1839,8 +1889,22 @@ function strokedHeads(
         const lines = edges.filter((e) => e.stroke?.color === p.stroke?.color);
         const at = arrowheadEdge(p, lines, nodes, centerLines);
         if (at !== null && at.end !== "middle") {
-            const key = `${at.e.id}\u0000${at.end}`;
-            const held = byEnd.get(key) ?? { e: at.e, end: at.end, parts: [] };
+            // of lines drawn over one another, the last drawn before it: a bar stood back from one line's end sits at
+            // the end of the line stopped short for another's head (graphml-synthetic-edges n16 -> n17)
+            const before = (o: PEdge): number => drawnAt.get(o) ?? p.index;
+            const e =
+                lines
+                    .filter(
+                        (o) =>
+                            o.source === at.e.source &&
+                            o.target === at.e.target &&
+                            before(o) < p.index &&
+                            oneRoute(o, at.e),
+                    )
+                    .sort((x, y) => before(x) - before(y))
+                    .at(-1) ?? at.e;
+            const key = `${e.id}\u0000${at.end}`;
+            const held = byEnd.get(key) ?? { e, end: at.end, parts: [] };
             held.parts.push(p);
             byEnd.set(key, held);
         }
@@ -2295,6 +2359,74 @@ export function foldRaisedBorders(prims: readonly Prim[]): Prim[] {
 }
 
 /**
+ * Whether three shapes are a two-part bevel: a flat lower half, an upper half over it by a pixel at most, and a line
+ * inside the two.
+ * @param lower - the first shape
+ * @param upper - the next
+ * @param line - the one after it
+ * @returns true for such shapes
+ */
+function areBevelHalves(lower: Prim, upper: Prim, line: Prim | undefined): boolean {
+    const halves = [lower, upper].every((p) => p.tag === "path" && p.stroke === null && p.fill !== null);
+    const aligned =
+        Math.abs(lower.box.x0 - upper.box.x0) <= 0.01 &&
+        Math.abs(lower.box.x1 - upper.box.x1) <= 0.01 &&
+        upper.box.y1 >= lower.box.y0 &&
+        upper.box.y1 - lower.box.y0 <= 1.5;
+    if (!halves || !aligned || lower.fill?.gradient !== null || line?.fill !== null || line.stroke === null) {
+        return false;
+    }
+    const { box } = line;
+    return box.x0 > lower.box.x0 && box.x1 < lower.box.x1 && box.y0 > upper.box.y0 && box.y1 < lower.box.y1;
+}
+
+/**
+ * The drawing with each two-part bevel read as the one body it is: yEd paints its BevelNode family as a flat lower half
+ * and, over it, an upper half in a ramp, the two overlapping by a pixel, with the node's line inside them. Neither is
+ * the node, and alone each is a box half its size. Two such halves become a whole body painted as both were.
+ * @param prims - the oracle's primitives
+ * @returns the primitives, each bevel's two halves one body
+ */
+export function foldBevelHalves(prims: readonly Prim[]): Prim[] {
+    const out: Prim[] = [];
+    for (let i = 0; i < prims.length; i++) {
+        const [lower, upper, line] = [prims[i], prims[i + 1], prims.at(i + 2)];
+        const ramp = upper?.fill?.gradient;
+        const halves = ramp !== null && ramp !== undefined && areBevelHalves(lower, upper, line);
+        if (!halves) {
+            out.push(lower);
+            continue;
+        }
+        const box = union([lower.box, upper.box]);
+        const seam = bh(upper.box) / bh(box);
+        const color = lower.fill?.color ?? "#000000";
+        const { squareCorner: _seam, ...body } = upper;
+        out.push({
+            ...body,
+            box,
+            points: [
+                ...upper.points.filter(([, y]) => y < lower.box.y0),
+                ...lower.points.filter(([, y]) => y > upper.box.y1),
+            ],
+            fill: {
+                color: upper.fill?.color ?? color,
+                opacity: upper.fill?.opacity ?? 1,
+                gradient: {
+                    ...ramp,
+                    stops: [
+                        ...ramp.stops.map((s) => ({ ...s, offset: s.offset * seam })),
+                        { color, opacity: 1, offset: seam },
+                        { color, opacity: 1, offset: 1 },
+                    ],
+                },
+            },
+        });
+        i += 1;
+    }
+    return out;
+}
+
+/**
  * Associates an oracle's primitives with graph elements.
  * @param primitives - the oracle's primitives (`readSvgPrimitives`)
  * @param width - the oracle's rendered width
@@ -2312,7 +2444,7 @@ export function associate(
     guide: PScene,
     options: { ownLayout?: boolean } = {},
 ): Association {
-    const prims = foldRaisedBorders(primitives);
+    const prims = foldBevelHalves(foldRaisedBorders(primitives));
     const kept = new Set(prims.map((p) => p.index));
     const strips = primitives.filter((p) => !kept.has(p.index));
     const used = new Set<number>();
@@ -3197,6 +3329,7 @@ export function associate(
         edges,
         nodeList,
         centerLines,
+        drawnAt,
     );
     const headPieces = new Set(stroked.flatMap((h) => h.parts).map((p) => strokes.get(p)));
     const capped = withPieces.filter((e) => !headPieces.has(e));
@@ -3447,6 +3580,11 @@ export function associate(
     // another between the same nodes (json-cyjs-tokyo's lines of two companies between stacked stations) each carry
     // their own words, and each of the oracle's lines there takes one of them.
     const pairWords = wordsByPair(guide.edges);
+    const pairLines = new Map<string, PEdge[]>();
+    for (const e of edges) {
+        const k = unorderedPair(e.source, e.target);
+        pairLines.set(k, [...(pairLines.get(k) ?? []), e]);
+    }
     const edgeCandidates = edges.flatMap((e, ei) => {
         const wants = pairWords.get(unorderedPair(e.source, e.target));
         if (e.label !== null || wants === undefined) {
@@ -3454,8 +3592,12 @@ export function associate(
         }
         // the whole label near the edge's middle, halfway along it: a straight line drawn as one segment has two
         // points, the middle one of which is its target end (cytoscapejs-specimen-edge-labels: each source label went
-        // to the edge whose target end it sat next to)
-        const mid = pointAlong(e.points, 0.5);
+        // to the edge whose target end it sat next to). Lines drawn over one another share one middle: where a line
+        // stops short of its arrowhead says nothing about the words, which `edgeCandidates` then give by paint order
+        const mid = pointAlong(
+            (pairLines.get(unorderedPair(e.source, e.target))?.find((o) => oneRoute(o, e)) ?? e).points,
+            0.5,
+        );
         // graphty's words for this very edge go before others within a pixel of as near: two lines drawn one over
         // the other between the same nodes, each label on the same spot, were told apart by sub-pixel noise
         // (json-cyjs-tokyo's 7634 -> 7635 and 7635 -> 7634, #5506)
@@ -3464,10 +3606,17 @@ export function associate(
             .filter((p) => wants.has(norm(p.text?.content ?? "")))
             .map((p) => {
                 const d = Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]);
-                return { ei, p, d, rank: d + (norm(p.text?.content ?? "") === own ? 0 : 1) };
+                // how far back in the drawing the line lies, none before the text counting as farthest
+                const at = drawnAt.get(e) ?? p.index;
+                const back = at < p.index ? p.index - at : Number.MAX_SAFE_INTEGER;
+                return { ei, p, d, rank: d + (norm(p.text?.content ?? "") === own ? 0 : 1), back };
             });
     });
-    edgeCandidates.sort((a, b) => a.rank - b.rank || a.p.index - b.p.index || a.ei - b.ei);
+    // Of lines drawn over one another, words go to the last drawn before them: nothing on the page tells two such lines
+    // apart, but a program that draws each edge whole draws an edge's label straight after its line and head
+    // (graphml-synthetic-edges: yEd's "label 0" on n4 -> n5, 0.02 px from either line, follows the line with the
+    // standard head that the file gives it, not the one with the diamond)
+    edgeCandidates.sort((a, b) => a.rank - b.rank || a.back - b.back || a.p.index - b.p.index || a.ei - b.ei);
     for (const c of edgeCandidates) {
         const e = edges[c.ei];
         const parts = runParts.get(c.p) ?? [c.p];
@@ -4311,7 +4460,9 @@ function matchBodies(
     const dot = (p: Prim): boolean =>
         p.kind === "shape" && area(p.box) === 0 && (p.stroke?.width ?? 0) > 0 && Math.max(bw(p.box), bh(p.box)) < 1;
     const shapes = free.filter((p) => ((p.kind === "shape" || p.kind === "image") && area(p.box) > 0) || dot(p));
-    const extent = (p: Prim): number => Math.max(bw(p.box), bh(p.box)) + (dot(p) ? (p.stroke?.width ?? 0) : 0);
+    // a fill its clip cuts is matched as the whole shape it was drawn as, each piece the node's (yEd's entity header)
+    const whole = (p: Prim): PBox => p.uncut ?? p.box;
+    const extent = (p: Prim): number => Math.max(bw(whole(p)), bh(whole(p))) + (dot(p) ? (p.stroke?.width ?? 0) : 0);
     // A box drawn tight round a label is its background (Cytoscape's NODE_LABEL_BACKGROUND), a poorer body than any
     // shape near the node; still the body where nothing else is drawn there (vis-network's box fits its label).
     const texts = free.filter((p) => p.text !== null);
@@ -4371,7 +4522,7 @@ function matchBodies(
     for (const [n, at] of spots) {
         const { x: px, y: py, s, reach } = at;
         for (const p of shapes) {
-            const d = Math.hypot(cx(p.box) - px, cy(p.box) - py);
+            const d = Math.hypot(cx(whole(p)) - px, cy(whole(p)) - py);
             const size = extent(p);
             if (d > Math.max(s, 8) * reach) {
                 continue;
@@ -4445,13 +4596,14 @@ function matchBodies(
                     !drawnAlike(q, body) &&
                     !(
                         filledAlike(q, body) &&
-                        Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) > 0.05 * size + 0.5
+                        Math.hypot(cx(whole(q)) - cx(whole(body)), cy(whole(q)) - cy(whole(body))) > 0.05 * size + 0.5
                     ) &&
-                    Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
+                    Math.hypot(cx(whole(q)) - cx(whole(body)), cy(whole(q)) - cy(whole(body))) <= 0.2 * size + 0.5 &&
                     // and over it, not beside it: two flat boxes stacked a little under their height apart are two nodes,
                     // however short that is of their width (cx2-wp1449-tlr: two 45.7 x 10.5 labels 9.6 px apart)
-                    (dot(body) || around(q) || boxIoU(q.box, body.box) >= TWIN_OVERLAP) &&
-                    ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
+                    (dot(body) || around(q) || boxIoU(whole(q), whole(body)) >= TWIN_OVERLAP) &&
+                    ((near(bw(whole(q)) + 1, bw(whole(body)) + 1) && near(bh(whole(q)) + 1, bh(whole(body)) + 1)) ||
+                        around(q)) &&
                     // a group's twin is drawn over its box, not a flat node inside it of about its width
                     (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),
             )

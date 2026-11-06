@@ -116,6 +116,11 @@ export interface PText {
     x: number;
     y: number;
     box: PBox;
+    /**
+     * The oracle's side only: how far `box`, the browser's reading, stands under the line the font lays out, in pixels.
+     * The browser rounds a font's ascent and descent to whole pixels.
+     */
+    lineDrop?: number;
     /** Font size in the side's pixels. */
     sizePx: number;
     family: string;
@@ -160,6 +165,15 @@ export interface PLabelBox {
     shape: "rect" | "roundrect" | "ellipse" | "other" | null;
 }
 
+/** The tag of a stray that is one piece of an SVG picture graphty draws over a node. */
+export const PICTURE_PART = "picture-part";
+
+/**
+ * The tag of a stray of such a picture never judged as extra, though it can answer for a program's shape: the picture
+ * as a whole, whose pieces say whether it is extra, and an open line, as a program's open line is no stray to find.
+ */
+export const PICTURE_WHOLE = "picture-whole";
+
 /** The raw drawing primitives an SVG holds, before they are associated with graph elements. */
 export interface Prim {
     /** Document order, for deterministic tie breaks and for findings. */
@@ -167,6 +181,11 @@ export interface Prim {
     tag: string;
     kind: "shape" | "path" | "text" | "image";
     box: PBox;
+    /**
+     * A fill its own clip cuts (`clipCut`): the box of the whole shape it was drawn as. `box` is what shows. Absent for
+     * a shape shown whole.
+     */
+    uncut?: PBox;
     /**
      * An image's four corners as drawn, which a turned image's box is wider than.
      */
@@ -246,6 +265,11 @@ export interface PNode {
      * which graphty draws as pieces over the node's face. Absent for a fill in one piece.
      */
     faces?: PBox[];
+    /**
+     * The oracle's side only: the parts of the node a clip cuts from a fill of another color than the node's (yEd's
+     * entity header), each of which graphty must draw over the face in that color. Absent for none.
+     */
+    bands?: { box: PBox; color: string }[];
     label: PText | null;
     /**
      * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold), shown or not at

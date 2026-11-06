@@ -1,0 +1,23 @@
+{
+ "runs": [],
+ "layers": [
+  "node-defaults_1 Node defaults",
+  "edge-defaults_1 Edge defaults",
+  "everything_1 Everything",
+  "everything_2 Everything",
+  "layer-1_1 Oldest",
+  "layer-1_2 Oldest",
+  "pinned_1 Pinned",
+  "selected_1 Selected",
+  "selected_2 Selected",
+  "hovered_1 Hovered"
+ ],
+ "notes": [],
+ "steps": [
+  "filter-1 on {\"kind\":\"union\",\"side\":\"nodes\",\"within\":\"graph\",\"branches\":[{\"id\":\"bmw0ilr9j1\",\"start\":\"all\",\"steps\":[{\"id\":\"smw0ilrim2\",\"op\":\"keep\",\"rule\":{\"kind\":\"categories\",\"attribute\":\"data.telemetry\",\"values\":[\"yes\"]}}],\"color\":\"#009E73\"}]}"
+ ],
+ "sources": [
+  "gauges.csv",
+  "flows.csv"
+ ]
+}

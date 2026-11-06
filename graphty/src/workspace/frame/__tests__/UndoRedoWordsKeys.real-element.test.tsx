@@ -15,6 +15,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { cardFields } from "../../style/cards";
 import { Workspace } from "../../Workspace";
@@ -147,7 +148,8 @@ describe("undo and redo: words and keys", () => {
         if (degree === undefined) {
             throw new Error("no degree field");
         }
-        await openRow("Picked");
+        // The cards of two selected layers: one alone opens the selection editor.
+        await selectWithTwin(session, "Picked");
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         if (screen.queryByRole("listbox") === null) {

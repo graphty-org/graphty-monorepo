@@ -33,7 +33,7 @@ export interface UmlClass {
 }
 
 /** A node's size and the picture drawn over it. */
-export interface NodeDrawing {
+interface NodeDrawing {
     readonly width: number;
     readonly height: number;
     readonly picture: string;
@@ -61,7 +61,7 @@ const PICTURE_SCALE = 3;
  * @param background - the color behind them, unset none: light words on a clear picture take a dark edge when drawn
  * @returns the URL
  */
-export function svgPicture(width: number, height: number, border: number, body: string, background = ""): string {
+function svgPicture(width: number, height: number, border: number, body: string, background = ""): string {
     const [w, h] = [width - border, height - border];
     const size = `width="${String(w * PICTURE_SCALE)}" height="${String(h * PICTURE_SCALE)}"`;
     const view = `viewBox="${String(border / 2)} ${String(border / 2)} ${String(w)} ${String(h)}"`;

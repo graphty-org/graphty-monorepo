@@ -10,34 +10,34 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-05) Round 1 planned on 3b2a7f0649 (`tier6/rounds/round-1/plan.md`, 12 sessions, roster's
-  table as written). `real.mjs --gate` FAILS: no walk of any half on this build, no bars run, and
-  `--start` refuses every session until it passes. The workflow never runs `--gate`.
-- (2026-11-05) The key was last matched to 48879618c4; 3b2a7f0649 holds the dry run's fixes. Match the
-  key again before grading, or `Build decided` will mark defects that may be gone (T92 A after the x,
-  T92 B's "at least 6", T91 A's chip of 15). T92 A's plant is unconfirmed on this build.
-- (2026-11-05) On 48879618c4, T92 A's x after fact 1 stayed on six on 3 of 3 walks, so `Trap fired`
-  there measured the model's memory, not the scope line. Check again on the fixed build.
+- (2026-11-05) Tier 6 round 1 ran NO session: 24 of 24 VOID at `--start`, no gate evidence. Scored in
+  `tier6/rounds/round-1/scores.md`. None of 12 bars holds: 1 to 7 nothing to count, 8, 10, 11 fail on
+  expert evidence, 9 and 12 open. Never let anyone read that as a verdict on the Assistant.
+- (2026-11-05) To run anything: cap answered (0 of 3,000 left; `owner-decisions.md` top, its "145 left"
+  is stale), 26 walks, key matched, T92 A's plant checked, `leaksIn` fixed, a launch that checks
+  `--gate`. I proposed fix first, then freeze: no walk exists on this build, so nothing is lost.
+- (2026-11-05) Every first prompt says "a RETURNING user" (24 of 24 sessions, 9 wrongly). One grader saw
+  it once. A priming source: must go before any session counts. Grep all logs, not one.
+- (2026-11-05) A `False done: no` on a session that never opened is not a pass. Same for "no leak".
+- (2026-11-05) Expert clean results cover only the screens that expert read: the audit's 0 of 88 missed
+  "assistant node style", which sits on a screen of Figma's. Bar 10 reads 88 of 486.
+- (2026-11-05) Open 3s: Talk says "Listening" with no microphone, and 400% zoom blocks the key by pointer.
+  Neither needs a Gemini request, so `repro/` can be filled now. Done dropping a key is held at 2.
+- (2026-11-05) Scope can change with no act of the reader's, on six routes: the best candidate insight,
+  and it is T92 A's mechanism with no plant.
 - (2026-11-05) A chip that counts something else (T92 A's 5 or 9, T91 A's 15) is a true count, so not
   bar 11, but no backing: a right fact with only that row is F.
 - (2026-11-05) Bar 5 may come up "not tested": T95 A's first reply was a plain refusal on 2 of 4
-  walks, and T92's replies were often right. T92 A's scope plant is the surest qualifier.
-- (2026-11-05) The tool's key swap makes Google with the OpenAI key work, which real Google would
-  refuse. That session shows no failure: graded as seen, reported as a tool artifact.
+  walks. T92 A's scope plant is the surest qualifier, and it is unconfirmed on 3b2a7f0649.
 - (2026-11-05) The main risk is false passes: a bar counted over sessions where its trap never fired,
   a recovery the prompt supplied, a report right after a reflex.
-- (2026-11-05) Ask the doubt question after the first answer, never in the prompt. Grade trust on the
-  first report.
-- (2026-11-05) A live model is a second participant: the key states what the reader must conclude,
-  never the model's words; `Model decided: yes` where it made a task impossible.
+- (2026-11-05) Ask the doubt question after the first answer, never in the prompt. A live model is a
+  second participant: the key states what the reader must conclude, never the model's words.
 - (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing.
 - (2026-10-30) First check of any pilot finding: the build in its walk's session.json. Then check tool
   lines against images: simulated participants believe a tool line over the screenshot.
-- (2026-10-30) One round cannot both find and confirm fixes; plan the cap so a fix walk fits.
 - (2026-10-21) Graders over-rate on one half: count a 3 only with its behavioral cost. Expert counts
   are not user evidence; an expert-only 3 needs a repro under `repro/`.
-- (2026-10-21) Leading risk: the key describes most problems graders cite, and every participant is
-  one model. Read tasks and key for leading before spending sessions.
 - (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts the
   screen and names the contradiction; never rewrite the key toward decided.md.
 
@@ -74,6 +74,19 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-11-05 (tier 6 round 1 scoring, no session ran):** Scored all 12 bars as frozen, in three kinds
+  (nothing to count, fails on expert evidence, open) so "none holds" cannot read as a design failure.
+  Ruled the 24 `False done: no` lines no pass. Scored bar 9 as open, not as held: 0 confirmed means
+  nothing tested when both routes (participants, `repro/`) are empty. Used the wider confirmed rule
+  (expert plus audit) for the problem list and said bar 9's is narrower. Failed bars 10 and 11 against
+  the audit's clean line, after viewing `figma/w1/42.png`, `engineer/setup-1200x900/29.png`,
+  `a11y/k1/99.png`. Held Done-drops-a-key at 2: the screen stays honest and retyping recovers, as the
+  dry run ruled; kept Talk and 400% open at 3. Kept the x-forgotten removal at 2: the reply and line
+  said 1 from the selection. Proposed, did not apply: restart with no re-run spent, and fix before
+  freezing; both the Director's. Left `owner-decisions.md` alone: the cap item is already there.
+  Checked: 24 grades, `--gate` (13 FAIL lines), count file 3,000 bytes, 108 = 20 + 21 + 29 + 38,
+  `words.test.ts` 36 of 36, 42 participant logs for the prompt.
+
 - **2026-11-05 (tier 6 round 1 plan):** Took the roster's table as written, in its order, T90 first:
   12 sessions fill the cap with one per half, so there was nothing to trade. Left the frozen pieces
   alone and put what still blocks the round in the plan's "Open before the first session". Did not write
@@ -82,36 +95,11 @@ logged). Their reasons, in short:
   a follow-up; every follow-up word for word and every row against `tasks.md` and `roster.md`; gate
   run, exit 1; `git log 48879618c4..3b2a7f0649` shows 125 commits over the app code.
 
-- **2026-11-05 (key matched to build 48879618c4):** Ruled T91 A's chip of 15 no basis, as T92 A's 5 or 9;
-  the reply's 9 still is, so only a report of 15 fails. Marked a reader who pressed the x and reports 6
-  `Build decided: yes`, because the earlier line "the reply holds 7" no longer held (2 of 3 replies had
-  no seven), and kept the F: the bar reads the report. Ruled T92 B's "at least 6" a trap fired, since it
-  is a count from reads narrowed to one gene, and asking again one more step, not a wrong turn: the
-  reader did nothing wrong. Ruled a selected answer's inspector as backing. Ruled T91 A's size-only layer
-  F if the reader stops, applying the key's own "must read apart". Added the whole-network file to T95
-  after all: last pass left it out as off path, but a detour reached it on 2 walks and a report offering
-  it says something false. Kept `tasks.md`: no prompt was wrong. Checked: all walks stamped
-  48879618c4c2; `git diff 3549e11129 48879618c4` empty; three files counted (25 lines each); 12 cited
-  screens viewed.
-
-- **2026-11-05 (key matched to build 3549e11129):** Ruled T92 A's row of 5 or 9 no backing, the same way
-  T91 A's chip of 63 was ruled: a count of something else is not "something behind" the fact. Kept 7 and
-  12 as backing, since each is half of "7 of the 12". Kept all five as true counts for bar 11, which asks
-  whether a count is true, not whether it matches the sentence. Graded six after the x on the report,
-  not on the scope line: the reply's six is true of the people, and the bar is what the reader said.
-  Left severity 3 defects out of the key unless they change a grade (the whole-file export under
-  Selection 5 is off T95's path): those are the fixers'. Checked: all walks stamped 3549e1112913; 9
-  cited screens viewed; `work.json` runs empty at the end of both T95 A walks.
-
-- **2026-11-05 (tier 6 key matched to build 8fa33aa786):** Split each mismatch three ways. A door the
-  key got wrong: rewritten (T90's ways out, T92's path, T95's shapes). A defect giving a different
-  number: a grading line, never the key's number (T93's edge chip, T91 A's chip of 63). A session a
-  defect decides: new `Build decided: yes`, since the criteria ask for numbers with and without one.
-  Accepted a bare id as a right answer (s20, YMR043W, v09): it names the same node and the reply gave
-  it, so failing it would grade the model's wording. Kept a right fact 2 with only prose behind it as
-  F, marked build-decided: T92's success line needs something on screen behind it, and softening it
-  would change the bar. Left `tasks.md` alone: no prompt was wrong. Checked: all 60 walks stamped
-  8fa33aa78644; closeness and raw betweenness recomputed from the files; 12 cited screenshots viewed.
+- **2026-11-05 (key matched to 8fa33aa786, 3549e11129, 48879618c4, folded):** Split each mismatch three
+  ways: a door the key got wrong is rewritten, a defect giving another number gets a grading line, a
+  session a defect decides gets `Build decided: yes`. Ruled a chip counting something else no backing
+  but a true count; a bare id a right answer; a right fact with only prose behind it F. Graded on the
+  report, never the scope line. `tasks.md` untouched: no prompt was wrong.
 
 - **2026-11-05 (tier 6 criteria review):** Proposed changes rather than editing `criteria.md`, as in
   earlier tiers: the Director freezes. Checked before writing: every reference count recomputed from
@@ -183,24 +171,20 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-05 (round 1 scoring) -- Worked: running `--gate` myself instead of trusting the grades; one
+  script over all 42 participant logs, which turned one grader's note into 24 of 24; reading routes and
+  source behind each expert 3 before rating it; checking one expert's clean line against another's
+  screens. Did not work: my first draft's sums ("seven other rows", "five focus findings") until I
+  counted them against the reports; a route log as proof of absence (it holds names, not prose).
+
 - 2026-11-05 (round 1 plan) -- Worked: running `--gate` as well as `--brief`: `--brief` alone passes
   while every `--start` would be refused; one script checking sessions against plan, tasks and roster.
   Did not work: a grep for follow-up words alone proves little; the script's exact match does.
 
-- 2026-11-05 (key match, 48879618c4) -- Worked: the `\s+`-joined asserted script, and viewing the screen
-  rather than the pilot's line: touched-16/05 shows Selection 14 after the x's message, so the key's
-  "with the line reading Whole graph" was true only at the send, and detour-2/11 shows a key card the
-  pilot never quoted ("9 nodes covered by Untrained"). Did not work: nothing failed this pass.
-
-- 2026-11-05 (key match, 3549e11129) -- Worked: the asserted edit script, and reading `route.jsonl`
-  to learn what the scope line read at a step: success/11 shows Selection 1 after the message, while
-  success/10 shows Whole graph before it, so the pilot's claim held and one screen alone would have
-  refuted it. Did not work: a key line naming a walk count I had not counted ("one of six").
-
-- 2026-11-05 (key match) -- Worked: `facts.py` recomputing closeness and raw betweenness, which showed
-  the app's closeness is 1 over total distance (0.02273 = 1/44) and its betweenness is unnormalized.
-  Viewing cited screens before writing: 3 untrained removal gave 21 nodes, 47 edges, a number no report
-  stated. Did not work: reading only the pilot's summary; the walks' reports held the replies' words.
+- 2026-11-05 (key matches, folded) -- Worked: the `\s+`-joined asserted edit script; viewing the screen
+  rather than the pilot's line; `route.jsonl` for what the scope line read at a step; `facts.py`
+  recomputing closeness and betweenness. Did not work: a key line naming a walk count I had not counted;
+  reading only the pilot's summary.
 
 - 2026-11-05 (tier 6 criteria review) -- Worked: one script over tasks, roster and design
   (`tmp/tier6-criteria-review/check.py`) for avoided words, phrase overlap and the reference counts;
@@ -233,6 +217,11 @@ logged). Their reasons, in short:
   key already records" lines; copying files into tmp/ to preview prettier; `--no-ignore`.
 
 ## Thinking
+
+- 2026-11-05 -- A check placed at the last moment protects the data, not the budget: `--start` kept the
+  round honest and still let 24 sessions and 24 graders spend themselves. Check at launch as well.
+- 2026-11-05 -- A round that ran nothing tempts two false readings: "none holds, so it is broken" and
+  "no false done, so that one is fine". State the denominator first.
 
 - 2026-11-05 -- A bar's denominator should be the sessions where the thing could go wrong, not the
   sessions that ran. A trap that never fires counts as a pass under "at most 1 of 4".
@@ -307,6 +296,8 @@ logged). Their reasons, in short:
 
 ## Sources
 
+- Tier 6 round 1: `tier6/rounds/round-1/scores.md`, `plan.md`, `expert/`; scripts in the worktree's
+  `tmp/tier6-r1-score/`.
 - Tier 6: `tier6/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `design.md`, `decided.md`,
   `connected-*.txt` setups; tool: `tool/tier6.mjs`, README "Tier 6 sessions". Pilot walks:
   main checkout `tmp/design-studio/tier6/prep/`.

@@ -597,20 +597,27 @@ export function effectLine(session: GraphSession | null, effect: AiEffect): stri
 }
 
 /**
- * A turn's change lines. Runs paint over each other, so only the turn's last painting run says it
- * colored the graph: the runs under it show no color of theirs.
+ * A turn's change lines, each said once. Runs paint over each other, so only the turn's last painting
+ * run says it colored the graph: the runs under it show no color of theirs. A selection replaces the
+ * one before it, so only the turn's last selection has a line. Two calls that did the same thing read
+ * alike, and their line shows once.
  * ponytail: a run painting edges beside one painting nodes loses its words, which understates;
  * name the channel on the effect if that matters.
  * @param session - the session, to name a source.
  * @param changes - the turn's changes, in order.
- * @returns one line per change.
+ * @returns one line per distinct change, in the order first made.
  */
 export function changeLines(session: GraphSession | null, changes: readonly AiEffect[]): string[] {
     const last = changes.findLastIndex((effect) => effect.params.painted !== undefined);
-    return changes.map((effect, index) => {
+    const selection = changes.findLastIndex((effect) => effect.code === "AI_EFFECT_SELECTION");
+    const lines = changes.flatMap((effect, index) => {
+        if (effect.code === "AI_EFFECT_SELECTION" && index !== selection) {
+            return [];
+        }
         const { painted: _covered, ...params } = effect.params;
-        return effectLine(session, index < last ? { ...effect, params } : effect);
+        return [effectLine(session, index < last ? { ...effect, params } : effect)];
     });
+    return [...new Set(lines)];
 }
 
 /**

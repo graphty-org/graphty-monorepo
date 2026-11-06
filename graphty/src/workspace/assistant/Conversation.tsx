@@ -342,7 +342,7 @@ function ReaderRows({ reader }: Readonly<{ reader: ReaderMessage }>): React.JSX.
  * @param props - Component props
  * @param props.turn - the turn
  * @param props.effects - what its calls did
- * @param props.onMore - opens the turn's steps
+ * @param props.onMore - called as the reader opens the rest of the change lines
  * @returns The rows
  */
 function TurnEffects({
@@ -415,10 +415,7 @@ function ReplyRows({
             <TurnEffects
                 turn={turn}
                 effects={effects}
-                onMore={() => {
-                    onHold();
-                    setStepsOpen(true);
-                }}
+                onMore={onHold}
             />
             {words === null ? null : (
                 <EndRow

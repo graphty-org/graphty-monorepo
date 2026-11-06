@@ -261,7 +261,7 @@ interface ChangeRowsProps {
     readonly provenance: string | undefined;
     /** Whether none of the turn's changes stands. */
     readonly undone: boolean;
-    /** Opens the turn's steps. */
+    /** Called as the reader opens the rest of the lines. */
     readonly onMore: () => void;
 }
 
@@ -315,14 +315,15 @@ function openLinks(session: GraphSession, changes: readonly AiEffect[]): readonl
 }
 
 /**
- * What a turn did to the graph: one line per effect, up to three, then the links to the real editor,
+ * What a turn did to the graph: one line per change, up to three until "and {N} more" opens the rest in
+ * place, then the links to the real editor,
  * each only while its layer or run stands, and Undo on the newest step only. Once no step of the
  * message stands, it reads Undone.
  * @param props - Component props
  * @param props.changes - the turn's changes
  * @param props.provenance - the id its steps carry
  * @param props.undone - whether none of its changes stands
- * @param props.onMore - opens the turn's steps
+ * @param props.onMore - called as the reader opens the rest of the lines
  * @returns The rows
  */
 export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<ChangeRowsProps>): React.JSX.Element {
@@ -333,19 +334,38 @@ export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<Cha
     const lines = changeLines(session, changes);
     const excluded = excludedLine(changes);
     const links = session === null || undone ? [] : openLinks(session, changes);
+    const [all, setAll] = useState(false);
+    const shown = all ? lines : lines.slice(0, MAX_LINES);
+    // The button goes as the lines it stood for arrive, so focus moves to the first of them.
+    const firstMore = useRef<HTMLParagraphElement>(null);
+    useEffect(() => {
+        if (all) {
+            firstMore.current?.focus();
+        }
+    }, [all]);
     return (
         <div className="ws-assistant-change">
-            {lines.slice(0, MAX_LINES).map((line, index) => (
+            {shown.map((line, index) => (
                 // A turn's lines never reorder.
                 <Text
-                    key={index} // NOSONAR(S6479): two lines of a turn may read alike
+                    key={index} // NOSONAR(S6479): a line's place is its identity
                     size="sm"
+                    ref={index === MAX_LINES ? firstMore : undefined}
+                    tabIndex={index === MAX_LINES ? -1 : undefined}
                 >
                     {line}
                 </Text>
             ))}
-            {lines.length > MAX_LINES ? (
-                <Button variant="subtle" color="gray" size="compact-xs" onClick={onMore}>
+            {shown.length < lines.length ? (
+                <Button
+                    variant="subtle"
+                    color="gray"
+                    size="compact-xs"
+                    onClick={() => {
+                        onMore();
+                        setAll(true);
+                    }}
+                >
                     {moreWords(lines.length - MAX_LINES)}
                 </Button>
             ) : null}

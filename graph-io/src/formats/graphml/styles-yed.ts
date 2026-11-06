@@ -25,6 +25,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { yedGradientAngle } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
     YED_LABEL_PADDING,
@@ -1215,8 +1216,28 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
     return `other:${real.type}`;
 }
 
-/** yEd's gradient: from the fill color at a node's top-left corner to `color2` at its bottom-right one. */
+/** The direction a gradient on a node yEd has no measured drawing for (a group, a UML or picture node) is read in. */
 const YED_GRADIENT_ANGLE = 45;
+
+/**
+ * The direction yEd draws a realizer's gradient in: a generic node, and a shape node's diamond, corner to corner; any
+ * other shape node left to right (`yedGradientAngle`); a table or pool draws none (yed-graphml-specimen-groups, its
+ * p2 and graphml-synthetic-nodes' table-node are flat in `color`); other realizers keep a corner-to-corner ramp.
+ * @param real - the realizer
+ * @returns the `fillGradientAngle`, or null for no gradient
+ */
+function realizerGradientAngle(real: Realizer): number | null {
+    if (real.type === "TableNode") {
+        return null;
+    }
+    const geometry = treeChild(real.r, "Geometry");
+    const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
+    if (real.type === "ShapeNode") {
+        const diamond = treeAttr(treeChild(real.r, "Shape"), "type") === "diamond";
+        return yedGradientAngle(diamond ? "corner" : "across", w, h);
+    }
+    return real.type === "GenericNode" ? yedGradientAngle("corner", w, h) : YED_GRADIENT_ANGLE;
+}
 
 /**
  * Whether a `y:Fill` paints nothing.
@@ -1246,9 +1267,10 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
     }
     readColor(treeAttr(fill, "color"), "fill", "fillOpacity", put, at);
     const second = canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
-    if (second !== null) {
+    const angle = second === null ? null : realizerGradientAngle(real);
+    if (second !== null && angle !== null) {
         put("fillGradient", second.color);
-        put("fillGradientAngle", YED_GRADIENT_ANGLE);
+        put("fillGradientAngle", angle);
     }
 }
 
@@ -2344,9 +2366,16 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
         const second = get("fillGradient");
         if (typeof second === "string") {
             (node["y:Fill"] as Tree)["@_color2"] = second.toUpperCase();
-            const angle = get("fillGradientAngle");
-            if (angle !== YED_GRADIENT_ANGLE) {
-                approximate("fillGradientAngle", angle ?? 0);
+            // a y:ShapeNode's gradient is drawn the one way yEd draws it for the shape (`realizerGradientAngle`)
+            const [w, h] = [get("width"), get("height")];
+            const drawn = yedGradientAngle(
+                get("shape") === "diamond" ? "corner" : "across",
+                typeof w === "number" ? w : 0,
+                typeof h === "number" ? h : 0,
+            );
+            const angle = get("fillGradientAngle") ?? 0;
+            if (typeof angle !== "number" || Math.abs(angle - drawn) > 0.01) {
+                approximate("fillGradientAngle", angle);
             }
         }
     } else if (fillOpacity === 0) {

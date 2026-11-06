@@ -415,9 +415,9 @@ describe("GraphML styles: yEd", () => {
         const at = (id: string): number => snapshot.ids.indexOf(id);
         expect([fill[at("n0")], opacity[at("n0")]]).toEqual(["#ff0000", 0.501961]);
         expect(fill[at("n1")]).toBe("#ff0000");
-        // yEd runs a gradient from the fill color at the top-left corner into color2 at the bottom-right one
+        // a shape node's gradient runs left to right
         expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n1")]).toBe("#0000ff");
-        expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[at("n1")]).toBe(45);
+        expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[at("n1")]).toBe(0);
         expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n0")]).toBeNull();
         expect(opacity[at("n2")]).toBe(0);
         expect(opacity[at("n3")]).toBe(0);
@@ -446,6 +446,27 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "edge", "opacity", snapshot).slice(0, 2)).toEqual([null, 0.501961]);
         // yEd's standard arrow is a triangle with its back pressed in (a vee); its delta is the plain triangle
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["vee", "none", "triangle"]);
+    });
+
+    it("reads a generic node's gradient corner to corner and draws none on a table", async () => {
+        const fill = '<y:Fill color="#FF0000" color2="#0000FF" transparent="false"/>';
+        const { snapshot, styles } = await load(
+            [
+                '<?xml version="1.0" encoding="UTF-8"?>',
+                '<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">',
+                '<key for="node" id="d6" yfiles.type="nodegraphics"/>',
+                '<graph edgedefault="directed" id="G">',
+                `<node id="g"><data key="d6"><y:GenericNode configuration="com.yworks.flowchart.process"><y:Geometry height="40" width="80" x="0" y="0"/>${fill}</y:GenericNode></data></node>`,
+                `<node id="t"><data key="d6"><y:TableNode configuration="YED_TABLE_NODE"><y:Geometry height="90" width="150" x="0" y="0"/>${fill}</y:TableNode></data></node>`,
+                "</graph></graphml>",
+            ].join("\n"),
+        );
+        const at = (id: string): number => snapshot.ids.indexOf(id);
+        const angle = resolveStyles(styles, "node", "fillGradientAngle", snapshot);
+        const gradient = resolveStyles(styles, "node", "fillGradient", snapshot);
+        // stretched over the 80 x 40 box, a ramp at atan2(40^2, 80^2) changes color along the box's diagonal
+        expect([gradient[at("g")], angle[at("g")]]).toEqual(["#0000ff", 14.036]);
+        expect(gradient[at("t")]).toBeNull();
     });
 
     it("adds yEd's defaults beneath the file's own values, and none with toolDefaults: false", async () => {
@@ -1020,7 +1041,7 @@ describe("GraphML styles: writing", () => {
                     values: {
                         fill: ["#e8eef7", "#e8eef7"],
                         fillGradient: ["#b7c9e3", "#b7c9e3"],
-                        fillGradientAngle: [45, 90],
+                        fillGradientAngle: [0, 90],
                         label: ["A", "B"],
                         labelPosition: ["inside-top-right", "top"],
                     },

@@ -19,17 +19,26 @@
  * does all the work its move started, with no frame budget splitting it. A pumped frame never rests,
  * so the still cases time a frame the render loop would skip. Each line prints the median and the slowest of the timed frames, after untimed ones,
  * and the rows a move changed beside the changed-row cap, (nodes + edges) / 8: a move past the cap
- * goes back to a walk of every object, so the smooth target covers moves under it.
+ * goes back to a walk of every object, so the smooth target covers moves under it. A line whose
+ * move stayed under the cap but still uploaded a whole buffer ends with `UNDER-CAP-FULL-UPLOAD`.
  *
- * Each graph has its own test file, so each loads into a page of its own: in one page the second
- * graph met the first's heap, about 2.4 GB still held after the first element was removed, and the
- * page died. `timeline-frame.bench.test.ts` runs 100,000 nodes and
- * `timeline-frame-few-nodes.bench.test.ts` 10,000.
+ * Known costs over a 16 ms frame, tracked as issues: a jump under the cap uploads whole buffers and
+ * spends tens of milliseconds per 10,000 changed rows (#6025); a Ghost step costs about twice a Hide
+ * step (#6026); every move re-evaluates every active mesh, 62 ms on 100,000 nodes (#6027).
  *
- * Numbers go to the console as `[timeline-frame]` lines; nothing about speed is asserted, only that
- * the drawn edges agree with the masks after the last frame. Run it alone, on the real GPU (the
- * software renderer's numbers mean nothing here), with the extracted libEGL tree when the machine
- * has no system one:
+ * TEMPORARY: each graph has its own test file, so each loads into a page of its own, because about
+ * 2.4 GB of heap stays held after a removed element (#6028) and a second graph in the same page ran
+ * out of memory. Merge the two files back into one when #6028 is fixed.
+ * `timeline-frame.bench.test.ts` runs 100,000 nodes and `timeline-frame-few-nodes.bench.test.ts`
+ * 10,000.
+ *
+ * Numbers go to the console as `[timeline-frame]` lines; nothing about speed is asserted. What is
+ * asserted, at the end of a Hide slide and of a Ghost slide: every edge, one by one, is drawn or not
+ * (and ghosted or not) as a brute-force test of its `t` against the window says, and the slots read
+ * back from the GPU buffers are empty exactly for the edges that are not drawn. The suites run only
+ * when `GRAPHTY_BROWSER_GPU` is set: on the software renderer the numbers mean nothing and one frame
+ * of 100,000 nodes takes about a second. Run it alone, with the extracted libEGL tree when the
+ * machine has no system one:
  *
  * GRAPHTY_BROWSER_GPU=nvidia GRAPHTY_EGL_LIB_DIR=<tree> npx vitest run --project=browser-bench
  * test/browser/timeline-frame
@@ -43,6 +52,12 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import type { TimeStepEvent } from "../../session.js";
 import { setDefaultFeatures } from "../../src/features/resolve";
+import { DirtyRuns } from "../../src/meshes/DirtyRuns";
+import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import type { SessionVisibilityApi } from "../../src/session/visibility/VisibilityApi";
+
+/** Whether the run asked for the real GPU; the suites are skipped without it. */
+const GPU = ((import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "") !== "";
 
 const EDGES = 1_000_000;
 const DAY = 86_400_000;
@@ -67,6 +82,8 @@ interface Frame {
     total: number;
     uploadBytes: number;
     uploadCalls: number;
+    /** Buffers uploaded whole rather than in runs. */
+    fullUploads: number;
     rows: number;
 }
 
@@ -78,7 +95,20 @@ interface Mounted {
 }
 
 /** What the wrapped functions add up during a frame. */
-const tally = { sync: 0, edgeWalk: 0, uploadBytes: 0, uploadCalls: 0 };
+const tally = { sync: 0, edgeWalk: 0, uploadBytes: 0, uploadCalls: 0, fullUploads: 0 };
+
+/**
+ * Count the buffers uploaded whole: an upload asks its dirty slots for runs only when something was
+ * written, so a null answer means the whole buffer goes.
+ */
+function countFullUploads(): void {
+    const { take } = DirtyRuns.prototype;
+    DirtyRuns.prototype.take = function counted(this: DirtyRuns, ranged: boolean): readonly number[] | null {
+        const runs = take.call(this, ranged);
+        tally.fullUploads += runs === null ? 1 : 0;
+        return runs;
+    };
+}
 
 /**
  * Add the time a method spends to a tally field, on this one object.
@@ -157,16 +187,20 @@ function report(nodes: number, name: string, frames: readonly Frame[]): void {
         "gpu",
         "uploadBytes",
         "uploadCalls",
+        "fullUploads",
         "rows",
     ];
     const cells = keys.map((key) => {
         const all = frames.map((frame) => frame[key]);
-        const digits = key.startsWith("upload") || key === "rows" ? 0 : 1;
+        const digits = key.startsWith("upload") || key === "fullUploads" || key === "rows" ? 0 : 1;
         return `${key}=${quantile(all, 0.5).toFixed(digits)}/${quantile(all, 1).toFixed(digits)}`;
     });
     const cap = Math.floor((nodes + EDGES) / 8);
+    const fellBack = frames.some((frame) => frame.rows > 0 && frame.rows < cap && frame.fullUploads > 0);
     console.log(
-        `[timeline-frame] nodes=${String(nodes)} case=${name} cap=${String(cap)} median/worst ${cells.join(" ")}`,
+        `[timeline-frame] nodes=${String(nodes)} case=${name} cap=${String(cap)} median/worst ${cells.join(" ")}${
+            fellBack ? " UNDER-CAP-FULL-UPLOAD" : ""
+        }`,
     );
 }
 
@@ -179,12 +213,119 @@ function rowsOf(step: TimeStepEvent | undefined): number {
     return step === undefined ? 0 : step.entered.nodes + step.entered.edges + step.left.nodes + step.left.edges;
 }
 
+/** The private fields of an edge and a batch the GPU read back needs. */
+interface EdgeSlots {
+    lineBatch: EdgeLineBatch | null;
+    lineSlots: number[];
+}
+interface BatchStore {
+    buffer: { getBuffer(): { underlyingResource: unknown } | null } | null;
+    expanded: unknown;
+    stride: number;
+    highWater: number;
+}
+
+/**
+ * Read a batch's slots back from the GPU, as the draw call reads them.
+ * @param gl - The context.
+ * @param batch - The batch.
+ * @returns The slots, stride floats each.
+ */
+function readBack(gl: WebGL2RenderingContext, batch: EdgeLineBatch): { floats: Float32Array; stride: number } {
+    const store = batch as unknown as BatchStore;
+    assert.isNull(store.expanded, "the real GPU draws instanced lines, not expanded ones");
+    const resource = store.buffer?.getBuffer()?.underlyingResource;
+    assert.instanceOf(resource, WebGLBuffer, "the batch has a GPU buffer");
+    const floats = new Float32Array(store.highWater * store.stride);
+    gl.bindBuffer(gl.ARRAY_BUFFER, resource);
+    gl.getBufferSubData(gl.ARRAY_BUFFER, 0, floats);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    return { floats, stride: store.stride };
+}
+
+/**
+ * Whether a slot read back holds a line: a hidden slot is all zeros.
+ * @param read - The batch read back.
+ * @param read.floats - Its slots.
+ * @param read.stride - Floats per slot.
+ * @param slot - The slot.
+ * @returns True when the GPU would draw it.
+ */
+function slotDrawn(read: { floats: Float32Array; stride: number }, slot: number): boolean {
+    const from = slot * read.stride;
+    return read.floats.subarray(from, from + read.stride).some((value) => value !== 0);
+}
+
+/**
+ * Check every edge against a brute-force test of its `t` against the window: drawn (by the edge's
+ * state and by its slots read back from the GPU) and ghosted exactly as the window says.
+ * @param element - The element.
+ * @param gl - Its context.
+ * @param window - The window the last move reported.
+ * @param ghosting - Whether `outside` is `"ghost"`: every edge drawn, the outside ones ghosted.
+ */
+function assertEdgesMatchWindow(
+    element: Graphty,
+    gl: WebGL2RenderingContext,
+    window: TimeStepEvent,
+    ghosting: boolean,
+): void {
+    const { visibility } = element.session;
+    // The element's session is the full one; its public type leaves out the ghost read.
+    const ghosts = (visibility as SessionVisibilityApi).ghosts()?.edge ?? null;
+    assert.strictEqual(ghosts !== null, ghosting, "ghosts exist exactly while ghosting");
+    const reads = new Map<EdgeLineBatch, { floats: Float32Array; stride: number }>();
+    const wrong: string[] = [];
+    let inside = 0;
+    let checkedSlots = 0;
+    for (const edge of element.graph.getDataManager().edges.values()) {
+        const t = edge.data.t as number;
+        const isInside = t >= window.from && t < window.to;
+        inside += isInside ? 1 : 0;
+        const drawn = ghosting || isInside;
+        const problems: string[] = [];
+        if (edge.isRenderVisible() !== drawn) {
+            problems.push(`isRenderVisible=${String(!drawn)}`);
+        }
+
+        if (ghosts !== null && (ghosts[edge.index] === 1) === isInside) {
+            problems.push(`ghosted=${String(isInside)}`);
+        }
+
+        const { lineBatch, lineSlots } = edge as unknown as EdgeSlots;
+        if (lineBatch !== null) {
+            let read = reads.get(lineBatch);
+            if (read === undefined) {
+                read = readBack(gl, lineBatch);
+                reads.set(lineBatch, read);
+            }
+
+            for (const slot of lineSlots) {
+                checkedSlots++;
+                if (slotDrawn(read, slot) !== drawn) {
+                    problems.push(`gpuSlot${String(slot)}=${String(!drawn)}`);
+                }
+            }
+        }
+
+        if (problems.length > 0) {
+            wrong.push(`${edge.id} t=${String(t)} ${problems.join(",")}`);
+        }
+    }
+
+    // The read back bound buffers behind Babylon's back; let it rebind from scratch.
+    element.graph.engine.wipeCaches(true);
+    assert.isAbove(checkedSlots, 0, "edges were read back from the GPU");
+    assert.deepEqual(wrong.slice(0, 10), [], `${String(wrong.length)} edges disagree with the window`);
+    assert.strictEqual(visibility.summary.visibleEdges, inside, "the visible count is the brute-force count");
+}
+
 /**
  * The five cases on one graph of 1,000,000 edges.
  * @param nodes - How many nodes the edges join.
  */
 export function describeFrames(nodes: number): void {
-    describe(`a 2% window over ${String(EDGES)} edges on ${String(nodes)} nodes`, () => {
+    describe.skipIf(!GPU)(`a 2% window over ${String(EDGES)} edges on ${String(nodes)} nodes`, () => {
         let mounted: Mounted | null = null;
 
         /**
@@ -237,6 +378,7 @@ export function describeFrames(nodes: number): void {
             const { _gl: gl } = engine;
             console.log(`[timeline-frame] renderer="${engine.getGlInfo().renderer}"`);
             countUploads(gl);
+            countFullUploads();
             const updates = created.getUpdateManager();
             timeMethod(updates, "syncViewMasks", "sync");
             timeMethod(updates, "updateEdges", "edgeWalk");
@@ -263,6 +405,7 @@ export function describeFrames(nodes: number): void {
             tally.edgeWalk = 0;
             tally.uploadBytes = 0;
             tally.uploadCalls = 0;
+            tally.fullUploads = 0;
             const begun = performance.now();
             const step = await move?.();
             const moved = performance.now();
@@ -287,6 +430,7 @@ export function describeFrames(nodes: number): void {
                 total: finished - begun,
                 uploadBytes: tally.uploadBytes,
                 uploadCalls: tally.uploadCalls,
+                fullUploads: tally.fullUploads,
                 rows: rowsOf(step),
             };
         }
@@ -331,22 +475,24 @@ export function describeFrames(nodes: number): void {
             await run("jump", () => time().seek(START + Math.floor(place() * (SPAN - WIDTH)), { commit: false }));
         });
 
+        /**
+         * Slide once more, pump the frame, and check every edge against the window.
+         * @param ghosting - Whether `outside` is `"ghost"`.
+         */
+        async function check(ghosting: boolean): Promise<void> {
+            const step = await slide(WARM_FRAMES + TIMED_FRAMES);
+            assert.isDefined(step, "the slide reported its window");
+            await frame();
+            assertEdgesMatchWindow(on().element, on().gl, step, ghosting);
+        }
+
         it("a 2% window stepping under Outside: Ghost", async () => {
             await time().setSettings({ outside: "ghost" });
             await run("ghost", slide);
+            await check(true);
             await time().setSettings({ outside: "hide" });
             await run("step-after-ghost", slide);
-
-            let drawn = 0;
-            for (const edge of on().element.graph.getDataManager().edges.values()) {
-                drawn += edge.isRenderVisible() ? 1 : 0;
-            }
-
-            assert.strictEqual(
-                drawn,
-                on().element.session.visibility.summary.visibleEdges,
-                "drawn edges agree with the masks",
-            );
+            await check(false);
         });
     });
 }

@@ -5955,7 +5955,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Make a saved conversation the open one; the next `aiCommand` continues it.
+     * Make a saved conversation the open one; the next `aiCommand` continues it. Called while
+     * `enableAiControl` is still coming up, it waits for it, and a graph loaded later never replaces it.
      * @param id - Its id.
      * @returns Its snapshot, or null when there is none.
      * @since 4.0.0
@@ -5965,7 +5966,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Start a new conversation; the open one stays saved and listed.
+     * Start a new conversation; the open one stays saved and listed. Called while
+     * `enableAiControl` is still coming up, it waits for it, and a graph loaded later never replaces it.
      * @returns Its snapshot, or null without `history`.
      * @since 4.0.0
      */

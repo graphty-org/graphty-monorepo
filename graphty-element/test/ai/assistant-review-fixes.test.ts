@@ -105,6 +105,23 @@ describe("a graph that loads after the assistant came up", () => {
         await drained(assistant);
         assert.strictEqual(assistant.controller.getConversation()?.id, begun);
     });
+
+    it("leaves a new conversation the reader started before it loaded, and its next message lands there", async () => {
+        const { store, saved } = await savedConversation();
+        const empty = await assistantSession({ nodes: [], edges: [] });
+        const assistant = new ScriptedAssistant(empty, { history: "memory", store });
+        const started = (await assistant.controller.newConversation())?.id;
+
+        await empty.data.addNodes(TWO_NODES.nodes);
+        await drained(assistant);
+        assert.strictEqual(assistant.controller.getConversation()?.id, started);
+
+        await assistant.say("after the load");
+        const open = assistant.controller.getConversation();
+        assert.strictEqual(open?.id, started);
+        assert.notStrictEqual(open?.id, saved);
+        assert.isTrue(open?.messages.some((one) => one.role === "reader"));
+    });
 });
 
 describe("an undone message", () => {

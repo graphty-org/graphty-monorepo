@@ -8370,6 +8370,11 @@ export class Graph implements GraphContext {
     private aiXr: import("./ai/AiManager").AssistantXrHooks | null = null;
     /** Counts `enableAiControl` and `disableAiControl` calls: an enable a later call superseded does nothing. */
     private aiGeneration = 0;
+    /**
+     * The newest `enableAiControl` until it settles: a conversation opened or started meanwhile
+     * waits for it, so the reader's choice is not lost to an assistant still coming up.
+     */
+    private aiEnabling: Promise<void> = Promise.resolve();
 
     /**
      * Enable AI-powered natural language control of the graph.
@@ -8398,6 +8403,29 @@ export class Graph implements GraphContext {
      * ```
      */
     async enableAiControl(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
+        const enabling = this.enableAi(config);
+        this.aiEnabling = enabling.catch(() => undefined);
+        return enabling;
+    }
+
+    /**
+     * Waits until no `enableAiControl` is coming up, a later one included.
+     * @returns When the newest has settled.
+     */
+    private async aiSettled(): Promise<void> {
+        let waited: Promise<void>;
+        do {
+            waited = this.aiEnabling;
+            await waited;
+        } while (waited !== this.aiEnabling);
+    }
+
+    /**
+     * What `enableAiControl` does.
+     * @param config - The configuration.
+     * @returns When the assistant is up.
+     */
+    private async enableAi(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
         const generation = ++this.aiGeneration;
         // A configuration that cannot run rejects before anything is built, and the current
         // assistant stays.
@@ -8633,6 +8661,7 @@ export class Graph implements GraphContext {
      * @since 4.0.0
      */
     async openAiConversation(id: string): Promise<import("./ai/conversation/snapshot").AiConversationSnapshot | null> {
+        await this.aiSettled();
         return (await this.aiManager?.openConversation(id)) ?? null;
     }
 
@@ -8642,6 +8671,7 @@ export class Graph implements GraphContext {
      * @since 4.0.0
      */
     async newAiConversation(): Promise<import("./ai/conversation/snapshot").AiConversationSnapshot | null> {
+        await this.aiSettled();
         return (await this.aiManager?.newConversation()) ?? null;
     }
 

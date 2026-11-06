@@ -765,6 +765,11 @@ export class AiController {
     private stopSession = (): void => undefined;
     /** The open conversation, as last saved or loaded. */
     private current: ConversationRecord | undefined;
+    /**
+     * Whether the open conversation is one the reader chose (a new one, or one opened from the
+     * list): a graph that loads later never puts its saved conversation in its place.
+     */
+    private chosen = false;
     /** Settles once the store is open and the conversation reopened. */
     private readonly opened: Promise<void>;
     /** Who this controller is, when it claims a saved request to resolve it. */
@@ -2603,12 +2608,18 @@ When the user asks you to perform an action, use the appropriate tool. If no too
 
     /**
      * Reopen the saved conversation of the graph just loaded, so a host may set its data before or
-     * after `enableAiControl`. A conversation the reader has begun stays open.
+     * after `enableAiControl`. A conversation the reader has begun or chosen stays open.
      * @returns When done.
      */
     private async reopenForGraph(): Promise<void> {
         const { store, current } = this;
-        if (this.disposed || store === undefined || current === undefined || current.messages.length > 0) {
+        if (
+            this.disposed ||
+            this.chosen ||
+            store === undefined ||
+            current === undefined ||
+            current.messages.length > 0
+        ) {
             return;
         }
 
@@ -2828,6 +2839,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         // The old conversation's requests end with it, saved there; the new one's are asked again.
         await this.supersedePending(true);
         this.current = record;
+        this.chosen = true;
         this.liveStale();
         // The last run's streamed words and tool calls were another conversation's.
         this.statusManager.reset();
@@ -2888,6 +2900,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 // The old conversation's requests end with it, as a new message would end them.
                 await this.supersedePending(true);
                 this.current = this.freshRecord();
+                this.chosen = true;
                 this.statusManager.reset();
                 this.emitChanged();
             }

@@ -6,7 +6,7 @@
  */
 
 /** How a yEd node runs its gradient: corner to corner, or left to right. */
-export type YedGradientRun = "corner" | "across";
+type YedGradientRun = "corner" | "across";
 
 /**
  * The `fillGradientAngle` yEd's gradient on a node translates into. graphty-element paints its ramp across a square and

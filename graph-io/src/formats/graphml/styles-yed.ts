@@ -2394,17 +2394,7 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
         const second = get("fillGradient");
         if (typeof second === "string") {
             (node["y:Fill"] as Tree)["@_color2"] = second.toUpperCase();
-            // a y:ShapeNode's gradient is drawn the one way yEd draws it for the shape (`realizerGradientAngle`)
-            const [w, h] = [get("width"), get("height")];
-            const drawn = yedGradientAngle(
-                get("shape") === "diamond" ? "corner" : "across",
-                typeof w === "number" ? w : 0,
-                typeof h === "number" ? h : 0,
-            );
-            const angle = get("fillGradientAngle") ?? 0;
-            if (typeof angle !== "number" || Math.abs(angle - drawn) > 0.01) {
-                approximate("fillGradientAngle", angle);
-            }
+            noteGradientAngle(get, approximate);
         }
     } else if (fillOpacity === 0) {
         node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
@@ -2424,6 +2414,25 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
         };
     }
     return { "y:ShapeNode": node };
+}
+
+/**
+ * Records a gradient's angle as approximated unless it is the one yEd draws a y:ShapeNode's gradient in for its shape
+ * (`realizerGradientAngle`).
+ * @param get - the node's values
+ * @param approximate - records approximations
+ */
+function noteGradientAngle(get: GetValue, approximate: Approximate): void {
+    const [w, h] = [get("width"), get("height")];
+    const drawn = yedGradientAngle(
+        get("shape") === "diamond" ? "corner" : "across",
+        typeof w === "number" ? w : 0,
+        typeof h === "number" ? h : 0,
+    );
+    const angle = get("fillGradientAngle") ?? 0;
+    if (typeof angle !== "number" || Math.abs(angle - drawn) > 0.01) {
+        approximate("fillGradientAngle", angle);
+    }
 }
 
 /**

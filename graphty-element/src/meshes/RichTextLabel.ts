@@ -1206,7 +1206,8 @@ export class RichTextLabel {
         // it a 1000 px font asked a 4096 x 1024 texture of every label, and a hundred such labels
         // took gigabytes of GPU memory and crashed the browser.
         const density = this.texelsPerFontPx() * this.captureScale;
-        const round = (px: number): number => Math.pow(2, Math.ceil(Math.log2(px)));
+        // At least a pixel: WebGPU refuses a texture of no size, which a label of no size would ask for.
+        const round = (px: number): number => Math.max(1, Math.pow(2, Math.ceil(Math.log2(px))));
         let textureWidth = this.options.autoSize
             ? round(this.actualDimensions.width * density)
             : this.options.resolution;

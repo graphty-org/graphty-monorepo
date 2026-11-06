@@ -1071,33 +1071,7 @@ export class Graph implements GraphContext {
         handGraphPaintToRenderer(this.session);
         // Shaders compile in this scene's engine; the runtime loads on the first one.
         shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
-        // The background shader, group outlines and bloom read the stack and the nodes' places.
-        this.renderManager.bindShaderScene({
-            session: this.session,
-            member: (id) => {
-                const node = this.dataManager.nodes.get(id);
-                const color = node?.paintedColor;
-                if (
-                    node === undefined ||
-                    color === null ||
-                    color === undefined ||
-                    node.getRenderState() !== "visible"
-                ) {
-                    return undefined;
-                }
-
-                const { x, y, z } = node.getPosition();
-                return {
-                    x,
-                    y,
-                    z,
-                    radius: node.drawnRadius,
-                    color: [color.r / 255, color.g / 255, color.b / 255, color.a],
-                };
-            },
-        });
-        // No frame is drawn while an element built from the defaults waits for its style.
-        this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
+        this.bindRenderManager();
         lane.register("graph", async (_rendered, target, dirty) => {
             const { cause } = lane;
             this.dataManager.reconcile(target.graph, dirty, cause);
@@ -2053,7 +2027,8 @@ export class Graph implements GraphContext {
      * Opens the renderer asked for. The graph is built on a WebGL engine, because a WebGPU engine
      * initialises asynchronously and the scene cannot exist before it does; so when WebGPU is asked
      * for and available, the scene and everything bound to it is rebuilt here on a fresh canvas --
-     * before the managers are initialised, so nothing has drawn or attached yet.
+     * before the managers are initialised, so nothing has drawn or attached yet. What a consumer
+     * set on the first scene in the meantime moves with it: see {@link openWebGPU}.
      */
     private async openRenderer(): Promise<void> {
         const requested = this.#rendererRequest;
@@ -2075,6 +2050,10 @@ export class Graph implements GraphContext {
         // WebGPU one. Disposing that many node meshes is quadratic (#680), which is what made a
         // 10k-node WebGPU load take 46 s against 3 s under WebGL (#614). Loads wait on the queue
         // instead, and take their turn once the scene they will be drawn on exists.
+        //
+        // The opening view is in force for that whole window, as it is at once on WebGL: a camera
+        // set in it reaches the camera the graph opens with, which the swap then carries over.
+        this.applyOpeningViewMode();
         const queue = this.operationQueue;
         const holdQueue = !queue.getStats().isPaused;
         if (holdQueue) {
@@ -2122,8 +2101,7 @@ export class Graph implements GraphContext {
             this.reportEngineGone(error);
         };
         const background = this.scene.clearColor;
-        this.renderManager.dispose();
-        this.inputManager.dispose();
+        const previous = this.renderManager;
         const label = this.canvas.getAttribute("aria-label");
         if (label !== null) {
             canvas.setAttribute("aria-label", label);
@@ -2142,17 +2120,29 @@ export class Graph implements GraphContext {
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
-        // A new engine: its shaders compile again there.
-        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
         this.camera = this.renderManager.camera;
         this.camera.onReaderMove = this.#readerMovedCamera;
         this.camera.setViewInsets(this.#viewInsets);
         this.camera.setZoomToPointer(this.#zoomToPointer);
+        this.camera.setInstantGlides(this.#cameraTransitionMs === 0);
+        // Where a consumer put the camera while WebGPU opened. Read before the old one is disposed.
+        this.camera.takeViewOf(previous.camera);
+        previous.dispose();
+        // Same manager, so its listeners, recording and enabled state stay; only the scene moves.
+        this.inputManager.rebind({
+            scene: this.scene,
+            engine: this.engine,
+            canvas: this.canvas,
+            eventManager: this.eventManager,
+        });
+        // A new engine: its shaders compile again there.
+        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
+        this.bindRenderManager();
         this.renderManager.applyLighting(this.#lighting);
+        NodeEffects.setOutlineWidth(this.scene, this.styles.config.behavior.node.outlineWidth);
         this.scene.clearColor = background;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
         this.updateManager.rebindScene(this.camera);
-        this.inputManager = this.createInputManager();
         this.graphContext = new DefaultGraphContext(
             () => this.styles,
             this.dataManager,
@@ -2164,7 +2154,6 @@ export class Graph implements GraphContext {
         );
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
-        this.managers.set("input", this.inputManager);
         this.#rendererStatus = { requested, active: "webgpu", reason: null, drawing: true };
     }
 
@@ -2286,6 +2275,37 @@ export class Graph implements GraphContext {
         // A drag on the drawing never starts a text selection on the host page.
         canvas.style.userSelect = "none";
         return canvas;
+    }
+
+    /** Give the render manager what it reads from the graph, on the first scene and on the swap. */
+    private bindRenderManager(): void {
+        // The background shader, group outlines and bloom read the stack and the nodes' places.
+        this.renderManager.bindShaderScene({
+            session: this.session,
+            member: (id) => {
+                const node = this.dataManager.nodes.get(id);
+                const color = node?.paintedColor;
+                if (
+                    node === undefined ||
+                    color === null ||
+                    color === undefined ||
+                    node.getRenderState() !== "visible"
+                ) {
+                    return undefined;
+                }
+
+                const { x, y, z } = node.getPosition();
+                return {
+                    x,
+                    y,
+                    z,
+                    radius: node.drawnRadius,
+                    color: [color.r / 255, color.g / 255, color.b / 255, color.a],
+                };
+            },
+        });
+        // No frame is drawn while an element built from the defaults waits for its style.
+        this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
     }
 
     /**

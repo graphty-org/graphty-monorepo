@@ -199,6 +199,7 @@ export class PulledLineBatch {
         this.table.dispose();
         this.table = this.build();
         this.dirtyFirst = -1;
+        this.dirtyLast = -1;
         this.index();
     }
 

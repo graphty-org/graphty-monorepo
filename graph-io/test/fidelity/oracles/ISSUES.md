@@ -5055,10 +5055,23 @@ graphty-element's label takes a new `box` (channel `labelBox`), and graph-io set
 - A label sized to its node has no inset along the side it fills, and keeps the one down it: a header band stored at
   `y="4"` is drawn 4 down (`yed-graphml-specimen-groups`, `configuration-er-labels`).
 
-Two labels are newly listed, both on the line between two label.anchor places, not moved from where yEd drew them:
+Two labels listed by that change are off the list (#5958), by reading them more correctly; neither was out of place:
 
 - `gml-synthetic-coverage` node 9 (v7): its left edge is yEd's to 0.1 px, but its words are Courier New where yEd drew
-  Dialog, 1.3 px narrower, so its middle falls past a quarter of the font size from the node's.
-- `yed-graphml-specimen-labels` `two-labels`: yEd draws a line's words about 0.7 px below the middle of its box
-  (`rect@510` to `525.6` round `text@513` to `524` on `specimen-groups`); graphty centers them, so the label's middle
-  is 3.3 px above the node's where yEd's is 2.2 and the quarter is 2.5.
+  Dialog, 1.3 px narrower, so its middle fell past a quarter of the font size from the node's. The file names Courier
+  New, the machine that drew the oracle lacked it, and Chromium answers the name with Liberation Mono, so no placement
+  is right here. `label.family` already fails this label; `label.anchor` now judges words in another face at the
+  oracle's width, kept at whichever of their start, middle or end is nearest the oracle's.
+- `yed-graphml-specimen-labels` `two-labels`: yEd's line stands exactly 2 px inside its box (baseline 11.28 down a box
+  at `y="4"`). The 0.7 px was the browser's: reading an SVG text it rounds the font's ascent and descent to whole pixels
+  and, with the descent left short, moves a pixel from one to the other, so a 10 px DejaVu Sans line, 9.28 up and 2.36
+  down, reads 8 up and 3 down, 0.96 px low. `label.anchor` now places a label by its font's line (`PText.lineDrop`).
+
+The same reading took `dot-real-crazy` `UniPlus+`, `gml-synthetic-coverage` 33, `graphml-stm32-func` n132 and n133 and
+`graphml-synthetic-nodes` shape-octagon and shape-roundrectangle off the list; each is in another face, or its line
+was read low.
+
+Open: every other property still takes the rounded box. Moving `box` itself to the font's line renames strays (their
+ids hold their boxes) and fails `yed-live-graphml-specimen-labels-p4` v2-model-exterior-north-east and -north-west
+label.offset and `gml-synthetic-coverage` edge 4->15 label.alongLine, three labels truly off that passed by under
+0.2 px.

@@ -176,7 +176,7 @@ export const TwoSources: Story = {
         const element = await loadLog(canvasElement);
         await element.session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await element.waitForStableFrame();
-        await userEvent.click(await within(canvasElement).findByRole("button", { name: "Add filter" }));
+        await openPicker(canvasElement);
         await within(document.body).findByRole("option", { name: "Data source" });
     },
 };
@@ -196,11 +196,10 @@ async function workspace(): Promise<HTMLElement> {
 }
 
 /**
- * Adds a filter card from the Filters "+", as a reader does.
+ * Opens a new filter card's value picker from the Filters "+", as a reader does.
  * @param canvasElement - the story's root.
- * @param item - the "+" list's item.
  */
-async function addFilter(canvasElement: HTMLElement, item: string): Promise<void> {
+async function openPicker(canvasElement: HTMLElement): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
     await userEvent.click(await place.findByRole("button", { name: "Add filter" }));
     // With the selection workspace on, the new card opens in its modal on the Card list: Value
@@ -209,6 +208,15 @@ async function addFilter(canvasElement: HTMLElement, item: string): Promise<void
     if (element !== null && selectionWorkspaceOn(element.session)) {
         await userEvent.click(await within(await workspace()).findByRole("button", { name: "Value" }));
     }
+}
+
+/**
+ * Adds a filter card from the Filters "+", as a reader does.
+ * @param canvasElement - the story's root.
+ * @param item - the "+" list's item.
+ */
+async function addFilter(canvasElement: HTMLElement, item: string): Promise<void> {
+    await openPicker(canvasElement);
     const named = new RegExp(`^${item}(,|$)`);
     await userEvent.click(await within(document.body).findByRole("option", { name: named }));
 }

@@ -10,35 +10,39 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-05) Tier 6 round 1 ran NO session: 24 of 24 VOID at `--start`. `tier6/rounds/round-1/insights.md`
-  is the settled record: 12 findings, all expert. Bars 1 to 7 and 11 have nothing to count, 8 fails, 10
-  fails on the state list only, 9 and 12 open. Never let anyone read that as a verdict on the Assistant.
-- (2026-11-05) To run anything: cap answered (0 of 3,000 left; `owner-decisions.md` top, its "145 left"
-  is stale), 26 walks, key matched, T92 A's plant checked, `leaksIn` fixed, a launch that checks
-  `--gate`. I proposed fix first, then freeze: no walk exists on this build, so nothing is lost.
-- (2026-11-05) Every first prompt says "a RETURNING user" (24 of 24 sessions, 9 wrongly). One grader saw
-  it once. A priming source: must go before any session counts. Grep all logs, not one.
+- (2026-11-05) Tier 6 round 1 is closed and the studio is stopped on one owner decision: raise the Gemini
+  cap (3,000 of 3,000 spent; 4,000 covers about 680 requests, near $3.40) or drop sessions. The "145 left"
+  in `owner-decisions.md` is stale. It holds sessions and model walks, not the fixes or the 400% repro.
+- (2026-11-05) No reader has seen the Assistant: 24 of 24 VOID at `--start`. `insights.md` is the record,
+  12 findings, all expert: what is on screen, never what a reader paid. Bars 1 to 7 and 11 nothing to
+  count, 8 fails narrower, 10 did not hold on the state list only, 9 and 12 open. Not a verdict.
+- (2026-11-05) Before a session counts: 26 walks, key matched, T92 A's plant checked, `leaksIn` fixed, a
+  launch that checks `--gate`. I proposed fix first, then freeze: no walk exists, so nothing is lost.
+- (2026-11-05) Every first prompt says "a RETURNING user" (24 of 24 sessions, 9 wrongly). A priming
+  source: must go before any session counts. One grader saw it once; grep all logs, not one.
 - (2026-11-05) A `False done: no` on a session that never opened is not a pass. Same for "no leak".
 - (2026-11-05) Expert clean results cover only the screens that expert read: the audit's 0 of 88 missed
-  "assistant node style", which sits on a screen of Figma's. Bar 10 reads 88 of 486.
-- (2026-11-05) One open 3 left: 400% zoom, where `frame.css` gives the Settings page 0 height on every
-  section. `repro/` needs no Gemini request. Talk came down to 2, Done stays 2.
-- (2026-11-05) Scope moves on about three mechanisms, not six: undo reselect, Esc clearing, the x lost on
-  close. A chip click is the reader's act. T92 A's mechanism, but only with a walker's sequence so far.
-- (2026-11-05) Three rulings open: does the kept "selection surviving Undo" cover a rollback; does the x
-  entry reach closing the panel; does a painting run get a Colored row.
+  "assistant node style", and whether that is element English or a layer's name is still a reading.
+- (2026-11-05) One open 3: the Settings page gets 0 height in a short, narrow window (`frame.css`, every
+  section, by estimate under about 330 CSS px tall). CSS arithmetic, not measured: `repro/` next, no
+  Gemini needed. Talk came down to 2, Done stays 2: same test, the belief corrects itself.
+- (2026-11-05) Scope moves on about three mechanisms: undo reselect (kept by `decided.md`), Esc clearing,
+  the x lost on close. A chip click is the reader's act. The removal of 1 of 16 needed a walker's sequence.
+- (2026-11-05) Three rulings open, the Director's, none a one-way door: does the kept "selection surviving
+  Undo" cover a rollback; does the x entry reach closing the panel; does a painting run get a Colored row.
+- (2026-11-05) Questions only sessions can answer: does a reader press Done on a typed key (T90, bar 3);
+  does a line without a chip read as prose; does the small text decide anything (T90, T92).
 - (2026-11-05) A chip that counts something else (T92 A's 5 or 9, T91 A's 15) is a true count, so not
-  bar 11, but no backing: a right fact with only that row is F.
-- (2026-11-05) Bar 5 may come up "not tested": T95 A's first reply was a plain refusal on 2 of 4 walks.
+  bar 11, but no backing: a right fact with only that row is F. Bar 5 may come up "not tested": T95 A's
+  first reply was a plain refusal on 2 of 4 walks.
 - (2026-11-05) The main risk is false passes: a bar counted over sessions where its trap never fired,
   a recovery the prompt supplied, a report right after a reflex.
 - (2026-11-05) Ask the doubt question after the first answer, never in the prompt. A live model is a
   second participant: the key states what the reader must conclude, never the model's words.
-- (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing.
+- (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing. Graders
+  over-rate on one half; expert counts are not user evidence; an expert-only 3 needs a repro.
 - (2026-10-30) First check of any pilot finding: the build in its walk's session.json. Then check tool
   lines against images: simulated participants believe a tool line over the screenshot.
-- (2026-10-21) Graders over-rate on one half: count a 3 only with its behavioral cost. Expert counts
-  are not user evidence; an expert-only 3 needs a repro under `repro/`.
 
 ## Priorities and values
 
@@ -72,6 +76,11 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-05 (tier 6 round 1 closed):** Read `insights.md` as the round's last word and changed no
+  bar or ruling. Carried forward only what a next round needs: the cap decision, the list before a session
+  counts, the one open 3, the three rulings, the questions left for readers. Reason: the study stops on
+  spending, not on the design, so the notes must not read as a result.
 
 - **2026-11-05 (tier 6 round 1 insights, skeptics applied):** Two drops = dropped, one = weakened, as
   before. 0 of 9 problems dropped; 3 kept, 5 weakened, the 8-finding keyboard row split. Talk to 2, 400%
@@ -138,23 +147,9 @@ logged). Their reasons, in short:
   event clamped to one notch, 0.75% per notch) before writing it: weakened, not dropped, since a
   notch that small may still be a defect. Viewed every screenshot cited to the owner. Reported
   bar 1's F as rule-caused, not reader failure, and left the frozen rule alone.
-- **2026-10-30 (studio stopped after tier 4 round 1):** Record the round as findings, not a
-  verdict on the design: two failing bars (2, 3) are partly study artifacts (key definition, tool
-  hover line, inconsistent hover counting). Reason: a stop at the cap leaves no re-test, so the
-  notes must say which failures are the product's (5, 6, 7, join preview) and which are the
-  study's. Tried: two independent skeptics per insight -- worked; they caught the tool defect and
-  the contestable false done. Did not work: grading hovers without a rule decided in advance.
-- **2026-10-30 (tier 4 round 1 insights, skeptics applied):** Two drops = dropped, one drop or
-  weaken = weakened. All four severity 3 candidates fell to 2 or below (join preview 2, time vs
-  kind 2, "With issues 11" 1, Export focus a candidate), so bar 4 holds. Bar 2 counted but flagged
-  (false done only under the key's definition). Bar 3 reported as "fails as frozen, not shown as a
-  design failure" (1 wrong turn before success per T64 session). Bar 6 kept with the mechanism
-  corrected to clipping. Insights "a fix created a trap" dropped, "issue home depends on where
-  people are" confounded; the other four weakened. Added the tool's `tooltip: null` defect as a
-  must-fix. Reason: a claim stands only where both a screen and a reader's cost back it. Evidence:
-  `rounds/round-1/insights.md`; viewed repro/r1-s03/02.png, sessions/r1-s08/05.png,
-  r1-s09/16.png, r1-s03/20.png, r1-s13/03.png myself.
-
+- **2026-10-30 (tier 4 round 1, folded):** Recorded as findings, not a verdict: bars 2 and 3 were partly
+  study artifacts (key definition, the tool's `tooltip: null`, hover counting); 5, 6, 7 and the join
+  preview were the product's. All four 3 candidates fell to 2 or below under the skeptics.
 - **2026-10-30 (tier 4 round 1 scoring, folded):** Scored by hand from grade.md lines plus `steps.mjs`
   and `endstate.mjs`; four severity 3s proposed, each a confirmed defect with a 3 from a grader or expert.
   The frozen rules stay frozen.
@@ -171,6 +166,10 @@ logged). Their reasons, in short:
   prompt, not the key, when a prompt leads.
 
 ## Tried: worked / did not work
+
+- 2026-11-05 (round closed) -- Worked: the skeptics' source checks: they moved a bar (11), corrected an
+  owner (`frame.css`) and a cause (starters). Did not work: a launch with no gate check, which spent a
+  whole round's agents to learn nothing about readers.
 
 - 2026-11-05 (round 1 insights) -- Worked: a scan of one control's presence across every route step, which
   settled where a selection came from in one script; viewing a screenshot cited for another reason, which
@@ -222,6 +221,9 @@ logged). Their reasons, in short:
   key already records" lines; copying files into tmp/ to preview prettier; `--no-ignore`.
 
 ## Thinking
+
+- 2026-11-05 -- A study's budget is part of its validity: a cap reached in preparation leaves findings
+  with no reader behind them. Count walks and pilots against the cap before freezing the round's size.
 
 - 2026-11-05 -- A bar worded "in every session" cannot fail on an audit with no sessions: expert evidence
   can break the design and leave the bar uncounted. Say which of the two a finding is.

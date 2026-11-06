@@ -16,8 +16,14 @@ import defaultsDeep from "lodash/defaultsDeep.js";
 import { assert, describe, it } from "vitest";
 
 import type { LayerSpec, Path } from "../../src/catalog/types";
-import { defaultEdgeStyle, defaultNodeStyle, EdgeStyle, NodeStyle } from "../../src/config";
-import { bootstrapEdgePaint, bootstrapNodePaint, fillDefaults, StylePainter } from "../../src/managers/StylePainter";
+import { defaultEdgeStyle, defaultNodeStyle, EdgeStyle, NodeStyle, type NodeStyleConfig } from "../../src/config";
+import {
+    batchableOf,
+    bootstrapEdgePaint,
+    bootstrapNodePaint,
+    fillDefaults,
+    StylePainter,
+} from "../../src/managers/StylePainter";
 import {
     createStylesApi,
     type ElementLayerSpec,
@@ -636,5 +642,43 @@ describe("fillDefaults", () => {
 
         assert.strictEqual(filled.kept, 1);
         assert.isUndefined(({} as Record<string, unknown>).polluted);
+    });
+});
+
+describe("batchableOf", () => {
+    const plain = { scaled: false, flatOutline: false };
+    const style = (over: object): NodeStyleConfig =>
+        defaultsDeep({}, over, NodeStyle.parse(defaultNodeStyle)) as NodeStyleConfig;
+
+    it.each<[string, object, boolean]>([
+        ["the default style", {}, true],
+        ["a shape, a size and a detail", { shape: { type: "box", size: 2, detail: 8 } }, true],
+        ["the geometry and material effects", { effect: { wireframe: true, flatShaded: true, unlit: true } }, true],
+        ["a plain color", { texture: { color: "#ff0000" } }, true],
+        ["a solid opaque color", { texture: { color: { colorType: "solid", value: "#ff0000", opacity: 1 } } }, true],
+        ["an option left undefined", { texture: { image: undefined } }, true],
+        ["a label switched off", { label: { enabled: false } }, true],
+        [
+            "a solid color with transparency",
+            { texture: { color: { colorType: "solid", value: "#f00", opacity: 0.5 } } },
+            false,
+        ],
+        ["a gradient", { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } }, false],
+        ["an image", { texture: { image: "a.png" } }, false],
+        ["an icon", { texture: { icon: "star" } }, false],
+        ["a glow", { effect: { glow: { color: "#ff0000", strength: 1 } } }, false],
+        ["a shape option no batch draws", { shape: { width: 2 } }, false],
+        ["a label", { label: { enabled: true } }, false],
+        ["a tooltip", { tooltip: { enabled: true } }, false],
+        ["a style option added later", { laterOption: true }, false],
+    ])("%s", (_name, over, batchable) => {
+        assert.equal(batchableOf({ style: style(over) }, plain), batchable);
+    });
+
+    it.each([
+        ["a size that follows the view", { scaled: true, flatOutline: false }],
+        ["a flat outline", { scaled: false, flatOutline: true }],
+    ])("%s keeps every row an object", (_name, view) => {
+        assert.isFalse(batchableOf({ style: style({}) }, view));
     });
 });

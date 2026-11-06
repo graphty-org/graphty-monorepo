@@ -3011,7 +3011,8 @@ export interface SessionEventMap {
      */
     "time:end": { readonly window: TimeWindow | null };
     /**
-     * The designated time field changed through `session.time.setField`.
+     * The designated time field changed through `session.time.setField`, or a load designated the
+     * time field its file declares (a dynamic GEXF graph, an XGMML graph with `start` and `end`).
      * @experimental timeline
      * @beta
      */

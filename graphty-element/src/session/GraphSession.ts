@@ -3295,6 +3295,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
     });
     timeInternals = time.internals;
+    dispatcher.services.timeFieldChanged = () => {
+        publish(watchers, "time:field", { field: time.api.field });
+    };
 
     const results = createResultsApi({
         entry: (id) => runEntry(runs, id),

@@ -3,6 +3,7 @@ import { cx2Importer, cxImporter, cysImporter, oboImporter, xgmmlImporter } from
 
 import { formatDescriptor } from "../catalog/formats";
 import type { FormatDescriptor } from "../catalog/types";
+import type { TimeField } from "../session/time/TimeApi";
 import { CSVDataSource } from "./CSVDataSource";
 import { DataSource } from "./DataSource";
 import { DOTDataSource } from "./DOTDataSource";
@@ -46,8 +47,24 @@ function xgmmlDirection(snapshot: GraphSnapshot): string {
         : "the XGMML default for an absent directed attribute (undirected)";
 }
 
+/**
+ * The time field an XGMML graph declares: Cytoscape's DynNetwork times each element by `start` and
+ * `end` attributes, so a kind declares them when it has both.
+ * @param snapshot - The imported graph.
+ * @returns The field, or null when no kind has both.
+ */
+function xgmmlTime(snapshot: GraphSnapshot): TimeField | null {
+    const both = (table: GraphSnapshot["nodes"]): boolean => table.has("start") && table.has("end");
+    const source = { start: "start", end: "end" };
+    const nodes = both(snapshot.nodes);
+    const edges = both(snapshot.edges);
+    return nodes || edges ? { ...(nodes ? { nodes: source } : {}), ...(edges ? { edges: source } : {}) } : null;
+}
+
 // Read by graph-io with no reader of their own: each is the importer and its catalogue entry.
-DataSource.register(DataSource.fromImporter(xgmmlImporter, builtIn("xgmml"), { statedBy: xgmmlDirection }));
+DataSource.register(
+    DataSource.fromImporter(xgmmlImporter, builtIn("xgmml"), { statedBy: xgmmlDirection, time: xgmmlTime }),
+);
 DataSource.register(
     DataSource.fromImporter(cx2Importer, builtIn("cx2"), { statedBy: () => "CX2 edges, which point from s to t" }),
 );

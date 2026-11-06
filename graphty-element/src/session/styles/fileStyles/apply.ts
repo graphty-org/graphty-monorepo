@@ -16,6 +16,7 @@ import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../.
 import type { LoadReport } from "../../../data/report";
 import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
+import type { TimeField } from "../../time/TimeApi";
 import type { CompiledLayer } from "../Layer";
 import { quotePath } from "../predicate";
 import { ANNOTATIONS_VALUE, type DrawnAnnotations } from "./annotations";
@@ -80,13 +81,15 @@ export const HELD_READERS = new WeakMap<
         readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
         /** The layout the file asks for, as the source read it. */
         readonly declaredFileLayout?: FileLayout | null;
+        /** The time field the file declares, as the source read it. */
+        readonly declaredTime?: TimeField | null;
     }
 >();
 
 /** What a load leaves for the step that applies its styles. */
 export interface ImportOutcome {
     /** The data source the records came from, when it can say what styles it read. */
-    readonly reader: Partial<FileStyleSource> | null;
+    readonly reader: (Partial<FileStyleSource> & { readonly declaredTime?: TimeField | null }) | null;
     /** The id each edge record of the load became, in record order; null for one that made no edge. */
     readonly edgeIds: readonly (EdgeId | null)[];
     /** The report the load sealed. */

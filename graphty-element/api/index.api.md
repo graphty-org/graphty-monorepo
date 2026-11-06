@@ -929,8 +929,12 @@ export abstract class DataSource {
     get declaredFileLayout(): FileLayout | null;
     get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    // @beta
+    get declaredTime(): TimeField | null;
     protected declareFileLayout(layout: FileLayout | null): void;
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
+    // @beta
+    protected declareTime(field: TimeField): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;

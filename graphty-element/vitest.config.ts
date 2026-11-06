@@ -903,6 +903,9 @@ const config = defineConfig({
                 // sets timing rows' project below, which never runs in CI.
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED, force: true },
+                // Puts GRAPHTY_BROWSER_GPU on `import.meta.env`, so a benchmark whose numbers mean
+                // nothing on the software renderer (timeline-frame-bench.ts) skips itself without it.
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 test: {
                     name: "browser-bench",
                     setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],

@@ -960,9 +960,8 @@ function bars(s0: BarsSection): string {
     const group = (g: BarsSection["groups"][number]): string => {
         const title = g.head ? sentence(g.head) : null;
         const heading = title === null ? "" : h3(title);
-        const list = g.items.length
-            ? barList(g.items, title === null ? caption : plainText(title))
-            : `<p class="empty">none in this range</p>`;
+        const groupCaption = title === null ? caption : plainText(title);
+        const list = g.items.length ? barList(g.items, groupCaption) : `<p class="empty">none in this range</p>`;
         return `<div>${heading}${list}</div>`;
     };
     return `<div class="two">${s.groups.map(group).join("")}</div>`;

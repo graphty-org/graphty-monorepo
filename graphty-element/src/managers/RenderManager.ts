@@ -333,7 +333,11 @@ function releaseWhenIdle(gl: WebGLRenderingContext | WebGL2RenderingContext): vo
 }
 
 /** Events that say nothing about the picture, so they do not ask a resting loop to draw. */
-const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set(["graph-frame-stable", "stats-update"]);
+const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set([
+    "graph-frame-stable",
+    "graph-first-frame",
+    "stats-update",
+]);
 
 /**
  * The canvas events after which the next frame may differ: what a reader does, and the GL context

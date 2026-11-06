@@ -5345,6 +5345,7 @@ export interface SessionEventMap {
     "style:batch-changed": StyleBatchChange;
     "style:changed": StyleChange;
     "style:problem": StyleProblem;
+    "style:refused": StyleRefusal;
     // @beta
     "time:end": {
         readonly window: TimeWindow | null;

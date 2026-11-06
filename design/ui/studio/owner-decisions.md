@@ -3715,3 +3715,16 @@ holds anything it behaves as before.
 owner approval"); the binding is `@experimental assistant`, which may change in a minor release
 (owner, 2026-10-25/26), and `tier6/decided.md`, "The scope line always states what a message is
 about", already says what the reads must match. Evidence and reasons: `tier6/dry-run-r1-2.md`.
+
+## 2026-11-05 -- Decided by the team: an approval closes the gate's count, and a whole-graph message after a selection one is told so
+
+Both sit behind the `assistant` experiment. The gate's running totals restart after a batch the reader
+approved, so a read or a small write after an approved removal is not held again. The scope line of a
+whole-graph message gains a sentence when an earlier message in the conversation was about a selection.
+
+**Why settled here.** Neither is a change a consumer could rely on. `AssistantGateLimits` says these are
+"the limits past which the assistant's changes are held", and a read after an approval is no change, so
+today's second request contradicts its own promise, as the rule-language fixes did. The assistant is
+`@experimental assistant`, which may change in a minor release (owner, 2026-10-25/26), and
+`tier6/decided.md`, "The scope line always states what a message is about", already says what the reply
+must match. Evidence and reasons: `tier6/dry-run-r1-2.md`.

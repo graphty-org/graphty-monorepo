@@ -241,3 +241,20 @@ None of these reverses an entry above. Evidence: `dry-run-r1-2.md`.
   model's prose never becomes one, so the order of the reads is the honest lever. A row of several
   chips was rejected: chips carry no label, and it would leave Show in table with no one target.
   Evidence: T92 A touched-13 and success.
+
+## Settled by the dry run of build 48879618c4 (2026-11-05)
+
+None of these reverses an entry above. Evidence: `dry-run-r1-2.md`.
+
+- **What the reader approved stops counting. The gate's running totals restart after an approved
+  batch, so a later batch is held only for what it does itself, and its card counts only that.**
+  (2026-11-05.) Reason: a request describes what has not happened yet. Held on the totals, a read
+  after Remove raised 'Remove 82 nodes and 63 edges?' over a network already at 249, and Keep them drew
+  'Declined. Nothing changed.' beside a removal that stands. Letting the rest of the message through
+  unheld was rejected: a second large removal the reader never saw must still be asked. Evidence:
+  T93 B keyboard and second-request-3; `largePreview` in `ToolExecutor.ts`.
+- **A message about the whole graph after one about a selection reads afresh: the model is told its
+  earlier answers and conditions were limited, and adds no condition the reader did not ask for.**
+  (2026-11-05.) Reason: the scope line always states what a message is about, and the x is its remedy,
+  so the remedy must work. Taking earlier turns out of what is sent was rejected: 'those' needs them.
+  The x itself is unchanged. Evidence: T92 A success, touched-16 and keyboard, 3 of 3 walks on six.

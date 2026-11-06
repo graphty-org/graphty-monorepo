@@ -5,24 +5,23 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-05 (tier 6 dry run pass 2 triaged).
+Last updated: 2026-11-05 (tier 6 dry run of build 48879618c4 triaged).
 Summarized on 2026-10-17 to 2026-10-21, 2026-10-29, 2026-10-30 and twice on 2026-11-05; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-11-05) TIER 6 DRY RUN PASS 2 TRIAGED: 57 lines on 3549e11129, 4 of them notes; 9 fix now (0 crashes, 0 blocks,
-  9 spoils; 7 repeats, 2 new, 0 regressions), 1 decided, 41 backlog, 2 sessions, three units, `tier6/dry-run-r1-2.md`.
-  Next: build `chip-row`, `export-scope`, `last-read`, re-match `answers.md`, refreeze, walk their routes.
+- (2026-11-05) TIER 6 DRY RUN OF 48879618c4 TRIAGED: 63 lines, 6 of them notes; 15 fix now (0 crashes, 0 blocks, 15
+  spoils; 13 repeats, 2 new, 0 regressions), 1 decided, 40 backlog, 1 sessions, five units, `tier6/dry-run-r1-2.md`
+  (the earlier triage of that name is at e9ed843c6f). Next: build all five, re-match `answers.md`, refreeze, walk.
+- (2026-11-05) The build froze with an empty source diff: none of `chip-row`, `export-scope`, `last-read` was ever
+  built, and the pilots re-measured the same code. Do not freeze until `git diff <last> <new>` over source is not empty.
+- (2026-11-05) New: `approved-count` (approved totals re-hold the next batch, even a read) and `scope-change` (the x
+  does not reach the model's memory). The second reverses my own backlog call: the key made it `Build decided`.
 - (2026-11-05) The rejected chip-row fix had the right rule and the wrong layer: the binding outlives the selection in
   `settleTarget`. One cause behind seven rows. Binding ends when the selection empties, for good within the message.
 - (2026-11-05) `last-read` is a prompt line and may only lower the odds of a 5 or 9 chip. If it does not hold, the key's
   `Build decided` line stays and the report gives both numbers. Do not reach for a second chip.
-- (2026-11-05) Two selector faults in graphty-element lie behind the 63, 361 and 24 chips the pilots filed as
-  separate panel defects: a lone `false` read as a column, and a negative rule true on every edge that lacks the
-  column. Reproduced in a script. Pilots reported symptoms in four tasks; the cause was two lines of predicate logic.
-- (2026-11-05) A rule-language fix is not an API break when the old answer contradicts the file's own promise
-  (query.ts: a path nothing answers matches nothing). Both recorded as the team's.
 - (2026-11-05) Backlog's first line: the model acting after a no (Keep them hid the seven) and changing the selection
   on a plain question. Truthful on screen, so not a spoil; both are the model's acts, and a tool or prompt rule is
   the likely fix between rounds.
@@ -83,6 +82,14 @@ history.
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 dry run of 48879618c4.** 15 of 63 fix now. Reasons: every row a build note explains stays a
+  repeat, not a new fault. The x keeping six moved from backlog to fix now, since two of three replies now hold no seven
+  and `Build decided: yes` is the test for a spoil. The second request is new and on T93's own path: the grade is the
+  report agreeing with the network. Totals restart after approval rather than a batch being let through when it
+  measures nothing, because a small write after an approved removal would otherwise still show the old card. T91 A's 15
+  chip joins `last-read`: the pilot read it as the line failing, but the line is not in the build. T93 A's 9 chip is
+  decided, since the request is what T93 grades. Notes stay a class of their own though the brief names four: a build
+  note is no defect and no backlog item.
 - **2026-11-05, tier 6 dry run pass 2.** 9 of 53 defects fix now. Reasons: `Build decided: yes` stays the test for a
   spoil, which makes the chip of 5 under 7 a spoil though every count is true. Its fix is the model's read order, since
   the row itself is decided and may not read prose. Open run doing nothing stays backlog though rated 3: the key says it
@@ -118,6 +125,11 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 (dry run of 48879618c4) -- Worked: `git diff` over source first, as the notes say; it turned 13 rows into
+  one fact. Worked: reading `largePreview` and the second-request screenshot before ruling; the pilot's mechanism held.
+  Worked: checking a pilot's claim against the build ('the line does not always hold', when the line was never in it).
+  Did not work: the freeze itself, a docs commit frozen as a build, against my own 2026-10-19 rule. A freeze step needs
+  a line that refuses an empty diff.
 - 2026-11-05 (dry run pass 2) -- Worked: reading `rejected-fixes.md` before any row; it named the cause and the rows
   fell into it. Worked: `work.json` across every walk plus the typed messages, which settled that T92 is untouched by
   the dead Open run. Worked: reading the screenshot behind a mechanism marked not proved (two Algorithm results steps
@@ -146,6 +158,10 @@ history.
 
 ## Thinking
 
+- **2026-11-05, dry run of 48879618c4:** a limit that counts a running total needs a rule for what closing the limit
+  does to the total, and a frozen scope and a model's memory are the same drift: the screen moved on and the words
+  did not. A remedy the study offers must be walked as a remedy, not only drawn. Writing a fix in a triage is not
+  building it: check the commits before reading the next pilots' rows as evidence about the fix.
 - **2026-11-05, tier 6 dry run pass 2:** a value frozen at send time and a screen that reads live state will drift
   apart, and the drift looks like a panel bug. Look for the frozen copy first. A fix that makes something visible (the
   export arriving) can expose the next fault behind it, so walk the result, not only the arrival.
@@ -172,7 +188,7 @@ history.
 
 - Tier 6: `tier6/{criteria,tasks,answers,roster,decided,design,backlog,rejected-fixes,dry-run-r1-1,dry-run-r1-2}.md`; pilots
   `tier6/rounds/r1/pilot/<task>/report.md`, screenshots under the main checkout's
-  `tmp/design-studio/tier6/r1/pilot/`; generators `tmp/director-dryrun-t6/` and `tmp/director-dryrun-t6-2/` in the studio worktree.
+  `tmp/design-studio/tier6/r1/pilot/`; generators `tmp/director-dryrun-t6/`, `-2/` and `-3/` in the studio worktree.
 - Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog,rejected-fixes}.md`, `tier4/rounds/round-1/`, dry runs
   `tier4/dry-run-r1-*.md` (each file names the triages it replaced).
 - Tier 3: `tier3/{criteria,tasks,answers,roster,decided,design,bulk-edit-plan,decisions-round-6}.md`,

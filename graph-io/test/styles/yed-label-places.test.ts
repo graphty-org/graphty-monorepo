@@ -93,6 +93,21 @@ describe("yEd GML label places", () => {
         expect(nodes("labelOffsetY")).toEqual([-4, 4, null, null, null]);
     });
 
+    it("draws a corner anchor of the sides model at the top, and keeps its sides and inside places", async () => {
+        const nodes = await nodesOf(
+            "gml",
+            gml([
+                'anchor "nw" model "sides"',
+                'anchor "se" model "sides"',
+                'anchor "s" model "sides"',
+                'anchor "bl" model "sides"',
+                'anchor "se"',
+            ]),
+        );
+        expect(nodes("labelPosition")).toEqual(["top", "top", "bottom", "inside-bottom-left", "bottom-right"]);
+        expect(nodes("labelOffsetY")).toEqual([-4, -4, 4, -4, null]);
+    });
+
     it("holds a label inside its node against its side, and a label as wide as its node to the node's width", async () => {
         const nodes = await nodesOf(
             "gml",

@@ -21,6 +21,7 @@ const RESULTS = process.env.BENCH_RESULTS;
 if (!BASE || !RESULTS) throw new Error("set BENCH_URL and BENCH_RESULTS");
 const DEADLINE_S = Number(process.env.BENCH_DEADLINE_S ?? 570);
 const RENDER_PATH = process.env.BENCH_RENDER_PATH || undefined;
+const RENDERER = process.env.BENCH_RENDERER || undefined;
 const [lib, mode, accel, n, m, dpr, ...flags] = process.argv.slice(2);
 const skip = flags.includes("skip-layout"),
     labels = flags.includes("labels"),
@@ -79,6 +80,7 @@ const out = {
     mode,
     accel,
     renderPath: lib === "graphty" ? RENDER_PATH : undefined,
+    rendererRequest: lib === "graphty" ? RENDERER : undefined,
     n: N,
     m: M,
     dpr: DPR,
@@ -162,13 +164,34 @@ try {
         "setup",
         await page.evaluate(
             ([l, o]) => B.setup(l, o),
-            [lib, { mode, accel, dpr: DPR, labels, renderPath: RENDER_PATH, onDemand: !!process.env.LAYOUT_ONLY }],
+            [
+                lib,
+                {
+                    mode,
+                    accel,
+                    dpr: DPR,
+                    labels,
+                    renderPath: RENDER_PATH,
+                    renderer: RENDERER,
+                    onDemand: !!process.env.LAYOUT_ONLY,
+                },
+            ],
         ),
     );
     const load = await page.evaluate(() => B.load());
     log("load", load);
     if (load.error) throw new Error("load failed: " + load.error);
     log("canvas", await page.evaluate(() => B.canvasSize()));
+    // A row that quietly left the fast path would be measured as if it were on it. Checked after
+    // the load and again after the drag, the one stage that touches a node.
+    const checkBatched = async (stage) => {
+        if (lib !== "graphty" || RENDER_PATH !== "batched") return;
+        const rows = await page.evaluate(() => document.querySelector("graphty-element")?.rowCounts);
+        log(stage === "load" ? "rowCounts" : `rowCounts-${stage}`, rows);
+        if (!rows || rows.objectNodes > 0)
+            throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
+    };
+    await checkBatched("load");
     if (process.env.ONLY_ORBIT) {
         console.log("orbit-debug", JSON.stringify(await page.evaluate(() => B.orbitDebug(20))));
         throw new Error("debug stop");
@@ -196,6 +219,8 @@ try {
         })
         .catch((e) => console.log("screenshot failed", String(e).slice(0, 120)));
     if (!noMove) log("orbit", await page.evaluate(() => B.orbit(200)));
+    if (!noMove) log("drag", await page.evaluate(() => B.drag(60)));
+    if (!noMove) await checkBatched("drag");
     await cdp.send("HeapProfiler.collectGarbage");
     log("memory", { ...(await page.evaluate(() => B.mem())), gpuMBDelta: gpuMB() - gpu0, rssMB: rssMB() });
     // Hover before the layout: a run of the layout moves cosmos.gl's points off the screen, which is

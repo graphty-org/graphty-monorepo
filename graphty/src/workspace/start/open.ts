@@ -26,6 +26,7 @@ import { routeToReplace } from "../replace/commands";
 import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
 import { newProjectId, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
+import { panelsInView } from "../time/timeActions";
 
 /**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
@@ -57,6 +58,8 @@ export function openProject(
             },
         }),
         ends: null,
+        pickedSource: null,
+        timeWindowCard: false,
     }));
 }
 
@@ -221,7 +224,7 @@ async function drawFirst(
         workspace.set({ ends: { load: load.key, source: null, target: null } });
     }
     if (!ready) {
-        workspace.set({ dockOpen: true, dockMaximized: true, place: "data" });
+        workspace.set({ dockOpen: true, dockMaximized: true, place: "data", ...panelsInView() });
     } else if (session.data.issues().length > 0) {
         workspace.set({ dockOpen: true });
     }
@@ -289,6 +292,16 @@ function urlSource(url: string): Incoming {
  */
 export function openUrl(workspace: WorkspaceStore, url: string): void {
     openSeparate(workspace, urlSource(url));
+}
+
+/**
+ * Takes in the graph file at a web address (see {@link addSource}): from the start screen as a new
+ * project, in a project as its next source.
+ * @param ctx - the command context.
+ * @param url - the address.
+ */
+export function addUrl(ctx: CommandContext, url: string): void {
+    addSource(ctx, urlSource(url));
 }
 
 /**

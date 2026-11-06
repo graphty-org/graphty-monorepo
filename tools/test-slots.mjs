@@ -5,12 +5,12 @@
  * and agents run test suites of their own besides, so the machine ran two to four times more test
  * work than it has cores and tests whose own work is a large part of their time limit failed at
  * random. Every vitest run therefore takes one of GRAPHTY_TEST_SLOTS slots before its tests start
- * (default: one per 8 cores, at least 2 -- 4 on a 32-thread machine) and gives it back
- * when it ends. A browser run and a Node run count the same. A Node run would fork one worker per
+ * (default: one per 8 of the machine's cores, at least 2 -- 4 on a 32-thread machine, whatever CPU
+ * affinity the asking process has, so every run counts the same slots) and gives it back when it ends. A browser run and a Node run count the same. A Node run would fork one worker per
  * core by default, so four of them side by side asked for about 130 cores' work (load average 130
  * on 2026-10-12) and CPU-bound tests ran past their time limits; every Node run therefore gets at
  * most its share of the cores, workerShare() = cores / slots (8 on a 32-thread machine with 4
- * slots), as its maxWorkers. A browser run is not lighter: Vitest opens
+ * slots), never more than the cores it may use (1 under `taskset -c 0`), as its maxWorkers. A browser run is not lighter: Vitest opens
  * min(12, cores - 1) pages at once unless the project sets maxWorkers, and one page drawing a real
  * graphty-element through SwiftShader keeps about 1.75 cores busy, so an uncapped run on this
  * 32-thread machine asked for about 21 cores. Every browser project that runs files in parallel
@@ -31,6 +31,15 @@
  * a test slot, and marks the command's environment HELD so its vitest runs take no test slot either.
  * tools/prepush.sh runs its NVIDIA step that way, beside the CPU test shards: it waits on the card
  * for most of its run and uses under one core, so it should not keep a CPU test slot from them.
+ *
+ * The lint slot: `node tools/test-slots.mjs --lint <command...>` holds the one machine-wide lint slot
+ * (<main checkout>/tmp/lint-slots) in its own queue, beside the test slots. graphty-element's lint
+ * target runs its eslint under it (#5904): that eslint holds 6 to 7 GB (3.4 GB per worker), usually the
+ * most of anything on this machine, and once available memory falls to about 8 GB a process on the host
+ * sends SIGTERM to the largest process in this container. A probe caught it on 2026-11-05: si_pid 0 (outside
+ * this PID namespace), si_uid 61876, SI_USER, with no kernel OOM kill. Four eslints from different worktrees
+ * held 16 GB at that moment, the largest share of any kind of process. Its own queue, not a test slot, so a
+ * lint of about two minutes never waits behind a test run of an hour.
  *
  * Mechanism: a directory of tickets (<main checkout>/tmp/test-slots, shared by every worktree), one
  * per run, named by arrival time and pid. A run proceeds once its ticket is among the oldest
@@ -63,7 +72,7 @@
 
 import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { availableParallelism, tmpdir } from "node:os";
+import { availableParallelism, constants, cpus, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -75,10 +84,11 @@ export const HELD = "GRAPHTY_TEST_SLOT_HELD";
 /**
  * How many runs may hold a slot at once.
  * @param env the environment (GRAPHTY_TEST_SLOTS)
- * @param cores the machine's cores
+ * @param cores the machine's cores: cpus(), not availableParallelism(), which follows this process's CPU
+ *   affinity, and every process must count the same slots (#6001)
  * @returns the slot count; 0 means no limit
  */
-export function slotCount(env = process.env, cores = availableParallelism()) {
+export function slotCount(env = process.env, cores = cpus().length) {
     const set = env.GRAPHTY_TEST_SLOTS;
     if (set === undefined || set === "") {
         return Math.max(2, Math.floor(cores / 8));
@@ -98,11 +108,12 @@ export function slotCount(env = process.env, cores = availableParallelism()) {
  * on the command line still overrides it.
  * @param env the environment (GITHUB_ACTIONS, GRAPHTY_TEST_SLOTS)
  * @param cores the machine's cores
- * @returns max(1, floor(cores / slots)), or undefined (Vitest's own default) when slots are off
+ * @param usable the cores this process may use: a run pinned to one core gains nothing from more workers
+ * @returns max(1, min(usable, floor(cores / slots))), or undefined (Vitest's own default) when slots are off
  */
-export function workerShare(env = process.env, cores = availableParallelism()) {
+export function workerShare(env = process.env, cores = cpus().length, usable = availableParallelism()) {
     const slots = env.GITHUB_ACTIONS === "true" ? 0 : slotCount(env, cores);
-    return slots === 0 ? undefined : Math.max(1, Math.floor(cores / slots));
+    return slots === 0 ? undefined : Math.max(1, Math.min(usable, Math.floor(cores / slots)));
 }
 
 /**
@@ -119,14 +130,14 @@ export function shardCacheDir(env = process.env) {
 }
 
 /**
- * The ticket directory: GRAPHTY_TEST_SLOTS_DIR (GRAPHTY_GPU_SLOTS_DIR for the GPU slot), else the
- * main checkout's tmp/test-slots (tmp/gpu-slots; every worktree shares it), else one under the system
- * temp directory.
- * @param kind "test" or "gpu"
+ * The ticket directory: GRAPHTY_TEST_SLOTS_DIR (GRAPHTY_GPU_SLOTS_DIR, GRAPHTY_LINT_SLOTS_DIR for the
+ * others), else the main checkout's tmp/test-slots (tmp/gpu-slots, tmp/lint-slots; every worktree shares
+ * it), else one under the system temp directory.
+ * @param kind "test", "gpu" or "lint"
  * @returns an absolute path
  */
 export function slotDir(kind = "test") {
-    const set = process.env[kind === "gpu" ? "GRAPHTY_GPU_SLOTS_DIR" : "GRAPHTY_TEST_SLOTS_DIR"];
+    const set = process.env[`GRAPHTY_${kind.toUpperCase()}_SLOTS_DIR`];
     if (set) {
         return set;
     }
@@ -262,7 +273,7 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * @param options.poll milliseconds between looks
  * @param options.log where the one waiting line goes
  * @param options.list reads the live tickets (a test replaces it)
- * @param options.kind "test" or "gpu", for the wait log (tools/wait-log.mjs)
+ * @param options.kind "test", "gpu" or "lint", for the wait log (tools/wait-log.mjs)
  * @param options.waitLog records a wait that happened, and each hold when it ends (a test replaces it)
  * @param options.what what holds the slot, for the hold's log line: a package or a shard family
  * @returns a function that gives the slot back and logs the hold, `<kind>-slot-held` with `what` and the exit
@@ -433,34 +444,34 @@ export function statusLines(dir = slotDir()) {
         `slots: ${slotCount()} in ${dir}`,
         ...tickets.map(
             (t) =>
-                `${t.granted || placeInLine(tickets, t.name) < slotCount() ? "holds" : "waits"} (${lane(t.name)}): pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`,
+                `${t.granted ? "holds" : "waits"} (${lane(t.name)}): pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`,
         ),
     ];
 }
 
-// The command wrapper: node tools/test-slots.mjs [--gpu] <command...>, or `status`
+// The command wrapper: node tools/test-slots.mjs [--gpu | --lint] <command...>, or `status`
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     if (process.argv[2] === "status") {
         console.log(statusLines().join("\n"));
         process.exit(0);
     }
-    const gpu = process.argv[2] === "--gpu";
-    const [cmd, ...args] = process.argv.slice(gpu ? 3 : 2);
+    const single = { "--gpu": "gpu", "--lint": "lint" }[process.argv[2]];
+    const [cmd, ...args] = process.argv.slice(single ? 3 : 2);
     if (!cmd) {
-        console.error("usage: node tools/test-slots.mjs [--gpu] <command...>");
+        console.error("usage: node tools/test-slots.mjs [--gpu | --lint] <command...>");
         process.exit(2);
     }
     const label = labelOf([cmd, ...args]);
-    // The GPU slot is one card, not a share of the cores: one holder, whatever GRAPHTY_TEST_SLOTS
-    // says (0 still turns every limit off), and HELD (a test slot) does not stand in for it.
-    const take = gpu
+    // The GPU and lint slots are one thing each, not a share of the cores: one holder, whatever
+    // GRAPHTY_TEST_SLOTS says (0 still turns every limit off), and HELD (a test slot) does not stand in for them.
+    const take = single
         ? () =>
               acquire({
                   label,
-                  dir: slotDir("gpu"),
+                  dir: slotDir(single),
                   slots: Math.min(1, slotCount()),
                   env: {},
-                  kind: "gpu",
+                  kind: single,
                   what: commandWhat([cmd, ...args]),
               })
         : () => acquire({ label, what: commandWhat([cmd, ...args]) });
@@ -471,5 +482,17 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         console.error(`test-slots: ${err.message}`);
         process.exit(127);
     });
-    child.on("exit", (code, signal) => process.exit(code ?? (signal ? 128 : 1)));
+    child.on("exit", (code, signal) => {
+        if (signal) {
+            // Said out loud: a shell would have printed "Terminated", and this is the only trace of why it ended.
+            // The exit code also reaches the hold's line in tmp/waits.jsonl, which outlives the job's output.
+            const exit = 128 + constants.signals[signal];
+            console.error(`test-slots: ${basename(cmd)} was killed by ${signal} (exit ${exit})`);
+            if (process.platform === "linux") {
+                console.error(`test-slots: ${/MemAvailable:.*/.exec(readFileSync("/proc/meminfo", "utf8"))?.[0]}`);
+            }
+            process.exit(exit);
+        }
+        process.exit(code ?? 1);
+    });
 }

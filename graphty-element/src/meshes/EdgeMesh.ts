@@ -614,7 +614,9 @@ void main() {
 
         const opacity = options.opacity ?? 1;
         const length = this.calculateArrowLength() * size;
-        const breadth = options.breadth ?? 1;
+        // a stem is as wide as its line: `outline`'s scene units over its length
+        const breadth =
+            options.type === "stem" ? Math.round((options.width / 40 / length) * 1000) / 1000 : (options.breadth ?? 1);
         const { side } = options;
         // A batch holds one geometry, so a cap drawn at another width or on one side is a batch of its own.
         const breadthKey = breadth === 1 ? "" : `|w${String(breadth)}`;
@@ -1209,6 +1211,12 @@ void main() {
                     lineStop: 2 / 3,
                 };
 
+            // yEd's cross and open arrows: the line runs on to where the strokes cross, to the arms' middle (its plain
+            // arrow's stops a third back from the tip, its concave arrow's two thirds)
+            case "cross":
+            case "open-vee":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: 0.5 };
+
             // A vee's line runs on under it to its notch, half the cap back from its tip: Graphviz strokes a shaft
             // from the notch to the back (arrows.c arrow_type_crow0), Cytoscape.js and vis-network draw the line on
             // under the vee
@@ -1219,6 +1227,10 @@ void main() {
                     positionOffset: 0,
                     lineStop: EdgeMesh.veeLineStop(cap),
                 };
+
+            // A slash lies across its line, which runs on under it to the end
+            case "slash":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: 0 };
 
             // A half arrow's line runs on under it to where its arm meets the line, so no break shows between them
             // (Graphviz's halfopen meets its line at its back, Cytoscape's HALF_TOP near its tip): half-open's arm
@@ -1235,6 +1247,8 @@ void main() {
             case "normal":
             case "tee":
             case "inverted-vee":
+            case "kite":
+            case "deltoid":
             case "crow":
             case "open-normal":
             case "open-diamond":
@@ -1248,6 +1262,7 @@ void main() {
             case "circle-triangle":
             case "open-box":
             case "open-inverted":
+            case "stem":
             case "image":
                 return {
                     positioningMode: "tip",

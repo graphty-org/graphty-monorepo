@@ -85,6 +85,25 @@ describe("session.data.issues", () => {
         session.dispose();
     });
 
+    it("says which end of the edges names an unknown node", async () => {
+        const ends = async (edges: string): Promise<unknown> => {
+            const session = createGraphSession();
+            const draft = await session.data.prepare({
+                config: {
+                    nodeFile: new File(["id\na\nb\n"], "nodes.csv"),
+                    edgeFile: new File([`source,target\n${edges}`], "edges.csv"),
+                },
+            });
+            await draft.load();
+            const found = issue(session, "unknown-end:edge");
+            session.dispose();
+            return found?.params.ends;
+        };
+        assert.strictEqual(await ends("a,b\na,x\nb,x\n"), "target");
+        assert.strictEqual(await ends("a,b\nx,a\n"), "source");
+        assert.strictEqual(await ends("x,a\nb,y\n"), "both");
+    });
+
     it("reports padded values, case variants and mixed types in a column, and nothing for a clean one", async () => {
         const session = createGraphSession();
         await session.data.addNodes([

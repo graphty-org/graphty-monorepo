@@ -171,6 +171,33 @@ export function stripeBands(
 }
 
 /**
+ * The parts of a band a `frame` keeps: the four strips round the box left inside it, or the whole
+ * band without a frame of four numbers.
+ * @param frame - The stripes' `frame`: fractions "top right bottom left" of the band's height and width.
+ * @param box - The band.
+ * @returns The boxes to fill.
+ */
+export function framedBand(frame: string | undefined, box: PieceBox): PieceBox[] {
+    const insets = cssWords(frame).map(Number);
+    if (insets.length !== 4 || !insets.every(Number.isFinite)) {
+        return [box];
+    }
+    const [w, h] = [box.x1 - box.x0, box.y1 - box.y0];
+    const [top, right, bottom, left] = [
+        box.y1 - insets[0] * h,
+        box.x1 - insets[1] * w,
+        box.y0 + insets[2] * h,
+        box.x0 + insets[3] * w,
+    ];
+    return [
+        { ...box, y0: top },
+        { ...box, y1: bottom },
+        { x0: box.x0, x1: left, y0: bottom, y1: top },
+        { x0: right, x1: box.x1, y0: bottom, y1: top },
+    ];
+}
+
+/**
  * Where an image is drawn over a node `width` x `height`, from the image's own size: fitted
  * (`fit` "contain", the default, keeps its proportions inside the node; "cover" keeps them over the
  * whole node; "fill" stretches it to the node) or at its own size ("none": `width` and `height`, or
@@ -365,6 +392,49 @@ export function databaseRim(
         rgb: [color.r / 255, color.g / 255, color.b / 255],
         opacity,
     };
+}
+
+/**
+ * A raised border's strips along the inside of a node's box, as Java's `fill3DRect` lays them, each corner in one strip.
+ * @param raised - The node style's raised border.
+ * @param width - The node's width.
+ * @param height - The node's height.
+ * @param scale - World units per unit of the style's lengths.
+ * @returns The left, top, bottom and right strips, none without a width.
+ */
+export function raisedStrips(
+    raised: NodeStyleConfig["raisedBorder"],
+    width: number,
+    height: number,
+    scale = 1,
+): (ColorPiece & { readonly box: PieceBox })[] {
+    const line = (raised?.width ?? 0) * scale;
+    if (!isPositive(line)) {
+        return [];
+    }
+    const [hw, hh] = [width / 2, height / 2];
+    const strip = (color: string | undefined, fallback: string, box: PieceBox): ColorPiece & { box: PieceBox } => {
+        const c = toColorValue(color ?? fallback) ?? { r: 0, g: 0, b: 0, a: 1 };
+        const { x0, y0, x1, y1 } = box;
+        return {
+            outline: [
+                [x0, y0],
+                [x1, y0],
+                [x1, y1],
+                [x0, y1],
+            ],
+            rgb: [c.r / 255, c.g / 255, c.b / 255],
+            opacity: c.a,
+            box,
+        };
+    };
+    const [light, dark] = [raised?.lightColor, raised?.darkColor];
+    return [
+        strip(light, "#ffffff", { x0: -hw, y0: -hh, x1: -hw + line, y1: hh }),
+        strip(light, "#ffffff", { x0: -hw + line, y0: hh - line, x1: hw - line, y1: hh }),
+        strip(dark, "#000000", { x0: -hw + line, y0: -hh, x1: hw, y1: -hh + line }),
+        strip(dark, "#000000", { x0: hw - line, y0: -hh + line, x1: hw, y1: hh }),
+    ];
 }
 
 /**

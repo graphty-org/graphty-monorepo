@@ -28,6 +28,7 @@ import { TOOLTIP_OPEN_DELAY } from "../../theme/styles/overlays";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import { type ActivationEvent, type ActivationMeta, getActivationMeta } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
+import { TooltipShortcut } from "../overlays/TooltipShortcut";
 import { useDataTableLabels } from "./labels";
 import { clamp, clampGridPosition, type GridPosition, HEADER_ROW, nextGridPosition, samePosition } from "./navigation";
 import { applySelectionGesture, selectAll, type SelectionModifiers, type SelectionResult } from "./selection";
@@ -287,6 +288,7 @@ function DataTableInner<TRow extends object>(
         columns,
         getRowId,
         rowLabel,
+        rowColor,
         label,
         labelledBy,
         labels: labelOverrides,
@@ -1113,7 +1115,15 @@ function DataTableInner<TRow extends object>(
                 {/* Named on hover, and drawn as "more", not as an
                     arrow: beside a sorted column's arrow a second
                     arrow read as a second sort. */}
-                <Tooltip label={(labels.columnMenu ?? defaultLabels.columnMenu)(config?.header ?? column.id)}>
+                <Tooltip
+                    label={
+                        // The key that opens the menu from the header, shown as every hotkey is.
+                        <TooltipShortcut
+                            label={(labels.columnMenu ?? defaultLabels.columnMenu)(config?.header ?? column.id)}
+                            shortcut="Alt+Down"
+                        />
+                    }
+                >
                     <ActionIcon
                         variant="subtle"
                         size={PANEL_GRID.CONTROL_HEIGHT}
@@ -1435,6 +1445,7 @@ function DataTableInner<TRow extends object>(
                             }
 
                             const isSelected = selection.includes(row.id);
+                            const tint = rowColor?.(row.original);
 
                             return (
                                 <Table.Tr
@@ -1453,7 +1464,9 @@ function DataTableInner<TRow extends object>(
                                         onRowContextMenu?.(row.original, event);
                                     }}
                                     className="cm-dt-row"
+                                    data-row-color={tint === undefined ? undefined : ""}
                                     style={{
+                                        ...(tint === undefined ? {} : { "--cm-dt-row-color": tint }),
                                         position: "absolute",
                                         insetBlockStart: 0,
                                         insetInlineStart: 0,

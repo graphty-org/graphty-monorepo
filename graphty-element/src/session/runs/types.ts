@@ -169,6 +169,8 @@ export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
 /**
  * The time window a run over the visible graph was computed in, and what it left visible then.
  * Numbers only: `from` and `to` are epoch milliseconds (or ordinal values), half-open.
+ * @experimental timeline
+ * @beta
  */
 export interface RunWindow {
     /** The attribute the window read. */
@@ -201,6 +203,8 @@ export interface StaleNote {
     /**
      * With `reason: "window-moved"`: the window the run was computed in, `{ code: "window-moved",
      * params: { from, to, nodes, edges } }`.
+     * @experimental timeline
+     * @beta
      */
     readonly window?: CodedFact<"window-moved">;
     /** How many elements the run was computed over. */
@@ -275,7 +279,11 @@ export interface Caveats {
     readonly filterScope?: boolean;
     /** Whether a time window narrowed what the run looked at. */
     readonly windowScope?: boolean;
-    /** The time window a run over the visible graph was computed in, and its visible counts. */
+    /**
+     * The time window a run over the visible graph was computed in, and its visible counts.
+     * @experimental timeline
+     * @beta
+     */
     readonly window?: RunWindow;
     /** How edge direction was treated. */
     readonly direction: RunDirection;
@@ -389,6 +397,8 @@ export interface RunScopeRecord {
     /**
      * For a scope over the visible graph: the time window in force when it resolved, or null when
      * there was none. Absent for every other scope.
+     * @experimental timeline
+     * @beta
      */
     readonly window?: RunWindow | null;
 }
@@ -886,7 +896,32 @@ export interface RunRemoval {
     readonly removedLayers: number;
     /** Which ones, so an undo can name them. */
     readonly layerIds: readonly LayerId[];
+    /**
+     * The selections that read the run's values and are left waiting: a style layer's Which
+     * nodes, or a Data filter condition. Nothing re-runs them unasked; each step waits with
+     * `run-needed` until the reader allows it (`scope.allowRun`).
+     * @beta
+     */
+    readonly selections: readonly RunReader[];
 }
+
+/**
+ * A selection that reads a run's values in one of its steps: a style layer's selector, or a
+ * visibility filter condition. Ids only, so a consumer looks the layer or the condition up live.
+ * More kinds may be added in a minor release; keep a default branch.
+ * @beta
+ */
+export type RunReader =
+    | {
+          /** A style layer whose selector reads the run. */
+          readonly kind: "layer";
+          readonly id: LayerId;
+      }
+    | {
+          /** A visibility filter condition whose rule reads the run. */
+          readonly kind: "filter";
+          readonly id: string;
+      };
 
 /**
  * What became of one style suggestion a run made when it first completed.
@@ -1024,6 +1059,15 @@ export interface RunsApi {
      * @returns What went with it.
      */
     remove(id: RunId): RunRemoval;
+    /**
+     * The selections that read a run's values in one of their steps, which removing the run would
+     * leave waiting: what a confirmation lists before it asks. Layers the run itself painted
+     * (`bindings`) are not among them: they go with it.
+     * @param id - The run id.
+     * @returns The readers, style layers first, then filter conditions.
+     * @beta
+     */
+    readers(id: RunId): readonly RunReader[];
     /**
      * Move every style layer reading a run, as one block and in its own order, to another place
      * in the stack, as one step.

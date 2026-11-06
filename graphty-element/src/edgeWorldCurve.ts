@@ -19,7 +19,7 @@ export function drawnCurveInWorld(edge: Edge): Vector3[] | null {
     // A patterned line's pieces are slots in batches parented to graph-root, and it has no mesh of its own.
     const root =
         edge.mesh instanceof PatternedLineMesh
-            ? edge.srcNode.mesh.getScene().getTransformNodeByName("graph-root")
+            ? edge.srcNode.drawnScene.getTransformNodeByName("graph-root")
             : edge.mesh;
     if (root === null) {
         return curve;

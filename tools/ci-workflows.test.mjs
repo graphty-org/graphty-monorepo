@@ -27,13 +27,20 @@ import { after, describe, it } from "node:test";
 
 import { parse as parseYaml } from "yaml";
 
+import { TEST_STEP_LIMIT_MS } from "./results/run-group.mjs";
+
 import {
     ciCommand,
-    GROUPS,
+    fitsCheckout,
     groupEntry,
+    GROUPS,
     MATRIX_CAP,
     matrixLine,
+    OUTPUTS_BUDGET,
+    OUTPUTS_LIMIT,
+    outputLines,
     parseOnly,
+    LARGE_GRAPH_PARTS,
     plan,
     SHARDS,
     splitLines,
@@ -57,6 +64,7 @@ import {
 } from "./master-guard.mjs";
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
 import { summarize } from "./pr-status-broker.mjs";
+import { BIN_LIMIT_MS, binCost, packBins } from "./test-select.mjs";
 import {
     fingerprint,
     inputKey,
@@ -111,12 +119,21 @@ const PACKAGES = [...new Set(SHARDS.map((s) => s.package))];
 const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
+// a full run's jobs: one per shard, a group's members sharing one
+const FULL_RUN_JOBS = SHARDS.length - Object.values(GROUPS).flat().length + Object.keys(GROUPS).length;
+
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 34 jobs (the four fidelity slices among them)", () => {
+    // #5845: the deadline must fall inside the job, with room to reach the tests before it and to stop them after
+    it("stops a hung run inside the test job's limit", () => {
+        const minutes = Number(/timeout-minutes: (\d+)/u.exec(job(workflow("ci.yml"), "test"))[1]);
+        assert.ok(TEST_STEP_LIMIT_MS + 100_000 + 120_000 <= minutes * 60_000);
+    });
+
+    it("runs every shard exactly once on a full run, in one job per shard or group", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 34);
+        assert.equal(include.length, FULL_RUN_JOBS);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -140,8 +157,12 @@ describe("the test matrix", () => {
     it("leaves out the groups and shards of unaffected packages", () => {
         assert.deepEqual(plan([]), []);
         assert.deepEqual(
-            plan(["graphty-element"]).map((e) => e.shard),
-            SHARDS.filter((s) => s.package === "graphty-element").map((s) => s.shard),
+            plan(["graphty-element"])
+                .flatMap((e) => e.members ?? [e.shard])
+                .sort(),
+            SHARDS.filter((s) => s.package === "graphty-element")
+                .map((s) => s.shard)
+                .sort(),
         );
     });
 
@@ -184,6 +205,36 @@ describe("the test matrix", () => {
         assert.equal(own["graphty-storybook"], undefined);
         assert.equal(own["graphty-element-default"], undefined);
         assert.equal(own["webgpu-graph-algorithms-node"], undefined);
+    });
+
+    // Vitest runs a project any one --project matches, so the graphty parts name theirs, and a project missing from
+    // the list would silently never run in CI.
+    it("runs every graphty project in one shard family: large-graph alone, the stories alone, the rest in the parts", () => {
+        const config = readFileSync(new URL("../graphty/vitest.config.ts", import.meta.url), "utf8");
+        const declared = [...config.matchAll(/^ {20}name: "([a-z-]+)",$|realElementProject\("([a-z-]+)"/gmu)].map(
+            (m) => m[1] ?? m[2],
+        );
+        const parts = SHARDS.find((s) => s.shard === "graphty-1")["test-command"];
+        const named = [...parts.matchAll(/--project=(\S+)/gu)].map((m) => m[1]);
+        assert.deepEqual([...named, "large-graph", "storybook"].sort(), [...declared].sort());
+        const large = SHARDS.filter((s) => s.shard.startsWith("graphty-large-graph-"));
+        assert.equal(large.length, LARGE_GRAPH_PARTS);
+        large.forEach((s, i) => {
+            assert.match(
+                s["test-command"],
+                new RegExp(`--project=large-graph --shard=${i + 1}/${LARGE_GRAPH_PARTS}$`, "u"),
+            );
+            assert.equal(plan(PACKAGES).find((e) => e.shard === s.shard).coverage, undefined);
+        });
+    });
+
+    // Vitest's --shard hands N parts one file each only when there are N files, and a job has room for one.
+    it("gives every large-graph file a part and a bin of its own", () => {
+        const dir = new URL("../graphty/src/workspace/selection/__tests__/", import.meta.url);
+        const files = readdirSync(dir).filter((f) => /^LargeGraph\..*\.real-element\.test\.tsx$/u.test(f));
+        assert.equal(files.length, LARGE_GRAPH_PARTS);
+        const { overheadMs, scale } = binCost("graphty-large-graph");
+        assert.equal(packBins(files, new Map(), BIN_LIMIT_MS, overheadMs, scale).length, files.length);
     });
 
     // graph-io-storybook's fidelity stories decode the oracles' PNGs, Git LFS objects; a pointer file fails to
@@ -1225,7 +1276,7 @@ describe("ci.yml", () => {
         assert.equal(build.match(/echo "light=true"/g).length, 2);
         assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 34, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, FULL_RUN_JOBS, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
         for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
@@ -1242,6 +1293,58 @@ describe("ci.yml", () => {
         for (const c of checkouts) {
             assert.match(c, /ref: \$\{\{ inputs.ref \}\}/, c);
         }
+    });
+});
+
+describe("the test matrix on a commit older than its tools (#5996)", () => {
+    const shard = (command) => ({ shard: "s", package: "p", "test-command": command });
+    const checkout = (files) => {
+        const root = mkdtempSync(join(tmpdir(), "fits-checkout-"));
+        mkdirSync(join(root, "p"));
+        for (const [name, text] of Object.entries(files)) writeFileSync(join(root, "p", name), text);
+        return root;
+    };
+
+    it("finds every shard's project in this commit's configs", () => {
+        assert.deepEqual(
+            SHARDS.filter((s) => !fitsCheckout(s)).map((s) => s.shard),
+            [],
+        );
+    });
+
+    it("leaves out a shard only when its config holds none of the projects it names", () => {
+        const root = checkout({ "vitest.config.ts": 'project("real-element"); // not `large-graph`' });
+        const fits = (command) => fitsCheckout(shard(command), root);
+        assert.equal(fits("vitest run --project=large-graph --shard=1/4"), false);
+        assert.equal(fits("vitest run --project=real-element --project=large-graph"), true);
+        assert.equal(fits("vitest run --project=real-element-features-on"), true);
+        assert.equal(fits("vitest run"), true);
+    });
+
+    it("reads the config a shard names, and keeps a shard whose config it cannot read", () => {
+        const root = checkout({ "vitest.storybook.config.ts": 'name: "storybook"' });
+        assert.equal(
+            fitsCheckout(shard("vitest run --config vitest.storybook.config.ts --project=storybook"), root),
+            true,
+        );
+        assert.equal(
+            fitsCheckout(shard("vitest run --config vitest.storybook.config.ts --project=other"), root),
+            false,
+        );
+        assert.equal(fitsCheckout(shard("vitest run --project=other"), root), true);
+    });
+
+    it("plans a group without a member the commit does not have", () => {
+        const [name, members] = Object.entries(GROUPS)[0];
+        const shards = SHARDS.filter((s) => s.shard !== members[0]);
+        const entry = plan(
+            SHARDS.map((s) => s.package),
+            undefined,
+            undefined,
+            false,
+            shards,
+        ).find((e) => e.shard === name);
+        assert.ok(!entry.members.includes(members[0]));
     });
 });
 
@@ -1343,7 +1446,7 @@ describe("verification runs of ci.yml", () => {
         assert.equal(called.status, 0, called.stderr);
         assert.equal(called.out.full, "true");
         assert.equal(called.out.light, undefined, "a verification run is not light");
-        assert.equal(called.out["test-count"], "34");
+        assert.equal(called.out["test-count"], String(FULL_RUN_JOBS));
         const master = planStep({ EVENT: "push" });
         assert.equal(master.status, 0, master.stderr);
         assert.equal(master.out.light, "true");
@@ -2875,7 +2978,10 @@ describe("actions/cache in the workflows", () => {
             const target = JSON.parse(readFileSync(new URL(`../${project}/project.json`, import.meta.url), "utf8"))
                 .targets.lint;
             // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file
-            assert.match(target.options.command, /^eslint [^&]*\$ESLINT_CACHE &&/);
+            assert.match(
+                target.options.command,
+                /^(node \.\.\/tools\/test-slots\.mjs --lint )?eslint [^&]*\$ESLINT_CACHE &&/,
+            );
             assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
             // never "--concurrency auto": it starts one type-aware worker (2.5 GB or more each) per two cores, 16 on
             // the 32-core dev machine, which drove the machine out of memory and got the lint killed with SIGTERM
@@ -3434,7 +3540,8 @@ describe("the webgpu-graph-algorithms node suite on every lane", () => {
             readFileSync(new URL("../webgpu-graph-algorithms/package.json", import.meta.url), "utf8"),
         );
         const lines = [
-            ...SHARDS.map((s) => s["test-command"]),
+            // graphty has a `node` project of its own, with no GPU in it
+            ...SHARDS.filter((s) => s.package === "webgpu-graph-algorithms").map((s) => s["test-command"]),
             ...Object.values(pkg.scripts),
             ...workflow("hosts.yml").split("\n"),
             ...workflow("gpu.yml").split("\n"),
@@ -3983,7 +4090,9 @@ describe("release.yml", () => {
             );
             // a group keeps one pending job and cancels the rest: a third lane's filing would be dropped
             assert.equal(red.concurrency, undefined);
-            assert.deepEqual(red.permissions, { contents: "read", issues: "write" });
+            // the T4 filer reads its job's failed steps: a runner refused by machine.dev is an owner item
+            const reads = lane === "t4" ? { actions: "read" } : {};
+            assert.deepEqual(red.permissions, { ...reads, contents: "read", issues: "write" });
             const step = red.steps.at(-1);
             assert.equal(step.run, "node tools/full-run.mjs lane-red");
             assert.equal(step.env.LANE, lane);
@@ -7475,11 +7584,11 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
                 },
             ],
             whole: [],
-            none: ["graphty-element-default"],
+            none: ["graphty-element-default", "graphty-element-webgpu", "graphty-element-gpu-loss"],
         };
         const include = plan(["graphty-element"], undefined, light);
         const bin = include.find((e) => e.shard === "graphty-element-browser-1");
-        assert.deepEqual(bin.files, ["graphty-element/test/browser/a.test.ts"]);
+        assert.match(bin["test-command"], /test\/browser\/a\.test\.ts'$/u, "its command names its files");
         assert.equal(bin.coverage, undefined, "a bin writes no coverage");
         assert.ok(bin["test-command"].startsWith("node tools/results/run-group.mjs graphty-element-browser-1 '"));
         assert.ok(!include.some((e) => /^graphty-element-browser-[2-9]$/.test(e.shard)), "the bin replaces its shards");
@@ -7529,6 +7638,87 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         assert.equal(verdict("3", "skipped").status, 1, "a planned Test job that never ran fails");
         assert.equal(verdict("3", "failure").status, 1);
         assert.equal(verdict("3", "cancelled").status, 1);
+    });
+
+    // GitHub fails the Build job with no failed step when its outputs pass 1 MiB (run 42116998023, #5949): a change
+    // to a run-everything file packs every test file into bins, and each bin's command lists its files.
+    describe("a plan too large for the job's outputs", () => {
+        const { shard, package: pkg } = SHARDS.find((s) => s.package === "graph-io" && !s["full-run-only"]);
+        const name = (i) => `${pkg}/test/a-directory-with-a-long-name/a-test-file-with-a-long-name-${i}.test.ts`;
+        const bin = (i, fields = {}) => ({
+            name: `${shard}-${i}`,
+            shard,
+            covers: [shard],
+            files: [name(i)],
+            command: `cd ${pkg} && pnpm exec vitest run ${Array.from({ length: 40 }, (_, f) => `'${name(f)}'`).join(" ")}`,
+            ...fields,
+        });
+        const huge = (fields) => ({
+            bins: Array.from({ length: 400 }, (_, i) => bin(i + 1, fields)),
+            whole: [],
+            none: [],
+        });
+        const legs = (lines, key) => JSON.parse(lines.find((l) => l.startsWith(`${key}=`)).split(/=(.*)/su)[1]).include;
+        const size = (lines) => lines.join("").length;
+
+        it("stays under the limit, with every output inside it, and runs the selected shard whole", () => {
+            assert.ok(JSON.stringify(plan([pkg], undefined, huge())).length > OUTPUTS_LIMIT, "the bins alone overflow");
+            // a selected bin of a package nx does not call affected is still tested
+            const lines = outputLines([], undefined, huge());
+            assert.ok(size(lines) <= OUTPUTS_BUDGET, `${size(lines)} characters`);
+            assert.ok(OUTPUTS_BUDGET < OUTPUTS_LIMIT);
+            const run = legs(lines, "test-matrix");
+            assert.ok(
+                run.some((e) => [e.shard, ...(e.members ?? [])].includes(shard)),
+                "the whole shard stands in for its bins",
+            );
+            assert.ok(!run.some((e) => e.shard === `${shard}-1`), "no bin is left");
+            assert.equal(Number(lines.find((l) => l.startsWith("test-count=")).split("=")[1]), run.length);
+        });
+
+        it("leaves out what the bins left out: a shard with nothing selected, a whole family nx did not call affected", () => {
+            const other = SHARDS.find((s) => s.package === pkg && s.shard !== shard && !s["full-run-only"]).shard;
+            const family = SHARDS.find((s) => s.package === "algorithms" && !s["full-run-only"]).shard;
+            const unaffected = { ...bin(0), shard: family, covers: [family], whole: "algorithms" };
+            const bins = [...huge().bins, unaffected];
+            const lines = outputLines([pkg], undefined, { bins, whole: [], none: [other] });
+            const names = legs(lines, "test-matrix").flatMap((e) => [e.shard, ...(e.members ?? [])]);
+            assert.ok(names.includes(shard));
+            assert.ok(!names.includes(other), other);
+            assert.ok(!names.includes(family), family);
+        });
+
+        it("takes the same way past the two Test jobs' 512 legs, and keeps the story bins", () => {
+            const storyBins = [
+                { name: "s-1", project: "layout", storybook: "layout/storybook-static", files: ["a"], ids: [] },
+            ];
+            const bins = Array.from({ length: 2 * MATRIX_CAP + 1 }, (_, i) => ({ ...bin(i + 1), command: "x" }));
+            const lines = outputLines([pkg], undefined, { bins, whole: [], none: [], storyBins });
+            assert.ok(legs(lines, "test-matrix").length < MATRIX_CAP);
+            assert.deepEqual(
+                legs(lines, "stories-matrix").map((e) => e.name),
+                ["s-1"],
+            );
+        });
+
+        it("leaves a plan that fits as its bins, and says so in words when even whole shards do not fit", () => {
+            const small = { bins: [{ ...bin(1), command: "x" }], whole: [], none: [] };
+            const names = legs(outputLines([pkg], undefined, small), "test-matrix").map((e) => e.shard);
+            assert.ok(names.includes(`${shard}-1`) && !names.includes(shard), names.join(" "));
+            const storyBins = [
+                {
+                    name: "s-1",
+                    project: "layout",
+                    storybook: "layout/storybook-static",
+                    files: ["a".repeat(OUTPUTS_LIMIT)],
+                    ids: [],
+                },
+            ];
+            assert.throws(
+                () => outputLines([pkg], undefined, { bins: [], whole: [], none: [], storyBins }),
+                /job's outputs hold more than \d+ characters even as whole shards: .*stories-matrix \d+/u,
+            );
+        });
     });
 
     // GitHub fails a matrix above 256 jobs without running a leg: PR #5525's plan made 302 and All Checks Pass

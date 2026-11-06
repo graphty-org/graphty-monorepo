@@ -43,6 +43,7 @@ import {
     type ForceAtlas2Options,
     type FruchtermanReingoldOptions,
     type LayoutSimulation,
+    NO_CLUSTER,
     resolveNodeVector,
     seedPositions,
     type SimulationOptions,
@@ -59,6 +60,7 @@ import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
 import type { Node } from "../Node";
+import { readCommunities, sameCommunities } from "./clusterForce";
 import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
 /**
@@ -301,6 +303,10 @@ export interface SimulationEngineOptions extends CommonLayoutOptions, Omit<Simul
      * reader can see. `LayoutManager` is what rolls them up.
      */
     readonly scalingFactor: number;
+    /** The node attribute or result field naming each node's community; null or absent for no pull. */
+    readonly clusterBy?: string | null;
+    /** How hard a community is pulled together. */
+    readonly clusterStrength?: number;
     /** The space kept between nodes' drawn surfaces, in scene units; null or absent keeps nodes as points. */
     readonly nodeGap?: number | null;
     /** Whether `nodeGap` is measured across x and y only. */
@@ -463,6 +469,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * by node id, and null for every other form. See {@link SimulationLayoutEngine.resolvedNodeMass}.
      */
     #nodeMass: F32 | null = null;
+
+    /** The last read of `clusterBy`. */
+    #communities: ReadonlyMap<Node, number> = new Map();
 
     /** One radius per row in scene units, gap included, while `nodeGap` is set; see `#collisionRadii`. */
     #radii: F32 | null = null;
@@ -1145,31 +1154,32 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         const scale = this.#envelopeScale;
         const centre = this.#simCentre;
+        const target = this.#targetCentre;
+        const { rows, coords } = this.publishScratch(snapshot.nodeCount);
+        let count = 0;
+        let first: Node | undefined;
+        // ponytail: still walks the Node map for row membership (a removed node's row lives until the
+        // next freeze); a row table replaces the walk once rows stop having a Node each.
         for (const node of this.nodes) {
             const row = node.index;
-            if (!this.#hasRow(row)) {
+            if (!this.#hasRow(row) || (this.#fixedRows.has(row) && store.isPlaced(row))) {
                 continue;
             }
 
-            // A ROW WITH NO COORDINATE HAS NO PLACEMENT TO PROTECT. A node can be pinned before
-            // anything has placed it: the pin is a byte in a lane, written from a pointer
-            // gesture, and it does not wait for a layout. Skipped here and refused by the pin
-            // guard below, such a row would never receive a coordinate at all and would render
-            // at the origin for the rest of its life. So its FIRST coordinate lands as a
-            // placement, and every one after that is the reader's to keep.
-            const placed = store.isPlaced(row);
-            if (placed && this.#fixedRows.has(row)) {
-                continue;
-            }
-
-            this.writeNodePosition(
-                node,
-                (simPositions[3 * row] - centre[0]) * scale + this.#targetCentre[0],
-                (simPositions[3 * row + 1] - centre[1]) * scale + this.#targetCentre[1],
-                (simPositions[3 * row + 2] - centre[2]) * scale + this.#targetCentre[2],
-                placed ? "layout" : "placement",
-            );
+            first ??= node;
+            rows[count] = row;
+            coords[3 * count] = (simPositions[3 * row] - centre[0]) * scale + target[0];
+            coords[3 * count + 1] = (simPositions[3 * row + 1] - centre[1]) * scale + target[1];
+            coords[3 * count + 2] = (simPositions[3 * row + 2] - centre[2]) * scale + target[2];
+            count++;
         }
+
+        // A ROW WITH NO COORDINATE HAS NO PLACEMENT TO PROTECT. A node can be pinned before anything
+        // has placed it: the pin is a byte in a lane, written from a pointer gesture, and it does
+        // not wait for a layout. Refused by the pin guard, such a row would never receive a
+        // coordinate at all and would render at the origin for the rest of its life. So its FIRST
+        // coordinate lands as a placement, and every one after that is the reader's to keep.
+        this.publishColumn(first, rows, coords, count, true);
     }
 
     /**
@@ -1384,7 +1394,62 @@ export class SimulationLayoutEngine extends LayoutEngine {
         simulation.setFixed(mask);
 
         this.#applyInert(simulation, nodeCount);
+        this.#applyClusters(simulation, nodeCount);
         this.#applyCollision(nodeCount);
+    }
+
+    /**
+     * Reads `clusterBy` over the loaded snapshot.
+     * @returns Each member's community.
+     */
+    #readCommunities(): ReadonlyMap<Node, number> {
+        const { clusterBy } = this.#options;
+        if (clusterBy === undefined || clusterBy === null || this.#snapshot === null) {
+            return new Map();
+        }
+
+        return readCommunities(
+            clusterBy,
+            this.nodes,
+            this.clusterColumn,
+            (row) => !this.#hasRow(row) || this.isFollower(row),
+            this.#snapshot,
+        );
+    }
+
+    /**
+     * Tells a simulation that has just been loaded what to pull together. AFTER EVERY LOAD, because a freeze renumbers
+     * the rows, and a run that has not finished yet leaves every node in none until its results land.
+     * @param simulation - The running simulation.
+     * @param nodeCount - The loaded snapshot's node count.
+     */
+    #applyClusters(simulation: LayoutSimulation, nodeCount: number): void {
+        this.#communities = this.#readCommunities();
+        if (this.#communities.size === 0) {
+            simulation.setClusters?.(null);
+            return;
+        }
+
+        const communities = new Uint32Array(nodeCount).fill(NO_CLUSTER);
+        for (const [node, community] of this.#communities) {
+            communities[node.index] = community;
+        }
+
+        simulation.setClusters?.({ communities, strength: this.#options.clusterStrength });
+    }
+
+    /**
+     * Read `clusterBy` again, and rebuild the simulation when the communities changed: a full run from the arrangement
+     * as it stands, because a late reheat of Fruchterman-Reingold leaves it too cold for the pull to move anything.
+     * @returns True when the frame loop has to start stepping this layout again.
+     */
+    override wakeForClusters(): boolean {
+        if (sameCommunities(this.#readCommunities(), this.#communities)) {
+            return false;
+        }
+
+        this.replaceSimulation();
+        return true;
     }
 
     /**
@@ -1576,6 +1641,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             model,
             iterationsPerStep: _explicit,
             stepMultiplier: _base,
+            clusterBy: _clusterBy,
+            clusterStrength: _clusterStrength,
             nodeGap: _gap,
             nodeGapFront: _front,
             ...common

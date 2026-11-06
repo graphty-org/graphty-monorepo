@@ -116,6 +116,11 @@ export interface PText {
     x: number;
     y: number;
     box: PBox;
+    /**
+     * The oracle's side only: how far `box`, the browser's reading, stands under the line the font lays out, in pixels.
+     * The browser rounds a font's ascent and descent to whole pixels.
+     */
+    lineDrop?: number;
     /** Font size in the side's pixels. */
     sizePx: number;
     family: string;
@@ -160,6 +165,15 @@ export interface PLabelBox {
     shape: "rect" | "roundrect" | "ellipse" | "other" | null;
 }
 
+/** The tag of a stray that is one piece of an SVG picture graphty draws over a node. */
+export const PICTURE_PART = "picture-part";
+
+/**
+ * The tag of a stray of such a picture never judged as extra, though it can answer for a program's shape: the picture
+ * as a whole, whose pieces say whether it is extra, and an open line, as a program's open line is no stray to find.
+ */
+export const PICTURE_WHOLE = "picture-whole";
+
 /** The raw drawing primitives an SVG holds, before they are associated with graph elements. */
 export interface Prim {
     /** Document order, for deterministic tie breaks and for findings. */
@@ -167,6 +181,11 @@ export interface Prim {
     tag: string;
     kind: "shape" | "path" | "text" | "image";
     box: PBox;
+    /**
+     * A fill its own clip cuts (`clipCut`): the box of the whole shape it was drawn as. `box` is what shows. Absent for
+     * a shape shown whole.
+     */
+    uncut?: PBox;
     /**
      * An image's four corners as drawn, which a turned image's box is wider than.
      */
@@ -193,6 +212,8 @@ export interface Prim {
      * edge, a dotted border) is read from. Absent for everything else.
      */
     subpaths?: Pt[][];
+    /** Whether an outline with curves has a corner on a corner of its box. */
+    squareCorner?: boolean;
     /**
      * A closed path that is a row of letters drawn as outlines (`isLettering`): words, filled or stroked as a halo,
      * that are no arrowhead, band or body. Absent for everything else.
@@ -239,6 +260,16 @@ export interface PNode {
      * only the image a node with no body draws as itself. Absent for none.
      */
     pictures?: PBox[];
+    /**
+     * The oracle's side only: the boxes of a fill drawn in pieces (a yEd table's header and lanes, Graphviz's stripes),
+     * which graphty draws as pieces over the node's face. Absent for a fill in one piece.
+     */
+    faces?: PBox[];
+    /**
+     * The oracle's side only: the parts of the node a clip cuts from a fill of another color than the node's (yEd's
+     * entity header), each of which graphty must draw over the face in that color. Absent for none.
+     */
+    bands?: { box: PBox; color: string }[];
     label: PText | null;
     /**
      * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold), shown or not at
@@ -277,7 +308,7 @@ export interface PNode {
  * chevron), a crow's foot (tines spreading toward the node, one of them along the line), a vee pointing back with no
  * tine along the line ("inverted-vee", vis-network's crow), a diamond, a circle, a box, a bar across the line ("tee"),
  * half an arrow on one side of the line, half a disc with its flat side across the tip ("half-circle", or its round
- * side alone). "other" matches nothing.
+ * side alone), two strokes crossing on the line ("cross"). "other" matches nothing.
  */
 export type ArrowShape =
     | "triangle"
@@ -297,6 +328,8 @@ export type ArrowShape =
     | "cross-delta"
     // a disc at the tip with a triangle behind it pointing at it (Cytoscape.js's circle-triangle)
     | "circle-triangle"
+    // two strokes crossing on the line (yEd's and yEd Live's cross)
+    | "cross"
     | "other";
 
 /** Where along its edge an arrowhead sits: at one end, or part-way along the line ("middle"). */
@@ -323,6 +356,8 @@ export interface PArrow {
      * Pajek's `arrowPosition`), whose place is judged along the line, never from the line's end.
      */
     partWay?: boolean;
+    /** graphty's cap stood back from its line's end by a stem: how far back is judged against the program's. */
+    standing?: boolean;
     /**
      * An end's arrowhead: the break between where its line stops and where the head itself first meets the line, as a
      * share of the head's length (0 where they meet). Cytoscape desktop runs the line on under its half arrows to where
@@ -435,8 +470,23 @@ export const shapeId = (tag: string, box: PBox): string =>
     `${tag}@${[box.x0, box.y0, box.x1, box.y1].map((v) => String(Math.round(v) || 0)).join(",")}`;
 
 /**
- * The dash class of a dash array, from its dashes and its gaps relative to the line's width. A round or square line
- * cap draws each dash half a width longer at either end, so into its gaps; gaps that add to a tenth of the pattern or
+ * A dash array as it is seen: a round or square line cap draws each dash half a width longer at either end, so into its
+ * gaps (yEd's dotted line is `0,4` under round caps: dots one width long, not nothing). An odd-length array repeats to
+ * an even one.
+ * @param dash - the dash array
+ * @param width - the line width
+ * @param cap - the line cap (`butt`, `round` or `square`)
+ * @returns the dashes and gaps as drawn
+ */
+export function dashAsDrawn(dash: readonly number[], width: number, cap = "butt"): number[] {
+    const pairs = dash.length % 2 === 1 ? [...dash, ...dash] : [...dash];
+    const grow = cap === "butt" ? 0 : width;
+    return pairs.map((d, i) => (i % 2 === 0 ? Math.max(0, d) + grow : Math.max(0, d - grow)));
+}
+
+/**
+ * The dash class of a dash array, from its dashes and its gaps relative to the line's width, as drawn
+ * (`dashAsDrawn`): gaps that add to a tenth of the pattern or
  * less read as a solid line. Dashes no longer than one and a half widths (or pixels, for a hairline) are dots; long
  * dashes and short ones, one at least twice the other, are a dash-dot.
  * @param dash - the dash array, or null
@@ -448,11 +498,9 @@ export function dashClassOf(dash: readonly number[] | null, width: number, cap =
     if (dash === null || dash.length === 0 || dash.every((d) => d <= 0)) {
         return "solid";
     }
-    // an odd-length dash array repeats to an even one
-    const pairs = dash.length % 2 === 1 ? [...dash, ...dash] : [...dash];
-    const grow = cap === "butt" ? 0 : width;
-    const on = pairs.filter((_, i) => i % 2 === 0).map((d) => Math.max(0, d) + grow);
-    const off = pairs.filter((_, i) => i % 2 === 1).map((d) => Math.max(0, d - grow));
+    const drawn = dashAsDrawn(dash, width, cap);
+    const on = drawn.filter((_, i) => i % 2 === 0);
+    const off = drawn.filter((_, i) => i % 2 === 1);
     const sum = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0);
     // a gap under a tenth of the pattern reads as no gap; one of a tenth still shows (vis-network's [5, 5] dashes at
     // width 4 under round caps: gaps of 1 px in a 10 px pattern, drawn and visible), and a drawing measured at a scale
@@ -928,15 +976,39 @@ function crossedWave(subpaths: readonly (readonly Pt[])[], [a, b]: readonly PBox
 }
 
 /**
+ * What two plain nested subpaths wound the same way fill under the nonzero rule: all the outer one holds. A zigzag's
+ * outlines cross themselves, so what their areas say of their winding says nothing.
+ * @param subpaths - the path's subpaths
+ * @returns the outer subpath, or null for anything else
+ */
+export function solidOuter(subpaths: readonly (readonly Pt[])[]): readonly Pt[] | null {
+    if (subpaths.length !== 2 || signedArea(subpaths[0]) * signedArea(subpaths[1]) <= 0) {
+        return null;
+    }
+    const [a, b] = subpaths.map((q) => boxOfPoints(q));
+    if (!holds(a, b) && !holds(b, a)) {
+        return null;
+    }
+    const outer = holds(a, b) ? subpaths[0] : subpaths[1];
+    return continuousPattern(outer) === "solid" ? outer : null;
+}
+
+/**
  * Whether a filled path is an outline stroked into a fill, and what of its line can be read.
  * Cytoscape desktop exports a node border it does not draw solid (dots, zigzag, sine wave, double, slashes) as the
  * stroke's own outline, filled: a ring of two subpaths, or many pieces round the node. Read as a fill, it is larger
  * than the node's body and takes its place.
+ * Two subpaths wound the same way under the nonzero rule fill all the inner one holds: a disc, no ring (yEd's
+ * intermediate BPMN event and transaction write their body's two outlines in one path).
  * @param subpaths - the path's subpaths, each sampled evenly by arc length in the side's frame
+ * @param nonzero - whether the path is filled by the nonzero rule, where unset nothing is known of its rule
  * @returns the outline, or null when the path is no such outline
  */
-export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): PaintedOutline | null {
+export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[], nonzero = false): PaintedOutline | null {
     if (subpaths.length < 2 || subpaths.some((q) => q.length < 3)) {
+        return null;
+    }
+    if (nonzero && solidOuter(subpaths) !== null) {
         return null;
     }
     const box = boxOfPoints(subpaths.flat());
@@ -1305,6 +1377,39 @@ export function strokedBarb(outline: readonly Pt[]): boolean {
 const BAR_LENGTH = 0.02;
 
 /**
+ * A stroke's two ends, where it runs straight, there and back if the path closes it: the point farthest from its start.
+ * @param q - the stroke's points
+ * @returns its ends, or null for a stroke that bends
+ */
+function straightRun(q: readonly Pt[]): [Pt, Pt] | null {
+    const a = q[0];
+    const b = q.reduce(
+        (far, p) => (Math.hypot(p[0] - a[0], p[1] - a[1]) > Math.hypot(far[0] - a[0], far[1] - a[1]) ? p : far),
+        a,
+    );
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const off = (p: Pt): number => Math.abs((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / len;
+    return len > 1e-9 && q.every((p) => off(p) <= 0.05 * len) ? [a, b] : null;
+}
+
+/**
+ * Whether an arrowhead's pieces are two straight strokes crossing at their middles: the middles within a tenth of a
+ * stroke's length of one another, and not along one line.
+ * @param pieces - the arrowhead's subpaths
+ * @returns true for a cross
+ */
+export function crossedStrokes(pieces: readonly (readonly Pt[])[]): boolean {
+    const [s, t] = pieces.map(straightRun);
+    if (pieces.length !== 2 || s === null || t === null) {
+        return false;
+    }
+    const [u, v] = [s, t].map(([a, b]) => [b[0] - a[0], b[1] - a[1]]);
+    const [m, n] = [s, t].map(([a, b]) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+    const [lu, lv] = [Math.hypot(u[0], u[1]), Math.hypot(v[0], v[1])];
+    return Math.hypot(m[0] - n[0], m[1] - n[1]) <= 0.1 * lu && Math.abs(u[0] * v[1] - u[1] * v[0]) > 0.25 * lu * lv;
+}
+
+/**
  * The shape class of an arrowhead drawn as separate pieces in one path, where the pieces read as one outline make no
  * shape (Cytoscape.js's compound arrows): a disc and a triangle are a circle-triangle; a triangle with bars beside it
  * reads as its triangle, pointing the way it points (a triangle-tee or triangle-cross part-way along a line, pointing
@@ -1314,6 +1419,9 @@ const BAR_LENGTH = 0.02;
  * @returns the class, or null when the pieces are none of these
  */
 export function piecedArrowShapeOf(pieces: readonly (readonly Pt[])[], dir: Pt): ArrowShape | null {
+    if (crossedStrokes(pieces)) {
+        return "cross";
+    }
     const shapes = pieces.map((q) => arrowShapeOf(q, dir));
     const triangles = shapes.filter((x) => x === "triangle" || x === "inverted");
     const rest = shapes.filter((x) => x !== "triangle" && x !== "inverted");

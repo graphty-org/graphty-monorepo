@@ -1,0 +1,8 @@
+# A state's river sensor network (50,000 sensors, 100,000 stretches, 40 basins in basin), as the
+# river project's colleague shared it: drawn at random. Write the file first:
+# python3 design/ui/studio/tool/files/big-50k.py
+--click Open a file
+--upload sensors-50k.graphml
+--click Layout
+--click Random
+--click Apply

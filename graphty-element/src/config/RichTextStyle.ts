@@ -123,6 +123,11 @@ export const RichTextStyle = z.strictObject({
     // Multiple borders
     borders: z.array(BorderConfig).optional(),
 
+    // The label laid out as a table of cells, as JSON (the `node.labelTable` value: see the `edge.labelTable`
+    // channel). Set, the label is the table: its cells' fills, outlines, rules and lines are drawn in place of the
+    // words, the panel is the table's size with no margin or padding, and its border stands for the table's outline.
+    table: z.string().optional(),
+
     // Margins
     marginTop: z.number().default(5).optional(),
     marginBottom: z.number().default(5).optional(),
@@ -148,6 +153,10 @@ export const RichTextStyle = z.strictObject({
     shiftY: z.number().optional(),
     // What the shifts are fractions of: the whole box (margins and all) or the words alone.
     shiftOf: z.enum(["box", "words"]).optional(),
+    // What a label outside its target is placed against it by: the whole box, or the words' own font box.
+    gapOf: z.enum(["box", "words"]).optional(),
+    // What its box is sized to, and whether a box larger than its target stays against the side it names.
+    box: z.enum(["words", "words-at-side", "target-width"]).optional(),
 
     // Screen fit (labelScreenFit.ts). No defaults, so a label that names neither is painted
     // exactly as before.

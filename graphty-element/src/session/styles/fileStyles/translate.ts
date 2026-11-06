@@ -51,8 +51,10 @@ import { type FoldableLayer, foldToCap } from "./fold";
 import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
 import {
+    ARROW_RUNS,
     ARROW_SHAPES,
     ARROW_SHAPES_NEAREST,
+    type ArrowRunPart,
     arrowShapesOf,
     BORDER_STYLES,
     BORDER_STYLES_NEAREST,
@@ -651,9 +653,10 @@ function channelPlans(
     // ponytail: one ratio for every label size; per element against its own label size if outlines of very different
     // sizes need it
     // A label box's border width is a whole stroke's width, so it is not halved.
+    // label units per file length, as a label's padding and border are drawn
+    const labelScale = onScreen.label || factors.label === null ? 1 : factors.label(14) / 14;
     const labelLength = (channel: Channel, half = true): ChannelPlan => {
-        const px = onScreen.label ? null : factors.label;
-        const ratio = (px === null ? 1 : px(14) / 14) / (half ? 2 : 1);
+        const ratio = labelScale / (half ? 2 : 1);
         return {
             channel,
             convert: (value) => (typeof value === "number" ? round(value * ratio) : null),
@@ -766,6 +769,7 @@ function channelPlans(
             ["stripeOpacities", [id("node.stripeOpacities")]],
             ["stripeDirection", [id("node.stripeDirection")]],
             ["stripeSize", [id("node.stripeSize")]],
+            ["stripeFrame", [id("node.stripeFrame")]],
             ["chartKind", [id("node.chartKind")]],
             ["chartValues", [id("node.chartValues")]],
             ["chartColors", [id("node.chartColors")]],
@@ -803,6 +807,9 @@ function channelPlans(
             ["outerBorderStyle", [table("node.outerBorderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["outerBorderOffset", [length("node.outerBorderOffset")]],
             ["outerBorderCount", [id("node.outerBorderCount")]],
+            ["raisedBorderWidth", [length("node.raisedBorderWidth")]],
+            ["raisedBorderLightColor", [id("node.raisedBorderLightColor")]],
+            ["raisedBorderDarkColor", [id("node.raisedBorderDarkColor")]],
             ["underlayColor", [id("node.underlayColor")]],
             ["underlayOpacity", [id("node.underlayOpacity")]],
             ["underlayPadding", [length("node.underlayPadding")]],
@@ -858,6 +865,7 @@ function channelPlans(
             ["labelPadding", [labelLength("node.labelPadding", false)]],
             ["labelCornerRadius", [labelLength("node.labelCornerRadius", false)]],
             ["labelLineHeight", [label("labelLineHeight")]],
+            ["labelBox", [label("labelBox")]],
             // moved in the scene's units, as a wrap width is
             ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
             ["labelOffsetY", [length("node.labelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
@@ -1043,6 +1051,17 @@ function channelPlans(
         ["labelOutlineOpacity", [label("labelOutlineOpacity")]],
         ["labelBorderOpacity", [label("labelBorderOpacity")]],
         ["labelPadding", [labelLength("edge.labelPadding", false)]],
+        // its lengths in label units, as its padding is
+        [
+            "labelTable",
+            [
+                {
+                    channel: "edge.labelTable",
+                    convert: (value) => labelTableForElement(value, labelScale, imageBase),
+                    identity: false,
+                },
+            ],
+        ],
         ["labelCornerRadius", [labelLength("edge.labelCornerRadius", false)]],
         ["labelLineHeight", [label("labelLineHeight")]],
         // moved in the scene's units, as a wrap width is
@@ -1161,6 +1180,11 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["other:chevron", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     // a picture on a square, stretched to its own width and length
     ["other:image", 1],
+    // yEd's own arrows, as wide as the element cap each is drawn as
+    ["other:open-vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["other:white_delta_bar", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["other:crows_foot_many_mandatory", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["other:crows_foot_many_optional", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
 ]);
 const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "triangle",
@@ -1245,12 +1269,44 @@ function arrowLengthOf(geometry: ToolArrowhead, scene: number, end: ArrowEnd, wi
 
     // a picture is drawn at the size the file gives it, whatever the arrow size
     const picture = imageSizeOf(end, i);
+    const lead = ARROW_RUNS.get(shape)?.lead;
     const length =
         picture?.height ??
-        geometry.length(end.size(i), width, sourceShapeOf(end.sources[i])) *
-            (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1) *
-            factor(end.length, i);
+        headLengthOf(geometry, end, width, i) *
+            (lead === undefined ? (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1) : lead / YED_HEAD_LENGTH);
     return round((length * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
+}
+
+/** How long yEd draws its standard head at line width 1, the pixels `ARROW_RUNS` measures in. */
+const YED_HEAD_LENGTH = 12;
+
+/**
+ * How long a program draws its plain head at an edge's end, in the program's units.
+ * @param geometry - How the program sizes its arrowheads.
+ * @param end - The end.
+ * @param width - The line's width.
+ * @param i - The edge.
+ * @returns The length.
+ */
+function headLengthOf(geometry: ToolArrowhead, end: ArrowEnd, width: number, i: number): number {
+    return geometry.length(end.size(i), width, sourceShapeOf(end.sources[i])) * factor(end.length, i);
+}
+
+/**
+ * An end cap's `stack` for one of yEd's arrows of several pieces.
+ * @param parts - The pieces behind the end cap, nearest first.
+ * @param pixel - One of yEd's pixels (`ARROW_RUNS`) as an element cap's length, at this edge's line width.
+ * @returns The `stack` value.
+ */
+export function arrowRunStack(parts: readonly ArrowRunPart[], pixel: number): string {
+    return parts
+        .map(({ type, along, across }) => {
+            const size = round((along * pixel) / (CAP_DEPTH.get(type) ?? 1));
+            const breadth = across === undefined ? null : round(across / along / (CAP_ASPECT.get(type) ?? 1));
+            const wide = breadth === null ? "" : `x${String(breadth)}`;
+            return `${type}*${String(size)}${wide}`;
+        })
+        .join(" ");
 }
 
 /**
@@ -1298,14 +1354,15 @@ function arrowStackOf(
         .trim()
         .split(/\s+/)
         .flatMap((word) => {
-            const [shape, side] = word.split(":");
+            // a shape may hold a colon of its own (`other:open-square`)
+            const [, shape, side] = /^(.+?)(?::(left|right))?$/.exec(word) ?? [];
             const type = ARROW_SHAPES.get(shape);
             if (type === undefined || type === "none") {
                 return [];
             }
 
             const sizes = sized?.(shape);
-            const kept = side === "left" || side === "right" ? `:${side}` : "";
+            const kept = side === undefined ? "" : `:${side}`;
             const size = typeof sizes?.size === "number" ? `*${String(sizes.size)}` : "";
             const width = typeof sizes?.width === "number" ? `x${String(sizes.width)}` : "";
             return [`${type}${kept}${size}${width}`];
@@ -1387,7 +1444,8 @@ export function labelRunsMarkup(runs: unknown, size: unknown = null): string | n
                 tags.push(["size", share(r.size)]);
             }
             if (typeof r.shift === "number" && r.shift !== 0 && typeof size === "number" && size > 0) {
-                tags.push(["shift", share(r.shift)]);
+                // a program moves the run and leaves its line where it was (Graphviz's SUB and SUP, vis-network's vadjust)
+                tags.push(["nudge", share(r.shift)]);
             }
             const open = tags.map(([tag, v]) => (v === "" ? `<${tag}>` : `<${tag}='${v}'>`)).join("");
             const close = tags
@@ -1674,22 +1732,27 @@ function sizeUniformly(layer: Building, scope: Path | null): void {
 }
 
 /**
- * Make a layer of another program's file that shifts its labels shift their words (`labelShiftOf: "words"`): a
- * program that pins a label's text by one of its points (Pajek's `text-anchor: start`) pins the text's own box, where
- * the element's own shift moves the label's whole box, margins round its words and all, a margin further. Graphviz is
- * left on the whole box: it pins an xlabel by the corner of the label's box, padding (and an HTML table's cells and
- * borders) included. Set where the layer's shifts paint, so it adds no layer.
+ * Make a layer of another program's file place its labels by their words (`"words"` in `words`) wherever it paints one
+ * of `from`, and set it where the layer paints, so it adds no layer.
+ *
+ * A layer that shifts its labels shifts their words (`labelShiftOf`): a program that pins a label's text by one of its
+ * points (Pajek's `text-anchor: start`) pins the text's own box, where the element's own shift moves the label's whole
+ * box, margins round its words and all, a margin further. Graphviz is left on the whole box: it pins an xlabel by the
+ * corner of the label's box, padding (and an HTML table's cells and borders) included.
+ *
+ * A Cytoscape.js layer that places its node labels places them by their words (`labelGapOf`): Cytoscape.js puts the
+ * bottom of a top label's words on the node's outline (see RichTextLabel's gapToWords). Only Cytoscape.js: the other
+ * programs' outside labels are not measured against their words, so they keep the element's default.
  * @param layer - A layer the translation built.
- * @param kind - Its elements' kind.
+ * @param from - The channels whose painting places a label by its words.
+ * @param words - The channel that says so.
  */
-function shiftWords(layer: Building, kind: StyleTarget): void {
-    const shifts: Channel[] = [`${kind}.labelShiftX`, `${kind}.labelShiftY`];
+function placeByWords(layer: Building, from: readonly Channel[], words: Channel): void {
     const { set, encode } = layer.spec;
-    if (!shifts.some((channel) => channel in set || channel in encode)) {
+    if (!from.some((channel) => channel in set || channel in encode)) {
         return;
     }
 
-    const words: Channel = `${kind}.labelShiftOf`;
     set[words] = "words";
     // `set` paints every element the layer paints anything on, shifted or not (a file's bypass that shifts only
     // some of them, xgmml-syn-bypass): that is where the words shift is drawn, and where it is predicted
@@ -1917,9 +1980,15 @@ class KindTranslation {
             });
         }
         const { tool } = this.#input.extracted.styles.source;
+        const kind = this.#kind;
         if (tool !== "graphty" && tool !== "graphviz") {
             ordered.forEach((layer) => {
-                shiftWords(layer, this.#kind);
+                placeByWords(layer, [`${kind}.labelShiftX`, `${kind}.labelShiftY`], `${kind}.labelShiftOf`);
+            });
+        }
+        if (tool === "cytoscape-js" && kind === "node") {
+            ordered.forEach((layer) => {
+                placeByWords(layer, ["node.labelLocation"], "node.labelGapOf");
             });
         }
 
@@ -3265,18 +3334,24 @@ class KindTranslation {
             if (end === "Head" || end === "Tail") {
                 encode(
                     `edge.arrow${end}Stack`,
-                    parts[end].map((value, i) =>
-                        arrowStackOf(value, (shape) => {
+                    parts[end].map((value, i) => {
+                        const run = ARROW_RUNS.get(sides.shapes[i] as string);
+                        if ((value ?? null) === null && run !== undefined) {
+                            const head = headLengthOf(geometry, sides, factor(width, i, 0), i);
+                            const pixel = (head * scene) / (YED_HEAD_LENGTH * EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH);
+                            return arrowRunStack(run.parts, pixel);
+                        }
+                        return arrowStackOf(value, (shape) => {
                             const part: ArrowEnd = {
                                 ...sides,
-                                shapes: sides.shapes.map((_s, j) => (j === i ? shape : null)),
+                                shapes: sides.shapes.map((_own, j) => (j === i ? shape : null)),
                             };
                             return {
                                 size: arrowLengthOf(geometry, scene, part, factor(width, i, 0), i),
                                 width: arrowBreadthOf(geometry, part, i),
                             };
-                        }),
-                    ),
+                        });
+                    }),
                 );
             }
         }

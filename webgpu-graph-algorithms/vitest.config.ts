@@ -162,6 +162,7 @@ const GPU_ALONE_TESTS: readonly string[] = [
  *   device/context.test.ts       three broken bind groups (sink-ctx, slot-ctx, hook) and a device.destroy() mid-life
  *   device/error-scope.test.ts   broken bind groups inside validation scopes; an out-of-memory scope left on a device
  *   device/managed.test.ts       device.destroy() on a managed accelerator's device, to see a new one acquired
+ *   device/shared-device.test.ts broken bind groups and a renderer's error on a device with no sink
  *   device/lost.test.ts          broken bind groups on raw devices, then device.destroy() under a pending read and
  *                                mid-batch
  *   kernel/batch.test.ts         a wrong-usage buffer reaches the pending-error slot
@@ -176,6 +177,7 @@ const DEVICE_ERROR_TESTS: readonly string[] = [
     "test/device/context.test.ts",
     "test/device/error-scope.test.ts",
     "test/device/lost.test.ts",
+    "test/device/shared-device.test.ts",
     "test/kernel/batch.test.ts",
     "test/kernel/kernel.test.ts",
     "test/kernel/pipeline-cache.test.ts",

@@ -1,6 +1,6 @@
 # A row-based renderer for graphty-element: one million nodes, nothing lost
 
-Status: design, revised from the proving experiments; stages 0, 34, 35 and 36 are done. Code read at origin/master da23953226 and Babylon.js
+Status: design, revised from the proving experiments; stages 0, 1, 2, 34, 35 and 36 are done. Code read at origin/master da23953226 and Babylon.js
 8.56.2 on 2026-11-04. Paths are under `graphty-element/src/` unless named otherwise. The research note is
 `design/ui/framework/research/cosmos-gl.md`; section 5 summarizes what the experiments showed.
 
@@ -38,12 +38,19 @@ master. **No breaking change is needed.** Two changes are optional and held for 
 - **Reads.** `updateTextureData` makes partial float uploads on both engines. `Engine._readPixelsAsync` (`engine.js:606`, reading the
   bound framebuffer) serves WebGL hover. On WebGPU every read is asynchronous. No press needs a read (section 4.4).
 - **The measured layout numbers are WebGPU compute with WebGL drawing**, and VR and AR need WebGL, so no device is shared there and the
-  upload path is the main path. The slow part is the per-node work after readback.
+  upload path is the main path. The slow part is the frames, not the per-node work after readback: at 100,000 nodes one
+  `publishPositions` took 13.7 ms before stage 1 and takes 4-6 ms after it, and `stepAsync` does not publish at all. A step with readback
+  takes about 800 ms while frames draw and 5 ms with the frame loop stopped, because the readback queues behind the frames on the card.
 - **`pass` is a reserved word in WGSL**, and `edgeJoinShader.ts:591` uses it, so on master `renderer="webgpu"` with any edge draws a blank
   canvas. A fix is landing separately; stages 8 and 15 need it.
 - **Device loss on the WebGPU engine is a defect today**, with no sharing and no layout (stage 39). Babylon does not await `initAsync`
   when it restores, so it rebuilds on the lost device and `onContextRestoredObservable` fires on the old one. After `device.destroy()` a
-  stock page floods validation errors; after a GPU process crash it dies in `createBuffer`.
+  stock page floods validation errors; after a GPU process crash it dies in `createBuffer`. Two more gaps found building stage 39: the
+  WebGPU engine never calls `scene._rebuildGeometries` (only the WebGL `Engine` does), and `Mesh._rebuild` keeps the per-render-pass copies of
+  a mesh's per-instance buffers, the only ones WebGPU uses. A write to one from the lost device is a validation error after a destroy and
+  aborts the renderer after a crash. A resting loop also wakes by accident after a restore, while the rebuilt effects compile; the event is
+  what does not depend on that, and what has the batches upload again. After a second crash Chromium refuses the page an adapter (domain
+  blocking of 3D APIs), which the engine reports as `E_DEVICE_LOST` with `rendererStatus.drawing` false.
 - **The graphty app reads no `.mesh`, `getScene`, `getNode` or `getNodes`**; it touches the element only through the session.
 - **Stale issue text**: #3251's radial table is dropped; #3248's "no CPU copy" means none on a frame's path.
 
@@ -55,7 +62,7 @@ A row is an object row for one of two reasons. _Paint or view_: `batchableOf(pai
 re-batch pass. _Mesh read_: someone holds its mesh; this is permanent. An _object edge_ is the same idea for edges; the fast form is a
 _pulled edge_.
 
-New option `renderPath` (attribute `render-path`), additive:
+New option `renderPath` (attribute `render-path`, read but not reflected, so an element on the default gains no attribute), additive:
 
 - `"objects"`, the default: every node and edge is today's object. No picture, event or Babylon object changes.
 - `"batched"`: eligible rows are batched and eligible edges pulled. Reading `Node.mesh` makes that one row an object row; `getScene()`
@@ -83,6 +90,13 @@ unplaced, between while a particle transition shrinks it. It is the _drawn_ posi
 `rowExtent` holds 3 texels a row, written at repaint, never on a move: drawn scale, round radius, half extents and outline half extents
 (x, y, z each), border reach, flags. A still graph uploads nothing. Tables follow `snapshot-replaced` and join `batchUploadFrames`, so
 context restore re-uploads.
+
+As built (stage 4): the tables exist only once `Graph.openRowTable` is called, so a graph on `"objects"` pays one null check a move; stage 8
+opens them under `"batched"`. Every drawn case except the repack reaches a row through the `setMeshPosition` funnel, which compares the place
+with the lane: a row drawn off its lane is _held_, and the repack skips it until the funnel lands it on the lane again, so a drag, a transition
+and a group set-back need no signal of their own. A particle shrink is the one extra write, `Node.drawShrunk`. Uploads go in whole texture
+lines (16 KB), not single texels. `rowExtent`'s texels are scale, round radius, border reach, flags; half extents and bounding radius;
+outline half extents and a spare. A freeze remaps rows from the report, then measures any node whose row is new.
 
 `rowBounds` is a CPU `Float32Array` of 16 bytes a row (16 MB at a million), the table picking walks: x, y, z and bounding radius times w, so
 radius 0 means hidden. The same writers keep it current. Reading radius from `rowExtent` instead walks 64 MB a scan and misses the bar.
@@ -114,6 +128,36 @@ swap-with-last breaks parity. Freeing a slot stays one write: `graphtyRow` becom
 hole. At a repaint, once holes pass a quarter of the slots, one typed pass compacts them, preserves ascending row order and uploads once;
 never during a drag. A row whose hole is gone rewrites its batch's list at that repaint. There is no per-instance culling.
 
+As built (stage 8): `MeshCache.batchFor` takes the source mesh, and `NodeBatches` keeps one group per source. A proxy is hidden by
+`source.visibility = 0`, as `NodeShaderDrawing` already does: `InstancedMesh.visibility` is the source's, so one write hides every row of a
+source, while `isVisible`, `isEnabled` and `isPickable` stay as they were, so `scene.pick`, the element's picks and XR all land on the proxy.
+That is why `raySelectionPredicate` needs no change while proxies exist: Babylon leaves it unset and its default reads `isVisible`, and
+`node-batch-xr.test.ts` shows both eyes equal, laser included. A read of `mesh.visibility` answers 0 until stage 11. `RowPullPlugin` is
+attached when a batch is built, not when the material is made, thawing a frozen material for the moment: `render-path` can change live and
+materials then already exist, and with the proxies kept, neither direction rebuilds a row. A row whose number the table does not hold yet
+keeps its whole source on the object path until the freeze brings it in; a group measures its highest row at the flush, not at the freeze, since a
+node the freeze removed has lost its row but stays a member until it disposes. `batchableOf` is an allow list of style keys, so a new style option
+stays an object row until a batch is proven to draw it.
+
+As built (stage 11, first pull request): `Node.mesh` is an accessor over the private field `#mesh`, which is what `Node.ts` reads,
+and `releaseNodeMesh` reads it through a module-private reader set in the class's static block. `Edge.ts` reads a node's mesh only on
+the object path, through `drawnPickMesh`. `local/node-mesh-funnel` now covers `Node.ts` and `Edge.ts` too, so the only read of the
+accessor left in `src` is `Graph.getNodeMesh`. Nothing changes yet for a consumer's read: the accessor answering by making the row an
+object row, and batched rows losing their mesh, are the stage's later pull requests. One consequence for tests: internal code no
+longer reads the accessor, so `edge-trim-mirror.test.ts` cannot count reads of it (the lint rule does not help either: it matches
+only `.mesh`, not `drawnPickMesh`). The test instead sets each batched row's mesh to a counting proxy for the call and counts every
+use of it, however it reaches `#mesh`; with the batched branch of `getInterceptPoints` removed it counts 436 uses on one edge.
+
+As built (stage 11, second pull request): the first read of `Node.mesh` (or `getNodeMesh`, which reads it) sets a private flag
+and syncs the node with `NodeBatches`; `batchableIn` answers false while the flag is set, so the row is an object row from
+the next flush and stays one, through repaints and render-path changes. Setting `mesh` does not set the flag. Its source
+group then leaves the batch, since hiding is still all or nothing per source until the proxies go. Tests that look at
+internals read `drawnPickMesh`, which does not set it.
+The `local/node-mesh-funnel` lint rule covers `stories/**` and `test/helpers/*.ts` too, so no play function or shared
+helper sets the flag and turns a batched render-parity or forced-batched run into an objects one. Individual files under
+`test/browser` and `test/interactions` still read `Node.mesh` (365 reads in 109 files when this was written); each such test
+runs those nodes on the objects path even in the forced-batched project.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.
@@ -141,13 +185,54 @@ Pulled edges read `rowExtent`, so rows sized per view need their batched form (s
 
 Trim is one GLSL include shared by line and cap shaders, with a TypeScript mirror for CPU readers:
 
-| Edge                                 | Ends come from                                                            | Cached per edge       |
-| ------------------------------------ | ------------------------------------------------------------------------- | --------------------- |
-| Straight, no cap, gap or group       | Node centers                                                              | No                    |
-| Straight, round, box or ellipse end  | Closed form                                                               | No                    |
-| Straight, other shape                | Two floats from `rowRayHit`; bounding radius while moving, exact at rest  | Yes                   |
-| Bezier, arc, fan, loop, great circle | Shader evaluates pieces i-2 to i+3, then today's miter and ownership code | `t` range, run length |
-| File and layout routes               | Per-edge slice of a route texture                                         | `t` range, run length |
+| Edge                                 | Ends come from                                                             | Cached per edge       |
+| ------------------------------------ | -------------------------------------------------------------------------- | --------------------- |
+| Straight, no cap, gap or group       | Node centers                                                               | No                    |
+| Straight, two round ends, or a box   | Closed form                                                                | No                    |
+| Straight, other shape                | Two floats from `rowRayHitOn`; bounding radius while moving, exact at rest | Yes                   |
+| Bezier, arc, fan, loop, great circle | Shader evaluates pieces i-2 to i+3, then today's miter and ownership code  | `t` range, run length |
+| File and layout routes               | Per-edge slice of a route texture                                          | `t` range, run length |
+
+As built (stage 6): `meshes/edgeTrim.ts` holds `EDGE_TRIM_GLSL`, a string a shader takes in by interpolation as it takes `edgeJoinShader.ts`, and
+`trimEnds`, its mirror. `Edge.trimInput` gives both their numbers. `test/browser/edge-trim-mirror.test.ts` holds the mirror to
+`getInterceptPoints` on every node shape, in 2D and 3D, and the shader to the mirror through transform feedback on WebGL2, both within 1e-4.
+WebGPU was not run. Corrections to the table, from that test:
+
+- An ellipse is not a closed form. `surfaceReach`'s ellipse is 0.88 off on a line through depth, which meets the slab's face, and 0.003 off across
+  the view, which meets a facet. It takes two floats. A turned rectangle does too.
+- A round end is closed only across from another round end. Across from anything else today's ray meets the sphere's facets, so that end takes a
+  float as well, or it moves by up to the facet depth.
+- 1e-4 holds near the origin only: at y = 3000 a float's spacing is 2.4e-4, and the shader takes rows as floats, so the test moves each edge to the
+  origin before reading it back.
+- The first row is `Edge.bareEnd`, not `getInterceptPoints`: a line with no cap never asks for a surface, so the include does not cover it, and a
+  line with a gap and no cap leaves at `leaveNode`. Stage 16 needs both.
+- A group's end in the include knows a box and an ellipse only. A group is `round-rectangle` by default, whose outline only the mirror reads, so an
+  edge ending on such a group stays an object edge until something supplies that reach.
+
+As built (stage 7): `Node.drawInBatch(source)` says a batch draws a row, from that shared source mesh, and `null` says it no longer does. No code calls it
+yet: `NodeBatch` must, on sync and on leave, by stage 11 at the latest. Until then a row keeps answering from its mesh, which is right while it holds one.
+Once a batch draws either end of an edge, `Edge.getInterceptPoints` answers from `trimEnds`. `Node`'s `drawnPosition`, `drawnWorldPosition`, `drawnScale`,
+`drawnScaling`, `roundRadius`, `drawnHalfExtents` and `drawnSourceMesh` read the row, so every other helper of an edge's ends reads no mesh either; `reachOutline` is
+keyed on the source mesh for the same reason. `test/browser/edge-trim-mirror.test.ts` holds both answers within 1e-4 on every shape, in 2D and 3D, with either
+end or both batched, under a moved, turned and scaled graph root, and counts 0 reads of a batched row's mesh. Corrections, from the code:
+
+- `rowRayHit` cannot give an end. It answers the nearest row, and an end's ray starts inside one node and may cross others, so `RowScan.rowRayHitOn(row, ray)`
+  tests the one row, as `Ray.intersectsMeshes([mesh])` does.
+- `rowExtent` keeps a shrunk row's whole size, as `RowTable.measure` skips it, so `RowTable.extentOf` multiplies by w. Hiding zeroes w, so a row both
+  shrunk and hidden reads whole.
+- `rowExtent` holds one scale, which is enough only because a stretched node (a group, a model) is never batched.
+- `RowTable.measure` still reads the mesh, the one read left: `Node.measureRow` steps around the row reads so paint sees the mesh and not the table's own
+  old values. Stage 11 has to measure from the source mesh and the style.
+
+As built (stage 15, first pull request): `EDGE_PULLED` is in `meshes/edgeJoinShader.ts` and `PulledLineBatch` (`meshes/PulledLineBatch.ts`) draws
+with it, from `CustomLineRenderer.createJoinedLineMesh({ pulled: true })`. No edge uses it yet: `Edge` joining it behind the internal switch, the
+6-vertex program, the stray pixel, `render-parity` with the switch on and WebGPU are the stage's later pull requests. The draw is the join
+template's 30 indices per piece, `piece * 14 + k`, so `gl_VertexID / 14` names the piece; the material declares no attribute. A piece pulls
+only a straight line between node centres, written as `EdgeLineBatch.place` writes one (neighbours its own ends, run zero), so its vertex inputs
+equal a placed slot's. A row of w = 0, or a freed piece (rows -1), puts every point at the origin, as a hidden slot does.
+`test/browser/pulled-edge-lines.test.ts` holds it on SwiftShader WebGL with anti-aliasing, for screen, world and minimum widths: 0 pixels differ
+from the placed line at rest, after every row moves (0 edge bytes uploaded), and with a row at w = 0 and a piece freed. Found building it: the
+batch must not dispose its mesh with its textures, since `rowPosition` belongs to the row table.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
@@ -162,8 +247,8 @@ on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a c
   the best hit by 0.001 relative. Each candidate gets Babylon's own narrow phase on the shared source mesh from `sourceFor(key)`: build the
   row's translation-and-scale matrix, `scene.createPickingRayToRef(x, y, world, ray, null, false)`, then
   `source.intersects(ray, false, undefined, false, world, false)`. Closed forms and a hand-written triangle test disagreed at about 50,000
-  of 2,120,000 points; this form at 0. It needs no frame or GPU, and is the oracle ID answers are tested against. `rowRayHit(row, ray)` is
-  the same walk for a world ray: edge ends, and XR, where it stands in for `pickWithRay`.
+  of 2,120,000 points; this form at 0. It needs no frame or GPU, and is the oracle ID answers are tested against. `rowRayHit(ray)` is
+  the same walk for a world ray: XR, where it stands in for `pickWithRay`. Edge ends take `rowRayHitOn(row, ray)`, one row with no walk (4.3).
 - **ID targets**, for hover only: RGBA8 with row + 1, no antialiasing. One for node rows with depth; one for edge rows with none, as today's
   edge hit ignores depth. Redrawn when a read finds them stale. Edges read a 13 x 13 window, then today's exact distance test.
 
@@ -179,9 +264,61 @@ which the agreement test lists. `"objects"` answers do not change.
 | Press, release, `elementAt`, `groupOutlineAt` | Row scan, typed edge scan | Row scan, typed edge scan | Row scan                     |
 | `screenToWorld`                               | Row scan                  | Row scan                  | Row scan                     |
 
-A transition click scans the lane, which already holds the destination. Batched rows' expand clicks and `hoverCursor` go through
+A transition click scans `rowBounds` inside `atLayout`, whose move through the mesh funnel puts each row at its destination and whole size
+for the length of the pick. Batched rows' expand clicks and `hoverCursor` go through
 `NodePointerRoster`. Under `"batched"` the shared `ActionManager` is built at the first object row; until then Babylon's move pick does not
 run, and any consumer action turns it back on.
+
+As built (stage 5): every pick lives in `render/PickService.ts`. The twelve sites are `pickAsDrawn`, `pickNodeId`, `alongRay`, the pointer
+predicates, the close-label hover, `screenToWorld`, the edge pick, the XR drag start, and their callers on press, release, background click
+and `elementAt`. `groupOutlineAt` is a 2D test in `RenderManager` and stays there; `Edge.ts`'s own ray waits for stage 7. `RowScan` exists once
+`Graph.openRowTable` runs, so `"objects"` graphs take the old path unchanged. With a table open, a press answers from the scan (stage 10
+removed the shadow `scene.pick` and its `shadow.differ` counter; `row-scan-parity.test.ts` compares with `scene.pick` directly); a pick
+during a transition and an XR ray take the merged answer. `screenToWorld`
+stays on `scene.pick` until a row has no mesh. The narrow phase places rows under `graph-root`: the walk takes the ray into the root's space,
+and each candidate's matrix is multiplied by the root's, so an XR gesture changes nothing. Four things differ from the text above:
+
+- A row's per-axis scale comes from `Node.drawnScaling`, read for candidates only. `rowExtent` holds one scale and one spare float, and a
+  group's box is stretched, so the row with no `Node` (stage 30) needs a place for two more floats. The source likewise comes from
+  `node.drawnSourceMesh`; `MeshCache.sourceFor(name, creator)` is the half of `get` that makes no instance, there for rows with no mesh.
+- Models stay on `scene.pick`: `createModelInstance` tests only the box, on the instance, which the source's triangles cannot reproduce.
+  `Node.drawnByRowScan` is false for them and the scan leaves them to the mesh pick. Every other kind passed: all 52 bodied shapes in both
+  views, hidden rows, non-uniform size, `shape.rotation`, custom shapes, mixed rows, rig cameras, a turned and scaled root, NullEngine.
+- Row order equals `scene.meshes` order after a load, but not after a restyle: a rebuilt mesh goes to the end of `scene.meshes`. On an exact
+  tie `scene.pick` then answers the other row, and the scan keeps the lower row, the section 9 rule. Only a pick on an open table can
+  see this, and a batched row has no place in `scene.meshes` to lose.
+- An exact tie between a row and an object mesh goes to the row, whose mesh was built first.
+
+As built (stage 9): `NodePointerRoster.byId` names nodes, not handlers, and `Node.dragHandler` is an accessor that
+builds the handler on first read, on both paths, so a node the pointer never reaches has none (`dragHandlersBuilt`
+counts them). A batched row's click and double-click arrive as Babylon's own `POINTERTAP` and `POINTERDOUBLETAP`, so
+the click detection is the one the actions use; the roster names the node from the picked mesh, else from
+`pickNodeId`, and answers only when `NodeBatches.draws(node)`. The shared actions skip such a node, since its hidden
+proxy still carries them until stage 11. The roster sets `hoverCursor` over a batched row after Babylon resets the
+cursor. The shared `ActionManager` is built at scene setup only under `"objects"`; under `"batched"` the first mesh
+makes it, which while proxies exist is the first node. Two corrections to the stage 9 row: `XRInputHandler` was
+already on the merged ray pick (`pickRayAsDrawn`, stage 5), and the one XR laser proxy moves to stage 11, since with
+hidden proxies the predicate alone serves and nothing could prove the proxy before the meshes go.
+
+As built (stage 10): `render/NodeIdTarget.ts`, created and disposed with the `"batched"` path. Six things differ from the text above:
+
+- A node read is one pixel, not a window. On WebGL it is synchronous: a stale target is drawn on the spot and read with
+  `_readTexturePixelsSync`. On WebGPU the next frame draws it and the read follows asynchronously. `NodeBehavior` drops an asynchronous
+  answer from an older move. While reads keep coming the target is redrawn once in each frame; `counts = {draws, reads}`.
+- What the target draws is the scene's own active-mesh list, copied in `onAfterActiveMeshesEvaluationObservable` (between frames
+  `scene.getActiveMeshes()` is empty). Batches write row + 1; every other pickable mesh writes white, which means "ask the mesh pick".
+  Shader-surface rows, whose proxies are hidden, read empty and fall back to the mesh pick through `NodeBatches.hiddenRows()`.
+- Babylon draws `customRenderTargets` before it evaluates the frame's active meshes, so the in-frame drawing uses the last frame's list.
+  It is kept only while the new list is the same; any change makes the target stale.
+- `RenderTargetTexture.isReadyForRendering()` notifies every observer a drawing does (before bind, before and after render, after unbind)
+  and draws nothing, so no observer can mark a drawing. A small subclass overrides `render()` to say when it really drew.
+- Against `shapeRayHit`, the target differs at same-depth overlaps and at pixel centers within an eighth of a pixel of a triangle's
+  edge, where the rasterizer's rule and the ray test may keep opposite sides. `node-id-target.test.ts` lists both and bounds the second at
+  2% of sampled points.
+- A row under 1.5 device pixels in radius is drawn 1.5 px in radius around its center in the target (the batch's largest half-extent
+  sets the measure). Drawn as it is, a row smaller than a pixel covers no pixel center, so hover read nothing over it while the scan
+  named it: at 100,000 nodes in the benchmark (radius 0.32 px) no hover ever came. Hover over such a row may therefore name it, or a
+  neighbor drawn later, up to 1.5 px from its center, where the scan names nothing.
 
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by
@@ -209,17 +346,36 @@ last landing's CPU measurement, as a uniform. A landing costs 0.8 ms median agai
 Rules of sharing:
 
 - Decide before the engine opens and pass `setMaximumLimits`, `enableAllFeatures`, `high-performance`; the factory waits for the engine.
+  The decision is a registration's `sharesDevice(adapter)`, asked by `openWebGPUEngine`; the device reaches the factory as
+  `AcceleratorFactoryOptions.device`. The element's core cannot tell a software adapter, so that test sits with the peer in `webgpu.ts`.
+  An adopted device takes the caps a device of the accelerator's own would have (`captureCaps` on `device.adapterInfo`), so the same
+  kernels are chosen. A browser whose device has no `adapterInfo` (Safari, Chromium before 132) still shares: the caps then have empty
+  adapter names and subgroup sizes of 0, which the kernels floor to 4. A `sharesDevice` that throws means no, so a browser whose adapter
+  has no `info` (Chromium before 127) opens the engine unshared; `AccelerationController.sharesDevice` catches it for every registration.
+  `enableAllFeatures` brings `timestamp-query` to the engine, and with it Babylon's frame timing, which `StatsManager` turned on: every
+  `mapAsync` on the device then went unanswered, the layout's readback first, on SwiftShader and on the RTX. Why is not known; a
+  bisection of the features named `timestamp-query`, and no frame timing cleared it on SwiftShader. `StatsManager` no longer asks for it on
+  WebGPU, where it measured nothing before.
 - **A software adapter never shares**: it reports `layoutDevice: "separate"`, decided before the run.
-- `GpuContext.from` skips the `uncapturederror` sink through an additive option, `{ errorSink: false }`; with the sink one Babylon
+- `GpuContext.from` skips the `uncapturederror` sink through an additive third argument, `{ errorSink: false }`; with the sink one Babylon
   validation error fails the layout's next step.
 - Scopes pop synchronously after submit; **a landing waits for its batch's scope result and rejects on error**, or a bad batch lands and
-  the table parts from the lane.
+  the table parts from the lane. The scope holds `encoder.finish` and `queue.submit` only, because the commands before them are recorded
+  across awaits a frame could fall into. A bad bind group is still caught there, at the `finish` of the pass that used it; its first
+  report, at `createBindGroup`, goes to the renderer's log with the renderer's errors.
 - **Recovery decides from `ctx.state`, never the error code** (a step reports `E_DEVICE_LOST`, then `E_DISPOSED`), and **never starts from
-  `onContextRestoredObservable`**. It starts when stage 39's engine has the new device (0.2 s after a destroy, 2.1 s after a crash).
+  `onContextRestoredObservable`**. It starts when stage 39's engine has the new device (0.2 s after a destroy, 2.1 s after a crash):
+  the controller's build awaits `RecoveringWebGPUEngine.drawingDevice()`. The engine hears of a loss first, because Babylon attaches its
+  `device.lost` handler while the device opens, before anyone can be handed it.
 - On the new device rebuild the ring, bind groups, simulation and texture handle, refill the table from the lane, and `ctx.release` the old
   snapshot.
 - **A stale landing skips the copy** (a batch in flight across a reload).
-- The controller disposes before the engine.
+- The controller disposes before the engine: it is a lifecycle manager of its own, disposed after the layout and before the data and the
+  render managers.
+  What it frees is read before any manager is disposed, because managers reading rows on the way out freeze a cleared graph's fresh store.
+- The controller's build waits for the renderer only when one is on its way: `Graph.init` has started, or a connected element has promised
+  it with `expectRenderer`. Accelerated work asked for before that, or on a graph asking for WebGL, gets a device of the accelerator's own
+  and finishes, even if the graph never opens. An accelerator built that early stays on its own device until a loss rebuilds it.
 
 **Frames and iterations.** A frame target is p99 on an unloaded card: with no layout at all, 5 of 8 runs at 100,000 rows showed p95 of 74-90
 ms against a p50 of 9-10 ms, while other sessions used the machine. Iterations per batch stay 1 up to 250,000 rows
@@ -316,7 +472,7 @@ Under the default `"objects"` every public member is what it was. Under `"batche
 | `getScene`, `Graph.scene`, `engine`, `xrHelper`, `getMeshCache`, `parentGraph`  | Same objects; never change a row. The scene holds batches, not per-row meshes                                                                      |
 | `Node.update`, `updateStyle`, `opts`, `size`, `dragHandler`; the `Edge` twins   | Same class. `updateStyle` queues a repaint. Assigning `opts` or `size` makes an object row. `dragHandler` builds on read                           |
 | `Node.getPosition()`                                                            | `rowPosition`'s CPU copy: the drawn position, including mid-transition                                                                             |
-| `drawn*`, `getInterceptPoints`                                                  | Synchronous, from the mirror (stage 6) and `rowRayHit` (stage 5), moved there by stage 7                                                           |
+| `drawn*`, `getInterceptPoints`                                                  | Synchronous, from the mirror (stage 6) and `rowRayHitOn`, moved there by stage 7                                                                   |
 | `getNode`, `getNodes`, `nodes`, `edges`, `edgesByIndex`, `nodeCache`            | Views that make objects on demand, stable identity                                                                                                 |
 | `session.positions`, undo, save; `elementAt`, `groupOutlineAt`, `screenToWorld` | Unchanged, synchronous                                                                                                                             |
 | `getStats().cachedMeshes`, `drawCalls`                                          | Count batches                                                                                                                                      |
@@ -350,6 +506,12 @@ Options that change a picture stay off. Existing tests, unedited, prove `"object
 5. **The screenshot gate is the final word.** Stage 13 puts the app's stories on `"batched"`. Any changed image there goes to the owner's
    review, or those rows stay ineligible. A wanted picture change becomes an option, off by default, under the same review. Agents accept
    nothing, and never touch the gate, what is captured or any threshold.
+
+As built (stage 8): `test/render-parity/stories.test.ts` loads each captured story twice on `"objects"` and once on `"batched"`, composing it
+in the browser with a one-function renderer, on the URL a capture uses. WebGPU's canvas holds nothing once a frame ends, so every read
+happens inside a frame, by `engine.readPixels` (`test/helpers/whole-canvas.ts`). `test/render-parity/unstable.json` names each story left out
+and why; most fail on `"objects"` here because their play needs Storybook itself. `unstable-webgpu.json` adds the stories that fail only on WebGPU,
+all with no batch involved, so WebGL keeps them; `SWAP_REJECTS` leaves out the two scene shader files there, which reject on either path. `VITE_PARITY_RENDERER` picks the engine: the story is built off the page so it is set before the element connects, and each load asserts the engine that drew.
 
 A missed millisecond target does not block a parity-clean stage: the Proof file states it and stage 38 reports it. Counts (uploads, walks,
 `Node`s built, draws) are tests.
@@ -420,6 +582,8 @@ Labels
 
 - **Experiments are not the product**: harness shaders, tables filled from real meshes, machine load 15-77, so timings are upper bounds.
 - **Babylon's laser misses in about one page load in six**, on objects too, cause unknown; beam tests count only loads where it hits.
+  Stage 8 found one candidate, untested as the cause: with no `preferredHandedness`, Babylon casts from one controller only, whichever attached
+  first, so a test that aims one controller can miss. `node-batch-xr.test.ts` aims both.
   Hand-tracked pinch, AR and translucent batches were not run.
 - **Heap at a million is 850-920 MB by estimate** against 800 MB, before 20-byte batches and released staging. Holders at 100,000 are scaled
   from 50,000, because the snapshot crashed the renderer.
@@ -437,8 +601,10 @@ come from the harness (`benchmarks/compare/`) under `render-path="batched"`, in 
 Targets are 2D lean at 100,000 nodes and 1,000,000 edges, RTX 4070 SUPER, WebGL, unless stated. Today, with cosmos.gl in brackets, from the committed run `benchmarks/results/baseline` (commit
 7a09c31e, before the load fix #5841): still 151 ms (28), moving 224 ms (29), layout frame 1,632 ms (12), step with readback 548 ms (7), hover
 32 ms (28), heap 3,039 MB (161). Its first frame of 436 s (0.57) no longer holds: after the fix it is about 76 s, from one run on a loaded
-machine at the fix's commit fe8f5e1a7, whose still frame was 161 ms. No full run exists since the fix, so stage 1 commits one to
-`benchmarks/results/`, with p99 on an unloaded card, before it changes any code, and every Proof compares against that run. Targets are
+machine at the fix's commit fe8f5e1a7, whose still frame was 161 ms. Stage 1 committed a full run since the fix as
+`benchmarks/results/reference`, with p99, before it changed any code, and every Proof compares against that run. Its card was not unloaded
+(load average 9.8-59 as runs began), so compare at a similar load: still 166 ms (p99 231), moving 303 ms (p99 493), layout frame 2,317 ms,
+step with readback 833 ms, hover 57 ms, heap 2,848 MB, first frame 81 s. Targets are
 absolute: the rerun changes the starting figures, not the targets. At a million nodes cosmos.gl has
 first frame 1.02 s, 29 ms frames, 29 ms hover, 270 MB and 64 ms during layout, measurable here only from stage 30. A frame target is p99 on
 an unloaded card, and with the benchmark's long edges cannot go below their fill: 83 ms on WebGL, 108 ms on WebGPU, as drawn by default.
@@ -447,21 +613,30 @@ Stage numbers are names, not order: stage 39 was added without renumbering. Depe
 conditional: it starts only if stage 30 misses its heap target, and otherwise counts as done for stage 38. The WGSL fix (section 2) is not a
 stage; 8 and 15 start after it reaches master. R is risk.
 
+Correction from stage 2: this row carried the moving target of 160 ms, but the harness's moving frame is a camera move, which moves no node,
+so it walks no edge and uploads nothing, and stage 2 cannot change it (346 ms before, 357 ms after, one run each at load average 36-37). What
+it costs is the unfreeze: a moved camera thaws Babylon's list of active meshes, so the frame walks every node mesh again. That target stays
+open for the stages that take those meshes away. Stage 2's own measure is the harness's new drag frame, one node moved each frame: 907 ms
+before, 326 ms after, against a still frame of 170 ms in the same runs (`benchmarks/results/stage-2-before`, `benchmarks/results/stage-2`).
+That run is the static layout (`skip-layout`). Force layouts used to walk every edge on every frame, because their engines hand back an iterator
+that cannot be counted; the walk now reads `DataManager.edgeVersion` for them, so a settled force layout also takes this path and, for the first
+time, freezes its active meshes on a still frame. d3 hands back an array, because it takes an edge up at a later step than the store's version.
+
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0   | Done: baseline, spikes              | all                             | Harness, `baseline` run, section 5                                                                                                                                                                                                                                                                      | --                                                                                                                                               | L   | None                                                                                                                                                                                                 | Harness and `baseline` committed                                                                                                                                                                                                                                                                                                                                                                 |
 | 39  | WebGPU engine loss                  | #3248                           | `WebGPUEngine` subclass in graphty-element, from `openWebGPUEngine`: skips Babylon's rebuild on the lost device, rebuilds after `initAsync` finishes, wakes the resting loop (which hears only `webglcontextrestored`). New test project on full Chromium; the headless shell dies with its GPU process | 0                                                                                                                                                | M   | Frames back 0.2 s after a destroy, 2 s after a crash                                                                                                                                                 | Destroy and crash drills, no layout: no uncaptured error, page alive, picture back                                                                                                                                                                                                                                                                                                               |
-| 1   | Reference run, column publish       | #3248                           | Harness reports p99; the reference run is committed first; then engine `publishPositions` overrides become one typed loop                                                                                                                                                                               | 0                                                                                                                                                | L   | Step with readback 40 ms                                                                                                                                                                             | Reference run in `benchmarks/results/` at a commit before the loop; floats equal the old loop; `writeNodePosition` counted at 0                                                                                                                                                                                                                                                                  |
-| 2   | Walk only what moved                | #3251                           | Drag walks incident edges; batches upload to `highWater`                                                                                                                                                                                                                                                | 1                                                                                                                                                | L   | Moving 160 ms                                                                                                                                                                                        | `Edge.update` and bytes counted                                                                                                                                                                                                                                                                                                                                                                  |
-| 3   | Mesh funnel (3 PRs)                 | #3247                           | `node.mesh` readers move to `drawn*` accessors; lint stops new ones                                                                                                                                                                                                                                     | 0                                                                                                                                                | L   | None                                                                                                                                                                                                 | Lint at zero outside `Node.ts`, `MeshCache.ts`, and `Edge.ts` until stage 7                                                                                                                                                                                                                                                                                                                      |
+| 1   | Reference run, column publish       | #3248                           | Harness reports p99; the reference run is committed first; then engine `publishPositions` overrides become one typed loop                                                                                                                                                                               | 0                                                                                                                                                | L   | Step with readback 40 ms, reachable only once frames are short (section 2); stage 1 moves `publish`                                                                                                  | Reference run in `benchmarks/results/` at a commit before the loop; floats equal the old loop; `writeNodePosition` counted at 0                                                                                                                                                                                                                                                                  |
+| 2   | Walk only what moved                | #3251                           | Drag walks incident edges; batches upload to `highWater`                                                                                                                                                                                                                                                | 1                                                                                                                                                | L   | Drag frame; moving 160 ms is not this stage's, see below                                                                                                                                             | `Edge.update` and bytes counted                                                                                                                                                                                                                                                                                                                                                                  |
+| 3   | Mesh funnel (3 PRs)                 | #3247                           | `node.mesh` readers move to `drawn*` accessors; lint stops new ones                                                                                                                                                                                                                                     | 0                                                                                                                                                | L   | None                                                                                                                                                                                                 | Lint at zero outside `Node.ts` and `Edge.ts` until stage 7, and `Graph.getNodeMesh`, the consumer's own read                                                                                                                                                                                                                                                                                     |
 | 4   | Row tables in shadow                | #3247                           | `RowTable`, `rowBounds`, drawn cases, `snapshot-replaced`, restore; nothing reads it                                                                                                                                                                                                                    | 1, 3                                                                                                                                             | L   | Repack and upload 3 ms                                                                                                                                                                               | Row equals `node.drawnPosition` each frame through load, transition, drag, freeze, 2D switch; `rowBounds` agrees; zero uploads when still                                                                                                                                                                                                                                                        |
 | 5   | Pick service, row scan              | #3250                           | Twelve sites in one module; `sourceFor`, `shapeRayHit`, `rowRayHit`; scan in shadow, then for transition picks and XR                                                                                                                                                                                   | 3, 4                                                                                                                                             | M   | Synthetic scan p95 under 10 ms at 1M rows                                                                                                                                                            | Differential test on every shape, 0 differ, `shapeRayHit` against `scene.pick` and `rowRayHit` against `pickWithRay`; row order equals `scene.meshes` order; `flat-shape-click`; `xr/*`. One row each for what is unproven: NullEngine, XR rig cameras, transitions, hidden rows, non-uniform size, `shape.rotation`, models, custom shapes, mixed rows. A kind that fails stays on `scene.pick` |
 | 6   | Trim include, mirror                | #3251                           | GLSL include and TypeScript mirror in shadow                                                                                                                                                                                                                                                            | 4                                                                                                                                                | L   | None                                                                                                                                                                                                 | Mirror equals `getInterceptPoints`, `pastBorders`, `lineEndBefore` within 1e-4; readback holds shader to mirror                                                                                                                                                                                                                                                                                  |
-| 7   | Mesh-free ends                      | #3251                           | `getInterceptPoints` and its helpers work with no mesh, by mirror and `rowRayHit`; object rows keep today's ray                                                                                                                                                                                         | 5, 6                                                                                                                                             | M   | No mesh read for a batched row                                                                                                                                                                       | Mesh and mesh-free ends equal on every shape, directed and capped                                                                                                                                                                                                                                                                                                                                |
+| 7   | Mesh-free ends                      | #3251                           | `getInterceptPoints` and its helpers work with no mesh, by mirror and `rowRayHitOn`; object rows keep today's ray                                                                                                                                                                                       | 5, 6                                                                                                                                             | M   | No mesh read for a batched row                                                                                                                                                                       | Mesh and mesh-free ends equal on every shape, directed and capped                                                                                                                                                                                                                                                                                                                                |
 | 8   | Node batch, proxies                 | #3247                           | `NodeBatch`, `RowPullPlugin`, `batchableOf`, `renderPath`, `rowCounts` and its harness check, both test projects, `render-proof.yml`, SwiftShader flags, `raySelectionPredicate`; meshes stay as hidden proxies                                                                                         | 3, 4                                                                                                                                             | H   | Parity only                                                                                                                                                                                          | `render-parity` both engines; scale in `matrix`; free and compact change no pixel; mixed-key colors; prune keeps a live batch's material; `channel-paints`; `iwer` two-eye test, whole frame                                                                                                                                                                                                     |
 | 9   | Pointer on rows                     | #3250                           | Roster for batched rows; manager at the first object row; `dragHandler` on read; XR proxy, `XRInputHandler` on `rowRayHit`                                                                                                                                                                              | 5, 8                                                                                                                                             | M   | Batched rows: handlers counted at 0                                                                                                                                                                  | `expand-real-input`, `hover-ends-on-leave`; consumer action on both paths; laser equals the object path                                                                                                                                                                                                                                                                                          |
 | 10  | ID buffer, nodes                    | #3250                           | Node target; asynchronous hover; press on the scan; stale redraw                                                                                                                                                                                                                                        | 5, 8                                                                                                                                             | M   | Hover flat from 10k to 100k within 3 ms                                                                                                                                                              | ID against `shapeRayHit`, same-depth overlap listed; `real-input`, `selection/*`; per-element work per move counted at 0                                                                                                                                                                                                                                                                         |
-| 11  | Remove proxies (3 PRs)              | #3247                           | Private fields; accessors; batched rows lose their mesh; `anyNodeMoved` compares object rows only, batched rows use `lane.changes`                                                                                                                                                                      | 7, 9, 10                                                                                                                                         | H   | Still 90 ms; `scene.meshes` counted near batch count                                                                                                                                                 | `forced-batched` by dispatch; `objectNodes` stays 0; edges track eased nodes; XR tap and drag with no mesh                                                                                                                                                                                                                                                                                       |
+| 11  | Remove proxies (3 PRs)              | #3247                           | Private fields; accessors; batched rows lose their mesh; `nodesMoved` compares object rows only, batched rows use `lane.changes`                                                                                                                                                                        | 7, 9, 10                                                                                                                                         | H   | Still 90 ms; `scene.meshes` counted near batch count                                                                                                                                                 | `forced-batched` by dispatch; `objectNodes` stays 0; edges track eased nodes; XR tap and drag with no mesh                                                                                                                                                                                                                                                                                       |
 | 12  | Object roster                       | #3247                           | Per-frame walks visit object rows only                                                                                                                                                                                                                                                                  | 2, 11                                                                                                                                            | L   | Moving 130 ms; 10k still 8 ms                                                                                                                                                                        | `Node.update` per frame equals object rows                                                                                                                                                                                                                                                                                                                                                       |
 | 13  | App opts in                         | #3247                           | One line: the graphty app sets `renderPath: "batched"`                                                                                                                                                                                                                                                  | 12                                                                                                                                               | H   | App at stage 12's numbers                                                                                                                                                                            | Section 7's gate: a changed image goes to the owner's review or those rows stay ineligible; `check:quick --with-dry-run`                                                                                                                                                                                                                                                                         |
 | 14  | Widen eligibility (PRs)             | #3247 closes                    | Per-instance size, opacity, z order, pictures, gradients, screen-scale size                                                                                                                                                                                                                             | 12                                                                                                                                               | M   | Size ramp: draws counted at one per shape                                                                                                                                                            | `render-parity` per kind                                                                                                                                                                                                                                                                                                                                                                         |

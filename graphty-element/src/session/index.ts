@@ -29,6 +29,7 @@ export type {
 export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
+export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./issues";
@@ -117,6 +118,7 @@ export type {
     HistoryClearOptions,
     HistoryCode,
     HistoryOutcome,
+    HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
     ImportOptions,
@@ -124,6 +126,7 @@ export type {
     JoinKey,
     JoinRecord,
     JoinReport,
+    JoinRowFate,
     JoinShape,
     JoinSuggestion,
     JoinWarning,
@@ -186,6 +189,7 @@ export type {
     StyleProblem,
     TableMapping,
     TableMappingRead,
+    TimeFound,
     TransactionOptions,
     TransactionScope,
     TypeChangePreview,

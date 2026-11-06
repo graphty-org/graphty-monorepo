@@ -1,8 +1,8 @@
 /**
  * @file Which experiments a session switches on, from the ids a consumer passes.
  *
- * The build declares no experiment yet, so the table is replaced here by two rows and one
- * graduated id: what matters is the resolution rule, not today's empty list.
+ * The table is replaced here by two rows and one graduated id: what matters is the resolution
+ * rule, not the experiments this build happens to have.
  */
 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";

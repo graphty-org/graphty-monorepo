@@ -98,6 +98,61 @@ export const JOIN_TEMPLATE_INDICES: readonly number[] = [
     1, 2, 7, 1, 7, 6, 0, 1, 3, 0, 2, 4, 5, 6, 8, 5, 7, 9, 0, 3, 10, 0, 4, 11, 5, 8, 12, 5, 9, 13,
 ];
 
+/** Vertices in the join template, which a pulled piece reads by `gl_VertexID`. */
+export const JOIN_TEMPLATE_VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
+
+/**
+ * PULLED EDGES (`EDGE_PULLED`): a piece's six points are not attributes but read at the top of the
+ * vertex stage. `edgeRows` holds two row numbers per piece (a texel holds two pieces), and
+ * `rowPosition` (`render/RowTable.ts`) holds each row's place and its w; so moving a node uploads
+ * its row and no edge byte. The draw is one indexed, non-instanced draw: index `piece * 14 + k`,
+ * so `gl_VertexID` names both the piece and its template vertex. A straight piece between node
+ * centres is all this reads, written as `EdgeLineBatch.place` writes it: its neighbours are its
+ * own ends and its run is zero. A free piece (rows below 0) and a piece with a row of w = 0
+ * (hidden or not placed) get every point at the origin, as a hidden slot does, and draw nothing.
+ * Every line after this is the plain line's, so the two draw the same pixels.
+ */
+const PULLED_EDGE_GLSL = `
+#ifdef EDGE_PULLED
+uniform highp sampler2D rowPosition;
+uniform highp sampler2D edgeRows;
+const vec3 JOIN_TEMPLATE[${String(JOIN_TEMPLATE_VERTICES)}] = vec3[${String(JOIN_TEMPLATE_VERTICES)}](${Array.from(
+    { length: JOIN_TEMPLATE_VERTICES },
+    (_, i) =>
+        `vec3(${JOIN_TEMPLATE_POSITIONS.slice(i * 3, i * 3 + 3)
+            .map((v) => v.toFixed(1))
+            .join(", ")})`,
+).join(", ")});
+
+vec4 pulledRow(int r) {
+    return texelFetch(rowPosition, ivec2(r & 1023, r >> 10), 0);
+}
+
+void pullEdge() {
+    int piece = gl_VertexID / ${String(JOIN_TEMPLATE_VERTICES)};
+    position = JOIN_TEMPLATE[gl_VertexID - piece * ${String(JOIN_TEMPLATE_VERTICES)}];
+    int texel = piece >> 1;
+    vec4 pair = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
+    vec2 rows = (piece & 1) == 0 ? pair.xy : pair.zw;
+    pA = vec3(0.0);
+    pB = vec3(0.0);
+    if (rows.x >= 0.0 && rows.y >= 0.0) {
+        vec4 a = pulledRow(int(rows.x + 0.5));
+        vec4 b = pulledRow(int(rows.y + 0.5));
+        if (a.w * b.w != 0.0) {
+            pA = a.xyz;
+            pB = b.xyz;
+        }
+    }
+    pPrev = pA;
+    pPrev2 = pA;
+    pNext = pB;
+    pNext2 = pB;
+    run = vec2(0.0);
+}
+#endif
+`;
+
 /**
  * The vertex shader. `WORLD_WIDTH` takes `width` in world units (2D lines, and patterned lines in
  * either mode); without it `width` is the 3D solid line's screen width, drawn as it always was.
@@ -105,6 +160,16 @@ export const JOIN_TEMPLATE_INDICES: readonly number[] = [
 export const EDGE_JOIN_VERTEX_SHADER = `
 precision highp float;
 
+#ifdef EDGE_PULLED
+vec3 position;
+vec3 pPrev2;
+vec3 pPrev;
+vec3 pA;
+vec3 pB;
+vec3 pNext;
+vec3 pNext2;
+vec2 run;
+#else
 attribute vec3 position;
 attribute vec3 pPrev2;
 attribute vec3 pPrev;
@@ -113,6 +178,7 @@ attribute vec3 pB;
 attribute vec3 pNext;
 attribute vec3 pNext2;
 attribute vec2 run;
+#endif
 
 uniform mat4 world;
 uniform mat4 viewProjection;
@@ -157,7 +223,7 @@ uniform vec3 edgeFade;
 #endif
 
 const float EPS = 1e-4;
-
+${PULLED_EDGE_GLSL}
 vec4 clipOf(vec3 p) {
     return viewProjection * (world * vec4(p, 1.0));
 }
@@ -257,6 +323,9 @@ vec2 sideMeet(vec2 q0, float w0, vec2 p, float w, vec2 q1, float w1, vec2 dIn, v
 }
 
 void main() {
+#ifdef EDGE_PULLED
+    pullEdge();
+#endif
     bool atB = position.x > 0.5;
     float side = position.y;
     bool joinVertex = position.z > 0.5;
@@ -588,8 +657,8 @@ void main() {
     // both its corners (a U whose middle is short, say).
     bool clearPrev2 = cornerA > 1.5;
     bool clearNext2 = cornerB > 1.5;
-    for (int pass = 0; pass < 2; pass++) {
-        float mm = pass == 0 ? m : 0.0;
+    for (int attempt = 0; attempt < 2; attempt++) {
+        float mm = attempt == 0 ? m : 0.0;
         bool joinPrev = inJoin(u2, -back2, -vNbA.xy, vPrev2.w, vNbA.z, vEndB.z, mm);
         bool joinA = inJoin(uA, -vNbA.xy, vOwn.zw, vNbA.z, lenOwn, vWidth.x, mm);
         bool joinB = inJoin(uB, vOwn.zw, vNbB.xy, lenOwn, vNbB.z, vWidth.y, mm);

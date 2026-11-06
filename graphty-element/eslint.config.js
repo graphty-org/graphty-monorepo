@@ -13,7 +13,10 @@
 import rootConfig from "../eslint.config.js";
 import tseslint from "typescript-eslint";
 
+import nodeMeshFunnel from "./eslint-rules/node-mesh-funnel.mjs";
 import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
+
+const local = { rules: { "node-mesh-funnel": nodeMeshFunnel, "node-position-funnel": nodePositionFunnel } };
 
 export default tseslint.config(
     // Inherit all rules from root config (includes JSDoc). All but one block: this package's
@@ -77,8 +80,28 @@ export default tseslint.config(
     // eslint-rules/node-position-funnel.mjs.
     {
         files: ["src/**/*.ts"],
-        plugins: { local: { rules: { "node-position-funnel": nodePositionFunnel } } },
+        plugins: { local },
         rules: { "local/node-position-funnel": "error" },
+    },
+
+    // ============================================
+    // NOTHING REACHES THROUGH A NODE TO ITS MESH
+    // ============================================
+    // The row renderer draws a node with no mesh of its own, so readers use Node's drawn*
+    // accessors, and Node itself its private field. The rule and its reasons:
+    // eslint-rules/node-mesh-funnel.mjs.
+    {
+        files: ["src/**/*.ts"],
+        plugins: { local },
+        rules: { "local/node-mesh-funnel": ["error", { allow: ["Graph.getNodeMesh"] }] },
+    },
+    {
+        // Stories and shared test helpers: a read of Node.mesh holds that node off the batch, so a
+        // play function or helper that read it would quietly turn a batched run into an objects one.
+        files: ["stories/**/*.ts", "test/helpers/*.ts"],
+        // Not "local": the root config already names its test-timing plugin that for test files.
+        plugins: { element: local },
+        rules: { "element/node-mesh-funnel": "error" },
     },
 
     // ============================================

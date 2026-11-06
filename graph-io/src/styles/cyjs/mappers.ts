@@ -301,6 +301,27 @@ const CYJS_ROUND_SHAPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * A Cytoscape.js node shape as the neutral shape.
+ * @param word - the shape as written
+ * @param site - where it was read
+ * @returns the neutral shape, or undefined when it does not parse (noted)
+ */
+function cyjsShape(word: string, site: CanonSite): string | undefined {
+    const polygon = word.toLowerCase();
+    if (polygon === "polygon") {
+        return "polygon";
+    }
+    // two square corners, which no neutral shape has; other formats still read the name as round-rectangle
+    if (polygon === "bottom-round-rectangle" || polygon === "bottomroundrectangle") {
+        return "other:bottom-round-rectangle";
+    }
+    // drawn exactly as the polygon Cytoscape.js builds, by `cyjsPolygonShapes`
+    return CYJS_POLYGON_SHAPES.has(polygon) || CYJS_ROUND_SHAPES.has(polygon)
+        ? `other:${polygon}`
+        : (canonEnum("shape", word, "cytoscape-js", site) ?? undefined);
+}
+
+/**
  * Draws every Cytoscape.js shape no neutral shape names (`other:heptagon`, `other:tag`) as the polygon Cytoscape.js
  * builds for it: `polygon` with its corners in `shapePoints`.
  * @param values - node values (per element, or a rule's constants), changed in place
@@ -1281,16 +1302,8 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
         case "underlayShape":
         case "overlayShape":
             return canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined;
-        case "shape": {
-            const polygon = String(word).toLowerCase();
-            if (polygon === "polygon") {
-                return "polygon";
-            }
-            // drawn exactly as the polygon Cytoscape.js builds, by `cyjsPolygonShapes`
-            return CYJS_POLYGON_SHAPES.has(polygon) || CYJS_ROUND_SHAPES.has(polygon)
-                ? `other:${polygon}`
-                : (canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined);
-        }
+        case "shape":
+            return cyjsShape(String(word), site);
         case "borderStyle":
             return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "outerBorderStyle":

@@ -36,6 +36,8 @@ export default defineConfig(({ command }) => {
             ],
         },
         preview: { allowedHosts: true, https },
+        // The element's workers are code-split chunks, which Vite's default "iife" worker format refuses.
+        worker: { format: "es" },
         // assetsInlineLimit 0: dist/graphty.js has lost the ?no-inline on its shader thumbnails, so a
         // default Vite build inlines them past the element's 4096-character limit and the import throws.
         build: {

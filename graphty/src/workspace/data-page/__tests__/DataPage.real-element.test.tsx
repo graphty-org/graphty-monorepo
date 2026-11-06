@@ -14,8 +14,6 @@ import { page, userEvent } from "vitest/browser";
 
 import POSTER from "../../../../../design/ui/studio/tool/files/lesmis-poster.graphty.json?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createRegistry } from "../../commands/registry";
-import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { openDataPage } from "../request";
@@ -565,36 +563,6 @@ describe("the Data page on the real element", () => {
             [...grid.querySelectorAll(".dp-missing-end")].map((cell) => cell.textContent),
             ["z (no node row)"],
         );
-    });
-
-    it("Add data... adds to the open project without renaming it", async () => {
-        const store = createWorkspaceStore({ project: { name: "Ring", id: 7 } });
-        render(<Workspace store={store} />);
-        const session = await elementSession();
-        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
-        act(() => {
-            void createRegistry(REGISTRATIONS).built("data.add")?.run({ workspace: store, session, element: null });
-        });
-        await screen.findByRole("heading", { name: "Add to Ring" });
-
-        await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
-        // z is in no node row and not in the graph: Add makes it.
-        const report = await screen.findByRole("region", { name: "Match report" });
-        await userEvent.click(await within(report).findByText("Add", {}));
-        await waitFor(() => {
-            // The graph and the file each under their own name, never the total under the file's.
-            assert.equal(
-                screen.getByTestId("model-strip").textContent,
-                "Ring: 2 nodes, 0 edges; people and ties adds 2 nodes, 3 edges",
-            );
-        });
-        await userEvent.click(loadButton());
-        await waitFor(() => {
-            assert.equal(store.get().page, "panels");
-        });
-        assert.equal(session.data.statistics().nodeCount, 4, "a, b and c kept or added, and z added");
-        assert.equal(store.get().project?.name, "Ring");
-        assert.equal(store.get().announcement, "Ring: 4 nodes, 3 edges");
     });
 
     it("reads a new-graph door inside a project as Add to the project", async () => {

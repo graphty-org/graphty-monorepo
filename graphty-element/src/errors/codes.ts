@@ -100,9 +100,18 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_ATTRIBUTE"
     /**
+     * A command, API member, saved document or attribute asked for something whose experiment is
+     * off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+     * `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+     * that part out.
+     */
+    | "E_FEATURE_OFF"
+    /**
      * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
      * `stepBy` or `seek` with no attribute given. The caller designates one with
      * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+     * @experimental timeline
+     * @beta
      */
     | "E_NO_TIME_FIELD"
     /**
@@ -474,6 +483,14 @@ export type GraphtyErrorCode =
      * canvas reported. The session's data and results still work; only the view is unavailable.
      */
     | "E_NO_WEBGL"
+    /**
+     * A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
+     * GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
+     * lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
+     * `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
+     * leaves empty. Reported as `graph-error`.
+     */
+    | "E_SHADER_REFUSED"
     /**
      * A feature the caller asked for needs an optional peer package that is not installed.
      * `details.package` names the package to install and `details.feature` the feature that
@@ -942,6 +959,7 @@ const CODE_TABLE = {
     E_UNKNOWN_OPTION: "E_UNKNOWN_OPTION",
     E_OPTION_RANGE: "E_OPTION_RANGE",
     E_UNKNOWN_ATTRIBUTE: "E_UNKNOWN_ATTRIBUTE",
+    E_FEATURE_OFF: "E_FEATURE_OFF",
     E_NO_TIME_FIELD: "E_NO_TIME_FIELD",
     E_UNKNOWN_ALGORITHM: "E_UNKNOWN_ALGORITHM",
     E_UNKNOWN_LAYOUT: "E_UNKNOWN_LAYOUT",
@@ -999,6 +1017,7 @@ const CODE_TABLE = {
     E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
+    E_SHADER_REFUSED: "E_SHADER_REFUSED",
     E_MISSING_PACKAGE: "E_MISSING_PACKAGE",
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",

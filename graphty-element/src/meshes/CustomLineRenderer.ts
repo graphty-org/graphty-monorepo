@@ -59,11 +59,16 @@ export interface JoinedLineOptions {
      */
     widened?: boolean;
     /**
-     * A shader drawn on the line (`EDGE_SHADED`): the shader-store name of its fragment stage (the
+     * A shader drawn on the line (`EDGE_SHADED`): its name, the text of its fragment stage (the
      * join fragment with the shader runtime's definitions after it) and what that declares.
      * Implies `widened`.
+     *
+     * The text goes to Babylon inline, never through a shader store: the module that writes it
+     * loads lazily, and on a page where that gave it a second copy of Babylon, its store is not
+     * the engine's, which is the one the compile reads (issue #5894).
      */
     program?: {
+        readonly name: string;
         readonly fragment: string;
         readonly uniforms: readonly string[];
         readonly samplers: readonly string[];
@@ -71,6 +76,12 @@ export interface JoinedLineOptions {
     };
     /** How it blends: straight alpha over (the default), premultiplied over, or added. */
     blend?: "combine" | "premultiplied" | "add";
+    /**
+     * Read each piece's ends from the row table by `gl_VertexID` (`EDGE_PULLED`, `PulledLineBatch`)
+     * instead of from per-piece attributes. A plain line only: not with `widened`, a `program`,
+     * a `fade` or a `pattern`.
+     */
+    pulled?: boolean;
 }
 
 /**
@@ -86,7 +97,42 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.program === undefined ? [] : ["#define EDGE_SHADED"]),
         ...(options.fade === undefined ? [] : ["#define EDGE_FADE"]),
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
+        ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
     ];
+}
+
+/**
+ * The attributes the join shader reads for one look. A pulled line reads none: `gl_VertexID`
+ * names its piece and corner.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns The attribute names.
+ */
+function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): string[] {
+    if (options.pulled === true) {
+        return [];
+    }
+
+    return [
+        "position",
+        "pPrev2",
+        "pPrev",
+        "pA",
+        "pB",
+        "pNext",
+        "pNext2",
+        "run",
+        ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
+    ];
+}
+
+/**
+ * The textures the join shader itself reads for one look: a pulled line's row and edge tables.
+ * @param options - The look.
+ * @returns The sampler names.
+ */
+function joinedLineSamplers(options: JoinedLineOptions): string[] {
+    return options.pulled === true ? ["rowPosition", "edgeRows"] : [];
 }
 
 interface LineGeometry {
@@ -209,7 +255,7 @@ precision highp float;
 attribute vec3 position;      // Actual vertex position (start or end of segment)
 attribute vec3 direction;     // Segment direction vector (full length from start to end)
 attribute float side;         // -1 or +1 for left/right
-attribute float distance;     // Distance along line (for patterns)
+attribute float lineDistance; // Distance along line (for patterns)
 attribute vec2 uv;
 attribute vec3 segmentStart;  // Segment start position (for consistent perpendicular)
 attribute vec3 segmentEnd;    // Segment end position (for consistent perpendicular)
@@ -302,7 +348,7 @@ void main() {
 
     // Pass to fragment shader
     vUV = uv;
-    vDistance = distance;
+    vDistance = lineDistance;
 }
 `;
         // Register in both stores
@@ -430,19 +476,11 @@ void main(void) {
         const material = new ShaderMaterial(
             "joinedLineMaterial",
             scene,
-            { vertex: "edgeJoin", fragment: program?.fragment ?? "edgeJoin" },
+            program === undefined
+                ? { vertex: "edgeJoin", fragment: "edgeJoin" }
+                : { vertex: "edgeJoin", fragmentSource: program.fragment, spectorName: program.name },
             {
-                attributes: [
-                    "position",
-                    "pPrev2",
-                    "pPrev",
-                    "pA",
-                    "pB",
-                    "pNext",
-                    "pNext2",
-                    "run",
-                    ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
-                ],
+                attributes: joinedLineAttributes(options, widened),
                 uniforms: [
                     "world",
                     "viewProjection",
@@ -459,7 +497,7 @@ void main(void) {
                     ...(fade === undefined ? [] : ["edgeFade"]),
                     ...(program?.uniforms ?? []),
                 ],
-                samplers: [...(program?.samplers ?? [])],
+                samplers: [...joinedLineSamplers(options), ...(program?.samplers ?? [])],
                 uniformBuffers: [...(program?.uniformBuffers ?? [])],
                 defines,
                 // A faded line is translucent whatever its opacity: in the opaque pass it would
@@ -917,7 +955,7 @@ void main(void) {
         // These map to the attribute locations in the shader
         mesh.setVerticesData("direction", geometry.directions, false, 3);
         mesh.setVerticesData("side", geometry.sides, false, 1);
-        mesh.setVerticesData("distance", geometry.distances, false, 1);
+        mesh.setVerticesData("lineDistance", geometry.distances, false, 1);
         mesh.setVerticesData("segmentStart", geometry.segmentStarts, false, 3);
         mesh.setVerticesData("segmentEnd", geometry.segmentEnds, false, 3);
 
@@ -936,7 +974,7 @@ void main(void) {
                 fragment: "customLine",
             },
             {
-                attributes: ["position", "direction", "side", "distance", "uv", "segmentStart", "segmentEnd"],
+                attributes: ["position", "direction", "side", "lineDistance", "uv", "segmentStart", "segmentEnd"],
                 uniforms: [
                     "world", // Required for Babylon.js to bind the matrix, even though instancesDeclaration also declares it
                     "viewProjection",
@@ -1050,7 +1088,7 @@ void main(void) {
         // Set custom attributes
         mesh.setVerticesData("direction", geometry.directions, false, 3);
         mesh.setVerticesData("side", geometry.sides, false, 1);
-        mesh.setVerticesData("distance", geometry.distances, false, 1);
+        mesh.setVerticesData("lineDistance", geometry.distances, false, 1);
         mesh.setVerticesData("segmentStart", geometry.segmentStarts, false, 3);
         mesh.setVerticesData("segmentEnd", geometry.segmentEnds, false, 3);
 
@@ -1063,7 +1101,7 @@ void main(void) {
                 fragment: "customLine",
             },
             {
-                attributes: ["position", "direction", "side", "distance", "uv", "segmentStart", "segmentEnd"],
+                attributes: ["position", "direction", "side", "lineDistance", "uv", "segmentStart", "segmentEnd"],
                 uniforms: [
                     "world", // Required for Babylon.js to bind the matrix, even though instancesDeclaration also declares it
                     "viewProjection",

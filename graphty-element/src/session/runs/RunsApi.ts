@@ -102,6 +102,7 @@ import {
     type RunOptions,
     type RunPainting,
     type RunPhase,
+    type RunReader,
     type RunRemoval,
     type RunsApi,
     type RunScopeFacts,
@@ -190,6 +191,12 @@ interface RunLayerBindings {
      * @param layerIds - The layers to remove.
      */
     remove?(layerIds: readonly LayerId[]): void;
+    /**
+     * The selections that read a run's values in a step.
+     * @param runId - The run.
+     * @returns The readers.
+     */
+    readers?(runId: RunId): readonly RunReader[];
 }
 
 /** Everything the runs API is built from. */
@@ -217,6 +224,12 @@ export interface RunsApiOptions {
      */
     readonly dataDigest?: () => string;
     /**
+     * The weight a run reads when its `weight` option names none (the column given the weight
+     * role and its meaning), as a key. A run that reads it re-executes when it changed since the
+     * run started. Absent, it is not compared.
+     */
+    readonly defaultWeight?: () => string;
+    /**
      * A scope digest a run counts as current besides the one it ran on: what a time window move
      * under `results: "keep"` accepted. Absent, only the digest it ran on is current.
      * @param id - The run.
@@ -236,6 +249,8 @@ export interface RunsApiOptions {
      * @returns The accepted window key, or undefined.
      */
     readonly acceptedWindow?: (id: RunId) => string | undefined;
+    /** Whether the timeline experiment is on; absent reads on. */
+    readonly timeline?: () => boolean;
     /**
      * The name of a kept set, for a run label.
      * @param id - The set.
@@ -339,6 +354,29 @@ export interface SessionRunsApi extends RunsApi {
      * @returns The captures; empty for a run this session does not hold.
      */
     heldOf(id: RunId): HeldCaptures;
+    /**
+     * Start one algorithm as `start()` does, except that a listed run of other settings is never
+     * re-run in place: a run of these settings is reused, or a new one is started under the next
+     * free id (`louvain_2`). What a selection step reads, so changing a step's settings never
+     * changes a run the reader made or another step reads.
+     * @param algorithm - Which algorithm to run.
+     * @param params - Its parameters.
+     * @param options - The scope, the seed and the rest; `as` is not read.
+     * @returns The run.
+     */
+    startOwn(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
+    /**
+     * The finished run `startOwn()` would hand back without computing, or undefined.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - As `startOwn()` takes them.
+     * @returns The run, or undefined.
+     */
+    answeredOwn(
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options?: StartOptions,
+    ): Run | undefined;
     /** Cancel everything still running and forget every run this session held. */
     dispose(): void;
 }
@@ -805,6 +843,8 @@ class Runs implements SessionRunsApi {
     private readonly holds = new Map<RunId, PaintHold>();
     /** The style of each run first started with `groups: "layers"`, kept for its re-runs and restores. */
     private readonly groupStyles = new Map<RunId, Exclude<RunStyle, boolean>>();
+    /** The default weight key in force when each run last started (see `defaultWeight`). */
+    private readonly weightKeys = new Map<RunId, string>();
 
     /**
      * What a batch decided for its members when it released their hold. Kept beside the runs
@@ -913,6 +953,18 @@ class Runs implements SessionRunsApi {
         return this.startRun(via, algorithm, params, options, undefined);
     }
 
+    startOwn(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options: StartOptions = {}): Run {
+        return this.startRun(this.dispatch, algorithm, params, options, undefined, true);
+    }
+
+    answeredOwn(
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options: StartOptions = {},
+    ): Run | undefined {
+        return this.answer(algorithm, params, options, true);
+    }
+
     /**
      * Start several algorithms as one piece of work, with one progress stream and one cancel.
      *
@@ -993,7 +1045,24 @@ class Runs implements SessionRunsApi {
         params?: Readonly<Record<string, unknown>>,
         options: StartOptions = {},
     ): Run | undefined {
-        const { identity, result, id } = this.resolve(algorithm, params, options);
+        return this.answer(algorithm, params, options, false);
+    }
+
+    /**
+     * The finished run a start would hand back without computing, or undefined.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - As `start()` takes them.
+     * @param own - Whether it is a `startOwn()`.
+     * @returns The run, or undefined.
+     */
+    private answer(
+        algorithm: AlgorithmKey,
+        params: Readonly<Record<string, unknown>> | undefined,
+        options: StartOptions,
+        own: boolean,
+    ): Run | undefined {
+        const { identity, result, id } = this.resolve(algorithm, params, options, own);
         const existing = this.runs.get(id);
 
         if (
@@ -1169,6 +1238,7 @@ class Runs implements SessionRunsApi {
      * @param params - Its parameters.
      * @param options - The scope, the seed, the id and the rest.
      * @param hold - The batch whose painting holds this run's.
+     * @param own - Whether a listed run of other settings is left alone (`startOwn()`).
      * @returns The run.
      */
     private startRun(
@@ -1177,6 +1247,7 @@ class Runs implements SessionRunsApi {
         params: Readonly<Record<string, unknown>> | undefined,
         options: StartOptions,
         hold: PaintHold | undefined,
+        own = false,
     ): Run {
         this.refuseWhenDisposed();
 
@@ -1205,9 +1276,13 @@ class Runs implements SessionRunsApi {
             algorithm,
             params,
             options,
+            own,
         );
         // The scope as admitted: session edge ids made stable, so a re-run reads the same edges.
-        const command = runCommand(algorithm, params, options, options.scope === undefined ? undefined : spec);
+        const asked = runCommand(algorithm, params, options, options.scope === undefined ? undefined : spec);
+        // A run of its own under a counted id: its command names that id, or carrying it out would
+        // derive the shared id again and re-run that run in place.
+        const command = own ? this.pinnedTo(id, asked) : asked;
         const launch: Launch = { via, command, beside: options.queue === "now" };
         const existing = this.runs.get(id);
 
@@ -1228,7 +1303,9 @@ class Runs implements SessionRunsApi {
                 this.restart(existing, options.style ?? true, command, derived);
             }
 
-            return this.reuse(existing, identity, result, descriptor, launch);
+            const reused = this.reuse(existing, identity, result, descriptor, launch);
+            this.recordWeight(id);
+            return reused;
         }
 
         if (name !== undefined) {
@@ -1236,6 +1313,7 @@ class Runs implements SessionRunsApi {
         }
 
         this.spellings.set(id, spelled);
+        this.recordWeight(id);
 
         return this.create(id, identity, result, descriptor, { spec, options, derived }, launch);
     }
@@ -1268,12 +1346,14 @@ class Runs implements SessionRunsApi {
      * @param algorithm - Which algorithm to run.
      * @param params - Its parameters.
      * @param options - The scope, the seed, the id and the rest.
+     * @param own - Whether a minted id skips runs of other settings (`startOwn()`).
      * @returns The run's descriptor, identity, scope and id.
      */
     private resolve(
         algorithm: AlgorithmKey,
         params: Readonly<Record<string, unknown>> | undefined,
         options: StartOptions,
+        own = false,
     ): ResolvedRun {
         const descriptor = this.descriptorFor(algorithm);
         this.checkParams(descriptor, params);
@@ -1299,7 +1379,7 @@ class Runs implements SessionRunsApi {
         const canonical = canonicalResultIdentity(result);
         const spelled = canonicalResultIdentity({ ...result, scope: freezeScope(spec, () => null) });
 
-        if (options.as !== undefined) {
+        if (options.as !== undefined && !own) {
             return {
                 descriptor,
                 identity,
@@ -1319,7 +1399,7 @@ class Runs implements SessionRunsApi {
             result: canonical,
             spelled,
             spec,
-            id: this.mintId(name, canonical),
+            id: this.mintId(name, canonical, own ? identity : undefined),
             derived: true,
             name,
         };
@@ -1330,11 +1410,16 @@ class Runs implements SessionRunsApi {
      * else the name itself, counting up from `_2` past every id something else holds.
      * @param name - The name the algorithm suggested.
      * @param result - The canonical identity of the result.
+     * @param settings - For `startOwn()`: only a run of these params and seed is the one.
      * @returns The id.
      */
-    private mintId(name: SuggestedName, result: string): RunId {
+    private mintId(name: SuggestedName, result: string, settings?: RunIdentity): RunId {
         for (const id of this.derivedIds) {
-            if (this.identities.get(id) === result && this.names.get(id)?.id === name.id) {
+            if (
+                this.identities.get(id) === result &&
+                this.names.get(id)?.id === name.id &&
+                (settings === undefined || this.sameSettings(id, settings))
+            ) {
                 return id;
             }
         }
@@ -1346,6 +1431,21 @@ class Runs implements SessionRunsApi {
                 return id;
             }
         }
+    }
+
+    /**
+     * Whether the run under an id was started with these params and seed.
+     * @param id - The run id.
+     * @param settings - The params and seed.
+     * @returns True when they match.
+     */
+    private sameSettings(id: RunId, settings: RunIdentity): boolean {
+        const run = this.runs.get(id);
+        return (
+            run !== undefined &&
+            canonicalize(run.params) === canonicalize(settings.params) &&
+            run.seed === settings.seed
+        );
     }
 
     /**
@@ -1397,6 +1497,7 @@ class Runs implements SessionRunsApi {
             siblingsDifferBy: () => this.siblingsDifferBy(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
+            timeline: () => this.options.timeline?.() !== false,
             resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
             ...(this.options.scopeFacts === undefined
                 ? {}
@@ -1513,7 +1614,38 @@ class Runs implements SessionRunsApi {
         return (
             this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest ||
             this.dataMoved(run) ||
-            this.windowMoved(run)
+            this.windowMoved(run) ||
+            this.weightMoved(run)
+        );
+    }
+
+    /**
+     * Note the default weight in force as a run starts.
+     * @param id - The run.
+     */
+    private recordWeight(id: RunId): void {
+        const now = this.options.defaultWeight?.();
+        if (now !== undefined) {
+            this.weightKeys.set(id, now);
+        }
+    }
+
+    /**
+     * Whether a run that reads the default weight started under another one than is in force now
+     * (the weight role moved to another column, or its meaning changed).
+     * @param run - The run.
+     * @returns False for a run that names its own weight, an algorithm that reads none, or a run
+     *   this session did not start.
+     */
+    private weightMoved(run: ManagedRun): boolean {
+        const recorded = this.weightKeys.get(run.id);
+        if (recorded === undefined || this.options.defaultWeight === undefined || run.params.weight !== undefined) {
+            return false;
+        }
+
+        return (
+            (this.descriptorFor(run.algorithm).weightMeaning ?? null) !== null &&
+            this.options.defaultWeight() !== recorded
         );
     }
 
@@ -1525,7 +1657,7 @@ class Runs implements SessionRunsApi {
      */
     private windowMoved(run: ManagedRun): boolean {
         const ran = run.scopeWindow;
-        if (ran === undefined || this.options.windowNow === undefined) {
+        if (ran === undefined || this.options.windowNow === undefined || this.options.timeline?.() === false) {
             return false;
         }
 
@@ -1753,7 +1885,7 @@ class Runs implements SessionRunsApi {
         }
         const entry: RunEntry = Object.freeze({
             command: this.commands.get(run.id) ?? command,
-            record: run.record,
+            record: run.savedRecord,
             result: run.computed as RunResult,
             ...(run.computedExecution === undefined ? {} : { execution: run.computedExecution }),
             ...(run.computedHeld.size === 0 ? {} : { held: run.computedHeld }),
@@ -2340,8 +2472,21 @@ class Runs implements SessionRunsApi {
      */
     private removalOf(id: RunId): RunRemoval {
         const layerIds = Object.freeze([...(this.options.layers?.bindings(id) ?? [])]);
+        const gone = new Set<string>(layerIds);
+        const selections = Object.freeze(
+            this.readers(id).filter((reader) => reader.kind !== "layer" || !gone.has(reader.id)),
+        );
 
-        return Object.freeze({ removedLayers: layerIds.length, layerIds });
+        return Object.freeze({ removedLayers: layerIds.length, layerIds, selections });
+    }
+
+    /**
+     * The selections that read a run's values in a step.
+     * @param id - The run id.
+     * @returns The readers.
+     */
+    readers(id: RunId): readonly RunReader[] {
+        return Object.freeze([...(this.options.layers?.readers?.(id) ?? [])]);
     }
 
     // -- the queue ----------------------------------------------------------------------------

@@ -144,4 +144,17 @@ describe("session.data.valueCounts over a run's field", () => {
         });
         session.dispose();
     });
+
+    it("counts degree, read from the graph's structure rather than a column", async () => {
+        const session = await people();
+        assert.deepStrictEqual(session.data.valueCounts("graphty.degree", { kind: "node" }), {
+            values: [
+                { value: 1, count: 2 },
+                { value: 2, count: 2 },
+            ],
+            missing: 0,
+            total: 4,
+        });
+        session.dispose();
+    });
 });

@@ -249,8 +249,8 @@ describe("the table dock", () => {
         await within(dock).findByText("13 edges");
         assert.lengthOf(drawnRows("Edges"), 13);
 
-        // The card turned on from its box: the table lists the 6 edges it keeps.
-        await userEvent.click(await screen.findByRole("checkbox", { name: /^Apply weight is at least 7/ }));
+        // The card ("weight min 7") turned on from its box: the table lists the 6 edges it keeps.
+        await userEvent.click(await screen.findByRole("checkbox", { name: /^Use weight/ }));
         await within(dock).findByText("6 of 13 edges");
         await waitFor(() => {
             assert.lengthOf(drawnRows("Edges"), 6);
@@ -258,10 +258,41 @@ describe("the table dock", () => {
         assert.equal(live.visibility.summary.visibleEdges, 6);
 
         // Off again: every edge, and the count says only that.
-        await userEvent.click(screen.getByRole("checkbox", { name: /^Apply weight is at least 7/ }));
+        await userEvent.click(screen.getByRole("checkbox", { name: /^Use weight/ }));
         await within(dock).findByText("13 edges");
         await waitFor(() => {
             assert.lengthOf(drawnRows("Edges"), 13);
         });
+    });
+
+    it("names a rendered tab panel from every tab, and the showing one holds the table", async () => {
+        render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        const dock = await screen.findByRole("region", { name: "Table" });
+        await within(dock).findByRole("tab", { name: "Edges" });
+        const check = (): void => {
+            for (const tab of within(dock).getAllByRole("tab")) {
+                const id = tab.getAttribute("aria-controls") ?? "";
+                const panel = document.getElementById(id);
+                assert.strictEqual(panel?.getAttribute("role"), "tabpanel", `${tab.textContent ?? ""} names ${id}`);
+            }
+            const shown = within(dock).getByRole("tabpanel");
+            assert.isNotNull(within(shown).queryByRole("grid"));
+        };
+        check();
+        // The reader moves to Edges by clicking its tab: the panel follows.
+        await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
+        await within(dock).findByRole("grid", { name: "Edges" });
+        check();
     });
 });

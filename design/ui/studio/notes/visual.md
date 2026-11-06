@@ -5,42 +5,44 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-21 (tier 3 round 1 closed; insights read). Summarized on 2026-10-21: the tier 2
+Last updated: 2026-11-03 (tier 5 round 1 closed). Summarized on 2026-10-21: the tier 2
 rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
 in git history of this file.
 
 ## Top of mind
 
-1. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars; the studio
-   stops. Bar 5 fails only on two backlog items rated 3 before the round; no new sev 3 survived.
-   Insights: `tier3/rounds/round-1/insights.md`.
-2. Both my sev 3 claims were weakened to sev 2 by the skeptics: the key covering nodes (no session
-   was misled) and the picker that picks nothing (no session reached it; "watch"). Lesson: a
-   visual finding needs a reader who paid for it, or a scripted repro, to hold its severity.
-3. The round's strongest signal was visual: a new style line starts at the value everything
-   already has (Fill "+" gives `6366F1`, edge Width 8 with no unit), so accepting it changes
-   nothing on screen and looks broken (9 sessions). A change a reader makes must be visible.
-4. Newcomers look for node color in the Graph inspector first (9 sessions); it shows only canvas
-   settings and points nowhere. The only bridge was matching the count beside "Everything" to the
-   node count -- counts carry wayfinding, so one count, one look (heading, card, chip, tree) matters.
-5. Focus visibility is a bar 6 item: the inspector's F6 stop draws no focus indicator (WCAG
-   2.4.7); the color swatch's focus draws as the hex box's border. Every stop gets one focus look.
-6. `colorWord` (compact-mantine) names FFD700 "gold" and F16363 "red": the spoken name and the
-   seen hue disagree. Color names must follow hue bands, fixed in compact-mantine. Measure delta E
-   before claiming two drawn colors look alike.
-7. Nothing says the color box accepts a color word, and the swatches hold no common hues.
-8. The purple "Layer" token: readers avoided it rather than read it (6 sessions). Avoidance is not
-   understanding; the token's two looks (purple field, black chip) are still mine to unify.
-9. Members listed by id (`s05`) and no row mark in the table: readers checked by eye. A visual
-   "painted by this layer" mark on rows is the cheapest fix to propose.
-10. Still open from my walk: key size (20 px rows, content width, title at entry size), condition
-    picker hierarchy, Select with no max height, menus opening with a filled first item.
-11. The round is at its ceiling (55 of 56 succeeded): judge by cost and routes, not success. Same
-    model plays every persona, so my screenshot audits are a needed second source.
-12. Rules for my own work: one path per problem; check what the element offers first; a claim only
-    I made is scripted on the frozen build before anyone fixes it; words at rest never rise.
-13. Tool habits: `real.mjs --start` in the background with `REAL_SLOT_WAIT_SECONDS` high; crop with
-    `tmp/visual-r1/crop.py` to read 8-9 px text; click empty canvas before a shortcut.
+1. (2026-11-03, round 1 close) Tier 5 stopped at the 1-round cap with bars 1, 3, 4, 8 and 9
+   failing. Every severity 3 was behavior (speech from a hidden panel, a picker entry bound to a
+   different run), never pure look. Visual weight alone did not move a bar.
+2. The visual findings that counted were legibility of meaning: an untouched range drawn full while
+   it reads "0 so far" (Or group first state), By position's box with no direction or unit and a
+   9 px "of all nodes", an empty Fill color box with no cue. Rule: an empty or default state must
+   look empty and say what it wants.
+3. A control's drawing must never contradict its count or its text (full range bar vs 0 so far; the
+   "highest 10" error vs 24 of 24). Check drawn state against the count on every first state.
+4. Small helper text carrying the unit is a defect source: if the unit decides the answer, it is
+   not 9 px caption text.
+5. Bar 9 counts elements named by two sessions on different halves; the editor's Or group, the
+   Condition.../Or... words and By position's box are my share. Re-walk each on the next frozen
+   build.
+6. Skeptic checks weaken findings the fixture or task wording causes (orange in an orange ramp,
+   "top N" sending everyone to one box). Before rating, ask whether the fixture made it.
+7. compact-mantine's swatches and color input are Figma-locked: "no orange" was dropped; an
+   empty-box click bug in the shared color input goes to compact-mantine, not a local fix.
+8. Bar 7 consistency still open at sev 2: value picker jumping over its field and Done
+   (`decided.md` 734), Clear renaming a card "a selection" (631-632), a two-step card resting as
+   one row with no caret.
+9. 900 x 700: the preview is a 44 px sliver and the title loses the rule name; propose the
+   small-width rule rather than rate a gap as 3.
+10. Measure, then rate; cite a `decided.md` line or name the gap. Hover fakes theme defects.
+11. A visual finding keeps sev 3 only with a paying reader or a scripted repro.
+12. Same frozen build: replay old routes (`real.mjs --replay`) instead of re-walking.
+13. Known and still open: Table "on" and Done share green (Figma lock), blank band under the
+    preview, key over a node, 1 px focus ring, Except column 1226 vs 1247.
+14. Open from tiers 3 and 4: `colorWord` hue names, the purple "Layer" token, the link glyph doing
+    two jobs.
+15. Tool habits: `--click "role=option:<name>"`; `--click "Edit#1"`; a diverged replay stays open:
+    look, `--step`, then `--end`.
 
 ## Priorities and values
 
@@ -63,6 +65,53 @@ in git history of this file.
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- 2026-11-03 (tier 5 round 1 close): Empty and default states must look empty and name what they
+  want (a range not yet set is not drawn full; an empty color box shows a cue). Reason: the Or
+  group's first state and the Fill color box were the two most repeated sev 2 visual findings,
+  7 sessions on 6 halves for the color box alone.
+- 2026-11-03: A unit or direction that decides the answer is never caption-size text. Reason: By
+  position's "of all nodes" at about 9 px; three T74 sessions typed "top 5".
+- 2026-11-03: Tried: rating my findings without sessions. Worked for finding them (every sev 2
+  editor issue I had flagged was met by people); did not work for severity (none of mine reached 3;
+  behavior findings did).
+
+- **2026-11-03 (tier 5 round 1 rerun):** Moved the value picker's cut list from 2 to 1 and kept
+  the Except column at 2, following the void round's skeptic check on the same build. Added the
+  two-group card title (2, known) because the card's boldest text contradicts its own count.
+- **2026-11-03 (rerun):** Rated the date box's 20 px height 1, citing `decided.md` 519 (pane
+  controls 24 px) and the cause in source (`Autocomplete size="xs"` in the date card), so the fix
+  is one prop. Rated the reference picker's 3.9:1 secondary text 1 with the width finding, since
+  both go away if it is built on the value picker's list.
+- **2026-11-03 (rerun):** Dropped "dark section titles lose their dim state" after finding it was
+  hover; dropped "so far shortens the field" as decided (`decided.md` 523).
+
+- **2026-11-03 (tier 5 round 1 closed):** After two skeptic checks, 1 of my 8 sev 2s held (Except
+  out of line, weakly); number mix and cut strip fell to 1; nothing visual gates a bar. Reason:
+  decided rules (short counts, widths to 1280) absorb findings I rated without citing them. From
+  now on each rating cites the decided line it breaks, or the gap it proposes to fill.
+- **2026-11-03 (tier 5 round 1 walk):** Rated nothing 3. Rated the No match chit 2, not 1: on a
+  filter card it sits one row under the card's real on box with the same shape, and with one group
+  nothing else in the outline has a chit (measured: grey 206 vs the canvas's lavender 209/210/232,
+  so it is not a legend either). Fix proposed: the preview's non-member color, no edge.
+- **2026-11-03:** Rated the sidebar Except row 2 and named what would make it 3 (a reader who
+  applies Except to both groups). Reason: spec 3.1 says the same rows draw both outlines; the
+  workspace keeps a 40 px verb column, the sidebar does not.
+- **2026-11-03:** Kept the blank preview band at 2 although `decided.md` calls it cosmetic: it is
+  the calm-first "blank pane the step does not use" and four task halves start with the node
+  table open. Proved the cause by closing the table and reopening (`v2/11.png` fills the cell).
+- **2026-11-03:** Marked Within hops' unmarked center "watch" at 2 and proposed the existing ring,
+  through the preview's style layer, so no element API is needed.
+
+- **2026-10-30 (tier 4 round 1 walk):** Rated nothing 3. The kind-glyph conflict (`opened` a
+  calendar in the picker while text in the table) could mislead T62, but no reader has paid for it
+  yet; marked "watch". Same for Select/Hide cards looking alike (T65).
+- **2026-10-30:** Reported the join chips and the address box as "decision not finished on the
+  build" (R13, R8) rather than new proposals, so the fix list points at the decision already made.
+- **2026-10-30:** Listed known backlog items (cut source names, the lost issue chip after a join,
+  "Advanced") by screen but did not re-propose them: R11 is binding and the rest are queued.
+- **2026-10-30:** Owned the link glyph by the app from source (`SourceRow.tsx:19`), not by
+  screenshot guess; read source at the frozen commit with `git show 79ed770292:<path>`.
 
 - **2026-10-21 (tier 3 round 1 walk):** Rated the zero-match picker severity 3, not 2: the closed
   state's chips actively print positive counts, so a reader is told the opposite of the result, and
@@ -94,64 +143,15 @@ in git history of this file.
 
 - **2026-10-14, round 6:** Round 6: per-group chits show the group's whole look (shape in its color); when a palette runs out, color and shape cycles are offset so no two groups share both; clamped histogram ranges hatched; degree histogram bins chosen by the element with a budget so large graphs never draw thousands of slivers.
 
-- 2026-10-13 (tier 3 pause): Backed iteration 4's plan to move every property's settings into one
-  button per kind section instead of my single-row proposal (gear at the row's end): it frees the
-  name column entirely and matches Figma's Type settings, at the cost of one more click for rare
-  settings. Reason: the name is the row's only identifier; rare settings can afford a click.
-- 2026-10-13 (tier 3 pause): Kept the painted-over mark against Figma, but inside the field as a
-  dimmed value plus tooltip, not a separate glyph in the name column. Reason: one mark per problem,
-  and the value itself is what misleads.
-- 2026-10-13 (tier 3 iteration 3): Rated the cut property names severity 3, not 2: the name is the
-  only thing that says what a row is, it is cut on three of seven rows of every layer in both
-  themes and at every width, and "C." next to "Comm..." leaves a row with no readable word. One
-  path proposed: move the gear to the right-hand columns, where effect entries already put it.
-- 2026-10-13 (tier 3 iteration 3): Grouped "the value says what the canvas does not draw" as the
-  sev 2 theme instead of six separate polish items; each is a different owner (app, element,
-  compact-mantine), so they stay separate findings with one shared heading in the summary.
-- 2026-10-13 (tier 3 iteration 3): Owned the Verdana fallback by graphty-element and flagged that
-  the fix changes a default string (the element decides whether that is breaking); the app may set
-  a font with a fallback as its own choice meanwhile. Read in source: label looks already use
-  "Verdana, sans-serif", the bare default does not.
-- 2026-10-13 (tier 3 iteration 3): Kept the selection ring at severity 2: it now meets contrast on
-  Fantine, but on the route's hub at size 1 it is still lost under edges and the label, which is
-  the case iteration 2 named.
-
-- 2026-10-12 (tier 3 iteration 2): Kept "one community, two names" at severity 3 though it went
-  from three names to two: the Values tab is where a reader goes to read groups, and its "5" is
-  the key's "Group 2". Severity follows what misleads, not how much was fixed.
-- 2026-10-12 (tier 3 iteration 2): Rated the route's raw query severity 3 (criteria: a raw field
-  path on a success path). Owned it by graphty-element first, since the iteration's decision was
-  that every run layer's rule is readable; the app's verbatim printing of expressions is second.
-- 2026-10-12 (tier 3 iteration 2): Kept new labels at about 4 px at severity 2, unchanged, rather
-  than raising it: same evidence as iteration 1, no new reason.
-- 2026-10-12 (tier 3 iteration 2): Rated the stacked fields severity 2 and tied it to the owner's
-  panel-length question and to Figma's paired rows; the cause is three reserved 24 px columns in a
-  240 px panel, so the wrap rule never pairs. One path: let the reserved columns be shared by a
-  pair, not per field. Proposed in the critique, not here.
-
-- 2026-10-12 (tier 3 iteration 1): Rated Label settings' unreachable lower half severity 3, not 4:
-  the top half (color, type, box) holds the common fields and nothing a task needs is lost yet,
-  but 60% of the label's settings cannot be seen. Owner compact-mantine, because the clamp is in
-  the shared Popout and every tall popout inherits it.
-- 2026-10-12 (tier 3 iteration 1): Rated "real app has no starting rows" severity 3 and owned it by
-  the app: the reviewed stories set `startingRows`, the app never does, so the owner approved a
-  tree no reader meets and every Clear tooltip names a hidden layer.
-- 2026-10-12 (tier 3 iteration 1): Grouped field-state and Clear inconsistencies as one theme with
-  one rule to fix, not twenty fixes, per "one path per problem".
-
-- 2026-10-12 (tier 3): Proposed one Add strip of toggle icons per kind over "+" per section and
-  over always-shown empty rows. Reason: on the mock's grid the dimmed titles cost about 440 px of
-  the route layer's 770; the strip is the owner's "toggle on/off" without a toggle on every row.
-- 2026-10-12 (tier 3): Group visibility follows the rule, not today's count, so sections do not
-  jump while data loads; disabled stays reserved for "unavailable".
-- 2026-10-12 (tier 3): Shape, arrow and pattern icons should come from graphty-element
-  (`previewStyle`), since an app icon cannot tell icosphere from sphere and plugin shapes would
-  have none. Proposed, not decided.
-- 2026-10-12 (tier 3): Domain and clamp become one handle gesture; "keep as percentiles on re-run"
-  picks which is saved. Needs the element to say what a binding paints (`styles.paintAt`), so the
-  app does not compute a scale.
-- 2026-10-12 (tier 3): Saved label looks are copies (a reader preference) until the element keeps
-  linked looks in the style document.
+- **Tier 3 iterations 1 to 4 (2026-10-12 to 2026-10-13), condensed:** cut property names rated 3
+  (the name is a row's only identifier; the gear moved to the right-hand columns); painted-over
+  mark as a dimmed value plus tooltip, not a glyph; Verdana fallback owned by graphty-element;
+  selection ring kept at 2; "one community, two names" kept at 3 (severity follows what misleads);
+  route's raw query 3, element first; stacked fields 2 (three reserved 24 px columns in a 240 px
+  panel); Label settings' unreachable half 3, compact-mantine's Popout clamp; "no starting rows" 3,
+  app; one Add strip of toggle icons per kind; group visibility follows the rule; shape icons from
+  graphty-element (`previewStyle`); domain and clamp as one gesture; saved label looks are copies.
+  Full text in this file's git history.
 
 - 2026-10-21 (round 1 closed): a visual finding keeps sev 3 only with a reader who paid for it
   or a scripted repro; both my sev 3 claims (key over nodes, empty picker) fell to 2 without one.
@@ -160,7 +160,51 @@ in git history of this file.
   read as broken in 9 sessions. Proposal (app choice, not element): start the line empty or show
   the inherited value as a placeholder, so accepting a real value is the visible change.
 
+- 2026-10-30: Tier 4 closed after round 1. Decided: treat a clipped approved fact as removed
+  (bar 6 failed on the joined source row though its text held the ratio); a preview must draw
+  exactly the outcome (the join preview was the most severe problem); a header glyph must follow
+  the designated kind. Reason: the settled insights, after two skeptic checks.
+
 ## Tried: worked / did not work
+
+- 2026-11-03 worked: replaying the void walk's routes on the same build; every check point matched
+  but one click that landed on the closing workspace (the table's Close button sits under the
+  pane while it closes). Carried on by hand from the open session.
+- 2026-11-03 worked: a script file (`tmp/visual-t5/v4.sh`) for a whole new walk run in the
+  background, with a Monitor on its log; `ledge.py` (left text edge per row) and `px.py`
+  (contrast of the darkest pixel against the commonest) in the worktree's `tmp/visual-t5/`.
+- 2026-11-03 did not work: chaining two replays with `&&`: the first diverged (exit 5) and the
+  second never ran. Run each replay as its own background command.
+
+- 2026-11-03: Rating from screenshots without pixel measures or decided-line citations -- did
+  not work; skeptics cut most sev 2s. Measuring offsets (985 vs 1006) -- worked, the one survivor.
+- 2026-11-03 worked: three sessions (light 1440 volunteers, dark 1280 x 800 colleague's river
+  project with the node table open, light 50,000 nodes in the background while the first two ran)
+  covered every tier 5 screen in about 50 steps.
+- 2026-11-03 worked: a small `tmp/visual-t5/crop.py` (crop + scale) and PIL `getpixel` for chit,
+  switch and field fills; measured the Except switch's thumb at 3.6:1 and dropped a contrast claim.
+- 2026-11-03 worked: an accidental Done with no value gave the "pick yes or no" card for free; a
+  wrong turn is a screen too.
+- 2026-11-03 did not work: `--click Yes` with a layer's outline also holding "Yes" (ambiguous, and
+  the batch's next step still ran: Done closed a half-made card). Name options by role.
+- 2026-11-03 did not work: typing a value ("Grants") into the attribute picker's search finds
+  nothing; type the attribute first.
+
+- 2026-10-30: Worked: rating no visual finding at sev 3 without a paying reader -- the skeptics cut
+  every other team's sev 3 candidates to 2 or 1. Did not work: my "kind glyphs differ" finding (36)
+  had no reader trip on it; ended at 1. Missed: the join preview's wrong tags and the clipped ratio
+  were bigger than anything on my walk; check previews and approved surfaces against the outcome
+  first next time.
+
+- 2026-10-30 worked: four sessions (light 1440 two files joined, dark 1440 one file with fixes and
+  two cards, light 900 x 700 T68 state, dark 900 x 700 join) covered every tier 4 screen in about 45
+  steps. Batching steps (`--click A --click B`) kept the step count low.
+- 2026-10-30 worked: sampling pixel fills (PIL `getpixel`) to prove hover and selected share a fill,
+  instead of judging two light grays by eye.
+- 2026-10-30 did not work: `--hover-at` on a source row's glyph returned no tooltip; on the name
+  text it did. I nearly reported a missing tooltip.
+- 2026-10-30 did not work: `--click "role=button:<accessible name>"` with the row's long name;
+  `--click-at` on the row was simpler.
 
 - 2026-10-21 worked: three sessions (light 1440 Les Miserables, light 1440 volunteers file, dark
   900 x 700 saved project) covered every tier 3 screen, each card type, a folder, several layers
@@ -218,6 +262,23 @@ in git history of this file.
   designers too.
 
 ## Sources
+
+- `design/ui/studio/tier5/rounds/round-1/expert/visual.md` (tier 5 round 1 rerun, 23 findings);
+  sessions `expert/visual/v1..v4` (v1-v3 replay the void walk on 1e123d7d33); crops in
+  `tmp/visual-t5/r1/`; `decided.md` 519 (pane controls 24 px), 523, 734, 768, 774, 786, 877
+
+- `design/ui/studio/tier5/rounds/round-1/expert/visual.md` (tier 5 round 1 walkthrough, 19
+  findings); sessions `expert/visual/v1..v3`; crops in the worktree's `tmp/visual-t5/`
+- `design/ui/selection-groups/spec.md` 3.0 (workspace layout, canvas takes the preview cell), 3.1
+  (row anatomy: 40 px verb column, No match faint chit); `tier5/decided.md` workspace polish 2-3;
+  `tier5/rounds/round-1/calm-first-frozen.md` (calm-first findings 1-7)
+
+- `design/ui/studio/tier4/rounds/round-1/expert/visual.md` (tier 4 round 1 walkthrough, 29
+  findings); sessions in `expert/visual/v1..v4`
+- `design/ui/studio/tier4/decided.md` R1-R15 (data screen decisions), owner rules for data UI
+- `graphty/src/workspace/data-place/SourceRow.tsx:15-19` (source glyphs); `table/HeaderCell.tsx`,
+  `table/typeIcons.ts`, `style/WhichPicker.tsx` (`VALUE_GLYPHS`), `data-place/TypeGlyphIcon.tsx`
+  (three kind-glyph maps); `export/ExportDialog.tsx` (compact-mantine `PageList`)
 
 - `design/ui/studio/tier3/iterations/1/visual.md` (iteration 1 findings, 34);
   screenshots in `design/ui/studio/tier3/build/i1-visual/` (local, ignored by git)

@@ -106,6 +106,8 @@ interface CommandServices {
     layoutPrepare?: () => Promise<void>;
     /** The project settings in effect, with every unset key at its default. */
     config?: () => ProjectConfig;
+    /** Whether the timeline experiment is on; absent reads on, as a store with no session has no switch. */
+    timeline?: () => boolean;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */
     progress?: (change: ProgressChange) => void;
 }
@@ -904,6 +906,7 @@ export class Dispatcher {
             },
             strict: this.strict,
             session: true,
+            countsRewrites: () => this.services.timeline?.() === true,
         });
         this.events = { ...options.events };
         // A pass with no commit behind it (a deferred repaint, an import's end) is owed an event
@@ -1181,10 +1184,17 @@ export class Dispatcher {
      * once. Back to the baseline (null) cancels all pending work and aborts every open
      * transaction.
      * @param id - The step, or null for the baseline.
+     * @param dropRedo - Discard the redo tail once there, so nothing passed can be redone.
      * @returns What was done, once the picture has caught up.
      */
-    restoreTo(id: string | null): Promise<HistoryOutcome> {
-        return this.historyCall(() => this.restore(id));
+    restoreTo(id: string | null, dropRedo = false): Promise<HistoryOutcome> {
+        return this.historyCall(() => {
+            const outcome = this.restore(id);
+            if (dropRedo) {
+                this.history.dropRedo();
+            }
+            return outcome;
+        });
     }
 
     /**
@@ -1590,6 +1600,19 @@ export class Dispatcher {
             for (const each of derived) {
                 this.notify(() => this.events.derived?.(each));
             }
+            this.catchUp();
+        });
+    }
+
+    /**
+     * A repaint the element made on its own, outside any pass: a live layer's members moved when
+     * a run, a filter's base or a step's own computation landed. It is owed a `caughtUp` like a
+     * pass, so a reader of the legend and the counts hears that the picture moved.
+     * @param slices - The slices it repainted.
+     */
+    repaintedOutsidePass(slices: Iterable<string>): void {
+        this.owe(slices, this.lane.passCause);
+        void Promise.resolve().then(() => {
             this.catchUp();
         });
     }

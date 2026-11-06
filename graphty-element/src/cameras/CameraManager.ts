@@ -59,6 +59,8 @@ export interface CameraController {
     fitPadding?: number;
     /** Turn the view on its own by an angle, for `camera.autoRotate`; a camera that never turns has none. */
     autoTurn?(radians: number): void;
+    /** Stand where a camera of the same kind on another scene stands. */
+    takeView?(from: this): void;
 }
 
 interface InputHandler {
@@ -183,9 +185,11 @@ export class CameraManager {
      * glides its pivot to it.
      * @param point - The point, in world space.
      * @param frames - How many nominal 60 Hz frames this pass stands for; see `glideTowards`.
+     * @param instant - Reach the point at once rather than gliding there; by default, whether the
+     *     reader prefers reduced motion (see `setInstantGlides`).
      * @returns Whether the camera moved, so the picture is not final yet.
      */
-    public followPoint(point: Vector3, frames = 1): boolean {
+    public followPoint(point: Vector3, frames = 1, instant = this.#instantGlides): boolean {
         const xr = this.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
         if (xr) {
             xr.pivotController.center = point;
@@ -193,7 +197,7 @@ export class CameraManager {
         }
 
         const controller = this.activeCameraController;
-        if (!this.#instantGlides) {
+        if (!instant) {
             return controller?.followPoint?.(point, frames) ?? false;
         }
 
@@ -310,6 +314,20 @@ export class CameraManager {
      */
     public getController(key: CameraKey): CameraController | undefined {
         return this.controllers.get(key);
+    }
+
+    /**
+     * Put each camera where the same camera of another manager stands, for a scene built to
+     * replace that manager's.
+     * @param previous - The manager being replaced.
+     */
+    public takeViewOf(previous: CameraManager): void {
+        for (const [key, controller] of this.controllers) {
+            const from = previous.controllers.get(key);
+            if (from !== undefined) {
+                controller.takeView?.(from);
+            }
+        }
     }
 
     /**

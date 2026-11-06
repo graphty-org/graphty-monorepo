@@ -424,6 +424,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelShiftX": "Label shift x",
     "node.labelShiftY": "Label shift y",
     "node.labelShiftOf": "Label shift of",
+    "node.labelGapOf": "Label gap of",
+    "node.labelBox": "Label box",
     "node.labelMinNodeScreenSize": "Label min node screen size",
     "node.labelTextAlign": "Label text align",
     "node.labelLocation": "Label location",
@@ -445,6 +447,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.outerBorderStyle": "Outer border style",
     "node.outerBorderOffset": "Outer border offset",
     "node.outerBorderCount": "Outer border count",
+    "node.raisedBorderWidth": "Raised border width",
+    "node.raisedBorderLightColor": "Raised border light color",
+    "node.raisedBorderDarkColor": "Raised border dark color",
     "node.underlayColor": "Underlay color",
     "node.underlayOpacity": "Underlay opacity",
     "node.underlayPadding": "Underlay padding",
@@ -489,6 +494,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.stripeOpacities": "Stripe opacities",
     "node.stripeDirection": "Stripe direction",
     "node.stripeSize": "Stripe size",
+    "node.stripeFrame": "Stripe frame",
     "node.chartKind": "Chart kind",
     "node.chartValues": "Chart values",
     "node.chartColors": "Chart colors",
@@ -604,6 +610,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOutlineOpacity": "Label outline opacity",
     "edge.labelBorderOpacity": "Label border opacity",
     "edge.labelPadding": "Label padding",
+    "edge.labelTable": "Label table",
     "edge.labelCornerRadius": "Label corner radius",
     "edge.labelLineHeight": "Label line height",
     "edge.labelOffsetX": "Label offset x",
@@ -611,6 +618,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelShiftX": "Label shift x",
     "edge.labelShiftY": "Label shift y",
     "edge.labelShiftOf": "Label shift of",
+    "edge.labelGapOf": "Label gap of",
+    "edge.labelBox": "Label box",
     "node.groupPadding": "Group padding",
     "node.groupPaddingRatio": "Group padding ratio",
     "node.groupPaddingOf": "Group padding of",
@@ -763,7 +772,8 @@ export function readableName(session: GraphSession, value: ReadableValue): { nam
  */
 export function groupRank(session: GraphSession, path: string, value: unknown): number | undefined {
     const run = session.runs.list().find((each) => session.results.path(each.id) === path);
-    return run?.result?.summary().groups?.find((g) => String(g.group) === String(value))?.rank;
+    // Every group's rank, not only the ten a summary lists, so a value is named one way.
+    return run?.result?.groupRanks()?.get(String(value));
 }
 
 /**

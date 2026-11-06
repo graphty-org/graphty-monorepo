@@ -23,7 +23,8 @@ export type FileStyleShapeTable = Readonly<Record<string, string>>;
  * The default shape table. Every 2D shape is drawn as the element's own flat shape of the same
  * name, exactly: `none` as a node with no body, which draws only its label, and Pajek's cross,
  * house, man and woman (`other:cross`, `other:house`, `other:man`, `other:woman`), Cytoscape.js's
- * rounded polygons and barrel (`other:round-triangle` ... `other:round-polygon`, `other:barrel`) and
+ * rounded polygons and barrel (`other:round-triangle` ... `other:round-polygon`, `other:barrel`), the
+ * rectangles rounded on one side only (`other:top-round-rectangle`, `other:bottom-round-rectangle`) and
  * vis-network's database (`other:database`) as the element's shapes of those names, and Graphviz's cylinder
  * (`other:cylinder`) as the database it is drawn as.
  */
@@ -54,6 +55,9 @@ export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     "other:round-octagon": "round-octagon",
     "other:round-polygon": "round-polygon",
     "other:barrel": "barrel",
+    // Cytoscape.js's bottom-round-rectangle and yFiles' `corners` TOP and BOTTOM
+    "other:top-round-rectangle": "top-round-rectangle",
+    "other:bottom-round-rectangle": "bottom-round-rectangle",
     "other:database": "database",
     // Graphviz's cylinder: a box between two ellipses, the near half of the top one drawn across it
     "other:cylinder": "database",
@@ -148,7 +152,55 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["other:image", "image"],
     // Cytoscape's arrows the element has no cap for, drawn as the nearest one: Cytoscape.js's chevron is a short vee
     ["other:chevron", "vee"],
+    // yEd's and yEd Live's own arrows
+    ["other:cross", "cross"],
+    ["other:kite", "kite"],
+    ["other:deltoid", "deltoid"],
+    ["other:open-vee", "open-vee"],
+    // the first cap of each of yEd's rows (`ARROW_RUNS`): a stem where yEd stands the row back from the line's end
+    ["other:white_delta_bar", "open-normal"],
+    ["other:crows_foot_many_optional", "crow"],
+    ["other:crows_foot_many_mandatory", "crow"],
+    ["other:crows_foot_one", "stem"],
+    ["other:crows_foot_one_mandatory", "stem"],
+    ["other:crows_foot_one_optional", "stem"],
+    ["other:crows_foot_optional", "stem"],
+    ["other:dash", "stem"],
+    ["other:skewed-dash", "stem"],
 ]);
+
+/** One cap of a row: its element type, and how long along the line and how wide across it, in yEd's pixels. */
+export interface ArrowRunPart {
+    readonly type: string;
+    readonly along: number;
+    readonly across?: number;
+}
+
+/** yEd's bar, 16 across its line. */
+const BAR: ArrowRunPart = { type: "tee", along: 1, across: 16 };
+/**
+ * yEd's circle, 10 across: its white disc hides the line, which the stem ahead of it and the line behind it leave out.
+ * Its width is stated though it is the cap's own: that tells it, on an export, from Graphviz's `crowodot`.
+ */
+const RING: ArrowRunPart = { type: "open-dot", along: 10, across: 10 };
+
+/**
+ * yEd's arrows of several pieces (yed-graphml-specimen-arrows at line width 1, on its standard head's 12 pixels; every
+ * length grows with the line as that head does): `lead` is how long the end cap, a stem, reaches back from the line's
+ * end, where the line runs on through the row to its end, and `parts` what is drawn behind the end cap, nearest first.
+ */
+export const ARROW_RUNS: ReadonlyMap<string, { readonly lead?: number; readonly parts: readonly ArrowRunPart[] }> =
+    new Map([
+        ["other:dash", { lead: 8, parts: [{ ...BAR, across: 8 }] }],
+        ["other:skewed-dash", { lead: 4, parts: [{ type: "slash", along: 8 }] }],
+        ["other:crows_foot_one", { lead: 10, parts: [BAR] }],
+        ["other:crows_foot_one_mandatory", { lead: 6, parts: [BAR, { type: "stem", along: 8 }, BAR] }],
+        ["other:crows_foot_one_optional", { lead: 6, parts: [BAR, { type: "stem", along: 3 }, RING] }],
+        ["other:crows_foot_optional", { lead: 10, parts: [RING] }],
+        ["other:crows_foot_many_mandatory", { parts: [{ type: "stem", along: 3 }, BAR] }],
+        ["other:crows_foot_many_optional", { parts: [RING] }],
+        ["other:white_delta_bar", { parts: [{ type: "stem", along: 5 }, BAR] }],
+    ]);
 
 /**
  * The element's arrow for an arrow shape a program draws unlike the shape's own cap, per program: Cytoscape desktop
@@ -174,7 +226,7 @@ export function arrowShapesOf(tool: string | null): ReadonlyMap<string, string> 
 
 /**
  * The arrow shapes drawn as the nearest cap rather than exactly: vis-network's
- * inv_curve as an open half circle at the end, where vis-network draws its arc a little back from it, and Cytoscape.js's
+ * inv_curve as an open half circle at the end, where vis-network draws its arc a little back from it, Cytoscape.js's
  * chevron as a vee.
  */
 export const ARROW_SHAPES_NEAREST: ReadonlySet<string> = new Set(["other:inv-curve", "other:chevron"]);

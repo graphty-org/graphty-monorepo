@@ -54,6 +54,19 @@ export const EdgeArrowTypes = z.enum([
     // a vee turned round: its point on the line, its two corners toward the node and its notch empty, with no tine
     // along the line (vis-network crow)
     "inverted-vee",
+    // two strokes crossing on the line, the line stopping where they cross (yEd and yEd Live cross)
+    "cross",
+    // a dart widest near its back, whose back comes to a point on the line (yEd Live kite)
+    "kite",
+    // a dart wider than it is long, its sides bowed in and its back notched (yEd Live deltoid)
+    "deltoid",
+    // a vee's two arms as strokes, nothing between them (yEd plain, concave and convex)
+    "open-vee",
+    // one slanted stroke across the line, which runs on under it to the cap's tip (yEd skewed_dash)
+    "slash",
+    // a length of the line itself, as thick as the line whatever the cap's `width`: first in a row (`stack`), it stands
+    // the caps behind it back from the line's end with the line running on to the end (yEd's crow's foot bars, circles)
+    "stem",
 ]);
 
 const ArrowStyle = z.strictObject({

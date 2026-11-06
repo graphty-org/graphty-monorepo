@@ -527,6 +527,18 @@ export class OrbitCameraController {
     }
 
     /**
+     * Stand where another orbit camera stands.
+     * @param from - The camera.
+     */
+    public takeView(from: OrbitCameraController): void {
+        this.pivot.position.copyFrom(from.pivot.position);
+        this.pivot.rotationQuaternion = from.pivot.rotationQuaternion?.clone() ?? null;
+        this.cameraDistance = from.cameraDistance;
+        this.pivot.computeWorldMatrix(true);
+        this.updateCameraPosition();
+    }
+
+    /**
      * Called when the canvas resizes: the shift that centers the free area depends on its aspect.
      */
     public onResize(): void {

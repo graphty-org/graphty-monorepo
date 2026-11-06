@@ -551,24 +551,26 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     };
 
     const nodes: DrawnNode[] = graph.getNodes().map((node, index) => {
-        const source = (node.mesh as InstancedMesh).sourceMesh as InstancedMesh["sourceMesh"] | undefined;
-        const box = node.mesh.getBoundingInfo().boundingBox.extendSizeWorld;
+        // drawnPickMesh, not mesh: reading `mesh` would hold the node off the batch (see Node.mesh).
+        const mesh = node.drawnPickMesh;
+        const source = (mesh as InstancedMesh).sourceMesh as InstancedMesh["sourceMesh"] | undefined;
+        const box = mesh.getBoundingInfo().boundingBox.extendSizeWorld;
         const plane = node.label?.labelMesh ?? null;
         const label = labelInk(plane);
 
         return {
             id: String(node.id),
             index,
-            shape: source?.name ?? node.mesh.name,
-            geometryKey: `${source?.name ?? node.mesh.name}#${String(source?.uniqueId ?? node.mesh.uniqueId)}`,
-            vertexCount: source?.getTotalVertices() ?? node.mesh.getTotalVertices(),
-            geometryDigest: digestOf(source ?? node.mesh),
+            shape: source?.name ?? mesh.name,
+            geometryKey: `${source?.name ?? mesh.name}#${String(source?.uniqueId ?? mesh.uniqueId)}`,
+            vertexCount: source?.getTotalVertices() ?? mesh.getTotalVertices(),
+            geometryDigest: digestOf(source ?? mesh),
             wireframe: source?.material?.wireframe ?? false,
-            enabled: node.mesh.isEnabled(),
-            opacity: node.mesh.visibility,
+            enabled: mesh.isEnabled(),
+            opacity: mesh.visibility,
             radius: Number(box.x.toFixed(4)),
-            hex: instanceHex(node.mesh),
-            position: [node.mesh.absolutePosition.x, node.mesh.absolutePosition.y, node.mesh.absolutePosition.z],
+            hex: instanceHex(mesh),
+            position: [mesh.absolutePosition.x, mesh.absolutePosition.y, mesh.absolutePosition.z],
             hasLabelMesh: plane !== null && !plane.isDisposed() && plane.isEnabled(),
             labelInk: label.ink,
             labelColours: label.colours,
@@ -2015,6 +2017,36 @@ export async function assertControlsPresent(
         missing.length === 0,
         `${story}: the story's own controls are part of what it demonstrates and ${String(missing.length)} of ` +
             `them are not on the page -- ${listed(missing)}`,
+    );
+}
+
+/**
+ * The communities a run found sit in lumps: a node's distance from its community's centre, against the arrangement's
+ * radius, is at most `atMost`.
+ * @param scene - What the story drew.
+ * @param run - The run's id.
+ * @param atMost - The largest ratio.
+ */
+export async function assertCommunitiesLumped(scene: Drawn, run: string, atMost: number): Promise<void> {
+    const result = scene.session.results.get(run);
+    const groups = new Map<unknown, (readonly number[])[]>();
+    for (const node of scene.nodes) {
+        const group = result?.node(node.id)?.group;
+        groups.set(group, [...(groups.get(group) ?? []), node.position]);
+    }
+
+    const spread = (points: readonly (readonly number[])[]): number => {
+        const centre = [0, 1, 2].map((axis) => points.reduce((sum, p) => sum + p[axis], 0) / points.length);
+        return points.reduce((sum, p) => sum + Math.hypot(...centre.map((v, axis) => v - p[axis])), 0);
+    };
+    const within = [...groups.values()].reduce((sum, points) => sum + spread(points), 0);
+    const ratio = within / spread(scene.nodes.map((node) => node.position));
+
+    await holds(
+        groups.size > 2 && ratio <= atMost,
+        `${scene.story}: the ${String(groups.size)} communities of "${run}" should sit in lumps, and a node averages ` +
+            `${ratio.toFixed(3)} of the arrangement's radius from its community's centre (at most ` +
+            `${String(atMost)} expected)`,
     );
 }
 

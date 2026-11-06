@@ -223,7 +223,12 @@ import type {
     TransactionOptions,
     TransactionScope,
 } from "./types";
-import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
+import {
+    createVisibilityApi,
+    type FilterSources,
+    type FilterValueSource,
+    type SessionVisibilityApi,
+} from "./visibility";
 import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 import type { SlideCounts } from "./visibility/slide";
 
@@ -2632,6 +2637,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Moves whenever the selection, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
+    // Set once the selection and the filter exist: what a `state` leaf and a state layer read.
+    let elementInState: NonNullable<FilterSources["inState"]> = () => false;
     // The query engine, late-bound for the same reason: it reads the style layers' selector
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
@@ -2967,6 +2974,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
         focus: () => focusedNode(),
+        inState: (state, target, index) => elementInState(state, target, index),
+        stateRevision: () => stateRevision,
         // The runs a union step's measure reads: built once the runs and the estimate exist.
         stepRuns: () => stepRunsRef.current,
         edit: () => openEdit(),
@@ -3500,6 +3509,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const repaintStates = (dirty: ElementIndices, rowsOnly = false): void => {
         if (dirty.node.length > 0 || dirty.edge.length > 0) {
             stateRevision++;
+            // A rule reading a state follows it through its live scope.
+            notifier.notify({ kind: "state" });
         }
         if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0) || !readsState()) {
             return;
@@ -3550,13 +3561,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The ghosts as last repainted: a window move, a slide or the ghost setting repaints the
     // elements that became or stopped being ghosts.
     let paintedGhosts: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
+    let seenGhosts: ReturnType<typeof visibility.ghosts> = null;
     repaintGhosts = (moved?: SlideCounts): void => {
+        const ghosts = visibility.ghosts();
+        // A slide can carry the same bytes forward with different rows in them.
+        if (ghosts !== seenGhosts || moved !== undefined) {
+            seenGhosts = ghosts;
+            stateRevision++;
+            notifier.notify({ kind: "state" });
+        }
+
         if (!readsState()) {
             paintedGhosts = null;
             return;
         }
 
-        const ghosts = visibility.ghosts();
         if (ghosts === null && paintedGhosts === null) {
             return;
         }
@@ -3644,6 +3663,26 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const id = focusedNode();
         return id === null ? undefined : nodeIndex(id);
     });
+    elementInState = (state, target, index) => {
+        if (state === "ghosted") {
+            return visibility.ghosted(target, index);
+        }
+
+        if (state === "pinned") {
+            return target === "node" && store.store.positions.isPinned(index);
+        }
+
+        const owner = requireSelection(selection);
+        if (state === "hovered") {
+            return (
+                target === "node" &&
+                ((owner.hovered !== null && nodeIndex(owner.hovered) === index) ||
+                    (owner.hoverPreview && owner.nodeMembers().has(index)))
+            );
+        }
+
+        return (target === "node" ? owner.nodeMembers() : owner.edgeMembers()).has(index);
+    };
     const styles = createStylesApi({
         dispatcher,
         elements: {
@@ -3651,26 +3690,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             nodeIndex,
             edgeIndex,
             scope: (spec: Scope) => layerScopes.live(spec),
-            inState: (state, target, index) => {
-                if (state === "ghosted") {
-                    return visibility.ghosted(target, index);
-                }
-
-                if (state === "pinned") {
-                    return target === "node" && store.store.positions.isPinned(index);
-                }
-
-                const owner = requireSelection(selection);
-                if (state === "hovered") {
-                    return (
-                        target === "node" &&
-                        ((owner.hovered !== null && nodeIndex(owner.hovered) === index) ||
-                            (owner.hoverPreview && owner.nodeMembers().has(index)))
-                    );
-                }
-
-                return (target === "node" ? owner.nodeMembers() : owner.edgeMembers()).has(index);
-            },
+            inState: elementInState,
             hover: hoverSource,
             focus: focusSource,
         },

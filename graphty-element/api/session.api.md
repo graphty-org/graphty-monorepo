@@ -910,6 +910,9 @@ export interface ElementSet {
 }
 
 // @public
+export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+
+// @public
 export interface EnabledFeatures {
     readonly enabled: readonly FeatureId[];
     readonly unknown: readonly string[];
@@ -4614,7 +4617,7 @@ export type RuleTree = {
 } | {
     readonly kind: "edges";
     readonly where: Query;
-}
+} | StateLeaf
 /**
 * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed
 * set is read from its kept record, so removing a set never changes what a rule holds.
@@ -5319,12 +5322,13 @@ export type Selector = {
 * edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
 * (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
 * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
-* follows each change with no step.
+* follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
+* `selectorRule` reads this selector as with its `states` option.
 * @since 3.26.0
 */
 | {
     match: "state";
-    state: "selected" | "hovered" | "ghosted" | "pinned";
+    state: ElementState;
 }
 /**
 * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
@@ -5352,7 +5356,11 @@ export type Selector = {
 // @public
 export function selectorRule(selector: Selector_2, options?: {
     readonly comparisons?: boolean;
+    readonly states?: boolean;
 }): RuleSelector | undefined;
+
+// @public
+export function selectorStates(selector: Selector_2): readonly ElementState[];
 
 // @public
 export type SessionAttributes = Readonly<Record<string, unknown>>;
@@ -6213,6 +6221,13 @@ export interface StartOptions extends RunOptions {
     readonly seed?: number;
     readonly style?: RunStyle;
     readonly timeBoxMs?: number;
+}
+
+// @public
+export interface StateLeaf {
+    // (undocumented)
+    readonly kind: "state";
+    readonly state: ElementState;
 }
 
 // @public

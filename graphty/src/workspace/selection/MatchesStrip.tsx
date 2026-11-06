@@ -9,11 +9,11 @@
 import { type DataTableSort, SearchInput } from "@graphty/compact-mantine";
 import type { EdgeId, GraphSession, NodeId, UnionLeaf } from "@graphty/graphty-element/session";
 import { Text } from "@mantine/core";
-import { useElementSize } from "@mantine/hooks";
 import React, { useDeferredValue, useState } from "react";
 
 import { columnChoices, type RecordKind } from "../table/columns";
 import { RecordTable } from "../table/RecordTable";
+import { useBoxSize } from "../useBoxSize";
 import { useEditedSelection } from "./useSteps";
 import { letterOf } from "./words";
 
@@ -43,7 +43,7 @@ export function MatchesStrip({
     modal?: boolean;
 }>): React.JSX.Element {
     const reading = useEditedSelection(session, rule);
-    const { ref, height } = useElementSize();
+    const { ref, height } = useBoxSize();
     const [sort, setSort] = useState<DataTableSort | null>(null);
     const [text, setText] = useState("");
     // The table reads its page as the search allows: a keystroke is drawn at once.

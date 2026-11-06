@@ -1911,6 +1911,7 @@
             "fontname",
             "fontsize",
             "headlabel",
+            "headport",
             "label",
             "labelangle",
             "labeldistance",
@@ -1959,7 +1960,7 @@
             "width",
             "xlabel"
         ],
-        "edges": ["arrowsize", "color", "constraint", "source", "target"]
+        "edges": ["arrowsize", "color", "constraint", "headport", "source", "tailport", "target"]
     },
     "dot/generated/clusters-200.gv": {
         "nodes": ["fillcolor", "id", "style"],

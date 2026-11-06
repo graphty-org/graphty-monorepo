@@ -83,4 +83,22 @@ describe("the structure a Graphviz layout reads from the graph's data", () => {
         });
         assert.deepEqual(structure.ranks, [{ rank: "same", rows: [0, 2] }]);
     });
+
+    it("names the cluster an lhead or ltail clips the edge at as the cluster its group is handed over as (issue #5253)", () => {
+        const structure = graphvizStructure(
+            rowOf,
+            [
+                { srcId: "a", dstId: "b", data: { lhead: "g", ltail: "missing" } },
+                { srcId: "b", dstId: "c", data: { ltail: "g", lhead: "c" } },
+            ],
+            new Map([[3, {}]]),
+            [],
+        );
+
+        // a name that is no group handed over is one Graphviz ignores too
+        assert.deepEqual(
+            structure.edges?.map((edge) => edge.attributes),
+            [{ lhead: "cluster_n3" }, { ltail: "cluster_n3" }],
+        );
+    });
 });

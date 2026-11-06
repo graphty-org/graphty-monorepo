@@ -10,7 +10,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { type BendPoint, canonBends, canonNodeOffsets } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
-import { canonNumber } from "../../styles/canon/number.js";
+import { canonNumber, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
@@ -254,14 +254,14 @@ function prop(st: StyleObject, name: string): unknown {
 
 /**
  * A paint: a color constant or `#AARRGGBB` in the yFiles 3 dialect, a CSS color, the first stop of a gradient
- * (with a note), or `{x:Null}`.
+ * (handed to `gradient`), or `{x:Null}`.
  * @param refs - the references
  * @param v - the property value
- * @param gradient - called when the paint is a gradient
+ * @param gradient - called with the gradient when the paint is one
  * @param depth - the walk's depth
  * @returns the paint
  */
-function paintOf(refs: References, v: unknown, gradient: (() => void) | null, depth = 0): Paint {
+function paintOf(refs: References, v: unknown, gradient: ((g: StyleObject) => void) | null, depth = 0): Paint {
     if (refs.tooDeep(depth)) {
         return null;
     }
@@ -284,16 +284,79 @@ function paintOf(refs: References, v: unknown, gradient: (() => void) | null, de
         return css === undefined ? null : { raw: css, dialect: "css" };
     }
     if (tag.endsWith("Gradient")) {
-        gradient?.();
-        const stop =
-            treeChildren(x.e, "GradientStop")[0] ??
-            treeChildren(treeChild(x.e, `${tag}.GradientStops`), "GradientStop")[0];
+        gradient?.(x);
+        const stop = gradientStops(x)[0];
         return stop === undefined ? null : paintOf(refs, treeAttr(stop, "color"), null, depth + 1);
     }
     if (tag === "Stroke") {
         return paintOf(refs, prop(x, "fill"), gradient, depth + 1);
     }
     return null;
+}
+
+/**
+ * A gradient's GradientStop elements, as written.
+ * @param g - the gradient
+ * @returns its stops
+ */
+function gradientStops(g: StyleObject): unknown[] {
+    const own = treeChildren(g.e, "GradientStop");
+    return own.length > 0 ? own : treeChildren(treeChild(g.e, `${g.tag}.GradientStops`), "GradientStop");
+}
+
+/**
+ * A point of a LinearGradient: `x,y` fractions of the node's box.
+ * @param g - the gradient
+ * @param name - `startPoint` or `endPoint`
+ * @param fallback - its default
+ * @returns the point
+ */
+function gradientPoint(g: StyleObject, name: string, fallback: readonly [number, number]): readonly [number, number] {
+    const [x, y] = (treeAttr(g.e, name) ?? "").split(",").map(Number);
+    return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : fallback;
+}
+
+/**
+ * Reads a node's gradient fill. A yFiles 3 LinearGradient's startPoint and endPoint are fractions of the node's box
+ * (yEd Live draws it as an SVG gradient in objectBoundingBox units), so one whose ramp spans the box -- from side to
+ * side, or from corner to corner -- is `fillGradientAngle` at the angle from start to end in those fractions, with
+ * its stops as written. Any other gradient is noted, and the node is filled in its first stop.
+ * ponytail: a ramp that starts or ends inside the box (a REFLECT or REPEAT one's mirrored bands) and a RadialGradient
+ * are noted, not drawn, and a stop's alpha is dropped; reading those needs the ramp unrolled across the box.
+ * @param refs - the references
+ * @param g - the gradient
+ * @param owner - the style's tag, for the note
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function putGradient(refs: References, g: StyleObject, owner: string, put: PutValue, at: SiteOf): void {
+    const [sx, sy] = gradientPoint(g, "startPoint", [0, 0]);
+    const [ex, ey] = gradientPoint(g, "endPoint", [1, 0]);
+    const [dx, dy] = [ex - sx, ey - sy];
+    const len2 = dx * dx + dy * dy;
+    // where the box's corners sit along the ramp: its farthest ones at 0 and 1 when the ramp spans the box
+    const along = [0, 1].flatMap((x) => [0, 1].map((y) => ((x - sx) * dx + (y - sy) * dy) / len2));
+    const spans = len2 > 0 && Math.abs(Math.min(...along)) < 1e-6 && Math.abs(Math.max(...along) - 1) < 1e-6;
+    const stops = gradientStops(g)
+        .map((st) => {
+            const paint = paintOf(refs, treeAttr(st, "color"), null);
+            const c =
+                paint === null || paint === NULL ? null : canonColor(paint.raw, paint.dialect, at("fillGradient"));
+            return { offset: Number(treeAttr(st, "offset") ?? 0), color: c?.color ?? null };
+        })
+        .sort((a, b) => a.offset - b.offset);
+    const colors = stops.flatMap((st) => (typeof st.color === "string" ? [st.color] : []));
+    if (g.tag !== "LinearGradient" || !spans || colors.length < 2 || colors.length !== stops.length) {
+        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, owner);
+        return;
+    }
+    put("fillGradient", colors.at(-1) ?? null);
+    put("fillGradientAngle", num6(((((Math.atan2(dy, dx) * 180) / Math.PI) % 360) + 360) % 360));
+    const offsets = stops.map((st) => num6(st.offset));
+    if (colors.length > 2 || offsets[0] !== 0 || offsets[1] !== 1) {
+        put("fillGradientColors", colors.join(" "));
+        put("fillGradientStops", offsets.join(" "));
+    }
 }
 
 /** A stroke's color, width and line style. */
@@ -523,8 +586,8 @@ function readPanelStyle(color: string | null, put: PutValue): void {
  */
 function readStyle26(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
     const fill = (v: unknown): string | null => {
-        const gradient = (): void => {
-            noteAt(at("fill"), STYLE_ISSUE.GRADIENT, style.tag);
+        const gradient = (g: StyleObject): void => {
+            putGradient(refs, g, style.tag, put, at);
         };
         const paint = paintOf(refs, v, gradient);
         putPaint(paint, "fill", "fillOpacity", put, at);
@@ -991,8 +1054,8 @@ function readNodeStyle(
         return;
     }
     putPaint(
-        paintOf(refs, prop(style, "fill"), () => {
-            noteAt(at("fill"), STYLE_ISSUE.GRADIENT, style.tag);
+        paintOf(refs, prop(style, "fill"), (g) => {
+            putGradient(refs, g, style.tag, put, at);
         }),
         "fill",
         "fillOpacity",

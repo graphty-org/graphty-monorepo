@@ -4,6 +4,7 @@ import {
     DirectionalLight,
     Engine,
     EngineStore,
+    FloatingOriginCurrentScene,
     HemisphericLight,
     Logger,
     Material,
@@ -289,6 +290,21 @@ const GRAPH_ROOT_NAME = "graph-root";
 
 /** How often a disposed graph checks whether the GPU has finished its last frames. */
 const RELEASE_POLL_MS = 16;
+
+/**
+ * Lets a disposed scene be collected. Every `Scene.render` points Babylon's module-wide
+ * `FloatingOriginCurrentScene.getScene` at a closure over that scene, and `Scene.dispose` leaves it
+ * there, so the last scene drawn on the page stays reachable -- and through it the whole graph:
+ * its nodes, edges, snapshot, time index and buffers, about 2.4 GB at 1,000,000 edges -- until
+ * another scene draws (issue #6028). A getter that answers undefined, as a disposed scene's or one
+ * without a floating origin does, is swapped for a fresh one that answers the same; a live
+ * floating-origin scene's is left alone.
+ */
+function forgetDisposedScene(): void {
+    if (FloatingOriginCurrentScene.getScene() === undefined) {
+        FloatingOriginCurrentScene.getScene = () => undefined;
+    }
+}
 
 /**
  * Gives a disposed graph's WebGL context back to the browser, once the GPU has finished with it.
@@ -1042,6 +1058,7 @@ export class RenderManager implements Manager {
         const gl = this.engine instanceof Engine ? (this.engine._gl as WebGLRenderingContext | undefined) : undefined;
         this.scene.dispose();
         this.engine.dispose();
+        forgetDisposedScene();
         if (gl !== undefined) {
             releaseWhenIdle(gl);
         }

@@ -288,4 +288,29 @@ describe("DOTDataSource", () => {
 
         assert.equal(chunks.length, 0);
     });
+
+    test("gives an edge the ports its statement names as its tailport and headport, its own attribute winning", async () => {
+        // Graphviz 14.1.2 leaves rec at its east side for `rec:a -> f7 [tailport=e]` (issue #5253)
+        const dot = `digraph {
+  rec [shape=record, label="<a> a|<c> c"];
+  f8 -> rec:c:w;
+  rec:a -> f7 [tailport=e];
+  f9:n -> f10:s;
+  f9 -> f10;
+}`;
+        const edges = [];
+        for await (const chunk of new DOTDataSource({ data: dot }).getData()) {
+            edges.push(...chunk.edges);
+        }
+
+        assert.deepEqual(
+            edges.map(({ tailport, headport }) => ({ tailport, headport })),
+            [
+                { tailport: undefined, headport: "c:w" },
+                { tailport: "e", headport: undefined },
+                { tailport: "n", headport: "s" },
+                { tailport: undefined, headport: undefined },
+            ],
+        );
+    });
 });

@@ -94,8 +94,18 @@ def shape_name(r):
         return "image"
     if kind in ("UMLNoteNode", "UMLClassNode", "TableNode"):
         return "rect"
+    if yed_default_painted(r):
+        return "rect"
     conf = (r.get("configuration") or "").rsplit(".", 1)[-1]
     return GENERIC.get(conf, conf or "other")
+
+
+def yed_default_painted(r):
+    """Whether yEd draws the node with its default painter: yEd 3.25 no longer registers the old com.yjava
+    configurations (BevelNode, ShinyPlateNode and their variants), and its own drawings of
+    yed-graphml-specimen-node-shapes-p2 and graphml-synthetic-nodes show a box in the fill's color with a solid
+    line of 1 in the border's color, whatever the file's color2, border width and dashes say."""
+    return local(r.tag) == "GenericNode" and (r.get("configuration") or "").lower().startswith("com.yjava.")
 
 
 def fill_of(r):
@@ -114,6 +124,8 @@ def border_of(r):
     # a color with no alpha at all is no line: yEd's own drawing of graphml-stm32-func strokes none of them
     if c and c[1] == 0:
         return None, 0, "solid"
+    if yed_default_painted(r):
+        return (c[0] if c else None), 1.0, "line"
     return (c[0] if c else None), float(b.get("width", 1)), b.get("type", "line")
 
 

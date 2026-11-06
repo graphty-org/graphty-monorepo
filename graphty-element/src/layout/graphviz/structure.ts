@@ -82,6 +82,9 @@ const NODE_SIZE_ATTRIBUTES = [
  */
 const CLUSTER_ATTRIBUTES = ["label", "fontsize", "fontname", "labelloc", "margin"] as const;
 
+/** The edge attributes that name a cluster the edge is clipped at (with the graph's `compound=true`). */
+const CLUSTER_ENDS = ["lhead", "ltail"] as const;
+
 /** The attributes that hold a label's words. */
 const LABELS = new Set(["label", "xlabel", "headlabel", "taillabel"]);
 
@@ -188,7 +191,7 @@ export function graphvizStructure<E extends EdgeLike>(
         const src = rowOf(edge.srcId);
         const dst = rowOf(edge.dstId);
         if (src >= 0 && dst >= 0) {
-            dotEdges.push({ src, dst, attributes: attributesOf(edge.data, EDGE_ATTRIBUTES) });
+            dotEdges.push({ src, dst, attributes: edgeAttributes(edge.data, rowOf, groups) });
             edgeOf.push(edge);
         }
     }
@@ -201,6 +204,31 @@ export function graphvizStructure<E extends EdgeLike>(
         ...(nodes === undefined ? {} : { nodeAttributes: nodeAttributes(nodes, sizing) }),
         ...(sizing === undefined ? {} : { labelSized: true }),
     };
+}
+
+/**
+ * An edge's attributes for Graphviz: those of {@link EDGE_ATTRIBUTES}, and the cluster it is clipped at, named as the cluster its group is handed over as (`cluster_n<row>`).
+ * @param data - the edge's data
+ * @param rowOf - each node id's row, or a negative number for none
+ * @param groups - each group's row with its data
+ * @returns the attributes as Graphviz text
+ */
+function edgeAttributes(
+    data: Readonly<Record<string, unknown>>,
+    rowOf: (id: NodeIdType) => number,
+    groups: ReadonlyMap<number, unknown>,
+): Record<string, string> {
+    const out = attributesOf(data, EDGE_ATTRIBUTES);
+    for (const name of CLUSTER_ENDS) {
+        const cluster = data[name];
+        const row = typeof cluster === "string" ? rowOf(cluster) : -1;
+        // a name that is no group handed over is one Graphviz ignores too (with a warning)
+        if (groups.has(row)) {
+            out[name] = `cluster_n${row}`;
+        }
+    }
+
+    return out;
 }
 
 /**

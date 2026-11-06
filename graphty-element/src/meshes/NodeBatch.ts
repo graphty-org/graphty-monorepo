@@ -55,7 +55,7 @@ export class NodeBatch {
     holes = 0;
 
     /** Slot of each row in a slot, and of each row that left its hole behind. */
-    private slotOf = new Map<number, number>();
+    private readonly slotOf = new Map<number, number>();
     private rows = new Float32Array(FIRST_CAPACITY);
     private colors = new Float32Array(FIRST_CAPACITY * COLOR_FLOATS);
     private matrices = identities(FIRST_CAPACITY);

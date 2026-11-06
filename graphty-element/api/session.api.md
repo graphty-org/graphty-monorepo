@@ -6390,6 +6390,7 @@ export interface TimeApi {
     } | null;
     stepBy(count: number): Promise<TimeStepEvent>;
     window(window: TimeWindowInput | null): Run<FilterResult>;
+    readonly zone: string;
 }
 
 // @beta

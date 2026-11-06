@@ -10,7 +10,14 @@
 import "./time.css";
 
 import { HistogramRow, Popout, PopoutManager } from "@graphty/compact-mantine";
-import type { GraphSession, TimeBin, TimeStep, TimeUnit, TimeWindow } from "@graphty/graphty-element/session";
+import type {
+    GraphSession,
+    TimeBin,
+    TimeStep,
+    TimeUnit,
+    TimeWindow,
+    TimeWindowInput,
+} from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, NumberInput, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
@@ -28,7 +35,6 @@ import {
     stepWindow,
     togglePlay,
     unitOf,
-    zoneOf,
 } from "./timeActions";
 import { countWords, instantWords, intervalOf, rangeWords, readoutRange, SPEEDS, windowWords } from "./timeWords";
 import { useTimeVersion } from "./useTimeVersion";
@@ -121,18 +127,22 @@ function ReadoutEntry({
     const [from, setFrom] = useState("");
     const [to, setTo] = useState("");
     const ordinal = unit === "ordinal";
-    // An inclusive last value back to the half-open end the element takes: one unit past it.
-    // ponytail: 24 hours, so on a day the clocks change the end is an hour off; a day step in the zone if that matters.
-    const grain = ordinal ? 1 : DAY;
+    // An inclusive last value back to the half-open end the element takes: the next number, or the
+    // end of that day on the element's calendar, which a clock change makes 23 or 25 hours long.
+    const endAfter = (last: number): number | undefined =>
+        ordinal
+            ? last + 1
+            : session.time.bins({ from: last, to: last + 1, step: "day", maxCount: 1, timeZone: zone })?.at(-1)?.end;
     const submit = (): void => {
         const start = session.time.parse(from, { timeZone: zone });
         const last = session.time.parse(to, { timeZone: zone });
-        if (start === null || last === null || last < start) {
+        const end = last === null ? undefined : endAfter(last);
+        if (start === null || last === null || last < start || end === undefined) {
             store.set({ notice: { message: "Not a range of dates" } });
             return;
         }
         session.time.pause();
-        session.time.window({ from: start, to: last + grain }).then(() => {
+        session.time.window({ from: start, to: end }).then(() => {
             announceWindow(session, store);
         }, reportTimeError(store));
         setOpened(false);
@@ -242,14 +252,59 @@ function histogramName(bins: readonly TimeBin[], onEdges: boolean, unit: TimeUni
     return `${name}, ${countWords(total, noun)}, busiest ${when}: ${countWords(countIn(busiest, onEdges), noun)}`;
 }
 
+/** A brush gesture under way: the window it took hold of, as it was and as the axis showed it. */
+interface BrushHold {
+    readonly at: TimeWindow | null;
+    readonly shown: readonly [number, number];
+    sliding: boolean;
+}
+
+/**
+ * How wide a range is.
+ * @param range - the range.
+ * @returns its width.
+ */
+function widthOf(range: readonly [number, number]): number {
+    return range[1] - range[0];
+}
+
+/**
+ * The window a brush's value on release means. The axis may show less of the window than there is,
+ * so the value moves the real window and never replaces it: a value as wide as the range shown
+ * moves the whole window, and an end the gesture left alone stays where it is, cut off or not.
+ * @param at - The window, or null.
+ * @param value - The brush's value.
+ * @param shown - The window as the axis showed it.
+ * @param tapped - Whether a tap on a bar set the value, which starts the window there.
+ * @returns What to set.
+ */
+function windowAfter(
+    at: TimeWindow | null,
+    value: readonly [number, number],
+    shown: readonly [number, number],
+    tapped: boolean,
+): TimeWindowInput {
+    if (at === null) {
+        return { from: value[0], to: value[1] };
+    }
+    const from = Number(at.from);
+    const to = Number(at.to);
+    if (widthOf(value) === widthOf(shown)) {
+        const start = tapped ? value[0] : from + value[0] - shown[0];
+        return { ...at, from: start, to: start + to - from };
+    }
+    return { ...at, from: value[0] === shown[0] ? from : value[0], to: value[1] === shown[1] ? to : value[1] };
+}
+
 /**
  * What the brush's gesture does: a whole window dragged slides the element's cursor, the graph
  * following, and its release commits it; an end dragged is drawn here and set on release. One
- * gesture, one undoable step. An end the zoom cut off and the gesture left alone stays where it is.
+ * gesture, one undoable step. A release that moved nothing, or ended a pinch, writes nothing.
  * @param session - The session.
  * @param store - The workspace store, for errors and the announcement.
  * @param setDrag - Sets the brush drawn while an end is dragged.
- * @param sliding - Whether a whole-window drag is under way.
+ * @param hold - The gesture under way.
+ * @param pinched - Whether the last touch gesture was a pinch.
  * @param shown - The window as the axis shows it.
  * @returns The brush's change handlers.
  */
@@ -257,7 +312,8 @@ function brushGesture(
     session: GraphSession,
     store: WorkspaceStore,
     setDrag: (value: [number, number] | null) => void,
-    sliding: React.RefObject<boolean>,
+    hold: React.RefObject<BrushHold | null>,
+    pinched: React.RefObject<boolean>,
     shown: readonly [number, number],
 ): { onChange: (value: [number, number]) => void; onChangeEnd: (value: [number, number]) => void } {
     const { time } = session;
@@ -265,30 +321,41 @@ function brushGesture(
     return {
         onChange: (value) => {
             time.pause();
-            const at = time.current;
-            if (at !== null && at.mode !== "cumulative" && value[1] - value[0] === Number(at.to) - Number(at.from)) {
+            // Sliding changes how much of the window the axis shows, so the gesture keeps its start.
+            hold.current ??= { at: time.current, shown, sliding: false };
+            const start = hold.current;
+            const unmoved = value[0] === start.shown[0] && value[1] === start.shown[1];
+            if (unmoved && !start.sliding) {
+                return;
+            }
+            if (start.at !== null && start.at.mode !== "cumulative" && widthOf(value) === widthOf(start.shown)) {
                 // The whole window dragged: the graph follows the drag, row by row, and the
                 // release records it.
                 setDrag(null);
-                sliding.current = true;
-                time.seek(value[0], { commit: false }).then(() => undefined, reportTimeError(store));
+                start.sliding = true;
+                time.seek(Number(start.at.from) + value[0] - start.shown[0], { commit: false }).then(
+                    () => undefined,
+                    reportTimeError(store),
+                );
                 return;
             }
             setDrag(value);
         },
         onChangeEnd: (value) => {
             time.pause();
+            const start = hold.current;
+            hold.current = null;
+            const from = start?.shown ?? shown;
+            const sliding = start?.sliding === true;
+            if (!sliding && (pinched.current || (value[0] === from[0] && value[1] === from[1]))) {
+                setDrag(null);
+                return;
+            }
             // A slid cursor is committed as a step of its own, never merged into the window step
-            // before it (#4400).
-            const at = time.current;
-            const moved: PromiseLike<unknown> = sliding.current
+            // before it (#4400). Only a tap reaches here with no change before it.
+            const moved: PromiseLike<unknown> = sliding
                 ? time.commit()
-                : time.window({
-                      ...at,
-                      from: at !== null && value[0] === shown[0] ? at.from : value[0],
-                      to: at !== null && value[1] === shown[1] ? at.to : value[1],
-                  });
-            sliding.current = false;
+                : time.window(windowAfter(time.current, value, from, start === null));
             moved.then(
                 () => {
                     setDrag(null);
@@ -361,11 +428,11 @@ export function TimeDock(): React.JSX.Element | null {
     const open = useWorkspaceState((state) => state.timelineOpen);
     // The brush while it is dragged; written to the element once, on release.
     const [drag, setDrag] = useState<[number, number] | null>(null);
-    // A whole-window drag moves the element's cursor; its release commits it as its own step.
-    const sliding = useRef(false);
+    // A brush gesture under way; a whole-window drag's release commits it as its own step.
+    const hold = useRef<BrushHold | null>(null);
     const { ref, width } = useElementSize();
     const maxCount = Math.max(10, Math.floor((width > 0 ? width : 300) / PX_PER_BIN));
-    const { view, reset, chartRef } = useTimeZoom(session, maxCount);
+    const { view, reset, chartRef, pinched } = useTimeZoom(session, maxCount);
 
     // A run the Re-run setting could not re-run says so.
     useEffect(() => {
@@ -386,7 +453,7 @@ export function TimeDock(): React.JSX.Element | null {
     const onEdges = time.field?.edges !== undefined;
     const noun = onEdges ? "edge" : "node";
     const window: TimeWindow | null = time.current;
-    const zone = zoneOf(session);
+    const { zone } = time;
     const whole = time.bins({ maxCount }) ?? [];
     const all = time.bins({ ...view, maxCount }) ?? [];
     const visible = time.bins({ ...view, maxCount, scope: "visible" }) ?? [];
@@ -421,6 +488,9 @@ export function TimeDock(): React.JSX.Element | null {
             className="tl-dock"
             aria-label="Timeline"
             ref={ref}
+            onPointerCancel={() => {
+                hold.current = null;
+            }}
             onKeyDown={(event) => {
                 // Space plays and pauses from anywhere in the dock but a button or a field.
                 const target = event.target as HTMLElement;
@@ -536,7 +606,7 @@ export function TimeDock(): React.JSX.Element | null {
                                 ? instantWords(value, unit, step, zone)
                                 : `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`;
                         },
-                        ...brushGesture(session, store, setDrag, sliding, shown),
+                        ...brushGesture(session, store, setDrag, hold, pinched, shown),
                     }}
                 />
             </div>

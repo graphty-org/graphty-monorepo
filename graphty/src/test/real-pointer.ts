@@ -214,6 +214,34 @@ export async function pinchOver(element: Element, spread: number): Promise<void>
 }
 
 /**
+ * Holds one finger still on an element, puts a second beside it and moves that one away, as on a
+ * touch screen: the first finger lands before anyone can know a pinch is coming.
+ * @param element - What the first finger lands on, in its middle.
+ * @param spread - How far the second finger moves right, in CSS pixels.
+ */
+export async function pinchFrom(element: Element, spread: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    const gap = 80;
+    const fingers = (apart: number): { id: number; x: number; y: number }[] => [
+        { id: 0, x, y },
+        { id: 1, x: x + apart, y },
+    ];
+    const steps = 6;
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 0, x, y }] });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(gap) });
+    for (let step = 1; step <= steps; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: fingers(gap + (spread * step) / steps),
+        });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/**
  * Sets the browser's own time zone for what `run` does, and puts it back after.
  * @param zone - An IANA zone name.
  * @param run - What to do in it.

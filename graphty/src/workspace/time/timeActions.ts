@@ -3,7 +3,14 @@
  * a call on graphty-element's `session.time` and the words the app writes about it.
  */
 
-import type { CodedFact, GraphSession, TimeField, TimeNoticeCode, TimeUnit } from "@graphty/graphty-element/session";
+import type {
+    CodedFact,
+    GraphSession,
+    TimeField,
+    TimeNoticeCode,
+    TimeStepEvent,
+    TimeUnit,
+} from "@graphty/graphty-element/session";
 
 import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
@@ -28,32 +35,64 @@ export function unitOf(session: GraphSession): TimeUnit {
     return field?.edges?.unit ?? field?.nodes?.unit ?? "ms";
 }
 
+/** How many elements a move brought into the window and took out of it. */
+interface WindowMoved {
+    readonly entered: number;
+    readonly left: number;
+}
+
+/** A play the reader started: what it moved so far, and how to stop counting. */
+interface PlayTally {
+    entered: number;
+    left: number;
+    stop: () => void;
+}
+
+/** Each session's play, from Play to the Pause that reads it. */
+const plays = new WeakMap<GraphSession, PlayTally>();
+
 /**
- * The zone the timeline reads in, the one the element lines up its calendar in.
- * @param session - the element's session.
- * @returns the zone's IANA name.
+ * What one move brought in and took out.
+ * @param event - the move.
+ * @returns the counts.
  */
-export function zoneOf(session: GraphSession): string {
-    const { current, settings } = session.time;
-    return current?.timeZone ?? settings.timeZone;
+function movedBy(event: TimeStepEvent): WindowMoved {
+    return { entered: event.entered.nodes + event.entered.edges, left: event.left.nodes + event.left.edges };
 }
 
 /**
- * Says where the window is and what entered and left it on the status line, for a step and a pause
- * (never every playback frame).
+ * Starts counting what a play moves, frame by frame: a pause has only the sum to report, since
+ * `time.changes()` then holds the last frame alone.
+ * @param session - the element's session.
+ */
+function tallyPlay(session: GraphSession): void {
+    plays.get(session)?.stop();
+    const tally: PlayTally = { entered: 0, left: 0, stop: () => undefined };
+    tally.stop = session.on("time:step", (event) => {
+        const moved = movedBy(event);
+        tally.entered += moved.entered;
+        tally.left += moved.left;
+    });
+    plays.set(session, tally);
+}
+
+/**
+ * Says where the window is on the status line (never every playback frame), and what entered and
+ * left it after a step or a pause.
  * @param session - the element's session.
  * @param store - the chrome store.
+ * @param moved - what entered and left; left out where no count describes the move.
  */
-export function announceWindow(session: GraphSession, store: WorkspaceStore): void {
+export function announceWindow(session: GraphSession, store: WorkspaceStore, moved?: WindowMoved): void {
     const window = session.time.current;
     if (window === null) {
         return;
     }
     const { visibleNodes, visibleEdges } = session.visibility.summary;
-    const { entered, left } = session.time.changes();
-    const moved = `${formatCount(entered.nodes.length + entered.edges.length)} entered, ${formatCount(left.nodes.length + left.edges.length)} left`;
+    const counts =
+        moved === undefined ? "" : `, ${formatCount(moved.entered)} entered, ${formatCount(moved.left)} left`;
     store.set({
-        announcement: `${windowWords(window, unitOf(session), zoneOf(session))}: ${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}, ${moved}`,
+        announcement: `${windowWords(window, unitOf(session), session.time.zone)}: ${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}${counts}`,
     });
 }
 
@@ -66,8 +105,8 @@ export function announceWindow(session: GraphSession, store: WorkspaceStore): vo
 export function stepWindow(session: GraphSession, store: WorkspaceStore, count: number): void {
     session.time.pause();
     session.time.stepBy(count).then(
-        () => {
-            announceWindow(session, store);
+        (event) => {
+            announceWindow(session, store, movedBy(event));
         },
         () => {
             store.set({ notice: { message: "The time window could not move." } });
@@ -84,9 +123,13 @@ export function togglePlay(session: GraphSession, store: WorkspaceStore): void {
     const { time } = session;
     if (time.playing) {
         time.pause();
-        announceWindow(session, store);
+        const tally = plays.get(session);
+        tally?.stop();
+        plays.delete(session);
+        announceWindow(session, store, tally);
         return;
     }
+    tallyPlay(session);
     try {
         time.play({ interval: intervalOf(store.get().timeSpeed) });
     } catch {
@@ -199,8 +242,8 @@ export function designate(session: GraphSession, store: WorkspaceStore, field: T
 export function seekEdge(session: GraphSession, store: WorkspaceStore, end: "start" | "end"): void {
     session.time.pause();
     session.time.seek(end).then(
-        () => {
-            announceWindow(session, store);
+        (event) => {
+            announceWindow(session, store, movedBy(event));
         },
         () => {
             store.set({ notice: { message: "The time window could not move." } });
@@ -275,5 +318,5 @@ export function timeValue(session: GraphSession, value: unknown, date: boolean):
     } else if (typeof value === "string" || typeof value === "number") {
         at = session.time.parse(String(value));
     }
-    return at === null ? value : instantWords(at, "ms", undefined, zoneOf(session));
+    return at === null ? value : instantWords(at, "ms", undefined, session.time.zone);
 }

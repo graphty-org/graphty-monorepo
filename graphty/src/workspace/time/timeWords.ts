@@ -1,7 +1,7 @@
 /**
  * The timeline's words. graphty-element gives numbers (epoch milliseconds, or plain numbers for
  * ordinal time) and codes; the app writes every date and label. Dates read in the zone the caller
- * passes, the one the element lines up its calendar steps and bins in (`zoneOf`), else UTC.
+ * passes, the one the element lines up its calendar steps and bins in (`session.time.zone`), else UTC.
  */
 
 import type {

@@ -8,18 +8,20 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
-import { inBrowserZone, pinchOver, tap, wheelOver } from "../../../test/real-pointer";
+import { dragAcross, inBrowserZone, pinchFrom, pinchOver, tap, wheelOver } from "../../../test/real-pointer";
 import { pickSample } from "../../../test/samples-dialog";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
+import { formatCount } from "../../settings/numberFormat";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { countWords, rangeWords } from "../timeWords";
 
 type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 
@@ -114,6 +116,64 @@ async function windowOn(session: GraphSession, from: number, to: number): Promis
     });
 }
 
+/**
+ * The window's ends as numbers.
+ * @param session - the session.
+ * @returns its start and end.
+ */
+function windowOf(session: GraphSession): { from: number; to: number } {
+    return { from: Number(session.time.current?.from), to: Number(session.time.current?.to) };
+}
+
+/**
+ * Sets a window that reaches past the start of the axis, by zooming in on the middle of the bars.
+ * @param session - the session.
+ * @param dock - the dock.
+ * @returns the window, in whole milliseconds, and where the axis's start was before the zoom.
+ */
+async function windowCutOff(
+    session: GraphSession,
+    dock: HTMLElement,
+): Promise<{ from: number; to: number; min: number; span: number }> {
+    const whole = brushOf(dock);
+    const span = whole.max - whole.min;
+    const from = Math.round(whole.min + span * 0.1);
+    const to = Math.round(whole.min + span * 0.45);
+    await windowOn(session, from, to);
+    await wheelOver(plotOf(dock), -300);
+    await axisNarrowed(dock, whole);
+    assert.isAbove(brushOf(dock).min, from);
+    assert.isBelow(to, brushOf(dock).max);
+    return { from, to, min: whole.min, span };
+}
+
+/**
+ * What a screen reader hears from the page's status lines; only the workspace's has words here.
+ * @returns their words.
+ */
+function statusLine(): string {
+    return screen
+        .getAllByRole("status")
+        .map((line) => line.textContent)
+        .join(" ");
+}
+
+/**
+ * Types a window into the readout's popover.
+ * @param dock - the dock.
+ * @param from - the From date.
+ * @param to - the To date.
+ */
+async function typeWindow(dock: HTMLElement, from: string, to: string): Promise<void> {
+    await userEvent.click(within(dock).getByTestId("time-readout"));
+    const first = await screen.findByRole("textbox", { name: "From" });
+    const last = screen.getByRole("textbox", { name: "To" });
+    await userEvent.clear(first);
+    await userEvent.type(first, from);
+    await userEvent.clear(last);
+    await userEvent.type(last, `${to}{Enter}`);
+}
+
 describe("the timeline dock on the real element", () => {
     beforeAll(async () => {
         await siteFeatures(["timeline"]);
@@ -166,12 +226,193 @@ describe("the timeline dock on the real element", () => {
             throw new Error("no canvas");
         }
 
+        const span = whole.max - whole.min;
+        const from = Math.round(whole.min + span * 0.4);
+        const to = Math.round(whole.min + span * 0.6);
+        await windowOn(session, from, to);
+        const before = session.history.position;
+
         await pinchOver(canvas, 60);
-        assert.equal(brushOf(dock).max - brushOf(dock).min, whole.max - whole.min);
+        assert.equal(brushOf(dock).max - brushOf(dock).min, span);
 
         await pinchOver(plotOf(dock), 120);
         await axisNarrowed(dock, whole);
-        assert.isNull(session.time.current);
+        assert.deepEqual(windowOf(session), { from, to });
+        assert.equal(session.history.position, before);
+    });
+
+    it("leaves the window alone when a pinch starts on a bar outside it", async () => {
+        const { session, dock } = await openDock();
+        const whole = brushOf(dock);
+        const span = whole.max - whole.min;
+        const from = Math.round(whole.min + span * 0.05);
+        const to = Math.round(whole.min + span * 0.15);
+        await windowOn(session, from, to);
+        const before = session.history.position;
+
+        await pinchOver(plotOf(dock), 120);
+
+        await axisNarrowed(dock, whole);
+        assert.deepEqual(windowOf(session), { from, to });
+        assert.equal(session.history.position, before);
+    });
+
+    it("leaves the window alone when a pinch starts with a finger on a brush thumb", async () => {
+        const { session, dock } = await openDock();
+        const whole = brushOf(dock);
+        const span = whole.max - whole.min;
+        const from = Math.round(whole.min + span * 0.3);
+        const to = Math.round(whole.min + span * 0.7);
+        await windowOn(session, from, to);
+        const before = session.history.position;
+
+        await pinchFrom(within(dock).getByRole("slider", { name: "Window start" }), 200);
+
+        await axisNarrowed(dock, whole);
+        // The thumb's release runs a turn after the lift: later input lands after it.
+        const pinched = brushOf(dock);
+        await wheelOver(plotOf(dock), -100);
+        await axisNarrowed(dock, pinched);
+        assert.deepEqual(windowOf(session), { from, to });
+        assert.equal(session.history.position, before);
+    });
+
+    it("keeps a window's width when its body is dragged with the axis cutting it off", async () => {
+        const { session, dock } = await openDock();
+        const { from, to } = await windowCutOff(session, dock);
+        const before = session.history.position;
+
+        await dragAcross(within(dock).getByRole("slider", { name: "Window" }), 100);
+
+        await waitFor(() => {
+            assert.equal(session.history.position, before + 1);
+        });
+        const moved = windowOf(session);
+        assert.isAbove(moved.from, from);
+        assert.equal(moved.to - moved.from, to - from);
+        assert.notInclude(statusLine(), "entered");
+    });
+
+    it("keeps a window's width when an arrow key moves it with the axis cutting it off", async () => {
+        const { session, dock } = await openDock();
+        const { from, to } = await windowCutOff(session, dock);
+        within(dock).getByRole("slider", { name: "Window" }).focus();
+
+        await userEvent.keyboard("{ArrowRight}");
+        await waitFor(() => {
+            assert.isAbove(windowOf(session).from, from);
+        });
+        const once = windowOf(session);
+        await userEvent.keyboard("{ArrowRight}");
+        await waitFor(() => {
+            assert.isAbove(windowOf(session).from, once.from);
+        });
+
+        const moved = windowOf(session);
+        assert.equal(moved.to - moved.from, to - from);
+    });
+
+    it("keeps a window's width when a tap on a bar moves it with the axis cutting it off", async () => {
+        const { session, dock } = await openDock();
+        const { from, to, min, span } = await windowCutOff(session, dock);
+
+        await tap(plotOf(dock));
+
+        await waitFor(() => {
+            assert.isAbove(windowOf(session).from, min + span * 0.4);
+        });
+        const moved = windowOf(session);
+        assert.equal(moved.to - moved.from, to - from);
+    });
+
+    it("keeps the end the axis cut off when the other end is dragged", async () => {
+        const { session, dock } = await openDock();
+        const { from, to } = await windowCutOff(session, dock);
+
+        await dragAcross(within(dock).getByRole("slider", { name: "Window end" }), 60);
+
+        await waitFor(() => {
+            assert.isAbove(windowOf(session).to, to);
+        });
+        assert.equal(windowOf(session).from, from);
+    });
+
+    it("keeps a window's width when a tap brings it back from outside the zoomed axis", async () => {
+        const { session, dock } = await openDock();
+        const whole = brushOf(dock);
+        const span = whole.max - whole.min;
+        const from = Math.round(whole.min + span * 0.02);
+        const to = Math.round(whole.min + span * 0.1);
+        await windowOn(session, from, to);
+
+        await wheelOver(plotOf(dock), -600);
+        await axisNarrowed(dock, whole);
+        assert.isAbove(brushOf(dock).min, to);
+
+        await tap(plotOf(dock));
+
+        await waitFor(() => {
+            assert.isAbove(windowOf(session).from, to);
+        });
+        const moved = windowOf(session);
+        assert.equal(moved.to - moved.from, to - from);
+    });
+
+    it("shows the whole timeline when an undo takes the window out of the zoomed axis", async () => {
+        const { session, dock } = await openDock();
+        const whole = brushOf(dock);
+        const span = whole.max - whole.min;
+        await windowOn(session, whole.min + span * 0.02, whole.min + span * 0.1);
+        // Window moves in quick succession merge: a step of another kind keeps them two.
+        await act(async () => {
+            await session.time.setSettings({ results: "keep" });
+        });
+        await windowOn(session, whole.min + span * 0.4, whole.min + span * 0.6);
+        await wheelOver(plotOf(dock), -600);
+        await axisNarrowed(dock, whole);
+
+        await userEvent.keyboard("{Control>}z{/Control}");
+
+        await waitFor(() => {
+            assert.equal(brushOf(dock).max - brushOf(dock).min, span);
+        });
+    });
+
+    it("shows the whole timeline of a project opened after zooming another", async () => {
+        const saved = createGraphSession({ features: ["timeline"] });
+        await saved.data.import({
+            type: "csv",
+            config: { data: "source,target,sent\nA,B,2031-01-01\nB,C,2031-01-09\n" },
+        });
+        await saved.time.setField({ edges: { start: "sent", unit: "ms" } });
+        const { text } = await saved.project.save();
+        saved.dispose();
+
+        const { session, store, dock } = await openDock();
+        const whole = brushOf(dock);
+        await wheelOver(plotOf(dock), -600);
+        await axisNarrowed(dock, whole);
+
+        act(() => {
+            store.set({ project: { name: "Second", id: 2 } });
+        });
+        const second = await waitFor(() => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            assert.notEqual(found, session);
+            return found;
+        });
+        await act(async () => {
+            await second.project.open(text, { discard: true });
+            await second.time.ready;
+        });
+
+        await waitFor(() => {
+            const shown = brushOf(screen.getByRole("region", { name: "Timeline" }));
+            assert.isAtMost(shown.min, Date.UTC(2031, 0, 1));
+            assert.isAtLeast(shown.max, Date.UTC(2031, 0, 9));
+        });
+        assert.isNull(screen.queryByRole("button", { name: "Show whole timeline" }));
     });
 
     it("jumps to the selection's span from its button, the window set to it", async () => {
@@ -256,16 +497,22 @@ describe("the timeline dock on the real element", () => {
                 assert.equal(Number(hour), 0);
             });
 
-            await userEvent.click(within(dock).getByTestId("time-readout"));
-            const from = await screen.findByRole("textbox", { name: "From" });
-            const to = screen.getByRole("textbox", { name: "To" });
-            await userEvent.clear(from);
-            await userEvent.type(from, "Mar 10, 2025");
-            await userEvent.clear(to);
-            await userEvent.type(to, "Mar 12, 2025{Enter}");
+            await typeWindow(dock, "Mar 10, 2025", "Mar 12, 2025");
             await waitFor(() => {
                 assert.equal(within(dock).getByTestId("time-readout").textContent, "Mar 10, 2025 - Mar 12, 2025");
             });
+
+            // The clocks change on Mar 9 and Nov 2: a day of 23 hours, then one of 25.
+            await typeWindow(dock, "Mar 8, 2025", "Mar 9, 2025");
+            await waitFor(() => {
+                assert.equal(within(dock).getByTestId("time-readout").textContent, "Mar 8, 2025 - Mar 9, 2025");
+            });
+            assert.equal(windowOf(session).to, Date.UTC(2025, 2, 10, 4));
+            await typeWindow(dock, "Nov 1, 2025", "Nov 2, 2025");
+            await waitFor(() => {
+                assert.equal(within(dock).getByTestId("time-readout").textContent, "Nov 1, 2025 - Nov 2, 2025");
+            });
+            assert.equal(windowOf(session).to, Date.UTC(2025, 10, 3, 5));
 
             await act(async () => {
                 await session.time.setSettings({ step: "hour" });
@@ -274,6 +521,18 @@ describe("the timeline dock on the real element", () => {
                 assert.match(within(dock).getByTestId("time-readout").textContent, / E[DS]T$/);
             });
         });
+    });
+
+    it("reads a year field in UTC under a zone saved for a date field", async () => {
+        const { session, dock } = await openDock("source,target,sent\nA,B,1995\nB,C,2001\n");
+        await act(async () => {
+            await session.time.setSettings({ timeZone: NEW_YORK });
+            await session.time.setField({ edges: { start: "sent", unit: "year" } });
+        });
+        await waitFor(() => {
+            assert.match(within(dock).getByTestId("time-readout").textContent, /^1995 - /);
+        });
+        assert.equal(session.time.settings.timeZone, NEW_YORK);
     });
 
     it("keeps UTC on an hour's readout under the default zone", async () => {
@@ -288,12 +547,28 @@ describe("the timeline dock on the real element", () => {
     });
 
     it("names the total and the busiest bar in the histogram's accessible name", async () => {
-        const { dock } = await openDock();
-        await within(dock).findByRole("img", { name: /^Edges over time, 2,102 edges, busiest .+: [\d,]+ edges?$/ });
+        const { session, dock } = await openDock();
+        await within(dock).findByRole("img", { name: /^Edges over time/ });
+        // The bars' own count asks the element for those same bars.
+        const rows = within(within(dock).getByTestId("histogram-values")).getAllByRole("row");
+        const bins = session.time.bins({ maxCount: rows.length }) ?? [];
+        assert.equal(bins.length, rows.length);
+        const busiest = bins.reduce((top, bin) => (bin.edges > top.edges ? bin : top));
+        const when = rangeWords(busiest.start, busiest.end, "ms", busiest.step);
+        const name = `Edges over time, 2,102 edges, busiest ${when}: ${countWords(busiest.edges, "edge")}`;
+        within(dock).getByRole("img", { name });
+
+        const whole = brushOf(dock);
+        const span = whole.max - whole.min;
+        await windowOn(session, whole.min + span * 0.4, whole.min + span * 0.6);
+        within(dock).getByRole("img", { name });
+        await wheelOver(plotOf(dock), -300);
+        await axisNarrowed(dock, whole);
+        within(dock).getByRole("img", { name });
     });
 
     it("says what entered and left on the status line after a step", async () => {
-        const { session, store, dock } = await openDock();
+        const { session, dock } = await openDock();
         await act(async () => {
             await session.time.setSettings({ step: "week" });
         });
@@ -303,11 +578,29 @@ describe("the timeline dock on the real element", () => {
             const { entered, left } = session.time.changes();
             const counted = (ids: typeof entered): number => ids.nodes.length + ids.edges.length;
             assert.isAbove(counted(entered) + counted(left), 0);
-            assert.include(
-                store.get().announcement ?? "",
-                `${String(counted(entered))} entered, ${String(counted(left))} left`,
-            );
+            assert.include(statusLine(), `${String(counted(entered))} entered, ${String(counted(left))} left`);
         });
+    });
+
+    it("says what a play moved in all on the status line when it pauses", async () => {
+        const { session, dock } = await openDock();
+        const played = { entered: 0, left: 0 };
+        const stop = session.on("time:step", ({ entered, left }) => {
+            played.entered += entered.nodes + entered.edges;
+            played.left += left.nodes + left.edges;
+        });
+        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await waitFor(() => {
+            assert.isAbove(played.entered + played.left, 0);
+        });
+
+        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+
+        await waitFor(() => {
+            assert.isFalse(session.time.playing);
+            assert.include(statusLine(), `${formatCount(played.entered)} entered, ${formatCount(played.left)} left`);
+        });
+        stop();
     });
 
     it("jumps the window to a tapped bar outside the brush, as one step", async () => {

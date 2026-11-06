@@ -6,7 +6,7 @@
  */
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { useCallback, useEffect, useState } from "react";
+import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 
 /** The stretch of the timeline the histogram shows. */
 export interface TimeView {
@@ -22,6 +22,16 @@ const PINCH_RATE = 0.01;
 const LINE_HEIGHT = 16;
 /** The zoom stops before the view would hold fewer bars, each one step the element chose. */
 const MIN_BARS = 2;
+
+/**
+ * Whether two stretches of the timeline share nothing.
+ * @param a - one.
+ * @param b - the other.
+ * @returns true when they do not overlap.
+ */
+function apart(a: TimeView, b: TimeView): boolean {
+    return a.to <= b.from || a.from >= b.to;
+}
 
 /**
  * The view after one zoom about a point of the axis.
@@ -61,12 +71,19 @@ function zoomed(
 
 /**
  * Follows two fingers that started in the dock. While they are down, and until the last one lifts,
- * their moves reach nothing else in the dock, so a pinch over the brush does not also drag it.
+ * their moves reach nothing else in the dock, so a pinch over the brush does not also drag it. A
+ * thumb takes touch events and the rest pointer events, so both stop here. The lift still reaches
+ * the thumb, which holds on to the document until it sees one; `pinched` tells the release apart.
  * @param dock - the dock.
  * @param zoomAt - zooms by a factor about a screen x.
+ * @param pinched - set from the second finger until the next gesture starts.
  * @returns stops following.
  */
-function followPinch(dock: HTMLElement, zoomAt: (x: number, factor: number) => void): () => void {
+function followPinch(
+    dock: HTMLElement,
+    zoomAt: (x: number, factor: number) => void,
+    pinched: RefObject<boolean>,
+): () => void {
     const fingers = new Map<number, { x: number; y: number }>();
     let pinching = false;
     const spread = (): number => {
@@ -74,12 +91,16 @@ function followPinch(dock: HTMLElement, zoomAt: (x: number, factor: number) => v
         return Math.hypot(a.x - b.x, a.y - b.y);
     };
     const down = (event: PointerEvent): void => {
+        if (fingers.size === 0) {
+            pinched.current = false;
+        }
         if (event.pointerType !== "touch") {
             return;
         }
         fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
         if (fingers.size > 1) {
             pinching = true;
+            pinched.current = true;
             event.stopPropagation();
         }
     };
@@ -99,31 +120,46 @@ function followPinch(dock: HTMLElement, zoomAt: (x: number, factor: number) => v
         fingers.delete(event.pointerId);
         pinching = pinching && fingers.size > 0;
     };
+    const touchMove = (event: TouchEvent): void => {
+        if (pinching) {
+            event.stopPropagation();
+        }
+    };
     dock.addEventListener("pointerdown", down, true);
     dock.addEventListener("pointermove", move, true);
     dock.addEventListener("pointerup", up, true);
     dock.addEventListener("pointercancel", up, true);
+    dock.addEventListener("touchmove", touchMove, true);
     return () => {
         dock.removeEventListener("pointerdown", down, true);
         dock.removeEventListener("pointermove", move, true);
         dock.removeEventListener("pointerup", up, true);
         dock.removeEventListener("pointercancel", up, true);
+        dock.removeEventListener("touchmove", touchMove, true);
     };
 }
 
 /**
- * The dock's zoom. A new field shows the whole timeline again, and so does a window that moves
- * out of the view, so a jump or a play is never out of sight.
+ * The dock's zoom. A new session or field shows the whole timeline again, and so does data that
+ * leaves the view empty or a window that moves out of it, however it moved, so a jump, a play or an
+ * undo is never out of sight. The reader's own zoom may still leave the window behind.
  * @param session - the element's session, or null.
  * @param maxCount - the most bars the dock draws.
- * @returns the view (null for the whole timeline), its reset, and the ref for the chart.
+ * @returns the view (null for the whole timeline), its reset, the ref for the chart, and whether
+ * the last touch gesture was a pinch.
  */
 export function useTimeZoom(
     session: GraphSession | null,
     maxCount: number,
-): { view: TimeView | null; reset: () => void; chartRef: (chart: HTMLElement | null) => void } {
+): {
+    view: TimeView | null;
+    reset: () => void;
+    chartRef: (chart: HTMLElement | null) => void;
+    pinched: RefObject<boolean>;
+} {
     const [view, setView] = useState<TimeView | null>(null);
     const [chart, chartRef] = useState<HTMLElement | null>(null);
+    const pinched = useRef(false);
     const reset = useCallback(() => {
         setView(null);
     }, []);
@@ -133,14 +169,28 @@ export function useTimeZoom(
             return undefined;
         }
         const offField = session.on("time:field", reset);
-        const offStep = session.on("time:step", ({ from, to }) => {
-            setView((held) => (held !== null && (to <= held.from || from >= held.to) ? null : held));
-        });
         return () => {
             offField();
-            offStep();
+            reset();
         };
     }, [session, reset]);
+
+    const window = session?.time.current ?? null;
+    const windowFrom = window === null ? null : Number(window.from);
+    const windowTo = window === null ? null : Number(window.to);
+    const extent = session?.time.extent() ?? null;
+    const extentFrom = extent?.from ?? null;
+    const extentTo = extent?.to ?? null;
+    useEffect(() => {
+        setView((held) => {
+            if (held === null) {
+                return null;
+            }
+            const gone = extentFrom === null || extentTo === null || apart(held, { from: extentFrom, to: extentTo });
+            const left = windowFrom !== null && windowTo !== null && apart(held, { from: windowFrom, to: windowTo });
+            return gone || left ? null : held;
+        });
+    }, [windowFrom, windowTo, extentFrom, extentTo]);
 
     useEffect(() => {
         const dock = chart?.closest<HTMLElement>(".tl-dock");
@@ -159,12 +209,12 @@ export function useTimeZoom(
             zoomAt(event.clientX, Math.exp(pixels * (event.ctrlKey ? PINCH_RATE : WHEEL_RATE)));
         };
         chart.addEventListener("wheel", wheel, { passive: false });
-        const stopPinch = followPinch(dock, zoomAt);
+        const stopPinch = followPinch(dock, zoomAt, pinched);
         return () => {
             chart.removeEventListener("wheel", wheel);
             stopPinch();
         };
     }, [session, chart, maxCount]);
 
-    return { view, reset, chartRef };
+    return { view, reset, chartRef, pinched };
 }

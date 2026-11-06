@@ -15,8 +15,9 @@ import { columnVerb, openColumnMenu } from "../../../test/column-header";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { openDataPage } from "../../data-page/request";
+import { openTimeCard } from "../../data-place/filterCards";
 import { REGISTRATIONS } from "../../registrations";
-import { createWorkspaceStore } from "../../state/store";
+import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /** Every edge carries its `sent` date. */
@@ -27,15 +28,17 @@ const DATED_EDGES = "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,202
 const FIRST_TWO_DAYS = { from: Date.UTC(2026, 0, 1), to: Date.UTC(2026, 0, 3) };
 
 /**
- * A project saved with the timeline on: a time field, its Ghost row, playback and a window.
+ * A project saved with the timeline on: a date column as its time field, its Ghost row, playback, a
+ * zone that puts the first day on Dec 31, and a window.
  * @returns the file's text.
  */
 async function timedProject(): Promise<string> {
     const saved = createGraphSession({ features: ["timeline"] });
     await saved.data.import({ type: "csv", config: { data: DATED_EDGES } });
     await saved.config.set({ startingRows: true });
+    await saved.data.setType({ kind: "edge", name: "sent" }, "date");
     await saved.time.setField({ edges: { start: "sent", unit: "ms" } });
-    await saved.time.setSettings({ mode: "cumulative", outside: "ghost" });
+    await saved.time.setSettings({ mode: "cumulative", outside: "ghost", timeZone: "America/New_York" });
     await saved.time.window(FIRST_TWO_DAYS);
     const { text } = await saved.project.save();
     saved.dispose();
@@ -45,10 +48,13 @@ async function timedProject(): Promise<string> {
 /**
  * Renders the workspace.
  * @param place - the place it opens on.
+ * @param store - the chrome store.
  * @returns the session.
  */
-async function mount(place: "graph" | "data"): Promise<GraphSession> {
-    const store = createWorkspaceStore({ project: { name: "Timeline", id: 1 }, place });
+async function mount(
+    place: "graph" | "data",
+    store: WorkspaceStore = createWorkspaceStore({ project: { name: "Timeline", id: 1 }, place }),
+): Promise<GraphSession> {
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
     await waitFor(() => {
@@ -80,6 +86,30 @@ async function styleRows(): Promise<string[]> {
     const tree = within(await screen.findByRole("tree", { name: "Style layers" }));
     await tree.findByRole("treeitem", { name: /^Everything, / });
     return tree.getAllByRole("treeitem").map((row) => row.getAttribute("aria-label") ?? row.textContent);
+}
+
+/**
+ * Opens the project saved with the timeline, reads the edges' table, and routes the inspector to
+ * the Time card's step.
+ * @returns the table's words.
+ */
+async function savedDates(): Promise<string> {
+    const store = createWorkspaceStore({ project: { name: "Timeline", id: 1 }, place: "graph" });
+    const session = await mount("graph", store);
+    await session.project.open(await timedProject(), { discard: true });
+    await userEvent.keyboard("{Shift>}T{/Shift}");
+    const dock = await screen.findByRole("region", { name: "Table" });
+    await userEvent.click(await within(dock).findByRole("tab", { name: "Edges" }));
+    const table = await within(dock).findByRole("grid", { name: "Edges" });
+    await waitFor(() => {
+        assert.match(table.textContent, /[A-Z][a-z]{2} \d+, 202\d/);
+    });
+    const words = table.textContent;
+    act(() => {
+        openTimeCard(store);
+    });
+    await screen.findByRole("region", { name: "Data place" });
+    return words;
 }
 
 /**
@@ -347,6 +377,20 @@ describe("the timeline's switch in the app", () => {
             assert.strictEqual(session.visibility.summary.visibleEdges, 4);
             assert.isNull(screen.queryByRole("button", { name: "Clear filters" }));
         });
+    });
+
+    it("reads a project's dates in UTC, its saved zone left out, with the experiment off", async () => {
+        await siteFeatures([]);
+        const words = await savedDates();
+        assert.include(words, "Jan 1, 2026");
+        assert.notInclude(words, "Dec 31, 2025");
+        assert.isNull(screen.queryByRole("radiogroup", { name: "Zone" }), "no zone row");
+    });
+
+    it("reads the same project's dates in its saved zone with the experiment on", async () => {
+        await siteFeatures(["timeline"]);
+        assert.include(await savedDates(), "Dec 31, 2025");
+        await screen.findByRole("radiogroup", { name: "Zone" });
     });
 
     it("shows the same project's Ghost row with the experiment on", async () => {

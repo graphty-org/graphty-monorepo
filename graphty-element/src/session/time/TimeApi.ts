@@ -450,6 +450,11 @@ export interface TimeApi {
     readonly atStart: boolean;
     /** Whether the window reaches the end of the data. False with no window. */
     readonly atEnd: boolean;
+    /**
+     * The IANA zone the timeline reads in now: the window's, then the setting's, and always UTC over
+     * a year column. Write a date in this zone and it reads as the bins and the window do.
+     */
+    readonly zone: string;
     /** How windows move: results, mode, step and missing, with every default filled in. */
     readonly settings: TimeSettings;
     /**
@@ -613,6 +618,7 @@ export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
         atStart: false,
         atEnd: false,
         playing: false,
+        zone: UTC_ZONE,
         settings: DEFAULT_TIME_SETTINGS,
         mode: DEFAULT_TIME_SETTINGS.mode,
         interval: DEFAULT_INTERVAL,
@@ -2491,6 +2497,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         get atEnd() {
             const current = cursor ?? visibility.window;
             return current !== null && isLast(current);
+        },
+
+        get zone() {
+            return zoneOf(undefined, cursor ?? visibility.window);
         },
 
         get settings() {

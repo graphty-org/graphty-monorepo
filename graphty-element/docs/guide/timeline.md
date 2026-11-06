@@ -138,6 +138,9 @@ always 60 minutes. A time a change skipped reads as the same distance past the g
 repeated reads as the first of the two. A year column (`unit: "year"`) always reads in UTC, so 1995
 stays 1995 everywhere.
 
+`time.zone` is the zone the timeline reads in now, with all of that settled. Write dates in it and
+they match the bins and the window.
+
 `time.parse` reads in `parseZone`. If you show dates in another zone, pass it, so a date a reader
 types means what they see:
 

@@ -3,7 +3,7 @@ import React from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { focusBrush, reportTimeError, unitOf, zoneOf } from "./timeActions";
+import { focusBrush, reportTimeError, unitOf } from "./timeActions";
 import { windowWords } from "./timeWords";
 import { useTimeVersion } from "./useTimeVersion";
 
@@ -21,7 +21,7 @@ export function TimeChip(): React.JSX.Element | null {
         return null;
     }
     const window = session.time.current;
-    const words = windowWords(window, unitOf(session), zoneOf(session));
+    const words = windowWords(window, unitOf(session), session.time.zone);
     return (
         <Group gap={0} wrap="nowrap" className="tl-chip">
             <Tooltip label={`Time: ${words}`}>

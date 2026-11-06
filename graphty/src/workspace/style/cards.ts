@@ -546,7 +546,7 @@ function leavesOf(session: GraphSession, selector: Selector): Leaves {
             return { leaves: [{ kind: "member", of: selector.of }] };
         default: {
             // A rule typed in find (`donations >= \`10000\``) reads as its cards too.
-            const rule = selectorRule(selector, { comparisons: true });
+            const rule = selectorRule(selector, { comparisons: true, states: true });
             if (rule === undefined) {
                 return selector.match === "expression"
                     ? { leaves: [{ kind: "expression", where: selector.where }] }

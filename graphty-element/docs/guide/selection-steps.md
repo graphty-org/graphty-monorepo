@@ -114,8 +114,8 @@ await session.styles.add({
 });
 ```
 
-`{ match: "state", state }` is the same condition on its own, `selectorRule` reads it as the leaf, and
-`selectorStates(selector)` lists the states any selector reads. A kept set and a visibility filter do
+`{ match: "state", state }` is the same condition on its own, `selectorRule(selector, { states: true })`
+reads it as the leaf, and `selectorStates(selector)` lists the states any selector reads. A kept set and a visibility filter do
 not follow the reader, so they refuse a `state` leaf.
 
 `computedOn: "so-far"` ranks a step over its input instead of the base: "the top 3 by degree among

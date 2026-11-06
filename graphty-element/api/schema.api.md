@@ -3509,7 +3509,7 @@ export type Selector = {
 * (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
 * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
 * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
-* `selectorRule` reads this selector as.
+* `selectorRule` reads this selector as with its `states` option.
 * @since 3.26.0
 */
 | {

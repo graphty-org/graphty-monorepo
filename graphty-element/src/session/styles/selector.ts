@@ -327,21 +327,23 @@ export type RuleSelector = Extract<Selector, { readonly match: "rule" }>;
  * ```
  * @param selector - Any selector.
  * @returns Its rule form: a `rule` selector as it is; `has` as "has a value" (a `text` leaf
- *     with an empty `regex`); `top` as a `threshold` leaf; `state` as a `state` leaf; an `expression` that compares a
+ *     with an empty `regex`); `top` as a `threshold` leaf; an `expression` that compares a
  *     `data.` or `results.` path with a number, a yes-or-no value or `null` (and `&&` of those)
  *     as the matching leaves. Undefined for a selector with no rule form (`everything`, `ids`,
- *     `member`, and any other expression), which an editor draws its own way. With
+ *     `member`, `state`, and any other expression), which an editor draws its own way. With
  *     `options.comparisons`, an expression is also read through `>=` and `<=` (a `range` leaf)
  *     and `>` (a `threshold` leaf's `above`) against a number, and through a bare column name,
  *     which a rule reads as that file column: `` donations >= `10000` `` is the range leaf on
  *     `data.donations` from 10000 up.
  * @param options - How much to read.
  * @param options.comparisons - Read ordering comparisons and bare column names too. Default false.
+ * @param options.states - Read a `state` selector as a `state` leaf, so an editor can put conditions
+ *     beside it. Default false: a `state` selector has no rule form. Since 3.36.0.
  * @since 3.26.0
  */
 export function selectorRule(
     selector: Selector,
-    options: { readonly comparisons?: boolean } = {},
+    options: { readonly comparisons?: boolean; readonly states?: boolean } = {},
 ): RuleSelector | undefined {
     switch (selector.match) {
         case "rule":
@@ -359,7 +361,9 @@ export function selectorRule(
                 },
             };
         case "state":
-            return { match: "rule", where: { kind: "state", state: selector.state } };
+            return options.states === true
+                ? { match: "rule", where: { kind: "state", state: selector.state } }
+                : undefined;
         case "expression": {
             const where = expressionRule(selector.where, options.comparisons === true);
             return where === undefined ? undefined : { match: "rule", where };
@@ -405,7 +409,7 @@ function statesInRule(rule: RuleTree): ElementState[] {
  * @since 3.36.0
  */
 export function selectorStates(selector: Selector): readonly ElementState[] {
-    const rule = selectorRule(selector)?.where;
+    const rule = selectorRule(selector, { states: true })?.where;
     return rule === undefined ? [] : [...new Set(statesInRule(rule))];
 }
 

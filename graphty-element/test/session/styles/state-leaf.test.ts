@@ -55,8 +55,16 @@ async function matched(session: GraphSession, id: string): Promise<number> {
 const leaf = (state: ElementState): RuleTree => ({ kind: "state", state });
 
 describe("a state selector has a rule form", () => {
-    it.each(["selected", "hovered", "ghosted", "pinned"] as const)("reads %s as a state leaf", (state) => {
-        assert.deepEqual(selectorRule({ match: "state", state }), { match: "rule", where: leaf(state) });
+    it.each(["selected", "hovered", "ghosted", "pinned"] as const)("reads %s as a state leaf when asked", (state) => {
+        assert.deepEqual(selectorRule({ match: "state", state }, { states: true }), {
+            match: "rule",
+            where: leaf(state),
+        });
+    });
+
+    it.each(["selected", "hovered", "ghosted", "pinned"] as const)("reads %s as no rule by default", (state) => {
+        assert.isUndefined(selectorRule({ match: "state", state }));
+        assert.isUndefined(selectorRule({ match: "state", state }, { comparisons: true }));
     });
 
     it("names the states a selector reads, however deep", () => {

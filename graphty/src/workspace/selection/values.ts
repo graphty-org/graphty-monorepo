@@ -782,7 +782,7 @@ export function layerSelection(session: GraphSession, selector: Selector, side: 
             branches: [{ start: "all", steps: [] }],
         };
     }
-    const rule = selectorRule(selector)?.where;
+    const rule = selectorRule(selector, { states: true })?.where;
     if (rule === undefined) {
         return null;
     }

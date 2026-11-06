@@ -413,8 +413,9 @@ export class NodeIdTarget {
             return now ? ID_NONE : Promise.resolve(ID_NONE);
         }
 
-        // A WebGL texture's first row is the bottom of the picture.
-        const py = engine.isWebGPU ? row : height - 1 - row;
+        // The target's first row is the bottom of the picture on both engines: Babylon draws a WebGPU
+        // render target upside down so its textures read as WebGL's do.
+        const py = height - 1 - row;
         this.counts.reads++;
         if (now) {
             engine._readTexturePixelsSync(texture, 1, 1, -1, 0, this.texel, true, false, px, py);

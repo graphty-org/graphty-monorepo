@@ -335,6 +335,21 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
+    it("answer a held row's exact place, which the table keeps only to 32 bits", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "2d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const node = graph.getNode(3);
+        assert.isDefined(node);
+        assert.isTrue(node.drawnInBatch);
+        // A transition puts a node part of the way between two layouts: a point no float32 holds.
+        node.setMeshPosition(0.1, 0.2, 0);
+        assert.notEqual(Math.fround(0.1), 0.1);
+        assert.equal(node.drawnPosition.x, 0.1);
+        assert.equal(node.drawnPosition.y, 0.2);
+    });
+
     it("draw a row part of the way through a particle shrink", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");

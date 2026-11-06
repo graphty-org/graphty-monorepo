@@ -253,6 +253,16 @@ export class RowTable {
     }
 
     /**
+     * Whether a row is held where {@link RowTable.place} put it, off its lane: its node's own
+     * position is then the exact one, which this table keeps only to 32 bits.
+     * @param row - The row.
+     * @returns True when it is held.
+     */
+    isHeld(row: number): boolean {
+        return ((this.flags[row] ?? 0) & HELD) !== 0;
+    }
+
+    /**
      * Where a row is drawn.
      * @param row - The row.
      * @returns A new vector.

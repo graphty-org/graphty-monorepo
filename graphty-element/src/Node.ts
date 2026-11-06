@@ -1378,7 +1378,10 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnPosition(): Readonly<Vector3> {
-        return this.batchTable?.centerOf(this.row) ?? this.#anchor.position;
+        // A held row was put by setMeshPosition, which wrote the anchor exactly; the table keeps it
+        // only to 32 bits, and an edge trimmed from the rounded point is drawn a hair off the object path's.
+        const table = this.batchTable;
+        return table === null || table.isHeld(this.row) ? this.#anchor.position : table.centerOf(this.row);
     }
 
     /**

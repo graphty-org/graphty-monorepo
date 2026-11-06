@@ -15,49 +15,52 @@ save and reopen.
 
 ## Top of mind
 
+1. (2026-11-06) **Chat switcher decided** (`tier6/decided.md`): header names the open chat; whole-row
+   button opens it; "..." menu Rename F2 / Delete. My double-click and header-F2 rename, filter field and
+   roving focus were cut: a click opens the chat or toggles the list before a double-click lands.
 1. (2026-11-06) **Tier 6 round 2 closed: 11 of 12 succeeded, 0 false "done", 0 confirmed severity 3,
    Undo restored all in 2 of 2.** What is left has one shape: the screen says less than the graph did,
    or says it where the reader is not looking. Round 3 runs on build a80da6d62e with 15 units, one fix
    per problem so each can be credited.
-2. (2026-11-06) **Focus after a press that removes its own button goes to the composer** (unit
+1. (2026-11-06) **Focus after a press that removes its own button goes to the composer** (unit
    `focus-after-a-press`, fails bar 8). All approval buttons, Answer, a turn's Undo, the scope x, Use
    selection, Send again. Settings still returns to its opener. Round 3 check: a typed letter after each
    lands in the composer; a second Enter changes nothing.
-3. (2026-11-06) **The reply's foot: measure before building.** Step (a) is `position: relative` on
+1. (2026-11-06) **The reply's foot: measure before building.** Step (a) is `position: relative` on
    `.ws-assistant-log` (the hidden chip span escapes and adds the outer scrollbar). Step (b), a
    ResizeObserver calling `toFoot` while following, only if (a) falls short. Watch: one scrollbar, chips
    and Undo in view, and the three deferred routes (T93 B, T95 A, T90 B).
-4. (2026-11-06) **The placeholder follows `scope.kind`** ("Ask about this selection"); scope on the You
+1. (2026-11-06) **The placeholder follows `scope.kind`** ("Ask about this selection"); scope on the You
    turn and "only" wording are refused until T92 A's plant is retested on this alone. If the plant still
    lands, the You-turn scope is the next step.
-5. (2026-11-06) **A painting run says so on its existing line**, "Computed X for N nodes, colored by it",
+1. (2026-11-06) **A painting run says so on its existing line**, "Computed X for N nodes, colored by it",
    from `painted` on `AI_EFFECT_RUN`; no separate Colored row (rows at rest do not rise). Default stays
    painting. Watch: `painting()` must not read `pending` in `settleRun`; any leftover "Changed the graph"
    gets its tool named.
-6. (2026-11-06) **A failure with two causes says both:** "the connection failed or the key was refused",
+1. (2026-11-06) **A failure with two causes says both:** "the connection failed or the key was refused",
    Send again plus AI provider..., keyed on `requiresKey`. A browser truly hides a 401 with no CORS header.
-7. (2026-11-06) **Rulings, now settled:** a rollback leaves no selection and no lit Redo (it is not a
+1. (2026-11-06) **Rulings, now settled:** a rollback leaves no selection and no lit Redo (it is not a
    reader's Undo); closing the panel does not end the scope x (design 5.2). Both are in `decided.md`.
-8. (2026-11-06) **Esc and scope still owed:** Esc closing Settings or on a focused chip clears the
+1. (2026-11-06) **Esc and scope still owed:** Esc closing Settings or on a focused chip clears the
    selection with no undo. Not a round 3 unit; re-walk it, since selection is a hidden argument.
-9. (2026-11-06) **A claim must be true of the whole state.** Autosave's tooltip promises a return that
+1. (2026-11-06) **A claim must be true of the whole state.** Autosave's tooltip promises a return that
    never happens for an opened file (no way of opening a file gets a handle). Round 3 fixes the string
    only; Recent projects for opened files is backlog.
-10. (2026-11-06) **Small but mine:** Enter in the key box runs Save; the Undo notice loses its doubled
-    period and stays off an open panel; a waiting question reads at body size; Show in table opens on
-    the rows it names.
-11. (2026-11-06) **Study instrument limits:** hover in the tool is a deliberate command, so hover counts
-    measure the tool; first-meeting prompts no longer say "returning"; bar 7 fails as worded (a closed
-    tab), not on Undo. Owed: 400% Settings repro, the 193-screen audit, the key-after-reopen test.
-12. (2026-11-05) **Every effect gets its line; every ending leaves one.** No Declined line after Keep
-    them; Done must not drop a typed key.
-13. (2026-10-30) **Show what an act will do, and decide before it.** One fact, one drawing; a count is
-    a link that selects what it counts. Keyboard debts: header "..." not a Tab stop, the workspace
-    header has no F6 stop.
-14. (2026-10-21) Owed traces from tier 3: the 130 px drawing move on first color, the off-center reopen,
-    a real-notch wheel repro. Name the mechanism before any fix.
-15. Standing: a failure is strong evidence, a pass weak; trust repros and code over tool text; graph
-    facts in graphty-element, flows/focus/words in the app, shared defects in compact-mantine.
+1. (2026-11-06) **Small but mine:** Enter in the key box runs Save; the Undo notice loses its doubled
+   period and stays off an open panel; a waiting question reads at body size; Show in table opens on
+   the rows it names.
+1. (2026-11-06) **Study instrument limits:** hover in the tool is a deliberate command, so hover counts
+   measure the tool; first-meeting prompts no longer say "returning"; bar 7 fails as worded (a closed
+   tab), not on Undo. Owed: 400% Settings repro, the 193-screen audit, the key-after-reopen test.
+1. (2026-11-05) **Every effect gets its line; every ending leaves one.** No Declined line after Keep
+   them; Done must not drop a typed key.
+1. (2026-10-30) **Show what an act will do, and decide before it.** One fact, one drawing; a count is
+   a link that selects what it counts. Keyboard debts: header "..." not a Tab stop, the workspace
+   header has no F6 stop.
+1. (2026-10-21) Owed traces from tier 3: the 130 px drawing move on first color, the off-center reopen,
+   a real-notch wheel repro. Name the mechanism before any fix.
+1. Standing: a failure is strong evidence, a pass weak; trust repros and code over tool text; graph
+   facts in graphty-element, flows/focus/words in the app, shared defects in compact-mantine.
 
 ## Priorities and values
 

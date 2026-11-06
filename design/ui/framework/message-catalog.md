@@ -124,6 +124,7 @@ second record of the same shape.
 | `assistant.question` | Or type an answer; That is not one of the choices. | state line | Answer | app | the waiting section and the composer | -- | -- | -- |
 | `assistant.away` | Waiting: {title}; The assistant answered; the turn's change lines | notice | Open; Undo | app | a request or a finished turn with the panel closed | out-of-sight | polite | -- |
 | `assistant.voice` | Speech goes to your browser's maker.; Speech goes to {provider}.; Allow the microphone to talk.; No microphone found.; This browser cannot take speech here.; Speech stopped: the connection dropped.; Speech needs a key.; Speech is not available. | state line | -- | app | one line under the composer | -- | -- | -- |
+| `assistant.list` | Chats; Chats {N}; New chat; Rename; Chat name; Delete; Delete this chat? Delete, Keep it; Not renamed; {title} menu | state line | the row opens the chat; Rename (F2); Delete | app | the Assistant header's chat switch and the list it opens in place of the log | -- | -- | -- |
 | `layout.hiddenRead` | lays out {N} nodes, {H} hidden | state line | Filter to drawn | state: layout scope | the Layout row after Hide others (`state-matrix.md` 4.2) | -- | polite | -- |
 | `edit.runLine` | waits for Run; applies as you edit | state line | Run | state: editor | the Run line of a result or layout editor (`interaction-patterns.md` 3.3) | -- | polite | -- |
 | `feedback.sent` | Feedback sent | notice | -- | app | the feedback form closed | outside-app | polite | -- |

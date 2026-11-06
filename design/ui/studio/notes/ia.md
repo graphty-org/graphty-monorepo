@@ -7,41 +7,44 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
+1. (2026-11-06) Chat switcher decided (`tier6/decided.md`): "Chats {N}" only while open, "chat" as the
+   reader's word, one door for New chat (the header "+"). My "+ New chat" list row was cut as a second
+   home for one command; the element already keeps empty chats out of the list.
 1. (2026-11-06, tier 6 round 2 decided) Round 3 credits one change per problem, and words at rest
    do not rise: a fix joins an existing line or replaces words, never adds a row. My "About 14
    selected nodes" turn mark was refused as a second count to keep true; the placeholder now
    follows the scope ("Ask about this selection"). Watch T92: does the placeholder stop Dev?
-2. (2026-11-06) One name per measure: the Assistant's lines take `wordsFor(...).name`, as the
+1. (2026-11-06) One name per measure: the Assistant's lines take `wordsFor(...).name`, as the
    legend does. Limit: the model still sees `plainName`, so a reply can say "Reach". Watch whether
    replies alone still split names in round 3.
-3. (2026-11-06) A painting run says so on its existing line, not a Colored row (ruling in
+1. (2026-11-06) A painting run says so on its existing line, not a Colored row (ruling in
    decided.md); the element reports `painted` from `runs.painting`. Default stays: changing it
    breaks. Check that the line reads true when `style: false`.
-4. (2026-11-06) Show in table narrows to its rows with the members chip (reach all 7 of 331);
+1. (2026-11-06) Show in table narrows to its rows with the members chip (reach all 7 of 331);
    `scrollToRow` and selected-first sort were refused. My door rule held: a door lands on what it names.
-5. (2026-11-06) Autosave: only the tooltip changes ("Changes not yet in a file are kept...").
+1. (2026-11-06) Autosave: only the tooltip changes ("Changes not yet in a file are kept...").
    Real gap stays open: no way of opening a file reaches Recent projects (`pickFiles` on every
    open door; only Save and Locate get a handle). `showOpenFilePicker` refused for now.
-6. (2026-11-06) A refused key reads "connection failed" because the browser hides the 401; the
+1. (2026-11-06) A refused key reads "connection failed" because the browser hides the 401; the
    app can only say the key "may be" at fault, offers the provider, and keeps Send again.
-7. (2026-11-06) After a press that removes its own button, focus goes to the composer; Settings
+1. (2026-11-06) After a press that removes its own button, focus goes to the composer; Settings
    returns to its opener. One rule, not stretched.
-8. (2026-11-06) Rulings: a rollback leaves no selection and no Redo (a failed message did not
+1. (2026-11-06) Rulings: a rollback leaves no selection and no Redo (a failed message did not
    happen); closing the panel does not end the scope x (the build is wrong, not the entry).
-9. (2026-11-06) Two scrollbars: measure `position: relative` on the log first, build step two
+1. (2026-11-06) Two scrollbars: measure `position: relative` on the log first, build step two
    only if it falls short. Read-only mechanisms are measured before they are built on.
-10. (2026-11-06) Refused because the product lacks the concept: names for Group 1 to N; plain
-    words for opened steps (a per-tool wording design). Do not re-raise without new evidence.
-11. (2026-11-06) Watch in round 3: bar 9 rests on the 400% Settings fix; the 193-screen audit for
-    bars 10 and 11; whether the conversation comes back with a key after a reopen; the backlog's
-    "Open run lands on Style" and "Done drops a typed key" if they recur.
-12. (2026-11-05) Lasting facts live on lasting surfaces; words that read as finishing must finish.
-13. (2026-10-30) Decide before the act; one fact, one drawing; a door lands on its control.
-14. Study lessons: settle a disputed fact at its source (my "a different door gets a handle" was
-    false -- read the code before claiming a door exists); hover counts measure the tool; one model
-    plays every participant, so a fail is strong and a pass weak; a planted session is one reader.
-15. Standing rules: one home per capability; "+" only adds; unset is the minus; two row kinds;
-    check proposals at their edges and round trip.
+1. (2026-11-06) Refused because the product lacks the concept: names for Group 1 to N; plain
+   words for opened steps (a per-tool wording design). Do not re-raise without new evidence.
+1. (2026-11-06) Watch in round 3: bar 9 rests on the 400% Settings fix; the 193-screen audit for
+   bars 10 and 11; whether the conversation comes back with a key after a reopen; the backlog's
+   "Open run lands on Style" and "Done drops a typed key" if they recur.
+1. (2026-11-05) Lasting facts live on lasting surfaces; words that read as finishing must finish.
+1. (2026-10-30) Decide before the act; one fact, one drawing; a door lands on its control.
+1. Study lessons: settle a disputed fact at its source (my "a different door gets a handle" was
+   false -- read the code before claiming a door exists); hover counts measure the tool; one model
+   plays every participant, so a fail is strong and a pass weak; a planted session is one reader.
+1. Standing rules: one home per capability; "+" only adds; unset is the minus; two row kinds;
+   check proposals at their edges and round trip.
 
 ### Archived top of mind (2026-11-05 and tier 5, summarized 2026-11-06)
 

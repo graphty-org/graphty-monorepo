@@ -12,14 +12,16 @@ evidence; the old entry stays. The design they belong to is `design.md` beside t
   helpers, and the sparkle alone is not understood. Evidence: `glossary.md`; research recommendation
   8; measured at 39.41 px in Inter 9 px against the 40 px `.cm-rail-label` box in headless Chromium,
   so it fits with no shared change.
-- **The icon is the AI sparkle: lucide `Sparkle`, as `GLYPHS.assistant`, size 20, rail ink, no
-  purple.** (2026-11-04.) Reason: the owner asked for the sparkle; the plural `Sparkles` already
+- **The icon is the AI sparkle: one large four-point star and two small ones (a custom glyph in
+  lucide's style, `AiSparkles` in `glyphs.ts`), as `GLYPHS.assistant`, size 20, rail ink, no
+  purple; glow moves to lucide `Lamp`.** (2026-11-06, owner: lucide `Sparkle` is a single star, not
+  the AI sparkle; replaces the 2026-11-04 choice below.) Earlier: lucide `Sparkle`. (2026-11-04.) Reason: the owner asked for the sparkle; the plural `Sparkles` already
   means glow in the approved Style panel; a second hue reads as data. Evidence: `glyphs.ts` line 156;
   `figma-crosswalk.md` ledger, whose rejection of the sparkle narrows to its purple;
   `visual-language.md` A1.
-- **The rail order is Graph, Assistant, Data, Notes.** (2026-11-04.) Reason: the framework's order,
-  with Data where Results stands there. Flag off, nothing moves. Evidence:
-  `interface-specification.md` 1.2.
+- **The rail order is Graph, Data, Assistant, Notes.** (2026-11-06, owner; replaces Graph,
+  Assistant, Data, Notes of 2026-11-04.) Reason: the owner's call after trying the app. Flag off,
+  nothing moves.
 - **The rail button is never disabled.** (2026-11-04.) Reason: the owner's brief is that clicking
   brings up a chat window. This reverses the state matrix's disabled button. Evidence: `state-matrix.md`
   row 178 against `information-architecture.md`'s provider prompt, which disagreed.
@@ -294,3 +296,39 @@ to fix after it. Evidence: `rounds/round-2/insights.md`, `rounds/round-2/decisio
 - **Esc on the panel, outside the composer, leaves the selection, as does an Esc that closes a dialog.**
   (2026-11-05.) Reason: "Esc closes the innermost thing first", and selection is the next message's scope
   with no undo. Evidence: `rounds/round-1/expert/a11y.md`, finding 7; `rejected-fixes.md`.
+
+## Settled by the owner's report on the chat switcher (2026-11-06)
+
+Evidence: the owner's report, "I click on the drop-down for assistant and it only shows my first query. Oh
+wait, that's a chat and I can have multiple chats. That wasn't clear. And there is no way to rename my
+chats." Cause, read in the code: once a chat has a message the header reads "Assistant", the list has no
+heading, count or current mark, and graphty-element keeps no name for a conversation.
+
+- **The reader's word is "chat", not "conversation".** (2026-11-06.) Reason: the owner's own word, and the
+  word of ChatGPT, Claude.ai, Gemini, Copilot Chat, Cursor and Notion AI. Only the app's words change;
+  graphty-element's names (`listAiConversations` and the rest) keep "conversation". This amends design
+  4.11 and the 6.1 words table.
+- **The header button always names the open chat: its name, else the reader's first words, else "New
+  chat". It never reads "Assistant".** (2026-11-06.) Tooltip "Chats", accessible name "Chats, {title}".
+  Open, its label is "Chats {N}", N counting the rows shown. No count and no glyph at rest. Reason: a
+  button that names the chat reads as a chat picker; a bare number at rest has no unit.
+- **The list stays in place of the log (design 4.11). One row per chat: a full-width button that opens
+  it, a short date, and an always-visible "..." menu with Rename (F2) and Delete.** The open chat carries a
+  check and `aria-current="true"`; an open chat not yet saved shows as its own checked "New chat" row.
+  Reason: the Data place's SourceRow pattern, copied, not a new control; Open and Delete as row buttons
+  read as a message history. A floating popover was rejected: rename and the delete confirm need a field
+  and focus that a menu breaks.
+- **Rename is the shared RenameInput, lifted from SourceRow, reached by the row menu or F2 on a focused
+  row, and nowhere else.** Enter or leaving saves, Esc cancels without closing the list, an empty name
+  clears back to the first words. Double-click and header rename were rejected: a click there opens the
+  chat or toggles the list first.
+- **graphty-element keeps the name: `renameAiConversation(id, name | null)`, `name` on the summary and the
+  snapshot, and `firstWords` on the snapshot.** Reason: the app may not store names or rescan messages
+  (CLAUDE.md, the app must not work around graphty-element). Additive, `@experimental`. The optional
+  `name` joins format v1 only while v1 is unreleased; after that it is version 2.
+- **Default titles are the reader's own first words. No model-written titles.** Reason: an extra paid,
+  slow call per chat (the owner already reports the Assistant slow), poor on in-browser models.
+- **Rejected as more than the report needs:** a second New chat button, a new-chat hotkey (Shift+Mod+O
+  is Chrome's bookmark manager), a bare Delete key, a filter field, date groups, a pending dot, roving
+  focus. "+" in the header stays the one door; the element already saves a chat only with its first
+  message, so empty chats cannot pile up.

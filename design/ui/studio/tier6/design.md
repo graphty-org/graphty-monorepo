@@ -64,17 +64,17 @@ hover. Only tool results may be chips. A model's prose never becomes a chip, bec
 
 ### 3.1 The rail button
 
-| Fact              | Value                                                                                   |
-| ----------------- | --------------------------------------------------------------------------------------- |
-| Label             | Assistant, as a visible caption under the glyph                                         |
-| Glyph             | lucide `Sparkle` (the single form), as `GLYPHS.assistant`, size 20, rail ink, no purple |
-| Place in the rail | Graph, Assistant, Data, Notes; Settings stays at the foot                               |
-| Key               | Mod+I, in the button's tooltip                                                          |
-| Disabled          | never                                                                                   |
+| Fact              | Value                                                                               |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| Label             | Assistant, as a visible caption under the glyph                                     |
+| Glyph             | `AiSparkles` (one large, two small stars), as `GLYPHS.assistant`, size 20, rail ink |
+| Place in the rail | Graph, Data, Assistant, Notes; Settings stays at the foot                           |
+| Key               | Mod+I, in the button's tooltip                                                      |
+| Disabled          | never                                                                               |
 
 The caption measures 39.41 px in the app's font; the rail's caption box is 40 px, so it fits with
-no shared-component change. `GLYPHS.glow` already uses `Sparkles` for the glow effect in the
-approved Style panel, so the single `Sparkle` keeps one glyph from meaning two things.
+no shared-component change. `GLYPHS.glow` moved from `Sparkles` to `Lamp`, so the sparkle means
+only the Assistant.
 
 ### 3.2 The flag
 
@@ -341,13 +341,21 @@ Runs continue while another place is open.
   only with the panel closed, so two Undos are never on screen.
 - **An answer lands with no change.** A notice, "The assistant answered", with Open.
 
-### 4.11 Conversations
+### 4.11 Chats
 
-The panel's title opens the list in place of the log: newest first, the first words of the reader's
-first message and a date, with Open and Delete. "+" starts a new one. Esc returns to the log. The
-list holds this graph's conversations (`listAiConversations()`); they are app state and never in the
-project. `history: "browser"` is on, because a reload that loses the chat is worse than a stated
-local store. Deleting one confirms first, because it cannot be undone.
+The header's left control names the open chat: the reader's name for it, else their first words,
+else "New chat", truncated, with "Chats, {title}" as its name and tooltip. It never reads
+"Assistant" and carries no count. It opens the list of chats in place of the log, with the composer
+kept below and the header reading "Chats {N}"; Esc returns to the log and the composer. Rows are
+newest first, each a button that opens the chat (its date read with it), a short date and an
+always-shown "..." with Rename (F2) and Delete. The open chat's row has a check; a new chat before
+its first message shows as a checked "New chat" row at the top. Opening the list focuses the open
+chat's row. Rename, from the menu or F2 on the row, swaps the title for a field (Enter or leaving
+saves, Esc cancels, empty returns to the first words); the name is saved with the chat by
+`renameAiConversation`. Delete confirms on the row ("Delete this chat?", focus on Keep it), then
+focus moves to the next row. "+" starts a new chat, saved with its first message. The list holds
+this graph's chats (`listAiConversations()`); they are app state and never in the project.
+`history: "browser"` is on, because a reload that loses the chat is worse than a stated local store.
 
 ### 4.12 Talking
 
@@ -430,37 +438,37 @@ else is a row, a chip or a verb.
 
 ### 6.1 Panel and composer
 
-| Where                                               | Words                                                                                                                                  |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Rail caption, panel title with no conversation list | Assistant                                                                                                                              |
-| Panel region name                                   | Assistant                                                                                                                              |
-| Title with no messages                              | New conversation                                                                                                                       |
-| Title's tooltip                                     | Conversations                                                                                                                          |
-| "+" tooltip                                         | New conversation                                                                                                                       |
-| x tooltip                                           | Close Ctrl+I                                                                                                                           |
-| Intro                                               | Ask about this graph or change it. It can be wrong.                                                                                    |
-| No-provider line                                    | Needs a key from an AI provider. Nothing is sent until you add one.                                                                    |
-| No-provider button, command                         | AI provider...                                                                                                                         |
-| Starters                                            | Which nodes matter most? / What groups does this graph have? / Does {column} line up with the groups? / What stands out in this graph? |
-| Composer placeholder                                | Ask about this graph                                                                                                                   |
-| Placeholder, a selection binds the message          | Ask about this selection                                                                                                               |
-| Placeholder, question waiting                       | Or type an answer                                                                                                                      |
-| Composer name                                       | Message the assistant                                                                                                                  |
-| Send, its tooltip                                   | Send; Enter sends, Shift+Enter makes a new line                                                                                        |
-| Stop                                                | Stop Esc                                                                                                                               |
-| Talk, its tooltip, on                               | Talk; Talk Ctrl+Shift+Space; Stop talking                                                                                              |
-| Model label's tooltip                               | Change provider or model                                                                                                               |
-| Scope                                               | Whole graph; Selection; Use selection; {N} hidden                                                                                      |
-| Scope x                                             | Ask about the whole graph                                                                                                              |
-| Log name                                            | Conversation                                                                                                                           |
-| Jump                                                | Jump to newest                                                                                                                         |
-| Turn headings                                       | You; You (spoken); Assistant                                                                                                           |
-| Steps                                               | {N} step, {N} steps                                                                                                                    |
-| Chip names (spoken)                                 | {N} nodes, select; {N} edges, select; {label}, node, select                                                                            |
-| Gone chip                                           | Not in this graph                                                                                                                      |
-| Row actions                                         | Show in table; Open layer; Open run; Undo; Undone                                                                                      |
-| Conversation list                                   | Open; Delete; Delete this conversation? Delete, Keep it                                                                                |
-| Audio, first use                                    | Speech goes to your browser's maker. / Speech goes to {provider}.                                                                      |
+| Where                                              | Words                                                                                                                                  |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Rail caption, panel title before a provider is set | Assistant                                                                                                                              |
+| Panel region name                                  | Assistant                                                                                                                              |
+| Header chat switch (closed)                        | {name} or {first words} or New chat; name "Chats, {title}"                                                                             |
+| Header chat switch's tooltip; open                 | Chats, {title}; Chats {N}                                                                                                              |
+| "+" tooltip                                        | New chat                                                                                                                               |
+| x tooltip                                          | Close Ctrl+I                                                                                                                           |
+| Intro                                              | Ask about this graph or change it. It can be wrong.                                                                                    |
+| No-provider line                                   | Needs a key from an AI provider. Nothing is sent until you add one.                                                                    |
+| No-provider button, command                        | AI provider...                                                                                                                         |
+| Starters                                           | Which nodes matter most? / What groups does this graph have? / Does {column} line up with the groups? / What stands out in this graph? |
+| Composer placeholder                               | Ask about this graph                                                                                                                   |
+| Placeholder, a selection binds the message         | Ask about this selection                                                                                                               |
+| Placeholder, question waiting                      | Or type an answer                                                                                                                      |
+| Composer name                                      | Message the assistant                                                                                                                  |
+| Send, its tooltip                                  | Send; Enter sends, Shift+Enter makes a new line                                                                                        |
+| Stop                                               | Stop Esc                                                                                                                               |
+| Talk, its tooltip, on                              | Talk; Talk Ctrl+Shift+Space; Stop talking                                                                                              |
+| Model label's tooltip                              | Change provider or model                                                                                                               |
+| Scope                                              | Whole graph; Selection; Use selection; {N} hidden                                                                                      |
+| Scope x                                            | Ask about the whole graph                                                                                                              |
+| Log name                                           | Chat                                                                                                                                   |
+| Jump                                               | Jump to newest                                                                                                                         |
+| Turn headings                                      | You; You (spoken); Assistant                                                                                                           |
+| Steps                                              | {N} step, {N} steps                                                                                                                    |
+| Chip names (spoken)                                | {N} nodes, select; {N} edges, select; {label}, node, select                                                                            |
+| Gone chip                                          | Not in this graph                                                                                                                      |
+| Row actions                                        | Show in table; Open layer; Open run; Undo; Undone                                                                                      |
+| Chat list                                          | Chats; a row's "..." is "{title} menu": Rename F2, Delete; Delete this chat? Delete, Keep it; Chat name; Not renamed                   |
+| Audio, first use                                   | Speech goes to your browser's maker. / Speech goes to {provider}.                                                                      |
 
 ### 6.2 Working line
 
@@ -478,10 +486,10 @@ else is a row, a chip or a verb.
 | Section, rows                            | AI provider; Provider; Model; API key; Remember on this device                                                                                                |
 | Remember's note                          | Stored in this browser, not encrypted.                                                                                                                        |
 | Disclosure                               | Your messages and what the assistant reads from the graph (column names, node ids, labels and values) go straight to {provider}. {provider} charges your key. |
-| History note                             | Conversations stay in this browser, not encrypted.                                                                                                            |
+| History note                             | Chats stay in this browser, not encrypted.                                                                                                                    |
 | Link                                     | Get a key from {provider}                                                                                                                                     |
-| Buttons                                  | Save; Forget key; Delete all conversations                                                                                                                    |
-| Confirm                                  | Delete all conversations? Delete all, Keep them                                                                                                               |
+| Buttons                                  | Save; Forget key; Delete all chats                                                                                                                            |
+| Confirm                                  | Delete all chats? Delete all, Keep them                                                                                                                       |
 | `E_KEY_EMPTY`                            | Enter a key.                                                                                                                                                  |
 | `E_KEY_PREFIX`                           | {provider} keys start with {prefix}.                                                                                                                          |
 | `E_KEY_TOO_SHORT`                        | This key is too short.                                                                                                                                        |

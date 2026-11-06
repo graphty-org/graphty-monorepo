@@ -16,6 +16,9 @@ served at `/?next`.
 
 ## Top of mind
 
+- (2026-11-06) Chat switcher: my smaller proposal was decided almost whole (`tier6/decided.md`). What
+  carried: the element already saves a chat only with its first message, the snapshot lacks `firstWords`,
+  double-click cannot reach rename. Watch: the open-chat row after "+" needs its own test.
 - (2026-11-06, round 2 closed) 11 of 12 finished, no false "done", Undo 2 of 2, every count held,
   0 confirmed severity 3. What is left has one shape: the screen says less than the graph did, or
   says it where the reader is not looking. Round 3 must show each of the 15 units credited alone.

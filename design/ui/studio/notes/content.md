@@ -8,6 +8,9 @@ Summarized 2026-11-06; the full earlier text is in this file's git history at a8
 
 ## Top of mind
 
+- (2026-11-06) Chat switcher words decided (`tier6/decided.md`): "conversation" becomes "chat" in every
+  app string; title = name, else first words, else "New chat". My count at rest ("3 v") was cut: a
+  number with no unit. Rename field is "Chat name"; no model-written titles.
 - (2026-11-06) Round 2 verdict: the Assistant's words held (11 of 12 finished, no false "done", no count
   disagreed). What failed was the screen saying less than the graph did, or saying it where nobody
   looks. Round 3 tests fixes of placement and truth, not new terms.

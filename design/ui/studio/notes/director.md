@@ -11,6 +11,9 @@ history.
 
 ## Top of mind
 
+- (2026-11-06) Chat switcher (owner's report: one row read as "my first query", no rename): decided in
+  `tier6/decided.md`. Header names the open chat, word "chat", SourceRow row pattern with Rename F2, name kept
+  by graphty-element. Took the red team's smaller cut: every extra door, key and filter was more than the report.
 - (2026-11-06) REQUESTS: 4,338 of 5,000 spent, 662 left. Round 3 needs about 26 gate walks (up to 19 each) plus
   125 to 240 for 12 sessions (round 2 used 125). Raise the cap to 6,000 BEFORE any walk: a team call inside the
   owner's $150 a month LLM budget (2026-10-31), as the raise to 5,000 was.

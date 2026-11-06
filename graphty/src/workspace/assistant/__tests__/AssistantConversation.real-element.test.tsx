@@ -641,15 +641,14 @@ describe("talking to the Assistant", () => {
             await userEvent.click(screen.getByRole("button", { name: "Send again" }));
             await waitFor(() => {
                 assert.strictEqual(model.asked, sent + 1);
-                // Only a failure as it arrives is the alert; every failure keeps its line.
-                assert.lengthOf(screen.getAllByText(/^Could not reach/), sent + 1);
+                assert.lengthOf(screen.getAllByRole("alert"), sent + 1);
             });
             await screen.findByRole("button", { name: "Send" });
             await waitFor(() => {
                 const log = screen.getByRole("region", { name: "Conversation" });
-                const failure = screen.getAllByText(/^Could not reach/).at(-1);
+                const alert = screen.getAllByRole("alert").at(-1);
                 assert.isAtMost(
-                    failure?.getBoundingClientRect().bottom ?? Infinity,
+                    alert?.getBoundingClientRect().bottom ?? Infinity,
                     log.getBoundingClientRect().bottom,
                     `the newest failure is in view after send ${String(sent)}`,
                 );

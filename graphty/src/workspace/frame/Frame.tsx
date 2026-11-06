@@ -106,7 +106,6 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             assistantSpoken: null,
             assistantTalkPress: false,
             assistantRefused: false,
-            assistantFailureDue: false,
         });
     }, [projectId, store]);
 

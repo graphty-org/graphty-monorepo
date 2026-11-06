@@ -103,11 +103,6 @@ export interface WorkspaceState {
     readonly assistantScopeDropped: boolean;
     /** The open question refused the composer's text: it stays open with one line. */
     readonly assistantRefused: boolean;
-    /**
-     * A message is out: the failure it may end in is new, and its row is the alert. The row clears
-     * it as it shows, so a row drawn again later (on reopening, closing the list) is not said again.
-     */
-    readonly assistantFailureDue: boolean;
     /** How the last message ended, when the conversation cannot say: nothing reached it. */
     readonly assistantEnded: {
         readonly code: AiResultCode;
@@ -310,7 +305,6 @@ const INITIAL: WorkspaceState = {
     assistantSpoken: null,
     assistantScopeDropped: false,
     assistantRefused: false,
-    assistantFailureDue: false,
     assistantEnded: null,
     rightWidth: PANEL_MIN,
     dockHeight: DOCK_DEFAULT,

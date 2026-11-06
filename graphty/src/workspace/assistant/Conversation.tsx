@@ -1,6 +1,6 @@
 import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
-import { Button, Collapse, Group, Text, VisuallyHidden } from "@mantine/core";
+import { Button, Collapse, Group, Text } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { AssistantChoice } from "../assistant-door/provider";
@@ -200,8 +200,8 @@ interface EndRowProps {
 /**
  * How a turn ended, in words from its code, with its buttons. A failure is the alert only as it
  * arrives: the row drawn again later (reopening the panel, closing the list) is read, never said
- * again. The alert holds the words alone, so Send again going away on the next send changes nothing
- * it says: "Nothing changed" is said with the line, a space apart, and shown beside the buttons.
+ * again. The buttons stay out of the alert, so the one going away on the next send changes nothing
+ * it says, and a space keeps its two lines two sentences when read as one.
  * @param props - Component props
  * @param props.words - the words
  * @param props.unchanged - whether nothing changed
@@ -219,41 +219,33 @@ function EndRow({ words, unchanged, onAgain, newest }: Readonly<EndRowProps>): R
             store.set({ assistantFailureDue: false });
         }
     }, [alert, store]);
-    const nothing = words.action !== null && unchanged;
     return (
-        <div>
+        <Group justify="space-between" align="flex-end" gap={4} wrap="nowrap">
             <div role={alert ? "alert" : undefined}>
-                <Text size="sm">{words.line}</Text>
-                {nothing ? <VisuallyHidden> {WORDS["assistant.nothing-changed"]}</VisuallyHidden> : null}
+                <Text size="sm">{words.line}</Text>{" "}
+                {words.action !== null && unchanged ? (
+                    <Text size="sm">{WORDS["assistant.nothing-changed"]}</Text>
+                ) : null}
             </div>
-            <Group justify="space-between" gap={4}>
-                {nothing ? (
-                    <Text size="sm" aria-hidden>
-                        {WORDS["assistant.nothing-changed"]}
-                    </Text>
-                ) : (
-                    <span />
-                )}
-                <Group gap={4}>
-                    {(words.action === "again" || words.action === "again-or-provider") && onAgain !== null ? (
-                        <Button variant="default" size="compact-xs" onClick={onAgain}>
-                            {WORDS["assistant.again"]}
-                        </Button>
-                    ) : null}
-                    {words.action === "provider" || words.action === "again-or-provider" ? (
-                        <Button
-                            variant="default"
-                            size="compact-xs"
-                            onClick={() => {
-                                run("settings.assistant");
-                            }}
-                        >
-                            {WORDS["assistant.setup.button"]}
-                        </Button>
-                    ) : null}
-                </Group>
+            <Group gap={4} wrap="nowrap">
+                {(words.action === "again" || words.action === "again-or-provider") && onAgain !== null ? (
+                    <Button variant="default" size="compact-xs" onClick={onAgain}>
+                        {WORDS["assistant.again"]}
+                    </Button>
+                ) : null}
+                {words.action === "provider" || words.action === "again-or-provider" ? (
+                    <Button
+                        variant="default"
+                        size="compact-xs"
+                        onClick={() => {
+                            run("settings.assistant");
+                        }}
+                    >
+                        {WORDS["assistant.setup.button"]}
+                    </Button>
+                ) : null}
             </Group>
-        </div>
+        </Group>
     );
 }
 
@@ -420,7 +412,11 @@ function ReplyRows({
                 </Text>
             )}
             {running && late && status !== null ? <Text size="sm">{workingLine(status, provider)}</Text> : null}
-            <TurnEffects turn={turn} effects={effects} onMore={onHold} />
+            <TurnEffects
+                turn={turn}
+                effects={effects}
+                onMore={onHold}
+            />
             {words === null ? null : (
                 <EndRow
                     words={words}

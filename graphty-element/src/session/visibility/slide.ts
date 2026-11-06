@@ -101,7 +101,7 @@ export interface SlideCounts {
 }
 
 /** One kind's place in its sorted index. */
-interface KindState {
+export interface KindState {
     readonly index: SlideInstants;
     /** Whether each row is inside the window (an untimed row by the `missing` rule). */
     readonly inside: Uint8Array;
@@ -111,7 +111,7 @@ interface KindState {
 }
 
 /** One direction of the graph's adjacency. */
-type Arcs = Pick<GraphSnapshot, "rowPtr" | "colIdx" | "arcToEdge">;
+export type Arcs = Pick<GraphSnapshot, "rowPtr" | "colIdx" | "arcToEdge">;
 
 /** The rows of one kind a small move took in and out of view. */
 interface MovedRows {
@@ -120,7 +120,7 @@ interface MovedRows {
 }
 
 /** Everything a slide keeps between moves. */
-interface SlideState {
+export interface SlideState {
     readonly graph: GraphSnapshot;
     readonly filter: readonly unknown[];
     readonly attribute: string;
@@ -283,7 +283,7 @@ function nodeShows(state: SlideState, row: number): boolean {
  * @param row - The edge.
  * @returns True when it passes.
  */
-function edgePasses(state: SlideState, row: number): boolean {
+export function edgePasses(state: SlideState, row: number): boolean {
     return (
         (state.edge === null || state.edge.inside[row] === 1) &&
         (state.filterEdges === null || state.filterEdges[row] === 1)
@@ -495,7 +495,7 @@ function walkArcs(
  * @param graph - The snapshot.
  * @returns The rows; infinite when other edges can show too (those with no instant, or no index).
  */
-function windowRows(state: SlideState, graph: GraphSnapshot): number {
+export function windowRows(state: SlideState, graph: GraphSnapshot): number {
     const { edge, missingInside } = state;
     return edge !== null && (!missingInside || edge.index.timed === graph.edgeCount)
         ? edge.hi - edge.lo
@@ -658,6 +658,56 @@ function holdsFor(state: SlideState, target: SlideTarget, window: TimeWindow): b
 }
 
 /**
+ * What the next moves step from, with the window in place.
+ * @param target - The masks and what they are read from.
+ * @param window - The window.
+ * @returns The state, or null when an index alone cannot say what the window keeps.
+ */
+export function slideState(target: SlideTarget, window: TimeWindow): SlideState | null {
+    const { graph, nodes, edges } = target;
+    const [from, to] = target.bounds(window);
+    const missingInside = window.missing !== "outside";
+    const kindOf = (instants: TimeInstants | null, count: number): KindState | null | undefined => {
+        if (instants === null || instants.timed === 0) {
+            return null;
+        }
+
+        if (!isSlidable(instants)) {
+            return undefined;
+        }
+
+        const kind = { index: instants, inside: new Uint8Array(count), lo: 0, hi: 0 };
+        placeWindow(kind, from, to, missingInside);
+        return kind;
+    };
+    const node = kindOf(target.instants?.node ?? null, graph.nodeCount);
+    const edge = kindOf(target.instants?.edge ?? null, graph.edgeCount);
+    if (node === undefined || edge === undefined || target.instants === null || target.readsRecords(window)) {
+        return null;
+    }
+
+    const filter = target.filterBytes();
+    const ends = window.nodes === "ends";
+
+    return {
+        graph,
+        filter: target.filter,
+        attribute: window.attribute,
+        missingInside,
+        ends,
+        filterNodes: filter.nodes,
+        filterEdges: filter.edges,
+        node,
+        edge,
+        nodeIndex: target.instants.node,
+        edgeIndex: target.instants.edge,
+        endCount: ends ? countEnds(graph, edge, missingInside, filter.edges) : null,
+        nodeVersion: nodes.version,
+        edgeVersion: edges.version,
+    };
+}
+
+/**
  * Moves a time window through the visibility masks a frame at a time.
  */
 export class WindowSlider {
@@ -688,54 +738,13 @@ export class WindowSlider {
      * @returns The counts against the masks before the pass.
      */
     private rebuild(target: SlideTarget, window: TimeWindow): SlideCounts {
-        const { graph, nodes, edges } = target;
+        const { nodes, edges } = target;
         const wasNodes = nodes.bytes();
         const wasEdges = edges.bytes();
         target.evaluate(window);
-        this.state = null;
-
-        const [from, to] = target.bounds(window);
-        const missingInside = window.missing !== "outside";
-        const kindOf = (instants: TimeInstants | null, count: number): KindState | null | undefined => {
-            if (instants === null || instants.timed === 0) {
-                return null;
-            }
-
-            if (!isSlidable(instants)) {
-                return undefined;
-            }
-
-            const kind = { index: instants, inside: new Uint8Array(count), lo: 0, hi: 0 };
-            placeWindow(kind, from, to, missingInside);
-            return kind;
-        };
-        const node = kindOf(target.instants?.node ?? null, graph.nodeCount);
-        const edge = kindOf(target.instants?.edge ?? null, graph.edgeCount);
         const counts = diffCounts(wasNodes, nodes.bytes(), wasEdges, edges.bytes());
-        if (node === undefined || edge === undefined || target.instants === null || target.readsRecords(window)) {
-            // A kind whose records the window reads: every move is a full pass.
-            return counts;
-        }
-
-        const filter = target.filterBytes();
-        const ends = window.nodes === "ends";
-
-        this.state = {
-            graph,
-            filter: target.filter,
-            attribute: window.attribute,
-            missingInside,
-            ends,
-            filterNodes: filter.nodes,
-            filterEdges: filter.edges,
-            node,
-            edge,
-            nodeIndex: target.instants.node,
-            edgeIndex: target.instants.edge,
-            endCount: ends ? countEnds(graph, edge, missingInside, filter.edges) : null,
-            nodeVersion: nodes.version,
-            edgeVersion: edges.version,
-        };
+        // Null for a kind whose records the window reads: every move is a full pass.
+        this.state = slideState(target, window);
 
         return counts;
     }

@@ -1075,6 +1075,9 @@ const TIME_API: Readonly<Record<string, Door>> = {
         "Starts a timer, which is not project state; each step it then takes is a visibility.window command, and one play records one step.",
     ),
     pause: exempt("Stops the timer; the steps already taken are recorded."),
+    series: exempt(
+        "Counts windows away from the masks and dispatches no command, so the project and history stay as they were.",
+    ),
     // With no data the automatic step is a day; a first step forward opens the first window.
     stepBy: timeMove([1], { from: 0, to: 86_400_000, step: "day" }),
     seek: timeMove([5], { from: 5, to: 86_400_005, step: "day" }),
@@ -3412,6 +3415,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             slideWindow: exempt(
                 "Moves the masks for session.time; the window the project records is unchanged until session.time records it.",
             ),
+            windowRun: exempt(
+                "Hands session.time a walk of windows away from the masks on screen; it dispatches no command.",
+            ),
         },
     },
     {
@@ -3627,6 +3633,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startRenderLoop: RENDER,
             stopRenderLoop: RENDER,
             holdFrames: RENDER,
+            frameDrawn: RENDER,
             setPixelRatio: RENDER,
             resize: RENDER,
             drawHeld: RENDER,

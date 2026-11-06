@@ -254,6 +254,32 @@ describe("the timeline on the real element", () => {
         assert.isNull(session.time.current);
     });
 
+    it("waits for each frame through a stepped play, and through a change of speed", async () => {
+        const { session } = await open();
+        const dock = await designateSent(session);
+        await pickIn("Step", "Week");
+        await act(async () => {
+            await session.time.setSettings({ results: "rerun" });
+        });
+        // Each wait for a frame listens for the page being hidden: the one sign of it outside the
+        // element, and session.time is frozen. A play on the timer alone adds none.
+        const listening = vi.spyOn(document, "addEventListener");
+        const waits = (): number => listening.mock.calls.filter(([type]) => type === "visibilitychange").length;
+
+        await userEvent.click(within(dock).getByRole("button", { name: "Speed 1x" }));
+        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await waitFor(() => {
+            assert.isAbove(waits(), 0);
+        });
+        await userEvent.click(within(dock).getByRole("button", { name: "Speed 2x" }));
+        const before = waits();
+        await waitFor(() => {
+            assert.isAtLeast(waits(), before + 2);
+        });
+        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        listening.mockRestore();
+    });
+
     it("steps by button and key, opening the first window, and stops at the end of the data", async () => {
         const { session } = await open();
         const dock = await designateSent(session);

@@ -49,4 +49,5 @@ export {
     type VisibilityChange,
     type VisibilitySources,
     type VisibilitySummary,
+    type WindowWalk,
 } from "./VisibilityApi";

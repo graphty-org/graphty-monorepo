@@ -718,6 +718,10 @@ export class RenderManager implements Manager {
     private updateCallback?: (frameMs: number) => void;
     /** How many callers currently hold the frames back; see {@link holdFrames}. */
     private frameHolds = 0;
+    /** Whether the GL context is lost, so nothing draws until it is back. */
+    private contextLost = false;
+    /** What ends each {@link frameDrawn} still waiting. */
+    private readonly frameWaits = new Set<() => void>();
     /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
     private lastFrameFence: WebGLSync | null = null;
     /** Flips every tick in the minimum-work test mode; see {@link RenderManager.minimumWorkSkips}. */
@@ -825,8 +829,11 @@ export class RenderManager implements Manager {
         this.drawOwed = true;
         this.shaderGuard.ignore();
         this.flashCheck = null;
+        this.contextLost = event.type === "webglcontextlost";
         if (event.type === "webglcontextrestored") {
             batchUploadFrames.contextRestored(this.scene);
+        } else {
+            this.endFrameWaits();
         }
     };
     /**
@@ -1248,6 +1255,8 @@ export class RenderManager implements Manager {
      * @param error - What it threw.
      */
     private reportFrameError(error: unknown): void {
+        // A frame that threw draws nothing, and the next one is likely to throw too.
+        this.endFrameWaits();
         const err = error instanceof Error ? error : new Error(String(error));
         this.eventManager.emitGraphError(null, err, "other", {
             component: "RenderManager",
@@ -1682,6 +1691,62 @@ export class RenderManager implements Manager {
         this.renderLoopActive = false;
         this.engine.stopRenderLoop();
         this.updateCallback = undefined;
+        this.endFrameWaits();
+    }
+
+    /** End every {@link frameDrawn} still waiting. */
+    private endFrameWaits(): void {
+        for (const end of [...this.frameWaits]) {
+            end();
+        }
+    }
+
+    /**
+     * Whether the loop can still draw: a tick that cannot says so by the end of the tick.
+     * @returns False when the next ticks draw nothing, or none will come.
+     */
+    private frameComing(): boolean {
+        return (
+            this.renderLoopActive &&
+            !this.contextLost &&
+            this.frameHolds === 0 &&
+            this.drawHeld?.() !== true &&
+            !document.hidden
+        );
+    }
+
+    /**
+     * Settles once the next frame is drawn, or as soon as none is coming: a hold, a load holding the
+     * draw, a hidden page, a lost context, a stopped loop or a frame that threw. A loop resting on a finished picture
+     * draws for it: a new frame observer is a frame someone waits for. It listens
+     * only while someone waits.
+     * @returns Settles as above; never rejects.
+     * @internal
+     */
+    frameDrawn(): Promise<void> {
+        if (!this.frameComing()) {
+            return Promise.resolve();
+        }
+
+        const { engine, scene } = this;
+
+        return new Promise((resolve) => {
+            const end = (): void => {
+                scene.onAfterRenderObservable.remove(drawn);
+                engine.onEndFrameObservable.remove(ticked);
+                document.removeEventListener("visibilitychange", end);
+                this.frameWaits.delete(end);
+                resolve();
+            };
+            const drawn = scene.onAfterRenderObservable.add(end);
+            const ticked = engine.onEndFrameObservable.add(() => {
+                if (!this.frameComing()) {
+                    end();
+                }
+            });
+            document.addEventListener("visibilitychange", end);
+            this.frameWaits.add(end);
+        });
     }
 
     /**

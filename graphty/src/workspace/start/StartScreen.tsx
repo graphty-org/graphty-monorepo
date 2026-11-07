@@ -15,7 +15,8 @@ import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
-import { holdsModel } from "../canvas/models";
+import { holdsAsset, holdsModel } from "../canvas/models";
+import { nodeModelsOn } from "../features";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
@@ -730,7 +731,8 @@ export function StartScreen(): React.JSX.Element {
     // says whether it is a model before it is read as graph data.
     const onDrop = useCallback(
         (files: File[]) => {
-            void holdsModel(files).then((model) => {
+            // With the node-models experiment on, a picture opens a project drawing it too.
+            void (nodeModelsOn(session) ? holdsAsset : holdsModel)(files).then((model) => {
                 if (model) {
                     openModel(workspace.store, files[0]?.name ?? "Model", files);
                 } else {
@@ -738,7 +740,7 @@ export function StartScreen(): React.JSX.Element {
                 }
             });
         },
-        [workspace],
+        [workspace, session],
     );
     const { over: dragging } = useFileDrop("window", onDrop);
 

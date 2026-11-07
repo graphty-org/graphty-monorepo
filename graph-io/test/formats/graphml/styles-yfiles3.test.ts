@@ -133,6 +133,10 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
         expect(node("fillGradientAngle", "bevel-color")).toBe(90);
         expect(node("borderColor", "bevel-color")).toBe("#3366ff");
         expect(node("shapeLineWidth", "bevel")).toBe(1);
+        // over a line of 2 most of the way to white, as yEd Live draws it
+        expect(node("shapeLineHaloWidth", "bevel")).toBe(2);
+        expect(node("shapeLineHaloColor", "bevel")).toBe("#f7f7f7");
+        expect(node("shapeLineHaloColor", "bevel-color")).toBe("#e0e8ff");
         expect(String(node("shapeLines", "bevel")).split(" ")[0]).toBe("-1+3.000,1-10.000");
         expect(String(node("shapeLines", "bevel-inset-8")).split(" ")[0]).toBe("-1+8.000,1-10.000");
         // no corner left to round: one point a corner

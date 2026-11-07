@@ -48,7 +48,7 @@ SVG carries no ids. One script per program makes them, from
 | `gephi.mjs`             | Gephi Toolkit 0.11.3                 | GEXF files through Gephi's Preview, one Preview setting per specimen page              |
 | `pajek.mjs`             | Pajek 6.02 under Wine                | Pajek files, one Draw window option per specimen page                                  |
 | `web/regenerate-web.sh` | Cytoscape.js, vis-network, sigma.js  | the JSON formats, each in headless Chromium with the pinned library (`web-oracle.mjs`) |
-| `drawio.mjs`            | draw.io 32.4.1                       | a yEd GraphML sheet yEd refuses to open (a stand-in for yEd)                           |
+| `drawio.mjs`            | draw.io 32.4.1                       | a yEd GraphML sheet yEd cannot open (a stand-in for yEd; none today)                   |
 | `rasterize.mjs`         | resvg                                | the PNG of any oracle SVG, with the repository's pinned fonts                          |
 
 Each script's header says what it needs (a tool directory, an environment variable) and takes sample ids, or none
@@ -122,10 +122,13 @@ failures or unaccepted drops remain. Nobody edits a decimal or a list by hand.
 ## yEd's oracles
 
 The yEd and yEd Live oracles are the programs' own drawings, made on 2026-11-04 by an AI agent operating each program's
-user interface at the owner's direction (43 yEd, 29 yEd Live). The programs and that agent's tools are not in this
+user interface at the owner's direction (44 yEd, 29 yEd Live; `yed-graphml-specimen-images-charts` was drawn the same
+way on 2026-11-07, once its sheet wrote label icons in the form yEd reads). The programs and that agent's tools are not in this
 repository. Each `.oracle.json` says what was done, with every setting changed, in its `command`, and `regenerate` says
 how to make it again; `drawio.mjs`, `graphviz.mjs` and `cytoscape-desktop.mjs` skip these samples, so rerunning a
-stand-in tool cannot overwrite one. One oracle is still a stand-in, draw.io's drawing, because yEd refuses its file:
-`yed-graphml-specimen-images-charts`, held to its own recorded rates (`standInFloors` in
-`graphty-element/test/fidelity/oracle-floors.json`). The list is in `oracles/ISSUES.md`, "yEd's and yEd Live's own
-drawings".
+stand-in tool cannot overwrite one. The list is in `oracles/ISSUES.md`, "yEd's and yEd Live's own drawings".
+
+yEd refuses a whole file ('Could not import file', an IOException with no message) when a label's `iconData` names an
+image resource directly. yEd writes a label icon as an icon resource that wraps the image (`<yed:ScaledIcon><yed:ImageIcon
+image="<image resource id>"/></yed:ScaledIcon>`), and `iconData` names that icon resource; the specimen generator writes
+it that way.

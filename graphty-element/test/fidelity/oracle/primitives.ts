@@ -380,10 +380,10 @@ export interface PNode {
      */
     pictures?: PBox[];
     /**
-     * The oracle's side only: the boxes of a fill drawn in pieces (a yEd table's header and lanes, Graphviz's stripes),
-     * which graphty draws as pieces over the node's face. Absent for a fill in one piece.
+     * The oracle's side only: the pieces of a fill drawn in pieces (a yEd table's header and lanes, Graphviz's stripes),
+     * which graphty draws as pieces over the node's face, each with its color. Absent for a fill in one piece.
      */
-    faces?: PBox[];
+    faces?: { box: PBox; color: string }[];
     /**
      * The oracle's side only: the parts of the node a clip cuts from a fill of another color than the node's (yEd's
      * entity header), each of which graphty must draw over the face in that color. Absent for none.

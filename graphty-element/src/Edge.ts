@@ -1233,14 +1233,10 @@ export class Edge {
         this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
             // a straight line the layout ends itself runs between its ends, as a laid route does
-            const ends =
-                laidEnds !== undefined && stored === null && this.srcNode !== this.dstNode
-                    ? bendPoints(src, dst, [...laidEnds.source, ...laidEnds.target])
-                    : null;
             const { srcPoint, dstPoint } =
-                ends === null
-                    ? this.transformArrowCap()
-                    : this.placeLaidEnds(Vector3.FromArray(ends, 0), Vector3.FromArray(ends, 3));
+                laidEnds !== undefined && stored === null && this.srcNode !== this.dstNode
+                    ? this.placeLaidEnds(src, dst, laidEnds)
+                    : this.transformArrowCap();
             // A wave with a period of its own starts where the line leaves its node, as Cytoscape desktop
             // lays its strokes from the node's outline, so its turns fall where the program's do.
             const surface =
@@ -3803,11 +3799,15 @@ export class Edge {
     /**
      * Place a straight line's arrow caps between the ends its layout gave it, as {@link transformArrowCap} places them
      * between the node outlines.
-     * @param start - Where the line starts.
-     * @param end - Where it ends: the arrow head's tip.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param laidEnds - The line's ends, the target end at the arrow head's tip.
      * @returns The line's ends, the end stopping short of the arrow head.
      */
-    private placeLaidEnds(start: Vector3, end: Vector3): EdgeLine {
+    private placeLaidEnds(src: Vector3, dst: Vector3, laidEnds: NonNullable<EdgePosition["lineEnds"]>): EdgeLine {
+        const ends = bendPoints(src, dst, [...laidEnds.source, ...laidEnds.target]);
+        const start = Vector3.FromArray(ends, 0);
+        const end = Vector3.FromArray(ends, 3);
         const direction = end.subtract(start).normalize();
         if (this.arrowCap) {
             this.placeArrowHead(this.arrowCap, end, direction, [end, start]);

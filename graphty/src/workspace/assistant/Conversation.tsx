@@ -1,7 +1,7 @@
 import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
-import { ActionIcon, Alert, Button, Collapse, Group, Stack, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ActionIcon, Button, Collapse, Group, Stack, Text, Tooltip } from "@mantine/core";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { AssistantChoice } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
@@ -112,6 +112,7 @@ interface StepsButtonProps {
     readonly count: number;
     readonly open: boolean;
     readonly onToggle: () => void;
+    readonly buttonRef: React.RefCallback<HTMLButtonElement>;
 }
 
 /**
@@ -120,13 +121,21 @@ interface StepsButtonProps {
  * @param props.count - how many steps
  * @param props.open - whether they show
  * @param props.onToggle - opens or closes them
+ * @param props.buttonRef - hands focus from the running row's button to the ended row's
  * @returns The button
  */
-function StepsButton({ count, open, onToggle }: Readonly<StepsButtonProps>): React.JSX.Element {
+function StepsButton({ count, open, onToggle, buttonRef }: Readonly<StepsButtonProps>): React.JSX.Element {
     const name = stepsWords(count);
     return (
         <Tooltip label={name}>
-            <ActionIcon variant="subtle" color="gray" aria-label={name} aria-expanded={open} onClick={onToggle}>
+            <ActionIcon
+                ref={buttonRef}
+                variant="subtle"
+                color="gray"
+                aria-label={name}
+                aria-expanded={open}
+                onClick={onToggle}
+            >
                 <GLYPHS.steps size={14} aria-hidden />
             </ActionIcon>
         </Tooltip>
@@ -192,8 +201,9 @@ interface EndRowProps {
  * How a turn ended, in words from its code, with its buttons under it, so the words get the
  * panel's width. A new failure is the alert. The buttons stay out of the alert, so the one going
  * away on the next send changes nothing it says, and a space keeps its two lines two sentences when
- * read as one. A failure is drawn as an error, and a provider out of credit as a warning, with Add
- * credit opening its billing page. A stopped run shows the stop glyph in place of "Stopped.".
+ * read as one. A failure is the warning glyph and its words in the error color, with no box, and a
+ * provider out of credit is the same in the warning color, with Add credit opening its billing
+ * page. A stopped run shows the stop glyph in place of "Stopped.".
  * @param props - Component props
  * @param props.words - the words
  * @param props.unchanged - whether nothing changed
@@ -228,15 +238,18 @@ function EndRow({ words, unchanged, onAgain, alert }: Readonly<EndRowProps>): Re
         );
     } else if (words.failed) {
         row = (
-            <Alert
+            <Group
                 key={String(alert)}
                 role={role ?? "note"}
-                color={words.billing === undefined ? "red" : "yellow"}
-                p="xs"
-                icon={<GLYPHS.warning size={14} aria-hidden />}
+                gap={6}
+                wrap="nowrap"
+                align="flex-start"
+                className="ws-assistant-failed"
+                data-billing={words.billing === undefined ? undefined : ""}
             >
-                {said}
-            </Alert>
+                <GLYPHS.warning size={14} aria-hidden className="ws-assistant-failed-mark" />
+                <div>{said}</div>
+            </Group>
         );
     } else {
         row = <div key={String(alert)}>{said}</div>;
@@ -462,6 +475,20 @@ function ReplyRows({
     const lastEnded = useWorkspaceState((state) => state.assistantEnded);
     const news = useWorkspaceState((state) => state.assistantEnded?.news === true);
     const [stepsOpen, setStepsOpen] = useState(false);
+    // The running row's Steps and the ended row's are two buttons: one that held focus as it went
+    // hands it to the other, so a reader watching steps arrive keeps their place as the run ends.
+    // A ref is let go before its button leaves the page, so focus can still be read then.
+    const stepsHeld = useRef<HTMLButtonElement | null>(null);
+    const stepsFocused = useRef(false);
+    const stepsRef = useCallback((button: HTMLButtonElement | null) => {
+        if (button === null) {
+            stepsFocused.current = stepsHeld.current !== null && document.activeElement === stepsHeld.current;
+        } else if (stepsFocused.current) {
+            stepsFocused.current = false;
+            button.focus();
+        }
+        stepsHeld.current = button;
+    }, []);
     const running = isRunning(status);
     const prose = proseOf(turn, status);
     const steps = stepsOf(turn, status);
@@ -477,6 +504,7 @@ function ReplyRows({
             <StepsButton
                 count={steps.length}
                 open={stepsOpen}
+                buttonRef={stepsRef}
                 onToggle={() => {
                     onHold();
                     setStepsOpen(!stepsOpen);

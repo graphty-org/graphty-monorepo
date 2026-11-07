@@ -11,7 +11,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
-import { cleanup, render, screen, waitFor } from "../../../test/test-utils";
+import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -107,5 +107,27 @@ describe("the composer's placeholder", () => {
         await userEvent.keyboard("Pick one{Enter}");
         await screen.findByRole("radio", { name: "a" });
         await placeholder("Or type an answer");
+    });
+
+    it("opens every chat asking about the whole graph, and groups each set of options under its label", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        render(<Workspace store={createWorkspaceStore({ project: { name: "Check", id: 1 } })} />);
+        await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+        const session = await waitFor(() => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            return found;
+        });
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await session.selection.apply({ ids: ["a", "b"] });
+        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
+        const about = await screen.findByRole("group", { name: "Ask about" });
+        assert.lengthOf(within(about).getAllByRole("menuitemradio"), 2);
+        await userEvent.click(within(about).getByRole("menuitemradio", { name: /^Selection/ }));
+        await placeholder("Ask about this selection");
+
+        await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+        await placeholder("Ask about this graph");
+        screen.getByRole("button", { name: "Options" });
     });
 });

@@ -1,6 +1,6 @@
 import { EntityChip, MenuCheckItem, TargetTooltip, TooltipShortcut } from "@graphty/compact-mantine";
 import { ActionIcon, Group, Indicator, Menu, Text, Textarea, Tooltip } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import {
     type AssistantChoice,
@@ -70,6 +70,9 @@ function Options({ choice, scope, running, model }: Readonly<OptionsProps>): Rea
     const pick = (assistantScopeSelection: boolean): void => {
         store.set({ assistantScopeSelection });
     };
+    // Each set of radio rows is a group named by its label, so picking one leaves the other alone.
+    const aboutId = useId();
+    const effortId = useId();
     return (
         <Indicator inline size={7} offset={5} withBorder disabled={!about}>
             <Menu position="top-start">
@@ -87,59 +90,63 @@ function Options({ choice, scope, running, model }: Readonly<OptionsProps>): Rea
                     </TargetTooltip>
                 </Menu.Target>
                 <Menu.Dropdown>
-                    <Menu.Label>{WORDS["assistant.scope.about"]}</Menu.Label>
-                    <MenuCheckItem
-                        radio
-                        checked={!about}
-                        onClick={() => {
-                            pick(false);
-                        }}
-                    >
-                        {WORDS["assistant.scope.graph"]}
-                    </MenuCheckItem>
-                    <MenuCheckItem
-                        radio
-                        checked={about}
-                        disabled={!any}
-                        rightSection={
-                            <Group gap={2} wrap="nowrap">
-                                {scope.nodes > 0 ? (
-                                    <EntityChip kind="node">{formatNumber(scope.nodes)}</EntityChip>
-                                ) : null}
-                                {scope.edges > 0 ? (
-                                    <EntityChip kind="edge">{formatNumber(scope.edges)}</EntityChip>
-                                ) : null}
-                            </Group>
-                        }
-                        onClick={() => {
-                            pick(true);
-                        }}
-                    >
-                        {WORDS["assistant.scope.selection"]}
-                    </MenuCheckItem>
+                    <Menu.Label id={aboutId}>{WORDS["assistant.scope.about"]}</Menu.Label>
+                    <div role="group" aria-labelledby={aboutId}>
+                        <MenuCheckItem
+                            radio
+                            checked={!about}
+                            onClick={() => {
+                                pick(false);
+                            }}
+                        >
+                            {WORDS["assistant.scope.graph"]}
+                        </MenuCheckItem>
+                        <MenuCheckItem
+                            radio
+                            checked={about}
+                            disabled={!any}
+                            rightSection={
+                                <Group gap={2} wrap="nowrap">
+                                    {scope.nodes > 0 ? (
+                                        <EntityChip kind="node">{formatNumber(scope.nodes)}</EntityChip>
+                                    ) : null}
+                                    {scope.edges > 0 ? (
+                                        <EntityChip kind="edge">{formatNumber(scope.edges)}</EntityChip>
+                                    ) : null}
+                                </Group>
+                            }
+                            onClick={() => {
+                                pick(true);
+                            }}
+                        >
+                            {WORDS["assistant.scope.selection"]}
+                        </MenuCheckItem>
+                    </div>
                     {levels.length > 0 ? (
                         <>
                             <Menu.Divider />
-                            <Menu.Label>{WORDS["assistant.provider.effort"]}</Menu.Label>
-                            {effortRows(levels).map((row) => (
-                                <MenuCheckItem
-                                    key={row.value}
-                                    radio
-                                    checked={effort === row.value}
-                                    disabled={running}
-                                    onClick={() => {
-                                        if (element === null || effort === row.value) {
-                                            return;
-                                        }
-                                        const next = { ...choice, effort: row.value };
-                                        writeAssistantChoice(next);
-                                        // The assistant takes a new level by being set up again, as Settings' Save does.
-                                        void link(element, store, next).catch(() => undefined);
-                                    }}
-                                >
-                                    {row.label}
-                                </MenuCheckItem>
-                            ))}
+                            <Menu.Label id={effortId}>{WORDS["assistant.provider.effort"]}</Menu.Label>
+                            <div role="group" aria-labelledby={effortId}>
+                                {effortRows(levels).map((row) => (
+                                    <MenuCheckItem
+                                        key={row.value}
+                                        radio
+                                        checked={effort === row.value}
+                                        disabled={running}
+                                        onClick={() => {
+                                            if (element === null || effort === row.value) {
+                                                return;
+                                            }
+                                            const next = { ...choice, effort: row.value };
+                                            writeAssistantChoice(next);
+                                            // The assistant takes a new level by being set up again, as Settings' Save does.
+                                            void link(element, store, next).catch(() => undefined);
+                                        }}
+                                    >
+                                        {row.label}
+                                    </MenuCheckItem>
+                                ))}
+                            </div>
                         </>
                     ) : null}
                     <Menu.Divider />
@@ -214,6 +221,11 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
         });
     };
     const sendName = running ? WORDS["assistant.stop"] : WORDS["assistant.send"];
+    // Stop is a gray fill, never the accent: the accent stays on Send alone.
+    let sendVariant = waiting ? "default" : "filled";
+    if (running) {
+        sendVariant = "light";
+    }
     return (
         <div className="ws-assistant-foot">
             <div className="ws-assistant-box" data-panel-always="">
@@ -263,7 +275,8 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                             <ActionIcon
                                 className="ws-assistant-send"
                                 radius="xl"
-                                variant={running || waiting ? "default" : "filled"}
+                                variant={sendVariant}
+                                color={running ? "gray" : undefined}
                                 aria-label={sendName}
                                 aria-disabled={!running && empty}
                                 aria-keyshortcuts={running ? "Escape" : "Enter"}
@@ -277,7 +290,7 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                                 }}
                             >
                                 {running ? (
-                                    <GLYPHS.stop size={14} aria-hidden />
+                                    <GLYPHS.stop size={14} fill="currentColor" aria-hidden />
                                 ) : (
                                     <GLYPHS.send size={14} aria-hidden />
                                 )}

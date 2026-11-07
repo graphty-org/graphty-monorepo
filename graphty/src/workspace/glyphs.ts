@@ -14,6 +14,7 @@ import {
     ArrowRight,
     ArrowRightToLine,
     ArrowUp,
+    ArrowUpRight,
     ArrowUpToLine,
     Blend,
     Boxes,
@@ -24,7 +25,6 @@ import {
     Check,
     ChevronDown,
     ChevronLeft,
-    ChevronsDown,
     ChevronsRight,
     Circle,
     CircleAlert,
@@ -66,7 +66,6 @@ import {
     Link,
     Link2,
     List,
-    ListChecks,
     ListFilter,
     ListOrdered,
     ListPlus,
@@ -307,10 +306,13 @@ export const GLYPHS = {
     // The Assistant composer's Talk and Send.
     talk: Mic,
     send: Send,
-    // The Assistant's reply actions: its steps, Send again and Jump to newest.
-    steps: ListChecks,
+    // The Assistant's reply actions: its steps, Send again, Jump to newest, a change line's mark
+    // and Open layer.
+    steps: List,
     again: RotateCw,
-    newest: ChevronsDown,
+    newest: ArrowDown,
+    changed: Layers,
+    openLayer: ArrowUpRight,
     // An untitled chat in the Assistant's header: the way into the chat history.
     history: History,
     key: KeyRound,

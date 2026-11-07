@@ -43,6 +43,11 @@ describe("ChangeRows", () => {
             </WorkspaceContext.Provider>,
         );
         assert.isNull(screen.queryByText("Computed d"));
+        // Each line starts with the layers glyph, left of its words.
+        const first = screen.getByText("Computed a");
+        const mark = first.parentElement?.querySelector("svg");
+        assert.isOk(mark);
+        assert.isBelow(mark.getBoundingClientRect().right, first.getBoundingClientRect().left + 1);
         await userEvent.click(screen.getByRole("button", { name: "and 2 more" }));
         assert.strictEqual(more, 1);
         assert.isNull(screen.queryByRole("button", { name: "and 2 more" }));

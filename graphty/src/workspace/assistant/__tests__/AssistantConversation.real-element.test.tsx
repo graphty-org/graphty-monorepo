@@ -317,6 +317,19 @@ describe("talking to the Assistant", () => {
         await screen.findByRole("button", { name: "What stands out in this graph?" });
     });
 
+    it("lines the starters up at the left, under the caution", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        const caution = (await screen.findByText("Answers can be wrong.")).getBoundingClientRect();
+        for (const name of ["Which nodes matter most?", "What stands out in this graph?"]) {
+            const starter = screen.getByRole("button", { name });
+            const words = within(starter).getByText(name).getBoundingClientRect();
+            assert.isAtMost(Math.abs(starter.getBoundingClientRect().left - caution.left), 12, `${name}: at the left`);
+            assert.isAtMost(words.left - caution.left, 16, `${name}: its words start at the left`);
+        }
+    });
+
     it("asks the third starter about the graph's first category column", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         await open();
@@ -388,32 +401,60 @@ describe("talking to the Assistant", () => {
             said.push(store.get().announcement);
         });
         await openPanel();
-        model.turns = [
-            { text: "", toolCalls: [{ id: "c1", name: "query", arguments: { action: "overview" } }] },
-            { text: "Done.", toolCalls: [] },
-        ];
-        model.holdTurn = 1;
+        const query = (id: string): Awaited<ReturnType<Generate>> => ({
+            text: "",
+            toolCalls: [{ id, name: "query", arguments: { action: "overview" } }],
+        });
+        // An earlier reply with two steps too: the workspace's focus guard alone could not tell its
+        // "2 steps" from the new reply's, so focus staying put is the reply's own hand-off.
+        model.turns = [query("a1"), query("a2"), { text: "First.", toolCalls: [] }];
+        await say("Before");
+        await screen.findByText("First.");
+        model.turns = [...model.turns, query("c1"), query("c2"), { text: "Done.", toolCalls: [] }];
+        model.held = false;
+        model.holdTurn = 4;
         await say("What is here?");
         await waitFor(() => {
             assert.isTrue(model.held);
         });
         const steps = await screen.findByRole("button", { name: "1 step" });
+        const turn = steps.closest<HTMLElement>(".ws-assistant-turn");
+        assert.isNotNull(turn);
         const dots = screen.getByRole("img", { name: "Sending to Mock" });
         assert.strictEqual(steps.textContent, "", "an icon, its count in its name");
         assert.closeTo(steps.getBoundingClientRect().top, dots.getBoundingClientRect().top, 8, "on the dots' row");
         assert.isAbove(steps.getBoundingClientRect().left, dots.getBoundingClientRect().left, "after the dots");
         await userEvent.click(steps);
         assert.strictEqual(steps.getAttribute("aria-expanded"), "true");
-        await screen.findByText("Query data");
+        await within(turn).findByText("Query data");
         assert.include(said, "Running Query data", "the step was announced as it ran");
+        assert.strictEqual(document.activeElement, steps, "the reader is on Steps");
+
+        // A second step arrives while the list is open: it joins the list, under the same button.
+        model.held = false;
+        model.holdTurn = 5;
+        model.release();
+        await waitFor(() => {
+            assert.isTrue(model.held);
+        });
+        await waitFor(() => {
+            assert.lengthOf(within(turn).getAllByText("Query data"), 2);
+        });
+        assert.strictEqual(steps.getAttribute("aria-label"), "2 steps");
+        assert.strictEqual(document.activeElement, steps);
 
         model.release();
-        await screen.findByText("Done.");
+        await within(turn).findByText("Done.");
         await screen.findByRole("button", { name: "Send" });
         assert.isNull(screen.queryByRole("img", { name: /^Sending|^Writing|^Running/ }));
-        // The list stays open after the run, under the same icon.
-        assert.strictEqual(screen.getByRole("button", { name: "1 step" }).getAttribute("aria-expanded"), "true");
-        screen.getByText("Query data");
+        // The list stays open after the run, and focus stays on Steps as it moves to the reply's icons.
+        const ended = within(turn).getByRole("button", { name: "2 steps" });
+        assert.lengthOf(screen.getAllByRole("button", { name: "2 steps" }), 2);
+        assert.strictEqual(ended.getAttribute("aria-expanded"), "true");
+        assert.lengthOf(within(turn).getAllByText("Query data"), 2);
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, ended);
+        });
     });
 
     it("sets the reader's message on a gray fill and the reply plain, with the caution on an empty chat", async () => {
@@ -553,6 +594,18 @@ describe("talking to the Assistant", () => {
         const row = await screen.findByRole("alert");
         assert.include(row.textContent, "Could not reach Google: the service is unavailable.");
         assert.include(row.textContent, "Nothing changed.");
+        // The warning glyph and the words in the error color, with no box around them.
+        const line = within(row).getByText(/^Could not reach Google/);
+        const glyph = row.querySelector("svg");
+        assert.isNotNull(glyph);
+        assert.strictEqual(getComputedStyle(line).color, getComputedStyle(row).color);
+        assert.notStrictEqual(
+            getComputedStyle(line).color,
+            getComputedStyle(screen.getByRole("region", { name: "Chat" })).color,
+            "the error color",
+        );
+        assert.include(["rgba(0, 0, 0, 0)", "transparent"], getComputedStyle(row).backgroundColor);
+        assert.strictEqual(getComputedStyle(row).borderTopWidth, "0px");
         const log = screen.getByRole("region", { name: "Chat" });
         // The buttons sit under the words, so the words get the log's width.
         const words = row.getBoundingClientRect();
@@ -790,6 +843,7 @@ describe("talking to the Assistant", () => {
         assert.strictEqual(send.getAttribute("aria-disabled"), "true");
         assert.strictEqual(send.getAttribute("aria-keyshortcuts"), "Enter");
         assert.isBelow(Number(getComputedStyle(send).opacity), 1, "dimmed, not removed");
+        const accent = getComputedStyle(send).backgroundColor;
         await userEvent.hover(send);
         const tip = await screen.findByRole("tooltip");
         assert.include(tip.textContent, "Send");
@@ -800,6 +854,11 @@ describe("talking to the Assistant", () => {
         await say("Slow question");
         const stop = await screen.findByRole("button", { name: "Stop" });
         assert.strictEqual(stop, send, "one button, so focus survives the change");
+        // A gray fill, neither the accent nor the white of a plain button, around a filled square.
+        const fill = getComputedStyle(stop).backgroundColor;
+        assert.notInclude(["rgba(0, 0, 0, 0)", "transparent", "rgb(255, 255, 255)", accent], fill);
+        const square = stop.querySelector("svg");
+        assert.strictEqual(square?.getAttribute("fill"), "currentColor");
         assert.strictEqual(stop.getAttribute("aria-keyshortcuts"), "Escape");
         await waitFor(() => {
             assert.isTrue(model.held);

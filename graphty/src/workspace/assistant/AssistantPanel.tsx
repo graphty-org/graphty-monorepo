@@ -66,7 +66,7 @@ function Starters(): React.JSX.Element {
         column === undefined ? WORDS["assistant.starter.stands-out"] : starterColumn(column.name),
     ];
     return (
-        <Stack gap={4} className="ws-assistant-starters">
+        <Stack gap={4} align="flex-start" className="ws-assistant-starters">
             <Text size="sm" c="dimmed" mb={4}>
                 {WORDS["assistant.wrong"]}
             </Text>
@@ -174,6 +174,15 @@ export default function AssistantPanel(): React.JSX.Element {
             setListing(false);
         }
     }, [running]);
+    // Every chat opens asking about the whole graph: opening another, or a new one, drops Selection.
+    const chatId = view.conversation?.id ?? null;
+    const lastChat = useRef(chatId);
+    useEffect(() => {
+        if (lastChat.current !== null && lastChat.current !== chatId) {
+            store.set({ assistantScopeSelection: false });
+        }
+        lastChat.current = chatId;
+    }, [chatId, store]);
     const listId = useId();
     // Loaded while set up, not only while listing: the closed header's spoken name counts them too.
     const { rows, reload } = useChatRows(setUp, view.conversation);
@@ -236,6 +245,7 @@ export default function AssistantPanel(): React.JSX.Element {
                                         assistantDraft: "",
                                         assistantSpoken: null,
                                         assistantRefused: false,
+                                        assistantScopeSelection: false,
                                     });
                                     backToLog();
                                     void element?.newAiConversation();

@@ -5,18 +5,14 @@
  * provider's SDK or TanStack AI. Run after `vite build`, from graphty/.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const DIST = resolve(process.argv[2] ?? "dist");
+/** A word only the panel holds: it must be somewhere in the build, or the check proves nothing. */
+const PANEL_MARK = "Options, asking about the selection";
 /** Text only those files hold: a word of the panel, and the addresses the SDKs call. */
-const MARKS = [
-    "Enter sends, Shift+Enter makes a new line",
-    "generativelanguage.googleapis.com",
-    "api.anthropic.com",
-    "api.openai.com",
-    "@tanstack/ai",
-];
+const MARKS = [PANEL_MARK, "generativelanguage.googleapis.com", "api.anthropic.com", "api.openai.com", "@tanstack/ai"];
 
 const html = readFileSync(join(DIST, "index.html"), "utf8");
 const queue = [...html.matchAll(/(?:src|href)="\/?([^"]+\.js)"/g)].map((match) => join(DIST, match[1]));
@@ -37,6 +33,11 @@ while (queue.length > 0) {
 
 if (seen.size === 0 || found.length > 0) {
     console.error(found.length > 0 ? found.join("\n") : "index.html loads no script");
+    process.exit(1);
+}
+const built = readdirSync(DIST, { recursive: true }).filter((name) => String(name).endsWith(".js"));
+if (!built.some((name) => readFileSync(join(DIST, String(name)), "utf8").includes(PANEL_MARK))) {
+    console.error(`no built file holds "${PANEL_MARK}": pick a word the panel still has`);
     process.exit(1);
 }
 console.log(`${seen.size} files an ordinary load fetches hold none of the Assistant`);

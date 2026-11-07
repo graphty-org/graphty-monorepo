@@ -100,6 +100,27 @@
     fill: currentcolor;
 }
 
+/* A change line's layers glyph, and a failure: the warning glyph and its words in the error color,
+   or the warning color for a provider out of credit, with no box. */
+.ws-assistant-changed {
+    flex: none;
+    margin-top: 3px;
+    color: var(--cm-icon-secondary);
+}
+
+.ws-assistant-failed {
+    color: var(--cm-text-danger);
+}
+
+.ws-assistant-failed[data-billing] {
+    color: var(--cm-text-warning);
+}
+
+.ws-assistant-failed-mark {
+    flex: none;
+    margin-top: 3px;
+}
+
 /* A reply running: three dots that pulse in turn, still with reduced motion. */
 .ws-assistant-dots {
     display: inline-flex;
@@ -289,6 +310,17 @@
 
 .ws-assistant-box:has(textarea:focus-visible) {
     border-color: var(--mantine-primary-color-filled);
+    /* Unseen until forced colors draw it: there every border is one color, so the outline marks focus. */
+    outline: 2px solid transparent;
+    outline-offset: -1px;
+}
+
+/* Forced colors replace a background with the page's color: the dots keep the text color. */
+@media (forced-colors: active) {
+    .ws-assistant-dots span {
+        background: CanvasText;
+        forced-color-adjust: none;
+    }
 }
 
 .ws-assistant-input {

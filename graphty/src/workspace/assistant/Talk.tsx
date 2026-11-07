@@ -205,11 +205,10 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
     return (
         <Tooltip
             label={
-                listening ? (
-                    WORDS["assistant.talk.stop"]
-                ) : (
-                    <TooltipShortcut label={WORDS["assistant.talk"]} shortcut={formatKey(TALK_KEY)} />
-                )
+                <TooltipShortcut
+                    label={listening ? WORDS["assistant.talk.stop"] : WORDS["assistant.talk"]}
+                    shortcut={formatKey(TALK_KEY)}
+                />
             }
         >
             <ActionIcon
@@ -233,7 +232,11 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
                     }
                 }}
             >
-                {listening ? <GLYPHS.stop size={14} aria-hidden /> : <GLYPHS.talk size={16} aria-hidden />}
+                {listening ? (
+                    <GLYPHS.stop size={14} fill="currentColor" aria-hidden />
+                ) : (
+                    <GLYPHS.talk size={16} aria-hidden />
+                )}
             </ActionIcon>
         </Tooltip>
     );

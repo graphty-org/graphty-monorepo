@@ -358,16 +358,23 @@ export function ChangeRows({
     return (
         <div className="ws-assistant-change">
             {shown.map((line, index) => (
-                // A turn's lines never reorder.
-                <Text
+                // A turn's lines never reorder. Each starts with the layers glyph, as a change.
+                <Group
                     key={index} // NOSONAR(S6479): a line's place is its identity
-                    size="sm"
-                    td={undone ? "line-through" : undefined}
-                    ref={index === MAX_LINES ? firstMore : undefined}
-                    tabIndex={index === MAX_LINES ? -1 : undefined}
+                    gap={6}
+                    wrap="nowrap"
+                    align="flex-start"
                 >
-                    {line}
-                </Text>
+                    <GLYPHS.changed size={14} aria-hidden className="ws-assistant-changed" />
+                    <Text
+                        size="sm"
+                        td={undone ? "line-through" : undefined}
+                        ref={index === MAX_LINES ? firstMore : undefined}
+                        tabIndex={index === MAX_LINES ? -1 : undefined}
+                    >
+                        {line}
+                    </Text>
+                </Group>
             ))}
             {shown.length < lines.length ? (
                 <Button
@@ -395,7 +402,7 @@ export function ChangeRows({
                                 store.set({ inspected: link.inspected, announcement: openedWords(link.name) });
                             }}
                         >
-                            <GLYPHS.openExternal size={14} aria-hidden />
+                            <GLYPHS.openLayer size={14} aria-hidden />
                         </ActionIcon>
                     </Tooltip>
                 ))}

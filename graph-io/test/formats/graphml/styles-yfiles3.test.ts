@@ -431,6 +431,17 @@ describe("yEd Live GraphML: edge geometry, stroke alpha and hollow arrows", () =
         expect(edge("bends", "color-ff0000")).toBeNull();
     });
 
+    it("starts and ends an edge at its sourceport and targetport, placed by their FreeNodePortLocationModelParameter", async () => {
+        // yed-live-graphml-specimen-edges-lines.svg draws port-top-bottom from the top middle of its source to the
+        // bottom middle of its target, and port-corners from the bottom-right corner to the top-left one
+        const { edge } = await sheet("specimen-edges-lines.graphml");
+        expect(edge("sourcePort", "port-top-bottom")).toBe("0,1");
+        expect(edge("targetPort", "port-top-bottom")).toBe("0,-1");
+        expect(edge("sourcePort", "port-corners")).toBe("1,-1");
+        expect(edge("targetPort", "port-corners")).toBe("-1,1");
+        expect(edge("sourcePort", "bends-one")).toBeNull();
+    });
+
     it("carries a stroke's #AARRGGBB alpha into the border opacity", async () => {
         const { node } = await sheet("specimen-node-sizes-opacity.graphml");
         expect(node("borderColor", "stroke-alpha-40")).toBe("#000000");

@@ -817,21 +817,36 @@ const PORT_EVENT_ATTRIBUTES: ReadonlySet<string> = new Set([
 function portEvents(refs: References, ports: unknown, size: Size, at: SiteOf): PortEvent[] {
     return (Array.isArray(ports) ? ports : []).flatMap((entry: unknown): PortEvent[] => {
         const style = isTree(entry) ? refs.first(entry.PortStyle) : null;
-        const where = isTree(entry)
-            ? treeChild(entry.PortLocationParameter, "FreeNodePortLocationModelParameter")
-            : null;
-        if (style?.tag !== "EventPortStyle" || !isTree(where) || !isTree(style.e)) {
+        const point = freePortPoint(refs, entry, size);
+        if (style?.tag !== "EventPortStyle" || point === null || !isTree(style.e)) {
             return [];
         }
         const unread = Object.keys(style.e).some(
             (k) => k.startsWith("@_") && !k.includes(":") && !PORT_EVENT_ATTRIBUTES.has(k.slice(2)),
         );
-        const pair = (name: string, unset: string): number[] => (treeAttr(where, name) ?? unset).split(",").map(Number);
-        const [[rx, ry], [ox, oy]] = [pair("Ratio", "0.5,0.5"), pair("Offset", "0,0")];
-        const x = rx * size.width + ox;
-        const y = ry * size.height + oy;
-        return unread || !Number.isFinite(x) || !Number.isFinite(y) ? [] : [{ x, y, ...styleReader(refs, style, at) }];
+        return unread ? [] : [{ x: point[0], y: point[1], ...styleReader(refs, style, at) }];
     });
+}
+
+/**
+ * Where a port sits on its node, from the top-left corner of the node's box: its FreeNodePortLocationModelParameter's
+ * `Ratio` of the box, then its `Offset`, written in place or as a `<y:GraphMLReference>` to the graph's shared data.
+ * ponytail: the free model only, the one yFiles for HTML and yEd Live write in the corpus; another model reads as null.
+ * @param refs - the references
+ * @param entry - the port's entry in its node's ports column
+ * @param size - the node's size
+ * @returns the point, or null when the port has no free location
+ */
+function freePortPoint(refs: References, entry: unknown, size: Size): BendPoint | null {
+    const where = isTree(entry) ? refs.first(entry.PortLocationParameter) : null;
+    if (where?.tag !== "FreeNodePortLocationModelParameter") {
+        return null;
+    }
+    const pair = (name: string, unset: string): number[] => (treeAttr(where.e, name) ?? unset).split(",").map(Number);
+    const [[rx, ry], [ox, oy]] = [pair("Ratio", "0.5,0.5"), pair("Offset", "0,0")];
+    const x = rx * size.width + ox;
+    const y = ry * size.height + oy;
+    return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : null;
 }
 
 /**
@@ -2355,6 +2370,45 @@ interface Yfiles3Context {
     readonly refs: References;
     /** each node's center x and y, width and height from its NodeGeometry, for its edges' bends; NaN without one */
     readonly boxes: Float64Array;
+    /** the name of the nodes' ports column, if the graph has one */
+    readonly ports: string | undefined;
+}
+
+/**
+ * Where one end of an edge attaches: its `sourceport` / `targetport`'s free location on its node, else the node's
+ * center (yEd Live's oracle drawings start and end every port edge there, e.g. e31 of
+ * graphml-yfiles-html-stag-flowchart at Ratio 0.75,1 of n30 and 0.5,0 of n32).
+ * @param ctx - the reading's context
+ * @param i - the edge's index
+ * @param end - which end
+ * @returns the point, NaN when the node has no NodeGeometry
+ */
+function edgeEnd(ctx: Yfiles3Context, i: number, end: "sourcePort" | "targetPort"): BendPoint {
+    const { snapshot, boxes, ports, refs } = ctx;
+    const k = end === "sourcePort" ? snapshot.edgeSource(i) : snapshot.edgeTarget(i);
+    const [cx, cy, width, height] = boxes.subarray(4 * k, 4 * k + 4);
+    const name = snapshot.edges.byRole(end)?.value(i);
+    const list = ports === undefined || typeof name !== "string" ? null : plainCell(snapshot.nodes.value(ports, k));
+    const entry: unknown = Array.isArray(list) ? list.find((p: unknown) => isTree(p) && p.name === name) : undefined;
+    const point = entry === undefined ? null : freePortPoint(refs, entry, { width, height });
+    return point === null ? [cx, cy] : [cx - width / 2 + point[0], cy - height / 2 + point[1]];
+}
+
+/**
+ * Writes where an edge's ends attach, relative to their nodes' sizes, for an end whose port is off the node's center.
+ * @param ctx - the reading's context
+ * @param i - the edge's index
+ * @param put - receives the values
+ */
+function putEdgePorts(ctx: Yfiles3Context, i: number, put: PutValue): void {
+    for (const end of ["sourcePort", "targetPort"] as const) {
+        const k = end === "sourcePort" ? ctx.snapshot.edgeSource(i) : ctx.snapshot.edgeTarget(i);
+        const [cx, cy, width, height] = ctx.boxes.subarray(4 * k, 4 * k + 4);
+        const point = edgeEnd(ctx, i, end);
+        if (point[0] !== cx || point[1] !== cy) {
+            put(end, canonNodeOffsets([cx, cy], [width, height], [point], true));
+        }
+    }
 }
 
 /**
@@ -2371,7 +2425,10 @@ function edgePath(ctx: Yfiles3Context, i: number, geometry: unknown): EdgePath |
     if (s === t || ![...from, ...to].every(Number.isFinite)) {
         return null;
     }
-    return { boxes: [from, to], route: [[from[0], from[1]], ...edgeBends(geometry), [to[0], to[1]]] };
+    return {
+        boxes: [from, to],
+        route: [edgeEnd(ctx, i, "sourcePort"), ...edgeBends(geometry), edgeEnd(ctx, i, "targetPort")],
+    };
 }
 
 /**
@@ -2386,7 +2443,7 @@ function readYfiles3Target(
     target: StyleTarget,
     kinds: Map<KeyKind, string>,
 ): ReturnType<typeof valueColumns>["values"] {
-    const { snapshot, notes, budget, refs, boxes } = ctx;
+    const { snapshot, notes, budget, refs, boxes, ports } = ctx;
     const isNode = target === "node";
     const table = isNode ? snapshot.nodes : snapshot.edges;
     const n = isNode ? snapshot.nodeCount : snapshot.edgeCount;
@@ -2395,10 +2452,6 @@ function readYfiles3Target(
     const cell = (name: string | undefined, i: number): unknown =>
         name === undefined ? undefined : plainCell(table.value(name, i));
     const expanded = isNode ? [...table].find((col) => col.meta.name === "Expanded")?.meta.name : undefined;
-    const ports = isNode
-        ? [...table].find((col) => col.meta.origin?.namespace === "yfiles" && col.meta.origin.type === "port")?.meta
-              .name
-        : undefined;
     for (let i = 0; i < n; i++) {
         budget.spend(target, 1);
         const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
@@ -2410,6 +2463,9 @@ function readYfiles3Target(
             const box = (k: number): Float64Array => boxes.subarray(4 * k, 4 * k + 4);
             const [s, t] = [snapshot.edgeSource(i), snapshot.edgeTarget(i)];
             readEdgeGeometry(refs, cell(geometry, i), cell(style, i), [box(s), box(t), s === t], put);
+        }
+        if (!isNode) {
+            putEdgePorts(ctx, i, put);
         } else if (geometry !== undefined) {
             size = readNodeGeometry(cell(geometry, i), i, boxes, put, at);
         }
@@ -2468,8 +2524,11 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
         Object.values(meta?.namespaces ?? {}).includes(YFILES_26_XAML),
     );
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
+    const ports = [...snapshot.nodes].find(
+        (col) => col.meta.origin?.namespace === "yfiles" && col.meta.origin.type === "port",
+    )?.meta.name;
     const read = (target: StyleTarget, kinds: Map<KeyKind, string>): ReturnType<typeof valueColumns>["values"] =>
-        readYfiles3Target({ snapshot, notes, budget, refs, boxes }, target, kinds);
+        readYfiles3Target({ snapshot, notes, budget, refs, boxes, ports }, target, kinds);
     const node = read("node", nodeKinds);
     const edge = read("edge", edgeKinds);
     if (refs.cycles > 0) {

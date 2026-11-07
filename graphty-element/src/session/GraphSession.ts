@@ -57,7 +57,6 @@ import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { FeatureId } from "../features/registry";
 import { type EnabledFeatures, featureOff, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
-import type { FeatureId } from "../features/registry";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";

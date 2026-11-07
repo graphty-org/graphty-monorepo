@@ -230,6 +230,11 @@ describe("ingest: benchmarks", () => {
                 )
             ).statusCode,
         ).toBe(400);
+        // a row may name its input, kept on its point
+        const seeded = { ...body(7), rows: [{ name: "PageRank n=1000", value: 7, input: "3fa2c1d0e9b8" }] };
+        expect((await h(event("/v1/benchmarks", seeded, { claims: full("603") }))).statusCode).toBe(200);
+        const after = await mem.get({ pk: "BENCH", sk: "algorithms: PageRank n=1000" });
+        expect((after?.points as { input?: string }[]).at(-1)?.input).toBe("3fa2c1d0e9b8");
     });
 });
 

@@ -579,7 +579,8 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
 }
 
 /**
- * A benchmark job's results (`{ source, sha?, machine?, unit?, rows: [{ name, value }] }`, tools/results/post-benchmarks.mjs),
+ * A benchmark job's results (`{ source, sha?, machine?, unit?, rows: [{ name, value, input? }] }`,
+ * tools/results/post-benchmarks.mjs),
  * each added to its benchmark's item (model/benchmarks.ts) as this run's point. Only from master's workflows: a pull
  * request's numbers would move master's trend.
  * @param b - the posted body
@@ -610,7 +611,15 @@ async function benchItems(b: Record<string, unknown>, who: Who, db: Store, now: 
             refuse(400, "bad_field", { field: "value", type: "non-negative" });
         }
         const benchmark = `${source}: ${(r.name as string).slice(0, MAX_BENCH_NAME)}`;
-        const point = { at: now, v: r.value as number, run, ...(sha ? { sha } : {}), ...(machine ? { machine } : {}) };
+        const input = typeof r.input === "string" ? r.input.slice(0, MAX_BENCH_NAME) : undefined;
+        const point = {
+            at: now,
+            v: r.value as number,
+            run,
+            ...(sha ? { sha } : {}),
+            ...(machine ? { machine } : {}),
+            ...(input ? { input } : {}),
+        };
         out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, point, now));
     }
     return [...out.values()];

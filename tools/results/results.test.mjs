@@ -1759,13 +1759,13 @@ describe("health API fan-out", () => {
                 timestamp: "new",
                 results: [
                     { algorithm: "GRSBM", graphSize: 50, edges: 98, executionTime: 4.18, memoryUsage: 0 },
-                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, memoryUsage: 0 },
+                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, input: "3fa2c1d0e9b8" },
                 ],
             },
         ];
         assert.deepEqual(benchmarkRows(algorithms), [
             { name: "GRSBM n=50", value: 4.18 },
-            { name: "GRSBM n=100", value: 15.75 },
+            { name: "GRSBM n=100", value: 15.75, input: "3fa2c1d0e9b8" },
         ]);
         // webgpu-graph-algorithms/benchmarks/out/gpu-linux-t4.json (benchmarks/harness.ts)
         const harness = [

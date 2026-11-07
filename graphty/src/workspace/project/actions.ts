@@ -281,12 +281,11 @@ export function saveProblemSentence(name: string, error: unknown): string {
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the project's session.
  * @param target - the `browserProjects` id to write again, or null for a new record.
- * @returns false when nothing was saved: no session, or the reader cancelled the question about
- *     files from the web.
+ * @returns false when the reader cancelled the question about files from the web.
  */
 async function writeProject({ workspace, session }: CommandContext, target: string | null): Promise<boolean> {
     if (session === null) {
-        return false;
+        return true;
     }
     const assets = await askAssetChoices(workspace, session);
     if (assets === null) {

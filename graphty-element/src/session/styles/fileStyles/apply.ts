@@ -45,6 +45,8 @@ export interface FileStylesRead {
      * positions are in another known unit (Graphviz input inches: 72); absent when they share it.
      */
     readonly positionPxPerUnit?: number;
+    /** Whether the file stored a usable position for any node; absent counts as none. */
+    readonly positionsStored?: boolean;
     /**
      * Set when the stored positions have no fixed length and the program that draws the file fits
      * them into its canvas, `padding` px in from each side, drawing label sizes in the canvas's px
@@ -329,6 +331,7 @@ async function applyRead(
         base: baseValues(ctx.state.styles),
         dataPath: dataPaths(read.path),
         labelPxPerUnit: pxPerUnit,
+        positionsStored: read.positionsStored === true,
     });
     const notes = [...translation.notes];
 

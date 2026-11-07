@@ -79,7 +79,8 @@ describe("Cytoscape's shared name and shared interaction", () => {
         // edge i has interaction kinds[i % 4]: product, reactant, inhibitor, modifier
         const color = planned(r, "edge", "color");
         expect(color.slice(0, 4)).toEqual(["#000000", "#000000", "#ff3333", "#3333ff"]);
-        expect(planned(r, "edge", "lineStyle").slice(2, 4)).toEqual(["dotted", "dashed"]);
+        // CX2's dashed is drawn in Cytoscape's long dashes (its oracle: 0.67 of each period drawn)
+        expect(planned(r, "edge", "lineStyle").slice(2, 4)).toEqual(["dotted", "long-dash"]);
         expect(planned(r, "node", "label").slice(0, 2)).toEqual(["S0", "S1"]);
         expect(r.styles?.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_MAPPING_COLUMN_MISSING");
     });

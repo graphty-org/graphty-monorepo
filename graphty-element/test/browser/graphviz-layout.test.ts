@@ -11,6 +11,9 @@ import { Graph, operationQueueOf } from "../../src/Graph";
 import { graphvizAvailability } from "../../src/layout/graphviz/availability";
 import { runGraphviz } from "../../src/layout/graphviz/host";
 import { drawnFrames } from "../helpers/drawn-frames";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** A graph that takes Graphviz far longer than a millisecond: a 300-node grid for circo. */
 const SLOW_DOT = `graph { ${Array.from({ length: 300 }, (_unused, i) => `n${String(i)} -- n${String((i * 7 + 1) % 300)}; n${String(i)} -- n${String((i + 1) % 300)};`).join(" ")} }`;

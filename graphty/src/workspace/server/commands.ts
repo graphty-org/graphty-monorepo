@@ -1,8 +1,9 @@
 /**
- * Server sources (data prototype spec section 3.9): the Sources "+" Server... door, the Expand...
- * and Collapse verbs on a node a server load brought, and how the form's rows become one
+ * Network data (data prototype spec section 3.9): the Sources "+" Network data... door, the
+ * Expand... and Collapse verbs on a node a server load brought, and how the form's rows become one
  * `data.import` call. graphty-element reads the server, pages, refreshes and expands; this file
- * only turns what the reader picked into its inputs.
+ * only turns what the reader picked into its inputs. Every door here is drawn only with the
+ * `network-data` experiment on.
  */
 
 import { type SourceCatalogEntry, sourceDescriptors } from "@graphty/graphty-element/catalog";
@@ -17,6 +18,7 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { networkOn } from "../features";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { kindName } from "./words";
@@ -26,9 +28,6 @@ export const SERVER_DIALOG = "server";
 
 /** The `dialog` value that opens Expand... for the selected node. */
 export const EXPAND_DIALOG = "server-expand";
-
-/** The graph-samples source: its datasets are files, listed in Samples, not a server. */
-const GRAPH_SAMPLES = "graph-samples";
 
 /** What each Start value is called; the element's own name for a value not listed here. */
 export const START_WORDS: Readonly<Record<string, string>> = {
@@ -44,14 +43,11 @@ const STARTER_QUERY: Readonly<Record<string, string>> = {
 };
 
 /**
- * The servers the form offers: every registered source this browser can reach, without the
- * graph-samples datasets.
+ * The servers the form offers: every registered source this browser can reach.
  * @returns the catalog entries.
  */
 export function serverKinds(): readonly SourceCatalogEntry[] {
-    return sourceDescriptors().filter(
-        (each) => each.id !== GRAPH_SAMPLES && each.descriptor.runtimes?.browser?.supported !== false,
-    );
+    return sourceDescriptors().filter((each) => each.descriptor.runtimes?.browser?.supported !== false);
 }
 
 /** What the form holds. */
@@ -160,17 +156,17 @@ export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id
     if (id === null) {
         return withoutExample(entry, form);
     }
-    const samples = entry.descriptor.samples ?? [];
-    const sample = samples.find((each) => each.id === id);
-    if (sample === undefined) {
+    const examples = entry.descriptor.examples ?? [];
+    const example = examples.find((each) => each.id === id);
+    if (example === undefined) {
         return form;
     }
-    const prior = samples.find((each) => each.plainName === form.example);
+    const prior = examples.find((each) => each.plainName === form.example);
     const owned = new Set([...Object.keys(prior?.params ?? {}), "transport"]);
     const params: Record<string, unknown> = Object.fromEntries(
         Object.entries(form.params).filter(([name]) => !owned.has(name)),
     );
-    for (const [name, value] of Object.entries(sample.params)) {
+    for (const [name, value] of Object.entries(example.params)) {
         if (name !== "mode") {
             params[name] = value;
         }
@@ -180,11 +176,11 @@ export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id
     }
     return {
         ...form,
-        example: sample.plainName,
-        endpoint: sample.endpoint ?? "",
+        example: example.plainName,
+        endpoint: example.endpoint ?? "",
         params,
-        user: sample.publicLogin?.username ?? "",
-        secret: sample.publicLogin?.password ?? "",
+        user: example.publicLogin?.username ?? "",
+        secret: example.publicLogin?.password ?? "",
     };
 }
 
@@ -208,21 +204,21 @@ function untouched(held: unknown, filled: unknown): boolean {
  */
 export function withoutExample(entry: SourceCatalogEntry, form: ServerFormState): ServerFormState {
     const { example, ...rest } = form;
-    const sample = (entry.descriptor.samples ?? []).find((each) => each.plainName === example);
-    if (sample === undefined) {
+    const filled = (entry.descriptor.examples ?? []).find((each) => each.plainName === example);
+    if (filled === undefined) {
         return rest;
     }
     const fresh = freshForm(entry).params;
     const params: Record<string, unknown> = { ...form.params };
-    for (const [name, value] of Object.entries(sample.params)) {
+    for (const [name, value] of Object.entries(filled.params)) {
         if (name !== "mode" && untouched(params[name], value)) {
             params[name] = fresh[name];
         }
     }
-    const login = sample.publicLogin;
+    const login = filled.publicLogin;
     return {
         ...rest,
-        endpoint: untouched(form.endpoint, sample.endpoint ?? "") ? "" : form.endpoint,
+        endpoint: untouched(form.endpoint, filled.endpoint ?? "") ? "" : form.endpoint,
         params: Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
         user: untouched(form.user, login?.username ?? "") ? "" : form.user,
         secret: untouched(form.secret, login?.password ?? "") ? "" : form.secret,
@@ -351,7 +347,7 @@ export function serverRequest(
  * Opens the server form on the Data place, opening an empty project first when none is open
  * (the start screen's Open network data).
  * @param store - the workspace store.
- * @param kind - the source the form opens on (Open network data's card), or none for its first.
+ * @param kind - the source the form opens on, or none for its first.
  */
 export function openServerForm(store: WorkspaceStore, kind: string | null = null): void {
     store.set((state) => ({
@@ -427,15 +423,19 @@ function collapseNode(workspace: WorkspaceStore, session: GraphSession, id: Node
     });
 }
 
-/** The server package's registration: Server... on the Sources "+", and Expand... and Collapse. */
+/**
+ * The server package's registration: Network data... on the Sources "+", and Expand... and
+ * Collapse; each drawn only with the network-data experiment on.
+ */
 export const registration = defineRegistration({
     owner: "server",
     commands: [
         {
             id: "data.add-server",
-            label: "Server...",
+            label: "Network data...",
             group: "Data",
-            keywords: ["add", "source", "database", "neo4j", "cypher", "sparql", "ndex", "openalex", "rest"],
+            keywords: ["add", "source", "server", "database", "neo4j", "cypher", "sparql", "ndex", "openalex", "rest"],
+            shown: (ctx) => networkOn(ctx.session),
             run: (ctx) => {
                 openServerForm(ctx.workspace);
             },
@@ -452,7 +452,7 @@ export const registration = defineRegistration({
             },
             shown: (ctx) => {
                 const id = selectedNode(ctx);
-                return id !== undefined && expandableSource(ctx.session, id) !== undefined;
+                return networkOn(ctx.session) && id !== undefined && expandableSource(ctx.session, id) !== undefined;
             },
             run: (ctx) => {
                 ctx.workspace.set({ dialog: EXPAND_DIALOG });
@@ -465,7 +465,7 @@ export const registration = defineRegistration({
             keywords: ["neighbors", "server"],
             shown: (ctx) => {
                 const id = selectedNode(ctx);
-                return id !== undefined && collapsible(ctx.session, id);
+                return networkOn(ctx.session) && id !== undefined && collapsible(ctx.session, id);
             },
             run: (ctx) => {
                 const id = selectedNode(ctx);

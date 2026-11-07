@@ -1,4 +1,4 @@
-import { Popout, PopoutManager } from "@graphty/compact-mantine";
+import { ActionRow, PanelLabelsProvider, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { NodeId } from "@graphty/graphty-element/session";
 import { Button } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -66,7 +66,7 @@ export function NodeMenu(): React.JSX.Element | null {
                     }}
                 >
                     <Popout.Panel
-                        width={260}
+                        width={240}
                         header={{ variant: "title", title: "Expand" }}
                         closeLabel="Close Expand"
                         anchorX={point}
@@ -92,12 +92,16 @@ export function NodeMenu(): React.JSX.Element | null {
                                         });
                                 }}
                             >
-                                <ExpandFields value={expandWith} onChange={setExpandWith} />
-                                <div className="sv-actions">
-                                    <Button size="xs" type="submit">
-                                        Expand
-                                    </Button>
-                                </div>
+                                <PanelLabelsProvider showLabels>
+                                    <ExpandFields value={expandWith} onChange={setExpandWith} />
+                                </PanelLabelsProvider>
+                                <ActionRow
+                                    actions={
+                                        <Button size="xs" type="submit">
+                                            Expand
+                                        </Button>
+                                    }
+                                />
                             </form>
                         </Popout.Content>
                     </Popout.Panel>

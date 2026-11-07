@@ -1,6 +1,6 @@
 {
     "site": "canary",
-    "features": ["selection-workspace", "timeline", "cosmograph"],
+    "features": ["selection-workspace", "timeline", "cosmograph", "network-data"],
     "datasets": "https://canary.graphty.app/data/graph-samples/v1/",
     "sentryEnvironment": "canary"
 }

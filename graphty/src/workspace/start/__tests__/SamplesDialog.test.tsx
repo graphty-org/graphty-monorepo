@@ -58,6 +58,10 @@ describe("the Samples dialog", () => {
             .getAllByRole("region")
             .map((section) => section.getAttribute("aria-label"));
         assert.includeMembers(headings, ["Proteins", "Supply chain", "Graphs", "Datasets", "Generated"]);
+        // A network server's examples are not samples: they belong to the network data form.
+        assert.notInclude(headings, "Live");
+        assert.throws(() => tile(dialog, "Neo4j demo: movies"));
+        assert.throws(() => tile(dialog, "WikiPathways WP5483"));
         const names = within(dialog)
             .getAllByRole("button")
             .map((button) => button.textContent);

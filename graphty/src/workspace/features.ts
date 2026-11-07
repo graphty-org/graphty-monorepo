@@ -27,3 +27,14 @@ export function selectionWorkspaceOn(session: GraphSession | null | undefined): 
 export function cosmographOn(session: GraphSession | null | undefined): boolean {
     return (session?.features.enabled ?? []).includes("cosmograph");
 }
+
+/**
+ * Whether network data is on (the `network-data` experiment, issue #6211). Off, the app draws no
+ * door to a server: no Network data... in the Sources "+", no Expand... or Collapse on a node, no
+ * waiting loads; graphty-element refuses every network-source call anyway.
+ * @param session - the element's session, or null before it comes up.
+ * @returns true when the element switched the experiment on.
+ */
+export function networkOn(session: GraphSession | null | undefined): boolean {
+    return (session?.features.enabled ?? []).includes("network-data");
+}

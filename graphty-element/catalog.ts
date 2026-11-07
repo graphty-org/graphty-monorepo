@@ -68,7 +68,7 @@ export type {
     ModelDetectionInput,
     ModelFormat,
 } from "./src/catalog/detectModel";
-export { detectAssetKind, detectModelFormat } from "./src/catalog/detectModel";
+export { assetFileExtensions, detectAssetKind, detectModelFormat } from "./src/catalog/detectModel";
 export type { UnservedFormat } from "./src/catalog/formats";
 export { FORMAT_DESCRIPTORS, formatDescriptor, formatsForExtension, UNSERVED_FORMAT_IDS } from "./src/catalog/formats";
 export type {

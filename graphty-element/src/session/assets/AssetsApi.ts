@@ -12,9 +12,11 @@
  */
 
 import type { ModelFormat } from "../../catalog/detectModel";
+import type { LayerId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { isPrivateHost, type NetworkApiInternal } from "../network";
 import type { CodedFact } from "../shared";
+import type { SessionStylesApi } from "../styles";
 import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
 import { digestFileSet, sha256Fallback } from "./digest";
@@ -350,6 +352,20 @@ export interface AssetsApi {
      * @returns Their records, in the order added.
      */
     waiting(): readonly AssetRecord[];
+    /**
+     * The node layers that name a model or picture (`node.model` or `node.texture`, as a value or
+     * in an encoding's map), by any name the session knows it by: its id, the id it had while it
+     * waited for parts, or the URL it was added from.
+     * @param ref - An asset id, a waiting model's id, or a URL.
+     * @returns The layers' ids, in stack order; empty when none names it.
+     * @example
+     * ```ts
+     * if (graph.session.assets.usedBy(record.id).length === 0) {
+     *     // no layer draws it yet
+     * }
+     * ```
+     */
+    usedBy(ref: string): readonly LayerId[];
 }
 
 /** A model missing parts, held for `supply` (design 12.4). */
@@ -718,9 +734,10 @@ function useStep(
 /**
  * Build `session.assets`.
  * @param network - The session's fetch gate, which `allowHosts` also opens.
+ * @param styles - The session's style stack, for `usedBy`; none names nothing.
  * @returns The API.
  */
-export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal {
+export function createAssetsApi(network?: NetworkApiInternal, styles?: () => SessionStylesApi): AssetsApiInternal {
     let limits: ModelLimits = DEFAULT_MODEL_LIMITS;
     const hosts = new Set<string>();
     const entries = new Map<AssetId, Entry>();
@@ -1716,6 +1733,26 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
 
         waiting() {
             return Object.freeze(waitingEntries().map((entry) => entry.record));
+        },
+
+        usedBy(ref) {
+            const id = api.find(ref)?.id;
+            const names = (value: unknown): boolean =>
+                typeof value === "string"
+                    ? value === ref || (id !== undefined && api.find(value)?.id === id)
+                    : typeof value === "object" && value !== null && Object.values(value).some(names);
+            const layers = styles?.().list() ?? [];
+            return Object.freeze(
+                layers
+                    .filter(
+                        (layer) =>
+                            layer.target === "node" &&
+                            (["node.model", "node.texture"] as const).some(
+                                (channel) => names(layer.set?.[channel]) || names(layer.encode?.[channel]),
+                            ),
+                    )
+                    .map((layer) => layer.id),
+            );
         },
 
         assembled(id) {

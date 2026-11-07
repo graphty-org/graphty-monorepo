@@ -152,6 +152,9 @@ export interface AlgorithmDescriptor {
 export type AlgorithmKey = KnownAlgorithm | (string & {});
 
 // @public
+export function assetFileExtensions(kind: AssetKind): readonly string[];
+
+// @public
 export type AssetKind = "model" | "image";
 
 // @public

@@ -202,6 +202,7 @@ export interface AssetsApi {
     supply(ref: string, answer: PartAnswer, options?: {
         readonly signal?: AbortSignal;
     }): Promise<AssetRecord>;
+    usedBy(ref: string): readonly LayerId[];
     waiting(): readonly AssetRecord[];
 }
 

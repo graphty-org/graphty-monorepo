@@ -218,3 +218,22 @@ describe("project.assetChoices", () => {
         assert.notInclude(parts.rest ?? "", '"stored"');
     });
 });
+
+describe("assets.usedBy", () => {
+    it("lists the layers naming an asset by its id, its waiting id or its URL, on either channel", async () => {
+        stubSite({ [BALL]: sphereGlb(8, 4), [PICTURE]: COLORMAP });
+        const session = await baseSession();
+        const held = await session.assets.add({ files: new Map([["police.glb", POLICE]]) });
+        assert.isTrue(session.assets.waiting().some((each) => each.id === held.id));
+        const waitingLayer = await layer(session, "police", { "node.model": held.id });
+        const accepted = await session.assets.supply(held.id, { name: PART, file: COLORMAP });
+        assert.strictEqual(accepted.state, "accepted");
+        assert.deepStrictEqual(session.assets.usedBy(accepted.id), [waitingLayer], "by the id it had while waiting");
+        assert.deepStrictEqual(session.assets.usedBy(held.id), [waitingLayer]);
+
+        const pictureLayer = await layer(session, "picture", { "node.texture": PICTURE });
+        const picture = await session.assets.ready(PICTURE);
+        assert.deepStrictEqual(session.assets.usedBy(picture.id), [pictureLayer], "by its URL");
+        assert.deepStrictEqual(session.assets.usedBy(BALL), []);
+    });
+});

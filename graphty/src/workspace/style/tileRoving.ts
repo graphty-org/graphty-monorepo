@@ -1,21 +1,22 @@
 /**
  * One Tab stop for a group of tiles (decided.md's grids), as the shader gallery walks its tiles:
  * the arrows move by one tile, or by one row in a grid, and stop at the ends; Home and End go to
- * the first and last. compact-mantine's roving focus is not exported.
+ * the first and last. A stand-in until compact-mantine exports its roving focus (issue #6233).
  */
 
 import type React from "react";
 
-/** What marks a tile of a roving group. */
-const TILE = "[data-tile]";
+/** What marks a tile of a roving group; a disabled one is passed over. */
+const TILE = "[data-tile]:not([aria-disabled])";
 
 /**
  * Moves focus among a group's tiles.
  * @param event - the key, bubbled from a tile to the group.
  * @param columns - tiles per row: 1 walks a list, where up and down move by one too.
+ * @param tile - what marks a tile, when it is not `data-tile`.
  */
-export function roveTiles(event: React.KeyboardEvent<HTMLElement>, columns = 1): void {
-    const tiles = [...event.currentTarget.querySelectorAll<HTMLElement>(TILE)];
+export function roveTiles(event: React.KeyboardEvent<HTMLElement>, columns = 1, tile = TILE): void {
+    const tiles = [...event.currentTarget.querySelectorAll<HTMLElement>(tile)];
     const at = tiles.indexOf(event.target as HTMLElement);
     if (at < 0) {
         return;

@@ -4030,13 +4030,7 @@ export function associate(
         parts.forEach(take);
         // its shape as drawn along the words: a turned label's box turned back first
         const drawn = filled ?? parts[0];
-        const a = (-t.rotation * Math.PI) / 180;
-        const [ox, oy] = [cx(drawn.box), cy(drawn.box)];
-        const upright = drawn.points.map(([x, y]): Pt => [
-            ox + (x - ox) * Math.cos(a) - (y - oy) * Math.sin(a),
-            oy + (x - ox) * Math.sin(a) + (y - oy) * Math.cos(a),
-        ]);
-        const outline = shapeOf(t.rotation === 0 ? drawn : { ...drawn, points: upright, box: boxOfPoints(upright) });
+        const outline = shapeOf(t.rotation === 0 ? drawn : turnedBack(drawn, t.rotation));
         t.background = {
             box: union(parts.map((p) => p.box)),
             fill: filled?.fill ?? null,
@@ -4100,6 +4094,40 @@ function backsText(p: Prim, t: PText): boolean {
         b.x1 <= t.box.x1 + reach &&
         b.y1 <= t.box.y1 + reach
     );
+}
+
+/**
+ * A shape turned back by an angle about its middle: a turned label's box as drawn along its words.
+ * @param p - the shape
+ * @param degrees - the angle it is turned by
+ * @returns the shape, upright
+ */
+function turnedBack(p: Prim, degrees: number): Prim {
+    const a = (-degrees * Math.PI) / 180;
+    const [ox, oy] = [cx(p.box), cy(p.box)];
+    const points = p.points.map(([x, y]): Pt => [
+        ox + (x - ox) * Math.cos(a) - (y - oy) * Math.sin(a),
+        oy + (x - ox) * Math.sin(a) + (y - oy) * Math.cos(a),
+    ]);
+    return { ...p, points, box: boxOfPoints(points) };
+}
+
+/**
+ * Whether a shape is the box drawn behind a turned label in the label's own frame: tight round the words
+ * (`backsText`), and a box, rounded or not, once turned back by the label's angle (Cytoscape desktop's label
+ * background: cx-syn-mappings' M07, at 35.8 degrees, its rounded 41.3 x 21 box under the label's matrix). Turned, its
+ * bounds grow to about a small node's own.
+ * @param p - the shape
+ * @param t - the label
+ * @returns true for a turned label's background
+ */
+function backsTurnedLabel(p: Prim, t: PText): boolean {
+    if (t.rotation % 90 === 0 || p.kind !== "shape" || !p.closed || !backsText(p, t)) {
+        return false;
+    }
+    // read off its outline, not its tag: a rect element turned with the page is no box in the label's frame
+    const upright = shapeOf({ ...turnedBack(p, t.rotation), tag: "path" });
+    return upright === "rect" || upright === "roundrect";
 }
 
 /**
@@ -4727,17 +4755,21 @@ function matchBodies(
     const extent = (p: Prim): number => Math.max(bw(whole(p)), bh(whole(p))) + (dot(p) ? (p.stroke?.width ?? 0) : 0);
     // A box drawn tight round a label is its background (Cytoscape's NODE_LABEL_BACKGROUND), a poorer body than any
     // shape near the node; still the body where nothing else is drawn there (vis-network's box fits its label).
+    // a turned label's box is measured in the label's frame: turned, its bounds no longer hold the words' (cx2-syn-mappings'
+    // M07 box, inside its words' bounds, was taken for the node's body over its parallelogram)
     const texts = free.filter((p) => p.text !== null);
+    const turnedLabels = texts.flatMap((p) => (p.text !== null && p.text.rotation % 90 !== 0 ? [p.text] : []));
     const backsALabel = (p: Prim): boolean =>
         p.fill !== null &&
-        texts.some(
+        (texts.some(
             (t) =>
                 t.box.x0 >= p.box.x0 - 1 &&
                 t.box.y0 >= p.box.y0 - 1 &&
                 t.box.x1 <= p.box.x1 + 1 &&
                 t.box.y1 <= p.box.y1 + 1 &&
                 area(p.box) <= 2.5 * area(t.box),
-        );
+        ) ||
+            turnedLabels.some((t) => backsTurnedLabel(p, t)));
     const cand: { cost: number; id: string; p: Prim }[] = [];
     // graphty's container groups claim their own boxes first, so a box drawn around a few nodes is
     // not taken for the body of one of them; a group claims only a shape over its box, and what it claims stays free
@@ -4867,7 +4899,9 @@ function matchBodies(
                     ((near(bw(whole(q)) + 1, bw(whole(body)) + 1) && near(bh(whole(q)) + 1, bh(whole(body)) + 1)) ||
                         around(q)) &&
                     // a group's twin is drawn over its box, not a flat node inside it of about its width
-                    (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),
+                    (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6) &&
+                    // a box drawn behind a turned label, which the body is not, is the label's background
+                    !turnedLabels.some((t) => backsTurnedLabel(q, t) && !backsTurnedLabel(body, t)),
             )
             // of outlines drawn alike, the one drawn next to the body: another is a twin node's on the same spot
             // (#4264); outlines painted differently (a double border's two lines) are all the body's

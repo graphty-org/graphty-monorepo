@@ -395,6 +395,26 @@ function boxReach(mesh: AbstractMesh, direction: Vector3): number {
 }
 
 /**
+ * Visit some slots of one batch, every one of them.
+ * @param batch - The batch.
+ * @param slots - The slots.
+ * @param visit - Called with each.
+ * @returns True when every visit returned true.
+ */
+function everySlotOf(
+    batch: EdgeLineBatch,
+    slots: readonly number[],
+    visit: (batch: EdgeLineBatch, slot: number) => boolean,
+): boolean {
+    let all = true;
+    for (const slot of slots) {
+        all = visit(batch, slot) && all;
+    }
+
+    return all;
+}
+
+/**
  * Park one edge batch slot; see `Edge.parkPieces`.
  * @param batch - The batch.
  * @param slot - The slot.
@@ -2860,35 +2880,23 @@ export class Edge {
     private everySlot(visit: (batch: EdgeLineBatch, slot: number) => boolean): boolean {
         let all = true;
         if (this.lineBatch && !this.pulled) {
-            for (const slot of this.lineSlots) {
-                all = visit(this.lineBatch, slot) && all;
-            }
+            all = everySlotOf(this.lineBatch, this.lineSlots, visit);
         }
 
         if (this.haloBatch) {
-            for (const slot of this.haloSlots) {
-                all = visit(this.haloBatch, slot) && all;
-            }
+            all = everySlotOf(this.haloBatch, this.haloSlots, visit) && all;
         }
 
-        if (this.effectRuns.size > 0) {
-            for (const run of this.effectRuns.values()) {
-                for (const slot of run.slots) {
-                    all = visit(run.batch, slot) && all;
-                }
-            }
+        for (const run of this.effectRuns.values()) {
+            all = everySlotOf(run.batch, run.slots, visit) && all;
         }
 
         if (this.outlineBatch) {
-            for (const slot of this.outlineSlots) {
-                all = visit(this.outlineBatch, slot) && all;
-            }
+            all = everySlotOf(this.outlineBatch, this.outlineSlots, visit) && all;
         }
 
         for (const { batch, slots } of this.haloBands) {
-            for (const slot of slots) {
-                all = visit(batch, slot) && all;
-            }
+            all = everySlotOf(batch, slots, visit) && all;
         }
 
         for (const { batch, slot } of this.gradientPieces) {

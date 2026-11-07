@@ -237,8 +237,36 @@
     border-radius: 4px;
 }
 
-.dp-run-head:hover {
+.dp-run-head:hover,
+.dp-run-head[data-selected] {
     background: var(--mantine-color-default-hover);
+}
+
+/* The row's press: its icon, its name and its marks; "..." stays its own control. */
+.dp-run-main {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    align-self: stretch;
+    font: inherit;
+    text-align: start;
+}
+
+.dp-run-main:focus-visible {
+    outline: none;
+}
+
+.dp-run-head:has(.dp-run-main:focus-visible) {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: -1px;
+}
+
+.dp-run-glyph {
+    display: inline-flex;
+    flex: none;
+    color: var(--mantine-color-dimmed);
 }
 
 .dp-runs {
@@ -293,4 +321,32 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+}
+
+/* In the selection workspace a resting filter row is drawn as a result row and a source row are:
+   flat, a background on hover, its "..." on hover, focus or while its menu is open. An open card
+   keeps its box. */
+.dp[data-tabs] .dp-filter:not([data-open]) {
+    min-height: 28px;
+    padding: 2px 4px;
+    box-shadow: none;
+}
+
+.dp[data-tabs] .dp-filter:not([data-open]):hover {
+    background: var(--mantine-color-default-hover);
+}
+
+/* A long description wraps to a second line before it is cut short; its count stays at the end. */
+.dp[data-tabs] .dp-filter-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.dp[data-tabs] .dp-filter-more {
+    flex: none;
+    opacity: 0;
+}
+
+.dp[data-tabs] .dp-filter:is(:hover, :has(:focus-visible), :has([data-expanded])) .dp-filter-more {
+    opacity: 1;
 }

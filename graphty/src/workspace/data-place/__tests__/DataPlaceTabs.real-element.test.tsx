@@ -1,6 +1,6 @@
 /**
  * The Data place's Loaded and Calculated tabs, on the REAL graphty-element and Les Miserables,
- * driven by real clicks (the owner's review, 2026-11-07): Filters stay over the tabs; Loaded holds
+ * driven by real clicks (the owner's review, 2026-11-07): the tabs come first and Filters under them; Loaded holds
  * the sources and Calculated the results, with no "Runs" heading; the tab chosen is kept; a result's
  * row has no filled tags, only quiet marks (what uses it, a scope other than what is showing), and
  * its "..." holds Apply style, greyed once it is styled, and Remove result; a filter's row says its
@@ -65,9 +65,10 @@ async function calculatedRow(): Promise<HTMLElement> {
 }
 
 describe("the Data place's Loaded and Calculated tabs", () => {
-    it("puts Filters over the tabs, Loaded first with the sources, and no Runs heading", async () => {
+    it("puts the tabs first, named Data, Filters under them, Loaded first with the sources, and no Runs heading", async () => {
         await openData();
-        const tabs = await within(place()).findAllByRole("tab");
+        const list = await within(place()).findByRole("tablist", { name: "Data" });
+        const tabs = within(list).getAllByRole("tab");
         assert.deepEqual(
             tabs.map((tab) => tab.textContent),
             ["Loaded", "Calculated"],
@@ -75,8 +76,8 @@ describe("the Data place's Loaded and Calculated tabs", () => {
         assert.strictEqual(tabs[0].getAttribute("aria-selected"), "true", "Loaded first");
         const filters = within(place()).getByText("Filters");
         assert.isTrue(
-            Boolean(filters.compareDocumentPosition(tabs[0]) & Node.DOCUMENT_POSITION_FOLLOWING),
-            "Filters come before the tabs",
+            Boolean(tabs[0].compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING),
+            "Filters come after the tabs, so adding one never moves them",
         );
         await waitFor(() => {
             const panel = within(place()).getByRole("tabpanel");
@@ -91,6 +92,7 @@ describe("the Data place's Loaded and Calculated tabs", () => {
         const analyze = await within(place()).findByRole("button", { name: /^Analyze/ });
         assert.strictEqual(analyze.getAttribute("aria-keyshortcuts"), "Shift+A");
         assert.include(analyze.textContent ?? "", "A", "the key on the button");
+        assert.isNull(analyze.querySelector(".mantine-Kbd-root"), "the key as a menu's quiet hint, not a filled box");
         await userEvent.click(analyze);
         await screen.findByRole("dialog", { name: /Analyze/ });
     });
@@ -116,9 +118,11 @@ describe("the Data place's Loaded and Calculated tabs", () => {
         assert.notInclude(row.textContent ?? "", "Everything");
         assert.notInclude(row.textContent ?? "", "Filter");
         assert.isNull(within(row).queryByRole("button", { name: "Show" }), "no Show button");
-        // Its style layer draws it: one quiet count, its tooltip naming the layer.
-        const used = await within(row).findByRole("img", { name: /^Used by / });
+        // Its style layer draws it: one quiet count by a style's brush, its name naming the layer.
+        const used = await within(row).findByRole("img", { name: /^Styles: / });
         assert.match(used.textContent ?? "", /^\d+$/u, "a count, no words");
+        assert.isNotNull(used.querySelector(".lucide-paintbrush"), "a style's own glyph, not a link");
+        assert.isNull(row.querySelector(".lucide-link-2"), "no link glyph, which Loaded uses for a source");
 
         await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
         const items = await screen.findAllByRole("menuitem");
@@ -135,7 +139,7 @@ describe("the Data place's Loaded and Calculated tabs", () => {
             await session.styles.remove(layer);
         }
         await waitFor(() => {
-            assert.isNull(within(row).queryByRole("img", { name: /^Used by/ }), "nothing uses it now");
+            assert.isNull(within(row).queryByRole("img", { name: /^Styles/ }), "nothing uses it now");
         });
         await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
         const apply = await screen.findByRole("menuitem", { name: /^Apply style/ });
@@ -150,10 +154,53 @@ describe("the Data place's Loaded and Calculated tabs", () => {
         const { session } = await openData();
         await session.runs.start("louvain", {}, { scope: "graph" });
         const row = await calculatedRow();
-        await within(row).findByRole("img", { name: "Whole graph" });
+        const mark = await within(row).findByRole("img", { name: "Whole graph" });
+        assert.isNull(mark.querySelector(".lucide-layers"), "not the layers glyph, which reads as style layers");
+        assert.isNotNull(mark.querySelector(".lucide-scan"), "a frame round the part it read");
+        assert.isNotNull(row.querySelector(".lucide-boxes"), "a grouping's row shows the groups glyph, not a flask");
     });
 
-    it("says a filter's steps in one structured line: '; ' between them, no '+'", async () => {
+    it("a result's row opens it in the inspector on a press and on Enter", async () => {
+        const { session, store } = await openData();
+        await session.runs.start("pagerank", {});
+        const id = session.runs.list().find((run) => run.algorithm === "pagerank")?.id ?? "";
+        const row = await calculatedRow();
+        const main = row.querySelector<HTMLElement>(".dp-run-main");
+        assert.isNotNull(main, "the row has a press");
+        await userEvent.click(main ?? row);
+        await waitFor(() => {
+            assert.deepEqual(store.get().inspected, { kind: "measure-row", id });
+        });
+        assert.strictEqual(main?.getAttribute("aria-current"), "true");
+        store.set({ inspected: null });
+        main?.focus();
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepEqual(store.get().inspected, { kind: "measure-row", id });
+        });
+    });
+
+    it("a filter's row is one group named by its words, its controls by short names, Edit showing Enter", async () => {
+        const { session } = await openData();
+        await session.visibility.addCondition({
+            id: "busy",
+            effect: "keep",
+            rule: {
+                kind: "union",
+                side: "nodes",
+                within: "graph",
+                branches: [{ start: "all", steps: [{ op: "keep", rule: { kind: "degree", min: 3 } }] }],
+            },
+        });
+        const group = await within(place()).findByRole("group", { name: /^Degree 3\+, \d+ of 77 nodes$/u });
+        within(group).getByRole("checkbox", { name: "Use" });
+        within(group).getByRole("button", { name: "Edit" });
+        await userEvent.click(within(group).getByRole("button", { name: "More" }));
+        const edit = await screen.findByRole("menuitem", { name: /^Edit/ });
+        assert.include(edit.textContent ?? "", "Enter", "Edit shows its key");
+    });
+
+    it("says a filter's steps in one structured line: '; ' between them, '-' for a range, '20+' for a lower bound", async () => {
         const { session } = await openData();
         await session.visibility.addCondition({
             id: "busy",
@@ -171,7 +218,13 @@ describe("the Data place's Loaded and Calculated tabs", () => {
         const list = await within(place()).findByRole("list", { name: "Filters" });
         await waitFor(() => {
             const title = list.querySelector(".dp-filter-title")?.textContent ?? "";
-            assert.strictEqual(title, "Degree 2-9; Degree min 20");
+            assert.strictEqual(title, "Degree 2-9; Degree 20+");
         });
+        // A long description wraps to a second line before it is cut short.
+        const title = list.querySelector<HTMLElement>(".dp-filter-title");
+        assert.isNotNull(title);
+        const style = getComputedStyle(title ?? document.body);
+        assert.notStrictEqual(style.whiteSpace, "nowrap", "it wraps");
+        assert.strictEqual(style.getPropertyValue("-webkit-line-clamp"), "2", "two lines, then cut");
     });
 });

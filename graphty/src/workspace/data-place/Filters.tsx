@@ -308,7 +308,13 @@ export function FiltersSection(): React.JSX.Element {
             empty={empty}
         >
             {empty || session === null ? null : (
-                <Stack component="ul" role="list" aria-label="Filters" gap={6} className="dp-filters">
+                <Stack
+                    component="ul"
+                    role="list"
+                    aria-label="Filters"
+                    gap={selectionWorkspaceOn(session) ? 2 : 6}
+                    className="dp-filters"
+                >
                     {cards.map((each) => (
                         // One list, keyed by id: a draft written keeps its card (and focus) as the condition.
                         <FilterCard
@@ -552,14 +558,17 @@ function FilterCard({
         void writeCondition(store, () => session.visibility.updateCondition(id, change));
     };
     // The on box, named as the group eye is ("Use A"). In the open card it takes no Tab stop of its
-    // own: Space on the title row switches it, and the title row says when it is off.
+    // own: Space on the title row switches it, and the title row says when it is off. On a resting
+    // row in the selection workspace the row's group says the filter once, so its controls go by
+    // short names (Use, Edit, More).
+    const short = cards && !open;
     const onBox = (inEditor: boolean): React.ReactNode =>
         draft ? null : (
             <Tooltip label={inEditor ? `Use ${title} (Space)` : `Use ${title}`}>
                 <Checkbox
                     size="xs"
                     className="dp-filter-on"
-                    aria-label={`Use ${title}`}
+                    aria-label={short && !inEditor ? "Use" : `Use ${title}`}
                     tabIndex={inEditor ? -1 : undefined}
                     checked={on}
                     onChange={(event) => {
@@ -619,6 +628,7 @@ function FilterCard({
                 aria-label={total === undefined ? name : `${name}, ${total} ${things}`}
                 className="ws-card dp-filter"
                 data-off={on ? undefined : ""}
+                data-open={open ? "" : undefined}
             >
                 {open && selection !== null ? (
                     <FilterSelection
@@ -723,11 +733,15 @@ function FilterCard({
                         {!(cards && renaming) && (
                             <UnstyledButton
                                 className="dp-filter-name"
-                                aria-label={[
-                                    title,
-                                    ...(total === undefined ? [] : [`${total} ${things}`]),
-                                    ...(on ? [] : ["off"]),
-                                ].join(", ")}
+                                aria-label={
+                                    short
+                                        ? ["Edit", ...(on ? [] : ["off"])].join(", ")
+                                        : [
+                                              title,
+                                              ...(total === undefined ? [] : [`${total} ${things}`]),
+                                              ...(on ? [] : ["off"]),
+                                          ].join(", ")
+                                }
                                 aria-expanded={open}
                                 onClick={() => {
                                     focusOnOpen.current = !open;
@@ -735,9 +749,16 @@ function FilterCard({
                                     onOpen(!open);
                                 }}
                             >
-                                {/* A long description is cut short in the panel; its tooltip says it whole. */}
+                                {/* A long description wraps to two lines, then is cut short; its tooltip says it whole. */}
                                 <Tooltip label={title} openDelay={500} multiline maw={280}>
-                                    <Text size="sm" fw={600} truncate span className="dp-filter-title">
+                                    <Text
+                                        size="sm"
+                                        fw={cards ? undefined : 600}
+                                        truncate={cards ? undefined : true}
+                                        lineClamp={cards ? 2 : undefined}
+                                        span
+                                        className="dp-filter-title"
+                                    >
                                         {title}
                                     </Text>
                                 </Tooltip>
@@ -756,7 +777,7 @@ function FilterCard({
                             // The card's commands, Rename first (Figma's layer row menu).
                             <Menu position="bottom-end" withinPortal>
                                 <Menu.Target>
-                                    <ActionIcon variant="subtle" size="sm" aria-label={`More for ${title}`}>
+                                    <ActionIcon variant="subtle" size="sm" className="dp-filter-more" aria-label="More">
                                         <GLYPHS.more size={14} aria-hidden />
                                     </ActionIcon>
                                 </Menu.Target>
@@ -768,6 +789,7 @@ function FilterCard({
                                                 label: "Edit",
                                                 icon: "filter",
                                                 group: "edit",
+                                                key: "Enter",
                                                 onRun: () => {
                                                     onOpen(true);
                                                 },

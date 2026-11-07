@@ -20,6 +20,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { sourceName } from "../words";
 
 // The tabs belong to the `selection-workspace` experiment.
 withFeatures(["selection-workspace"]);
@@ -65,7 +66,7 @@ async function calculatedRow(): Promise<HTMLElement> {
 }
 
 describe("the Data place's Sources and Calculated tabs", () => {
-    it("puts the tabs first, named Data, Sources first with the sources, Filters under Data sources there only, and no Runs heading", async () => {
+    it("puts the tabs first, named Data, Sources first with the sources, Filters below Data sources there only, and no Runs heading", async () => {
         const { session } = await openData();
         const list = await within(place()).findByRole("tablist", { name: "Data" });
         const tabs = within(list).getAllByRole("tab");
@@ -78,11 +79,16 @@ describe("the Data place's Sources and Calculated tabs", () => {
             const panel = within(place()).getByRole("tabpanel");
             assert.isNotNull(panel.querySelector("[data-source]"), "the loaded source under Sources");
         });
-        // Filters sit in the Sources tab, directly under Data sources.
+        // Filters sit in the Sources tab, under Data sources, in the one load's own section.
         const panel = within(place()).getByRole("tabpanel");
         const sources = within(panel).getByRole("group", { name: "Data sources" });
-        const filters = within(panel).getByRole("group", { name: "Filters" });
-        assert.strictEqual(sources.nextElementSibling, filters, "Filters directly after Data sources");
+        const [load] = session.data.sources();
+        const own = within(panel).getByRole("group", { name: sourceName(load) });
+        const filters = within(own).getByRole("group", { name: "Filters" });
+        assert.isTrue(
+            Boolean(sources.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING),
+            "Filters below Data sources",
+        );
         assert.lengthOf(within(place()).getAllByText("Filters"), 1, "one Filters, none above the tabs");
         assert.isNull(within(place()).queryByText("Runs"), "no Runs heading");
         // And not in Calculated, even with a filter set.

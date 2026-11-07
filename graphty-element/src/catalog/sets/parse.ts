@@ -693,6 +693,14 @@ function checkUnion(value: Loose, walker: Walker): void {
         throw bad('A "union" leaf\'s within is "graph" or "visible".', { within: value.within });
     }
 
+    if (
+        value.sources !== undefined &&
+        (!Array.isArray(value.sources) ||
+            !(value.sources as readonly unknown[]).every((key) => typeof key === "string" && key !== ""))
+    ) {
+        throw bad('A "union" leaf\'s sources are a list of load keys.', { sources: value.sources });
+    }
+
     if (!Array.isArray(value.branches)) {
         throw bad('A "union" leaf\'s branches are a list.', { branches: value.branches });
     }
@@ -912,7 +920,7 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "union":
-            known(["side", "within", "branches"]);
+            known(["side", "within", "sources", "branches"]);
             checkUnion(value, walker);
 
             return;

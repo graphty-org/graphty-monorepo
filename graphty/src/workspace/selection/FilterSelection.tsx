@@ -8,7 +8,7 @@
  * which never filtered, is written turned off. A new card is written with its first step.
  */
 
-import type { FilterCondition, GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
+import type { FilterCondition, GraphSession, SourceKey, UnionLeaf } from "@graphty/graphty-element/session";
 import React, { useRef, useState } from "react";
 
 import { keepChange, writeCondition } from "../data-place/filterCards";
@@ -25,6 +25,7 @@ import type { PickSection } from "./values";
  * @param props.session - the element's session
  * @param props.store - the chrome store
  * @param props.id - the condition's id (a new card's is the id it is written with)
+ * @param props.source - the load a new card is written for: it judges only that load's elements
  * @param props.rule - the card's selection (what stays)
  * @param props.effect - the condition's effect, or undefined for a card not yet written
  * @param props.openFirst - selects the first step on arrival
@@ -49,6 +50,7 @@ export function FilterSelection({
     session,
     store,
     id,
+    source,
     rule,
     effect,
     openFirst,
@@ -71,6 +73,7 @@ export function FilterSelection({
     session: GraphSession;
     store: WorkspaceStore;
     id: string;
+    source?: SourceKey;
     rule: UnionLeaf;
     effect: FilterCondition["effect"] | undefined;
     openFirst?: boolean;
@@ -101,6 +104,7 @@ export function FilterSelection({
                       effect: "keep",
                       rule: next,
                       ...(name === undefined ? {} : { name }),
+                      ...(source === undefined ? {} : { source }),
                   }),
               )
             : writeCondition(store, () => session.visibility.updateCondition(id, keepChange(next, effect)));

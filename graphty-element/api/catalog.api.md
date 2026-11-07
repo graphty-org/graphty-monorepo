@@ -2766,6 +2766,7 @@ export interface UnionLeaf {
     // (undocumented)
     readonly kind: "union";
     readonly side: "nodes" | "edges";
+    readonly sources?: readonly SourceKey[];
     readonly within: "graph" | "visible";
 }
 

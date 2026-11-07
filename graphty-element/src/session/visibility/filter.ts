@@ -45,6 +45,7 @@ import { assertRuleTree, parseScope } from "../../catalog/sets/parse";
 import type {
     AttributeLeafNodes,
     EdgeId,
+    ElementState,
     NodeId,
     Path,
     Query,
@@ -199,6 +200,16 @@ export interface TimePlayback {
     readonly outside?: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in; default `"UTC"`. */
     readonly timeZone?: string;
+    /**
+     * Fade by age: the opacity, 0 to 1, that edges starting at the window's first instant draw at,
+     * rising to full at its end. Default 1, no fade. It applies to edges timed by an instant or a
+     * span, with `outside: "hide"`; elsewhere it does nothing and `session.time.notices()` says why
+     * (`time.age-fade-inactive`). A line drawn with `line.blending` false stays opaque, and so do
+     * straight animated lines (`line.animationSpeed`) and patterned lines other than a dash or dot line that
+     * bends or curves.
+     * @experimental timeline
+     */
+    readonly ageFade?: number;
 }
 
 /** One kind's instants for a time column, parsed once: per row, NaN where there is none. */
@@ -361,6 +372,15 @@ export interface FilterSources {
      */
     readonly focus?: () => NodeId | null;
     /**
+     * Whether an element is in a state now: what a `state` leaf reads. Absent refuses that leaf,
+     * as the visibility filter does, since it cannot follow the reader.
+     * @param state - Which state.
+     * @param target - Nodes or edges.
+     * @param index - The dense index.
+     * @returns True when it is.
+     */
+    readonly inState?: (state: ElementState, target: "node" | "edge", index: number) => boolean;
+    /**
      * Whether a union step can be evaluated now, or why it waits (its run is computing, needed,
      * paused, failed or stale), and the result a `measure` leaf reads. Absent refuses `measure`.
      */
@@ -471,6 +491,7 @@ const FILTER_KINDS = [
     "repeated-edge",
     "source",
     "edges",
+    "state",
     "member",
     "item",
     "threshold",
@@ -759,6 +780,7 @@ function assertFilter(filter: RuleTree): void {
         case "item":
         case "threshold":
         case "text":
+        case "state":
         case "hops":
         case "touching":
         case "nonempty":
@@ -939,6 +961,42 @@ export function windowNeedsTimeline(window: TimeWindow | null): boolean {
 }
 
 /**
+ * Refuse a state leaf, alone or in a union's steps, where nothing follows the reader. A union's
+ * other leaves are checked as it is read; a state never can be there.
+ * @param rule - The leaf.
+ * @param sources - What this session can evaluate with.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED`.
+ */
+function assertStatesEvaluable(rule: RuleTree, sources: FilterSources): void {
+    if (sources.inState !== undefined) {
+        return;
+    }
+
+    switch (rule.kind) {
+        case "state":
+            throw unsupported("state", "a view that follows the reader");
+        case "union":
+            for (const branch of rule.branches) {
+                for (const step of branch.steps) {
+                    assertStatesEvaluable(step.rule, sources);
+                }
+            }
+
+            return;
+        case "all":
+        case "any":
+            rule.of.forEach((member) => {
+                assertStatesEvaluable(member, sources);
+            });
+            return;
+        case "not":
+            assertStatesEvaluable(rule.of, sources);
+            return;
+        default:
+    }
+}
+
+/**
  * Refuse a filter or a window this session could not evaluate, without evaluating it: the checks
  * {@link compileVisibility} makes before it walks anything, so a filter is refused before it is
  * recorded rather than on every later evaluation.
@@ -1013,6 +1071,10 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
                 }
 
                 return;
+            case "state":
+            case "union":
+                assertStatesEvaluable(each, sources);
+                return;
             case "all":
             case "any":
                 each.of.forEach(check);
@@ -1046,7 +1108,7 @@ interface PathMark {
 }
 
 /** Everything the compiler carries down the filter tree. */
-export interface CompileContext {
+interface CompileContext {
     /** The snapshot every test is written against. */
     readonly graph: GraphSnapshot;
     /** Where to read what the compiler cannot compute. */
@@ -1960,6 +2022,25 @@ function fold(tests: readonly (ElementTest | null)[], mode: "all" | "any"): Elem
 }
 
 /**
+ * A state leaf's two halves.
+ * @param context - The compile context.
+ * @param state - The state.
+ * @returns The halves.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED` when nothing here follows the reader.
+ */
+function stateTests(context: CompileContext, state: ElementState): CompiledHalves {
+    const { inState } = context.sources;
+    if (inState === undefined) {
+        throw unsupported("state", "a view that follows the reader");
+    }
+
+    return {
+        node: (index) => inState(state, "node", index),
+        edge: (index) => inState(state, "edge", index),
+    };
+}
+
+/**
  * Compile one filter into its node half and its edge half.
  * @param filter - The filter.
  * @param context - The compile context.
@@ -1989,6 +2070,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: null, edge: edgeQueryTest(context, filter.where) };
         case "source":
             return sourceTests(context, filter.sources, filter.side);
+        case "state":
+            return stateTests(context, filter.state);
         case "member": {
             if (context.sources.scope === undefined) {
                 throw unsupported("member", "a scope resolver");

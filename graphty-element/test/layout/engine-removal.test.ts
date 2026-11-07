@@ -206,7 +206,9 @@ describe("a layout engine gives back a node the graph has removed", () => {
 
             assert.strictEqual(held, 0, "the engine holds nothing");
             assert.strictEqual(searches, 0, "no search per element");
-            assert.isAtMost(tests, 2 * n, "one membership test per element held");
+            // The list is swept each time half of it is marked removed (issue #6006), so a whole
+            // teardown sweeps n + n/2 + n/4 + ... elements: two tests per element held, not n.
+            assert.isAtMost(tests, 4 * n, "two membership tests per element held");
         } finally {
             vi.restoreAllMocks();
         }

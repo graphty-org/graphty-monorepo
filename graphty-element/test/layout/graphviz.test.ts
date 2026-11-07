@@ -16,6 +16,7 @@ import {
     edgeBends,
     edgeLabelPlaces,
     edgeLabelsLeftOut,
+    edgeLineEnds,
     fromJson,
     nodeXlabelPlaces,
 } from "../../src/layout/graphviz/fromJson";
@@ -937,6 +938,40 @@ describe("where Graphviz put each edge label read back", () => {
         const [along, across] = places.get(1) ?? [Number.NaN, Number.NaN];
         assert.closeTo(along, 0.75, 1e-9);
         assert.closeTo(across, 0.1, 1e-9);
+    });
+
+    it("reads where Graphviz starts and ends each line: an arrow's tip, else the spline's own end", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "0,0" },
+                { name: "n1", pos: "100,0" },
+            ],
+            edges: [
+                // a head arrow: the line runs on to its tip at 90, past the spline's end at 80
+                { id: "e0", pos: "e,90,0 10,0 30,0 60,0 80,0" },
+                // both arrows, the spline split in two (a concentrated edge)
+                { id: "e1", pos: "s,95,10 85,10 60,10 40,10 30,10;e,5,-10 30,10 20,0 15,-10 10,-10" },
+                // no arrow: the spline's first and last points
+                { id: "e2", pos: "20,0 40,0 60,0 75,0" },
+                { id: "e3", pos: "e,0,0 0,0 0,0 0,0 0,0" },
+            ],
+        });
+        const ends = edgeLineEnds(json, [
+            { src: 0, dst: 1 },
+            { src: 1, dst: 0 },
+            { src: 0, dst: 1 },
+            { src: 0, dst: 0 },
+        ]);
+
+        assert.deepEqual([...ends.keys()], [0, 1, 2], "a loop has no line to measure along");
+        assert.deepEqual(ends.get(0), { source: [0.1, 0], target: [0.9, 0] });
+        assert.deepEqual(ends.get(2), { source: [0.2, 0], target: [0.75, 0] });
+        // from n1 toward n0: 5 points along, and 10 above the line is to its right going that way
+        const back = ends.get(1);
+        assert.closeTo(back?.source[0] ?? Number.NaN, 0.05, 1e-9);
+        assert.closeTo(back?.source[1] ?? Number.NaN, -0.1, 1e-9);
+        assert.closeTo(back?.target[0] ?? Number.NaN, 0.95, 1e-9);
+        assert.closeTo(back?.target[1] ?? Number.NaN, 0.1, 1e-9);
     });
 
     it("reads the place dot gives a labelled edge", async () => {

@@ -11,7 +11,8 @@ let loading: Promise<void> | null = null;
 /**
  * Defines `<graphty-element>` and switches on its optional GPU peer, the first time it is called.
  * @returns Settles once the tag is defined. It does not wait for the GPU peer, and a GPU peer
- * that fails to load does not reject it: the graph is drawn either way.
+ * that fails to load does not reject it: the graph is drawn either way. It rejects when the element
+ * itself could not be loaded, and the next call tries again.
  */
 export function loadGraphtyElement(): Promise<void> {
     // The site's configuration first, so the element's first session has the site's experiments.
@@ -24,6 +25,10 @@ export function loadGraphtyElement(): Promise<void> {
         import("@graphty/graphty-element/webgpu").catch((error: unknown) => {
             console.error("[graphty] the WebGPU accelerator could not be loaded:", error);
         });
+    });
+    // A failed load is not kept: the next call (a Retry) loads again.
+    loading.catch(() => {
+        loading = null;
     });
     return loading;
 }

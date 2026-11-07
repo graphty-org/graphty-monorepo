@@ -164,7 +164,7 @@ interface SelectionEditorProps {
 }
 
 /** The rule kinds a step takes with no test: picking one applies it, and the pane shows no test. */
-const NO_TEST_KINDS = new Set<RuleTree["kind"]>(["isolated", "self-loop", "repeated-edge"]);
+const NO_TEST_KINDS = new Set<RuleTree["kind"]>(["isolated", "self-loop", "repeated-edge", "state"]);
 
 /**
  * Whether a picked value has a test to set: a structure value applies as it is picked.
@@ -1986,6 +1986,7 @@ export function SelectionEditor({
                                         branch={branch}
                                         open={false}
                                         hostPicks={hostPicks}
+                                        host={host}
                                         onPick={(stepRule) => {
                                             pick(branch, newVerb(branch), stepRule);
                                         }}
@@ -2003,6 +2004,7 @@ export function SelectionEditor({
                                         branch={branch}
                                         open={adding.open}
                                         hostPicks={hostPicks}
+                                        host={host}
                                         lead={
                                             <Text size="sm" fw={600} className="sel-card-verb" data-op={adding.op}>
                                                 {VERB_WORDS[adding.op].word}
@@ -2067,6 +2069,7 @@ export function SelectionEditor({
                     session={session}
                     rule={rule}
                     hostPicks={hostPicks}
+                    host={host}
                     left={reading.branchesLeft}
                     most={rule.branches.length}
                     onPick={addCard}
@@ -2567,6 +2570,7 @@ function stateWord(
  * @param props.rule - the selection
  * @param props.branch - the group
  * @param props.open - whether the value picker opens at once
+ * @param props.host - where the selection is edited
  * @param props.hostPicks - the host's own picker entries
  * @param props.lead - drawn before the field (a narrowing condition's Keep or Except)
  * @param props.onPick - takes the value's rule
@@ -2579,6 +2583,7 @@ function NewStepPane({
     branch,
     open: openAtFirst,
     hostPicks,
+    host,
     lead,
     onPick,
     onCancel,
@@ -2588,6 +2593,7 @@ function NewStepPane({
     branch: UnionBranch;
     open: boolean;
     hostPicks: readonly PickSection[];
+    host: Host;
     lead?: React.ReactNode;
     onPick: (stepRule: RuleTree) => void;
     onCancel: () => void;
@@ -2611,7 +2617,7 @@ function NewStepPane({
                 fields={open ? pickerFields(session, sideOf(rule), rule.within, true) : []}
                 used={usedPaths(rule, branch)}
                 placeholder="Find attributes, results"
-                sections={open ? [...hostPicks, ...pickSections(session, rule, choose, true)] : []}
+                sections={open ? [...hostPicks, ...pickSections(session, rule, choose, host, true)] : []}
                 opened={open}
                 seed={seed}
                 onAdd={(field) => {
@@ -2752,6 +2758,7 @@ function TitleName({
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rule - the selection
+ * @param props.host - where the selection is edited
  * @param props.hostPicks - the host's own picker entries
  * @param props.left - how many more cards there is room for
  * @param props.most - how many cards there are
@@ -2762,6 +2769,7 @@ function AddCard({
     session,
     rule,
     hostPicks,
+    host,
     left,
     most,
     onPick,
@@ -2769,6 +2777,7 @@ function AddCard({
     session: GraphSession;
     rule: UnionLeaf;
     hostPicks: readonly PickSection[];
+    host: Host;
     left: number;
     most: number;
     onPick: (stepRule: RuleTree) => void;
@@ -2785,7 +2794,7 @@ function AddCard({
                 fields={open ? pickerFields(session, sideOf(rule), rule.within, true) : []}
                 used={[]}
                 placeholder="Find attributes, results"
-                sections={open ? [...hostPicks, ...pickSections(session, rule, choose, true)] : []}
+                sections={open ? [...hostPicks, ...pickSections(session, rule, choose, host, true)] : []}
                 opened={open}
                 listWidth={ADD_CARD_LIST}
                 onAdd={(field) => {
@@ -2906,27 +2915,6 @@ function PaneMenu({ name, items }: Readonly<{ name: string; items: readonly Sele
                 <SelectionMenuItems items={items} />
             </Menu.Dropdown>
         </Menu>
-    );
-}
-
-/**
- * A pane's first row, the same in every pane: the add actions at the left, then the pane's icon
- * buttons, "..." and Done at the right.
- * @param props - Component props
- * @param props.adds - the add actions
- * @param props.children - the icon buttons, "..." and Done
- * @returns The row
- */
-export function PaneHead({
-    adds,
-    children,
-}: Readonly<{ adds: React.ReactNode; children: React.ReactNode }>): React.JSX.Element {
-    return (
-        <Group gap={4} wrap="nowrap" className="sel-pane-head">
-            {adds}
-            <span className="sel-spacer" />
-            {children}
-        </Group>
     );
 }
 

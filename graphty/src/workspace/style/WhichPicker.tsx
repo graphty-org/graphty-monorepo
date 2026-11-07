@@ -249,7 +249,7 @@ function coverName(session: GraphSession, cards: readonly Card[], side: Side): s
 
 /**
  * The rule several rows pick together, for the union count; null when one picks everything, or
- * stands alone (selected, hovered), so no single rule says it.
+ * stands alone (edges picked by hand), so no single rule says it.
  * @param rows - the rows.
  * @returns the rule.
  */
@@ -358,7 +358,7 @@ const VALUE_BOX = "input:not([type=hidden]):not([type=checkbox]):not([readonly])
  * Cards a caller holds instead of a layer's (a filter step's rule): drawn and edited as a layer's
  * are, and handed back on every change instead of written.
  */
-export interface HeldCards {
+interface HeldCards {
     readonly cards: readonly Card[];
     readonly onChange: (cards: readonly Card[]) => void;
 }
@@ -2111,6 +2111,9 @@ function fixedText(leaf: RuleTree): string {
     if (leaf.kind === "member" && typeof leaf.of === "object" && "nodes" in leaf.of) {
         const ids = leaf.of.nodes.map(String);
         return ids.length > 5 ? `${ids.slice(0, 5).join(", ")}, +${String(ids.length - 5)}` : ids.join(", ");
+    }
+    if (leaf.kind === "state") {
+        return leaf.state;
     }
     return leaf.kind === "expression" ? leaf.where : JSON.stringify(leaf);
 }

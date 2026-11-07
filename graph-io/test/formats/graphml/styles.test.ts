@@ -415,9 +415,9 @@ describe("GraphML styles: yEd", () => {
         const at = (id: string): number => snapshot.ids.indexOf(id);
         expect([fill[at("n0")], opacity[at("n0")]]).toEqual(["#ff0000", 0.501961]);
         expect(fill[at("n1")]).toBe("#ff0000");
-        // yEd runs a gradient from the fill color at the top-left corner into color2 at the bottom-right one
+        // a shape node's gradient runs left to right
         expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n1")]).toBe("#0000ff");
-        expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[at("n1")]).toBe(45);
+        expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[at("n1")]).toBe(0);
         expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n0")]).toBeNull();
         expect(opacity[at("n2")]).toBe(0);
         expect(opacity[at("n3")]).toBe(0);
@@ -446,6 +446,27 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "edge", "opacity", snapshot).slice(0, 2)).toEqual([null, 0.501961]);
         // yEd's standard arrow is a triangle with its back pressed in (a vee); its delta is the plain triangle
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["vee", "none", "triangle"]);
+    });
+
+    it("reads a generic node's gradient corner to corner and draws none on a table", async () => {
+        const fill = '<y:Fill color="#FF0000" color2="#0000FF" transparent="false"/>';
+        const { snapshot, styles } = await load(
+            [
+                '<?xml version="1.0" encoding="UTF-8"?>',
+                '<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">',
+                '<key for="node" id="d6" yfiles.type="nodegraphics"/>',
+                '<graph edgedefault="directed" id="G">',
+                `<node id="g"><data key="d6"><y:GenericNode configuration="com.yworks.flowchart.process"><y:Geometry height="40" width="80" x="0" y="0"/>${fill}</y:GenericNode></data></node>`,
+                `<node id="t"><data key="d6"><y:TableNode configuration="YED_TABLE_NODE"><y:Geometry height="90" width="150" x="0" y="0"/>${fill}</y:TableNode></data></node>`,
+                "</graph></graphml>",
+            ].join("\n"),
+        );
+        const at = (id: string): number => snapshot.ids.indexOf(id);
+        const angle = resolveStyles(styles, "node", "fillGradientAngle", snapshot);
+        const gradient = resolveStyles(styles, "node", "fillGradient", snapshot);
+        // stretched over the 80 x 40 box, a ramp at atan2(40^2, 80^2) changes color along the box's diagonal
+        expect([gradient[at("g")], angle[at("g")]]).toEqual(["#0000ff", 14.036]);
+        expect(gradient[at("t")]).toBeNull();
     });
 
     it("adds yEd's defaults beneath the file's own values, and none with toolDefaults: false", async () => {
@@ -610,6 +631,26 @@ describe("GraphML styles: yEd", () => {
             const nodes = realizer("a", "UMLNoteNode", "", "", '<y:Geometry height="50" width="100" x="0" y="0"/>');
             expect(await values(nodes, "shape")).toEqual(["polygon"]);
             expect(await values(nodes, "shapePoints")).toEqual(["-1,1 0.7,1 0.7,0.4 1,0.4 1,-1 -1,-1"]);
+            const [picture] = await values(nodes, "image");
+            // the fold: a white triangle in the cut corner, outlined, so its two creases show
+            expect(decodeURIComponent(String(picture))).toContain(
+                'stroke="#505050" stroke-width="1" d="M85,0 L85,15 L100,15 Z"',
+            );
+            expect(await values(nodes, "imageFit")).toEqual(["fill"]);
+        });
+
+        it("draws the part of an SBGN multimer's copy 6 down and right of it that shows", async () => {
+            const mcount = '<y:Property class="java.lang.Integer" name="com.yworks.sbgn.style.mcount" value="2"/>';
+            const nodes = generic("a", "sbgn.Macromolecule", mcount) + generic("b", "sbgn.Macromolecule");
+            const [picture, none] = await values(nodes, "image");
+            expect(none).toBeNull();
+            const svg = decodeURIComponent(String(picture));
+            expect(svg).toContain('<path fill="none" stroke="#505050" stroke-width="1" d="M');
+            // from the copy's top right corner, round its bottom right one, to its bottom left one
+            expect(svg).toContain("L62,18");
+            expect(svg).toContain("L50,42");
+            expect(await values(nodes, "imageWidth")).toEqual([61, null]);
+            expect(await values(nodes, "imageOffsetX")).toEqual([3, null]);
         });
 
         it("draws an event, a gateway and the round flowchart and SBGN nodes in the largest square of their box", async () => {
@@ -783,6 +824,28 @@ describe("GraphML styles: yFiles 3", () => {
         expect(read("borderWidth")).toBe(0);
         expect(read("borderColor")).toBe("#505050");
         expect(String(read("shapeLines")).split(" ")[0]).toBe("-1+2.000,1-3.000");
+    });
+
+    it("draws com.yjava bevels and shiny plates as yEd's default: a box in the fill, a solid line of 1", async () => {
+        const { snapshot, styles } = await load(corpusBytes(join(CORPUS, "fidelity/synthetic-nodes.graphml")));
+        const read = (id: string, property: StyleProperty): unknown =>
+            resolveStyles(styles, "node", property, snapshot)[snapshot.ids.indexOf(id)];
+        // BevelNode: color2 #3366FF and a dashed border of 0.5; ShinyPlateNode3: color2 #FFFFFF and a border of 2
+        for (const [id, fill] of [
+            ["generic-12", "#99ccff"],
+            ["generic-15", "#c0c0c0"],
+        ]) {
+            expect(read(id, "shape")).toBe("rectangle");
+            expect(read(id, "fill")).toBe(fill);
+            expect(read(id, "fillGradient") ?? null).toBeNull();
+            expect(read(id, "fillGradientColors") ?? null).toBeNull();
+            expect(read(id, "borderColor")).toBe(fill);
+            expect(read(id, "borderWidth")).toBe(1);
+            expect(read(id, "borderStyle")).toBe("solid");
+        }
+        // BevelNode2's dotted border of 5 and ShinyPlateNode's dash-dot one
+        expect(read("generic-13", "borderWidth")).toBe(1);
+        expect(read("generic-14", "borderStyle")).toBe("solid");
     });
 
     it("draws no line in a bevel whose border has no color", async () => {
@@ -1020,7 +1083,7 @@ describe("GraphML styles: writing", () => {
                     values: {
                         fill: ["#e8eef7", "#e8eef7"],
                         fillGradient: ["#b7c9e3", "#b7c9e3"],
-                        fillGradientAngle: [45, 90],
+                        fillGradientAngle: [0, 90],
                         label: ["A", "B"],
                         labelPosition: ["inside-top-right", "top"],
                     },

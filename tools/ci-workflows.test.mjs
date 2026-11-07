@@ -27,6 +27,8 @@ import { after, describe, it } from "node:test";
 
 import { parse as parseYaml } from "yaml";
 
+import { TEST_STEP_LIMIT_MS } from "./results/run-group.mjs";
+
 import {
     ciCommand,
     fitsCheckout,
@@ -121,6 +123,12 @@ const QUEUE =
 const FULL_RUN_JOBS = SHARDS.length - Object.values(GROUPS).flat().length + Object.keys(GROUPS).length;
 
 describe("the test matrix", () => {
+    // #5845: the deadline must fall inside the job, with room to reach the tests before it and to stop them after
+    it("stops a hung run inside the test job's limit", () => {
+        const minutes = Number(/timeout-minutes: (\d+)/u.exec(job(workflow("ci.yml"), "test"))[1]);
+        assert.ok(TEST_STEP_LIMIT_MS + 100_000 + 120_000 <= minutes * 60_000);
+    });
+
     it("runs every shard exactly once on a full run, in one job per shard or group", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));

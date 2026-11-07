@@ -26,6 +26,7 @@ import {
     type PShape,
     type Pt,
     type PText,
+    rampAngleOnScreen,
 } from "./primitives";
 import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
 
@@ -373,19 +374,24 @@ function arrowShapeNamed(name: string): ArrowShape {
 
 /**
  * A node's gradient as graphty paints it: its colors at their stops (evenly spaced when it has none), a linear one
- * along its direction.
+ * along the direction its color changes on screen. NodeMesh paints the ramp at its direction across a square texture
+ * and stretches the square over the node's box, so on a box wider than tall its color changes along
+ * atan2(sin(direction) / height, cos(direction) / width) (`rampAngleOnScreen`), not along its direction.
  * @param ramp - the drawn ramp
+ * @param w - the node's width on screen
+ * @param h - the node's height on screen
  * @returns the gradient, or null
  */
-function gradientOf(ramp: DrawnNode["ramp"]): PGradient | null {
+function gradientOf(ramp: DrawnNode["ramp"], w: number, h: number): PGradient | null {
     if (ramp === null) {
         return null;
     }
     const last = Math.max(ramp.colors.length - 1, 1);
+    const rad = ((ramp.direction ?? 0) * Math.PI) / 180;
     return {
         kind: ramp.kind,
         stops: ramp.colors.map((color, i) => ({ offset: ramp.stops?.[i] ?? i / last, color, opacity: 1 })),
-        angle: ramp.kind === "linear" ? (ramp.direction ?? 0) : null,
+        angle: ramp.kind === "linear" ? (rampAngleOnScreen([Math.cos(rad), Math.sin(rad)], [w, 0, 0, h]) ?? 0) : null,
         ...(ramp.center === undefined ? {} : { center: ramp.center }),
     };
 }
@@ -562,6 +568,26 @@ function labelCells(
 }
 
 /**
+ * The closed lines graphty draws over node faces that are no node's outline (a yEd bevel's line 8 in from its edge,
+ * `faceLine`), as free shapes: the oracle's side leaves such a line a stray, so each is judged against graphty's by its
+ * box (stray.present, stray.extra), and a line graphty leaves out or draws elsewhere still fails.
+ * @param scene - the scene
+ * @param drawn - `readDrawn` of the same frame
+ * @returns the lines, as strays without their index
+ */
+function faceLines(
+    scene: Scene,
+    drawn: DrawnGraph,
+): { tag: string; kind: "shape"; box: PBox; fill: null; stroke: null; text: null }[] {
+    return scene.nodes.flatMap((n) => {
+        const d = drawn.nodes.get(n.id);
+        return d?.visible === true && d.faceLine !== undefined
+            ? [{ tag: "face-line", kind: "shape" as const, box: d.faceLine, fill: null, stroke: null, text: null }]
+            : [];
+    });
+}
+
+/**
  * The arrowheads graphty draws on edges it draws no line for (Gephi's swallowed curved edge keeps its arrowhead,
  * `gexf-sigma-ediaspora`), as free shapes: no line carries them on either side, so the oracle's are strays, and each
  * is judged against graphty's by its box (stray.present, stray.extra). One wholly inside an opaque node is drawn under
@@ -728,7 +754,7 @@ export function drawnPrimitives(
                     : {
                           color: fill,
                           opacity: n.fillOpacity,
-                          gradient: d?.gradient === true ? gradientOf(d.ramp) : null,
+                          gradient: d?.gradient === true ? gradientOf(d.ramp, n.w, n.h) : null,
                       },
             stroke:
                 borderColor !== null && borderWidth > 0
@@ -903,6 +929,7 @@ export function drawnPrimitives(
             ]),
             ...linelessCaps(scene, drawn),
             ...labelCells(scene, drawn),
+            ...faceLines(scene, drawn),
             ...parts.shapes,
         ].map((s, index) => ({ index, ...s })),
     };

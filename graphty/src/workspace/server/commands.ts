@@ -38,7 +38,7 @@ export const START_WORDS: Readonly<Record<string, string>> = {
 };
 
 /** A query to start from, per query language, so Test has something to run. */
-export const STARTER_QUERY: Readonly<Record<string, string>> = {
+const STARTER_QUERY: Readonly<Record<string, string>> = {
     cypher: "MATCH (n)-[r]->(m) RETURN n, r, m",
     sparql: "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }",
 };
@@ -371,7 +371,7 @@ export function openServerForm(store: WorkspaceStore, kind: string | null = null
  * @param id - the node.
  * @returns the load's source id, or undefined.
  */
-export function expandableSource(session: GraphSession | null, id: NodeId): string | undefined {
+function expandableSource(session: GraphSession | null, id: NodeId): string | undefined {
     const loads = session?.data.node(id)?.["_source.loads"];
     if (!Array.isArray(loads) || session === null) {
         return undefined;
@@ -388,7 +388,7 @@ export function expandableSource(session: GraphSession | null, id: NodeId): stri
  * @param id - the node.
  * @returns the count, or null when unknown or none.
  */
-export function hiddenNeighbors(session: GraphSession | null, id: NodeId): number | null {
+function hiddenNeighbors(session: GraphSession | null, id: NodeId): number | null {
     const hidden = session?.data.node(id)?.["_source.hidden"];
     return typeof hidden === "number" && hidden > 0 ? hidden : null;
 }
@@ -400,7 +400,7 @@ export function hiddenNeighbors(session: GraphSession | null, id: NodeId): numbe
  * @param id - the node.
  * @returns true when Collapse applies.
  */
-export function collapsible(session: GraphSession | null, id: NodeId): boolean {
+function collapsible(session: GraphSession | null, id: NodeId): boolean {
     const expansion = session?.data.node(id)?.["_source.expansion"];
     return expansion === "partial" || expansion === "complete";
 }
@@ -421,7 +421,7 @@ function selectedNode(ctx: CommandContext): NodeId | undefined {
  * @param session - the session.
  * @param id - the node.
  */
-export function collapseNode(workspace: WorkspaceStore, session: GraphSession, id: NodeId): void {
+function collapseNode(workspace: WorkspaceStore, session: GraphSession, id: NodeId): void {
     session.data.collapse(id).catch(() => {
         workspace.set({ notice: { message: "Not collapsed" } });
     });

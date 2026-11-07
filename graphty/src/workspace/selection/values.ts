@@ -7,6 +7,7 @@
  */
 
 import {
+    type ElementState,
     type FilterCondition,
     type GraphSession,
     type MeasureTest,
@@ -51,7 +52,15 @@ const STRUCTURE_WORDS: Readonly<Record<string, string>> = {
 const LINK_ALIASES: readonly string[] = ["links", "connections"];
 
 /** The While preset's tooltip: what it holds, in plain words. */
-export const WHILE_TIP = "Everything while it holds a node, else nothing";
+const WHILE_TIP = "Everything while it holds a node, else nothing";
+
+/** What a state condition is called. */
+export const STATE_WORDS: Readonly<Record<ElementState, string>> = {
+    selected: "Selected",
+    hovered: "Hovered",
+    pinned: "Pinned",
+    ghosted: "Outside the time window",
+};
 
 /** The hosts a selection is edited in: a style layer's selector, or an import filter card. */
 export type Host = "selector" | "filter";
@@ -286,10 +295,12 @@ export function ruleOfField(session: GraphSession, field: CardField, within?: Un
 /**
  * The value picker's sections after Data and Results: the Analyze categories (algorithms not yet
  * run, named by method, a single-field result by its method alone), Added (user-registered
- * algorithms), Structure, and Relative to.
+ * algorithms), Structure, Relative to, and On the canvas (what the reader is doing, for a host that
+ * follows the reader).
  * @param session - the element's session.
  * @param rule - the selection.
  * @param onPick - takes the rule an entry writes.
+ * @param host - where the selection is edited.
  * @param perAlgorithm - one entry per algorithm, run or not (the workspace's cards).
  * @returns the sections, in order; an empty one is left out.
  */
@@ -297,6 +308,7 @@ export function pickSections(
     session: GraphSession,
     rule: UnionLeaf,
     onPick: (stepRule: RuleTree) => void,
+    host: Host,
     perAlgorithm = false,
 ): PickSection[] {
     const side = sideOf(rule);
@@ -419,8 +431,24 @@ export function pickSections(
         { group: side === "node" ? "Edges (nodes touching)" : "Nodes (edge ends)", items: across },
         { group: "Structure", items: structure },
         { group: "Relative to", items: relative },
+        { group: "On the canvas", items: host === "selector" ? stateItems(side, item) : [] },
     ];
     return sections.filter((each) => each.items.length > 0);
+}
+
+/**
+ * On the canvas's entries: the states a side's elements can be in. No edge is hovered or pinned.
+ * @param side - nodes or edges.
+ * @param item - makes an entry.
+ * @returns the entries.
+ */
+function stateItems(
+    side: Side,
+    item: (key: string, name: string, glyph: ExtraItem["glyph"], leaf: RuleTree) => ExtraItem,
+): ExtraItem[] {
+    const states: readonly ElementState[] =
+        side === "node" ? ["selected", "hovered", "pinned", "ghosted"] : ["selected", "ghosted"];
+    return states.map((state) => item(state, STATE_WORDS[state], GLYPHS.selection, { kind: "state", state }));
 }
 
 /** A rule that tests against a reference: Relative to's forms. */
@@ -739,7 +767,7 @@ export const withReference = (rule: RelativeRule, reference: StepReference): Rul
  * A layer's selector as a selection: its `union` rule, a flat rule converted by the element, or
  * one group starting All with no step for a layer that picks everything (what it paints, so the
  * layer's row, the folded row and the editor read one count); null for a selector the editor does
- * not edit (the selected, the hovered, ids picked by hand).
+ * not edit (ids picked by hand). A state reads over the whole graph: a ghost is never visible.
  * @param session - the element's session.
  * @param selector - the layer's selector.
  * @param side - nodes or edges.
@@ -754,14 +782,17 @@ export function layerSelection(session: GraphSession, selector: Selector, side: 
             branches: [{ start: "all", steps: [] }],
         };
     }
-    const rule = selectorRule(selector)?.where;
+    const rule = selectorRule(selector, { states: true })?.where;
     if (rule === undefined) {
         return null;
     }
     if (rule.kind === "union") {
         return rule;
     }
-    return session.scope.asUnion(rule, { side: side === "node" ? "nodes" : "edges", within: "visible" });
+    return session.scope.asUnion(rule, {
+        side: side === "node" ? "nodes" : "edges",
+        within: rule.kind === "state" ? "graph" : "visible",
+    });
 }
 
 /**

@@ -11,6 +11,7 @@ import { userEvent } from "vitest/browser";
 
 import { render, screen } from "../../../test/test-utils";
 import { optionWords } from "../../analyze/words";
+import { selectionWorkspaceOn } from "../../features";
 import { OptionsForm } from "../OptionsForm";
 import { splitOptions } from "../splitOptions";
 
@@ -115,8 +116,12 @@ describe("the options form", () => {
 
     it("draws Leiden's advanced settings beside its key one, with nothing to open", async () => {
         await renderFor("leiden");
+        // The selection workspace gives one name per idea across the forms (OptionsForm.tsx, ONE_NAME).
+        const names = selectionWorkspaceOn(session)
+            ? [/^Resolution(,|$)/, /^Seed(,|$)/, /^Max iterations(,|$)/, /^Tolerance(,|$)/]
+            : [/^Resolution(,|$)/, /^Random seed(,|$)/, /^Max iterations(,|$)/, /^Threshold(,|$)/];
 
-        for (const name of [/^Resolution(,|$)/, /^Random seed(,|$)/, /^Max iterations(,|$)/, /^Threshold(,|$)/]) {
+        for (const name of names) {
             assert.isNotNull(screen.getByRole("spinbutton", { name }));
         }
         assert.isNull(screen.queryByRole("button", { name: /Advanced/ }));
@@ -189,7 +194,9 @@ describe("the options form", () => {
         assert.equal((select as HTMLInputElement).value, "emails (closer, loaded)");
         await userEvent.click(select);
         const options = screen.getAllByRole("option").map((option) => option.textContent);
-        assert.deepEqual(options, ["emails (closer, loaded)", "None", "cost (farther)"]);
+        // The selection workspace names a column alone, without what the run reads it as (OptionsForm.tsx).
+        const cost = selectionWorkspaceOn(made) ? "cost" : "cost (farther)";
+        assert.deepEqual(options, ["emails (closer, loaded)", "None", cost]);
         await userEvent.click(screen.getByRole("option", { name: "None" }));
         assert.deepEqual(changes, [null]);
     });

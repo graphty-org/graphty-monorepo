@@ -77,7 +77,7 @@ import {
 import { type LabelTable, readLabelTable } from "./html-table.js";
 import { type LabelPlaceContext, leftOutEdgeLabels, leftOutXlabels, readLabelPlaces } from "./label-places.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
-import { layoutRecord } from "./record.js";
+import { fontWidths, layoutRecord } from "./record.js";
 
 /**
  * The graph attribute holding the `graphty.styles` block of a DOT file graphty wrote.
@@ -1062,7 +1062,7 @@ function readRecord(n: NodeRead, label: string, names: DotEscapeNames): void {
         pt("width", DEFAULT_NODE_SIZE.w),
         pt("height", DEFAULT_NODE_SIZE.h),
         isTrue(get("fixedsize")),
-        Number.isFinite(size) && size > 0 ? size : 14,
+        { size: Number.isFinite(size) && size > 0 ? size : 14, widths: fontWidths(get("fontname")) },
         (line) => dotLabelText(line, names),
     );
     const hw = lay.width / 2;
@@ -1349,7 +1349,34 @@ function readFillGradient(n: NodeRead, raw: string | null): void {
     const angle = Number(nonEmpty(n.get("gradientangle")) ?? "0");
     // 0 up to 360: the neutral angle turns clockwise on screen, Graphviz's counter-clockwise
     const turned = Number.isFinite(angle) ? ((-angle % 360) + 360) % 360 : 0;
-    n.put("fillGradientAngle", num6(turned) + 0);
+    // ponytail: a cluster's box is known only once it is laid out, so its ramp keeps the angle as written
+    const stretched = n.point || n.cx.cluster ? turned : boxRampAngle(turned, nodeLeastSize(n.get, n.shape));
+    n.put("fillGradientAngle", num6(stretched) + 0);
+}
+
+/**
+ * The neutral angle that draws Graphviz's linear gradient on a node's box. Graphviz runs the gradient's vector from
+ * the box's middle out to (half its width x cos(angle), half its height x sin(angle)) on screen (`get_gradient_points`
+ * in lib/common/utils.c), so its color changes along atan2(height x sin, width x cos): gradientangle=315 on a 59.5 x
+ * 36 box changes along 31.2 degrees, not 45. graphty-element paints its ramp across a square and stretches the square
+ * over the box, so its color changes along atan2(sin / height, cos / width); the two agree at atan2(height^2 x sin,
+ * width^2 x cos). A square box, or a ramp along a side, keeps its angle.
+ * ponytail: the box is the node's least size (`nodeLeastSize`); a node Graphviz grows round a long label is wider,
+ * which leaves its ramp a few degrees steeper than Graphviz's (n_lingrad2: 36 where Graphviz draws 31). Reading the
+ * grown size needs the label's width at import.
+ * @param turned - the neutral angle, degrees clockwise on screen
+ * @param box - the node's width and height
+ * @param box.w - its width
+ * @param box.h - its height
+ * @returns the neutral angle to draw, 0 up to 360
+ */
+function boxRampAngle(turned: number, box: { w: number; h: number }): number {
+    if (!(box.w > 0 && box.h > 0)) {
+        return turned;
+    }
+    const rad = (turned * Math.PI) / 180;
+    const deg = (Math.atan2(box.h * box.h * Math.sin(rad), box.w * box.w * Math.cos(rad)) * 180) / Math.PI;
+    return ((deg % 360) + 360) % 360;
 }
 
 /**

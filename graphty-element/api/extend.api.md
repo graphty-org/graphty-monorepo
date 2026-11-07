@@ -8,6 +8,7 @@ import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { ActionManager } from '@babylonjs/core';
 import { AwsCredentials } from '@graphty/graph-io';
+import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
@@ -615,8 +616,12 @@ export abstract class DataSource {
     get declaredFileLayout(): FileLayout | null;
     get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    // @beta
+    get declaredTime(): TimeField | null;
     protected declareFileLayout(layout: FileLayout | null): void;
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
+    // @beta
+    protected declareTime(field: TimeField): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
@@ -811,6 +816,8 @@ export class Edge {
     get index(): number;
     invalidatePositionCache(): void;
     isDisposed(): boolean;
+    // @internal
+    get isPulled(): boolean;
     isRenderVisible(): boolean;
     isSelected(): boolean;
     // (undocumented)
@@ -865,6 +872,10 @@ export interface EdgePosition {
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
+    lineEnds?: {
+        readonly source: readonly [along: number, across: number];
+        readonly target: readonly [along: number, across: number];
+    };
     // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
@@ -1872,6 +1883,8 @@ export { ImportError }
 export interface ImporterSourceOptions<Opts> {
     readonly importOptions?: Partial<Opts & CommonImportOptions>;
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImporterReport) => string | null;
+    // @beta
+    readonly time?: (snapshot: GraphSnapshot, report: ImporterReport) => TimeField | null;
 }
 
 export { ImportInput }
@@ -2023,6 +2036,8 @@ export abstract class LayoutEngine {
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
     // (undocumented)
@@ -3109,6 +3124,26 @@ export interface SuggestedName {
     // (undocumented)
     readonly label: string;
 }
+
+// @beta
+export interface TimeField {
+    // (undocumented)
+    readonly edges?: TimeSource;
+    // (undocumented)
+    readonly nodes?: TimeSource;
+}
+
+// @beta
+export interface TimeSource {
+    readonly end?: Path;
+    readonly parseZone?: string;
+    readonly spells?: Path;
+    readonly start: Path;
+    readonly unit?: TimeUnit;
+}
+
+// @beta
+export type TimeUnit = "ms" | "s" | "year" | "ordinal";
 
 // @public
 export interface TransitionDescriptor {

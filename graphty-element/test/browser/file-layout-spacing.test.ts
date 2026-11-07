@@ -10,6 +10,9 @@ import boxesUrl from "../../../graph-io/test/corpus/styles/cx/fidelity/repro-unp
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { NODE_EXTENT_PER_SIZE } from "../../src/meshes/NodeMesh";
 import { drawnFrames } from "../helpers/drawn-frames";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /**
  * Cytoscape desktop's median nearest-node spacing in its own layout of the file, in the file's px: the fidelity oracle

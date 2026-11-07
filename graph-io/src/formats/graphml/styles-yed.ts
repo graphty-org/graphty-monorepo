@@ -42,6 +42,7 @@ import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
+import { yedNodePicture } from "./styles-yed-drawing.js";
 
 // ============================================================ the kept trees
 
@@ -376,8 +377,8 @@ const ROUND_BEVEL: YedOutline = { shape: "round-rectangle", cornerRadius: 10, be
  * The shape each configuration of yEd's GenericNode palettes draws (flowchart, entity relationship, BPMN, SBGN), by
  * its name after `com.yworks.` without a `.withShadow` suffix, lowercase. Matched whole, before the words below:
  * "data" is a parallelogram, but "storedData" and "directData" are not. A shape no neutral one names is the polygon
- * yEd draws it as (curves as short segments); the lines some draw inside (predefined process, internal storage) are
- * not drawn. The BPMN artifact's outline follows its `com.yworks.bpmn.type` style property (`genericOutline`). The
+ * yEd draws it as (curves as short segments); the lines some draw inside (predefined process, internal storage) and
+ * the BPMN symbols are a picture over the node (`readMarks`). The BPMN artifact's outline follows its `com.yworks.bpmn.type` style property (`genericOutline`). The
  * corner radii, the shapes that keep their proportions in a box of another shape and the lines round them are as
  * yEd 3.25 draws them (`yed-graphml-specimen-node-shapes-p2`, `-p3`).
  */
@@ -1635,6 +1636,51 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
 }
 
 /**
+ * Reads what yEd draws inside a GenericNode or a UML note beside its outline (`yedNodePicture`) as a picture over the
+ * node's box as drawn: a node kept square in a box of another shape is drawn in the middle square.
+ * @param real - the realizer
+ * @param outline - its outline, if known
+ * @param size - its stored size
+ * @param size.width - its width
+ * @param size.height - its height
+ * @param fill - its fill, or null
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readMarks(
+    real: Realizer,
+    outline: YedOutline | null,
+    size: { width: number; height: number },
+    fill: string | null,
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const aspect = outline?.aspect;
+    const width = aspect === undefined ? size.width : Math.min(size.width, size.height * aspect);
+    const height = aspect === undefined ? size.height : width / aspect;
+    const border = treeChild(real.r, "BorderStyle");
+    const props = treeChildren(treeChild(real.r, "StyleProperties"), "Property");
+    const picture = yedNodePicture({
+        kind: real.type === "GenericNode" ? (treeAttr(real.r, "configuration") ?? "") : real.type,
+        property: (name) =>
+            treeAttr(
+                props.find((p) => treeAttr(p, "name") === `com.yworks.bpmn.${name}`),
+                "value",
+            )?.slice(0, MAX_STYLE_VALUE_LENGTH),
+        width,
+        height,
+        fill,
+        line: hasLine(border) ? (canonColor(treeAttr(border, "color"), "yed", at("borderColor"))?.color ?? null) : null,
+        border: hasLine(border) ? (yedDrawnWidth(canonNumber(treeAttr(border, "width"), at("borderWidth"))) ?? 1) : 0,
+    });
+    if (picture !== null) {
+        put("image", picture);
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/**
  * Reads one node realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1671,6 +1717,9 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     }
     if (outline?.bevelInset !== undefined) {
         putBevel(outline, unfilled(fill) ? null : color, outline.bevelInset, hasLine(border), put);
+    }
+    if (width !== null && height !== null && (real.type === "GenericNode" || real.type === "UMLNoteNode")) {
+        readMarks(real, outline, { width, height }, color, put, at);
     }
     if (real.type === "TableNode") {
         readTable(real, put, at);

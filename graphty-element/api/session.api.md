@@ -745,6 +745,7 @@ export interface CreateGraphSessionOptions {
     };
     readonly features?: readonly string[];
     readonly runs?: SessionRunsOptions;
+    readonly workingGraph?: WorkingGraphMode;
 }
 
 export { Credential_2 as Credential }
@@ -5380,6 +5381,8 @@ export interface SessionConfig extends ProjectConfig {
     readonly backgroundColor: string;
     inEffect(key: GraphSettingKey): SettingEffect;
     set(values: ProjectConfigPatch): Promise<void>;
+    setWorkingGraph(mode: WorkingGraphMode): void;
+    readonly workingGraph: WorkingGraphMode;
 }
 
 // @public
@@ -5479,6 +5482,7 @@ export interface SessionDataApi {
         readonly kind?: "node" | "edge";
     }): ValueCounts;
     valueLabels(path: Path): ReadonlyMap<string, string>;
+    working(): WorkingGraph;
 }
 
 // @public
@@ -5580,6 +5584,7 @@ export interface SessionEventMap {
     // @beta
     "time:step": TimeStepEvent;
     "visibility:changed": VisibilityChange;
+    "working-graph:changed": WorkingGraphChange;
 }
 
 // @public
@@ -7178,6 +7183,34 @@ export interface WorkerCapability {
     readonly count: number;
     readonly state: "active" | "unavailable";
 }
+
+// @public
+export const WORKING_GRAPH_MODES: readonly WorkingGraphMode[];
+
+// @public
+export interface WorkingGraph {
+    compactEdgeRow(originalRow: number): number;
+    compactNodeRow(originalRow: number): number;
+    readonly edgeCount: number;
+    edgeIds(): readonly EdgeId[];
+    has(id: NodeId_2 | EdgeId): boolean;
+    readonly nodeCount: number;
+    nodeIds(): readonly NodeId_2[];
+    originalEdgeRow(row: number): number;
+    originalNodeRow(row: number): number;
+    snapshot(): GraphSnapshot;
+}
+
+// @public
+export interface WorkingGraphChange {
+    readonly edgeCount: number;
+    readonly mode: WorkingGraphMode;
+    readonly nodeCount: number;
+    readonly settled: boolean;
+}
+
+// @public
+export type WorkingGraphMode = "documented" | "visible";
 
 // @public
 export interface XrCapability {

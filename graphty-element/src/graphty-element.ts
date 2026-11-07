@@ -90,7 +90,14 @@ import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
-import type { ModelChange, ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
+import {
+    type ModelChange,
+    type ProjectConfigPatch,
+    type SessionEventMap,
+    type TransactionScope,
+    WORKING_GRAPH_MODES,
+    type WorkingGraphMode,
+} from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 import { downloadBlob } from "./utils/download";
 
@@ -6022,6 +6029,43 @@ export class Graphty extends LitElement {
         // attribute, `session.acceleration` and the hardware cannot disagree about the policy.
         this.#graph.getSession().acceleration = value;
         this.requestUpdate("acceleration", oldValue);
+    }
+
+    /**
+     * Which graph a reader that names no scope reads: `"documented"` (the default) keeps every
+     * reader's documented default; `"visible"` makes every reader read what the visibility filter
+     * and the time window leave shown, so counts, runs and layouts agree with the drawing. A reader
+     * that must see the whole graph names `scope: "graph"`. The same value as
+     * `session.config.workingGraph`; never saved in a project file.
+     * @returns The mode. `"documented"` unless it was set.
+     * @example HTML attribute
+     * ```html
+     * <graphty-element working-graph="visible"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "working-graph", reflect: true })
+    get workingGraph(): WorkingGraphMode {
+        return this.#graph.getSession().config.workingGraph;
+    }
+    /**
+     * Sets which graph a reader that names no scope reads.
+     *
+     * An unrecognised value is reported and ignored, leaving the previous mode in force, for the
+     * reason given on `acceleration`: Lit drives this setter from `attributeChangedCallback`.
+     */
+    set workingGraph(value: WorkingGraphMode) {
+        const { config } = this.#graph.getSession();
+        const oldValue = config.workingGraph;
+        if (!WORKING_GRAPH_MODES.includes(value)) {
+            console.error(
+                `<graphty-element>: working-graph must be ${WORKING_GRAPH_MODES.map((mode) => `"${mode}"`).join(" or ")}, ` +
+                    `not "${value}". Keeping "${oldValue}".`,
+            );
+            return;
+        }
+
+        config.setWorkingGraph(value);
+        this.requestUpdate("workingGraph", oldValue);
     }
 
     /**

@@ -22,6 +22,7 @@ import {
     type XrCapability,
 } from "../acceleration";
 import { sessionColumns } from "../algorithms/input/columns";
+import { DerivedInputs } from "../algorithms/input/derivedInputs";
 import type { CameraState } from "../camera/types";
 import { arrangedDimension } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
@@ -222,6 +223,7 @@ import type {
     SettingEffect,
     TransactionOptions,
     TransactionScope,
+    WorkingGraphMode,
 } from "./types";
 import {
     createVisibilityApi,
@@ -231,6 +233,7 @@ import {
 } from "./visibility";
 import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 import type { SlideCounts } from "./visibility/slide";
+import { createWorkingView, requireWorkingGraphMode, type WorkingView } from "./working/WorkingGraph";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -437,6 +440,13 @@ interface SessionParts {
     readonly dispatcher: Dispatcher;
     /** Saved results waiting for the runs a project open starts; the executor answers from it. */
     readonly canned: CannedOutcomes;
+    /** The working graph: what is shown, as one view every reader shares. */
+    readonly working: WorkingView;
+    /**
+     * Publish `working-graph:changed` when the view or the mode moved since the last one.
+     * @param settled - False while a slide or a held condition is moving the masks.
+     */
+    readonly workingChanged: (settled: boolean) => void;
 }
 
 /**
@@ -451,6 +461,11 @@ interface SessionInternals {
     readonly baselineWindow?: boolean;
     /** Settles on the next drawn frame, or at once when no frame is coming; absent with no renderer. */
     readonly renderedFrame?: () => Promise<void>;
+    /**
+     * The derived-input cache the renderer's runs read through, so the working graph and a run over
+     * what is shown share one derivation. Absent, the session keeps one of its own.
+     */
+    readonly derivedInputs?: DerivedInputs;
 }
 
 /**
@@ -571,6 +586,8 @@ class Session implements ElementSession {
     private readonly watchers: Watchers;
     /** The settings; identity-stable, every member read live. */
     readonly config: SessionConfig;
+    /** The working graph, released on dispose. */
+    private readonly working: WorkingView;
     private readonly sessionData: SessionData;
     private readonly store: LaneStore;
     private readonly controller: AccelerationControllerLike;
@@ -667,6 +684,11 @@ class Session implements ElementSession {
             beside?.(change);
         };
         this.dispatcher.events.caughtUp = (change) => {
+            // A data edit moves the working graph; a filter or window change already told it.
+            if (change.slices.includes("graph")) {
+                parts.workingChanged(true);
+            }
+
             publish(this.watchers, "project:derived", {
                 slices: change.slices as readonly ProjectSlice[],
                 cause: change.cause,
@@ -753,7 +775,10 @@ class Session implements ElementSession {
             const base = advice.layout.scoped ? advised : { id: DEFAULT_LAYOUT.id, engine: DEFAULT_LAYOUT.engine };
             return { ...base, unplaced, placed: partial.placed };
         };
-        this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
+        this.config = configOf(this.dispatcher, parts.readProject, parts.controller, parts.working, () => {
+            parts.workingChanged(true);
+        });
+        this.working = parts.working;
         this.project = projectOf(this, this.dispatcher, parts.canned, {
             announce: (change) => {
                 publish(this.watchers, "project:status", change);
@@ -1285,6 +1310,7 @@ class Session implements ElementSession {
         // The last event: a host drops the session here, before anything re-reads it.
         publish(this.watchers, "session:disposed", {});
         this.watchers.clear();
+        this.working.dispose();
         this.sessionData.dispose();
         this.ownedAcceleration?.dispose();
         this.ownedStore?.dispose();
@@ -1591,12 +1617,16 @@ function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConf
  * @param dispatcher - The dispatcher.
  * @param read - Reads the project settings.
  * @param controller - The acceleration controller.
+ * @param working - The working graph, whose mode `workingGraph` reads and writes.
+ * @param workingChanged - Tells `working-graph:changed` after the mode moved.
  * @returns The settings.
  */
 function configOf(
     dispatcher: Dispatcher,
     read: () => ProjectConfig,
     controller: AccelerationControllerLike,
+    working: WorkingView,
+    workingChanged: () => void,
 ): SessionConfig {
     return Object.freeze({
         get data() {
@@ -1655,6 +1685,16 @@ function configOf(
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
             settingEffect(key, dispatcher.state.layout ?? DEFAULT_LAYOUT),
+        get workingGraph() {
+            return working.mode;
+        },
+        setWorkingGraph: (mode: WorkingGraphMode): void => {
+            requireWorkingGraphMode(mode);
+            if (mode !== working.mode) {
+                working.mode = mode;
+                workingChanged();
+            }
+        },
     });
 }
 
@@ -2511,7 +2551,7 @@ function repaintAgainstCurrentData(
 export function createGraphSession(options: CreateGraphSessionOptions = {}): GraphSession {
     // Only the published options, even from a caller the types did not check: a store or a record
     // source handed in would make that caller a second writer of the graph.
-    const { config, acceleration, runs, features } = options;
+    const { config, acceleration, runs, features, workingGraph } = options;
     // Copied now, as documented: a later setDefaultFeatures, or a change to the caller's array,
     // must not reach a session that already exists.
     const requested = Object.freeze([...(features ?? pageDefaultFeatures())]);
@@ -2519,6 +2559,7 @@ export function createGraphSession(options: CreateGraphSessionOptions = {}): Gra
         ...(config === undefined ? {} : { config }),
         ...(acceleration === undefined ? {} : { acceleration }),
         ...(runs === undefined ? {} : { runs }),
+        ...(workingGraph === undefined ? {} : { workingGraph }),
         features: () => requested,
     });
 }
@@ -2621,6 +2662,41 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // per-capability floors in force, and a 0 written here would count as the consumer's own.
     const minNodes = options.acceleration?.minNodes ?? options.config?.acceleration?.minNodes;
     const watchers: Watchers = new Map();
+    const initialWorkingMode = options.workingGraph ?? "documented";
+    requireWorkingGraphMode(initialWorkingMode);
+    const derivedInputs = internals.derivedInputs ?? new DerivedInputs();
+    // The last `working-graph:changed` told, so a filter change and the data pass behind it tell once.
+    let workingTold: { view: object; mode: WorkingGraphMode; nodes: number; edges: number; settled: boolean } | null =
+        null;
+    /**
+     * Publish `working-graph:changed` when the view, its counts or the mode moved since the last
+     * one. Reads only the masks, and nothing at all while nobody listens.
+     * @param settled - False while a slide or a held condition is moving the masks.
+     */
+    const workingChanged = (settled: boolean): void => {
+        // Checked first: nobody can listen before the session exists, so nothing reads `working` early.
+        if ((watchers.get("working-graph:changed")?.size ?? 0) > 0) {
+            const view = working.current();
+            const told = { view, mode: working.mode, nodes: view.nodeCount, edges: view.edgeCount, settled };
+            if (
+                workingTold?.view === told.view &&
+                workingTold.mode === told.mode &&
+                workingTold.nodes === told.nodes &&
+                workingTold.edges === told.edges &&
+                workingTold.settled === told.settled
+            ) {
+                return;
+            }
+
+            workingTold = told;
+            publish(watchers, "working-graph:changed", {
+                mode: told.mode,
+                nodeCount: told.nodes,
+                edgeCount: told.edges,
+                settled,
+            });
+        }
+    };
     dispatcher.services.progress = (change) => {
         publish(watchers, "progress:changed", change);
     };
@@ -2763,6 +2839,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeline: () => timelineOn(),
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
+            working: () => working.current(),
         },
     );
     let values: FilterValueSource | undefined;
@@ -3052,9 +3129,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeline()?.visibilityChanged(change);
             repaintGhosts();
             publish(watchers, "visibility:changed", change);
+            workingChanged(true);
         },
         onSlide: (moved) => {
             repaintGhosts(moved);
+            workingChanged(false);
         },
         onMaskVersion: advanceTick,
         selection: {
@@ -3074,6 +3153,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
         },
     });
+
+    const working = createWorkingView(
+        {
+            snapshot,
+            consumerSnapshot: () => data.snapshot(),
+            nodes: () => visibility.masks.nodes(),
+            edges: () => visibility.masks.edges(),
+            resolveVisible: () => scope.resolutionOf("visible"),
+            inputs: () => derivedInputs,
+        },
+        initialWorkingMode,
+    );
 
     const defaultScope: Scope = runsOptions.defaultScope ?? "visible";
     /** The result each run last announced, so the tick advances when one is published or cleared. */
@@ -4199,6 +4290,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         watchers,
         dispatcher,
         canned,
+        working,
+        workingChanged,
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);

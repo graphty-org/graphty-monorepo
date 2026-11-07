@@ -210,6 +210,7 @@ import type {
     TypeChangePreview,
     ValueCounts,
     ValueType,
+    WorkingGraph,
 } from "./types";
 import { valueLabelsAt } from "./valueLabels";
 
@@ -327,6 +328,11 @@ interface PageSources {
      * @returns The node and edge masks, 1 for visible.
      */
     visibleMasks?(): { readonly nodes: Uint8Array; readonly edges: Uint8Array };
+    /**
+     * The working graph: what is shown, as one view every reader shares.
+     * @returns The view.
+     */
+    working(): WorkingGraph;
 }
 
 /** One neighbor while its list is built: its row, and its name once a name sort read it. */
@@ -1715,6 +1721,16 @@ export class SessionData implements SessionDataApi {
     snapshot(): GraphSnapshot {
         this.requireLive("snapshot");
         return consumerSnapshot(this.graphStore.getSnapshot());
+    }
+
+    /**
+     * The working graph: what the filter and the time window leave shown.
+     * @returns The view; the same object until what is shown or the data changes.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    working(): WorkingGraph {
+        this.requireLive("working");
+        return this.pages.working();
     }
 
     /**

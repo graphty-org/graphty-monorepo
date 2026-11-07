@@ -1006,6 +1006,27 @@ export interface SessionDataApi {
      */
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     /**
+     * The working graph: the nodes and edges the visibility filter and the time window leave
+     * shown, whatever `config.workingGraph` says. The original graph stays {@link snapshot}; this
+     * is a view of it, never a copy to keep in step.
+     *
+     * The same object comes back until what is shown or the data changes. Its counts, `has` and
+     * id lists answer from the visibility masks and build nothing; `snapshot()` and the row maps
+     * build the compact graph once per state, shared with every run over what is shown. When
+     * nothing is hidden, the compact graph is the whole graph and the row maps are identities.
+     *
+     * ```ts
+     * const working = session.data.working();
+     * const graph = working.snapshot();
+     * for (let row = 0; row < graph.nodeCount; row++) {
+     *     const original = working.originalNodeRow(row); // a row of session.data.snapshot()
+     * }
+     * ```
+     * @returns The view.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    working(): WorkingGraph;
+    /**
      * One node, by id.
      * @param id - the node id. An integer id may be written either way: `"34"` finds node `34` and
      *     `34` finds node `"34"`; a graph that holds both answers each by its own id
@@ -2836,6 +2857,100 @@ export interface ProjectConfigPatch {
 }
 
 /**
+ * Which graph a reader that names no scope reads.
+ *
+ * - `"documented"`: every reader keeps the default its documentation states (runs read what is
+ *   shown, `data.nodePage` reads the whole graph, Fit frames every node).
+ * - `"visible"`: every reader that names no scope reads the working graph, what the filter and
+ *   the time window leave shown ({@link SessionDataApi.working}). A reader that must see the
+ *   whole graph names `scope: "graph"`.
+ *
+ * OPEN UNION: may gain members.
+ */
+export type WorkingGraphMode = "documented" | "visible";
+
+/** Every {@link WorkingGraphMode} this release knows. */
+export const WORKING_GRAPH_MODES: readonly WorkingGraphMode[] = Object.freeze(["documented", "visible"]);
+
+/**
+ * The working graph: what the visibility filter and the time window leave shown, as a view of the
+ * original graph. Hidden nodes keep their positions, styles, results and notes, all keyed by id.
+ *
+ * Rows: an original row is a row of `session.data.snapshot()`; a compact row is a row of
+ * {@link WorkingGraph.snapshot}.
+ */
+export interface WorkingGraph {
+    /** How many nodes are shown. */
+    readonly nodeCount: number;
+    /** How many edges are shown. */
+    readonly edgeCount: number;
+    /**
+     * Whether a node or an edge is shown. A node id is looked up first, as `visibility.isVisible`
+     * does.
+     * @param id - The node or edge id.
+     * @returns True when it is shown.
+     */
+    has(id: NodeId | EdgeId): boolean;
+    /**
+     * The shown node ids, in original row order: the same frozen array while the view is unchanged.
+     * @returns The ids.
+     */
+    nodeIds(): readonly NodeId[];
+    /**
+     * The shown edge ids, in original row order: the same frozen array while the view is unchanged.
+     * @returns The ids.
+     */
+    edgeIds(): readonly EdgeId[];
+    /**
+     * The compact graph-format snapshot of what is shown, built on the first call and shared.
+     * Sealed: read it, never write into its columns.
+     * @returns The snapshot.
+     */
+    snapshot(): GraphSnapshot;
+    /**
+     * The original row of a compact node row.
+     * @param row - A node row of {@link WorkingGraph.snapshot}.
+     * @returns The row in `session.data.snapshot()`.
+     * @throws A `RangeError` for a row outside the working graph.
+     */
+    originalNodeRow(row: number): number;
+    /**
+     * The original row of a compact edge row.
+     * @param row - An edge row of {@link WorkingGraph.snapshot}.
+     * @returns The row in `session.data.snapshot()`.
+     * @throws A `RangeError` for a row outside the working graph.
+     */
+    originalEdgeRow(row: number): number;
+    /**
+     * The compact row of an original node row.
+     * @param originalRow - A node row of `session.data.snapshot()`.
+     * @returns The row in {@link WorkingGraph.snapshot}, or `INVALID_INDEX` when the node is hidden.
+     */
+    compactNodeRow(originalRow: number): number;
+    /**
+     * The compact row of an original edge row.
+     * @param originalRow - An edge row of `session.data.snapshot()`.
+     * @returns The row in {@link WorkingGraph.snapshot}, or `INVALID_INDEX` when the edge is hidden.
+     */
+    compactEdgeRow(originalRow: number): number;
+}
+
+/** What `working-graph:changed` carries. */
+export interface WorkingGraphChange {
+    /** The mode in force. */
+    readonly mode: WorkingGraphMode;
+    /** How many nodes are shown. */
+    readonly nodeCount: number;
+    /** How many edges are shown. */
+    readonly edgeCount: number;
+    /**
+     * False while the window slides without being committed or a condition is held: the masks
+     * move, but nothing built from the working graph follows until it settles.
+     */
+    readonly settled: boolean;
+}
+
+/**
  * The session's settings as they are now: every project setting, read live, and the
  * acceleration policy, which is a preference about this machine and not saved in a project.
  */
@@ -2876,6 +2991,19 @@ export interface SessionConfig extends ProjectConfig {
      * @since 3.26.0
      */
     inEffect(key: GraphSettingKey): SettingEffect;
+    /**
+     * Which graph a reader that names no scope reads: `"documented"` (the default) or `"visible"`.
+     * Not a project setting: not undoable, not saved in a project file.
+     */
+    readonly workingGraph: WorkingGraphMode;
+    /**
+     * Choose which graph a reader that names no scope reads. Publishes `working-graph:changed`
+     * when the mode changes.
+     * @param mode - The mode.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for a mode this release does not know; the
+     *     mode stays as it was.
+     */
+    setWorkingGraph(mode: WorkingGraphMode): void;
 }
 
 /**
@@ -2987,6 +3115,11 @@ export interface SessionEventMap {
     "canvas:group-outline-click": GroupOutlineClick;
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
+    /**
+     * The working graph moved: what is shown changed, the data changed, or the mode changed. The
+     * counts come from the masks, so publishing builds nothing. Re-read cached counts here.
+     */
+    "working-graph:changed": WorkingGraphChange;
     /**
      * The time window moved through `session.time`: where it is now and what entered and left.
      * @experimental timeline
@@ -4351,6 +4484,8 @@ export interface CreateGraphSessionOptions {
      * `setDefaultFeatures`. Unknown ids are listed in `features.unknown`, never thrown.
      */
     readonly features?: readonly string[];
+    /** Which graph a reader that names no scope reads; `"documented"` by default. */
+    readonly workingGraph?: WorkingGraphMode;
 }
 
 /**

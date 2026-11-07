@@ -324,6 +324,28 @@ function intermediateOf(membership: InputMembership, declared: GraphSnapshot): D
 }
 
 /**
+ * A scope's declared intermediate through a cache, held for a holder: the one entry the working
+ * graph (`session/working/WorkingGraph.ts`) and a run over the same scope share, so a run over
+ * what is shown reads the view rather than inducing the graph again.
+ * @param inputs - The cache.
+ * @param holder - Who holds the entry.
+ * @param membership - The scope's bitmaps.
+ * @param declared - The declared snapshot.
+ * @returns The input.
+ */
+export function declaredInput(
+    inputs: DerivedInputs,
+    holder: object,
+    membership: InputMembership,
+    declared: GraphSnapshot,
+): DerivedInput {
+    return (
+        inputs.get(holder, membership, "declared", "none") ??
+        inputs.put(holder, membership, "declared", "none", intermediateOf(membership, declared), declared)
+    );
+}
+
+/**
  * The scope's input in an orientation and merge policy, through the run's cache. Both orientations
  * share the declared intermediate, which the run holds with its finals.
  * @param run - The run.
@@ -346,9 +368,7 @@ function scopedInput(
         return hit;
     }
 
-    const base =
-        inputs.get(holder, membership, "declared", "none") ??
-        inputs.put(holder, membership, "declared", "none", intermediateOf(membership, declared), declared);
+    const base = declaredInput(inputs, holder, membership, declared);
     let current = base;
     if (orientation === "undirected" && current.snapshot.directed) {
         current = chained(current, counted(current.snapshot.toUndirected()));

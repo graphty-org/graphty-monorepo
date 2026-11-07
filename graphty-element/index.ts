@@ -165,6 +165,8 @@ export type {
 // `session.data.neighbors(id)`: a node's neighbors, one row each, with their combined weight
 export type { WeightMeaning } from "./src/session/runs";
 export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
+// `element.workingGraph`: which graph a reader that names no scope reads
+export type { WorkingGraphMode } from "./src/session/types";
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
 // What `element.elementAt({ x, y })` finds under a point

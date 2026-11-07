@@ -180,8 +180,11 @@ export type {
     TypeChangePreview,
     ValueCounts,
     ValueType,
+    WorkingGraph,
+    WorkingGraphChange,
+    WorkingGraphMode,
 } from "./src/session";
-export { createGraphSession } from "./src/session";
+export { createGraphSession, WORKING_GRAPH_MODES } from "./src/session";
 
 /**
  * What the element has to say about a load, once the load is over: which record keys named the

@@ -738,6 +738,7 @@ const ASSISTANT = exempt(
     "The assistant's connection and status, not project state; what it does to the graph goes through the doors.",
 );
 const DERIVED = exempt("Derived from project state and rewritten whenever that state changes.");
+const WORKING_MODE = exempt("Which graph unscoped readers read: the consumer's choice, never saved in a project file.");
 const EXECUTE = exempt(
     "Runs a command; every op declares itself in COMMANDS, and the verb it reaches has its own row.",
 );
@@ -1583,6 +1584,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isVoiceActive: READ,
             acceleration: MACHINE,
             accelerationMinNodes: MACHINE,
+            workingGraph: WORKING_MODE,
             renderer: MACHINE,
             rendererStatus: READ,
             renderPath: MACHINE,
@@ -2463,6 +2465,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             store: READ,
             snapshot: READ,
             undirected: READ,
+            working: READ,
             // Deep-frozen.
             node: READ,
             name: READ,
@@ -3391,7 +3394,27 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             name: READ,
             acceleration: READ,
             inEffect: READ,
+            workingGraph: READ,
+            setWorkingGraph: WORKING_MODE,
             set: calls([{ runAlgorithmsOnLoad: true }], [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
+        },
+    },
+    {
+        name: "WorkingGraph",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            nodeCount: READ,
+            edgeCount: READ,
+            has: READ,
+            nodeIds: READ,
+            edgeIds: READ,
+            // Sealed, derived from the graph; a write into it moves nothing a project saves.
+            snapshot: READ,
+            originalNodeRow: READ,
+            originalEdgeRow: READ,
+            compactNodeRow: READ,
+            compactEdgeRow: READ,
         },
     },
     {

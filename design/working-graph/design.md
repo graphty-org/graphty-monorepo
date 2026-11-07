@@ -31,14 +31,18 @@ space of the whole graph.
   `sourcesOf`, notes and positions answer for shown and hidden nodes alike.
 
 **Cache and lifetime.** The view is a `DerivedInputs` entry (`algorithms/input/derivedInputs.ts`),
-keyed by the packed node and edge bitmaps. The packed bitmap is memoized per mask version, so an
-unchanged mask costs one version comparison, not a repack of one byte per element. A new snapshot
-(any edit), a filter change, a window change and an undo or redo of either change the key. Drawing
-options (show context, ghosts, labels) never do. `DerivedInputs` is a least-recently-used cache
-bounded by bytes whose entries are kept alive by holders: `LayoutManager` holds the view its engine
-runs on for the engine's life, as runs already hold theirs, and releases it on reload or dispose,
-so byte pressure never evicts (and on the GPU destroys) a snapshot a layout is stepping on.
-Readers look up without holding.
+keyed by the packed node and edge bitmaps of the `"visible"` scope's resolution, in the same cache
+the renderer's runs read through (the element hands `derivedInputsOf(graph)` to its session; a
+headless session keeps its own). The view object is keyed by the store's snapshot and the
+visibility masks' read-only copies, which stay the same objects until a mask's version moves, so an
+unchanged state costs three identity comparisons. A new snapshot (any edit), a filter change, a
+window change and an undo or redo of either change the key. Drawing options (show context, ghosts,
+labels) never do. `DerivedInputs` is a least-recently-used cache bounded by bytes whose entries are
+kept alive by holders. The view holds the entry of its current state, with one holder per state,
+and lets go when the state moves, so unheld views stay cached until byte pressure and an undo or
+redo finds them again. `LayoutManager` holds the view its engine runs on for the engine's life, as
+runs already hold theirs, and releases it on reload or dispose, so byte pressure never evicts (and
+on the GPU destroys) a snapshot a layout is stepping on. Other readers look up without holding.
 
 **Ghosts and context.** A ghost (outside the time window, drawn faintly while playback says
 `outside: "ghost"`) and a context node (`showContext`) are drawn but not shown, so no run, layout,
@@ -72,12 +76,15 @@ says which changes apply in every mode.
   `domainFrom`, docs).
 
 Where a consumer sets it: the element's `workingGraph` property and `working-graph` attribute;
-`createGraphSession({ workingGraph })`; and `session.config.setWorkingGraph(mode)`, read back as
-`session.config.workingGraph`. It is the one config value outside `ProjectConfig`, which is why it
-has its own setter rather than `config.set(patch)`: it is not undoable and not saved in the project
-file, so a project opened in another consumer keeps that consumer's choice. An unknown value is
-handled as the element's other enumerated attributes are: the mode stays as it was and the
-element's config-validation error reports the value.
+`createGraphSession({ workingGraph })`; and `session.config.setWorkingGraph(mode)` (returns
+nothing; a re-layout it starts is finished when `graph.waitForSettled()` resolves), read back as
+`session.config.workingGraph`. `WORKING_GRAPH_MODES` lists the modes this release knows. It is the
+one config value outside `ProjectConfig`, which is why it has its own setter rather than
+`config.set(patch)`: it is not undoable and not saved in the project file, so a project opened in
+another consumer keeps that consumer's choice. An unknown value is handled as the element's other
+enumerated attributes (`acceleration`, `renderer`) are: the attribute reports it on the console
+and keeps the mode it had; `setWorkingGraph` and `createGraphSession` refuse it with
+`E_BAD_COMMAND`. `Graph` gains no property: it is reached through `graph.getSession().config`.
 
 **Reading the whole graph by name.** The whole graph is always `scope: "graph"`. Readers whose
 union is `"all" | "visible"` today (`data.statistics`, `time.bins`) gain `"graph"` as an additive
@@ -87,7 +94,9 @@ Readers that take no options gain an optional `{ scope }` (section 5). Export ke
 
 **Events.** `working-graph:changed` fires whenever the view's key or the mode changes, with
 `{ mode, nodeCount, edgeCount, settled }` (counts from the masks, no build; `settled` false during
-an uncommitted slide or hold). It is the re-read signal for a consumer that caches counts. An
+an uncommitted slide or hold). It is told from the visibility change, the slide, the mode setter
+and the data pass (`project:derived` with the `graph` slice), and told once: a repeat of the last
+detail for the same view is not published, and nothing is computed while nobody listens. It is the re-read signal for a consumer that caches counts. An
 automatic re-layout is finished when `graph.waitForSettled()` resolves.
 
 **The advanced path.** `session.data.working()`, the one accessor for sessions, algorithms and
@@ -108,7 +117,10 @@ interface WorkingGraph {
 }
 ```
 
-It answers for what is shown in either mode, so an extension can opt in on its own.
+It answers for what is shown in either mode, so an extension can opt in on its own. `has` looks a
+node id up first and then an edge id, as `visibility.isVisible` does. When nothing is hidden,
+`snapshot()` is a copy of the original graph made once per state (the store's own snapshot holds
+the live coordinates), while the element's internal readers take the store's snapshot itself.
 `session.data.snapshot()` stays the original graph and is documented as such; row-indexed readers
 (`visibility.nodeMask()`, positions by row) stay indexed by original row. To compute over what is
 shown, read `data.working().snapshot()` and map rows back with `originalNodeRow`.
@@ -208,7 +220,8 @@ counts, Export dialog All and its counts, Largest component select.
 
 One function decides every default: `readerScope(asked, documented)` returns `asked` when the
 caller named a scope, `"visible"` when the mode is `"visible"`, and the reader's documented default
-otherwise. Every reader calls it.
+otherwise. Every reader calls it. It lands with the first reader that calls it (S2), beside the
+view's `mode`.
 
 Readers that already take a scope (`nodePage`, `edgePage`, `neighbors`, `find`, `statistics`,
 `histogram`) only change their default. `scope.histogram` with no `within` keeps meaning the whole
@@ -325,7 +338,7 @@ selected node.
 
 ## 9. Performance
 
-Measured with graph-format's `inducedSubgraph` and `filterEdges`, 50,000 nodes, string ids
+Measured with graph-format's `inducedSubgraph` and `filterEdges` alone, 50,000 nodes, string ids
 (`tmp/working-graph/design/bench.mjs`; `tmp/working-graph/review-implementability/bench.mjs`):
 
 | Edges   | Shown share | inducedSubgraph | filterEdges |
@@ -335,6 +348,21 @@ Measured with graph-format's `inducedSubgraph` and `filterEdges`, 50,000 nodes, 
 | 250,000 | 90%         | 23-25 ms        | 14-15 ms    |
 | 250,000 | 100%        | 14-17 ms        | -           |
 | 500,000 | 90%         | 36.7 ms         | 25.5 ms     |
+
+Through the session (`graphty-element/test/session/working/working-graph.bench.test.ts`, the
+`bench` project, medians of seven rounds on the development machine), the store's snapshot carries
+the element's bookkeeping columns (five on edges, three on nodes), and a build costs more:
+
+| Edges   | Shown share | View build | Nothing hidden (copy) | Mask readers |
+| ------- | ----------- | ---------- | --------------------- | ------------ |
+| 100,000 | 90%         | 34 ms      | 4.6 ms                | 2.2 ms       |
+| 250,000 | 90%         | 65 ms      | 6.3 ms                | 2.0 ms       |
+
+A scrub frame (an uncommitted `time.seek` plus the mask readers) is 0.4 ms at 250,000 edges and
+builds nothing; the first build after `time.commit()` is about 61 ms. Almost all of a build is
+graph-format's `inducedSubgraph` over the columns; making it cheaper is graph-format's work, not
+this design's. The derived-input cache's byte walk skips primitives, so an id map costs about 3 ms
+per walk at this size rather than 27 ms.
 
 A build at 250,000 edges misses a 16 ms frame, and graph-format has no shortcut for an all-ones
 mask. That is acceptable because:
@@ -382,12 +410,12 @@ Each step lands with its tests; each new test fails before its change. Builds an
 through `tools/low-priority.sh`; only touched test files run locally.
 
 1. **S1 core (Node-safe).** New `graphty-element/src/session/working/WorkingGraph.ts`: the cached
-   view through `derivedInputs.ts` and `intermediateOf` (moved out of
-   `algorithms/input/ScopedInput.ts` to a shared helper), the identity fast path, memoized bitmaps,
-   holders. `session/types.ts` (`WorkingGraphMode`, the option, `setWorkingGraph`,
-   `SessionDataApi.working`, the event), `session/GraphSession.ts` (`readerScope`), `Graph.ts` and
-   `graphty-element.ts` (property and attribute). Cost coverage: `setWorkingGraph` MUTATING (it
-   re-runs a layout), `working` READ_ONLY.
+   view through `derivedInputs.ts` and `declaredInput` (exported from
+   `algorithms/input/ScopedInput.ts`, the one helper a run and the view share), the identity fast
+   path, per-state holders. `session/types.ts` (`WorkingGraphMode`, `WORKING_GRAPH_MODES`, the
+   option, `setWorkingGraph`, `SessionDataApi.working`, the event), `session/GraphSession.ts`,
+   `Graph.ts` (hands its derived-input cache to the session) and `graphty-element.ts` (property and
+   attribute). Cost coverage: `setWorkingGraph` MUTATING (it re-runs a layout), `working` READ_ONLY.
 2. **S12 contract test and ratchet**, before the readers move, every failing reader in the
    baseline: `test/contracts/working-graph-readers.{ts,test.ts}`, `tools/check-working-graph.mjs`
    (with `--self-test`), the baseline file.

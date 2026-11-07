@@ -260,6 +260,13 @@ export interface GraphtyElementJSXProps {
      */
     acceleration?: Graphty["acceleration"];
     /**
+     * Sets which graph a reader that names no scope reads.
+     *
+     * An unrecognised value is reported and ignored, leaving the previous mode in force, for the
+     * reason given on `acceleration`: Lit drives this setter from `attributeChangedCallback`.
+     */
+    workingGraph?: Graphty["workingGraph"];
+    /**
      * Sets the renderer the element opens when it is first drawn.
      *
      * An unrecognised value, or a change once the element is drawing, is reported and ignored
@@ -427,6 +434,13 @@ export interface GraphtyElementJSXProps {
      * Sets detailed profiling mode. Enables hierarchical timing and advanced stats collection.
      */
     "enable-detailed-profiling"?: boolean;
+    /**
+     * Sets which graph a reader that names no scope reads.
+     *
+     * An unrecognised value is reported and ignored, leaving the previous mode in force, for the
+     * reason given on `acceleration`: Lit drives this setter from `attributeChangedCallback`.
+     */
+    "working-graph"?: string;
     /**
      * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
      */

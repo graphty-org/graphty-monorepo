@@ -196,14 +196,23 @@ function reachableBytes(roots: readonly unknown[]): number {
  * @param stack - The walk's stack.
  */
 function pushChildren(value: object, stack: unknown[]): void {
+    // Only objects can reach a typed array: an id map's tens of thousands of string keys and an id
+    // list's string entries are skipped here, not walked one property descriptor at a time.
     if (value instanceof Map) {
         for (const [key, item] of value) {
-            stack.push(key, item);
+            pushObject(key, stack);
+            pushObject(item, stack);
         }
     } else if (value instanceof Set) {
         for (const item of value) {
-            stack.push(item);
+            pushObject(item, stack);
         }
+    } else if (Array.isArray(value)) {
+        for (const item of value as unknown[]) {
+            pushObject(item, stack);
+        }
+
+        return;
     }
 
     for (const key of Reflect.ownKeys(value)) {
@@ -211,6 +220,17 @@ function pushChildren(value: object, stack: unknown[]): void {
         if (descriptor !== undefined && "value" in descriptor) {
             stack.push(descriptor.value);
         }
+    }
+}
+
+/**
+ * Push a value onto the walk's stack when it is an object.
+ * @param value - The value.
+ * @param stack - The walk's stack.
+ */
+function pushObject(value: unknown, stack: unknown[]): void {
+    if (value !== null && typeof value === "object") {
+        stack.push(value);
     }
 }
 

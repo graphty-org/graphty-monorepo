@@ -3545,6 +3545,8 @@ export class Graphty extends LitElement {
     waitForStableFrame(options?: {
         timeoutMs?: number;
     }): Promise<void>;
+    get workingGraph(): WorkingGraphMode;
+    set workingGraph(value: WorkingGraphMode);
     worldToScreen(worldPos: {
         x: number;
         y: number;
@@ -8008,6 +8010,9 @@ export interface WorkerCapability {
     readonly count: number;
     readonly state: "active" | "unavailable";
 }
+
+// @public
+export type WorkingGraphMode = "documented" | "visible";
 
 // @public
 export interface XrCapability {

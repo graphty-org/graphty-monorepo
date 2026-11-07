@@ -35,7 +35,7 @@ import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./accelerat
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { sessionColumns } from "./algorithms/input/columns";
-import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
+import { derivedInputsOf, peekDerivedInputs } from "./algorithms/input/ScopedInput";
 import type { BasemapConfig, BasemapStatus, GlobeLook, MapFrameFact } from "./config/Basemap";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import { flatMapReach } from "./layout/locationMap/reach";
@@ -1060,6 +1060,9 @@ export class Graph implements GraphContext {
                 baselineWindow: true,
                 // Late-bound on purpose: a change of renderer replaces the render manager.
                 renderedFrame: () => this.renderManager.frameDrawn(),
+                // The runs' own cache, so the working graph and a run over what is shown share one
+                // derivation and one accelerator upload.
+                derivedInputs: derivedInputsOf(this),
             },
         );
 

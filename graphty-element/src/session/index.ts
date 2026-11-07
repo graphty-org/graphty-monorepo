@@ -186,5 +186,8 @@ export type {
     TypeChangePreview,
     ValueCounts,
     ValueType,
+    WorkingGraph,
+    WorkingGraphChange,
+    WorkingGraphMode,
 } from "./types";
-export { COMPONENT_SIZE_CAP } from "./types";
+export { COMPONENT_SIZE_CAP, WORKING_GRAPH_MODES } from "./types";

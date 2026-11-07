@@ -278,7 +278,9 @@ export function FiltersSection(): React.JSX.Element {
     // In the selection workspace the newest filter is on top, a new one's row first, as Figma lists
     // layers; it stays there once written.
     const cards =
-        session !== null && selectionWorkspaceOn(session) ? [...fresh, ...written.reverse()] : [...written, ...fresh];
+        session !== null && selectionWorkspaceOn(session)
+            ? [...fresh, ...written.toReversed()]
+            : [...written, ...fresh];
     const empty = cards.length === 0 && !timed;
     // What the cards together leave, on the header: "Passes none" when they empty the picture.
     const { summary } = session?.visibility ?? { summary: null };

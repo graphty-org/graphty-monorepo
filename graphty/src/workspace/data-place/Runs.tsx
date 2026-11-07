@@ -69,7 +69,11 @@ function StateMark({ session, run }: Readonly<{ session: GraphSession; run: Run 
     }
     return (
         <Tooltip label={words}>
-            <span className="dp-run-mark" role="img" aria-label={words}>
+            <span // NOSONAR(S6819): an icon drawn by a component, named as one image; there is no <img> to use
+                className="dp-run-mark"
+                role="img"
+                aria-label={words}
+            >
                 <Glyph size={12} aria-hidden />
             </span>
         </Tooltip>
@@ -144,7 +148,7 @@ function ResultRow({ session, run }: Readonly<{ session: GraphSession; run: Run 
                         </Text>
                         {users.length > 0 && (
                             <Tooltip label={users.join(", ")} multiline maw={240}>
-                                <span
+                                <span // NOSONAR(S6819): an icon and its count, named as one image; there is no <img> to use
                                     className="dp-run-uses"
                                     data-run-uses=""
                                     role="img"
@@ -245,7 +249,7 @@ export function ResultsList(): React.JSX.Element | null {
                     leftSection={<GLYPHS.analyze size={14} aria-hidden />}
                     rightSection={key === undefined ? undefined : <Kbd>{formatKey(key)}</Kbd>}
                     aria-keyshortcuts={key === undefined ? undefined : ariaKey(key)}
-                    disabled={analyze === null || analyze.disabledReason !== null}
+                    disabled={analyze?.disabledReason !== null}
                     onClick={() => analyze?.run()}
                 >
                     Analyze

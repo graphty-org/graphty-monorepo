@@ -9,7 +9,11 @@ import { credentials } from "@graphty/graph-io";
 import { assert, describe, it } from "vitest";
 
 import { GraphtyError } from "../../../src/errors/GraphtyError";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import { LEDGER_VERSION, SourceLedger } from "../../../src/session/sources/ledger";
+
+// Network sources sit behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 const SECRET = "SENTINEL-ledger-secret";
 

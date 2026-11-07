@@ -9,7 +9,11 @@ import "../../src/graphty-element";
 import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import { credentials, defineSource, type Graphty, registerSource, replayFetch } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import peopleRecordings from "../../stories/fixtures/sources/people.json";
+
+// Network sources sit behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 /** The recordings answer every fetch of a test; the page's own fetch is put back afterwards. */
 const realFetch = globalThis.fetch;

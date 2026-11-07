@@ -165,8 +165,9 @@ interface NetworkSourceRecords {
      * Take what an opened project's `graphty-sources` member held; its network loads wait until
      * they are run.
      * @param read - what the member held, or undefined when the file holds none
+     * @param autosave - whether the open is an autosave restore (see {@link openingFromAutosave})
      */
-    restore(read: SourcesRead | undefined): void;
+    restore(read: SourcesRead | undefined, autosave: boolean): void;
 }
 
 /** The versions of a member kind this element reads, where they are not just {@link VERSION}. */
@@ -2172,6 +2173,24 @@ export function markProjectUnsaved(session: GraphSession): void {
     UNSAVED.get(session)?.();
 }
 
+/** The sessions whose `project.open` is an autosave restore right now; see {@link openingFromAutosave}. */
+const AUTOSAVE_OPENS = new WeakSet();
+
+/**
+ * Say that a session's next `project.open` is the reader's own autosave coming back, not a file:
+ * its network loads that already ran stay live instead of waiting for approval again. The
+ * Autosaver sets it around its open and clears it after. Internal.
+ * @param session - The session.
+ * @param on - Whether the open under way is an autosave restore.
+ */
+export function openingFromAutosave(session: GraphSession, on: boolean): void {
+    if (on) {
+        AUTOSAVE_OPENS.add(session);
+    } else {
+        AUTOSAVE_OPENS.delete(session);
+    }
+}
+
 /**
  * A fresh project id: 128 random bits in hex.
  * @returns The id.
@@ -2346,15 +2365,24 @@ export function projectOf(
             fact: { code: "project.open", params: { name: name ?? null } },
             starts: true,
         };
-        const loads = readSourcesMember(member, {
-            pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
-            data,
-            nodes: graph.nodes,
-            links: graph.links,
-            isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
-            isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
-            now: new Date().toISOString(),
-        });
+        const networkOff = dispatcher.services.network?.() === false && member !== undefined;
+        // With the network-data experiment off, the member is kept exactly as the file held it.
+        const loads: SourcesRead = networkOff
+            ? {
+                  problems: [{ code: "E_FEATURE_OFF", params: { feature: "network-data", key: "graphty-sources" } }],
+                  records: [],
+                  facts: new Map(),
+                  skipped: member,
+              }
+            : readSourcesMember(member, {
+                  pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
+                  data,
+                  nodes: graph.nodes,
+                  links: graph.links,
+                  isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
+                  isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
+                  now: new Date().toISOString(),
+              });
         problems.push(...loads.problems);
         if (dispatcher.services.timeline?.() === false) {
             problems.push(...timelineLeftOff(state));
@@ -2385,7 +2413,7 @@ export function projectOf(
             throw error;
         }
         // The network loads wait, fetching nothing, until the application runs them.
-        networkSources?.restore(member === undefined ? undefined : loads);
+        networkSources?.restore(member === undefined ? undefined : loads, AUTOSAVE_OPENS.has(session));
         // Its restored source loads on the hosts remembered for it run now.
         projectChanged?.();
         fresh = false;

@@ -43,7 +43,6 @@ import type { PartialXRConfig } from "./config/xr-config-schema";
 import { CredentialStore } from "./credentials/CredentialStore";
 import { DataSource } from "./data/DataSource";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
-import { ensureGraphSamplesSource } from "./data/graphSamplesSource";
 import { isGraphtyError } from "./errors/GraphtyError";
 import {
     type GraphtyForwardedEventMap,
@@ -336,8 +335,6 @@ export class Graphty extends LitElement {
         if (type.startsWith(SOURCE_FORMAT_PREFIX)) {
             return type.slice(SOURCE_FORMAT_PREFIX.length);
         }
-
-        ensureGraphSamplesSource();
         return !DataSource.getRegisteredTypes().includes(type) && sourceRegistry.hasSource(type) ? type : null;
     }
 

@@ -34,7 +34,7 @@ afterEach(() => {
  * @returns the session
  */
 async function seeded(transport: "recorded" | "context" = "recorded"): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ features: ["network-data"] });
     sessions.push(session);
     await loadRecordedSeed(session, transport);
     return session;
@@ -108,7 +108,7 @@ describe("session.data.expand from a network source", () => {
     });
 
     it("expands a node that session.data.import loaded from the source", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ features: ["network-data"] });
         sessions.push(session);
         if (!listSources().some((info) => info.id === PEOPLE_SOURCE_ID)) {
             registerSource(recordedPeopleSource());
@@ -214,7 +214,7 @@ describe("session.data.expand from a network source", () => {
     });
 
     it("refuses a node loaded from a file with E_SOURCE_UNSUPPORTED and publishes the failure", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ features: ["network-data"] });
         sessions.push(session);
         await session.data.addNodes([{ id: "plain" }]);
         const failed: unknown[] = [];

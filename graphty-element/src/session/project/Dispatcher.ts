@@ -108,6 +108,8 @@ interface CommandServices {
     config?: () => ProjectConfig;
     /** Whether the timeline experiment is on; absent reads on, as a store with no session has no switch. */
     timeline?: () => boolean;
+    /** Whether the network-data experiment is on; absent reads on, as for `timeline`. */
+    network?: () => boolean;
     /** Tells `time:field` listeners the designated field changed other than through `time.setField`. */
     timeFieldChanged?: () => void;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */

@@ -2411,6 +2411,15 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The `node.texture` picture this node draws on its shape now, for the picture cache.
+     * @returns The texture, or null.
+     * @internal
+     */
+    imageDrawn(): BaseTexture | null {
+        return this.drawnImage;
+    }
+
+    /**
      * What this node draws as a model, for the model cache's warnings.
      * @returns Its template, whether it is tinted and whether a reader's layer coloured it.
      * @internal

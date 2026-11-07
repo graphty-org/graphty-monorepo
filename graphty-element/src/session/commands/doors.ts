@@ -1878,6 +1878,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dispose: RENDER,
             isDisposed: READ,
             modelDrawn: READ,
+            imageDrawn: READ,
             getRenderState: READ,
             setRenderState: RENDER,
             isSelected: READ,

@@ -73,7 +73,7 @@ const PICTURE_SCALE = 3;
  * @param reach - how far the drawing reaches past the node's box (a BPMN event on a port)
  * @returns the URL
  */
-function svgPicture(
+export function svgPicture(
     width: number,
     height: number,
     border: number,

@@ -240,6 +240,60 @@ describe("changed rows on real nodes and edges", () => {
         assertEdgesOnNodes(element, "on reveal");
     });
 
+    it("puts back the edges a jump reveals without placing them again when their nodes did not move", async () => {
+        const element = await slidingElement();
+        const { visibility } = element.session;
+        const edges = [...element.graph.getDataManager().edges.values()];
+        const shownAtStart = edges.filter((edge) => visibility.isVisible(edge.id));
+        await element.session.time.seek(500, { commit: false });
+        await drawn(element);
+        assert.isTrue(
+            shownAtStart.every((edge) => !edge.isRenderVisible()),
+            "the jump away hid the edges",
+        );
+
+        const engine = element.graph.getLayoutManager().layoutEngine;
+        assert.isDefined(engine);
+        const placed = vi.spyOn(engine, "getEdgePosition");
+        await element.session.time.seek(5, { commit: false });
+        await drawn(element);
+
+        assert.isNotEmpty(shownAtStart);
+        assert.strictEqual(placed.mock.calls.length, 0, "no revealed edge was placed again");
+        assertDrawnAsVisible(element, "after the jump back");
+        assertEdgesOnNodes(element, "after the jump back");
+        for (const edge of shownAtStart) {
+            assert.isAbove(edge.drawnLine?.length ?? 0, 0, `edge ${edge.id} is drawn, not collapsed`);
+        }
+    });
+
+    it("places the edges a jump reveals again when they were restyled while hidden", async () => {
+        const element = await slidingElement();
+        const { visibility } = element.session;
+        const edges = [...element.graph.getDataManager().edges.values()];
+        const shownAtStart = edges.filter((edge) => visibility.isVisible(edge.id));
+        await element.session.time.seek(500, { commit: false });
+        await drawn(element);
+        await element.session.styles.add({
+            name: "Thick",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.width": 3 },
+        });
+        await drawn(element);
+
+        await element.session.time.seek(5, { commit: false });
+        await drawn(element);
+
+        assertDrawnAsVisible(element, "after the restyle and the jump back");
+        assertEdgesOnNodes(element, "after the restyle and the jump back");
+        for (const edge of shownAtStart) {
+            const line = edge.drawnLine;
+            assert.isAbove(line?.length ?? 0, 0, `edge ${edge.id} is drawn, not collapsed`);
+            assert.strictEqual(line?.width, 3, `edge ${edge.id} is drawn in the new style`);
+        }
+    });
+
     it("paints a Ghost step on the rows it moved, with no walk of every edge", async () => {
         const element = await slidingElement(drawGhosts, LARGE);
         const { graph } = element;

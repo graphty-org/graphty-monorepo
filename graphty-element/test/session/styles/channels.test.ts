@@ -243,6 +243,8 @@ const DECLARED = [
     "edge.patternCount",
     "edge.waveAmplitude",
     "edge.wavePeriod",
+    "edge.dashLength",
+    "edge.dashGap",
     "edge.curvature",
     "edge.bends",
     "edge.fanSpacing",
@@ -414,9 +416,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and ninety-seven node channels and one hundred and sixty-three edge channels", () => {
+    it("splits into one hundred and ninety-seven node channels and one hundred and sixty-five edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 197);
-        assert.strictEqual(channelsFor("edge").length, 163);
+        assert.strictEqual(channelsFor("edge").length, 165);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -721,6 +723,9 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a wave is drawn within its line's width or its border's ring.
         "edge.waveAmplitude",
         "edge.wavePeriod",
+        // Unset, a dash is three widths long and the elements spread from end to end.
+        "edge.dashLength",
+        "edge.dashGap",
         "node.borderWaveAmplitude",
         "node.borderWavePeriod",
         // Unset, an underlay's or an overlay's shape is the node's own, its corners the node's.

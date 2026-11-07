@@ -49,7 +49,8 @@ function save(name: string, recordings: readonly Recording[]): void {
     if (WRITE) {
         writeFileSync(out, `${JSON.stringify(recordings, null, 4)}\n`);
     }
-    process.stdout.write(`${String(recordings.length)} responses${WRITE ? ` -> ${out}` : ""}\n`);
+    const where = WRITE ? `-> ${out}` : "";
+    process.stdout.write(`${String(recordings.length)} responses ${where}\n`);
 }
 
 {

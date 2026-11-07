@@ -58,7 +58,8 @@ for (const { id: source, descriptor } of listSources()) {
             if (snapshot.nodeCount === 0) {
                 status = "FAIL";
             }
-            outcome = `${String(snapshot.nodeCount)} nodes / ${String(snapshot.edgeCount)} edges${drift ? ` (counts say ${String(nodes)} / ${String(edges)})` : ""}`;
+            const expected = drift ? `(counts say ${String(nodes)} / ${String(edges)})` : "";
+            outcome = `${String(snapshot.nodeCount)} nodes / ${String(snapshot.edgeCount)} edges ${expected}`;
         } catch (error) {
             status = "FAIL";
             const issue = error instanceof ImportError ? error.issue : undefined;

@@ -5,7 +5,14 @@
  */
 
 import { YED_LABEL_PADDING } from "./canon/yed-label.js";
-import type { EdgeStyleValues, GraphStyleValues, NodeStyleValues, StyleArrowShape, StyleTool } from "./types.js";
+import type {
+    EdgeStyleValues,
+    GraphStyleValues,
+    NodeStyleValues,
+    StyleArrowShape,
+    StyleLineStyle,
+    StyleTool,
+} from "./types.js";
 
 /**
  * One default value and where it is stated.
@@ -136,6 +143,24 @@ export interface ToolDefaults {
      * for a program that lays such a file out otherwise (`layoutSpacing`).
      */
     readonly layoutScatterSide?: ToolDefaultValue<number>;
+    /**
+     * How the program draws each dashed or dotted line style: the length of a dash as drawn (its caps included) and
+     * the clear gap after it, in `units`, for a line of a width. Not an edge default: the pattern follows from two
+     * properties, the line style and the width, so no rule carries it. Absent for a program, or a line style, whose
+     * pattern graph-io has not measured.
+     */
+    readonly dashes?: Partial<Record<StyleLineStyle, ToolDefaultValue<(width: number) => ToolDash>>>;
+}
+
+/**
+ * One dash of a program's dashed or dotted line and the gap after it, as drawn, in its `units`.
+ * @category Styles
+ */
+export interface ToolDash {
+    /** The dash's length along its line, its caps included (a round-capped dot is as long as its line is wide). */
+    readonly dash: number;
+    /** The clear gap between it and the next dash. */
+    readonly gap: number;
 }
 
 /**
@@ -208,6 +233,35 @@ const OGDF_SVG =
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
 const MEASURED = "measured in the program's own SVG export (graph-io/test/fidelity/oracles/";
 const PAJEK_SVG = `${MEASURED}pajek-`;
+
+/**
+ * A dash pattern a program draws the same whatever the line's width.
+ * @param dash - the dash's length as drawn
+ * @param gap - the gap after it
+ * @param source - where it is measured
+ * @returns the entry
+ */
+const fixedDash = (dash: number, gap: number, source: string): ToolDefaultValue<(width: number) => ToolDash> =>
+    v(() => ({ dash, gap }), source);
+
+/**
+ * A dash pattern a program draws in proportion to the line's width.
+ * @param dash - the dash's length as drawn, in widths
+ * @param gap - the gap after it, in widths
+ * @param source - where it is measured
+ * @returns the entry
+ */
+const widthDash = (dash: number, gap: number, source: string): ToolDefaultValue<(width: number) => ToolDash> =>
+    v((width) => ({ dash: dash * width, gap: gap * width }), source);
+
+/**
+ * Cytoscape desktop's EQUAL_DASH and LONG_DASH strokes, butt-capped dashes in widths: `stroke-dasharray="6,6"` and
+ * `"12,6"` at width 3 (cx-, cys-, cx2- and xgmml-specimen-edges-lines).
+ */
+const CYTOSCAPE_DASHES = {
+    dashed: widthDash(2, 2, `${MEASURED}cx-specimen-edges-lines: EQUAL_DASH "6,6" at width 3), Cytoscape 3.10.5`),
+    "long-dash": widthDash(4, 2, `${MEASURED}cx-specimen-edges-lines: LONG_DASH "12,6" at width 3), Cytoscape 3.10.5`),
+};
 
 /**
  * Cytoscape desktop draws an arrow `EDGE_*_ARROW_SIZE` (6 by default, the neutral arrowSize 1) plus the line width
@@ -356,6 +410,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 units: "px",
                 roundedCornerFraction: CYTOSCAPE_DESKTOP_CORNERS,
                 arrowhead: CYTOSCAPE_ARROWHEAD,
+                dashes: CYTOSCAPE_DASHES,
                 layoutSpacing: v(
                     102,
                     "Cytoscape lays out a network with no view coordinates with its default layout, force-directed " +
@@ -422,6 +477,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape-fallbacks",
                 version: "cytoscape-api develop (3.11)",
                 units: "px",
+                dashes: CYTOSCAPE_DASHES,
                 roundedCornerFraction: CYTOSCAPE_DESKTOP_CORNERS,
                 arrowhead: CYTOSCAPE_ARROWHEAD,
                 node: {
@@ -566,6 +622,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "graphviz",
                 version: "graphviz main (16.1.0)",
                 units: "px",
+                // lib/plugin/core/gvrender_core_svg.c writes these whatever the penwidth, butt-capped
+                dashes: {
+                    dashed: fixedDash(5, 2, `${MEASURED}dot-specimen-edges-lines: "5,2" at widths 1.5 and 3)`),
+                    dotted: fixedDash(1, 5, `${MEASURED}dot-specimen-edges-lines: "1,5" at width 1.5)`),
+                },
                 roundedCornerRadius: v(
                     12,
                     "Graphviz 2.43.0 dot -Tsvg of style=rounded boxes: 12 points on a 504 x 432 box, a third of the " +
@@ -648,6 +709,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 units: "px",
                 roundedCornerRadius: cornerCap("yed"),
                 arrowhead: YED_ARROWHEAD,
+                // dashed is butt-capped `6w,2w`; dotted `0,4w` round-capped, a dot as long as the line is wide
+                dashes: {
+                    dashed: widthDash(6, 2, `${MEASURED}graphml-synthetic-edges: "42,14" at width 7, butt caps)`),
+                    dotted: widthDash(1, 3, `${MEASURED}gml-synthetic-coverage: "0,12" at width 3, round caps)`),
+                },
                 node: {
                     fill: v(
                         "#ccccff",
@@ -933,6 +999,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "Pajek 6.02",
                 // PostScript points, the unit of Pajek's EPS and SVG export (formats/pajek/styles.ts)
                 units: "px",
+                // Dots, read as dotted on a wide line and dashed on a thin one (formats/pajek/styles.ts, pajekDash)
+                dashes: {
+                    dashed: fixedDash(5, 5, `${PAJEK_SVG}specimen-edges-lines: Dots "stroke-dasharray:5" at width 3)`),
+                    dotted: fixedDash(5, 5, `${PAJEK_SVG}specimen-edges-lines: Dots "stroke-dasharray:5" at width 3)`),
+                },
                 roundedCornerRadius: cornerCap("pajek"),
                 // a line's `s` (arrowSize) scales Pajek's arrowhead whatever its width: 6 x s long (tip to its back
                 // corners) and 5 x s wide

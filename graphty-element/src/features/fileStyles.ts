@@ -62,6 +62,8 @@ export const FILE_STYLE_CHANNELS: ReadonlySet<string> = new Set([
     "edge.arrowTailWidth",
     "edge.bendCurve",
     "edge.bends",
+    "edge.dashGap",
+    "edge.dashLength",
     "edge.fanned",
     "edge.fanSpacing",
     "edge.gradientColors",

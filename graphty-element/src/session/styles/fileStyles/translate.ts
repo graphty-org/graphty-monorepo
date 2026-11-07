@@ -3126,6 +3126,7 @@ class KindTranslation {
         this.#labelRuns();
         if (this.#kind !== "node") {
             this.#arrowSizes();
+            this.#dashes();
             return;
         }
 
@@ -3199,6 +3200,60 @@ class KindTranslation {
                 this.#emitWith({ ...rule, id: `${rule.id}.labelRuns` }, top, "label", identity, sub);
             }
         }
+    }
+
+    /**
+     * Dash patterns in the writing program's own: each program draws its dashed and dotted lines in dashes and gaps of
+     * its own lengths, some in proportion to the line's width and some the same at any width (graph-io's
+     * `ToolDefaults.dashes`), so each edge's dash length and gap are worked out from its line style and width, in line
+     * widths, and drawn above the topmost rule that writes either.
+     */
+    #dashes(): void {
+        const { extracted, snapshot } = this.#input;
+        const { tool } = extracted.styles.source;
+        const dashes = tool === null ? undefined : toolDefaults(tool)?.dashes;
+        if (dashes === undefined) {
+            return;
+        }
+
+        const props = ["width", "lineStyle"] as const;
+        const writers = this.#rules
+            .map((rule, bucket) => ({ rule, bucket }))
+            .filter(({ rule }) => props.some((p) => rule.set?.[p] !== undefined || rule.map?.[p] !== undefined));
+        const last = writers.at(-1);
+        if (last === undefined || writers.every(({ rule }) => this.#rebuilt.has(rule))) {
+            return;
+        }
+
+        const [width, style] = props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
+        // each edge's dash and gap in its own line's widths, where its program draws its style in dashes
+        const pattern = style.map((value, i) => {
+            const w = width[i];
+            const dash = typeof value === "string" ? dashes[value as keyof typeof dashes]?.value : undefined;
+            return dash === undefined || typeof w !== "number" || !(w > 0) ? null : dash(w);
+        });
+        if (pattern.every((value) => value === null)) {
+            return;
+        }
+
+        const { rule, bucket } = last;
+        const layer = this.#layerFor(
+            { ...rule, id: `${rule.id}.dashes` },
+            bucket,
+            this.#scoped({ match: "everything" }),
+        );
+        layer.spec.name = `${rule.id}.dashes`;
+        layer.worth = 0;
+        const encode = (channel: Channel, part: "dash" | "gap"): void => {
+            const values = pattern.map((value, i) =>
+                value === null ? null : round(value[part] / (width[i] as number)),
+            );
+            const path = this.#keepNew(`${channel.slice(5)}.sized`, values);
+            layer.spec.encode[channel] = { by: path, scale: "passthrough" };
+            recordPaint(layer, channel, values);
+        };
+        encode("edge.dashLength", "dash");
+        encode("edge.dashGap", "gap");
     }
 
     /**

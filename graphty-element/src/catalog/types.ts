@@ -851,6 +851,8 @@ export type Channel =
     | "edge.patternCount"
     | "edge.waveAmplitude"
     | "edge.wavePeriod"
+    | "edge.dashLength"
+    | "edge.dashGap"
     | "edge.curvature"
     | "edge.bends"
     | "edge.fanSpacing"

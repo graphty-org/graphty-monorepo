@@ -1,4 +1,5 @@
 import { PanelField, Popout } from "@graphty/compact-mantine";
+import { assetFileExtensions } from "@graphty/graphty-element/catalog";
 import type { AssetSource, CodedFact, GraphSession } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -12,7 +13,7 @@ import { chipLine, modelChip } from "./modelWords";
 import { roveTiles, tileStop } from "./tileRoving";
 
 /** The files the chooser offers; a drop is not filtered, and the element says what arrived. */
-const ACCEPT = ".png,.jpg,.jpeg,.webp";
+const ACCEPT = assetFileExtensions("image").join(",");
 
 /** The pop-over's width, as every Style panel pop-over. */
 const WIDTH = 240;

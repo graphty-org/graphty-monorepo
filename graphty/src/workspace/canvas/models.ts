@@ -6,7 +6,14 @@
  */
 
 import { detectAssetKind, detectModelFormat } from "@graphty/graphty-element/catalog";
-import type { AssetOffer, AssetRecord, AssetSource, GraphSession, ModelChange } from "@graphty/graphty-element/session";
+import {
+    type AssetOffer,
+    type AssetRecord,
+    type AssetSource,
+    type GraphSession,
+    isAssetId,
+    type ModelChange,
+} from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
 import type { WorkspaceStore } from "../state/store";
@@ -154,7 +161,7 @@ export function fileStem(path: string): string {
  * @returns the address, or "" for an id.
  */
 function addressOf(ref: string): string {
-    return ref.startsWith("asset:") ? "" : ref;
+    return isAssetId(ref) ? "" : ref;
 }
 
 /**
@@ -223,23 +230,6 @@ export async function putModelOnNodes(
 }
 
 /**
- * Whether any node layer names a model or picture, by any name the element knows it by.
- * @param session - the element's session.
- * @param ref - the model's id, or the id it had while it waited.
- * @returns true when a layer names it.
- */
-function named(session: GraphSession, ref: string): boolean {
-    const id = session.assets.find(ref)?.id ?? ref;
-    return session.styles
-        .list()
-        .some((layer) =>
-            [layer.set?.["node.model"], layer.set?.["node.texture"]].some(
-                (value) => typeof value === "string" && (value === ref || session.assets.find(value)?.id === id),
-            ),
-        );
-}
-
-/**
  * One undoable layer drawing a model or a picture on the selected nodes, or on every node when
  * nothing is selected, and the notice that says so with Undo.
  * @param session - the element's session.
@@ -300,7 +290,7 @@ export async function putAssetOnNodes(
     if (rest === null) {
         const [part] = supplied;
         const finished = session.assets.find(part.ref);
-        if (finished?.state === "accepted" && !named(session, part.ref)) {
+        if (finished?.state === "accepted" && session.assets.usedBy(part.ref).length === 0) {
             await drawOnNodes(session, store, finished);
             return null;
         }

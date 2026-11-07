@@ -1,4 +1,5 @@
 import { Popout } from "@graphty/compact-mantine";
+import { assetFileExtensions } from "@graphty/graphty-element/catalog";
 import type { AssetSource, CodedFact } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Stack, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useRef, useState } from "react";
@@ -10,8 +11,8 @@ import { ModelChip } from "./ModelChip";
 import { chipLine, modelChip } from "./modelWords";
 import { roveTiles, tileStop } from "./tileRoving";
 
-/** The files the chooser offers; the element decides what they are. */
-const MODEL_ACCEPT = ".glb,.gltf,.bin,.obj,.mtl,.stl,.ply,.zip,.png,.jpg,.jpeg,.webp";
+/** The files the chooser offers, as graphty-element reads them; the element decides what they are. */
+const MODEL_ACCEPT = assetFileExtensions("model").join(",");
 
 /** The pop-over's width: the Shape list's, which it replaces. */
 const WIDTH = 240;

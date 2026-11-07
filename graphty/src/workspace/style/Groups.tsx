@@ -17,6 +17,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { offeredChannel } from "./offered";
 import { type DataBinding, type LayerBinding, sourceName, startingValue } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
@@ -1405,7 +1406,7 @@ export function GroupDetail({
     const offered = SECTIONS[target].map((section) => ({
         title: section.title,
         items: section.channels.flatMap((channel) => {
-            const descriptor = descriptorOf(target, channel);
+            const descriptor = offeredChannel(session, target, channel);
             if (descriptor === undefined || !takesBinding(descriptor) || bound.includes(channel)) {
                 return [];
             }
@@ -1480,7 +1481,8 @@ export function GroupDetail({
                 />
             )}
             {bound.map((channel) => {
-                const descriptor = descriptorOf(target, channel);
+                // Its choices as the element offers them; a value the layer holds is still shown.
+                const descriptor = offeredChannel(session, target, channel) ?? descriptorOf(target, channel);
                 if (descriptor === undefined) {
                     return null;
                 }

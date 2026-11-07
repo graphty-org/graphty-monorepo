@@ -325,7 +325,7 @@ export function scaleAgainst(mesh: Mesh, canonical: Mesh): number | null {
     }
 
     const scale = (to[at] ?? 0) / (from[at] ?? 1);
-    if (far === 0 || !(scale > 0)) {
+    if (far === 0 || !Number.isFinite(scale) || scale <= 0) {
         return null;
     }
 
@@ -590,8 +590,20 @@ export class NodeBatches {
             }
         }
 
-        let changed = false;
         const flushes = new Set<RowFamily>();
+        const changed = this.settleDirty(flushes);
+        if (this.drain(flushes) || changed) {
+            this.host.meshesChanged();
+        }
+    }
+
+    /**
+     * Settle every dirty group, and note which families need a rebuild or only an upload.
+     * @param flushes - Takes the families whose batch only uploads.
+     * @returns Whether some source changed.
+     */
+    private settleDirty(flushes: Set<RowFamily>): boolean {
+        let changed = false;
         for (const group of this.dirty) {
             if (group.source.isDisposed()) {
                 this.forget(group);
@@ -614,6 +626,16 @@ export class NodeBatches {
         }
 
         this.dirty.clear();
+        return changed;
+    }
+
+    /**
+     * Rebuild the families that need it and upload the rest.
+     * @param flushes - The families whose batch only uploads.
+     * @returns Whether some batch started or stopped drawing.
+     */
+    private drain(flushes: Set<RowFamily>): boolean {
+        let changed = false;
         for (const family of this.refills) {
             changed = this.refill(family) || changed;
         }
@@ -625,9 +647,7 @@ export class NodeBatches {
         }
 
         this.refills.clear();
-        if (changed) {
-            this.host.meshesChanged();
-        }
+        return changed;
     }
 
     /**

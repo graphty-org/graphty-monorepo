@@ -78,7 +78,10 @@ describe("the Data place's Loaded and Calculated tabs", () => {
             Boolean(filters.compareDocumentPosition(tabs[0]) & Node.DOCUMENT_POSITION_FOLLOWING),
             "Filters come before the tabs",
         );
-        await within(place()).findByText("les-miserables.gml");
+        await waitFor(() => {
+            const panel = within(place()).getByRole("tabpanel");
+            assert.isNotNull(panel.querySelector("[data-source]"), "the loaded source under Loaded");
+        });
         assert.isNull(within(place()).queryByText("Runs"), "no Runs heading");
     });
 
@@ -104,33 +107,43 @@ describe("the Data place's Loaded and Calculated tabs", () => {
         assert.strictEqual(calculated.getAttribute("aria-selected"), "true");
     });
 
-    it("a result's row has no tags; its ... applies its style once, then greys Apply style", async () => {
+    it("a result's row has no tags; its ... greys Apply style while it is styled, and applies it once unstyled", async () => {
         const { session } = await openData();
-        await session.runs.start("louvain", {});
+        await session.runs.start("pagerank", {});
+        const id = session.runs.list().find((run) => run.algorithm === "pagerank")?.id ?? "";
         const row = await calculatedRow();
         assert.lengthOf(row.querySelectorAll(".mantine-Badge-root"), 0, "no filled tags");
         assert.notInclude(row.textContent ?? "", "Everything");
         assert.notInclude(row.textContent ?? "", "Filter");
         assert.isNull(within(row).queryByRole("button", { name: "Show" }), "no Show button");
-        assert.isNull(within(row).queryByRole("img", { name: /^Used by/ }), "nothing uses it yet");
+        // Its style layer draws it: one quiet count, its tooltip naming the layer.
+        const used = await within(row).findByRole("img", { name: /^Used by / });
+        assert.match(used.textContent ?? "", /^\d+$/u, "a count, no words");
 
         await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
-            items.map((item) => item.textContent?.trim().split("\n")[0]),
+            items.map((item) => /^(Apply style|Remove result)/u.exec(item.textContent ?? "")?.[1]),
             ["Apply style", "Remove result"],
         );
-        await userEvent.click(items[0]);
+        assert.include(items[0].textContent ?? "", "Already styled");
+        assert.isTrue(items[0].hasAttribute("data-disabled") || items[0].hasAttribute("disabled"), "greyed");
+        await userEvent.keyboard("{Escape}");
+
+        // With its layer gone, Apply style paints it again.
+        for (const layer of session.runs.bindings(id)) {
+            await session.styles.remove(layer);
+        }
         await waitFor(() => {
-            const id = session.runs.list().find((run) => run.algorithm === "louvain")?.id ?? "";
+            assert.isNull(within(row).queryByRole("img", { name: /^Used by/ }), "nothing uses it now");
+        });
+        await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
+        const apply = await screen.findByRole("menuitem", { name: /^Apply style/ });
+        assert.notInclude(apply.textContent ?? "", "Already styled");
+        await userEvent.click(apply);
+        await waitFor(() => {
             assert.isAbove(session.runs.bindings(id).length, 0, "its style is applied");
         });
-        const used = await within(await calculatedRow()).findByRole("img", { name: /^Used by / });
-        assert.match(used.textContent ?? "", /^\d+$/u, "a count, no words");
-        await userEvent.click(within(await calculatedRow()).getByRole("button", { name: /^More for / }));
-        const apply = await screen.findByRole("menuitem", { name: /^Apply style/ });
-        assert.include(apply.textContent ?? "", "Already styled");
-        assert.isTrue(apply.hasAttribute("data-disabled") || apply.hasAttribute("disabled"), "greyed");
     });
 
     it("marks a result run over the whole graph with a quiet icon that says so", async () => {

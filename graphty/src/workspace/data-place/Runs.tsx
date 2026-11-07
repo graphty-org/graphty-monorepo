@@ -186,41 +186,43 @@ function ResultRow({ session, run }: Readonly<{ session: GraphSession; run: Run 
                 title={`Remove ${name}`}
                 size="xs"
             >
-                <Stack gap={6} data-confirm-remove="">
-                    {layers.map((id) => (
-                        <Group key={id} gap={6} wrap="nowrap" data-goes="">
-                            <Badge
-                                size="sm"
-                                variant="light"
-                                color="gray"
-                                leftSection={<GLYPHS.layer size={10} aria-hidden />}
-                            >
-                                {session.styles.get(id)?.name ?? id}
-                            </Badge>
-                            <GLYPHS.delete size={12} aria-label="removed" />
-                        </Group>
-                    ))}
-                    {readers.map((reader) => (
-                        <Group key={`${reader.kind}:${reader.id}`} gap={6} wrap="nowrap" data-waits="">
-                            <SelectionChip name={readerName(session, reader)} />
-                            <GLYPHS.waiting size={12} aria-label="waits for Run" />
-                        </Group>
-                    ))}
-                </Stack>
-                <ModalFooter mt="md">
-                    <Button
-                        variant="default"
-                        data-autofocus
-                        onClick={() => {
-                            setAsking(false);
-                        }}
-                    >
-                        Cancel
-                    </Button>
-                    <Button color="red" onClick={remove}>
-                        Remove
-                    </Button>
-                </ModalFooter>
+                <div data-confirm-remove="">
+                    <Stack gap={6}>
+                        {layers.map((id) => (
+                            <Group key={id} gap={6} wrap="nowrap" data-goes="">
+                                <Badge
+                                    size="sm"
+                                    variant="light"
+                                    color="gray"
+                                    leftSection={<GLYPHS.layer size={10} aria-hidden />}
+                                >
+                                    {session.styles.get(id)?.name ?? id}
+                                </Badge>
+                                <GLYPHS.delete size={12} aria-label="removed" />
+                            </Group>
+                        ))}
+                        {readers.map((reader) => (
+                            <Group key={`${reader.kind}:${reader.id}`} gap={6} wrap="nowrap" data-waits="">
+                                <SelectionChip name={readerName(session, reader)} />
+                                <GLYPHS.waiting size={12} aria-label="waits for Run" />
+                            </Group>
+                        ))}
+                    </Stack>
+                    <ModalFooter mt="md">
+                        <Button
+                            variant="default"
+                            data-autofocus
+                            onClick={() => {
+                                setAsking(false);
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button color="red" onClick={remove}>
+                            Remove
+                        </Button>
+                    </ModalFooter>
+                </div>
             </Modal>
         </li>
     );

@@ -456,7 +456,9 @@ function nodeFrom(
     const faces =
         piecesFirst(sorted) === null
             ? []
-            : sorted.filter((s) => s.fill !== null && s.kind !== "image").map((s) => s.box);
+            : sorted.flatMap((s) =>
+                  s.fill === null || s.kind === "image" ? [] : [{ box: s.box, color: s.fill.color }],
+              );
     const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
     const nodeFill = paintedFill ?? filled?.fill ?? null;
     const bands = shapes.flatMap((s) =>

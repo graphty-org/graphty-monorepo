@@ -572,4 +572,30 @@ describe("the oracle SVG reader", () => {
             ],
         );
     });
+
+    it("reads a text whose every word is in one styled tspan in the tspan's font (yEd Live's markup labels)", () => {
+        // yed-live-graphml-specimen-labels-p5.svg: a MarkupLabelStyle's <b>, <h2> and colored <span>
+        const label = (run: string, x: number): string =>
+            `<text font-family="'DejaVu Sans'" font-size="12px" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" x="${String(x)}" y="50">${run}</text>`;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100">
+            ${label('<tspan dy="11px" x="0" style="font-weight: bold;">Bold</tspan>', 20)}
+            ${label('<tspan dy="16.5px" x="0" style="font-size: 1.5em; font-weight: bold;">H2</tspan>', 120)}
+            ${label('<tspan dy="11px" x="0" style="color: rgb(255, 0, 0); fill: rgb(255, 0, 0);">Red</tspan>', 220)}
+            ${label('<tspan dy="11px" x="0" style="font-weight: bold;">A long</tspan>...', 320)}
+            ${label('<tspan dy="27px" x="0"><tspan style="font-weight: bold;">Red arrows</tspan></tspan><tspan dy="45px" x="0"><tspan style="font-weight: bold;">rather</tspan></tspan>', 20)}
+        </svg>`;
+        const texts = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : []));
+        assert.deepEqual(
+            texts.map((t) => [t.content, t.weight, t.sizePx, t.color]),
+            [
+                ["Bold", 700, 12, "#000000"],
+                ["H2", 700, 18, "#000000"],
+                ["Red", 400, 12, "#ff0000"],
+                // a word outside the tspan: the text's own font
+                ["A long...", 400, 12, "#000000"],
+                // graphml-yfiles-html-ss13-tree.svg: paragraphs of <strong>, a tspan in a tspan
+                ["Red arrows\nrather", 700, 12, "#000000"],
+            ],
+        );
+    });
 });

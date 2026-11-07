@@ -871,13 +871,40 @@ function lineDropOf(el: SVGTextElement, size: number, box: DOMRect): number {
     return big.height > 0 ? box.y + box.height / 2 - middle : 0;
 }
 
+/**
+ * The style a text's words are drawn in: the text's own, or, where every word sits in `<tspan>`s that agree on
+ * their weight, slant, size and fill, theirs. yEd Live 8.5.16 draws a MarkupLabelStyle's `<b>Bold</b>` as
+ * `<text font-weight="normal"><tspan style="font-weight: bold;">Bold</tspan></text>`
+ * (yed-live-graphml-specimen-labels-p5.svg): every glyph is bold, though the text element says normal.
+ * @param el - the text
+ * @param cs - its computed style
+ * @returns the style its words are drawn in
+ */
+function wordsStyleOf(el: SVGTextElement, cs: CSSStyleDeclaration): CSSStyleDeclaration {
+    const spans: CSSStyleDeclaration[] = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+        if ((node.textContent ?? "").trim() === "") {
+            continue;
+        }
+        const parent = node.parentElement;
+        if (parent === null || parent === el) {
+            return cs;
+        }
+        spans.push(getComputedStyle(parent));
+    }
+    const look = (s: CSSStyleDeclaration): string => [s.fontWeight, s.fontStyle, s.fontSize, s.fill].join("|");
+    return spans.length > 0 && spans.every((s) => look(s) === look(spans[0])) ? spans[0] : cs;
+}
+
 function textOf(
     el: SVGTextElement,
     m: DOMMatrix,
-    cs: CSSStyleDeclaration,
+    textStyle: CSSStyleDeclaration,
     opacity: number,
     scale: number,
 ): PText | null {
+    const cs = wordsStyleOf(el, textStyle);
     const content = textContentOf(el);
     // An unfilled text is a label's outline (Cytoscape.js strokes `text-outline` as its own text
     // before it fills the label over it): the label is the filled text, not this one

@@ -301,6 +301,8 @@ const YED_LIVE_ARROWHEAD: ToolArrowhead = {
     shapes: {
         diamond: { length: 10 / 8, aspect: 6 / 10 },
         circle: { length: 6 / 8, aspect: 1 },
+        // an unfilled circle is as big (yed-live-graphml-specimen-edges-lines-p3.svg: a message flow's, 6 across)
+        "circle-open": { length: 6 / 8, aspect: 1 },
         "other:cross": { length: 10 / 8, aspect: 1 },
         "other:kite": { length: 10 / 8, aspect: 6 / 10 },
         "other:deltoid": { length: 5.2 / 8, aspect: 6 / 5.2 },

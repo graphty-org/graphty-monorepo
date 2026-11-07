@@ -9,9 +9,9 @@
  */
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
 import { DataTable, type DataTableColumn } from "../../../src/components/DataTable";

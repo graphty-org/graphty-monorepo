@@ -25,6 +25,7 @@ import {
 } from "../../../src/styles/internal.js";
 import type { StyleProperty } from "../../../src/styles/types.js";
 import { editGraphmlNodeFill, replaceGraphmlBlock } from "../../styles/formats/graphml.js";
+import { checkOutsideEdit, importForStyles } from "../../styles/harness.js";
 
 const registry = createRegistry();
 const CORPUS = resolve(import.meta.dirname, "../../corpus/styles/graphml");
@@ -1090,6 +1091,51 @@ describe("GraphML styles: writing", () => {
         expect(text).toContain('<y:Fill color="#E8EEF7" transparent="false" color2="#B7C9E3"/>');
         expect(text).toContain('modelName="internal" modelPosition="tr"');
         expect(text).toContain('modelName="eight_pos" modelPosition="n"');
+    });
+
+    it("an outside edit of a yEd color comes back as its fill and ramp only; any other new exception fails", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        b.addNode("b");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: {
+                    values: {
+                        fill: ["#e8eef7", "#e8eef7"],
+                        fillGradient: ["#b7c9e3", "#b7c9e3"],
+                        fillGradientAngle: [0, 0],
+                        borderColor: ["#505050", "#505050"],
+                    },
+                },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        );
+        const written = await registry.exportGraphToBytes(snapshot, "graphml", { styles });
+        const back = (await importForStyles(registry, "graphml", written)).imported;
+        if (back === null || back === undefined) {
+            throw new Error("no styles");
+        }
+        const derives = { fill: { fillGradientColors: "fillGradient" } };
+        const fillEdited = editGraphmlNodeFill(written);
+        if (fillEdited === null) {
+            throw new Error("no fill to edit");
+        }
+        // the edited color is node a's fill and the ramp yEd paints through it
+        expect(await checkOutsideEdit(registry, "graphml", fillEdited, back, derives)).toEqual([]);
+        expect(await checkOutsideEdit(registry, "graphml", fillEdited, back)).toEqual([
+            "an outside edit gave new exceptions fill, fillGradientColors on one element, not one edited value",
+        ]);
+        // the same edit and node a's border color too: an unrelated exception on the edited element fails
+        const text = new TextDecoder().decode(fillEdited);
+        const border = text.indexOf('<y:BorderStyle color="#505050"');
+        expect(border).toBeGreaterThan(0);
+        const both = text.slice(0, border) + text.slice(border).replace('color="#505050"', 'color="#FF0000"');
+        expect(await checkOutsideEdit(registry, "graphml", new TextEncoder().encode(both), back, derives)).toEqual([
+            "an outside edit gave new exceptions borderColor, fill, fillGradientColors on one element, not one edited value",
+        ]);
     });
 
     it("replaces a yFiles 3 file's drawing state by yEd graphics in yEd's namespace", async () => {

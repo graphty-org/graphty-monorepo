@@ -367,7 +367,9 @@ export class NodeBatches {
      * @param node - The node.
      */
     sync(node: Node): void {
-        const source = node.drawnSourceMesh as Mesh;
+        // The paint may have moved the node to another source: ask its paint, not the batch, so a
+        // batched row is not given its mesh back on every sync.
+        const source = node.paintedSourceMesh as Mesh;
         const had = this.groupOf.get(node);
         if (had !== undefined && had.source !== source) {
             this.leave(node);
@@ -389,7 +391,11 @@ export class NodeBatches {
 
         if (group.batched && !object) {
             group.batch?.put(node.index, node.drawnInstanceColor);
+            // A row the table does not hold yet keeps its mesh until the flush settles its group.
+            node.drawInBatch(node.index < this.host.places.rows ? group.source : null);
             this.dirty.add(group);
+        } else {
+            node.drawInBatch(null);
         }
     }
 
@@ -405,6 +411,7 @@ export class NodeBatches {
 
         this.groupOf.delete(node);
         group.members.delete(node);
+        node.drawInBatch(null);
         if (this.objectRows.delete(node)) {
             group.objects--;
         }
@@ -528,6 +535,10 @@ export class NodeBatches {
         }
 
         group.batched = batched;
+        for (const node of group.members) {
+            node.drawInBatch(batched ? group.source : null);
+        }
+
         group.source.visibility = batched ? 0 : group.restVisibility;
         return true;
     }
@@ -539,6 +550,7 @@ export class NodeBatches {
     private forget(group: RowGroup): void {
         this.groups.delete(group.source);
         for (const node of group.members) {
+            node.drawInBatch(null);
             this.groupOf.delete(node);
             this.objectRows.delete(node);
         }

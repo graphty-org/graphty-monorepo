@@ -164,10 +164,8 @@ export async function rightClick(element: Element, point: Point): Promise<void> 
 
 /**
  * Two clicks of the left button at one point, as a double-click: the second press carries a click
- * count of two. All four events are sent together, because the scene counts two presses as a
- * double-click only when they arrive within its double-click delay (300 ms), and on a loaded machine
- * the round trip between two awaited sends alone can take that long. The protocol delivers them in
- * order.
+ * count of two, so the browser raises `dblclick`, which is what the element expands on. All four
+ * events are sent together, as a mouse sends them; the protocol delivers them in order.
  * @param element - The element the point is on.
  * @param point - Where.
  */

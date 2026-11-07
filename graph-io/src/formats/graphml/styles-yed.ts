@@ -25,7 +25,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
-import { yedGradientAngle } from "../../styles/canon/yed-gradient.js";
+import { yedGradientAngle, yedGradientRamp } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
     YED_LABEL_PADDING,
@@ -1280,12 +1280,43 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
         put("fillOpacity", 0);
         return;
     }
-    readColor(treeAttr(fill, "color"), "fill", "fillOpacity", put, at);
+    const read = new Map<string, StyleValue | null>();
+    readColor(
+        treeAttr(fill, "color"),
+        "fill",
+        "fillOpacity",
+        (property, value) => {
+            read.set(property, value);
+            put(property, value);
+        },
+        at,
+    );
+    const first = read.get("fill");
+    const firstAlpha = read.get("fillOpacity");
     const second = yedDefaultPainted(real) ? null : canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
     const angle = second === null ? null : realizerGradientAngle(real);
     if (second !== null && angle !== null) {
         put("fillGradient", second.color);
         put("fillGradientAngle", angle);
+        // a shape node's left-to-right ramp mirrors back over its left third, and color2's alpha is its stop's
+        // (`yedGradientRamp`)
+        const shape = treeAttr(treeChild(real.r, "Shape"), "type") ?? "rectangle";
+        const across = real.type === "ShapeNode" && shape !== "diamond";
+        const ramp =
+            typeof first === "string"
+                ? yedGradientRamp(
+                      across ? "across" : "corner",
+                      first,
+                      second.color,
+                      second.alpha,
+                      typeof firstAlpha === "number" ? firstAlpha : 1,
+                      shape,
+                  )
+                : null;
+        if (ramp !== null) {
+            put("fillGradientColors", ramp.colors);
+            put("fillGradientStops", ramp.stops);
+        }
     }
 }
 
@@ -2162,6 +2193,8 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
         "fillOpacity",
         "fillGradient",
         "fillGradientAngle",
+        "fillGradientColors",
+        "fillGradientStops",
         "borderColor",
         "borderWidth",
         "borderStyle",
@@ -2406,6 +2439,11 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
 function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, approximate: Approximate): Tree {
     const node: Tree = {};
     node["y:Geometry"] = geometryTree(get, at);
+    const shape = get("shape");
+    const yedShape =
+        typeof shape === "string"
+            ? yedSpelled(YED_SHAPES, shape, shape === "vee" ? "triangle" : "rectangle", "shape", approximate)
+            : null;
     const fill = get("fill");
     const fillOpacity = get("fillOpacity");
     if (typeof fill === "string") {
@@ -2415,6 +2453,7 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
             (node["y:Fill"] as Tree)["@_color2"] = second.toUpperCase();
             noteGradientAngle(get, approximate);
         }
+        noteGradientRamp(get, { fill, second, shape: yedShape ?? "rectangle" }, approximate);
     } else if (fillOpacity === 0) {
         node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
     }
@@ -2426,11 +2465,8 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
     if (label !== null) {
         node["y:NodeLabel"] = label;
     }
-    const shape = get("shape");
-    if (typeof shape === "string") {
-        node["y:Shape"] = {
-            "@_type": yedSpelled(YED_SHAPES, shape, shape === "vee" ? "triangle" : "rectangle", "shape", approximate),
-        };
+    if (yedShape !== null) {
+        node["y:Shape"] = { "@_type": yedShape };
     }
     return { "y:ShapeNode": node };
 }
@@ -2451,6 +2487,35 @@ function noteGradientAngle(get: GetValue, approximate: Approximate): void {
     const angle = get("fillGradientAngle") ?? 0;
     if (typeof angle !== "number" || Math.abs(angle - drawn) > 0.01) {
         approximate("fillGradientAngle", angle);
+    }
+}
+
+/**
+ * Records a gradient's colors and stops as approximated unless they are the ones yEd paints for the y:ShapeNode
+ * written (`yedGradientRamp`): a left-to-right ramp mirrored over its left third, or none.
+ * @param get - the node's values
+ * @param written - what the y:ShapeNode holds
+ * @param written.fill - its `color`
+ * @param written.second - its `color2` (opaque), or the node's `fillGradient` when it has none
+ * @param written.shape - its yEd shape type
+ * @param approximate - records approximations
+ */
+function noteGradientRamp(
+    get: GetValue,
+    written: { fill: string; second: unknown; shape: string },
+    approximate: Approximate,
+): void {
+    const { fill, second, shape } = written;
+    const run = shape === "diamond" ? "corner" : "across";
+    const drawn = typeof second === "string" ? yedGradientRamp(run, fill, second.toLowerCase(), 1, 1, shape) : null;
+    for (const [property, value] of [
+        ["fillGradientColors", drawn?.colors],
+        ["fillGradientStops", drawn?.stops],
+    ] as const) {
+        const had = get(property) ?? undefined;
+        if (had !== value) {
+            approximate(property, had ?? "none");
+        }
     }
 }
 

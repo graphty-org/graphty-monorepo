@@ -1041,8 +1041,10 @@ async function checkFixedPoint(
 }
 
 /**
- * One native value edited outside comes back as exactly one exception (design 10.7 item 4): the same rules below
- * the exceptions, and one more excepted value.
+ * One native value edited outside comes back as exceptions on exactly one element (design 10.7 item 4): the same rules
+ * below the exceptions, and new excepted values on that one element only. A value the format derives from the edited
+ * one comes back with it: yEd paints a shape node's ramp through its `color`, so an edited `color` changes both `fill`
+ * and `fillGradientColors` on that one node.
  * @param registry - the registry
  * @param format - the format to read it as
  * @param edited - the edited file
@@ -1065,19 +1067,28 @@ async function checkOutsideEdit(
     if (below(styles) !== below(unedited)) {
         failures.push("an outside edit changed the rules instead of adding one exception");
     }
-    const excepted = (ex: ExtractedStyles): number => {
-        let count = 0;
+    // every excepted value, by its element and the column it is read from (two exception rules may set one property)
+    const excepted = (ex: ExtractedStyles): Set<string> => {
+        const cells = new Set<string>();
         for (const rule of ex.styles.rules.filter((x) => x.role === "exceptions")) {
             for (const m of Object.values(rule.map ?? {})) {
                 if (m !== undefined && "by" in m && "style" in m.by) {
-                    count += (ex.columns[rule.target].get(m.by.style) ?? []).filter((v) => v !== null).length;
+                    const column = m.by.style;
+                    (ex.columns[rule.target].get(column) ?? []).forEach((v, i) => {
+                        if (v !== null) {
+                            cells.add(`${rule.target}:${String(i)}|${column}`);
+                        }
+                    });
                 }
             }
         }
-        return count;
+        return cells;
     };
-    if (excepted(styles) !== excepted(unedited) + 1) {
-        failures.push(`an outside edit gave ${String(excepted(styles) - excepted(unedited))} new exceptions, not 1`);
+    const before = excepted(unedited);
+    const added = [...excepted(styles)].filter((c) => !before.has(c));
+    const elements = new Set(added.map((c) => c.split("|")[0]));
+    if (elements.size !== 1) {
+        failures.push(`an outside edit gave new exceptions on ${String(elements.size)} elements, not 1`);
     }
     return failures;
 }

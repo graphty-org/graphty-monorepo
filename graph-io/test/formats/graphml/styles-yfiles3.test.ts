@@ -9,6 +9,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
+import { spreadRamp } from "../../../src/styles/canon/yed-gradient.js";
 import { resolveStyles } from "../../../src/styles/internal.js";
 import type { StyleProperty } from "../../../src/styles/types.js";
 
@@ -393,9 +394,23 @@ describe("yEd Live GraphML: a LinearGradient fill", () => {
         expect(node("fillGradientColors", "linear-gradient-diagonal")).toBeNull();
     });
 
-    it("keeps a ramp inside the box, and a radial gradient, in their first stop", async () => {
+    it("unrolls a REFLECT ramp inside the box into the bands it paints across it", async () => {
         const { node } = await sheet("specimen-node-fills-borders.graphml");
-        expect(node("fillGradient", "linear-gradient-reflect")).toBeNull();
+        // 0.4 to 0.6 across, reflected: white and blue five times over
+        expect(node("fillGradientColors", "linear-gradient-reflect")).toBe(
+            "#ffffff #0000ff #ffffff #0000ff #ffffff #0000ff",
+        );
+        expect(node("fillGradientStops", "linear-gradient-reflect")).toBe("0 0.2 0.4 0.6 0.8 1");
+        expect(node("fillGradientAngle", "linear-gradient-reflect")).toBe(0);
+        // a REPEAT ramp starts its stops again at each seam: two stops at one place
+        expect(spreadRamp({ colors: ["#ffffff", "#0000ff"], stops: [0, 1] }, "repeat", 0, 2)).toEqual({
+            colors: ["#ffffff", "#0000ff", "#ffffff", "#0000ff"],
+            stops: [0, 0.5, 0.5, 1],
+        });
+    });
+
+    it("keeps a radial gradient in its first stop", async () => {
+        const { node } = await sheet("specimen-node-fills-borders.graphml");
         expect(node("fill", "linear-gradient-reflect")).toBe("#ffffff");
         expect(node("fillGradient", "radial-gradient")).toBeNull();
     });

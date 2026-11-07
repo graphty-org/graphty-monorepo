@@ -67,6 +67,87 @@ export function rampAngleOnScreen(v: Pt, [a, b, c, d]: readonly [number, number,
     return (Math.atan2(y, x) * 180) / Math.PI;
 }
 
+/**
+ * The stops a reflected or repeated ramp paints across its shape, from where the shape starts along the ramp to where
+ * it ends: an SVG gradient's `spreadMethod="reflect"` or `"repeat"` runs its stops again past their ends, so its
+ * colors across the shape are not its stops. yEd's shape-node ramp from a third of the way across to the right side,
+ * reflected, paints the color halfway along it at the left side, its first color a third across and its last at the
+ * right (t from -0.5 to 1). `pad` keeps its stops: both sides read a padded ramp along its own vector.
+ * @param stops - the ramp's stops, offsets 0 to 1
+ * @param spread - the gradient's spreadMethod
+ * @param start - where the shape starts along the ramp (0 its first stop, 1 its last)
+ * @param end - where the shape ends
+ * @returns the stops across the shape, offsets 0 to 1, or the stops themselves when nothing repeats over the shape
+ */
+export function spreadStops(stops: readonly PStop[], spread: string, start: number, end: number): PStop[] {
+    const sorted = [...stops].sort((a, b) => a.offset - b.offset);
+    const eps = 1e-6;
+    if ((spread !== "reflect" && spread !== "repeat") || sorted.length === 0 || end - start < eps) {
+        return sorted;
+    }
+    if (start >= -eps && end <= 1 + eps) {
+        return sorted;
+    }
+    const within = (u: number): PStop => {
+        const k = sorted.findIndex((s) => s.offset >= u);
+        if (k <= 0) {
+            return { ...sorted[k < 0 ? sorted.length - 1 : 0], offset: 0 };
+        }
+        const [a, b] = [sorted[k - 1], sorted[k]];
+        const f = b.offset > a.offset ? (u - a.offset) / (b.offset - a.offset) : 0;
+        const hex = (h: string, i: number): number => Number.parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+        const color = `#${[0, 1, 2]
+            .map((i) =>
+                Math.round(hex(a.color, i) + f * (hex(b.color, i) - hex(a.color, i)))
+                    .toString(16)
+                    .padStart(2, "0"),
+            )
+            .join("")}`;
+        return { offset: 0, color, opacity: Math.round((a.opacity + f * (b.opacity - a.opacity)) * 1000) / 1000 };
+    };
+    // where along its stops the ramp is at t, reflected or repeated; `late` reads a repeat's seam from its left
+    const fold = (t: number, late: boolean): number => {
+        if (spread === "repeat") {
+            const u = t - Math.floor(t);
+            return late && u < eps && t > t0 + eps ? 1 : u;
+        }
+        const u = t - 2 * Math.floor(t / 2);
+        return u <= 1 ? u : 2 - u;
+    };
+    // every place the folded ramp passes a stop, or a repeat's seam, across the shape
+    // ponytail: places are rounded to 1e-9, so a corner a float's width off a stop is that stop
+    const near = (t: number): number => Math.round(t * 1e9) / 1e9;
+    const [t0, t1] = [near(start), near(end)];
+    const at = new Set([t0, t1]);
+    for (let k = Math.floor(t0) - 1; k <= Math.ceil(t1) + 1; k++) {
+        for (const s of sorted) {
+            for (const t of [near(k + s.offset), near(k + 1 - s.offset)]) {
+                if (t > t0 && t < t1) {
+                    at.add(t);
+                }
+            }
+        }
+    }
+    const span = t1 - t0;
+    const r = (x: number): number => Math.round(x * 1e6) / 1e6;
+    return [...at]
+        .sort((a, b) => a - b)
+        .flatMap((t) => {
+            const offset = r((t - t0) / span);
+            const late = within(fold(t, true));
+            const early = within(fold(t, false));
+            // a repeat jumps from its last color back to its first at each seam: both, at one place; the shape's
+            // own ends show only the side inside it
+            if (t === t0 || t === t1 || (late.color === early.color && late.opacity === early.opacity)) {
+                return [{ ...(t === t1 ? late : early), offset }];
+            }
+            return [
+                { ...late, offset },
+                { ...early, offset },
+            ];
+        });
+}
+
 /** A fill: a flat color, or a gradient (its first stop is also its `color`). */
 export interface PFill {
     /** `#rrggbb`. */

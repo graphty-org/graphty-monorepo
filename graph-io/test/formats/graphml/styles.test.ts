@@ -418,6 +418,9 @@ describe("GraphML styles: yEd", () => {
         // a shape node's gradient runs left to right
         expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n1")]).toBe("#0000ff");
         expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[at("n1")]).toBe(0);
+        // from a third of the way across, mirrored back over the left third: the left side halfway between
+        expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at("n1")]).toBe("#800080 #ff0000 #0000ff");
+        expect(resolveStyles(styles, "node", "fillGradientStops", snapshot)[at("n1")]).toBe("0 0.333333 1");
         expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n0")]).toBeNull();
         expect(opacity[at("n2")]).toBe(0);
         expect(opacity[at("n3")]).toBe(0);
@@ -1077,7 +1080,12 @@ describe("GraphML styles: writing", () => {
             losses
                 .filter((l) => l.code === "W_STYLE_APPROXIMATED")
                 .map((l) => [l.style?.target, l.style?.property, l.count]),
-        ).toEqual([["node", "fillGradientAngle", 1]]);
+        ).toEqual([
+            // yEd paints a shape node's ramp mirrored over its left third, not as its two colors
+            ["node", "fillGradientColors", 2],
+            ["node", "fillGradientStops", 2],
+            ["node", "fillGradientAngle", 1],
+        ]);
         const text = await registry.exportGraphToString(snapshot, "graphml", { styles });
         expect(text).toContain('<y:Fill color="#E8EEF7" transparent="false" color2="#B7C9E3"/>');
         expect(text).toContain('modelName="internal" modelPosition="tr"');

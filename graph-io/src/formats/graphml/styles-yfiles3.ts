@@ -13,6 +13,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { spreadRamp } from "../../styles/canon/yed-gradient.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
@@ -321,8 +322,8 @@ function gradientPoint(g: StyleObject, name: string, fallback: readonly [number,
  * (yEd Live draws it as an SVG gradient in objectBoundingBox units), so one whose ramp spans the box -- from side to
  * side, or from corner to corner -- is `fillGradientAngle` at the angle from start to end in those fractions, with
  * its stops as written. Any other gradient is noted, and the node is filled in its first stop.
- * ponytail: a ramp that starts or ends inside the box (a REFLECT or REPEAT one's mirrored bands) and a RadialGradient
- * are noted, not drawn, and a stop's alpha is dropped; reading those needs the ramp unrolled across the box.
+ * A REFLECT or REPEAT ramp that starts or ends inside the box is unrolled across it (`spreadRamp`).
+ * ponytail: a padded ramp inside the box and a RadialGradient are noted, not drawn, and a stop's alpha is dropped.
  * @param refs - the references
  * @param g - the gradient
  * @param owner - the style's tag, for the note
@@ -345,14 +346,23 @@ function putGradient(refs: References, g: StyleObject, owner: string, put: PutVa
             return { offset: Number(treeAttr(st, "offset") ?? 0), color: c?.color ?? null };
         })
         .sort((a, b) => a.offset - b.offset);
-    const colors = stops.flatMap((st) => (typeof st.color === "string" ? [st.color] : []));
-    if (g.tag !== "LinearGradient" || !spans || colors.length < 2 || colors.length !== stops.length) {
+    let colors: string[] = stops.flatMap((st) => (typeof st.color === "string" ? [st.color] : []));
+    let offsets = stops.map((st) => num6(st.offset));
+    // a REFLECT or REPEAT ramp inside the box paints its stops back and forth across it: unrolled from the box's
+    // nearest corner along the ramp to its farthest (yed-live-graphml-specimen-node-fills-borders
+    // linear-gradient-reflect, 0.4 to 0.6 across, is white and blue five times over)
+    const spread = (treeAttr(g.e, "spreadMethod") ?? "").toLowerCase();
+    const unrolls = !spans && len2 > 0 && (spread === "reflect" || spread === "repeat");
+    if (g.tag !== "LinearGradient" || !(spans || unrolls) || colors.length < 2 || colors.length !== stops.length) {
         noteAt(at("fill"), STYLE_ISSUE.GRADIENT, owner);
         return;
     }
+    if (unrolls) {
+        const ramp = spreadRamp({ colors, stops: offsets }, spread, Math.min(...along), Math.max(...along));
+        [colors, offsets] = [[...ramp.colors], [...ramp.stops]];
+    }
     put("fillGradient", colors.at(-1) ?? null);
     put("fillGradientAngle", num6(((((Math.atan2(dy, dx) * 180) / Math.PI) % 360) + 360) % 360));
-    const offsets = stops.map((st) => num6(st.offset));
     if (colors.length > 2 || offsets[0] !== 0 || offsets[1] !== 1) {
         put("fillGradientColors", colors.join(" "));
         put("fillGradientStops", offsets.join(" "));

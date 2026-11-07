@@ -477,10 +477,14 @@ export function selectionWords(session: GraphSession, rule: UnionLeaf): string {
     return groups.filter((each) => each !== "").join(" or ") || "a selection";
 }
 
+/** Two bounds as the Min and Max boxes say them ("8 to 36"), and nothing else. */
+const RANGE = /^(-?[\d.,]+) to (-?[\d.,]+)$/u;
+
 /**
- * The workspace's cards as one line, each card as its rows say it, with no "or" between them:
- * "Louvain: Community Group 3 + Degree 8 to 36". A card's value says no verb; a condition under it
- * says Add, Keep or Except. What a filter card is called until the reader names it.
+ * The workspace's cards as one structured line, never a sentence: each step as its row says it,
+ * "; " between steps and cards, "-" for a range, and "except" only before a step that removes:
+ * "Louvain: Community Group 3; Degree 8-36; except Isolated". What a filter is called until the
+ * reader names it, and what a selection says at rest.
  * @param session - the element's session.
  * @param rule - the selection.
  * @param reading - its reading, which an algorithm's test is said from.
@@ -488,20 +492,21 @@ export function selectionWords(session: GraphSession, rule: UnionLeaf): string {
  */
 export function cardsWords(session: GraphSession, rule: UnionLeaf, reading?: StepsReading): string {
     const side: Side = rule.side === "nodes" ? "node" : "edge";
+    const read = reading?.branches.flatMap((each) => each.steps) ?? [];
     return rule.branches
-        .map((branch) =>
-            branch.steps
-                .map((step, index) => {
-                    const read = reading?.branches.flatMap((each) => each.steps).find((each) => each.id === step.id);
-                    const words = rowWords(session, step, side, read);
-                    const said = [words.value, rowTest(words)].filter((each) => each !== "").join(" ");
-                    const natural = branch.start === "all" ? "keep" : "add";
-                    return index === 0 && step.op === natural
-                        ? said
-                        : `${VERB_WORDS[step.op].word.toLowerCase()} ${said}`;
-                })
-                .join(", "),
-        )
+        .flatMap((branch) => branch.steps)
+        .map((step) => {
+            const words = rowWords(
+                session,
+                step,
+                side,
+                read.find((each) => each.id === step.id),
+            );
+            // A range is "8-36", as a compact list says it; any other test keeps its words.
+            const test = rowTest(words).replace(RANGE, "$1-$2");
+            const said = [words.value, test].filter((each) => each !== "").join(" ");
+            return step.op === "except" ? `${VERB_WORDS.except.word.toLowerCase()} ${said}` : said;
+        })
         .filter((each) => each !== "")
-        .join(" + ");
+        .join("; ");
 }

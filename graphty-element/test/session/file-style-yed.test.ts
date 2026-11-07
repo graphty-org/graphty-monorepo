@@ -10,6 +10,9 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /**
  * Three yEd nodes: a gradient-filled box, a gradient-filled flowchart process, and a group whose

@@ -9,6 +9,9 @@ import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { readDrawn } from "../fidelity/drawn-scene";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const TYPE = "org.cytoscape.view.presentation.annotations.";
 

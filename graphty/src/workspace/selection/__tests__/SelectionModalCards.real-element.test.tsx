@@ -96,7 +96,7 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
  * @returns the modal.
  */
 async function openModal(): Promise<HTMLElement> {
-    await userEvent.click(screen.getByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the modal is open");

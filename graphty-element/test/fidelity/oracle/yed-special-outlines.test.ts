@@ -8,7 +8,7 @@ import { assert, describe, it } from "vitest";
 import { polygonClassOf } from "../extract-scene";
 import { shapeOf } from "./associate";
 import { outlinePaintedAsFill, type Prim, type Pt, solidOuter } from "./primitives";
-import { hasSquareCorner } from "./svg-primitives";
+import { hasSquareCorner, straightPathVertices } from "./svg-primitives";
 
 const circle = (r: number, turn: 1 | -1): Pt[] =>
     Array.from({ length: 64 }, (_, i): Pt => {
@@ -111,5 +111,26 @@ describe("yEd's special outlines", () => {
         // a delay: two corners on its box
         assert.strictEqual(polygonClassOf(["-1,-1", ...bulge, "-1,1"].join(" ")), "other");
         assert.strictEqual(polygonClassOf("1,1 -1,1 -1,-1 1,-1"), "rect");
+    });
+
+    it("keeps a vertex whose x has an exponent: yEd Live's down arrow is 56 x 32, its tip at the bottom", () => {
+        // yed-live-graphml-specimen-node-shapes arrow-node-direction-down, as yEd Live writes it
+        const down =
+            "M 9.333333333333332,-11.999999999999996 L 28,-11.999999999999996 L 3.552713678800501e-15,16 " +
+            "L -28,-11.999999999999993 L -9.333333333333329,-11.999999999999993 L -9.333333333333329,-15.999999999999998 " +
+            "L 9.333333333333332,-15.999999999999998 Z";
+        const pts = straightPathVertices(down) ?? [];
+        assert.lengthOf(pts, 8);
+        const ys = pts.map(([, y]) => y);
+        assert.closeTo(Math.max(...ys) - Math.min(...ys), 32, 1e-9);
+        assert.deepEqual(pts[2], [3.552713678800501e-15, 16]);
+    });
+
+    it("still reads a body that really is 56 x 4 as 56 x 4", () => {
+        const pts = straightPathVertices("M -28,-16 L 28,-16 L 28,-12 L -28,-12 Z") ?? [];
+        const ys = pts.map(([, y]) => y);
+        const xs = pts.map(([x]) => x);
+        assert.strictEqual(Math.max(...ys) - Math.min(...ys), 4);
+        assert.strictEqual(Math.max(...xs) - Math.min(...xs), 56);
     });
 });

@@ -28225,7 +28225,7 @@
             "node.shape": [],
             "node.fill": [],
             "node.fillOpacity": [],
-            "node.gradient": ["n0","n1","n10","n11","n12","n13","n15","n17","n19","n21","n25","n3","n30","n34","n36","n4","n5"],
+            "node.gradient": [],
             "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
@@ -28265,7 +28265,7 @@
             "node.shape": [],
             "node.fill": [],
             "node.fillOpacity": [],
-            "node.gradient": ["n0","n1","n10","n11","n12","n13","n15","n17","n19","n21","n25","n3","n30","n34","n36","n4","n5"],
+            "node.gradient": [],
             "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
@@ -40556,9 +40556,9 @@
         "yed-live-graphml-specimen-node-shapes": {
             "node.present": [],
             "node.extra": [],
-            "node.position": ["arrow-node-direction-down","arrow-node-direction-up"],
+            "node.position": [],
             "node.width": [],
-            "node.height": ["arrow-node-direction-down","arrow-node-direction-up"],
+            "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
@@ -40845,7 +40845,7 @@
             "node.extra": [],
             "node.position": [],
             "node.width": [],
-            "node.height": ["arrow-node-direction-down","arrow-node-direction-up"],
+            "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
@@ -41017,6 +41017,7 @@
         {"date":"2026-11-05","reason":"drawing: with yEd's own label box these two labels sit on the line between two label.anchor places, not off where yEd drew them: gml-synthetic-coverage 9 has yEd's left edge to 0.1 px but narrower words (Courier New where yEd drew Dialog), and yed-graphml-specimen-labels two-labels has yEd's box while yEd draws a line's words about 0.7 px below its box's middle (graph-io/test/fidelity/oracles/ISSUES.md, #4247)","added":{"gml-synthetic-coverage":{"label.anchor":["9"]},"gml-synthetic-coverage@matched":{"label.anchor":["9"]},"yed-graphml-specimen-labels":{"label.anchor":["two-labels"]},"yed-graphml-specimen-labels@matched":{"label.anchor":["two-labels"]}},"sources":{"unclassified":4}},
         {"date":"2026-11-06","reason":"same labels, now named by their own line (#5846): each parallel pair's one label moved from the #g0 line to the #g1 line it belongs to, so its known label failure is listed under #g1; the place of the words did not change (stand-in #5375)","added":{"graphml-synthetic-edges":{"label.alongLine":["edge:n4->n5#g1"],"label.offLine":["edge:n13->n14#g1","edge:n16->n17#g1","edge:n22->n23#g1","edge:n4->n5#g1"]},"graphml-synthetic-edges@matched":{"label.alongLine":["edge:n4->n5#g1"],"label.offLine":["edge:n13->n14#g1","edge:n16->n17#g1","edge:n22->n23#g1","edge:n4->n5#g1"]}},"sources":{"unclassified":10}},
         {"date":"2026-11-06","reason":"yEd moves a side_slider label along its line from the box a GML file stores, by up to 17 px, by a step not worked out; the stored box places 43 more labels of this sample and this one further off than the line's middle was","added":{"gml-dunnart-autobahn":{"label.alongLine":["edge:44->42#g0"]},"gml-dunnart-autobahn@matched":{"label.alongLine":["edge:44->42#g0"]}},"sources":{"unclassified":2}},
-        {"date":"2026-11-04","reason":"explained, kept (#4456; listed before, recorded here): Cytoscape.js draws a double border by stroking it solid and erasing its middle third with destination-out compositing, which svgcanvas's SVG replay does not record, so the oracle shows a solid border where Cytoscape.js and graphty draw two lines (json-cyjs-synth-nodes n35, json-cyjs-sbgn-sciluna). cx2-syn-mappings, Cytoscape desktop's patterned borders painted as fills: round a sharp-cornered or concave polygon (hexagon 195, vee 339 and 393, diamond 435, triangle 459) the painted zigzag or double line is not read as an outline at all; a double line 1 to 2 px wide (273, 297, 321, 345) has rows a third of that, under a pixel, read as dots and too narrow; a sine wave round a hexagon (222) reads as arrows; a 1 px equal dash (330) is 2 widths long, under the comparator's 1.5 px dot floor, so it reads dotted. All comparator or oracle limits; graphty draws the style the file asks for","added":{"cx2-syn-mappings":{"node.stroke":["195","339","393","435","459"],"node.strokeWidth":["273","297","321","345"],"node.strokeDash":["222","273","297","330"]},"cx2-syn-mappings@matched":{"node.stroke":["195","339","393","435","459"],"node.strokeWidth":["273","297","321","345"],"node.strokeDash":["222","273","297","330"]},"json-cyjs-sbgn-sciluna":{"node.strokeDash":["25","35","36","41","55","56"]},"json-cyjs-sbgn-sciluna@matched":{"node.strokeDash":["25","35","36","41","55","56"]},"json-cyjs-synth-nodes":{"node.strokeDash":["n35"]},"json-cyjs-synth-nodes@matched":{"node.strokeDash":["n35"]}},"sources":{"comparator":40}}
+        {"date":"2026-11-04","reason":"explained, kept (#4456; listed before, recorded here): Cytoscape.js draws a double border by stroking it solid and erasing its middle third with destination-out compositing, which svgcanvas's SVG replay does not record, so the oracle shows a solid border where Cytoscape.js and graphty draw two lines (json-cyjs-synth-nodes n35, json-cyjs-sbgn-sciluna). cx2-syn-mappings, Cytoscape desktop's patterned borders painted as fills: round a sharp-cornered or concave polygon (hexagon 195, vee 339 and 393, diamond 435, triangle 459) the painted zigzag or double line is not read as an outline at all; a double line 1 to 2 px wide (273, 297, 321, 345) has rows a third of that, under a pixel, read as dots and too narrow; a sine wave round a hexagon (222) reads as arrows; a 1 px equal dash (330) is 2 widths long, under the comparator's 1.5 px dot floor, so it reads dotted. All comparator or oracle limits; graphty draws the style the file asks for","added":{"cx2-syn-mappings":{"node.stroke":["195","339","393","435","459"],"node.strokeWidth":["273","297","321","345"],"node.strokeDash":["222","273","297","330"]},"cx2-syn-mappings@matched":{"node.stroke":["195","339","393","435","459"],"node.strokeWidth":["273","297","321","345"],"node.strokeDash":["222","273","297","330"]},"json-cyjs-sbgn-sciluna":{"node.strokeDash":["25","35","36","41","55","56"]},"json-cyjs-sbgn-sciluna@matched":{"node.strokeDash":["25","35","36","41","55","56"]},"json-cyjs-synth-nodes":{"node.strokeDash":["n35"]},"json-cyjs-synth-nodes@matched":{"node.strokeDash":["n35"]}},"sources":{"comparator":40}},
+        {"date":"2026-11-06","reason":"Graphviz runs gradientangle to its box's corner (315 on a 59.5 x 36 box changes color along 31.2 degrees on screen); graphty reads it as a 45-degree ramp stretched over the box, so its color changes along 58.5. Exposed when the comparator began reading graphty's ramp as stretched (#5809)","added":{"dot-synth-nodes":{"node.gradient":["n_lingrad2"]},"dot-synth-nodes@matched":{"node.gradient":["n_lingrad2"]}},"sources":{"unclassified":2}}
     ]
 }

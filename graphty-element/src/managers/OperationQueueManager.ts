@@ -952,6 +952,7 @@ export class OperationQueueManager implements Manager {
                 controller.abort();
                 this.eventManager.emit("operation-cancelled", {
                     id,
+                    code: "queue-cleared",
                     reason: "Queue cleared",
                 } satisfies Omit<OperationCancelledEvent, "type">);
             }
@@ -1105,6 +1106,7 @@ export class OperationQueueManager implements Manager {
             // Emit cancellation event
             this.eventManager.emit("operation-cancelled", {
                 id: operationId,
+                code: "cancelled",
                 reason: "Manual cancellation",
             } satisfies Omit<OperationCancelledEvent, "type">);
 

@@ -1101,6 +1101,12 @@ const num = (p: P, k: string): number => Number(p[k] ?? 0);
 const str = (p: P, k: string): string => esc(p[k] ?? "");
 const arr = (p: P, k: string): (string | number)[] => (Array.isArray(p[k]) ? [...(p[k] as (string | number)[])] : []);
 /**
+ * The family note of a shared row.
+ * @param p - the fact's params, with `bins`
+ * @returns "; family of N bins" for a family of more than one bin, else empty
+ */
+const binsNote = (p: P): string => (num(p, "bins") > 1 ? `; family of ${fmtN(num(p, "bins"))} bins` : "");
+/**
  * A workflow error's fix: "; fix #N", and how long it waits on the owner when it does; empty with no fix.
  * @param p The fact's parameters, with `fix` and `waits_owner_s`.
  * @returns The words.
@@ -1279,10 +1285,8 @@ const S: Record<string, (p: P) => string> = {
     "cause.workflow_error": (p) => `workflow error: ${str(p, "detail")}${workflowFix(p)}`,
     "check.family": (p) => `family of ${fmtN(num(p, "bins"))} bins`,
     "check.failed_alone": () => "failed alone",
-    "check.signature": (p) =>
-        `same failure: ${esc(str(p, "signature"))}${num(p, "bins") > 1 ? `; family of ${fmtN(num(p, "bins"))} bins` : ""}`,
-    "check.master_fails": (p) =>
-        `master's newest build fails it too${num(p, "bins") > 1 ? `; family of ${fmtN(num(p, "bins"))} bins` : ""}`,
+    "check.signature": (p) => `same failure: ${str(p, "signature")}${binsNote(p)}`,
+    "check.master_fails": (p) => `master's newest build fails it too${binsNote(p)}`,
     suspect: (p) => `${prLink(num(p, "pr"))} ${str(p, "title")}`,
     "fix.merged": (p) => `${prLink(num(p, "pr"))} merged ${at(p, "at")}`,
     "fix.open": (p) => `${prLink(num(p, "pr"))} fix open`,

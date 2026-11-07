@@ -851,7 +851,7 @@ async function failureSignatures(c: Cycle, gh: GitHub, open: GqlPr[]): Promise<v
     const tests = new Map<string, Promise<Item[]>>();
     for (const ch of runs) {
         const run = RUN_OF.exec(ch.detailsUrl ?? "")?.[1];
-        if (!run || !/\)$/.test(ch.name ?? "")) {
+        if (!run || !(ch.name ?? "").endsWith(")")) {
             continue;
         }
         if (!tests.has(run)) {

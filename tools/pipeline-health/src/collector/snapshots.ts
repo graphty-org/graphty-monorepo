@@ -120,10 +120,11 @@ export interface SharedSnapshot {
  * @returns the failed tests' signatures; none for a check that is no shard
  */
 export function testSignatures(rows: { sk: string; [k: string]: unknown }[], checkName: string): string[] {
-    const shard = /\(([^)]+)\)$/.exec(checkName)?.[1];
-    if (!shard) {
+    const open = checkName.lastIndexOf("(");
+    if (open < 0 || !checkName.endsWith(")")) {
         return [];
     }
+    const shard = checkName.slice(open + 1, -1);
     const attempt = Math.max(0, ...rows.map((r) => Number(r.sk.split("#")[0])));
     // A CI invocation is "<run>.<attempt>.<kind>.<shard>.<try>" (ingest.ts ownId).
     return rows

@@ -80,6 +80,18 @@ describe("the AI provider page", () => {
         await screen.findByRole("option", { name: "GPT-4o" });
     });
 
+    it("starts Anthropic at Claude Haiku 5.5, and still offers Claude Haiku 4.5", async () => {
+        const dialog = await openKeyPage();
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "Provider" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Anthropic" }));
+        const model = within(dialog).getByRole("combobox", { name: "Model" });
+        await waitFor(() => {
+            assert.strictEqual((model as HTMLInputElement).value, "Claude Haiku 5.5");
+        });
+        await userEvent.click(model);
+        await screen.findByRole("option", { name: "Claude Haiku 4.5" });
+    });
+
     it("keeps a typed key on Done, and the panel is ready", async () => {
         const dialog = await openKeyPage();
         await userEvent.click(within(dialog).getByLabelText("API key"));

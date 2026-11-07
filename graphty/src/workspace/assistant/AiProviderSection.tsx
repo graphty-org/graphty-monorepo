@@ -45,9 +45,11 @@ const PROVIDERS = AI_PROVIDER_DESCRIPTORS.filter((entry) => !entry.testOnly && e
 const FIRST_PROVIDER: AiProviderId = "google";
 /**
  * The app's own pick where it differs from the element's default model: GPT-5.4 mini answered the
- * assistant's walk right where GPT-4o did not, and as fast. GPT-4o stays in the list.
+ * assistant's walk right where GPT-4o did not, and as fast. Claude Haiku 5.5 colored just the
+ * largest community where Haiku 4.5 colored them all in two walks of three. The older models stay
+ * in the list.
  */
-const APP_MODELS: Partial<Record<AiProviderId, string>> = { openai: "gpt-5.4-mini" };
+const APP_MODELS: Partial<Record<AiProviderId, string>> = { openai: "gpt-5.4-mini", anthropic: "claude-haiku-5-5" };
 
 /**
  * The model the Model field starts at for a provider.

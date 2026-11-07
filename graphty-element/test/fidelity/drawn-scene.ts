@@ -237,6 +237,7 @@ interface NodeInternals {
     drawnStyle: NodeStyleConfig | null;
     decorationPieces: readonly NodeDecorationPiece[];
     tableTexts: readonly unknown[] | null;
+    shadow: readonly AbstractMesh[];
 }
 
 /** A piece a node draws over its face, on screen: a body piece with its fill. */
@@ -749,6 +750,8 @@ export interface DrawnNode {
     figure?: [Xy, Xy][];
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox; fill?: string }[];
+    /** The shadow drawn beneath the node (`shadow`), out to the edge of its soft edge, its screen box; absent for none. */
+    shadow?: ScreenBox;
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
     picture?: ScreenBox;
     /** A picture graph-io drew for what a program draws piece by piece over a node: its box and its URL. */
@@ -1252,6 +1255,35 @@ function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx
 }
 
 /**
+ * The screen box of the shadow drawn beneath a node: its outermost layer, out to where its soft edge ends.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the box, or null for a node that draws no shadow
+ */
+function readShadow(node: Node, p: Projector): ScreenBox | null {
+    const [outer] = (node as unknown as NodeInternals).shadow;
+    if (outer === undefined || outer.isDisposed() || !outer.isEnabled()) {
+        return null;
+    }
+    outer.computeWorldMatrix(true);
+    const { minimumWorld: min, maximumWorld: max } = outer.getBoundingInfo().boundingBox;
+    const corners = [
+        p.point(new Vector3(min.x, min.y, min.z)),
+        p.point(new Vector3(max.x, min.y, min.z)),
+        p.point(new Vector3(min.x, max.y, min.z)),
+        p.point(new Vector3(max.x, max.y, min.z)),
+    ];
+    return {
+        x0: Math.min(...corners.map((c) => c.x)),
+        x1: Math.max(...corners.map((c) => c.x)),
+        y0: Math.min(...corners.map((c) => c.y)),
+        y1: Math.max(...corners.map((c) => c.y)),
+        near: Math.min(...corners.map((c) => c.depth)),
+        far: Math.max(...corners.map((c) => c.depth)),
+    };
+}
+
+/**
  * How far a node's border position drew its fill in from its size, in screen pixels, whether or not the border
  * itself is shown (`NodeMesh.borderFit`): nothing for a border outside the size, half the ring for one centered on
  * it, the ring for one inside it, half the ring for one inside it at opacity 0.
@@ -1399,6 +1431,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     const offCenter = body.length > 0 || drawnStyle?.shape?.stretchPoints === false;
     const placedBy = picture?.box ?? (offCenter ? drawnBox : null);
     const figure = faces ? readFigure(mesh, p) : undefined;
+    const shadow = readShadow(node, p);
     return {
         x: placedBy === null ? center.x : (placedBy.x0 + placedBy.x1) / 2,
         y: placedBy === null ? center.y : (placedBy.y0 + placedBy.y1) / 2,
@@ -1432,6 +1465,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
             ? { svgPicture: { box: imagePiece.box, src: imageSrc } }
             : {}),
         ...(figure === undefined ? {} : { figure }),
+        ...(shadow === null ? {} : { shadow }),
         ...(inner === null || inner.outline || own !== null || outer !== null ? {} : { faceLine: inner.box }),
         pieces: pieces
             .filter((piece) => piece !== picture && piece.kind !== "body")
@@ -1926,7 +1960,12 @@ export function readDrawn(graph: Graph): DrawnGraph {
         edges.set(id, readEdge(edge, p));
     }
     // what a node draws over its face is drawn beside the node's own shape, as a file annotation is
-    const pieces = [...nodes.values()].flatMap((n) => (n.shown ? n.pieces : []));
+    // and so is the shadow it draws beneath itself, a picture of its own as a program's soft shadow is
+    const shown = [...nodes.values()].filter((n) => n.shown);
+    const pieces = [
+        ...shown.flatMap((n) => n.pieces),
+        ...shown.flatMap((n) => (n.shadow === undefined ? [] : [{ kind: "image" as const, box: n.shadow }])),
+    ];
     return {
         nodes,
         edges,

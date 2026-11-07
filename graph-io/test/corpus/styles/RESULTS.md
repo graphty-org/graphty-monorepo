@@ -254,7 +254,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml | ok | 166 | 544 | 8 | 3 | 423 | 71% | 0% | 0 | 5136 | 0 |  |
 | graphml/gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml | ok | 77 | 254 | 8 | 3 | 182 | 0% | 0% | 0 | 2394 | 0 |  |
 | graphml/gephi-rgb/nielmclaren__constellation.js__data.graphml | ok | 47 | 57 | 8 | 4 | 102 | 0% | 0% | 0 | 775 | 0 |  |
-| graphml/inbloom_secure-data-service__index.graphml | ok | 100 | 51 | 4 | 5 | 468 | 47% | 0% | 0 | 567 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/inbloom_secure-data-service__index.graphml | ok | 100 | 51 | 4 | 5 | 558 | 39% | 0% | 0 | 567 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml | ok | 10 | 4 | 6 | 2 | 20 | 75% | 20% | 0 | 56 | 0 |  |
 | graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | 8 | 3 | 55 | 84% | 24% | 0 | 149 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | graphml/java-graphml-lib/domondi1__KEVGraph__guin-D__Library-Management-System.graphml | ok | 16 | 15 | - | - | 0 | - | - | 0 | 0 | 0 |  |

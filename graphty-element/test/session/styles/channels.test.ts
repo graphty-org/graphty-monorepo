@@ -111,6 +111,11 @@ const DECLARED = [
     "node.raisedBorderWidth",
     "node.raisedBorderLightColor",
     "node.raisedBorderDarkColor",
+    "node.shadowColor",
+    "node.shadowOpacity",
+    "node.shadowBlur",
+    "node.shadowOffsetX",
+    "node.shadowOffsetY",
     "node.underlayColor",
     "node.underlayOpacity",
     "node.underlayPadding",
@@ -416,8 +421,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and ninety-seven node channels and one hundred and sixty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 197);
+    it("splits into two hundred and two node channels and one hundred and sixty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 202);
         assert.strictEqual(channelsFor("edge").length, 165);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -954,7 +959,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the thirty-six that carry a colour, and the type says the same thirty-six", () => {
+    it("are the thirty-seven that carry a colour, and the type says the same thirty-seven", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -968,6 +973,7 @@ describe("colour channels", () => {
             "node.outerBorderColor",
             "node.raisedBorderLightColor",
             "node.raisedBorderDarkColor",
+            "node.shadowColor",
             "node.underlayColor",
             "node.overlayColor",
             "node.glyphColor",

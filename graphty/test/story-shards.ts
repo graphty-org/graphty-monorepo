@@ -51,13 +51,23 @@ export function balancedPart(
 }
 
 /**
+ * Whether a spec's project is the storybook project. A browser project's specs carry its instance's name,
+ * "storybook (chromium)"; if vitest changes that form, story-shards.test.ts fails instead of the legs quietly
+ * going back to the hash split.
+ * @param name - the spec's project name.
+ * @returns true for the storybook project.
+ */
+export function isStoryProject(name: string): boolean {
+    return /^storybook(?: \(|$)/.test(name);
+}
+
+/**
  * Vitest's sequencer with a --shard split by time for a run of the storybook project alone (ci.yml's Story tests
  * (graphty-N) legs); any other run is split as vitest splits it.
  */
 export class StoryShardSequencer extends BaseSequencer {
     override async shard(files: TestSpecification[]): Promise<TestSpecification[]> {
-        // a browser project's specs carry its instance's name, "storybook (chromium)"
-        if (files.length === 0 || files.some((f) => !/^storybook(?: \(|$)/.test(f.project.name))) {
+        if (files.length === 0 || files.some((f) => !isStoryProject(f.project.name))) {
             return super.shard(files);
         }
         const { index, count } = this.ctx.config.shard ?? { index: 1, count: 1 };

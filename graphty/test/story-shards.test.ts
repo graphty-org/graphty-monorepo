@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import { balancedPart, DEFAULT_SECONDS, STORY_SECONDS } from "./story-shards";
+import { balancedPart, DEFAULT_SECONDS, isStoryProject, STORY_SECONDS } from "./story-shards";
 
 const seconds = (file: string): number => STORY_SECONDS[file] ?? DEFAULT_SECONDS;
 const total = (files: string[]): number => files.reduce((sum, f) => sum + seconds(f), 0);
@@ -60,5 +60,16 @@ describe("balancedPart", () => {
         const files = ["a", "b", "c"];
         const parts = [1, 2, 3].map((i) => balancedPart(files, i, 3, () => DEFAULT_SECONDS));
         assert.deepEqual(parts, [["a"], ["b"], ["c"]]);
+    });
+});
+
+describe("isStoryProject", () => {
+    it("takes the storybook project by the names vitest gives its specs, and no other project", () => {
+        // vitest 4 names a browser instance's specs "<project> (<browser>)"
+        assert.isTrue(isStoryProject("storybook (chromium)"));
+        assert.isTrue(isStoryProject("storybook"));
+        for (const name of ["browser (chromium)", "real-element (chromium)", "node", "storybook-extra"]) {
+            assert.isFalse(isStoryProject(name), name);
+        }
     });
 });

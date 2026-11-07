@@ -344,8 +344,9 @@ const BOTTOM_MARKERS: ReadonlyMap<string, readonly Piece[]> = new Map<string, re
  * @returns the attributes
  */
 function piecePaint(piece: Piece, color: string, solid: boolean, look: PieceLook): string {
-    const line = (stroke: string, fill = "none"): string =>
-        `fill="${fill}" stroke="${stroke}"${look.width === undefined ? "" : ` stroke-width="${String(look.width)}"`}`;
+    const strokeWidth = `stroke-width="${String(look.width)}"`;
+    const width = look.width === undefined ? "" : ` ${strokeWidth}`;
+    const line = (stroke: string, fill = "none"): string => `fill="${fill}" stroke="${stroke}"${width}`;
     if (solid || piece[5] === "solid") {
         return `fill="${color}"`;
     }

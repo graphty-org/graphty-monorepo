@@ -1365,11 +1365,12 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         ownFace || (node as unknown as NodeInternals).tableTexts === null
             ? []
             : pieces.filter((piece) => piece.kind === "body" && piece.fill !== undefined);
-    const shown = ownFace || tableBody.length > 0;
+    const imagePiece = pieces.find((piece) => piece.kind === "image");
+    // a node drawn as its picture alone, with no fill and no border (yEd's image and SVG nodes), is drawn all the same
+    const shown = ownFace || tableBody.length > 0 || imagePiece !== undefined;
     // a node with no body draws nothing of its own but what is over its face: drawn as its image (vis-network's
     // image nodes)
-    const picture = faces ? undefined : pieces.find((piece) => piece.kind === "image");
-    const imagePiece = pieces.find((piece) => piece.kind === "image");
+    const picture = faces ? undefined : imagePiece;
     const imageSrc = drawnStyle?.image?.src ?? "";
     // the further pieces of its body (`shape.parts`) are the node, as a program draws a glyph of several pieces
     const body = pieces.filter((piece) => piece.kind === "body").map((piece) => piece.box);

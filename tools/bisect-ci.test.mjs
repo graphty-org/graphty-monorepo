@@ -512,6 +512,51 @@ describe("a point's time limit", () => {
         assert.deepEqual(r, { sha: "p", runs: 0, failed: {} });
     });
 
+    // timeout's --kill-after SIGKILL kills timeout too, so spawnSync reports signal SIGKILL, not status 124
+    it("drops the round when the deadline's run ignores SIGTERM and is killed a minute later", async () => {
+        let clock = 0;
+        const spawn = (cmd, args) => {
+            if (args[1] === "30m") {
+                clock += 25 * 60_000;
+                return { status: 0 };
+            }
+            clock += 61 * 60_000; // ran its whole limit, then the kill-after minute
+            return { status: null, signal: "SIGKILL" };
+        };
+        const r = await runPoint(
+            threeShards,
+            "p",
+            5,
+            spawn,
+            () => true,
+            80 * 60_000,
+            () => clock,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 0, failed: {} });
+    });
+
+    it("fails a target whose run was killed by SIGKILL before its limit", async () => {
+        let clock = 0;
+        const spawn = (cmd, args) => {
+            if (args[1] === "30m") {
+                clock += 25 * 60_000;
+                return { status: 0 };
+            }
+            clock += 60_000; // killed long before its limit, as the out-of-memory killer would
+            return { status: null, signal: "SIGKILL" };
+        };
+        const r = await runPoint(
+            threeShards,
+            "p",
+            1,
+            spawn,
+            () => true,
+            80 * 60_000,
+            () => clock,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 1, failed: { t2: 1 } });
+    });
+
     it("still fails a target whose run passes the lane's own limit before the deadline", async () => {
         const spawn = () => ({ status: 124 });
         const r = await runPoint(

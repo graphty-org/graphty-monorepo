@@ -317,11 +317,18 @@ export async function runArgs(shard, files) {
     return command ? ["--command", shard, command] : [shard];
 }
 
-// One run of tools/run-tests.sh, stopped at `limit`. coreutils timeout signals the run's whole process group
-// (vitest and its browsers too) and exits 124. A run `cut` to the job's deadline is reported by runPoint instead.
-function runLimited(spawn, limit, args, what, cut = false) {
+// One run of tools/run-tests.sh, stopped after `ms`. coreutils timeout signals the run's whole process group
+// (vitest and its browsers too) and exits 124. A run still alive a minute later gets SIGKILL, which kills timeout
+// too (it is in that group): spawnSync then reports signal SIGKILL (a shell would say 137), not 124. A run that
+// killed itself with SIGKILL looks the same, so a SIGKILL is read as timed out only once `ms` has passed.
+// Returns 124 for a run that timed out either way. A run `cut` to the job's deadline is reported by runPoint instead.
+function runLimited(spawn, ms, args, what, cut = false, now = Date.now) {
+    const limit = cut ? `${ms / 1000}s` : `${ms / 60_000}m`;
     const command = ["--kill-after=1m", limit, join(ROOT, "tools/run-tests.sh"), ...args];
-    const code = spawn("timeout", command, { cwd: ROOT, stdio: "inherit" }).status;
+    const start = now();
+    const { status, signal } = spawn("timeout", command, { cwd: ROOT, stdio: "inherit" });
+    const killed = (signal === "SIGKILL" || status === 137) && now() - start >= ms;
+    const code = killed ? 124 : status;
     if (code === 124 && !cut) console.log(`::warning::${what}: no result in the lane's ${limit}; failed`);
     return code;
 }
@@ -370,8 +377,8 @@ export async function runPoint(
             const left = deadline - now() - KILL_AFTER_MS;
             const cut = left < laneMs;
             if (cut && left < 60_000) return outOfTime(r, runs, sha);
-            const limit = cut ? `${Math.floor(left / 1000)}s` : `${laneMs / 60_000}m`;
-            const code = runLimited(spawn, limit, args, `${short(sha)} ${shard}`, cut);
+            const ms = cut ? Math.floor(left / 1000) * 1000 : laneMs;
+            const code = runLimited(spawn, ms, args, `${short(sha)} ${shard}`, cut, now);
             if (cut && code === 124) return outOfTime(r, runs, sha);
             if (code !== 0) for (const t of ts) failed[t.id] = (failed[t.id] ?? 0) + 1;
         }

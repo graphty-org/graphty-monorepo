@@ -42,7 +42,14 @@ import {
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
-import { bpmnPicture, type PortEvent, shinyPlateGloss, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
+import {
+    bpmnPicture,
+    groupIconPicture,
+    type PortEvent,
+    shinyPlateGloss,
+    type UmlClass,
+    umlDrawing,
+} from "./styles-yed-live-drawing.js";
 
 /** How deep a chain of shared references is followed. */
 const MAX_REFERENCE_DEPTH = 16;
@@ -997,12 +1004,13 @@ function readGroupPanel(
     at: SiteOf,
 ): void {
     const tabFill = paintOf(refs, prop(style, "tabFill") ?? "#FFAAAAAA", null);
+    const position = treeAttr(style.e, "tabPosition") ?? "TOP";
+    putGroupIcon(refs, style, size, collapsed, position, put, at);
     if (collapsed) {
         putPaint(tabFill, "fill", "fillOpacity", put, at);
         return;
     }
     putPaint(paintOf(refs, prop(style, "contentAreaFill") ?? "#FFFFFFFF", null), "fill", "fillOpacity", put, at);
-    const position = treeAttr(style.e, "tabPosition") ?? "TOP";
     if (position === "NONE") {
         return;
     }
@@ -1013,6 +1021,52 @@ function readGroupPanel(
         return Number((depth / (i % 2 === 0 ? size.height : size.width)).toFixed(6));
     });
     put("stripeFrame", insets.join(" "));
+}
+
+/**
+ * Writes the picture of a GroupNodeStyle's icon on its tab (`groupIconPicture`): `groupIcon` (none unset) on an open
+ * group, `folderIcon` (a plus unset) on a collapsed one, over a white round square (`iconBackgroundShape`,
+ * `iconBackgroundFill`) in #AAAAAA (`iconForegroundFill`), 14 across (`iconSize`), as yEd Live 8.5.16 draws
+ * `yed-live-graphml-specimen-groups-p2` to `-p4`.
+ * ponytail: a tab on the top only, the one place the sheets draw an icon; another side's icon is not drawn.
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the group's size
+ * @param collapsed - whether the group is collapsed
+ * @param position - its `tabPosition`
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function putGroupIcon(
+    refs: References,
+    style: StyleObject,
+    size: Size,
+    collapsed: boolean,
+    position: string,
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const { attr, color } = styleReader(refs, style, at);
+    const sign = collapsed ? (attr("folderIcon") ?? "PLUS") : (attr("groupIcon") ?? "NONE");
+    if (position !== "TOP") {
+        return;
+    }
+    const number = (name: string, unset: number): number => canonNumber(attr(name) ?? unset, at("image")) ?? unset;
+    const stroke = strokeOf(refs, prop(style, "stroke"));
+    const picture = groupIconPicture(size, stroke === null || stroke === NULL ? 0 : Number(stroke.width) || 0, {
+        sign,
+        background: attr("iconBackgroundShape") ?? "ROUND_RECTANGLE_SOLID",
+        position: attr("iconPosition") ?? "TRAILING",
+        size: number("iconSize", 14),
+        offset: number("iconOffset", 0),
+        foregroundFill: color("iconForegroundFill") ?? "#aaaaaa",
+        backgroundFill: color("iconBackgroundFill") ?? "#ffffff",
+    });
+    if (picture !== null) {
+        put("image", picture);
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
 }
 
 /**

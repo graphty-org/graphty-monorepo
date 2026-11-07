@@ -547,6 +547,32 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         expect(p3.node("fill", "group-collapsed")).toBe("#c8c8c8");
         expect(p3.node("stripeFrame", "group-collapsed")).toBeNull();
     });
+
+    it("draws the group's icon and its background at the tab, as yEd Live does", async () => {
+        const svg = (n: (p: StyleProperty, id: string) => unknown, id: string): string =>
+            decodeURIComponent(String(n("image", id)).split(",")[1]);
+        const p2 = await sheet("specimen-groups-p2.graphml");
+        // yEd Live 8.5.16: <g transform="translate(139 11)"> on a group of 150 by 80, white background, #aaaaaa sign
+        const plus = svg(p2.node, "group-icon-plus");
+        expect(plus).toContain('transform="translate(139 11) scale(1)"');
+        expect(plus).toContain('fill="#ffffff" d="M4.9,-7a2.1,2.1,0,0,1,2.1,2.1v9.8');
+        expect(plus).toContain('fill="#aaaaaa" d="M0.7,-3.5h-1.4v2.8h-2.8');
+        expect(p2.node("imageFit", "group-icon-plus")).toBe("fill");
+        expect(svg(p2.node, "group-icon-triangle-up")).toContain('transform="rotate(-90)"');
+        expect(svg(p2.node, "icon-background-circle")).toContain('d="M0,-7a7,7,0,0,1,0,14a7,7,0,0,1,0,-14Zm0,1.4');
+        expect(svg(p2.node, "icon-background-none")).not.toContain("#ffffff");
+        expect(svg(p2.node, "icon-position-leading")).toContain("translate(11 11)");
+        // no groupIcon: no icon on an open group
+        expect(p2.node("image", "tab-fill")).toBeNull();
+        const p3 = await sheet("specimen-groups-p3.graphml");
+        expect(svg(p3.node, "icon-size-20")).toContain("translate(136 14) scale(1.428571)");
+        expect(svg(p3.node, "icon-offset-8")).toContain("translate(131 19)");
+        expect(svg(p3.node, "icon-foreground-fill")).toContain('fill="#ff0000"');
+        expect(svg(p3.node, "icon-background-fill")).toContain('fill="#00aa00"');
+        // a collapsed group shows its folderIcon, a plus unset
+        const p4 = await sheet("specimen-groups-p4.graphml");
+        expect(svg(p4.node, "v2-group-folder-state")).toContain('fill="#aaaaaa" d="M0.7,-3.5h-1.4v2.8h-2.8');
+    });
 });
 
 describe("yEd Live GraphML: a node label with no layout parameter", () => {

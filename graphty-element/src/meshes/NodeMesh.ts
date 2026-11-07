@@ -1153,7 +1153,9 @@ export class NodeMesh {
     ): void {
         if (gradientTexture) {
             if (gradientTexture.hasAlpha) {
+                // blended, not alpha-tested: a diffuse texture with an alpha is otherwise cut where it fades
                 mat.opacityTexture = gradientTexture;
+                mat.transparencyMode = Material.MATERIAL_ALPHABLEND;
             }
             if (unlit) {
                 // EMISSIVE ONLY. With lighting off the shader draws the emissive term times the

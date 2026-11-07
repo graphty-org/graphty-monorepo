@@ -407,6 +407,23 @@ describe("yEd Live GraphML: a LinearGradient fill", () => {
             colors: ["#ffffff", "#0000ff", "#ffffff", "#0000ff"],
             stops: [0, 0.5, 0.5, 1],
         });
+        // ... a sharp seam too where its stops stop short of its ends
+        expect(spreadRamp({ colors: ["#ffffff", "#0000ff"], stops: [0.2, 0.8] }, "repeat", 0, 2)).toEqual({
+            colors: ["#ffffff", "#ffffff", "#0000ff", "#0000ff", "#ffffff", "#ffffff", "#0000ff", "#0000ff"],
+            stops: [0, 0.1, 0.4, 0.5, 0.5, 0.6, 0.9, 1],
+        });
+        // a hard stop (two at one place) stays hard, run either way
+        expect(
+            spreadRamp(
+                { colors: ["#ff0000", "#ff0000", "#0000ff", "#0000ff"], stops: [0, 0.5, 0.5, 1] },
+                "reflect",
+                0,
+                2,
+            ),
+        ).toEqual({
+            colors: ["#ff0000", "#ff0000", "#0000ff", "#0000ff", "#0000ff", "#ff0000", "#ff0000"],
+            stops: [0, 0.25, 0.25, 0.5, 0.75, 0.75, 1],
+        });
     });
 
     it("notes a REFLECT ramp run again too many times across its box, as a hostile file's tiny ramp is", async () => {
@@ -427,6 +444,27 @@ describe("yEd Live GraphML: a LinearGradient fill", () => {
         const at = snapshot.ids.requireIndex("linear-gradient-reflect");
         expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at]).toBeNull();
         expect(resolveStyles(styles, "node", "fill", snapshot)[at]).toBe("#ffffff");
+        expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
+    });
+
+    it("notes a REFLECT ramp of too many stops to unroll across its box", async () => {
+        const stop = '<yjs:GradientStop color="#FFFFFFFF" offset="0"/>';
+        const many = Array.from({ length: 300 }, (_, i) => stop.replace('offset="0"', `offset="${String(i / 299)}"`));
+        const text = readFileSync(join(SHEETS, "specimen-node-fills-borders.graphml"), "utf8").replace(
+            `endPoint="0.6,0.5">${stop}<yjs:GradientStop color="#FF0000FF" offset="1"/>`,
+            `endPoint="0.6,0.5">${many.join("")}`,
+        );
+        assert(text.includes('offset="0.5016722408026756"'));
+        const { styles, snapshot } = await registry.importGraph(new TextEncoder().encode(text), {
+            format: "graphml",
+            styles: { toolDefaults: true },
+            errorLimit: Infinity,
+        });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const at = snapshot.ids.requireIndex("linear-gradient-reflect");
+        expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at]).toBeNull();
         expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
     });
 

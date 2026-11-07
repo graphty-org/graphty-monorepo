@@ -298,6 +298,8 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
 
         assert.strictEqual(clear.opacityTexture, clear.diffuseTexture);
         assert.isTrue(clear.needAlphaBlending());
+        // a lit node blends the fade rather than cutting it off where the alpha test would
+        assert.isNotOk(clear.needAlphaTesting());
         assert.strictEqual(halfIn2D.opacityTexture, halfIn2D.emissiveTexture);
         assert.isNull(opaque.opacityTexture);
         assert.isNotOk(opaque.needAlphaBlending());

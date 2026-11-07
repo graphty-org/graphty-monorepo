@@ -731,6 +731,37 @@ describe("gradients", () => {
                 [1, "#0000ff"],
             ],
         );
+        // ... sharp too where its stops stop short of its ends, and a hard stop stays hard run either way
+        const short = wb.map((st, i) => ({ ...st, offset: i === 0 ? 0.2 : 0.8 }));
+        assert.deepEqual(
+            spreadStops(short, "repeat", 0, 2).map((s) => [s.offset, s.color]),
+            [
+                [0, "#ffffff"],
+                [0.1, "#ffffff"],
+                [0.4, "#0000ff"],
+                [0.5, "#0000ff"],
+                [0.5, "#ffffff"],
+                [0.6, "#ffffff"],
+                [0.9, "#0000ff"],
+                [1, "#0000ff"],
+            ],
+        );
+        const hard = linear(0, "#ff0000", "#ff0000", "#0000ff", "#0000ff").stops.map((st, i) => ({
+            ...st,
+            offset: [0, 0.5, 0.5, 1][i],
+        }));
+        assert.deepEqual(
+            spreadStops(hard, "reflect", 0, 2).map((s) => [s.offset, s.color]),
+            [
+                [0, "#ff0000"],
+                [0.25, "#ff0000"],
+                [0.25, "#0000ff"],
+                [0.5, "#0000ff"],
+                [0.75, "#0000ff"],
+                [0.75, "#ff0000"],
+                [1, "#ff0000"],
+            ],
+        );
         // a ramp that spans its shape, or a padded one, keeps its stops
         assert.deepEqual(spreadStops(wb, "reflect", 0, 1), wb);
         assert.deepEqual(spreadStops(wb, "pad", -0.5, 1), wb);

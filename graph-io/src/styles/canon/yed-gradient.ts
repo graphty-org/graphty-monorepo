@@ -54,26 +54,47 @@ export function spreadRamp(ramp: Ramp, spread: "reflect" | "repeat", start: numb
     const alpha = ramp.colors.some((c) => c.length === 9);
     const colors = alpha ? ramp.colors.map((c) => (c.length === 9 ? c : `${c}ff`)) : ramp.colors;
     const flat = { colors, stops: ramp.stops };
-    // where along its stops the ramp is at t; `late` reads a repeat's seam from its left
-    const fold = (t: number, late: boolean): number => {
-        if (spread === "repeat") {
-            const u = t - Math.floor(t);
-            return late && u === 0 ? 1 : u;
-        }
-        const u = t - 2 * Math.floor(t / 2);
-        return u <= 1 ? u : 2 - u;
-    };
     const [t0, t1] = [nearPlace(start), nearPlace(end)];
     const out: { color: string; stop: number }[] = [];
     for (const t of rampPlaces(ramp.stops, t0, t1)) {
         const stop = Math.round(((t - t0) / (t1 - t0)) * 1e6) / 1e6;
-        const [late, early] = [colorAlong(flat, fold(t, true)), colorAlong(flat, fold(t, false))];
-        if (t !== t0 && t !== t1 && late !== early) {
-            out.push({ color: late, stop });
+        const [left, right] = foldPlace(spread, t).map((side) => colorAlong(flat, side.u, side.above));
+        // a seam or a hard stop is two colors at one place; the box's own ends show only the side inside it
+        if (t !== t0) {
+            out.push({ color: left, stop });
         }
-        out.push({ color: t === t1 ? late : early, stop });
+        if (t !== t1 && (t === t0 || right !== left)) {
+            out.push({ color: right, stop });
+        }
     }
     return { colors: out.map((o) => o.color), stops: out.map((o) => o.stop) };
+}
+
+/** Where along its stops a ramp is, and whether it is read from above that place (its later stops) or below. */
+interface Along {
+    readonly u: number;
+    readonly above: boolean;
+}
+
+/**
+ * Where along its stops a reflected or repeated ramp is just before a place and just after it: a repeat jumps from
+ * its end back to its start at each whole place; a reflection runs back down its stops on every other run.
+ * @param spread - `reflect` or `repeat`
+ * @param t - the place
+ * @returns the ramp just before it and just after it
+ */
+function foldPlace(spread: "reflect" | "repeat", t: number): [Along, Along] {
+    if (spread === "repeat") {
+        const u = t - Math.floor(t);
+        return [
+            { u: u === 0 ? 1 : u, above: false },
+            { u, above: true },
+        ];
+    }
+    const m = t - 2 * Math.floor(t / 2);
+    const before: Along = m > 0 && m <= 1 ? { u: m, above: false } : { u: m === 0 ? 0 : 2 - m, above: true };
+    const after: Along = m < 1 ? { u: m, above: true } : { u: 2 - m, above: false };
+    return [before, after];
 }
 
 /**
@@ -84,7 +105,8 @@ export function spreadRamp(ramp: Ramp, spread: "reflect" | "repeat", start: numb
 const nearPlace = (t: number): number => Math.round(t * 1e9) / 1e9;
 
 /**
- * Every place from `t0` to `t1` where a ramp's stops, run again past their ends either way, fall, with both ends.
+ * Every place from `t0` to `t1` where a ramp's stops, run again past their ends either way, fall, or where a run
+ * ends, with both ends.
  * @param stops - the stops, 0 to 1
  * @param t0 - the first place
  * @param t1 - the last
@@ -93,7 +115,7 @@ const nearPlace = (t: number): number => Math.round(t * 1e9) / 1e9;
 function rampPlaces(stops: readonly number[], t0: number, t1: number): number[] {
     const at = new Set([t0, t1]);
     for (let k = Math.floor(t0) - 1; k <= Math.ceil(t1) + 1; k++) {
-        for (const t of stops.flatMap((s) => [nearPlace(k + s), nearPlace(k + 1 - s)])) {
+        for (const t of [k, ...stops.flatMap((s) => [nearPlace(k + s), nearPlace(k + 1 - s)])]) {
             if (t > t0 && t < t1) {
                 at.add(t);
             }
@@ -103,19 +125,24 @@ function rampPlaces(stops: readonly number[], t0: number, t1: number): number[] 
 }
 
 /**
- * A ramp's color at a place along its stops, mixed channel by channel (and its alpha, for `#rrggbbaa` colors).
+ * A ramp's color at a place along its stops, mixed channel by channel (and its alpha, for `#rrggbbaa` colors). At a
+ * hard stop (two stops at one place) the color below it is its first stop's and the one above it its last's.
  * @param ramp - the ramp, its colors all one length
  * @param u - the place, 0 to 1
+ * @param above - read from above the place, not below
  * @returns the color
  */
-function colorAlong(ramp: Ramp, u: number): string {
+function colorAlong(ramp: Ramp, u: number, above: boolean): string {
     const { colors, stops } = ramp;
-    const k = stops.findIndex((s) => s >= u);
-    if (k <= 0) {
-        return colors[k < 0 ? colors.length - 1 : 0];
+    const last = colors.length - 1;
+    // the stop at or before the place, read from the side asked; -1 before the first, `last` past the last
+    const next = stops.findIndex((s) => s >= u);
+    const k = above ? stops.filter((s) => s <= u).length - 1 : (next < 0 ? colors.length : next) - 1;
+    if (k < 0 || k >= last) {
+        return colors[k < 0 ? 0 : last];
     }
-    const f = stops[k] > stops[k - 1] ? (u - stops[k - 1]) / (stops[k] - stops[k - 1]) : 0;
-    const [a, b] = [colors[k - 1], colors[k]];
+    const f = stops[k + 1] > stops[k] ? (u - stops[k]) / (stops[k + 1] - stops[k]) : 1;
+    const [a, b] = [colors[k], colors[k + 1]];
     const ch = (h: string, i: number): number => Number.parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
     const channels = a.length === 9 ? [0, 1, 2, 3] : [0, 1, 2];
     return `#${channels

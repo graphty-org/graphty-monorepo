@@ -73,9 +73,14 @@ async function rested(minimum: boolean): Promise<Record<string, [number, number]
  * Loads the graph with its size and pre-steps set first, as a story does, and reads where every node rested.
  * @param path - The render path.
  * @param drawnFirst - Whether the nodes are drawn at their size before the layout is built.
+ * @param minDelta - The move below which a round counts as settled; 0 for none.
  * @returns Each node's x and y, by id.
  */
-async function restedOn(path: RenderPath, drawnFirst: boolean): Promise<Record<string, [number, number]>> {
+async function restedOn(
+    path: RenderPath,
+    drawnFirst: boolean,
+    minDelta = 0,
+): Promise<Record<string, [number, number]>> {
     graph?.dispose();
     container?.remove();
     container = document.createElement("div");
@@ -86,7 +91,7 @@ async function restedOn(path: RenderPath, drawnFirst: boolean): Promise<Record<s
     graph = g;
     await g.init();
     g.setRenderPath(path);
-    await g.getSession().config.set({ layoutBehavior: { preSteps: 50 } });
+    await g.getSession().config.set({ layoutBehavior: { preSteps: 50, minDelta } });
     await g.getSession().styles.add({
         name: "large nodes",
         target: "node",
@@ -122,6 +127,14 @@ describe("a seeded nodeGap layout", () => {
             assert.deepStrictEqual(before, after);
         },
     );
+
+    // A round stepped while the pre-steps wait for the sizes moves nothing, and with minDelta that
+    // read as settled: the layout stopped where the circular layout had put the nodes.
+    it("rests at the same places built before or after the nodes are drawn, with minDelta set", async () => {
+        const before = await restedOn("objects", false, 0.01);
+        const after = await restedOn("objects", true, 0.01);
+        assert.deepStrictEqual(before, after);
+    });
 
     it("rests at the same places on the object rows and on the batch", async () => {
         const objects = await restedOn("objects", false);

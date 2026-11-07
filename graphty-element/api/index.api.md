@@ -5132,6 +5132,8 @@ class Node_2 implements ModelUser {
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;
+    // @internal
+    imageDrawn(): BaseTexture | null;
     get index(): number;
     isDisposed(): boolean;
     // @internal

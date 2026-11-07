@@ -317,4 +317,72 @@ describe("node.texture", () => {
         assert.equal(problem?.params.assetKind, "image");
         assert.isFalse(drawnAsModel(element.graph, "a"));
     });
+
+    it("frees a picture once no layer names it, and keeps it while another layer does", async () => {
+        const element = await mount();
+        const { scene } = element.graph;
+        await element.graph.addNodes([{ id: "a" }, { id: "b" }]);
+        const picture = await element.session.assets.add({ files: new Map([["dots.png", PNG_1X1]]) });
+        const drawn = nextModelEvent(element, (change) => change.ref === picture.id && change.state === "drawn");
+        const first = await element.session.styles.add({
+            name: "picture on a",
+            target: "node",
+            selector: { match: "ids", nodes: ["a"] },
+            set: { "node.texture": picture.id },
+        });
+        const second = await element.session.styles.add({
+            name: "picture on b",
+            target: "node",
+            selector: { match: "ids", nodes: ["b"] },
+            set: { "node.texture": picture.id },
+        });
+        await drawn;
+        await element.waitForStableFrame();
+        const named = `graphty-texture-${picture.id}`;
+        const texture = scene.textures.find((each) => each.name === named);
+        assert.isDefined(texture);
+
+        await element.session.styles.remove(first.id);
+        await element.waitForStableFrame();
+        assert.include(scene.textures, texture, "still named by a layer");
+        assert.include(surfaceOf(element, "b") ?? "", picture.id);
+
+        await element.session.styles.remove(second.id);
+        await element.waitForStableFrame();
+        assert.notInclude(scene.textures, texture);
+        assert.isFalse(scene.textures.some((each) => each.name === named));
+        assert.isNull(surfaceOf(element, "a"));
+        assert.isNull(surfaceOf(element, "b"));
+    });
+
+    it("frees a model's picture once no layer names it, with the template built with it", async () => {
+        const element = await mount();
+        const { scene } = element.graph;
+        await element.graph.addNodes([{ id: "a" }]);
+        const ball = await element.session.assets.add(sphereGlb(12, 6));
+        const picture = await element.session.assets.add({ files: new Map([["dots.png", PNG_1X1]]) });
+        await element.session.styles.add({
+            name: "ball",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.model": ball.id },
+        });
+        const drawn = nextModelEvent(element, (change) => change.ref === ball.id && change.state === "drawn");
+        const layer = await element.session.styles.add({
+            name: "picture",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.texture": picture.id },
+        });
+        await drawn;
+        await element.waitForStableFrame();
+        const named = `graphty-texture-${picture.id}`;
+        const texture = scene.textures.find((each) => each.name === named);
+        assert.isDefined(texture);
+
+        await element.session.styles.remove(layer.id);
+        await element.waitForStableFrame();
+        assert.notInclude(scene.textures, texture);
+        assert.isTrue(drawnAsModel(element.graph, "a"), "the model is still drawn, with its own colors");
+    });
 });

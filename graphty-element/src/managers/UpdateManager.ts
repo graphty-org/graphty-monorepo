@@ -31,7 +31,7 @@ import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
-import { texturesLoading } from "../models/TextureCache";
+import { texturesFreeing, texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
 import type { EdgeAgeFade } from "../session/time/ageFade";
@@ -1982,6 +1982,7 @@ export class UpdateManager implements Manager {
         // A template nothing uses is freed by counting frames, which a graph drawing on demand
         // stops making once the picture is finished.
         work.watch("model", "an unused 3D model is still being freed", () => modelsFreeing(scene()));
+        work.watch("picture", "an unused picture is still being freed", () => texturesFreeing(scene()));
         // Set from outside by older code; see the two properties.
         work.watch("picture", "a picture is still loading", () => this.picturesLoading?.() === true);
         work.watch(

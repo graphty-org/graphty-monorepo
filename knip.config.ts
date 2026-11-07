@@ -14,6 +14,14 @@ import type { KnipConfig } from "knip";
 // gate (`treatConfigHintsAsErrors` below), so they are added only when `--production` is set.
 const production = process.argv.includes("--production");
 
+// One TypeScript program: tools/run-knip.sh stops knip reading any tsconfig.json, because knip built
+// one program per tsconfig.json that declares `paths` and parsed every shared file once per program,
+// which ran the default run out of CI's 4 GB heap (issue #6142). Imports still resolve through each
+// tsconfig.json's `paths`. Two things knip took from those files are listed below by hand instead:
+// the declaration files (.d.ts) a tsconfig.json includes, and the src/ file behind a package.json
+// entry that names a dist/ build (knip mapped dist/ back to src/ from a tsconfig.json's outDir).
+// A new one of either shows up as an unused file or unused exports until it is listed here.
+
 const config: KnipConfig = {
     workspaces: {
         // Root workspace - shared configs and docs
@@ -66,6 +74,8 @@ const config: KnipConfig = {
             entry: [
                 "graph-format.ts!",
                 "src/index.ts!",
+                // a declaration file tsconfig.json includes (see "One TypeScript program" at the top)
+                "src/lib-resizable-array-buffer.d.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
                 "scripts/**/*.{ts,js,mjs}",
@@ -137,6 +147,8 @@ const config: KnipConfig = {
                 "test/consumer/consumer.ts",
                 // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
                 ".storybook/vitest.setup.visual.ts",
+                // a declaration file tsconfig.json includes (see "One TypeScript program" at the top)
+                "stories/vite-env.d.ts!",
             ],
             project: ["src/**/*.ts!", "scripts/**/*.ts", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
             // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms
@@ -164,7 +176,14 @@ const config: KnipConfig = {
 
         // babylonjs-map package: the root and the Babylon-free "./location" and "./projection" subpaths are entries
         "babylonjs-map": {
-            entry: ["src/index.ts!", "src/location/index.ts!", "src/projection/index.ts!", "test/**/*.test.ts"],
+            entry: [
+                "src/index.ts!",
+                "src/location/index.ts!",
+                "src/projection/index.ts!",
+                "test/**/*.test.ts",
+                // a declaration file tsconfig.json includes (see "One TypeScript program" at the top)
+                "src/location/utm.d.ts!",
+            ],
             project: ["src/**/*.ts!", "test/**/*.ts"],
         },
 
@@ -251,6 +270,8 @@ const config: KnipConfig = {
             entry: [
                 // Loaded by its storybook vitest project only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
                 ".storybook/vitest.setup.visual.ts",
+                // a declaration file tsconfig.json includes (see "One TypeScript program" at the top)
+                "vitest.shims.d.ts!",
                 // The published entry points. Each has a subpath in package.json's exports map,
                 // so each is a door a consumer comes through and nothing reachable from one is
                 // dead. A default run derives them from the exports map (and hints a repeat as
@@ -355,7 +376,19 @@ const config: KnipConfig = {
 
         // remote-logger package
         "remote-logger": {
-            entry: ["src/bundle/browser-entry.ts!", "bin/**/*.js!", "test/**/*.test.ts"],
+            entry: [
+                "src/bundle/browser-entry.ts!",
+                "bin/**/*.js!",
+                "test/**/*.test.ts",
+                // the published subpaths: package.json exports name their dist/ builds, which knip maps
+                // back to src/ only from a tsconfig.json it reads (see "One TypeScript program" at the top)
+                "src/index.ts!",
+                "src/client/index.ts!",
+                "src/mcp/index.ts!",
+                "src/server/index.ts!",
+                "src/ui/index.ts!",
+                "src/vite/index.ts!",
+            ],
             project: ["src/**/*.ts!", "test/**/*.ts", "bin/**/*.js!"],
         },
 
@@ -377,6 +410,12 @@ const config: KnipConfig = {
             // import.meta.glob (src/theme/components/index.ts, src/theme/global-styles.ts), which
             // knip cannot follow, so they are entries of their own.
             entry: [
+                // The package root, for the production run: package.json exports name dist/index.js,
+                // which knip maps back to src/ only from a tsconfig.json it reads (see "One TypeScript
+                // program" at the top). The default run takes it from vite.config.ts's library entry.
+                ...(production ? ["src/index.ts!"] : []),
+                // a declaration file tsconfig.json includes (see "One TypeScript program" at the top)
+                "src/assets.d.ts!",
                 "src/theme/components/*.ts!",
                 "src/theme/css/*.css.ts!",
                 "tests/**/*.test.{ts,tsx}",
@@ -385,6 +424,10 @@ const config: KnipConfig = {
                 ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}", "stories/**/*.tsx"],
+            // A --production run drops every entry a plugin names for development, and the Vite plugin
+            // names src/index.ts (the library entry), so it would drop the root entry above with it.
+            // The plugin finds nothing else that run reads.
+            ...(production ? { vite: false } : {}),
             ignoreDependencies: [
                 // Used in storybook demos
                 "@zag-js/floating-panel",

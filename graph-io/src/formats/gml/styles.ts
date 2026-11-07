@@ -96,6 +96,8 @@ import {
     yedSpelled,
     yedValue,
 } from "../graphml/styles-yed.js";
+import type { YedBox } from "../graphml/yed-group-bounds.js";
+import { gmlGroupBounds } from "./groups.js";
 import { writtenByGv2gml } from "./positions.js";
 import { KEY_MANGLED_CODE, mangleGmlKey } from "./syntax.js";
 
@@ -1546,12 +1548,16 @@ function readValues(
         if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare) {
             return out.values;
         }
+        // yEd draws an open group round its members, not at the size the file stores
+        const groups = target === "node" ? gmlGroupBounds(snapshot) : new Map<number, YedBox>();
         for (let i = 0; i < n; i++) {
             context.budget.spend(target, 1);
             const at: At = (property) => ({ notes, target, property, element: i, budget: context.budget });
+            const g = cellOf(table, "graphics", i);
+            const box = groups.get(i);
             readElement(
                 target,
-                cellOf(table, "graphics", i),
+                box === undefined || !isRec(g) ? g : { ...g, w: box[2] - box[0], h: box[3] - box[1] },
                 cellOf(table, "LabelGraphics", i),
                 labelOf(snapshot, writer, target, i),
                 writer,

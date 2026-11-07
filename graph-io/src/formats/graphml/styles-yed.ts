@@ -42,8 +42,9 @@ import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { svgPicture } from "./styles-yed-live-drawing.js";
 import { yedNodePicture } from "./styles-yed-drawing.js";
+import { svgPicture } from "./styles-yed-live-drawing.js";
+import { YED_GROUP_INSETS, type YedBox, yedGroupBounds, type YedGroupFrame } from "./yed-group-bounds.js";
 
 // ============================================================ the kept trees
 
@@ -2360,6 +2361,92 @@ export interface YedRead {
 }
 
 /**
+ * The height yEd gives a label of some lines of text: each line its font's ascent plus descent, and the box's padding.
+ * @param text - the label's text
+ * @param fontSize - its font size
+ * @returns the height
+ */
+export function yedLabelHeight(text: string, fontSize: number): number {
+    return text.split("\n").length * YED_LABEL_LINE * fontSize + YED_LABEL_BOX_PADDING;
+}
+
+/**
+ * The frame of an open yEd GraphML group (a `y:ProxyAutoBoundsNode` whose active realizer is not closed): its
+ * `y:Insets`, and the height yEd measures for its visible labels inside its top (`internal` at `t`, `tl` or `tr`), not
+ * the height the file stores (17 for a 10 pt label yEd draws 15.6406 high in `yed-graphml-specimen-groups`).
+ * @param tree - the node's graphics tree
+ * @returns the frame, or null for a node that is not an open group
+ */
+function graphmlGroupFrame(tree: unknown): YedGroupFrame | null {
+    const proxy = treeChild(tree, "ProxyAutoBoundsNode");
+    const real = proxy === undefined ? null : activeRealizer(proxy);
+    if (real === null || treeAttr(treeChild(real.r, "State"), "closed") === "true") {
+        return null;
+    }
+    const insets = treeChild(real.r, "Insets");
+    const inset = (side: string): number => {
+        const v = Number(treeAttr(insets, `${side}F`) ?? treeAttr(insets, side));
+        return insets !== undefined && Number.isFinite(v) ? v : YED_GROUP_INSETS;
+    };
+    const tops = treeChildren(real.r, "NodeLabel").filter(
+        (l) =>
+            treeAttr(l, "visible") !== "false" &&
+            (treeAttr(l, "modelName") ?? "internal") === "internal" &&
+            ["t", "tl", "tr"].includes(treeAttr(l, "modelPosition") ?? "c") &&
+            (treeText(l)?.trim() ?? "") !== "",
+    );
+    const label = Math.max(
+        0,
+        ...tops.map((l) => yedLabelHeight(treeText(l)?.trim() ?? "", Number(treeAttr(l, "fontSize") ?? 12) || 12)),
+    );
+    return { insets: [inset("top"), inset("left"), inset("bottom"), inset("right")], label };
+}
+
+/**
+ * The boxes yEd draws the open groups of a yEd GraphML graph in (`yedGroupBounds`), by node index: left, top, right
+ * and bottom, y down.
+ * @param snapshot - the graph
+ * @returns the boxes of the open groups with members
+ */
+export function graphmlGroupBounds(snapshot: GraphSnapshot): Map<number, YedBox> {
+    const columns = treeColumns(snapshot.nodes);
+    const treeOf = (row: number): unknown =>
+        columns.map((c) => plainCell(snapshot.nodes.value(c, row))).find((t) => realizerOf(t, NODE_REALIZERS) !== null);
+    if (columns.length === 0) {
+        return new Map();
+    }
+    return yedGroupBounds(
+        snapshot,
+        (row) => {
+            const real = realizerOf(treeOf(row), NODE_REALIZERS);
+            const geometry = treeChild(real?.r, "Geometry");
+            const [x, y, w, h] = ["x", "y", "width", "height"].map((a) => Number(treeAttr(geometry, a)));
+            return [x, y, w, h].every(Number.isFinite) ? [x, y, x + w, y + h] : null;
+        },
+        (row) => graphmlGroupFrame(treeOf(row)),
+    );
+}
+
+/**
+ * A realizer with its `y:Geometry` replaced by a box.
+ * @param real - the realizer
+ * @param box - the box
+ * @returns the realizer drawn at the box
+ */
+function realizerAt(real: Realizer, box: YedBox): Realizer {
+    const geometry = {
+        "@_x": String(box[0]),
+        "@_y": String(box[1]),
+        "@_width": String(box[2] - box[0]),
+        "@_height": String(box[3] - box[1]),
+    };
+    const kept = Object.fromEntries(
+        Object.entries(real.r as Tree).filter(([key]) => key.startsWith("@_") || localOf(key) !== "Geometry"),
+    );
+    return { type: real.type, r: { "y:Geometry": geometry, ...kept } };
+}
+
+/**
  * The yEd styles of a graph: each element's realizer read into canonical values.
  * @param snapshot - the graph
  * @param notes - where problems are noted
@@ -2372,6 +2459,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     const resources = yedResources(snapshot);
     // each node's center, width and height, read with the node, for its edges' routes; NaN without yEd graphics
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
+    const groups = graphmlGroupBounds(snapshot);
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -2396,6 +2484,8 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
                 out.put(i, property, value);
             };
             if (target === "node") {
+                const box = groups.get(i);
+                real = box === undefined ? real : realizerAt(real, box);
                 readNode(real, put, at, resources);
                 const geometry = treeChild(real.r, "Geometry");
                 const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];

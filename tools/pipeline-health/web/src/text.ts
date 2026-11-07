@@ -735,7 +735,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.bench_regressions": {
         name: "Benchmark regressions",
         short: "benchmark regressions",
-        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before, by more than one step of the timer's resolution. A benchmark with fewer than 13 runs is not judged, so the count stays 0 until benchmarks have that history.",
+        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before, by more than one step of the timer's resolution and by more than 3 times the median scatter of those 10 runs. A benchmark with fewer than 13 runs is not judged, so the count stays 0 until benchmarks have that history.",
         red: "3 or more: performance regressed. See Benchmarks below.",
     },
     "flaky.blocked": {

@@ -475,6 +475,54 @@ describe("StylePainter channels", () => {
     });
 });
 
+describe("StylePainter shared edge paints", () => {
+    it("hands every edge of one look the same paint, built once (#6026)", async () => {
+        // A time window's Ghost row moves thousands of edges a frame between two looks; building
+        // each one's paint afresh was a third of the frame.
+        const held = harness();
+        await held.paintAll();
+
+        const first = held.painter.edgePaint(0);
+        assert.isNotNull(first);
+        assert.isTrue(held.painter.edgePaint(1) === first, "the other edge of the same look shares it");
+        assert.isTrue(held.painter.edgePaint(0) === first, "and asking again builds nothing");
+    });
+
+    it("builds a new paint once the look changes", async () => {
+        const held = harness();
+        await held.paintAll();
+        const before = held.painter.edgePaint(0);
+
+        await held.styles.add({
+            name: "edge colour",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": "#FF0000" },
+        });
+        await held.paintAll();
+
+        const after = held.painter.edgePaint(0);
+        assert.isFalse(after === before);
+        assert.strictEqual(after?.style.line?.color, "#ff0000");
+        assert.isTrue(held.painter.edgePaint(1) === after);
+    });
+
+    it("never shares the paint of an edge that carries content of its own", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "labels",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.label": "wire" },
+        });
+        await held.paintAll();
+
+        const first = held.painter.edgePaint(0);
+        assert.strictEqual(first?.style.label?.text, "wire");
+        assert.isFalse(held.painter.edgePaint(1) === first, "a label is per edge, so its paint is too");
+    });
+});
+
 describe("StylePainter arrowheads", () => {
     it("draws a head on a directed graph's edges and none on an undirected graph's", async () => {
         const directed = harness(true);

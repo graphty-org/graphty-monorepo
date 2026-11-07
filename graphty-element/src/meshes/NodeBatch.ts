@@ -305,6 +305,8 @@ export class NodeBatches {
     private readonly groups = new Map<Mesh, RowGroup>();
     private readonly groupOf = new Map<Node, RowGroup>();
     private readonly objectRows = new Set<Node>();
+    /** The nodes a frame's walk still visits: every member a batch does not draw, and any with an overlay. */
+    private readonly walked = new Set<Node>();
     private readonly dirty = new Set<RowGroup>();
     private readonly stopFlush: () => void;
     private view: BatchView;
@@ -345,6 +347,41 @@ export class NodeBatches {
      */
     draws(node: Node): boolean {
         return this.groupOf.get(node)?.batched === true;
+    }
+
+    /**
+     * The nodes a frame's walks visit (`Node.update`, the moved-node and border checks): the object
+     * rows, and batched rows with an overlay to carry. A batched row is drawn from the row table,
+     * which the coordinate lane fills in one typed pass, so it needs no visit of its own.
+     * @param nodes - How many nodes the graph holds.
+     * @returns The nodes, or null while some node has not been placed on a path yet, when the walk
+     *     has to visit every node.
+     */
+    roster(nodes: number): ReadonlySet<Node> | null {
+        return this.groupOf.size === nodes ? this.walked : null;
+    }
+
+    /**
+     * Put a node on the roster or take it off, by whether it still needs a frame's visit. Called
+     * whenever its batch or its overlays change.
+     * @param node - The node.
+     */
+    rewalk(node: Node): void {
+        if (this.groupOf.has(node) && node.walksEachFrame) {
+            this.walked.add(node);
+        } else {
+            this.walked.delete(node);
+        }
+    }
+
+    /**
+     * Say whether a batch draws a node, and keep the roster with it.
+     * @param node - The node.
+     * @param source - The batch's source mesh, or null for its own mesh.
+     */
+    private draw(node: Node, source: Mesh | null): void {
+        node.drawInBatch(source);
+        this.rewalk(node);
     }
 
     /**
@@ -392,10 +429,10 @@ export class NodeBatches {
         if (group.batched && !object) {
             group.batch?.put(node.index, node.drawnInstanceColor);
             // A row the table does not hold yet keeps its mesh until the flush settles its group.
-            node.drawInBatch(node.index < this.host.places.rows ? group.source : null);
+            this.draw(node, node.index < this.host.places.rows ? group.source : null);
             this.dirty.add(group);
         } else {
-            node.drawInBatch(null);
+            this.draw(node, null);
         }
     }
 
@@ -411,7 +448,7 @@ export class NodeBatches {
 
         this.groupOf.delete(node);
         group.members.delete(node);
-        node.drawInBatch(null);
+        this.draw(node, null);
         if (this.objectRows.delete(node)) {
             group.objects--;
         }
@@ -536,7 +573,7 @@ export class NodeBatches {
 
         group.batched = batched;
         for (const node of group.members) {
-            node.drawInBatch(batched ? group.source : null);
+            this.draw(node, batched ? group.source : null);
         }
 
         group.source.visibility = batched ? 0 : group.restVisibility;
@@ -550,8 +587,8 @@ export class NodeBatches {
     private forget(group: RowGroup): void {
         this.groups.delete(group.source);
         for (const node of group.members) {
-            node.drawInBatch(null);
             this.groupOf.delete(node);
+            this.draw(node, null);
             this.objectRows.delete(node);
         }
     }

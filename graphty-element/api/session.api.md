@@ -202,6 +202,7 @@ export interface AssetsApi {
     supply(ref: string, answer: PartAnswer, options?: {
         readonly signal?: AbortSignal;
     }): Promise<AssetRecord>;
+    usedBy(ref: string): readonly LayerId[];
     waiting(): readonly AssetRecord[];
 }
 
@@ -226,6 +227,9 @@ string
 
 // @public
 export type AssetState = "pending" | "accepted" | "rejected";
+
+// @public
+export type AssetStorage = "embed" | "url";
 
 // @public
 export interface AttributeDescriptor {
@@ -431,6 +435,7 @@ export const browserProjects: BrowserProjects;
 
 // @public
 export interface BrowserProjectSaveOptions {
+    readonly assets?: ProjectSaveOptions["assets"];
     readonly id?: string;
 }
 
@@ -1031,7 +1036,7 @@ export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "node-models";
 
 // @public
 export interface FieldBand {
@@ -3876,6 +3881,7 @@ export const PROJECT_FILE: Readonly<{
 
 // @public
 export interface ProjectApi {
+    assetChoices(): ProjectAssetChoice[];
     readonly dirty: boolean;
     readonly id: string;
     markSaved(saved: SavedProject): void;
@@ -3883,6 +3889,17 @@ export interface ProjectApi {
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
     rename(name: string | null): Promise<void>;
     save(options?: ProjectSaveOptions): Promise<SavedProject>;
+}
+
+// @public
+export interface ProjectAssetChoice {
+    readonly byteLength: number;
+    readonly id: AssetId;
+    readonly kind: "model" | "image";
+    readonly layerIds: readonly LayerId[];
+    readonly storage: AssetStorage;
+    readonly url: string;
+    readonly urlRefused?: CodedFact<"W_MODEL_NOT_KEPT_BY_URL">;
 }
 
 // @public
@@ -3968,7 +3985,7 @@ export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 
 // @public
 export interface ProjectSaveOptions {
-    readonly assets?: Readonly<Record<string, "embed" | "url">>;
+    readonly assets?: Readonly<Record<string, AssetStorage>>;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
@@ -6350,6 +6367,7 @@ export interface StoredProject {
     readonly id: string;
     readonly name: string | null;
     readonly nodes: number;
+    readonly report?: ProjectSaveReport;
     readonly savedAt: number;
 }
 

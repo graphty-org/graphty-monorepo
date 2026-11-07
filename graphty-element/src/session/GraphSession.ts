@@ -2576,8 +2576,23 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let settledFeatures: EnabledFeatures | undefined;
     const requested = options.features ?? ((): undefined => undefined);
     const settleFeatures = (): EnabledFeatures => (settledFeatures ??= resolveFeatures(requested()));
-    // Asked without settling: an element's attributes may still be arriving.
-    const timelineOn = (): boolean => (settledFeatures ?? resolveFeatures(requested())).enabled.includes("timeline");
+    // Asked without settling, as an element's attributes may still be arriving, and on every
+    // timeline move: resolved again only when the ids asked for are a new array.
+    let askedFor: readonly string[] | null = null;
+    let askedOn = false;
+    const timelineOn = (): boolean => {
+        if (settledFeatures !== undefined) {
+            return settledFeatures.enabled.includes("timeline");
+        }
+
+        const asked = requested() ?? pageDefaultFeatures();
+        if (asked !== askedFor) {
+            askedFor = asked;
+            askedOn = resolveFeatures(asked).enabled.includes("timeline");
+        }
+
+        return askedOn;
+    };
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is

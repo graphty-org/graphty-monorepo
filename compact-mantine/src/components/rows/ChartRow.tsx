@@ -168,7 +168,10 @@ export interface HistogramBin {
      * behind what the other filters leave: the gap between them is what a filter took away.
      */
     ghost?: number;
-    /** Where this bin starts on the brush's scale. With a brush, bars are placed by it. */
+    /**
+     * Where this bin starts on the brush's scale. With a brush, bars are placed by it. A bin whose
+     * `from` equals its `to` holds one value and is drawn a brush step wide, centered on it.
+     */
     from?: number;
     /** Where this bin ends on the brush's scale. */
     to?: number;
@@ -237,6 +240,8 @@ export interface HistogramRowProps {
      * A range brush on the bars' own scale: two thumbs under the plot and a body over it that
      * moves both ends. A click on a bar outside the range moves the range there. With a brush,
      * bins that give `from` and `to` are placed on its scale, so a thumb sits on its bin's edge.
+     * When a bin holds one value, the bars' scale reaches half a step past each end so the end
+     * bars are whole, and a thumb at the brush's `min` or `max` sits on their outer edge.
      */
     brush?: HistogramBrushProps;
     /** A line over the bars, such as the selection's activity, named for assistive technology. */
@@ -629,13 +634,20 @@ export function HistogramRow({
     const tallest = bins.reduce((highest, bin) => Math.max(highest, bin.count, bin.ghost ?? 0, 0), 0);
     // With a brush, a bin that says where it lies is placed on the brush's scale.
     const placed = brush !== undefined && bins.every((bin) => bin.from !== undefined && bin.to !== undefined);
+    // A one-value bin is a step wide, centered on its value, so the bars' scale reaches half a step
+    // past the brush's ends: the end bars are whole, and the thumbs' track still spans the plot.
+    const half = placed && brush !== undefined && bins.some((bin) => bin.from === bin.to) ? brush.step / 2 : 0;
+    const scale = { min: (brush?.min ?? 0) - half, max: (brush?.max ?? 0) + half };
+    const spanOf = (bin: HistogramBin): [number, number] =>
+        bin.from === bin.to ? [(bin.from ?? 0) - half, (bin.to ?? 0) + half] : [bin.from ?? 0, bin.to ?? 0];
     const placement = (bin: HistogramBin): React.CSSProperties => {
-        if (!placed || brush === undefined) {
+        if (!placed) {
             return { flex: "1 1 0", minWidth: 0 };
         }
 
-        const left = placeOf(bin.from ?? 0, brush);
-        const width = placeOf(bin.to ?? 0, brush) - left;
+        const [from, to] = spanOf(bin);
+        const left = placeOf(from, scale);
+        const width = placeOf(to, scale) - left;
         return {
             position: "absolute",
             bottom: 0,
@@ -644,8 +656,8 @@ export function HistogramRow({
         };
     };
     const centerOf = (bin: HistogramBin, index: number): number =>
-        placed && brush !== undefined
-            ? (placeOf(bin.from ?? 0, brush) + placeOf(bin.to ?? 0, brush)) / 2
+        placed
+            ? (placeOf(spanOf(bin)[0], scale) + placeOf(spanOf(bin)[1], scale)) / 2
             : ((index + 0.5) / Math.max(1, bins.length)) * FULL_PERCENT;
     const shareOf = (count: number): number => (tallest === 0 ? 0 : (Math.max(0, count) / tallest) * FULL_PERCENT);
     const plotRow: React.CSSProperties = placed
@@ -674,12 +686,14 @@ export function HistogramRow({
         }
 
         const box = event.currentTarget.getBoundingClientRect();
-        const at = brush.min + ((event.clientX - box.left) / Math.max(1, box.width)) * (brush.max - brush.min);
+        const at = scale.min + ((event.clientX - box.left) / Math.max(1, box.width)) * (scale.max - scale.min);
         if (at >= brush.value[0] && at < brush.value[1]) {
             return;
         }
 
-        const hit = bins.find((bin) => bin.from !== undefined && bin.to !== undefined && at >= bin.from && at < bin.to);
+        const hit = bins.find(
+            (bin) => bin.from !== undefined && bin.to !== undefined && at >= spanOf(bin)[0] && at < spanOf(bin)[1],
+        );
         const start = hit?.from ?? at;
         const width = brush.value[1] - brush.value[0];
         const from = Math.max(brush.min, Math.min(brush.max - width, start));

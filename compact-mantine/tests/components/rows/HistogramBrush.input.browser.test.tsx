@@ -178,6 +178,47 @@ describe("HistogramRow's range brush", () => {
         expect(Math.abs(centerOf(screen.getByRole("slider", { name: "Window end" })) - edge(4))).toBeLessThan(1);
     });
 
+    it("draws one-value bins whole, the end ones included, with the thumbs on their outer edges", async () => {
+        const values = [1, 2, 3, 6, 9];
+        await renderThemed(
+            <div style={{ width: 400 }}>
+                <HistogramRow
+                    label="Degree"
+                    bins={values.map((value) => ({ label: String(value), count: value, from: value, to: value }))}
+                    minLabel="1"
+                    maxLabel="9"
+                    brush={{
+                        min: 1,
+                        max: 9,
+                        step: 1,
+                        value: [1, 9],
+                        startLabel: "Degree start",
+                        endLabel: "Degree end",
+                        bodyLabel: "Degree range",
+                    }}
+                />
+            </div>,
+        );
+        const bars = screen.getAllByTestId("histogram-bar").map((bar) => bar.getBoundingClientRect());
+        const plot = screen.getByTestId("histogram-plot").getBoundingClientRect();
+        const first = bars[0];
+        const last = bars[bars.length - 1];
+        // Every bar is whole and inside the plot: the end bars are as wide as the middle ones.
+        expect(first.left).toBeGreaterThanOrEqual(plot.left);
+        expect(last.right).toBeLessThanOrEqual(plot.right);
+        // A one-value bar is a step wide less its 2px gap: the scale runs half a step past 1 and 9, nine steps in all.
+        for (const bar of bars) {
+            expect(Math.abs(bar.width - (plot.width / 9 - 2))).toBeLessThan(0.5);
+        }
+        // The thumbs at the data's min and max sit on the end bars' outer edges (the 1px gap aside).
+        const centerOf = (name: string): number => {
+            const box = screen.getByRole("slider", { name }).getBoundingClientRect();
+            return box.left + box.width / 2;
+        };
+        expect(Math.abs(centerOf("Degree start") - (first.left - 1))).toBeLessThan(1);
+        expect(Math.abs(centerOf("Degree end") - (last.right + 1))).toBeLessThan(1);
+    });
+
     it("gives each thumb a 44px target under a coarse pointer", () => {
         const rules = [...document.styleSheets].flatMap((sheet) => {
             try {

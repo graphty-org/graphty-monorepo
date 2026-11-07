@@ -16,8 +16,9 @@ describe("isYedDrawing", () => {
         assert.isTrue(isYedDrawing(oracles, "gml-need4stacks261"));
         assert.isTrue(isYedDrawing(oracles, "graphml-galaxy-lcms-workflow"));
         assert.isTrue(isYedDrawing(oracles, "yed-live-graphml-specimen-labels-p3"));
-        // the one still draw.io's stand-in, another program's drawing, and a sample with no oracle yet
-        assert.isFalse(isYedDrawing(oracles, "yed-graphml-specimen-images-charts"));
+        assert.isTrue(isYedDrawing(oracles, "yed-graphml-specimen-images-charts"));
+        // a stand-in's drawing, another program's drawing, and a sample with no oracle yet
+        assert.isFalse(isYedDrawing(oracles, "gml-specimen-arrows-p4"));
         assert.isFalse(isYedDrawing(oracles, "dot-profile"));
         assert.isFalse(isYedDrawing(oracles, "no-such-sample"));
     });

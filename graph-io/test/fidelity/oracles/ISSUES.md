@@ -2389,10 +2389,15 @@ defects, open:
   of half an inch (`quantum-label`, `quantum-box`); graphty draws them unrounded (`node.width`, `node.height`).
 - `ratio=2` (`dot-specimen-groups-p12`): Graphviz stretches the stored positions to twice as tall as wide; graphty
   keeps them (`node.position`, `node.width`, `node.height` on every node of the page).
-- The root graph's label is never drawn, plain or HTML-like (`stray.present` on `dot-specimen-groups-p4`, `-p5`,
-  `-p7`, `-p13`, `-p14`: Graphviz's "graph-label" at the bottom or top, left, center or right, in its own color and
-  font; `-p8`: the HTML words "graph", "label", "html"). graph-io keeps the label as a graph attribute and
-  graphty-element has no graph-level label to draw it in, so the fix starts in graphty-element.
+- FIXED (2026-11-07) for a laid-out file: the root graph's label was never drawn, plain or HTML-like
+  (`stray.present` on `dot-specimen-groups-p4`, `-p5`, `-p7`, `-p13`, `-p14`: Graphviz's "graph-label" at the
+  bottom or top, left, center or right, in its own color and font; `-p8`: the HTML words "graph", "label", "html").
+  The DOT importer's `annotations()` now gives it as text annotations, one per line or HTML font run, at a stored
+  `lp`, else in the band Graphviz adds beside the root `bb` (`place_root_label`), and graphty-element draws them
+  with the file's other annotations. Still open: a file with no `bb` and no `lp` (`dot-real-crazy`,
+  `dot-real-siblings`, `dot-real-happiness`, `dot-synth-nodes`, `dot-synth-edges-clusters`) has no place for the
+  title until graphty lays it out, and graphty-element paints annotations once at file coordinates; drawing the
+  title there needs a graph-level label placed against the drawn graph's bounding box and moved with the layout.
 - Stored edge `pos` with the tail arrow's `s,x,y` point (`dot-specimen-edges-lines-p11`, `pos-arrow-startpoint`,
   `pos-arrow-both-points`, beside the `e,x,y` row `pos-arrow-endpoint` of `dot-specimen-edges-lines`): Graphviz draws
   a full `normal` triangle from the spline's end to the stored point, but the comparator reads each of these arrows

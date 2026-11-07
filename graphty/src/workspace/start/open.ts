@@ -17,9 +17,10 @@ import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import { siteConfig } from "../../siteConfig";
-import { putModelOnNodes } from "../canvas/models";
+import { putAssetOnNodes, putModelOnNodes } from "../canvas/models";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
+import { nodeModelsOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
@@ -536,6 +537,7 @@ export function useDropToOpen(ctx: CommandContext): void {
  */
 export function openModel(workspace: WorkspaceStore, fileName: string, source: AssetSource): void {
     openProject(workspace, fileName.replace(/\.[^.]*$/, "") || fileName, async (session) => {
-        await putModelOnNodes(session, workspace, source);
+        // The node-models experiment draws a dropped picture as well.
+        await (nodeModelsOn(session) ? putAssetOnNodes : putModelOnNodes)(session, workspace, source);
     });
 }

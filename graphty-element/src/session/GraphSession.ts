@@ -521,15 +521,6 @@ function needsTimeline(command: SessionCommand): boolean {
 }
 
 /**
- * Whether a command writes a file's style values, which only the file styles experiment does.
- * @param command - The command.
- * @returns True for `data.setFileStyles`, and a batch holding one.
- */
-function setsFileStyles(command: SessionCommand): boolean {
-    return command.op === "batch" ? command.steps.some(setsFileStyles) : command.op === "data.setFileStyles";
-}
-
-/**
  * A graph with no view attached.
  *
  * Build one with {@link createGraphSession} rather than with `new`: the factory is what settles
@@ -844,11 +835,6 @@ class Session implements ElementSession {
      * @returns Its outcome.
      */
     execute<C extends SessionCommand>(command: C): CommandOutcome<C> {
-        // Inside a transaction it runs, so a saved project opens with the styles its file had.
-        if (setsFileStyles(command) && !this.settledFeatures().enabled.includes("file-styles")) {
-            return Promise.reject(featureOff("file-styles", "data.setFileStyles")) as CommandOutcome<C>;
-        }
-
         return this.executeThrough(
             command,
             (each, options) => this.dispatcher.dispatch(each, options),

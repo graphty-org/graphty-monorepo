@@ -13,6 +13,7 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { siteFileStyles } from "../../siteConfig";
 import { fileStylesOn } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
 import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
@@ -46,8 +47,10 @@ function General(): React.JSX.Element {
     const { colorScheme, setColorScheme } = useMantineColorScheme();
     const numberFormat = useNumberFormats().choice;
     const [importStyles, setImportStyles] = useState(() => fileStylesChoice() === "file");
-    // The switch belongs to the element's file styles experiment; the stored preference is kept.
-    const styled = fileStylesOn(useWorkspace().session);
+    // The switch belongs to the element's file styles experiment; the stored preference is kept. The
+    // start screen has no session yet, so there the site's feature list decides, as the element will.
+    const { session } = useWorkspace();
+    const styled = session ? fileStylesOn(session) : siteFileStyles();
     return (
         <Stack gap="md">
             <Input.Wrapper label="Theme" description="The app's panels and menus.">

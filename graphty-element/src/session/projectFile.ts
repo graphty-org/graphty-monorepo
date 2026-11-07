@@ -1584,6 +1584,8 @@ interface Opening {
     readonly restored: Set<ProjectSlice>;
     /** The timeline settings the session held before this open, which it clears. */
     readonly playback?: unknown;
+    /** The dispatcher's services, which let this open restore saved file style values. */
+    readonly services: Dispatcher["services"];
 }
 
 /**
@@ -1705,9 +1707,16 @@ async function readProject(
     // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
     if (Array.isArray(state.fileStyles)) {
         const loads = state.fileStyles as unknown[];
-        await attempt(opening, "graph", () =>
-            tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
-        );
+        // ponytail: a flag, not a per-command grant; a command another caller sends while this one
+        // awaits is let through too. Pass a grant through the dispatch if that ever matters.
+        opening.services.restoringFileStyles = true;
+        try {
+            await attempt(opening, "graph", () =>
+                tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
+            );
+        } finally {
+            opening.services.restoringFileStyles = false;
+        }
     }
 
     const layout = state.layout as
@@ -2370,7 +2379,13 @@ export function projectOf(
                 "Open project",
                 (tx) =>
                     readProject(
-                        { tx, problems, restored, playback: dispatcher.state.visibility.playback },
+                        {
+                            tx,
+                            problems,
+                            restored,
+                            playback: dispatcher.state.visibility.playback,
+                            services: dispatcher.services,
+                        },
                         doc,
                         graph,
                         name,
@@ -2414,7 +2429,7 @@ export function projectOf(
         await session.transaction(
             "Open document",
             async (tx) => {
-                const opening = { tx, problems, restored };
+                const opening = { tx, problems, restored, services: dispatcher.services };
                 if (graph !== undefined) {
                     await importInto(tx, graph, data?.source, data?.sources);
                     restored.add("graph");

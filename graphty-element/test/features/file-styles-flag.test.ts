@@ -157,6 +157,10 @@ describe("the file styles experiment off", () => {
         assert.isFalse(plain.losses.some((loss) => loss.code.startsWith("W_STYLE")));
         const set = await refusal(() => session.execute({ op: "data.setFileStyles", loads: [] }));
         assert.strictEqual(set?.code, "E_FEATURE_OFF");
+        const inTransaction = await refusal(() =>
+            session.transaction("Set styles", (tx) => tx.execute({ op: "data.setFileStyles", loads: [] })),
+        );
+        assert.strictEqual(inTransaction?.code, "E_FEATURE_OFF");
         session.dispose();
     });
 

@@ -185,19 +185,15 @@ describe("import styles from files, on the real element", () => {
     });
 
     it("keeps the Settings choice across a reload", async () => {
-        // In an open project: the switch shows once the element says the experiment is on.
-        const project = { project: { name: "Untitled", id: 1 } };
-        const first = render(<Workspace store={createWorkspaceStore(project)} />);
-        await elementSession();
-        await userEvent.keyboard("{Control>},{/Control}");
+        const first = render(<Workspace store={createWorkspaceStore()} />);
+        await userEvent.click(screen.getByRole("button", { name: /settings/i }));
         const on = await screen.findByRole("switch", { name: /^Import styles from files/ });
         assert.isTrue((on as HTMLInputElement).checked);
         await userEvent.click(on);
         first.unmount();
 
-        render(<Workspace store={createWorkspaceStore(project)} />);
-        await elementSession();
-        await userEvent.keyboard("{Control>},{/Control}");
+        render(<Workspace store={createWorkspaceStore()} />);
+        await userEvent.click(screen.getByRole("button", { name: /settings/i }));
         const off = await screen.findByRole("switch", { name: /^Import styles from files/ });
         assert.isFalse((off as HTMLInputElement).checked);
     });

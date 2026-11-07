@@ -596,17 +596,25 @@ function SideGroup({
     };
     return (
         <div ref={group} data-fields-side={side}>
-            <div className="dp-fields-group">
-                <EntityChip kind={kind}>{formatNumber(count)}</EntityChip>
-                <AddButton
-                    kind={kind}
-                    title="Attributes"
-                    options={offered.map((entry) => ({ key: entry.id, label: entry.name }))}
-                    onAdd={(key) => {
-                        setAdding(key as EntryId);
-                    }}
-                />
-            </div>
+            <FieldRow
+                trailing={
+                    <AddButton
+                        kind={kind}
+                        title="Attributes"
+                        options={offered.map((entry) => ({ key: entry.id, label: entry.name }))}
+                        onAdd={(key) => {
+                            setAdding(key as EntryId);
+                        }}
+                    />
+                }
+            >
+                <Text size="xs" truncate>
+                    {side === "nodes" ? "Nodes" : "Edges"}
+                </Text>
+                <span>
+                    <EntityChip kind={kind}>{formatNumber(count)}</EntityChip>
+                </span>
+            </FieldRow>
             {fixed}
             {entries.map(rowOf)}
         </div>
@@ -703,6 +711,11 @@ function sidesShown(
     source: LoadedSource | undefined,
 ): FieldSide[] {
     const own = sidesOf(source);
+    // A graph file's load has both sides, whether or not it carries columns for them (the owner,
+    // 2026-11-07: Edges is always there for College football, whose edges have none).
+    if (own === undefined && source !== undefined) {
+        return ["nodes", "edges"];
+    }
     return (["nodes", "edges"] as const).filter((side) =>
         own === undefined
             ? attributes.some((a) => a.kind === KIND_OF[side]) || tableRoles(source, side) !== undefined

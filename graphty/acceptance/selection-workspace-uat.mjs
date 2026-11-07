@@ -436,6 +436,8 @@ class Visit {
                     });
                     fail(`Done: expected ${String(total.size)} ${this.many} visible, session holds ${seen}`);
                 });
+            // Filters live in the Data place's Sources tab, under Data sources.
+            await this.page.getByRole("tab", { name: "Sources", exact: true }).click();
             await this.page.getByRole("list", { name: "Filters" }).getByRole("listitem").first().waitFor();
         } else {
             const handle = await this.page

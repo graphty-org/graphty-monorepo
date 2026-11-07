@@ -165,7 +165,7 @@ interface NetworkSourceRecords {
      * Take what an opened project's `graphty-sources` member held; its network loads wait until
      * they are run.
      * @param read - what the member held, or undefined when the file holds none
-     * @param autosave - whether the open is an autosave restore (see {@link openingFromAutosave})
+     * @param autosave - whether the file is the reader's own work (`ProjectOpenOptions.ownWork`)
      */
     restore(read: SourcesRead | undefined, autosave: boolean): void;
 }
@@ -247,6 +247,14 @@ export interface ProjectOpenOptions {
      * @since 3.34.0
      */
     readonly draft?: { readonly onto?: "graph"; readonly guess?: "names" | "values" };
+    /**
+     * The file is the reader's own work coming back: a project this application saved to storage
+     * only it writes (its autosave, its own list of projects saved in the browser), never a file
+     * that came from anywhere else. Its network loads that already ran stay live, and only those
+     * still waiting when it was saved wait again. Default false: a file cannot approve its own
+     * fetches, so every network load it records waits for `session.data.runPendingSourceLoad`.
+     */
+    readonly ownWork?: boolean;
     readonly limits?: {
         /** The largest file to read, in bytes. Default 256 MiB. */
         readonly fileBytes?: number;
@@ -2173,24 +2181,6 @@ export function markProjectUnsaved(session: GraphSession): void {
     UNSAVED.get(session)?.();
 }
 
-/** The sessions whose `project.open` is an autosave restore right now; see {@link openingFromAutosave}. */
-const AUTOSAVE_OPENS = new WeakSet();
-
-/**
- * Say that a session's next `project.open` is the reader's own autosave coming back, not a file:
- * its network loads that already ran stay live instead of waiting for approval again. The
- * Autosaver sets it around its open and clears it after. Internal.
- * @param session - The session.
- * @param on - Whether the open under way is an autosave restore.
- */
-export function openingFromAutosave(session: GraphSession, on: boolean): void {
-    if (on) {
-        AUTOSAVE_OPENS.add(session);
-    } else {
-        AUTOSAVE_OPENS.delete(session);
-    }
-}
-
 /**
  * A fresh project id: 128 random bits in hex.
  * @returns The id.
@@ -2334,6 +2324,7 @@ export function projectOf(
      * @param discard - whether unsaved changes may be lost
      * @param problems - collects what could not be restored
      * @param restored - collects the slices that were
+     * @param ownWork - whether the file is the reader's own work (`ProjectOpenOptions.ownWork`)
      */
     const openProject = async (
         doc: ReadDocument,
@@ -2341,6 +2332,7 @@ export function projectOf(
         discard: boolean,
         problems: ProjectProblem[],
         restored: Set<ProjectSlice>,
+        ownWork: boolean,
     ): Promise<void> => {
         refuseUnsaved(isDirty(), discard);
 
@@ -2413,7 +2405,7 @@ export function projectOf(
             throw error;
         }
         // The network loads wait, fetching nothing, until the application runs them.
-        networkSources?.restore(member === undefined ? undefined : loads, AUTOSAVE_OPENS.has(session));
+        networkSources?.restore(member === undefined ? undefined : loads, ownWork);
         // Its restored source loads on the hosts remembered for it run now.
         projectChanged?.();
         fresh = false;
@@ -2545,7 +2537,7 @@ export function projectOf(
 
             await line.opening(turn, () =>
                 isProject
-                    ? openProject(doc, fileName, options.discard === true, problems, restored)
+                    ? openProject(doc, fileName, options.discard === true, problems, restored, options.ownWork === true)
                     : openDocument(doc, problems, restored, options.history === "start"),
             );
 

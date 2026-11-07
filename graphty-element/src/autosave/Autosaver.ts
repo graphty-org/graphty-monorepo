@@ -25,7 +25,7 @@ import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { dispatcherOf } from "../session/GraphSession";
 import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
-import { markProjectUnsaved, onSourceRecords, openingFromAutosave } from "../session/projectFile";
+import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
 import type { CodedFact } from "../session/shared";
 import type { GraphSession, ProjectSlice } from "../session/types";
@@ -1480,9 +1480,8 @@ export class Autosaver {
             this.#restoreTurn = turn;
             this.#restoringFlag = true;
             // The reader's own work coming back: a network load they ran stays live.
-            openingFromAutosave(this.#session, true);
             report = await line.within(turn, () =>
-                this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } }),
+                this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
             );
         } catch (error) {
             this.#restoringFlag = false;
@@ -1492,7 +1491,6 @@ export class Autosaver {
             release?.();
             return null;
         } finally {
-            openingFromAutosave(this.#session, false);
             this.#restoringFlag = false;
             this.#restoreTurn = null;
         }

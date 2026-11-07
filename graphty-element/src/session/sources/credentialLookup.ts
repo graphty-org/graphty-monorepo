@@ -63,6 +63,17 @@ export async function resolve(
 }
 
 /**
+ * The scheme, host and port of an endpoint. Not `URL.origin`, which is the string "null" for a
+ * scheme that is not special (`bolt+s://`, `neo4j://`).
+ * @param endpoint - the endpoint
+ * @returns the origin
+ */
+export function originOf(endpoint: string): string {
+    const url = new URL(endpoint);
+    return `${url.protocol}//${url.host}`;
+}
+
+/**
  * The login an example of the source publishes for everyone at that origin, so an example's next
  * page, refresh and expansions reach the service its first load did. Several examples at one
  * origin (the Neo4j demo server's databases, each with its own login) are told apart by their
@@ -81,7 +92,7 @@ function publicLogin(
     const descriptor = registry.listSources().find((info) => info.id === source)?.descriptor;
     const here = (descriptor?.examples ?? []).filter((example) => {
         const endpoint = example.endpoint ?? descriptor?.defaultEndpoint;
-        return example.publicLogin !== undefined && typeof endpoint === "string" && new URL(endpoint).origin === origin;
+        return example.publicLogin !== undefined && typeof endpoint === "string" && originOf(endpoint) === origin;
     });
     const login = (here.find((example) => example.params.database === params?.database) ?? here[0])?.publicLogin;
     return login === undefined ? undefined : credentials.basic(login.username, login.password);

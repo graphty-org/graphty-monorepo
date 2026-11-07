@@ -1515,11 +1515,11 @@ export class SessionData implements SessionDataApi {
     /**
      * Take what an opened project's `graphty-sources` member held: its network loads are recorded
      * and wait, fetching nothing, until `runPendingSourceLoad`. A project file cannot approve its
-     * own fetches, so every load of an opened file waits. The reader's own autosave restored is
-     * their work coming back: only the loads still waiting when it was written wait again.
+     * own fetches, so every load of an opened file waits. The reader's own work coming back (an
+     * autosave, `project.open`'s `ownWork`): only the loads still waiting when it was written wait again.
      * Internal: the project file calls it once the project's graph is in.
      * @param read - what the member held, or undefined when the file holds none
-     * @param autosave - whether the open is an autosave restore
+     * @param autosave - whether the file is the reader's own work (`ProjectOpenOptions.ownWork`)
      */
     restoreSourceMember(read: SourcesRead | undefined, autosave = false): void {
         this.pendingLoads.clear();
@@ -1533,9 +1533,10 @@ export class SessionData implements SessionDataApi {
             this.loadFacts.set(key, facts);
         }
 
-        const waiting = new Set(read?.waiting ?? []);
+        // A member with no `waiting` list was written before the list existed: everything waits.
+        const waiting = read?.waiting === undefined ? null : new Set(read.waiting);
         for (const record of this.ledger.loads()) {
-            if (!autosave || waiting.has(record.key)) {
+            if (!autosave || waiting === null || waiting.has(record.key)) {
                 this.pendingLoads.add(record.key);
             }
         }

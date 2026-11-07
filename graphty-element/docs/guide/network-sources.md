@@ -278,7 +278,13 @@ for (const load of element.session.data.pendingSourceLoads()) {
 
 The reader's own autosave is different: it is their work coming back, not a file someone sent.
 When the element's autosave restores a project, a load the reader ran stays live and does not
-wait again; only a load that was still waiting when the autosave was written waits.
+wait again; only a load that was still waiting when the autosave was written waits. When your page
+keeps the reader's projects itself (a list of projects saved in the browser), open them the same
+way with `ownWork`; never pass it for a file the reader picked or was sent:
+
+```ts
+await element.session.project.open(savedText, { ownWork: true });
+```
 
 A project file never turns click-to-expand on: the trigger comes from your page's
 `behavior.expand` configuration or the load options your code passed, never from the file.

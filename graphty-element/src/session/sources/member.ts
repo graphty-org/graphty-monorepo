@@ -626,12 +626,19 @@ export function writeSourcesMember(input: SourcesWriteInput): SourcesWrite {
     const order = new Map<string, number>();
     loads.forEach((entry, at) => order.set(String(entry.id), at));
     // The entries still waiting, by their ids in the member: an autosave restore keeps them waiting.
+    // Written whenever the writer was told, even empty, so a restore can tell "none waited" from a
+    // member written before the list existed (in which every load waits again).
     const waiting = (input.waiting ?? []).map((key) => rename.get(key) ?? key).filter((id) => order.has(id));
     return {
         member:
             loads.length === 0
                 ? null
-                : { kind: KIND, version: SOURCES_MEMBER_VERSION, loads, ...(waiting.length === 0 ? {} : { waiting }) },
+                : {
+                      kind: KIND,
+                      version: SOURCES_MEMBER_VERSION,
+                      loads,
+                      ...(input.waiting === undefined ? {} : { waiting }),
+                  },
         problems,
         idOf: (value) => rename.get(value) ?? value,
         rank: (id) => {

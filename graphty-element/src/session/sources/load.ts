@@ -32,7 +32,7 @@ import type { SessionCommand } from "../planning";
 import { pairKey, planReplace } from "../replace";
 import type { CodedFact } from "../shared";
 import type { RowUpdate } from "../types";
-import { resolve, slotNameOf, slotOf } from "./credentialLookup";
+import { originOf, resolve, slotNameOf, slotOf } from "./credentialLookup";
 import { notYetRun, toGraphtyError } from "./errors";
 import { factParams } from "./expand";
 import type { SourceHost } from "./host";
@@ -62,16 +62,6 @@ const PREVIEW_NODES = 25;
  * ponytail: a fixed ceiling; derive it from the saved `limits.maxNodes` if 100 pages ever runs short.
  */
 const MAX_PAGES = 100;
-
-/**
- * The scheme, host and port of an endpoint.
- * @param endpoint - the endpoint
- * @returns the origin
- */
-function originOf(endpoint: string): string {
-    const url = new URL(endpoint);
-    return `${url.protocol}//${url.host}`;
-}
 
 /** What one read of a source settled: the credential it used, its slot and whether it was remembered. */
 interface Access {

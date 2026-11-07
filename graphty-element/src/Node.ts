@@ -660,8 +660,11 @@ export class Node implements ModelUser {
 
     /** The mesh scale {@link Node.roundRadius} was last measured at. */
     private roundRadiusScale = 1;
-    /** What {@link Node.drawnRadius} last measured, and the mesh and scaling it measured. */
-    private drawnRadiusMesh: AbstractMesh | null = null;
+    /**
+     * What {@link Node.drawnRadius} last measured, and the anchor and scaling it measured. The
+     * anchor, not the mesh: a batched row has no mesh, and a rebuild gives it a new anchor.
+     */
+    private drawnRadiusMesh: TransformNode | null = null;
     private drawnRadiusScale = 0;
     private drawnRadiusValue = 0;
 
@@ -3090,9 +3093,9 @@ export class Node implements ModelUser {
     private get surfaceRadius(): number {
         const own = this.#anchor.scaling;
         const scale = Math.max(Math.abs(own.x), Math.abs(own.y), Math.abs(own.z));
-        if (this.drawnRadiusMesh !== this.#mesh || this.drawnRadiusScale !== scale || this.drawnRadiusValue <= 0) {
+        if (this.drawnRadiusMesh !== this.#anchor || this.drawnRadiusScale !== scale || this.drawnRadiusValue <= 0) {
             const box = this.#anchor.isDisposed() ? null : this.bounds().boundingBox;
-            this.drawnRadiusMesh = this.#mesh;
+            this.drawnRadiusMesh = this.#anchor;
             this.drawnRadiusScale = scale;
             this.drawnRadiusValue =
                 box === null ? 0 : Math.max(box.extendSize.x, box.extendSize.y, box.extendSize.z) * scale;

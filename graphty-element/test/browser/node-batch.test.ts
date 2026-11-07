@@ -238,6 +238,25 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
+    it("measure a batched row's radius again after a repaint changes its size", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const node = graph.getNode(1);
+        assert.isDefined(node);
+        assert.isAbove(node?.drawnRadius ?? 0, 0, "the radius is measured once before the repaint");
+        await layer(element, [1], { "node.size": 3 });
+        await element.waitForStableFrame();
+        assert.isNull(node?.drawnPickMesh ?? null, "the row is still batched");
+        const batched = node?.drawnRadius ?? 0;
+        const box = node?.drawnBoundingBox.extendSize.x ?? 0;
+        assert.closeTo(batched, box, 1e-3, "the radius follows the drawn size");
+        graph.setRenderPath("objects");
+        await element.waitForStableFrame();
+        assert.closeTo(node?.drawnRadius ?? 0, batched, 1e-3, "both paths answer the same radius");
+    });
+
     it("send a look to the object path when one of its rows gains a border, and back", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");

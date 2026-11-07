@@ -408,7 +408,7 @@ Tool values are elements drawn with the writing program's default.
 | pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 5 | 22 | 100% | 27% | 0 | 72 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 5 | 27 | 89% | 22% | 0 | 38 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 5 | 24 | 100% | 25% | 0 | 79 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
-| pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 6 | 5 | 342 | 56% | 0% | 0 | 1631 | 0 |  |
+| pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 6 | 5 | 343 | 56% | 0% | 0 | 1631 | 0 |  |
 | pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 4 | 3 | 75 | 76% | 76% | 0 | 6417 | 0 |  |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-1 | ok | 1 | 0 | 1 | 0 | 0 | - | - | 0 | 0 | 0 |  |

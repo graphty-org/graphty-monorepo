@@ -203,7 +203,16 @@ import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
-import { openRowScan, pickAsDrawn, pickCloseLabel, pickEdgeAt, pickNodeId, pickWorldPoint } from "./render/PickService";
+import { NodeIdTarget } from "./render/NodeIdTarget";
+import {
+    openRowScan,
+    pickAsDrawn,
+    pickCloseLabel,
+    pickEdgeAt,
+    pickNodeId,
+    pickWorldPoint,
+    useNodeIdTarget,
+} from "./render/PickService";
 import { RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
@@ -792,6 +801,8 @@ export class Graph implements GraphContext {
     #renderPath: RenderPath = renderPathDefault.value;
     /** The node batches, once the renderer is open on the `"batched"` path. */
     #nodeBatches: NodeBatches | null = null;
+    /** What hover reads on the `"batched"` path. */
+    #nodeIds: NodeIdTarget | null = null;
     /** The scene is the one that stays, so batches may be built on it. */
     #renderPathOpen = false;
     /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
@@ -1548,6 +1559,7 @@ export class Graph implements GraphContext {
             ghost: () => this.session.visibility.ghosting,
             timeline: () => this.session.features.enabled.includes("timeline"),
             timeWindow: () => this.session.time.current !== null,
+            ageFade: () => this.session.edgeAges(),
         };
         this.updateManager.bindViewMasks(viewMasks);
 
@@ -4576,6 +4588,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The node ID target hover reads, on the `"batched"` path.
+     * @returns The target, or null.
+     * @internal
+     */
+    getNodeIdTarget(): NodeIdTarget | null {
+        return this.#nodeIds;
+    }
+
+    /**
      * How nodes are drawn.
      * @returns The path asked for.
      */
@@ -4645,7 +4666,23 @@ export class Graph implements GraphContext {
                 },
                 this.scene,
             );
+            const batches = this.#nodeBatches;
+            const target = new NodeIdTarget(this.scene, {
+                positionTexture: () => places.positionTexture,
+                requestFrame: () => {
+                    this.renderManager.requestFrame();
+                },
+            });
+            this.#nodeIds = target;
+            useNodeIdTarget(this.scene, {
+                target,
+                nodeIdAt: (row) => this.dataManager.nodeAtRow(row)?.id,
+                hiddenRows: () => batches.hiddenRows(),
+            });
         } else if (!batched && this.#nodeBatches !== null) {
+            useNodeIdTarget(this.scene, null);
+            this.#nodeIds?.dispose();
+            this.#nodeIds = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
         }
@@ -6240,6 +6277,19 @@ export class Graph implements GraphContext {
      */
     get isFrameStable(): boolean {
         return this.updateManager.frameIsStable;
+    }
+
+    /**
+     * Whether a frame showing the graph's nodes has been drawn.
+     *
+     * True from the first frame that draws the nodes, while the layout may still be moving them,
+     * until the graph is emptied of every node. The `graph-first-frame` event announces the moment
+     * it becomes true. A page uses it to take a loading placeholder away.
+     * @returns True once the nodes are on screen.
+     * @beta
+     */
+    get isGraphDrawn(): boolean {
+        return this.updateManager.graphIsDrawn;
     }
 
     /**

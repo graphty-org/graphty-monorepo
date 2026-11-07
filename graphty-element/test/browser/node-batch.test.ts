@@ -17,7 +17,8 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
-import { drag, wheel } from "../helpers/real-input";
+import { rowScanOf } from "../../src/render/PickService";
+import { drag, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
@@ -232,6 +233,27 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(graph.rowCounts.objectNodes, 0);
     });
 
+    it("send a row's look to the object path when a consumer reads its mesh, for good", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.objectNodes, 0);
+
+        const node = graph.getNode(0);
+        assert.isDefined(node);
+        assert.isFalse(node.mesh.isDisposed(), "the consumer gets the node's own mesh");
+        const mixed = await readFrame(graph);
+        assert.isAbove(graph.rowCounts.objectNodes, 0);
+        assert.isAbove(graph.rowCounts.batchedNodes, 0, "other looks stay on the batch");
+        assert.equal(overBar(mixed, await frameOn(graph, "objects")), 0);
+
+        // The mesh stays the consumer's through a repaint and a trip back to the path.
+        await layer(element, [0], { "node.color": "#f59e0b" });
+        await frameOn(graph, "batched");
+        assert.isAbove(graph.rowCounts.objectNodes, 0);
+    });
+
     it("move a dragged row through the table alone", async () => {
         const element = await mounted(renderer);
         await loaded(element, "2d");
@@ -278,7 +300,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await loaded(element, "3d");
         const { graph } = element;
         for (const node of graph.getNodes()) {
-            node.mesh.scaling.set(1.5, 0.6, 1);
+            node.drawnPickMesh.scaling.set(1.5, 0.6, 1);
         }
 
         const objects = await readFrame(graph);
@@ -368,6 +390,35 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.isFalse(source.isDisposed());
         assert.isDefined(material?.getScene().materials.includes(material) ? material : undefined);
         assert.isFalse(batch.mesh.isDisposed());
+    });
+
+    // The node ID target is a render target, which Babylon draws upside down on WebGPU as on WebGL
+    // (#6073): read the wrong way up, a hover over a row in the top or bottom of the picture named
+    // the row mirrored across the middle, or nothing.
+    it("hover reads the row under the pointer from the node ID target", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "2d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const target = graph.getNodeIdTarget();
+        const scan = rowScanOf(graph.scene);
+        if (target === null || scan === undefined) {
+            assert.fail("the batched path keeps a target and a scan");
+        }
+
+        // The materials compile on their own; until then a read answers null.
+        while (target.read(0, 0) === null) {
+            await nextFrame();
+        }
+
+        const scaling = graph.scene.getEngine().getHardwareScalingLevel();
+        for (const node of graph.getNodes()) {
+            const screen = graph.worldToScreen(node.drawnWorldPosition);
+            const point = { x: (Math.floor(screen.x) + 0.5) * scaling, y: (Math.floor(screen.y) + 0.5) * scaling };
+            const row: number | undefined = scan.shapeRayHit(point.x, point.y)?.row;
+            assert.isDefined(row, `the scan finds a row at node ${String(node.id)}`);
+            assert.strictEqual(await target.read(point.x, point.y), row, `the target names node ${String(node.id)}`);
+        }
     });
 
     it("stops drawing a batch when the graph leaves the path", async () => {

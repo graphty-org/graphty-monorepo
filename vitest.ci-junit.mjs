@@ -40,5 +40,9 @@ export function ciReporters(options = {}) {
         // tools/results/run-group.mjs sets it: each failed test goes to the results store as it happens.
         reporters.push([fileURLToPath(new URL("tools/results/reporter.mjs", import.meta.url)), {}]);
     }
+    if (process.env.GRAPHTY_RUNNING_TESTS) {
+        // tools/test-quarantine.mjs sets it on a run with a deadline: what is running is named if the run hangs.
+        reporters.push([fileURLToPath(new URL("tools/running-tests.mjs", import.meta.url)), {}]);
+    }
     return reporters;
 }

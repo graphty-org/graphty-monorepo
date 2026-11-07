@@ -1540,7 +1540,7 @@ export class Edge {
             this.haloBatch.mesh.material.zOffset = HALO_DEPTH_OFFSET;
             this.haloBatch.mesh.material.zOffsetUnits = HALO_DEPTH_OFFSET;
         }
-        this.haloSlots = this.haloBatch ? [this.haloBatch.acquire()] : [];
+        this.haloSlots = this.haloBatch ? [this.haloBatch.acquire(this)] : [];
         this.haloIsCurve = curve;
         // The band has no place until the next update puts it on the line.
         this.invalidatePositionCache();
@@ -1874,7 +1874,7 @@ export class Edge {
         }
 
         const { stamp, untilMs } = drawing.entrance(batch.shader, this.causedAt);
-        const slot = batch.acquire();
+        const slot = batch.acquire(this);
         if (untilMs > 0) {
             batch.playUntil(slot, untilMs);
         }
@@ -2104,7 +2104,7 @@ export class Edge {
         if (this.lineBatch) {
             // A curve's run of slots is sized to its length when it is first placed.
             this.readRoute(drawnStyle);
-            this.lineSlots = [this.lineBatch.acquire()];
+            this.lineSlots = [this.lineBatch.acquire(this)];
             this.lineStatic = null;
             this.createOutline(meshKey, drawnStyle);
             this.createGradient(meshKey, drawnStyle);
@@ -3071,7 +3071,7 @@ export class Edge {
     private static boxReachOf(node: Node, direction: Vector3): number {
         return node.surfaceIsBox || node.drawnInBatch
             ? surfaceReach(direction, node.drawnHalfExtents, null)
-            : boxReach(node.mesh, direction);
+            : boxReach(node.drawnPickMesh, direction);
     }
 
     /**
@@ -3501,7 +3501,7 @@ export class Edge {
         flat: readonly number[],
         fresh?: (slot: number) => void,
     ): void {
-        Edge.placeBand(batch, slots, flat, fresh);
+        Edge.placeBand(this, batch, slots, flat, fresh);
     }
 
     /**
@@ -3581,7 +3581,7 @@ export class Edge {
                 batch.mesh.position.z = -OUTLINE_BEHIND;
             }
 
-            this.gradientPieces.push({ batch, slot: batch.acquire(), color });
+            this.gradientPieces.push({ batch, slot: batch.acquire(this), color });
         }
     }
 
@@ -3652,7 +3652,7 @@ export class Edge {
             return;
         }
 
-        this.outlineSlots = [this.outlineBatch.acquire()];
+        this.outlineSlots = [this.outlineBatch.acquire(this)];
         // ponytail: in 3D the band and the line are drawn at the same depth, so either may show where they overlap
         if (this.context.is2D()) {
             this.outlineBatch.mesh.position.z = OUTLINE_BEHIND;
@@ -3665,16 +3665,17 @@ export class Edge {
      */
     private placeOutline(flat: readonly number[]): void {
         for (const { batch, slots } of this.haloBands) {
-            Edge.placeBand(batch, slots, flat);
+            Edge.placeBand(this, batch, slots, flat);
         }
 
         if (this.outlineBatch !== null) {
-            Edge.placeBand(this.outlineBatch, this.outlineSlots, flat);
+            Edge.placeBand(this, this.outlineBatch, this.outlineSlots, flat);
         }
     }
 
     /**
      * Lay one band along a line's points, one slot per piece, growing or shrinking its run of slots.
+     * @param owner - The edge, whose row each new slot ages by.
      * @param batch - The band's batch.
      * @param slots - Its slots, changed in place.
      * @param flat - The line's points, flat x, y, z.
@@ -3682,6 +3683,7 @@ export class Edge {
      *     values and its speed; a plain batch needs nothing.
      */
     private static placeBand(
+        owner: Edge,
         batch: EdgeLineBatch,
         slots: number[],
         flat: readonly number[],
@@ -3692,7 +3694,7 @@ export class Edge {
         // Grow before shrinking, and never below one slot: the batch disposes itself when its last
         // slot goes, which must not happen in the middle of re-sizing a run.
         while (slots.length < segments) {
-            const slot = batch.acquire();
+            const slot = batch.acquire(owner);
             slots.push(slot);
             fresh?.(slot);
         }
@@ -3740,7 +3742,7 @@ export class Edge {
                 batch.mesh.position.z = kind === "underlay" ? OUTLINE_BEHIND : -OUTLINE_BEHIND;
             }
 
-            this.haloBands.push({ kind, batch, slots: [batch.acquire()] });
+            this.haloBands.push({ kind, batch, slots: [batch.acquire(this)] });
         }
     }
 
@@ -4123,8 +4125,8 @@ export class Edge {
             return this.interceptPointsFromRows();
         }
 
-        const srcMesh = this.srcNode.mesh;
-        const dstMesh = this.dstNode.mesh;
+        const srcMesh = this.srcNode.drawnPickMesh;
+        const dstMesh = this.dstNode.drawnPickMesh;
 
         let srcPoint: Vector3 | null = null;
         let dstPoint: Vector3 | null = null;
@@ -4204,7 +4206,7 @@ export class Edge {
                 }
 
                 return node.shapeType === "none" || node.surfaceIsBox
-                    ? this.leaveNode(node, node.mesh.position, toward.mesh.position)
+                    ? this.leaveNode(node, node.drawnPickMesh.position, toward.drawnPickMesh.position)
                     : null;
             };
 

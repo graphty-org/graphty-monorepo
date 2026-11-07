@@ -347,27 +347,42 @@ function useFocusPlus(): [React.RefObject<HTMLDivElement | null>, () => void] {
 /**
  * The time entry's designation (`session.time`), which the timeline reads with the column's unit.
  * The timeline reads one column: a pick on one side keeps the other side only when it names the
- * same column.
+ * same column. The side's end and spells stay while its column does.
  * @param session - the element's session.
  * @param store - the chrome store.
  * @param side - nodes or edges.
  * @param start - the column, or null for none.
- * @param unit - the unit, when picked.
+ * @param change - what was picked besides: the unit, or the end column (null for none).
+ * @param change.unit - the unit, when picked.
+ * @param change.end - the end column, when picked.
  */
 function designateTime(
     session: GraphSession,
     store: WorkspaceStore,
     side: FieldSide,
     start: string | null,
-    unit?: (typeof UNIT_CHOICES)[number]["value"],
+    change: { readonly unit?: (typeof UNIT_CHOICES)[number]["value"]; readonly end?: string | null } = {},
 ): void {
     const now = session.time.field ?? {};
     const otherSide = side === "nodes" ? "edges" : "nodes";
     const other = now[otherSide];
     const keep = other !== undefined && (start === null || other.start === start);
+    const own = now[side]?.start === start ? now[side] : undefined;
+    const end = change.end === undefined ? own?.end : change.end;
+    const unit = change.unit ?? own?.unit;
     const field = {
         ...(keep ? { [otherSide]: other } : {}),
-        ...(start === null ? {} : { [side]: { start, ...(unit === undefined ? {} : { unit }) } }),
+        ...(start === null
+            ? {}
+            : {
+                  [side]: {
+                      start,
+                      ...(unit === undefined ? {} : { unit }),
+                      ...(end === undefined || end === null ? {} : { end }),
+                      ...(own?.spells === undefined ? {} : { spells: own.spells }),
+                      ...(own?.parseZone === undefined ? {} : { parseZone: own.parseZone }),
+                  },
+              }),
     };
     designate(session, store, Object.keys(field).length === 0 ? null : field);
 }
@@ -600,7 +615,8 @@ function SideGroup({
 
 /**
  * The Time entry: a column the timeline reads (`session.time`), the columns read as time first,
- * and under it, for a number column, the unit its numbers are in.
+ * and under it, for a number column, the unit its numbers are in, and the column where each
+ * element ends, which makes the field one of intervals.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
@@ -608,7 +624,7 @@ function SideGroup({
  * @param props.offered - the columns it can name
  * @param props.source - the selected load
  * @param props.onRemove - called once the minus was pressed
- * @returns the entry and its Unit row
+ * @returns the entry and its Unit and End rows
  */
 function TimeEntry({
     session,
@@ -630,6 +646,7 @@ function TimeEntry({
     const names = columnOptions(session, offered, side, "time", columnChoices(offered, source, side, holder));
     const column = offered.find((a) => a.kind === kind && a.name === holder);
     const unit = UNIT_CHOICES.find((choice) => choice.value === unitOf(session))?.label ?? null;
+    const designated = session.time.field?.[side];
     return (
         <>
             <EntryRow
@@ -643,10 +660,7 @@ function TimeEntry({
                     designateTime(session, store, side, null);
                 }}
             />
-            {session.time.field?.[side] !== undefined &&
-            holder !== null &&
-            column !== undefined &&
-            isNumeric(column) ? (
+            {designated !== undefined && holder !== null && column !== undefined && isNumeric(column) ? (
                 <PickRow
                     sub
                     label="Unit"
@@ -654,13 +668,22 @@ function TimeEntry({
                     value={unit}
                     choices={UNIT_CHOICES.map((choice) => choice.label)}
                     onPick={(label) => {
-                        designateTime(
-                            session,
-                            store,
-                            side,
-                            holder,
-                            UNIT_CHOICES.find((choice) => choice.label === label)?.value,
-                        );
+                        designateTime(session, store, side, holder, {
+                            unit: UNIT_CHOICES.find((choice) => choice.label === label)?.value,
+                        });
+                    }}
+                />
+            ) : null}
+            {designated !== undefined && holder !== null ? (
+                <PickRow
+                    sub
+                    label="End"
+                    name={`${common.name} end`}
+                    value={designated.end ?? null}
+                    withNone
+                    choices={offered.filter((a) => a.kind === kind && a.name !== holder).map((a) => a.name)}
+                    onPick={(end) => {
+                        designateTime(session, store, side, holder, { end });
                     }}
                 />
             ) : null}

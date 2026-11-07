@@ -22,6 +22,13 @@ const NODES = 300;
 const EDGES = 1_500;
 /** The size a Ghost step is counted at. */
 const LARGE = { nodes: 2_000, edges: 10_000 };
+/**
+ * The graph for a test whose support points are the Ghost edges. Which edges hold a support point is
+ * known on the first frame, but drawn() waits for the points to rest, and 1,400 Ghost points never
+ * get under the resting speed: they run to the 1,500-step cap at 6 steps a frame, 250 frames per
+ * seek, 18 minutes on a CI runner (#6051). At this size they take 40 steps a frame.
+ */
+const SUPPORT_GHOSTS = { nodes: 60, edges: 300 };
 /** An edge drawn through a support point. */
 const BOWED = { "edge.curvature": true, "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 };
 
@@ -474,7 +481,7 @@ describe("changed rows on real nodes and edges", () => {
                 selector: { match: "state", state: "ghosted" },
                 set: { "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 },
             });
-        });
+        }, SUPPORT_GHOSTS);
 
         for (const from of [15, 35]) {
             await element.session.time.seek(from, { commit: false });

@@ -20,6 +20,7 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
+import { pageDefaultFeatures, setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import type { UpdateManager } from "../../src/managers/UpdateManager";
@@ -711,7 +712,8 @@ describe("a repaint of every node", () => {
     });
 
     // The walk that ends a repaint is owed by whichever kind of element the repaint painted, so a
-    // repaint of one kind has to bring it alone. The timeline is off here, as it is by default.
+    // repaint of one kind has to bring it alone. The timeline is switched off here, because the
+    // features-on projects switch every experiment on.
     for (const [kind, spec] of [
         ["nodes", { target: "node", set: { "node.color": "#123456" } }],
         ["edges", { target: "edge", set: { "edge.color": "#123456" } }],
@@ -719,6 +721,8 @@ describe("a repaint of every node", () => {
         it(`visits every edge once, on the last frame, after a repaint of only ${kind}`, async () => {
             const size = 400;
             const minimumWork = minimumWorkPerFrame();
+            const features = pageDefaultFeatures();
+            setDefaultFeatures([]);
             const element = await mount(size);
             try {
                 const { graph } = element;
@@ -745,6 +749,7 @@ describe("a repaint of every node", () => {
             } finally {
                 vi.restoreAllMocks();
                 setMinimumWorkPerFrame(minimumWork);
+                setDefaultFeatures(features);
                 element.remove();
             }
         });

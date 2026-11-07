@@ -221,6 +221,32 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
     });
 });
 
+describe("yEd Live GraphML: BPMN node styles", () => {
+    it("fills a bpmn: node style with its background and outlines it in its outline color, 1 pixel wide", async () => {
+        const p4 = await sheet("specimen-node-shapes-p4.graphml");
+        // <bpmn:ActivityNodeStyle background="#FFC8C8C8" outline="#FF505050" activityType="TASK"/>
+        expect(p4.node("fill", "bpmn-activity-activity-type-task")).toBe("#c8c8c8");
+        expect(p4.node("borderColor", "bpmn-activity-activity-type-task")).toBe("#505050");
+        expect(p4.node("borderWidth", "bpmn-activity-activity-type-task")).toBe(1);
+        expect(p4.node("borderStyle", "bpmn-activity-activity-type-task")).toBe("solid");
+        // <bpmn:ActivityNodeStyle/>: yFiles' own off-white with a dark blue outline
+        expect(p4.node("fill", "default")).toBe("#fafafa");
+        expect(p4.node("borderColor", "default")).toBe("#00008b");
+        const p5 = await sheet("specimen-node-shapes-p5.graphml");
+        // <bpmn:EventNodeStyle outline="#FF505050" background="#FFFF0000"/>
+        expect(p5.node("fill", "bpmn-event-background")).toBe("#ff0000");
+        expect(p5.node("borderColor", "bpmn-event-background")).toBe("#505050");
+        // <bpmn:GatewayNodeStyle background="#FFC8C8C8" outline="#FFFF0000"/>
+        expect(p5.node("fill", "bpmn-gateway-outline")).toBe("#c8c8c8");
+        expect(p5.node("borderColor", "bpmn-gateway-outline")).toBe("#ff0000");
+        expect(p5.node("fill", "bpmn-conversation-background")).toBe("#ff0000");
+        expect(p5.node("borderColor", "bpmn-data-object-collection")).toBe("#505050");
+        const p6 = await sheet("specimen-node-shapes-p6.graphml");
+        expect(p6.node("fill", "bpmn-choreography-type-task")).toBe("#c8c8c8");
+        expect(p6.node("borderColor", "bpmn-choreography-type-task")).toBe("#505050");
+    });
+});
+
 describe("yEd Live GraphML: label model parameters", () => {
     it("places node labels by the yFiles 3 interior, exterior and stretch models", async () => {
         const { node } = await sheet("specimen-labels-p2.graphml");
@@ -332,8 +358,8 @@ describe("yEd Live GraphML: edge label model parameters", () => {
     });
 });
 
-describe("yEd Live GraphML: a FlowchartNodeStyle gradient", () => {
-    it("is drawn in its first stop and noted", async () => {
+describe("yEd Live GraphML: a LinearGradient fill", () => {
+    it("reads a FlowchartNodeStyle's shared gradient from corner to corner", async () => {
         const result = await registry.importGraph(
             new Uint8Array(
                 readFileSync(
@@ -345,8 +371,33 @@ describe("yEd Live GraphML: a FlowchartNodeStyle gradient", () => {
             ),
             { format: "graphml", styles: { toolDefaults: true }, errorLimit: Infinity },
         );
-        const { styles } = result;
-        expect(styles?.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
+        const { styles, snapshot } = result;
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const n0 = snapshot.ids.requireIndex("n0");
+        expect(resolveStyles(styles, "node", "fill", snapshot)[n0]).toBe("#e8eef7");
+        expect(resolveStyles(styles, "node", "fillGradient", snapshot)[n0]).toBe("#b7c9e3");
+        expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[n0]).toBe(45);
+        expect(styles.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_GRADIENT");
+    });
+
+    it("runs at the angle from its start to its end across the node's box, with every stop", async () => {
+        const { node } = await sheet("specimen-node-fills-borders.graphml");
+        expect(node("fillGradientAngle", "linear-gradient-diagonal")).toBe(45);
+        expect(node("fillGradientAngle", "linear-gradient-horizontal")).toBe(0);
+        expect(node("fillGradientAngle", "linear-gradient-vertical")).toBe(90);
+        expect(node("fillGradient", "linear-gradient-vertical")).toBe("#0000ff");
+        expect(node("fillGradientColors", "linear-gradient-three-stops")).toBe("#ff0000 #ffcc00 #0000ff");
+        expect(node("fillGradientStops", "linear-gradient-three-stops")).toBe("0 0.5 1");
+        expect(node("fillGradientColors", "linear-gradient-diagonal")).toBeNull();
+    });
+
+    it("keeps a ramp inside the box, and a radial gradient, in their first stop", async () => {
+        const { node } = await sheet("specimen-node-fills-borders.graphml");
+        expect(node("fillGradient", "linear-gradient-reflect")).toBeNull();
+        expect(node("fill", "linear-gradient-reflect")).toBe("#ffffff");
+        expect(node("fillGradient", "radial-gradient")).toBeNull();
     });
 });
 

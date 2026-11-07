@@ -1351,6 +1351,12 @@ export interface ScopeCandidate {
 interface CostGateOptions {
     /** The kept sets to suggest when they fit, read only on a refusal. */
     readonly keptSets?: () => readonly ScopeCandidate[];
+    /**
+     * The largest connected piece of the run's own scope, read only on a refusal of a run over
+     * less than the whole graph. Absent, such a run is pointed at no piece: the whole graph's
+     * largest piece says nothing about a scope.
+     */
+    readonly largestPiece?: () => ScopeCandidate | null;
     /** The cap and the memory budget. Defaults to {@link DEFAULT_COST_GATE_LIMITS}. */
     readonly limits?: Readonly<CostGateLimits>;
     /** Refuse to approximate: above the cap this fails rather than sampling. */
@@ -1426,14 +1432,17 @@ function structuralOverflow(nodes: number, edges: number): { kind: string; count
  * The scopes that would bring a refused run back under the cap.
  *
  * None for an algorithm that computes on the whole graph whatever its scope: no scope changes
- * what it costs. Otherwise the largest connected piece comes first -- the statistics carry its
- * node count, and its edge count is scaled by the share of nodes it holds, which the entry marks
- * as scaled rather than counted so nobody mistakes it for a measurement -- then the kept sets that
+ * what it costs. Otherwise the largest connected piece comes first -- for a run over the whole
+ * graph the statistics carry its node count, and its edge count is scaled by the share of nodes it
+ * holds, which the entry marks as scaled rather than counted so nobody mistakes it for a
+ * measurement; for a run over less, the piece of that scope, counted -- then the kept sets that
  * fit, smallest first, each counted and charged for deriving its input.
  * @param input - The estimate's own inputs.
  * @param statistics - The graph's shape.
  * @param cap - The seconds a run has to fit in.
  * @param keptSets - The kept sets, sized.
+ * @param largestPiece - The largest connected piece of the run's own scope, for a run over less
+ *   than the whole graph.
  * @returns The scopes that fit.
  */
 function fittingScopes(
@@ -1441,6 +1450,7 @@ function fittingScopes(
     statistics: GraphStatistics,
     cap: number,
     keptSets: () => readonly ScopeCandidate[],
+    largestPiece?: () => ScopeCandidate | null,
 ): readonly FittingScope[] {
     if (input.descriptor?.scopeInput !== "subgraph") {
         return Object.freeze([]);
@@ -1448,7 +1458,25 @@ function fittingScopes(
 
     const fitting: FittingScope[] = [];
     const { largestSize } = statistics.components;
-    if (statistics.components.count > 1 && largestSize > 0 && statistics.nodeCount > 0) {
+    const partial =
+        input.scope !== undefined &&
+        (input.scope.nodes < statistics.nodeCount || input.scope.edges < statistics.edgeCount);
+    if (partial) {
+        // The refused scope's own piece, counted, when one smaller than the scope exists.
+        const piece = largestPiece?.() ?? null;
+        if (piece !== null && piece.nodes < (input.scope?.nodes ?? 0)) {
+            const { scope, label, nodes, edges, derivationSeconds } = piece;
+            const estimate = estimateCost({
+                ...input,
+                sample: undefined,
+                derivationSeconds,
+                scope: { nodes, edges, spec: scope, exact: true },
+            });
+            if (estimate.available && estimate.seconds <= cap) {
+                fitting.push(Object.freeze({ scope, label, nodes, edges, seconds: estimate.seconds, exact: true }));
+            }
+        }
+    } else if (statistics.components.count > 1 && largestSize > 0 && statistics.nodeCount > 0) {
         const share = largestSize / statistics.nodeCount;
         const edges = Math.round(statistics.edgeCount * share);
         const estimate = estimateCost({
@@ -1641,7 +1669,13 @@ export function gateRun(input: CostInput, options: CostGateOptions = {}): CostGa
             graph: { nodes, edges },
             approximable: approximable !== undefined,
             exactRequested: options.exact === true,
-            scopes: fittingScopes(input, statistics, cap, options.keptSets ?? ((): readonly ScopeCandidate[] => [])),
+            scopes: fittingScopes(
+                input,
+                statistics,
+                cap,
+                options.keptSets ?? ((): readonly ScopeCandidate[] => []),
+                options.largestPiece,
+            ),
             fitsUpTo: fitsUpTo(input, cap),
         },
     );

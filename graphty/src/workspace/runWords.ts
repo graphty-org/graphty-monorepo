@@ -16,7 +16,8 @@ interface NamedRun {
     readonly params: Readonly<Record<string, unknown>>;
     readonly distinguishedBy: RunDistinction | null;
     readonly siblingsDifferBy: readonly string[] | null;
-    readonly scope: { readonly spec: Scope };
+    /** What it ran over: a `Run`'s resolved scope counts `nodeCount`, a record's counts `nodes`. */
+    readonly scope: { readonly spec: Scope; readonly nodeCount?: number; readonly nodes?: unknown };
 }
 
 /** The word an option goes by inside a run's name, where it is not the option's own name. */
@@ -123,9 +124,12 @@ export function runName(session: GraphSession, run: NamedRun): string {
         return base;
     }
 
+    const { scope } = run;
+    const nodes = scope.nodeCount ?? (typeof scope.nodes === "number" ? scope.nodes : 0);
+    // Two runs over what was shown differ by what was shown: "112 showing" beside "40 showing".
     const qualifier =
         differing.length === 0
-            ? scopeWords(run.scope.spec, (id) => session.sets.get(id)?.name)
+            ? ranOverWords(session, scope.spec, nodes)
             : differing.map((name) => `${name} ${differenceWords(run.params[name])}`).join(", ");
     return `${base} (${qualifier})`;
 }

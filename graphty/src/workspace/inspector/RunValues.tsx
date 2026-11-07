@@ -89,9 +89,8 @@ export function RunStateBar({
                 <Button
                     size="compact-xs"
                     onClick={() => {
-                        startAgain(store, () =>
-                            session?.runs.start(run.algorithm, settingsOf(run, draft), { as: run.id }),
-                        );
+                        // The same run with the changed settings, over the scope it ran over.
+                        startAgain(store, () => run.rerun({ options: draft }));
                         onDraft({});
                         // The bar and its Rerun go once the run is current, so focus would fall
                         // to the page: it goes to the inspector's title, as after any run.

@@ -331,6 +331,7 @@ export type {
     RunReader,
     RunRecord,
     RunRemoval,
+    RunRerunOptions,
     RunsApi,
     RunScopeRecord,
     RunSpec,

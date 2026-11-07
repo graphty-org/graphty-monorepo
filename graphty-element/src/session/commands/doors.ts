@@ -3031,6 +3031,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             move: calls(["door-run", null], [{ op: "algo.move", runId: "door-run", before: null }]),
+            // The doors test starts "door-run" (degree) first; with no executor it fails, so the
+            // step is refused once dispatched, after the spy has seen it.
+            paint: calls(
+                ["door-run"],
+                [{ op: "algo.run", algorithm: "degree", as: "door-run", applySuggestedStyles: true }],
+            ),
             bindings: READ,
             readers: READ,
             painting: READ,

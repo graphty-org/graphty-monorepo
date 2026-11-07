@@ -175,6 +175,39 @@ export function registeredAlgorithmDescriptors(): readonly AlgorithmDescriptor[]
 }
 
 /**
+ * The registered algorithms that compute over their run's scope only while the session reads the
+ * working graph (`workingGraph: "visible"`), by catalogue key: every `defineAlgorithm` one. Kept
+ * beside the registry rather than on the descriptor, which is published data, and rewritten on
+ * every registration so a class registered over another under the same key decides for itself.
+ */
+const workingGraphFollowers = new Set<AlgorithmKey>();
+
+/**
+ * Record whether the class registered under a key follows the working graph.
+ * @param key - The catalogue key.
+ * @param follows - Whether its class declares `static followsWorkingGraph = true`.
+ * @internal
+ */
+export function noteFollowsWorkingGraph(key: AlgorithmKey, follows: boolean): void {
+    if (follows) {
+        workingGraphFollowers.add(key);
+    } else {
+        workingGraphFollowers.delete(key);
+    }
+}
+
+/**
+ * Whether the algorithm registered under a key computes over its run's scope while the session
+ * reads the working graph.
+ * @param key - The catalogue key.
+ * @returns True for a `defineAlgorithm` extension.
+ * @internal
+ */
+export function followsWorkingGraph(key: AlgorithmKey): boolean {
+    return workingGraphFollowers.has(key);
+}
+
+/**
  * One registered algorithm, by the key its descriptor publishes.
  * @param key - The catalogue key.
  * @returns The entry, or undefined when nothing registered that key.

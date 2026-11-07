@@ -12,8 +12,9 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { GraphSnapshot } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
+import type { DerivedInput } from "../algorithms/input/derivedInputs";
 import { edgeSpaceOf } from "../session/scope/spaces";
 import { createSelectorSource } from "../session/styles/sources";
 import type { GraphSession } from "../session/types";
@@ -55,26 +56,59 @@ const IDENTITY_KEYS: Readonly<Record<ViewTarget, ReadonlySet<string>>> = {
 };
 
 /**
- * The view source over a session's graph as it stands now.
+ * Each compact edge row's row in the graph it was derived from.
+ * @param remap - Original row -> compact row, INVALID_INDEX for an edge left out.
+ * @param size - How many edges the compact graph has.
+ * @returns Compact row -> original row.
+ */
+function originsOf(remap: U32, size: number): U32 {
+    const origin = new Uint32Array(size);
+    for (let row = 0; row < remap.length; row++) {
+        const target = remap[row];
+        if (target !== INVALID_INDEX && target < size) {
+            origin[target] = row;
+        }
+    }
+
+    return origin;
+}
+
+/**
+ * The view source over a session's graph as it stands now, or over a run's scope of it.
  * @param session - The session: an element's (`graph.getSession()`) or a headless one.
+ * @param scope - The run's scope as its compact graph in declared orientation, with the maps back
+ *   to the graph's rows; absent for the whole graph. Values are read on the graph's rows, so a
+ *   path reads the same value whichever graph the view is over.
  * @returns The source, pinned to the current snapshot.
  */
-export function viewSourceOf(session: GraphSession): ViewSource {
-    const snapshot = session.data.snapshot();
-    const edgeIds = edgeSpaceOf(snapshot);
+export function viewSourceOf(session: GraphSession, scope?: DerivedInput): ViewSource {
+    const whole = session.data.snapshot();
+    const snapshot = scope?.snapshot ?? whole;
+    const edgeIds = edgeSpaceOf(whole);
     const values = createSelectorSource({
-        snapshot: () => snapshot,
+        snapshot: () => whole,
         results: (runId) => session.results.get(runId),
         records: {
             nodeAttributes: (_row, id) => session.data.node(id),
             edgeAttributes: (row) => session.data.edge(edgeIds.idOf(row)),
         },
     });
+    const nodeOrigin = scope?.nodeOrigin ?? null;
+    const edgeRemap = scope?.edgeRemap ?? null;
+    let edgeOrigin: U32 | null = null;
+    const edgeRow = (row: number): number => {
+        if (edgeRemap === null) {
+            return row;
+        }
+
+        edgeOrigin ??= originsOf(edgeRemap, snapshot.edgeCount);
+        return edgeOrigin[row];
+    };
 
     return {
         snapshot,
-        nodeValue: (row, path) => values.nodeValue(row, path),
-        edgeValue: (row, path) => values.edgeValue(row, path),
+        nodeValue: (row, path) => values.nodeValue(nodeOrigin === null ? row : nodeOrigin[row], path),
+        edgeValue: (row, path) => values.edgeValue(edgeRow(row), path),
         attributeNames: (target) =>
             session.data
                 .attributes()

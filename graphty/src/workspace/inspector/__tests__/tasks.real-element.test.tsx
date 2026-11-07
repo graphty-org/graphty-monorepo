@@ -370,6 +370,40 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
     });
 
+    it("Rerun after a settings change runs over the scope the run was started over", async () => {
+        const { session, store } = await openRings();
+        // One ring of the two, as a selection's card scopes a run.
+        const ring = ["n0", "n1", "n2", "n3", "n4", "n5"];
+        const run = session.runs.start("pagerank", undefined, { scope: { nodes: ring } });
+        await act(async () => {
+            await run;
+        });
+        act(() => {
+            store.set({ inspected: { kind: "measure-row", id: run.id }, tabs: { "measure-row": "values" } });
+        });
+
+        const field = within(await inspector().findByRole("group", { name: "Made with" })).getByRole("spinbutton", {
+            name: /^Damping factor(,|$)/,
+        });
+        await userEvent.clear(field);
+        await userEvent.type(field, "0.5{Enter}");
+        await waitFor(() => {
+            assert.include(runBar().textContent, "Settings changed since the run");
+        });
+        await userEvent.click(inspector().getByRole("button", { name: "Rerun" }));
+
+        await waitFor(() => {
+            assert.include(Object.values(run.params), 0.5);
+            assert.equal(run.status, "succeeded");
+        });
+        assert.lengthOf(
+            session.runs.list().filter((each) => each.algorithm === "pagerank"),
+            1,
+        );
+        assert.equal(run.scope.nodeCount, 6, "still the one ring");
+        assert.equal(runBar().textContent, "", "nothing failed");
+    });
+
     it("T8: Louvain's row shows its groups, a group its members, and Why this look names it for Color", async () => {
         const { session, store } = await openRings();
         await runToEnd(session, "betweenness");

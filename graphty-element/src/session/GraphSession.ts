@@ -3126,7 +3126,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         supplied: suppliedNow,
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
-            timeline()?.visibilityChanged(change);
+            timeline()?.visibilityChanged();
             repaintGhosts();
             publish(watchers, "visibility:changed", change);
             workingChanged(true);
@@ -4120,6 +4120,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeAttributes: () => data.attributes().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
         locationDesignation: () => session.config.data.knownFields,
         previewSteps: (steps) => visibility.previewSteps(steps),
+        workingGraph: () => working.mode,
     };
     stepRunsRef.current = createStepRuns({
         runs,

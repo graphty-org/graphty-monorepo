@@ -188,6 +188,7 @@ export const MUTATING: readonly string[] = [
     "Run.rerun",
     "RunsApi.batch",
     "RunsApi.move",
+    "RunsApi.paint",
     "RunsApi.remove",
     "RunsApi.start",
     "ScopeApi.allowRun",

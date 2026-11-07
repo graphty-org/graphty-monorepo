@@ -25,6 +25,7 @@ import { createRunResult, resultPath, type RunResult } from "../session/results"
 import type { RunExecutionContext, RunOutcome, RunProgressReport } from "../session/runs";
 import { caveat, caveatSentence, noted } from "../session/runs/caveatFacts";
 import { resolutionBehind } from "../session/scope/ScopeApi";
+import type { WorkingGraph } from "../session/types";
 import type { AlgorithmSpecificOptions } from "../utils/queue-migration";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
@@ -333,7 +334,13 @@ export class AlgorithmManager implements Manager {
             (element) =>
                 data.nodes.get((element as Node).id) === element || data.edges.get((element as Edge).id) === element,
         );
-        const facade = legacyFacade(this.graph, dispatcher, ctx.inline);
+        // While the session reads the working graph, the plugin is handed what is shown.
+        const session = this.graph.getSession();
+        const root =
+            session.config.workingGraph === "visible"
+                ? workingGraphFacade(this.graph, session.data.working())
+                : this.graph;
+        const facade = legacyFacade(root, dispatcher, ctx.inline);
         const close = openLegacyScope(scope, [
             { prototype: Node.prototype, target: "node" },
             { prototype: Edge.prototype, target: "edge" },
@@ -510,6 +517,54 @@ export class AlgorithmManager implements Manager {
 
         return published ?? emptyResult(context, descriptor);
     }
+}
+
+/**
+ * The graph as a legacy plugin reads it while the session reads the working graph: its data
+ * manager's `nodes` and `edges` hold only what is shown, and `getSnapshot()` is the working
+ * graph's compact snapshot. Every other member is the graph's own, called on the graph itself, so
+ * a write, a style or a lookup by id behaves as it always does.
+ *
+ * ponytail: the node-indexed members (`nodesByIndex`, `edgesByIndex`) and a `Node`'s own edge
+ * lists still read the whole graph; a plugin that walks those sees hidden elements (recorded on
+ * #6124 with the legacy plugin caveat).
+ * @param graph - The graph.
+ * @param working - The working graph.
+ * @returns The graph a plugin is handed.
+ */
+function workingGraphFacade(graph: Graph, working: WorkingGraph): Graph {
+    const data = graph.getDataManager();
+    const shownNodes = new Set<string | number>(working.nodeIds());
+    const shownEdges = new Set(working.edgeIds().map(String));
+    const nodes: ReadonlyMap<string | number, Node> = new Map([...data.nodes].filter(([id]) => shownNodes.has(id)));
+    const edges: ReadonlyMap<string, Edge> = new Map([...data.edges].filter(([id]) => shownEdges.has(id)));
+    const own = (target: object, key: PropertyKey): unknown => {
+        const value: unknown = Reflect.get(target, key);
+        return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    };
+    const dataView = new Proxy(data, {
+        get(target, key) {
+            if (key === "nodes") {
+                return nodes;
+            }
+
+            if (key === "edges") {
+                return edges;
+            }
+
+            if (key === "getSnapshot") {
+                return (): GraphSnapshot => working.snapshot();
+            }
+
+            return own(target, key);
+        },
+    });
+
+    return new Proxy(graph, {
+        get(target, key) {
+            return key === "getDataManager" ? (): typeof data => dataView : own(target, key);
+        },
+    });
 }
 
 /**

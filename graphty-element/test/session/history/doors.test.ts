@@ -54,7 +54,11 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SessionHistory: (session) => session.history,
     SessionDataApi: (session) => session.data,
     SessionGraphStore: (session) => session.data.store,
-    RunsApi: (session) => session.runs,
+    // Holding "door-run", which `remove`, `move` and `paint` name.
+    RunsApi: async (session) => {
+        await session.runs.start("degree", undefined, { as: "door-run" }).then(undefined, () => undefined);
+        return session.runs;
+    },
     LoadDraft: (session) => session.data.prepare({ type: "json", config: { data: TINY_JSON } }),
     // Cancelled, so `rerun` has something to run again.
     Run: (session) => {

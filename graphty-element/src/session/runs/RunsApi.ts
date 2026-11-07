@@ -871,6 +871,9 @@ class Runs implements SessionRunsApi {
     /** Set while a command dispatched as data makes its own handle inside the slot it holds. */
     private adopting = false;
 
+    /** Runs a `paint()` is putting on the stack: started again, they answer from what they hold. */
+    private readonly paintOnly = new Set<RunId>();
+
     private disposed = false;
 
     /** Mints the token of every execution this session starts. */
@@ -1155,6 +1158,78 @@ class Runs implements SessionRunsApi {
         this.dispatcher.dispatchNow(command);
 
         return removal;
+    }
+
+    /**
+     * Paint a run as it is, from the result it holds, as one step: its command again, asked to
+     * apply its suggested layers and never to run.
+     * @param id - The run id.
+     * @param options - How the step is dispatched.
+     * @param options.signal - Withdraws it.
+     * @returns Settles once the layers are on the stack; rejects with the refusal.
+     */
+    paint(id: RunId, options: { readonly signal?: AbortSignal } = {}): Promise<void> {
+        const run = this.runs.get(id);
+        const recorded = this.commands.get(id);
+        if (run === undefined || recorded === undefined || !this.listed(run)) {
+            return Promise.reject(
+                new GraphtyError({
+                    code: "E_UNKNOWN_RUN",
+                    message: `This session holds no run "${id}" to paint.`,
+                    source: "run",
+                    target: { kind: "run", id },
+                    details: { id },
+                }),
+            );
+        }
+
+        const command: AlgorithmRunCommand = { ...recorded, as: id, applySuggestedStyles: true };
+        this.paintOnly.add(id);
+        return this.dispatcher.dispatch(command, options).then(
+            () => {
+                this.paintOnly.delete(id);
+            },
+            (error: unknown) => {
+                this.paintOnly.delete(id);
+                throw error;
+            },
+        );
+    }
+
+    /**
+     * Start a held run again with some option values changed, over the scope, sample, exactness
+     * and seed it was started with: `run.rerun({ options })`.
+     * @param id - The run id.
+     * @param options - The option values that change.
+     * @returns The run.
+     */
+    private rerunWith(id: RunId, options: Readonly<Record<string, unknown>>): Run {
+        const run = this.runs.get(id);
+        const recorded = this.commands.get(id);
+        if (run === undefined || recorded === undefined) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_RUN",
+                message: `This session holds no run "${id}" to run again.`,
+                source: "run",
+                target: { kind: "run", id },
+                details: { id },
+            });
+        }
+
+        const { scope, seed, sample, exact } = recorded;
+        return this.startRun(
+            this.dispatch,
+            run.algorithm,
+            { ...run.params, ...options },
+            {
+                as: id,
+                ...(scope === undefined ? {} : { scope }),
+                ...(seed === undefined ? {} : { seed }),
+                ...(sample === undefined ? {} : { sample }),
+                ...(exact === undefined ? {} : { exact }),
+            },
+            undefined,
+        );
     }
 
     /**
@@ -1495,6 +1570,7 @@ class Runs implements SessionRunsApi {
             label: () => this.labelOf(id),
             distinguishedBy: () => this.names.get(id)?.distinguishedBy ?? null,
             siblingsDifferBy: () => this.siblingsDifferBy(id),
+            rerunWith: (changed) => this.rerunWith(id, changed),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
             timeline: () => this.options.timeline?.() !== false,
@@ -1603,7 +1679,7 @@ class Runs implements SessionRunsApi {
      * @returns True when it should run again.
      */
     private shouldReexecute(run: ManagedRun): boolean {
-        if (!isTerminalRunStatus(run.status)) {
+        if (!isTerminalRunStatus(run.status) || this.paintOnly.has(run.id)) {
             return false;
         }
 
@@ -1777,6 +1853,16 @@ class Runs implements SessionRunsApi {
         const body = this.bodies.get(run.id);
 
         if (body === undefined) {
+            if (this.paintOnly.has(run.id) && run.status !== "succeeded") {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `Run "${run.id}" has no result to paint: its status is "${run.status}".`,
+                    source: "run",
+                    target: { kind: "run", id: run.id },
+                    details: { id: run.id, status: run.status, reason: "no-result" },
+                });
+            }
+
             // A run that already answers this command and did not need running again: only the
             // layers it was asked to apply are written.
             if (command.applySuggestedStyles === true && run.status === "succeeded") {
@@ -1903,7 +1989,7 @@ class Runs implements SessionRunsApi {
                 this.realignGroups(draft, prior.result, entry.result);
                 this.addNewGroupLayers(draft, entry.result, run.style);
             }
-            const outcomes = this.paint(draft, run.id, decision.paint, { style: run.style, result: entry.result });
+            const outcomes = this.paintFirst(draft, run.id, decision.paint, { style: run.style, result: entry.result });
 
             if (decision.painting !== undefined) {
                 // Written after the layers, which need the run's entry to bind to.
@@ -2050,7 +2136,7 @@ class Runs implements SessionRunsApi {
      * @param groups.result - The result.
      * @returns What became of each.
      */
-    private paint(
+    private paintFirst(
         draft: Draft,
         runId: RunId,
         suggestions: readonly StyleSuggestion[],
@@ -2607,9 +2693,14 @@ class Runs implements SessionRunsApi {
             return base;
         }
 
+        // Two runs over what is shown differ by what was shown: each is named by how many nodes.
+        const scopeWords =
+            run.scope.spec === "visible"
+                ? `${String(run.scope.nodeCount)} showing`
+                : describeScope(run.scope.spec, this.options.setName);
         const qualifier =
             differing.length === 0
-                ? describeScope(run.scope.spec, this.options.setName)
+                ? scopeWords
                 : differing.map((name) => `${name} ${formatParamValue(run.params[name])}`).join(", ");
 
         return `${base} (${qualifier})`;

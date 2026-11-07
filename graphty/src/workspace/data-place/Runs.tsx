@@ -146,12 +146,8 @@ function RunRow({ session, run }: Readonly<{ session: GraphSession; run: Run }>)
                             variant="subtle"
                             data-show-run=""
                             onClick={() => {
-                                // The same run, painted now: its suggested layers, in one step.
-                                const again = session.runs.start(run.algorithm, run.params, {
-                                    scope: run.scope.spec,
-                                    applySuggestedStyles: true,
-                                });
-                                again.then(undefined, () => undefined);
+                                // The same run, painted as it is: its suggested layers, in one step.
+                                session.runs.paint(run.id).then(undefined, () => undefined);
                             }}
                         >
                             Show

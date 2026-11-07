@@ -99,6 +99,23 @@ describe("runName", () => {
         assert.isTrue(names(session).some(([name]) => name.endsWith("(Team)")));
     });
 
+    it("tells two runs over what was shown apart by how many nodes were showing", async () => {
+        const session = await sessionWithGraph();
+        // A headless session computes nothing, but each run resolves its scope as its turn comes.
+        await session.runs.start("degree", {}, { style: false }).then(undefined, () => undefined);
+        await session.visibility.set({ kind: "degree", min: 2 });
+        await session.runs.start("degree", {}, { style: false }).then(undefined, () => undefined);
+
+        const named = names(session);
+        for (const [name, label] of named) {
+            assert.strictEqual(name, label);
+        }
+        assert.sameMembers(
+            named.map(([name]) => name),
+            ["Degree (4 showing)", "Degree (3 showing)"],
+        );
+    });
+
     it("names a batch by the label it was given", async () => {
         const session = await sessionWithGraph();
         const named = session.runs.batch([{ algorithm: "degree" }], { label: "Rankings" });

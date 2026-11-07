@@ -160,6 +160,11 @@ export interface RunInput {
     /** The run, as the cache's holder. */
     readonly holder: object;
     /**
+     * Whether this run computes over its scope because its class follows the working graph
+     * (`static followsWorkingGraph = true`) and the session reads it (`workingGraph: "visible"`).
+     */
+    readonly followsView?: boolean;
+    /**
      * The run's scope over the current snapshot, or null for the whole graph.
      * @returns The scope.
      */
@@ -172,12 +177,16 @@ export type ScopeInputDeclaration = NonNullable<AlgorithmDescriptor["scopeInput"
 const bindings = new WeakMap<object, RunInput>();
 
 /**
- * Whether an algorithm's class declares `static scopeInput = "subgraph"`.
+ * Whether an algorithm computes over its scope: its class declares `static scopeInput =
+ * "subgraph"`, or it follows the working graph and its run started while the session read it.
  * @param algorithm - The instance.
  * @returns True when it computes over its scope.
  */
 export function declaresScopedInput(algorithm: object): boolean {
-    return (algorithm.constructor as { scopeInput?: unknown }).scopeInput === "subgraph";
+    return (
+        (algorithm.constructor as { scopeInput?: unknown }).scopeInput === "subgraph" ||
+        bindings.get(algorithm)?.followsView === true
+    );
 }
 
 /**
@@ -759,6 +768,12 @@ export function scopeEdges(input: ScopedInput): ScopeEdge[] {
 /** What owns a graph's derived inputs: the graph, and the accelerator its release goes to. */
 interface InputOwner {
     readonly acceleration: { readonly accelerator: Readonly<Record<string, unknown>> | null };
+    /**
+     * The session the graph runs in, whose working-graph mode decides what a class that follows
+     * the working graph computes over.
+     * @returns The session.
+     */
+    getSession?(): { readonly config: { readonly workingGraph: string } };
 }
 
 const caches = new WeakMap<object, DerivedInputs>();
@@ -847,7 +862,10 @@ export async function withRunInput<T>(
 ): Promise<T> {
     const inputs = derivedInputsOf(owner);
     const holder = {};
-    bindings.set(algorithm, { inputs, holder, scope });
+    const followsView =
+        (algorithm.constructor as { followsWorkingGraph?: unknown }).followsWorkingGraph === true &&
+        owner.getSession?.().config.workingGraph === "visible";
+    bindings.set(algorithm, { inputs, holder, scope, followsView });
     try {
         if (declaresScopedInput(algorithm)) {
             const resolved = scope();

@@ -37,6 +37,8 @@ interface RunPlan {
      * experiment): Run reuses it and adds its suggested layers.
      */
     readonly paint?: boolean;
+    /** The kept run "Update" runs again under its own id, so its row and layer are the ones revised. */
+    readonly reuse?: string;
 }
 
 /**
@@ -95,16 +97,21 @@ function runPlan(session: GraphSession, key: string, name: string, params?: Reco
               label: `Update ${name} ${noun}`,
               restoreLayer: false,
               current: params !== undefined && session.runs.answered(key, params) !== undefined,
+              // Over what it was started over: a run of the default scope only, so a filter
+              // changed since revises it rather than adding a second row beside it.
+              ...(latest.scope.spec === "visible" ? { reuse: latest.id } : {}),
           };
 }
 
 /**
- * The start options Analyze's Run adds for its plan: put back deleted layers, or paint a card's
- * run that the same settings reuse.
+ * The start options Analyze's Run adds for its plan: put back deleted layers, paint a card's
+ * run that the same settings reuse, or run the kept run again under its own id.
  * @param session - The element's session
  * @param key - The algorithm
  * @param name - The algorithm's name in words
  * @param params - The settings it runs with
+ * @param revise - Whether an "Update" runs the kept run again under its id; false for a path,
+ *   whose every From and To is its own row
  * @returns The options
  */
 function planOptions(
@@ -112,10 +119,15 @@ function planOptions(
     key: string,
     name: string,
     params: Record<string, unknown>,
-): { restoreLayer: boolean; applySuggestedStyles?: true } {
+    revise = true,
+): { restoreLayer: boolean; applySuggestedStyles?: true; as?: string } {
     const plan = runPlan(session, key, name);
     const reused = plan.paint === true && session.runs.answered(key, params) !== undefined;
-    return { restoreLayer: plan.restoreLayer, ...(reused ? { applySuggestedStyles: true as const } : {}) };
+    return {
+        restoreLayer: plan.restoreLayer,
+        ...(reused ? { applySuggestedStyles: true as const } : {}),
+        ...(revise && plan.reuse !== undefined ? { as: plan.reuse } : {}),
+    };
 }
 
 /**
@@ -306,7 +318,7 @@ export function AnalyzePopover({
                     // Each From and To is its own run, so its own row.
                     const run = session.runs.start(picked.key, params, {
                         style: { name: wordsFor(picked).name },
-                        ...planOptions(session, picked.key, wordsFor(picked).name, params),
+                        ...planOptions(session, picked.key, wordsFor(picked).name, params, false),
                     });
                     run.then(undefined, () => undefined);
                     onStarted(wordsFor(picked).name);

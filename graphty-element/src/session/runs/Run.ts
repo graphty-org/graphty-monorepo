@@ -44,6 +44,7 @@ import {
     type RunDistinction,
     type RunPhase,
     type RunRecord,
+    type RunRerunOptions,
     type RunScopeFacts,
     type RunScopeRecord,
     type RunStatus,
@@ -268,6 +269,13 @@ export interface RunSurroundings {
      *   while no other run shares the name. Absent for work that is not an algorithm run.
      */
     siblingsDifferBy?(): readonly string[] | null;
+    /**
+     * Start this run again with some option values changed, over the scope and with the seed it
+     * was started with. Absent for work that is not an algorithm run.
+     * @param options - The option values that change.
+     * @returns The run.
+     */
+    rerunWith?(options: Readonly<Record<string, unknown>>): Run;
     /**
      * Where this run sits among the runs still waiting.
      * @returns The position counting from 0, or null when it is not waiting.
@@ -987,10 +995,17 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * Run it again, in place.
      *
      * The run keeps its id, so every style layer, legend and saved reference bound to it survives.
-     * A run that has not finished is left alone rather than restarted.
+     * A run that has not finished is left alone rather than restarted. With `options`, it runs
+     * with those option values changed, over the scope and with the seed it was started with.
+     * @param change - What changes.
+     * @param change.options - The option values that change.
      * @returns This run, restarted.
      */
-    rerun(): Run<T> {
+    rerun(change?: RunRerunOptions): Run<T> {
+        if (change?.options !== undefined && this.surroundings.rerunWith !== undefined) {
+            return this.surroundings.rerunWith(change.options) as unknown as Run<T>;
+        }
+
         if (!isTerminalRunStatus(this.status)) {
             return this;
         }

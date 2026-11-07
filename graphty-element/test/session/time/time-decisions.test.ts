@@ -9,7 +9,7 @@ import { createGraphSession, type GraphSession } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createRunResult } from "../../../src/session/results";
-import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
+import type { Run, RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 
 // The timeline is an experiment: this file's sessions switch it on.
 beforeAll(() => {
@@ -129,6 +129,53 @@ describe("runs over a moving window", () => {
 
         assert.strictEqual(executions(), before + 1);
         assert.isNull(run.stale);
+        session.dispose();
+    });
+});
+
+describe("keep and re-run follow the window, not the filter", () => {
+    /**
+     * A session with a two-day window, a filter, a run over what is shown, and a results policy.
+     * @param results - The policy.
+     * @returns The session, the run and the execution count.
+     */
+    async function ranUnder(results: "keep" | "rerun"): Promise<{
+        session: GraphSession;
+        run: Run;
+        executions: () => number;
+    }> {
+        // A third edge on A and C, so a degree filter keeps two of the four nodes the window shows.
+        const { session, executions } = await open(true, `${CSV}A,C,2026-01-01,red\n`);
+        await session.time.setSettings({ results });
+        await session.time.window({ from: T0, to: T0 + 2 * DAY, step: "day" });
+        await session.visibility.set({ kind: "degree", min: 3 });
+        const run = session.runs.start("degree", undefined, { style: false });
+        await run;
+        return { session, run, executions };
+    }
+
+    it("keep: clearing a filter leaves the run out of date, as adding one does", async () => {
+        const { session, run } = await ranUnder("keep");
+
+        await session.visibility.set(null);
+
+        assert.strictEqual(run.stale?.reason, "scope-changed", "a filter move is never accepted as current");
+        session.dispose();
+    });
+
+    it("rerun: neither adding nor clearing a filter re-runs, and a window move does", async () => {
+        const { session, run, executions } = await ranUnder("rerun");
+        const before = executions();
+
+        await session.visibility.set({ kind: "expression", where: "data.team == 'zzz'" });
+        await session.visibility.set(null);
+        // A re-run is started before the call that caused it returns: awaiting the run waits for it.
+        await run;
+        assert.strictEqual(executions(), before, "a filter move re-ran nothing");
+
+        await session.time.stepBy(1);
+        await run;
+        assert.strictEqual(executions(), before + 1, "the window move re-ran the run");
         session.dispose();
     });
 });

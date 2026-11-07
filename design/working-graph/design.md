@@ -245,12 +245,29 @@ The compact snapshot is reserved for topology readers: statistics, components, r
 - **defineAlgorithm**: with the option on, the author's graph view (`simple/view.ts`) is built from
   the run's own scoped input, the entry a built-in gets for that scope. For the default "visible"
   that is the working graph; `scope: "graph"`, a set or a selection gets its own subgraph. Off, it
-  stays as today (whole graph, masked back).
-- **Legacy plugins**: with the option on, the run hands the plugin a data manager facade backed by
-  the run's scoped input, so its nodes, edges and degrees are those of the scope. In
-  `"documented"` mode they keep reading the whole graph, masked back with the `scope.whole-graph`
-  caveat. If a plugin reaches something the facade cannot cover, that exception goes on #6124 and
-  in the ratchet baseline, not presented as meeting the rule.
+  stays as today (whole graph, masked back). The generated class says so with an internal
+  `static followsWorkingGraph = true`, which `Algorithm.register` records by catalogue key
+  (`catalog/registry.ts`), so the planner prices, refuses and points such a run at a smaller scope
+  over its scope exactly when the run will compute over it; a run decides once, as it starts.
+- **Legacy plugins**: with the option on, the plugin is handed a graph whose data manager holds
+  only what is shown (`nodes`, `edges`, and `getSnapshot()` returning the working graph's
+  snapshot); everything else is the graph's own. A legacy plugin has no run, so its scope is the
+  working graph. In `"documented"` mode it keeps reading the whole graph; it publishes no result,
+  so there is nothing to mask back and no caveat. Not covered, and recorded on #6124: the
+  row-indexed `nodesByIndex` and `edgesByIndex`, and a `Node`'s own edge lists.
+- **Refusal suggestion**: the gate points a refused run at the largest connected piece of the
+  run's own scope, as a `{ nodes }` scope of that piece's ids, counted, computed only on a
+  refusal (`planning.ts` `largestPieceIn`). `"largest-component"` names the whole graph's piece,
+  which says nothing about a smaller scope, so a run over less than the whole graph is never
+  pointed at it.
+- **Runs (S10, done here)**: `runs.paint(id)` puts a run's suggested layers on the stack from the
+  result it holds, as one step, without running it, also when it is out of date (the run's own
+  command again with `applySuggestedStyles` and re-execution held off). `run.rerun({ options })`
+  goes again with those option values over the scope, seed, sample and exactness it was started
+  with. Two runs over `"visible"` that differ only by what was shown are named by the shown count
+  ("PageRank (40 showing)"), in the element's deprecated label and the app's own words alike. The
+  timeline's `keep` and `rerun` act only when the window key moved, never on a filter change
+  (which is also announced as `"none"`).
 - **Force driver**: the CPU/GPU choice counts the layout's resolved set.
 
 ## 7. Layouts (S4): the view replaces #6117's leave-out

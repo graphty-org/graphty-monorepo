@@ -134,6 +134,25 @@ describe("the Path popover, on the real element", () => {
         });
     });
 
+    it("offers only the nodes the path can use: a node the filter hides is not listed", async () => {
+        const { session, element } = await openFriends();
+        // Keeps Ava and Ben, the only two with two ties.
+        await session.visibility.set({ kind: "degree", min: 2 });
+        assert.equal(session.visibility.summary.visibleNodes, 2);
+        element.focus();
+        await userEvent.keyboard("p");
+
+        const form = await pathForm();
+        const from = within(form).getByRole("combobox", { name: "From node" });
+        // "e" is in Ben, Lee, Dev and Zoe: only Ben is shown.
+        await userEvent.type(from, "e");
+        await within(form).findByRole("option", { name: "Ben" });
+        const offered = within(form)
+            .getAllByRole("option")
+            .map((option) => option.textContent);
+        assert.deepEqual(offered, ["Ben"]);
+    });
+
     it("Enter on a typed name picks it and moves on: From to To, To to Find path", async () => {
         const { element } = await openFriends();
         element.focus();

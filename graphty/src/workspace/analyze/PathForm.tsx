@@ -51,8 +51,9 @@ function nodeHits(session: GraphSession, text: string): { id: NodeId; name: stri
     if (text.trim() === "") {
         return [];
     }
+    // Only the nodes the run can start or end at: it runs over the default run scope, what is shown.
     return session
-        .find(text, { limit: LIMIT })
+        .find(text, { limit: LIMIT, scope: "visible" })
         .records.flatMap((hit) => (hit.kind === "node" ? [{ id: hit.id, name: hit.name }] : []));
 }
 

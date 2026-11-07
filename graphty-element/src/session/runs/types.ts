@@ -668,6 +668,14 @@ export interface RunDistinction {
 }
 
 /**
+ * What changes when a run goes again (`run.rerun(change)`). OPEN: may gain members.
+ */
+export interface RunRerunOptions {
+    /** The option values that change; every other one, the scope and the seed are kept. */
+    readonly options?: Readonly<Record<string, unknown>>;
+}
+
+/**
  * A frozen, structured-cloneable snapshot of a run.
  *
  * This is what crosses a worker boundary, what an event carries, what the journal stores and
@@ -850,9 +858,14 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      * it survives. That is what "re-run from a layer" needs, and it is why a binding never
      * dangles after a re-run. The last result stays readable until the new one is recorded, and
      * undoing the re-run puts the previous result back without computing it again.
+     *
+     * With `options`, the run goes again with those option values changed and every other one
+     * kept, over the scope it was started with (not the default scope) and with its seed: what a
+     * "settings changed" Rerun wants.
+     * @param change - What changes; absent re-runs as it was.
      * @returns The run, which is this one restarted rather than a second entry.
      */
-    rerun(): Run<T>;
+    rerun(change?: RunRerunOptions): Run<T>;
     /**
      * What this run suggests be drawn from it.
      *
@@ -1103,6 +1116,17 @@ export interface RunsApi {
      * @returns The decision, or undefined when this session holds no run with that id.
      */
     painting(id: RunId): RunPainting | undefined;
+    /**
+     * Paint a run as it is: put the layers it suggests on the stack from the result it holds,
+     * without running it again, as one step -- also when its result is out of date. What a "Show"
+     * on a run that paints nothing wants.
+     * @param id - The run id.
+     * @param options - How the step is dispatched.
+     * @param options.signal - Withdraws it.
+     * @returns Settles once the layers are on the stack. Rejects with `E_UNKNOWN_RUN` for a run
+     *     this session does not hold and `E_BAD_COMMAND` for one with no result to paint.
+     */
+    paint(id: RunId, options?: { readonly signal?: AbortSignal }): Promise<void>;
     /**
      * Which of a run's layers the stack holds, and which of those it added on its first
      * completion are gone: what decides between "update the layer" and "add the layer back" before

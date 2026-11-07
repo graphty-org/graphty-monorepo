@@ -21,12 +21,14 @@ import { planar } from "@graphty/layout";
 
 import { type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
 import { layoutAlias, layoutDescriptor, layoutEntry, layoutIdForEngine } from "../catalog/layouts";
+import { followsWorkingGraph } from "../catalog/registry";
 import type {
     AlgorithmDescriptor,
     AlgorithmKey,
     CostClass,
     FieldDescriptor,
     FilterStep,
+    NodeId,
     RunId,
     Scope,
     SetId,
@@ -73,6 +75,7 @@ import type { DataIssuesCommand } from "./issues";
 import { RevisionCache } from "./revision";
 import type { Caveats, ResolvedScope } from "./runs";
 import { noted } from "./runs/caveatFacts";
+import { edgeSpaceOf } from "./scope/spaces";
 import type { GraphStatistics, LocationColumns } from "./types";
 import type { StepCounts } from "./visibility/VisibilityApi";
 
@@ -325,6 +328,11 @@ export interface PlanningContext {
     readonly locationDesignation?: () => LocationDesignation;
     /** What a filter-steps list would leave visible, step by step. */
     readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
+    /**
+     * The session's working-graph mode: under `"visible"`, an algorithm that follows the working
+     * graph computes over its run's scope, so it is estimated over it. Absent reads `"documented"`.
+     */
+    readonly workingGraph?: () => string;
     /** The weight the graph was loaded with, for the weight a run would read. */
     readonly loadedWeight?: () => LoadedWeightFact | null;
 }
@@ -403,12 +411,21 @@ function costInput(
        -- and refused -- over the whole graph: a small scope must not admit a whole-graph run. A
        scoped one pays for deriving its input on top. */
     const whole = scope.nodeCount === statistics.nodeCount && scope.edgeCount === statistics.edgeCount;
-    const scoped = !whole && descriptor?.scopeInput === "subgraph";
+    // A `defineAlgorithm` extension computes over its scope while the session reads the working
+    // graph, so it is priced, refused and pointed elsewhere as a class declaring a scoped input is.
+    const follows =
+        descriptor !== undefined &&
+        descriptor.scopeInput !== "subgraph" &&
+        context.workingGraph?.() === "visible" &&
+        followsWorkingGraph(descriptor.key);
+    const effective: AlgorithmDescriptor | undefined =
+        follows && descriptor !== undefined ? { ...descriptor, scopeInput: "subgraph" } : descriptor;
+    const scoped = !whole && effective?.scopeInput === "subgraph";
 
     return {
         input: {
             algorithm: command.algorithm,
-            ...(descriptor === undefined ? {} : { descriptor }),
+            ...(effective === undefined ? {} : { descriptor: effective }),
             ...(command.params === undefined ? {} : { params: command.params }),
             statistics,
             scope:
@@ -438,6 +455,87 @@ function notEstimated(command: { readonly op: string }): EstimateRefusal {
         "estimate.not-costed",
         { op: command.op },
     );
+}
+
+/**
+ * The largest connected piece of a scope, read without direction, over the scope's own nodes and
+ * edges: what a refused run over that scope is pointed at. Ties go to the piece holding the
+ * lowest node row. Computed only when a run is refused, in one pass over the graph's edges.
+ * @param context - What planning reads.
+ * @param spec - The refused run's scope.
+ * @returns The piece as a scope of its nodes, or null when the scope holds no node or the graph
+ *   cannot be read.
+ */
+export function largestPieceIn(context: PlanningContext, spec: Scope): ScopeCandidate | null {
+    const graph = context.snapshot?.();
+    if (graph === undefined) {
+        return null;
+    }
+
+    const scope = context.resolveScope(spec);
+    const n = graph.nodeCount;
+    const parent = new Int32Array(n).fill(-1);
+    for (let row = 0; row < n; row++) {
+        if (scope.nodes.has(graph.ids.idOf(row))) {
+            parent[row] = row;
+        }
+    }
+
+    const root = (row: number): number => {
+        let at = row;
+        while (parent[at] !== at) {
+            parent[at] = parent[parent[at]];
+            at = parent[at];
+        }
+        return at;
+    };
+    const { src, dst } = graph.edgeList();
+    const edgeIds = edgeSpaceOf(graph);
+    const kept: number[] = [];
+    for (let edge = 0; edge < src.length; edge++) {
+        if (parent[src[edge]] === -1 || parent[dst[edge]] === -1 || !scope.edges.has(edgeIds.idOf(edge))) {
+            continue;
+        }
+
+        kept.push(edge);
+        const a = root(src[edge]);
+        const b = root(dst[edge]);
+        if (a !== b) {
+            parent[Math.max(a, b)] = Math.min(a, b);
+        }
+    }
+
+    const sizes = new Int32Array(n);
+    let best = -1;
+    for (let row = 0; row < n; row++) {
+        if (parent[row] !== -1) {
+            const top = root(row);
+            sizes[top]++;
+            if (best === -1 || sizes[top] > sizes[best] || (sizes[top] === sizes[best] && top < best)) {
+                best = top;
+            }
+        }
+    }
+
+    if (best === -1) {
+        return null;
+    }
+
+    const nodes: NodeId[] = [];
+    for (let row = 0; row < n; row++) {
+        if (parent[row] !== -1 && root(row) === best) {
+            nodes.push(graph.ids.idOf(row));
+        }
+    }
+
+    const edges = kept.filter((edge) => root(src[edge]) === best).length;
+    return {
+        scope: { nodes },
+        label: "The largest connected piece",
+        nodes: nodes.length,
+        edges,
+        derivationSeconds: derivationSeconds(n, graph.edgeCount, edges),
+    };
 }
 
 /**
@@ -709,6 +807,7 @@ function planAlgorithmRun(context: PlanningContext, command: AlgorithmRunCommand
     const decision = gateRun(built.input, {
         limits: context.limits,
         keptSets: () => keptSetScopes(context),
+        largestPiece: () => largestPieceIn(context, command.scope ?? context.defaultScope),
         ...(command.exact === undefined ? {} : { exact: command.exact }),
         ...(command.sample === undefined ? {} : { sample: command.sample }),
     });

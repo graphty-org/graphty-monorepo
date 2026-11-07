@@ -13,6 +13,7 @@
  * id mapping, the output, unmeasured values, caveats and the cost model.
  */
 
+import { declaresScopedInput } from "../algorithms/input/ScopedInput";
 import { communityFields, edgeMetricFields, nodeMetricFields } from "../algorithms/metrics/fields";
 import { DeclaredAlgorithm } from "../algorithms/results/DeclaredAlgorithm";
 import { communityFieldSpecs, metricFieldSpecs } from "../algorithms/results/fields";
@@ -665,6 +666,12 @@ function generateClass(algorithm: CheckedAlgorithm): GeneratedClass {
         static override readonly parallelEdges = "none" as const;
         static readonly version = algorithm.version;
         static readonly suggestedName = algorithm.suggestedName;
+        /**
+         * While the session reads the working graph (`workingGraph: "visible"`), a run computes
+         * over its scope: the view the author reads is the scope's subgraph. Otherwise it reads
+         * the whole graph and keeps the scope's values.
+         */
+        static readonly followsWorkingGraph = true;
 
         /**
          * Work units: one visit per node and two per edge for the per-element forms; one pass
@@ -691,8 +698,11 @@ function generateClass(algorithm: CheckedAlgorithm): GeneratedClass {
         override compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
             // ponytail: the view reads the session's snapshot and records directly -- the minimum
             // internal adapter until the advanced contract's snapshot layout, `input.column` and
-            // `input.edgeId` (algorithm.md section 3) are built on master and replace it.
-            const view = createGraphView(viewSourceOf(this.graph.getSession()), {
+            // `input.edgeId` (algorithm.md section 3) are built on master and replace it. A run
+            // over its scope reads the scope's compact graph, the one a built-in run over the same
+            // scope derives (for what is shown, the working graph).
+            const scoped = declaresScopedInput(this) ? this.input("declared").derived() : undefined;
+            const view = createGraphView(viewSourceOf(this.graph.getSession(), scoped), {
                 id,
                 directed: algorithm.directed,
             });

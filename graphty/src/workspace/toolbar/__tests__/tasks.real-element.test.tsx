@@ -165,6 +165,36 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
+    it("Update PageRank layer after a filter revises the same row and its layer", async () => {
+        const session = await openKarate();
+        await analyze("PageRank", "PageRank");
+        const runId = await finished(session, "pagerank");
+        await waitFor(() => {
+            assert.isAbove(session.runs.bindings(runId).length, 0);
+        });
+        const layers = session.runs.bindings(runId).length;
+        await session.visibility.set({ kind: "degree", min: 4 });
+        const shown = session.visibility.summary.visibleNodes;
+        assert.isBelow(shown, 34);
+
+        await userEvent.click(analyzeTool());
+        const recent = await screen.findByRole("group", { name: "Recent" });
+        await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
+        await userEvent.click(await screen.findByRole("button", { name: "Update PageRank layer" }));
+
+        await waitFor(() => {
+            const run = session.runs.get(runId);
+            assert.equal(run?.status, "succeeded");
+            assert.equal(run?.scope.nodeCount, shown, "the same run, over what is shown now");
+        });
+        assert.lengthOf(
+            session.runs.list().filter((run) => run.algorithm === "pagerank"),
+            1,
+            "no second PageRank row",
+        );
+        assert.equal(session.runs.bindings(runId).length, layers, "the same layer, no second one");
+    });
+
     it("Analyze picks and runs from the keyboard alone: a single match on Enter, Arrow keys otherwise", async () => {
         const session = await openKarate();
 

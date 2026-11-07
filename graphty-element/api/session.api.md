@@ -4705,7 +4705,7 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly progress: Progress;
     readonly queuePosition: number | null;
     readonly record: RunRecord;
-    rerun(): Run<T>;
+    rerun(change?: RunRerunOptions): Run<T>;
     readonly result?: T | undefined;
     readonly scope: ResolvedScope;
     readonly shape: ResultShape;
@@ -4870,6 +4870,11 @@ export interface RunRemoval {
 }
 
 // @public
+export interface RunRerunOptions {
+    readonly options?: Readonly<Record<string, unknown>>;
+}
+
+// @public
 export interface RunResult {
     band(field: string): FieldBand | undefined;
     column(field: string): NumericColumnView;
@@ -4906,6 +4911,9 @@ export interface RunsApi {
     layers(id: RunId): RunLayers | undefined;
     list(): readonly Run[];
     move(id: RunId, before: LayerId | null, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<void>;
+    paint(id: RunId, options?: {
         readonly signal?: AbortSignal;
     }): Promise<void>;
     painting(id: RunId): RunPainting | undefined;

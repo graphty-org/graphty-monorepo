@@ -25,14 +25,7 @@ import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
 import type { HistoryStepId, SessionEventMap } from "../types";
-import type {
-    FilterResult,
-    FilterValueSource,
-    SessionVisibilityApi,
-    TimeStep,
-    TimeWindow,
-    VisibilityChange,
-} from "../visibility";
+import type { FilterResult, FilterValueSource, SessionVisibilityApi, TimeStep, TimeWindow } from "../visibility";
 import type { TimeInstants, TimePlayback, TimeResultsPolicy } from "../visibility/filter";
 import { diffCounts, type FilterBytes, type SlideCounts } from "../visibility/slide";
 import { ageFadeInactive, type AgeFadeInactiveReason, type EdgeAgeFade, normalizedStarts } from "./ageFade";
@@ -660,7 +653,7 @@ export interface TimeInternals {
      */
     edgeAges(): EdgeAgeFade | null;
     /** Apply the `results` setting after a visibility change. */
-    visibilityChanged(change: VisibilityChange): void;
+    visibilityChanged(): void;
     /** Stop playback for good. */
     dispose(): void;
 }
@@ -1172,6 +1165,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let disposed = false;
     /** Runs that were out of date at the last visibility change, so "keep" never revives one. */
     let staleBefore = new Set<RunId>();
+    /** The window at the last visibility change, as a window key: what tells a window move from a filter move. */
+    let windowBefore = "";
     const accepted = new Map<RunId, { readonly from: string; readonly to: string; readonly window: string }>();
     let reruns: Promise<unknown> = Promise.resolve();
     /** The unit the reader last gave each column, so designating it again keeps it. */
@@ -3094,7 +3089,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             };
         },
 
-        visibilityChanged(change: VisibilityChange): void {
+        visibilityChanged(): void {
             // A recorded change (a window set, an undo, a filter) supersedes a dragged cursor; a
             // play keeps its own and records it when it stops.
             if (!playing) {
@@ -3103,17 +3098,21 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
             const policy: TimeResultsPolicy = settingsNow().results;
             const runs = sources.runs();
-            if (change.filterKind === "window" || change.filterKind === "none") {
+            const { window } = visibility;
+            const key =
+                window === null
+                    ? ""
+                    : windowKey({
+                          attribute: window.attribute,
+                          from: boundOf(window, "from"),
+                          to: boundOf(window, "to"),
+                      });
+            // Only a window move: a filter added or cleared (whose change is also announced as
+            // "none") never accepts or re-runs, whichever way it went.
+            const windowMoved = key !== windowBefore;
+            windowBefore = key;
+            if (windowMoved) {
                 if (policy === "keep") {
-                    const { window } = visibility;
-                    const key =
-                        window === null
-                            ? ""
-                            : windowKey({
-                                  attribute: window.attribute,
-                                  from: boundOf(window, "from"),
-                                  to: boundOf(window, "to"),
-                              });
                     for (const run of movedRuns().filter((each) => !staleBefore.has(each.id))) {
                         accepted.set(run.id, {
                             from: run.scope.digest,

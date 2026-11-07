@@ -35,6 +35,12 @@ export interface AiCallRecord {
      * @experimental assistant
      */
     readonly durationMs?: number;
+    /**
+     * What this call did, in order, under the generated tools with the `assistant` experiment on;
+     * absent for a call that did nothing to report. The message's `effects` holds every call's.
+     * @experimental assistant
+     */
+    readonly effects?: readonly AiEffect[];
 }
 
 /** A page a tool the provider ran (a web search, reading a web page) found or read. */
@@ -436,6 +442,7 @@ function assistantEntry(
                       command: part.command,
                       arguments: part.arguments,
                       ...(outcomes.get(part.callId) ?? { code: "AI_TOOL_NOT_RUN", params: { tool: part.command } }),
+                      ...(effects.has(part.callId) && { effects: effects.get(part.callId) }),
                   },
               ]
             : [],

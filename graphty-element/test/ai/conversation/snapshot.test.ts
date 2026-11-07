@@ -33,6 +33,53 @@ describe("the conversation snapshot", () => {
         assert.deepEqual(plain?.role === "assistant" ? plain.sources : undefined, []);
     });
 
+    it("gives each call what it did, and none to a call that did nothing", () => {
+        const read = readConversation(GOLDEN);
+        assert.isTrue(read.ok);
+        const golden = read.ok ? read.record : undefined;
+        assert.isDefined(golden);
+        const found = { code: "AI_EFFECT_FOUND" as const, params: { nodes: 22 }, target: { where: "degree >= `3`" } };
+        const call = (callId: string): Record<string, unknown> => ({
+            type: "tool-call",
+            origin: "model",
+            callId,
+            command: "query",
+            arguments: { action: "count" },
+        });
+        const messages = [
+            { id: "u1", role: "user", parts: [{ type: "text", origin: "reader", text: "How many?" }] },
+            { id: "c1", role: "assistant", parts: [call("k1"), call("k2")] },
+            {
+                id: "r1",
+                role: "tool",
+                parts: [
+                    {
+                        type: "tool-result",
+                        origin: "graph-data",
+                        callId: "k1",
+                        code: "AI_COMPLETED",
+                        params: {},
+                        content: "{}",
+                        effects: [found],
+                    },
+                    {
+                        type: "tool-result",
+                        origin: "graph-data",
+                        callId: "k2",
+                        code: "AI_COMPLETED",
+                        params: {},
+                        content: "{}",
+                    },
+                ],
+            },
+        ];
+        const record = { ...golden, messages, pending: [] } as unknown as NonNullable<typeof golden>;
+        const reply = conversationSnapshot(record).messages.find((message) => message.id === "c1");
+        const calls = reply?.role === "assistant" ? reply.calls : [];
+        assert.deepEqual(calls[0]?.effects, [found]);
+        assert.notProperty(calls[1], "effects");
+    });
+
     describe("words said while a request waited on the reader", () => {
         const read = readConversation(GOLDEN);
         const golden = read.ok ? read.record : undefined;

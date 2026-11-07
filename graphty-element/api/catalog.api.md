@@ -152,6 +152,9 @@ export interface AlgorithmDescriptor {
 export type AlgorithmKey = KnownAlgorithm | (string & {});
 
 // @public
+export function assetFileExtensions(kind: AssetKind): readonly string[];
+
+// @public
 export type AssetKind = "model" | "image";
 
 // @public
@@ -555,7 +558,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "node-models";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];

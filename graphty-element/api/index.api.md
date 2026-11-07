@@ -334,6 +334,9 @@ export interface AnimationResult {
 }
 
 // @public
+export type AssetStorage = "embed" | "url";
+
+// @public
 export interface AutosaveApi {
     discard(): Promise<void>;
     flush(): Promise<void>;
@@ -2565,7 +2568,7 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "node-models";
 
 // @public
 export interface FindAtLeastRow {
@@ -3259,7 +3262,7 @@ export class Graphty extends LitElement {
     downloadGraph(format: FormatId, options?: ExportGraphOptions & {
         readonly fileName?: string;
     }): Promise<ExportResult>;
-    downloadProject(options?: Omit<ProjectSaveOptions, "markSaved"> & {
+    downloadProject(options?: ProjectSaveOptions & {
         readonly fileName?: string;
     }): Promise<ProjectSaveReport>;
     drawnShaders(): DrawnShaders;
@@ -6874,6 +6877,7 @@ export const PROJECT_FILE: Readonly<{
 
 // @public
 export interface ProjectApi {
+    assetChoices(): ProjectAssetChoice[];
     readonly dirty: boolean;
     readonly id: string;
     markSaved(saved: SavedProject): void;
@@ -6881,6 +6885,17 @@ export interface ProjectApi {
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
     rename(name: string | null): Promise<void>;
     save(options?: ProjectSaveOptions): Promise<SavedProject>;
+}
+
+// @public
+export interface ProjectAssetChoice {
+    readonly byteLength: number;
+    readonly id: AssetId;
+    readonly kind: "model" | "image";
+    readonly layerIds: readonly LayerId[];
+    readonly storage: AssetStorage;
+    readonly url: string;
+    readonly urlRefused?: CodedFact<"W_MODEL_NOT_KEPT_BY_URL">;
 }
 
 // @public
@@ -6916,7 +6931,7 @@ export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 
 // @public
 export interface ProjectSaveOptions {
-    readonly assets?: Readonly<Record<string, "embed" | "url">>;
+    readonly assets?: Readonly<Record<string, AssetStorage>>;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;

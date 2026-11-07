@@ -1403,7 +1403,8 @@ export function GroupDetail({
         );
 
     // Every property the Style tab draws that can vary, by section, for "+ Set another property".
-    const offered = sectionsFor(target, cosmographOn(session)).map((section) => ({
+    // A picture does not vary by a value yet (node-models design 13.7), so Fill offers no Picture here.
+    const offered = sectionsFor(target, { cosmograph: cosmographOn(session), nodeModels: false }).map((section) => ({
         title: section.title,
         items: section.channels.flatMap((channel) => {
             const descriptor = descriptorOf(target, channel);

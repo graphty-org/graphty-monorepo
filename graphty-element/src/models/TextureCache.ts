@@ -84,6 +84,17 @@ export function texturesFreeing(scene: Scene): boolean {
 }
 
 /**
+ * Tell a scene's cache which picture a node draws now, so a frame counts the nodes drawing a
+ * picture without asking every node (issue #6208).
+ * @param scene - The node's scene.
+ * @param user - The node.
+ * @param texture - The picture it draws now, or null.
+ */
+export function noteImageDrawn(scene: Scene, user: TextureUser, texture: BaseTexture | null): void {
+    caches.get(scene)?.drew(user, texture);
+}
+
+/**
  * Read a picture's bytes into a texture: its pixels, each transparent one stored over white with
  * its alpha kept.
  * @param scene - The scene.
@@ -154,6 +165,9 @@ export class TextureCache {
     private repaintScheduled = false;
     private readonly dirty = new Set<Entry>();
     private readonly frames: Observer<Scene>;
+    /** The picture each node draws, and how many nodes draw each: kept by {@link drew}. */
+    private readonly drawnBy = new Map<TextureUser, BaseTexture>();
+    private readonly drawnCount = new Map<BaseTexture, number>();
 
     /**
      * Use {@link TextureCache.forScene}.
@@ -264,24 +278,40 @@ export class TextureCache {
     }
 
     /**
+     * Note the picture a node draws now, or null when it draws none or is disposed.
+     * @param user - The node.
+     * @param texture - Its picture.
+     */
+    drew(user: TextureUser, texture: BaseTexture | null): void {
+        const before = this.drawnBy.get(user) ?? null;
+        if (before === texture) {
+            return;
+        }
+
+        if (before !== null) {
+            const left = (this.drawnCount.get(before) ?? 1) - 1;
+            if (left > 0) {
+                this.drawnCount.set(before, left);
+            } else {
+                this.drawnCount.delete(before);
+            }
+        }
+
+        if (texture === null) {
+            this.drawnBy.delete(user);
+        } else {
+            this.drawnBy.set(user, texture);
+            this.drawnCount.set(texture, (this.drawnCount.get(texture) ?? 0) + 1);
+        }
+    }
+
+    /**
      * Whether a model template or a node draws an entry's picture now.
      * @param entry - The entry.
      * @returns True while one does.
      */
     private inUse(entry: Entry): boolean {
-        if (entry.holds > 0) {
-            return true;
-        }
-
-        for (const user of entry.users) {
-            if (user.isDisposed()) {
-                entry.users.delete(user);
-            } else if (user.imageDrawn() === entry.texture) {
-                return true;
-            }
-        }
-
-        return false;
+        return entry.holds > 0 || (entry.texture !== null && this.drawnCount.has(entry.texture));
     }
 
     /** After a style change: mark the pictures no layer names any more, which {@link tick} counts down. */

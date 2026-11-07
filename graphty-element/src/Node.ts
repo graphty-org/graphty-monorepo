@@ -60,8 +60,8 @@ import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
 import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
-import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
-import { publishImageFailure, TextureCache } from "./models/TextureCache";
+import { ModelCache, type ModelTemplate, type ModelUser, noteModelDrawn } from "./models/ModelCache";
+import { noteImageDrawn, publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, NodeDragHandler, nodePointerRosterOf } from "./NodeBehavior";
 import { rowScanOf } from "./render/PickService";
 import type { RowTable } from "./render/RowTable";
@@ -2393,14 +2393,13 @@ export class Node implements ModelUser {
      */
     private buildMesh(meshKey: string, o: NodeStyleConfig): AbstractMesh {
         const model = this.modelFor(o);
-        this.drawnModel = model;
         if (model !== null) {
-            this.drawnImage = null;
+            this.setDrawn(model, null);
             return NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
         }
 
         const image = this.imageFor(o);
-        this.drawnImage = image;
+        this.setDrawn(null, image);
         return NodeMesh.create(
             this.context.getMeshCache(),
             // A source mesh with its picture is another source mesh than the one drawn while it loads.
@@ -2408,6 +2407,23 @@ export class Node implements ModelUser {
             { shape: o.shape, texture: o.texture, effect: o.effect, border: o.border, picture: image },
             this.context.getScene(),
         );
+    }
+
+    /**
+     * Record the model and the picture this node draws, telling their caches when either changes.
+     * @param model - The model template, or null.
+     * @param image - The picture on its shape, or null.
+     */
+    private setDrawn(model: ModelTemplate | null, image: BaseTexture | null): void {
+        if (model !== this.drawnModel) {
+            noteModelDrawn(this.context.getScene(), this, model);
+            this.drawnModel = model;
+        }
+
+        if (image !== this.drawnImage) {
+            noteImageDrawn(this.context.getScene(), this, image);
+            this.drawnImage = image;
+        }
     }
 
     /**
@@ -2767,6 +2783,7 @@ export class Node implements ModelUser {
         this.shaderDrawing?.forget(this);
         this.shaderDrawing = null;
 
+        this.setDrawn(null, null);
         this.disposeMesh();
     }
 

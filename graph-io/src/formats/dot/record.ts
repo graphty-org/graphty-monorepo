@@ -363,9 +363,10 @@ function placeField(f: Field, x: number, y: number): void {
  * @param width - the node's width in points
  * @param height - its height in points
  * @param fixed - whether the node keeps its size (`fixedsize`)
- * @param fontSize - the font size in points
+ * @param font - the font
+ * @param font.size - its size in points
+ * @param font.widths - the advances of its face (`fontWidths`)
  * @param text - applies the label escapes to one line
- * @param widths - the advances of the face its text is drawn in (`fontWidths`)
  * @returns the layout
  */
 export function layoutRecord(
@@ -374,10 +375,10 @@ export function layoutRecord(
     width: number,
     height: number,
     fixed: boolean,
-    fontSize: number,
+    font: { readonly size: number; readonly widths: readonly number[] },
     text: (line: string) => string,
-    widths: readonly number[],
 ): RecordLayout {
+    const { size: fontSize, widths } = font;
     const root = parseRecord(label, lr);
     const leaves = (f: Field): void => {
         if (f.lines !== null) {

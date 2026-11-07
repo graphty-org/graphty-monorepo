@@ -20,7 +20,7 @@ const dejavu = fontWidths("DejaVu Sans");
  * @returns the layout
  */
 function record(label: string, lr = true): ReturnType<typeof layoutRecord> {
-    return layoutRecord(label, lr, 80, 40, true, 10, same, dejavu);
+    return layoutRecord(label, lr, 80, 40, true, { size: 10, widths: dejavu }, same);
 }
 
 describe("Graphviz record layout", () => {
@@ -69,15 +69,8 @@ describe("Graphviz record layout", () => {
         // graph-io/test/fidelity/oracles/dot-synth-nodes.svg: s_record, 12 point Helvetica (Liberation Sans), drawn
         // 106.5 points wide with dividers at 31.75 and 67.25 from its left side
         const label = String.raw`{<f0> left|<f1> mid\nline|<f2> right}`;
-        const lay = layoutRecord(
-            label,
-            false,
-            54,
-            36,
-            false,
-            12,
-            (l) => l.replaceAll(String.raw`\n`, ""),
-            fontWidths("Helvetica"),
+        const lay = layoutRecord(label, false, 54, 36, false, { size: 12, widths: fontWidths("Helvetica") }, (l) =>
+            l.replaceAll(String.raw`\n`, ""),
         );
         expect(lay.width).toBeCloseTo(106.5, 0);
         expect(lay.dividers.map((d) => d[0] + lay.width / 2)).toEqual([

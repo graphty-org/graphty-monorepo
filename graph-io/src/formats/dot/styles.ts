@@ -1062,9 +1062,8 @@ function readRecord(n: NodeRead, label: string, names: DotEscapeNames): void {
         pt("width", DEFAULT_NODE_SIZE.w),
         pt("height", DEFAULT_NODE_SIZE.h),
         isTrue(get("fixedsize")),
-        Number.isFinite(size) && size > 0 ? size : 14,
+        { size: Number.isFinite(size) && size > 0 ? size : 14, widths: fontWidths(get("fontname")) },
         (line) => dotLabelText(line, names),
-        fontWidths(get("fontname")),
     );
     const hw = lay.width / 2;
     const hh = lay.height / 2;

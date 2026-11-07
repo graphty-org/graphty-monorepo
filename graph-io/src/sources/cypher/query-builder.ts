@@ -311,10 +311,11 @@ export function neighborhood(
     // Keyed by an id property, a neighbor without it is keyed by the server's id, and the two kinds
     // of key can interleave (numbers among integer ids) or not compare at all (numbers and string
     // ids). So the page is ordered on (byServer, key): every property-keyed neighbor first, then
-    // every server-keyed one, and the cursor `($afterByServer, $after)` is compared as a pair.
+    // every server-keyed one, and the cursor `($afterByServer, $after)` is compared as a pair. A seed
+    // with no neighbor (x null) gets a null byServer, so its row sorts after every keyed one, as before.
     return [
         ...head,
-        `WITH s, p, x IS NOT NULL AND x.${filters.idProperty} IS NULL AS byServer, ${key}`,
+        `WITH s, p, CASE WHEN x IS NOT NULL THEN x.${filters.idProperty} IS NULL END AS byServer, ${key}`,
         shape.after === true
             ? "WHERE (byServer = $afterByServer AND key > $after) OR (byServer AND NOT $afterByServer)"
             : null,

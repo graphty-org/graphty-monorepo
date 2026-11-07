@@ -71,7 +71,7 @@ describe("generated queries", () => {
         const byUuid = { ...filters, idProperty: "`uuid`" };
         const out = neighborhood(neo4jProfile(null), byUuid, { depth: "2", direction: "out", limit: "50" }, false);
         expect(out).toBe(
-            "MATCH (s) WHERE s.`uuid` IN $ids OPTIONAL MATCH p = (s)-[:`KNOWS`|`LIKES`*1..2]->(x) WHERE (x:`Person`) WITH s, p, x IS NOT NULL AND x.`uuid` IS NULL AS byServer, coalesce(x.`uuid`, elementId(x)) AS key WITH s, p, byServer, key ORDER BY byServer, key LIMIT 50 RETURN s, p, byServer, key",
+            "MATCH (s) WHERE s.`uuid` IN $ids OPTIONAL MATCH p = (s)-[:`KNOWS`|`LIKES`*1..2]->(x) WHERE (x:`Person`) WITH s, p, CASE WHEN x IS NOT NULL THEN x.`uuid` IS NULL END AS byServer, coalesce(x.`uuid`, elementId(x)) AS key WITH s, p, byServer, key ORDER BY byServer, key LIMIT 50 RETURN s, p, byServer, key",
         );
         // A capped expansion's next page starts after the last (byServer, key) pair it returned, so
         // property keys and server ids never interleave (#6236).

@@ -36,6 +36,7 @@ import {
     classifyCancel,
     codeownerPatterns,
     type CompareCommit,
+    coverageAsOf,
     fixedCosts,
     type GhJob,
     type GhRun,
@@ -1109,6 +1110,7 @@ async function readReleaseAttempt(
         jobs: a.jobs,
         ...(a.failedJob ? { failedJob: a.failedJob } : {}),
         nightly: a.nightly,
+        coverage: a.coverage,
         ...(r.conclusion ? { conclusion: r.conclusion } : {}),
     };
     c.items.push(toRunItem(r, repo, { tested: a.tested }));
@@ -1425,7 +1427,8 @@ async function deploy(c: Cycle, gh: GitHub, builds: DeployBuilds): Promise<void>
 // Parts that need no GitHub App.
 
 /**
- * Coverage freshness: the newest Coveralls build on master (yellow past 24 h, red past 48 h).
+ * Coverage freshness: the newest Coveralls build on master (yellow past 24 h, red past 48 h), judged against the
+ * last full run that reached its Coverage job (coverageAsOf), so a red full run is not a second alarm.
  * @param c - the cycle
  */
 async function coverage(c: Cycle): Promise<void> {
@@ -1439,7 +1442,10 @@ async function coverage(c: Cycle): Promise<void> {
     if (!body.created_at) {
         throw new Error("coveralls: no build");
     }
-    await recordSource(c.d.store, "coverage", Date.parse(body.created_at), { ok: true });
+    const seen = await c.json<Record<string, ReleaseSeen>>("release", {});
+    await recordSource(c.d.store, "coverage", coverageAsOf(Date.parse(body.created_at), Object.values(seen)), {
+        ok: true,
+    });
 }
 
 /**

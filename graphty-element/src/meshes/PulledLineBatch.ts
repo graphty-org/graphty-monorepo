@@ -10,6 +10,7 @@ import {
 } from "@babylonjs/core";
 
 import { JOIN_TEMPLATE_INDICES, JOIN_TEMPLATE_VERTICES } from "./edgeJoinShader";
+import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
 
 /**
@@ -24,6 +25,12 @@ import { batchUploadFrames } from "./FrameRoster";
  * Only a straight piece between node centres is pulled: a plain solid line, no cap, gap, group,
  * bend or loop (the first row of the trim table).
  */
+
+/**
+ * The internal switch that routes qualifying edges here (`Edge.createLine`). Off by default: only the
+ * test projects that prove the path write it, until pulled lines join the `"batched"` path.
+ */
+export const pulledEdgesDefault: { value: boolean } = { value: false };
 
 /** Texels across the edge table, as across the row table: texel `i` is at `(i % 1024, i / 1024)`. */
 const TABLE_WIDTH = 1024;
@@ -81,6 +88,7 @@ export class PulledLineBatch {
         private readonly rowPositions: () => BaseTexture,
     ) {
         this.mesh = mesh;
+        markEdgeLineBatchMesh(mesh);
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;

@@ -433,15 +433,6 @@ export function openFiles(ctx: CommandContext, files: readonly File[]): void {
 }
 
 /**
- * Opens one file (see {@link addSource}).
- * @param ctx - the command context.
- * @param file - the file.
- */
-export function openFile(ctx: CommandContext, file: File): void {
-    openFiles(ctx, [file]);
-}
-
-/**
  * Asks the browser for files: one, or a node file and an edge file.
  * @returns the files, empty when the reader cancels.
  */

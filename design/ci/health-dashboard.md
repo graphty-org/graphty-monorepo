@@ -477,7 +477,7 @@ with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, 
 | Hangs                        | jobs ended at their own timeout, or past 2x budget                | 1 h             | --       | 0        | >= 2 (1 is yellow)     |
 | PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | 1 h, 6 h agrees | 5 runs   | <= 1x    | > 2x                   |
 | Pull request bins over 8 min | share of bins past the 8 min packing target                       | 1 h, 6 h agrees | 10 bins  | <= 10%   | > 25%                  |
-| Reruns                       | run attempts above 1 / runs finished                              | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                  |
+| Reruns                       | run attempts above 1 / runs finished, less release.yml attempt 2  | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                  |
 | Full-run shards over budget  | shards whose median passes their own budget (section 6)           | slow, 7 d       | 5 runs   | 0        | >= 3                   |
 | Runner-minutes per merge     | job minutes of every run kind / pull requests merged into master  | slow, 7 d       | 10       | <= 400   | > 600                  |
 | Superseded runs running      | see below; informational until it has fired on real data          | now             | --       | --       | --                     |
@@ -488,6 +488,9 @@ Saturated time was "1 h in 24 h"; over one hour a quarter of it saturated is red
 24 h"; over one hour one hang is yellow and two are red, and an earlier hang stays in the episode
 list. Full-run shard medians move only when a full run lands (at most four a day), so they are a slow
 measure; a shard that times out on a run is a hang, judged at once.
+
+Reruns leaves out release.yml's second attempt: `release-rerun.yml` re-runs a red full run once on the
+same commit by design, so that attempt is not a re-run in this sense (#6120).
 
 **Runner use is counted in jobs**, from the jobs API (`filter=latest`) of every unfinished run,
 never from run status: a run reports `queued` while some of its jobs run (run 40240348348 had 9 jobs
@@ -530,7 +533,10 @@ logic is unchanged, so a non-gating job still never fails a lane.
 - **Chronically failing jobs** (`ci.chronic_jobs`). Any job of a master push, a full run or another
   non-pull-request run, gating or not, bins and shards folded into their family, that failed in at
   least half of its newest 10 finished runs (4 at least), or has failed in every run for 3 days
-  (however few). Cancelled and skipped jobs say nothing about a job and are not runs. A job with no
+  (however few). Cancelled and skipped jobs say nothing about a job and are not runs. An aggregator
+  (`All Checks Pass`) is not judged: it fails whenever any job it summarizes fails, so its share is the
+  union of theirs, and it stood alone on the list at 8 of 10 while no lane was chronic (issue #6068).
+  A job with no
   run in 2 days, or in twice its usual gap between runs when that is longer (a weekly job), has
   stopped -- removed or renamed -- and is not judged. A ci.yml job (run on its own, or called as
   `CI / ...` by release.yml) that ci.yml on master no longer defines is not judged from the hour the

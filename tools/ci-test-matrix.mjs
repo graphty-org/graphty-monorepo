@@ -550,7 +550,9 @@ export const STORY_RUNS = {
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
  * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS), graphty-large-graph-1 to -4 (one file each, at most about 10 minutes)
- * and graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it).
+ * graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it)
+ * and graphty-element-gpu-loss (11.2 minutes of vitest in full run 42255498419; small-browser took 28 minutes
+ * with it and reached its deadline before the layout and cytoscape-extensions storybooks ran, #6035).
  */
 export const GROUPS = {
     "small-node": [
@@ -571,7 +573,6 @@ export const GROUPS = {
         "visual-review",
         "webgpu-graph-algorithms-browser",
         "graphty-element-webgpu",
-        "graphty-element-gpu-loss",
         "algorithms-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",

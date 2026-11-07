@@ -1088,6 +1088,8 @@ export class Edge {
     get index(): number;
     invalidatePositionCache(): void;
     isDisposed(): boolean;
+    // @internal
+    get isPulled(): boolean;
     isRenderVisible(): boolean;
     isSelected(): boolean;
     // (undocumented)
@@ -1204,6 +1206,10 @@ export interface EdgePosition {
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
+    lineEnds?: {
+        readonly source: readonly [along: number, across: number];
+        readonly target: readonly [along: number, across: number];
+    };
     // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
@@ -2558,7 +2564,7 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph";
 
 // @public
 export interface FindAtLeastRow {
@@ -4823,6 +4829,8 @@ export abstract class LayoutEngine {
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
     // (undocumented)
@@ -5488,6 +5496,8 @@ export const NodeStyle: z.ZodObject<{
         parts: z.ZodOptional<z.ZodString>;
         lines: z.ZodOptional<z.ZodString>;
         lineWidth: z.ZodOptional<z.ZodNumber>;
+        lineHaloColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        lineHaloWidth: z.ZodOptional<z.ZodNumber>;
         texts: z.ZodOptional<z.ZodString>;
         labelTable: z.ZodOptional<z.ZodString>;
         labelFit: z.ZodOptional<z.ZodEnum<{
@@ -6686,7 +6696,9 @@ export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072
 
 // @public
 export interface OperationCancelledEvent {
+    code: "queue-cleared" | "cancelled";
     id: string;
+    // @deprecated
     reason: string;
     // (undocumented)
     type: "operation-cancelled";
@@ -7455,6 +7467,8 @@ export class SelectionManager implements Manager {
     dispose(): void;
     getSelectedNode(): Node_2 | null;
     getSelectedNodes(): Node_2[];
+    // @internal
+    highlightedNodes(): IterableIterator<Node_2>;
     hover(id: NodeIdType | null): void;
     init(): Promise<void>;
     isHovered(id: NodeIdType): boolean;

@@ -1997,6 +1997,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getInterceptPoints: READ,
             trimInput: READ,
             supportEdge: READ,
+            isPulled: READ,
         },
     },
     {
@@ -2426,6 +2427,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     {
         name: "NodeBatches",
         file: "src/meshes/NodeBatch.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "PulledLineBatch",
+        file: "src/meshes/PulledLineBatch.ts",
         half: "renderer",
         whole: RENDER,
     },
@@ -3572,6 +3579,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdMask: READ,
             // A node's drawn size changed, so a layout keeping nodes apart by it starts again.
             wakeForResize: TRANSPORT,
+            // Whether the engine keeps nodes apart by their drawn size (`nodeGap`).
+            spacesBySize: READ,
             // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
             clusterColumn: READ,
             // A node's community changed, so a layout pulling communities together starts again.

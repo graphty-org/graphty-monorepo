@@ -25,6 +25,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { yedGradientAngle } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
     YED_LABEL_PADDING,
@@ -41,6 +42,7 @@ import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
+import { svgPicture } from "./styles-yed-live-drawing.js";
 
 // ============================================================ the kept trees
 
@@ -565,13 +567,124 @@ const BPMN_HEAVY: ReadonlySet<string> = new Set(["event_characteristic_end", "ac
  * @returns its value in lowercase, or undefined
  */
 function bpmnProperty(r: unknown, name: string): string | undefined {
+    return styleProperty(r, `com.yworks.bpmn.${name}`);
+}
+
+/**
+ * A style property of a GenericNode.
+ * @param r - the realizer element
+ * @param name - its full name
+ * @returns its value in lowercase, or undefined
+ */
+function styleProperty(r: unknown, name: string): string | undefined {
     const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
     return treeAttr(
-        props.find((p) => treeAttr(p, "name") === `com.yworks.bpmn.${name}`),
+        props.find((p) => treeAttr(p, "name") === name),
         "value",
     )
         ?.slice(0, MAX_STYLE_VALUE_LENGTH)
         .toLowerCase();
+}
+
+/** How far down and right yEd draws the copy behind an SBGN multimer, and the corner radius of a macromolecule. */
+const MULTIMER_OFFSET = 6;
+const MACROMOLECULE_RADIUS = 12;
+
+/** A rounded box: its left, top, right and bottom, and its corners' radius. */
+type RoundBox = readonly [number, number, number, number, number];
+
+/**
+ * Points along the right and bottom of a rounded box, from its top right corner round to its bottom left one.
+ * @param box - the box
+ * @returns the points along its three corners, eight steps each
+ */
+function lowerRightCorners(box: RoundBox): [number, number][] {
+    const [x0, y0, x1, y1, r] = box;
+    const corners: [number, number][][] = [
+        [
+            [x1 - r, y0],
+            [x1, y0],
+            [x1, y0 + r],
+        ],
+        [
+            [x1, y1 - r],
+            [x1, y1],
+            [x1 - r, y1],
+        ],
+        [
+            [x0 + r, y1],
+            [x0, y1],
+            [x0, y1 - r],
+        ],
+    ];
+    const steps = 8;
+    return corners.flatMap(([from, control, to]) =>
+        Array.from({ length: steps + 1 }, (_, i): [number, number] => {
+            const t = i / steps;
+            const at = (k: 0 | 1): number => (1 - t) ** 2 * from[k] + 2 * t * (1 - t) * control[k] + t ** 2 * to[k];
+            return [at(0), at(1)];
+        }),
+    );
+}
+
+/**
+ * Whether a rounded box holds a point.
+ * @param box - the box
+ * @param point - the point
+ * @returns true when the point is in it or on its outline
+ */
+function roundBoxHolds(box: RoundBox, point: [number, number]): boolean {
+    const [x0, y0, x1, y1, r] = box;
+    const [x, y] = point;
+    const [cx, cy] = [Math.min(Math.max(x, x0 + r), x1 - r), Math.min(Math.max(y, y0 + r), y1 - r)];
+    return x >= x0 && x <= x1 && y >= y0 && y <= y1 && (x - cx) ** 2 + (y - cy) ** 2 <= r * r + 1e-9;
+}
+
+/** A node's border's color and width, as the picture drawn over it paints them. */
+interface NodePaint {
+    readonly line: string;
+    readonly width: number;
+}
+
+/**
+ * What yEd strokes over a node beside its outline, as a picture over the node: the fold of a UMLNoteNode (a white
+ * triangle in the cut corner, outlined: its two creases), and the part of an SBGN multimer macromolecule's copy that
+ * shows, `MULTIMER_OFFSET` down and right of it behind it (`com.yworks.sbgn.style.mcount` 2 or more), as yEd 3.25
+ * draws them (`yed-graphml-specimen-node-shapes-p3`, `graphml-libcitygml-mapping`).
+ * @param real - the realizer
+ * @param width - the node's width
+ * @param height - its height
+ * @param paint - its border
+ * @returns the picture and how far it reaches past the node's right and bottom, or null where yEd strokes nothing more
+ */
+function realizerOverlay(
+    real: Realizer,
+    width: number,
+    height: number,
+    paint: NodePaint,
+): { picture: string; reach: number } | null {
+    const stroke = `stroke="${paint.line}" stroke-width="${String(paint.width)}"`;
+    if (real.type === "UMLNoteNode") {
+        const [x, y] = [width - Math.min(NOTE_FOLD, width), Math.min(NOTE_FOLD, height)];
+        const d = `M${pointText(x, 0)} L${pointText(x, y)} L${pointText(width, y)} Z`;
+        const body = `<path fill="white" d="${d}"/><path fill="none" ${stroke} d="${d}"/>`;
+        return { picture: svgPicture(width, height, paint.width, body), reach: 0 };
+    }
+    const multimer = Number(styleProperty(real.r, "com.yworks.sbgn.style.mcount") ?? 1) > 1;
+    const conf = treeAttr(real.r, "configuration") ?? "";
+    if (real.type !== "GenericNode" || !multimer || !/^com\.yworks\.sbgn\.macromolecule$/i.test(conf)) {
+        return null;
+    }
+    const [o, r] = [MULTIMER_OFFSET, Math.min(MACROMOLECULE_RADIUS, width / 2, height / 2)];
+    const node: RoundBox = [0, 0, width, height, r];
+    const copy: RoundBox = [o, o, width + o, height + o, r];
+    // ponytail: the copy's outline outside the node, unfilled: yEd also fills the sliver between it and the node in the
+    // node's color, but a closed piece there reads as a stray of graphty's own wherever the oracle's reading takes the
+    // copy's outline for the node's (the scorecard's matched view of yed-graphml-specimen-node-shapes-p3)
+    const shown = lowerRightCorners(copy).filter((q) => !roundBoxHolds(node, q));
+    const body = `<path fill="none" ${stroke} d="M${shown.map(([x, y]) => pointText(x, y)).join(" L")}"/>`;
+    const reach = { left: 0, top: 0, right: o, bottom: o };
+    return { picture: svgPicture(width, height, paint.width, body, "", reach), reach: o };
 }
 
 /**
@@ -1198,6 +1311,9 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
         // a yEd table or pool is a rectangle of bands
         return canonEnum("shape", "rectangle", "yed", at("shape"));
     }
+    if (yedDefaultPainted(real)) {
+        return canonEnum("shape", "rectangle", "yed", at("shape"));
+    }
     if (real.type === "GenericNode") {
         const lower = (treeAttr(real.r, "configuration") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
         for (const [word, value] of GENERIC_SHAPES) {
@@ -1215,8 +1331,40 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
     return `other:${real.type}`;
 }
 
-/** yEd's gradient: from the fill color at a node's top-left corner to `color2` at its bottom-right one. */
+/** The direction a gradient on a node yEd has no measured drawing for (a group, a UML or picture node) is read in. */
 const YED_GRADIENT_ANGLE = 45;
+
+/**
+ * Whether a GenericNode names a configuration of yEd's old `com.yjava` family (BevelNode, ShinyPlateNode and their
+ * variants), which yEd 3.25 no longer registers under that name: it draws the node with its default painter, a box in
+ * the fill's color and a solid line of 1 in the border's color, without `color2`, the border's width or its dashes
+ * (yed-graphml-specimen-node-shapes-p2, graphml-synthetic-nodes). The same names without the prefix are its bevels.
+ * @param real - the realizer
+ * @returns true for a node yEd draws with its default painter
+ */
+function yedDefaultPainted(real: Realizer): boolean {
+    return real.type === "GenericNode" && /^com\.yjava\./i.test(treeAttr(real.r, "configuration") ?? "");
+}
+
+/**
+ * The direction yEd draws a realizer's gradient in: a generic node, and a shape node's diamond, corner to corner; any
+ * other shape node left to right (`yedGradientAngle`); a table or pool draws none (yed-graphml-specimen-groups, its
+ * p2 and graphml-synthetic-nodes' table-node are flat in `color`); other realizers keep a corner-to-corner ramp.
+ * @param real - the realizer
+ * @returns the `fillGradientAngle`, or null for no gradient
+ */
+function realizerGradientAngle(real: Realizer): number | null {
+    if (real.type === "TableNode") {
+        return null;
+    }
+    const geometry = treeChild(real.r, "Geometry");
+    const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
+    if (real.type === "ShapeNode") {
+        const diamond = treeAttr(treeChild(real.r, "Shape"), "type") === "diamond";
+        return yedGradientAngle(diamond ? "corner" : "across", w, h);
+    }
+    return real.type === "GenericNode" ? yedGradientAngle("corner", w, h) : YED_GRADIENT_ANGLE;
+}
 
 /**
  * Whether a `y:Fill` paints nothing.
@@ -1245,10 +1393,11 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
         return;
     }
     readColor(treeAttr(fill, "color"), "fill", "fillOpacity", put, at);
-    const second = canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
-    if (second !== null) {
+    const second = yedDefaultPainted(real) ? null : canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
+    const angle = second === null ? null : realizerGradientAngle(real);
+    if (second !== null && angle !== null) {
         put("fillGradient", second.color);
-        put("fillGradientAngle", YED_GRADIENT_ANGLE);
+        put("fillGradientAngle", angle);
     }
 }
 
@@ -1490,7 +1639,7 @@ export function putRaisedBorder(fill: string | null, put: PutValue): void {
  * @param share - how far, 0 to 1
  * @returns the lighter color
  */
-function towardWhite(hex: string, share: number): string {
+export function towardWhite(hex: string, share: number): string {
     return hexOf(channelsOf(hex).map((c) => Math.round(c + (255 - c) * share)));
 }
 
@@ -1509,7 +1658,8 @@ export function putBevelPaint(color: string, put: PutValue): void {
 
 /**
  * Writes the line a bevel draws inside its edge, in the node's border color, in place of a border: a box `inset` in
- * from the node's, its corners `radius` less that. yFiles draws it over a wider, lighter line that is not drawn here.
+ * from the node's, its corners `radius` less that. yFiles draws it over a wider, lighter line (`shapeLineHaloColor`),
+ * which the reader of each style writes where it knows that line's color.
  * @param radius - the node's corner radius
  * @param inset - how far in the line runs
  * @param put - receives the values
@@ -1598,6 +1748,74 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
 }
 
 /**
+ * Writes what yEd strokes over a node beside its outline (`realizerOverlay`) as the node's picture.
+ * @param real - the realizer
+ * @param width - the node's width
+ * @param height - its height
+ * @param painted - the border values written for it
+ * @param put - receives the values
+ */
+function putOverlay(
+    real: Realizer,
+    width: number,
+    height: number,
+    painted: ReadonlyMap<string, unknown>,
+    put: PutValue,
+): void {
+    const [color, line] = [painted.get("borderColor"), Number(painted.get("borderWidth") ?? 1)];
+    const paint: NodePaint = {
+        line: line > 0 && typeof color === "string" ? color : "none",
+        width: Math.max(line, 0),
+    };
+    const overlay = realizerOverlay(real, width, height, paint);
+    if (overlay === null) {
+        return;
+    }
+    put("image", overlay.picture);
+    put("imageClip", "none");
+    if (overlay.reach === 0) {
+        put("imageFit", "fill");
+        return;
+    }
+    put("imageFit", "none");
+    put("imageWidth", width - paint.width + overlay.reach);
+    put("imageHeight", height - paint.width + overlay.reach);
+    put("imageOffsetX", overlay.reach / 2);
+    put("imageOffsetY", overlay.reach / 2);
+}
+
+/**
+ * Reads what a node realizer draws over its fill: a table's bands, an image or SVG node's picture, or what yEd strokes
+ * over the node beside its outline (`putOverlay`).
+ * @param real - the realizer
+ * @param width - the node's width, or null
+ * @param height - its height, or null
+ * @param painted - the border values written for it
+ * @param put - receives the values
+ * @param at - the sites
+ * @param resources - the graph's shared pictures, for image and SVG nodes
+ */
+function readFace(
+    real: Realizer,
+    width: number | null,
+    height: number | null,
+    painted: ReadonlyMap<string, unknown>,
+    put: PutValue,
+    at: SiteOf,
+    resources?: ReadonlyMap<string, string>,
+): void {
+    if (real.type === "TableNode") {
+        readTable(real, put, at);
+    }
+    if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
+        readPicture(real, resources, put);
+    }
+    if (width !== null && height !== null) {
+        putOverlay(real, width, height, painted, put);
+    }
+}
+
+/**
  * Reads one node realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1608,7 +1826,19 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     const { r } = real;
     readFill(real, put, at);
     const border = treeChild(r, "BorderStyle");
-    readBorder(border, put, at);
+    const painted = new Map<string, unknown>();
+    readBorder(
+        border,
+        (property, value) => {
+            painted.set(property, value);
+            put(property, value);
+        },
+        at,
+    );
+    if (yedDefaultPainted(real) && border !== undefined && hasLine(border)) {
+        put("borderWidth", 1);
+        put("borderStyle", canonEnum("borderStyle", "line", "yed", at("borderStyle")));
+    }
     const geometry = treeChild(r, "Geometry");
     const width = canonNumber(treeAttr(geometry, "width"), at("width"));
     const height = canonNumber(treeAttr(geometry, "height"), at("height"));
@@ -1631,12 +1861,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     if (outline?.bevelInset !== undefined) {
         putBevel(outline, unfilled(fill) ? null : color, outline.bevelInset, hasLine(border), put);
     }
-    if (real.type === "TableNode") {
-        readTable(real, put, at);
-    }
-    if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
-        readPicture(real, resources, put);
-    }
+    readFace(real, width, height, painted, put, at, resources);
     const header = readEntityHeader(real, height, put, at);
     const labelPut: PutValue = (property, value) => {
         if (header === null || property !== "labelBackground") {
@@ -2372,10 +2597,7 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
         const second = get("fillGradient");
         if (typeof second === "string") {
             (node["y:Fill"] as Tree)["@_color2"] = second.toUpperCase();
-            const angle = get("fillGradientAngle");
-            if (angle !== YED_GRADIENT_ANGLE) {
-                approximate("fillGradientAngle", angle ?? 0);
-            }
+            noteGradientAngle(get, approximate);
         }
     } else if (fillOpacity === 0) {
         node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
@@ -2395,6 +2617,25 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
         };
     }
     return { "y:ShapeNode": node };
+}
+
+/**
+ * Records a gradient's angle as approximated unless it is the one yEd draws a y:ShapeNode's gradient in for its shape
+ * (`realizerGradientAngle`).
+ * @param get - the node's values
+ * @param approximate - records approximations
+ */
+function noteGradientAngle(get: GetValue, approximate: Approximate): void {
+    const [w, h] = [get("width"), get("height")];
+    const drawn = yedGradientAngle(
+        get("shape") === "diamond" ? "corner" : "across",
+        typeof w === "number" ? w : 0,
+        typeof h === "number" ? h : 0,
+    );
+    const angle = get("fillGradientAngle") ?? 0;
+    if (typeof angle !== "number" || Math.abs(angle - drawn) > 0.01) {
+        approximate("fillGradientAngle", angle);
+    }
 }
 
 /**

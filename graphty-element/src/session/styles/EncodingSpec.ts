@@ -673,7 +673,7 @@ function steppedBinding(descriptor: ChannelDescriptor): {
  * @param descriptor - The channel.
  * @returns The range, or undefined to leave the binding without one.
  */
-export function defaultRangeOf(descriptor: ChannelDescriptor): readonly [number, number] | undefined {
+function defaultRangeOf(descriptor: ChannelDescriptor): readonly [number, number] | undefined {
     const sized = DEFAULT_RANGES.get(descriptor.channel);
     if (sized !== undefined || descriptor.accepts !== "number") {
         return sized;

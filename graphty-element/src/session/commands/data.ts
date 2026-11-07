@@ -450,7 +450,7 @@ interface DataLabelCommand {
  * `data.setFileStyles`: replace the per-element style values the layers made from files read, one
  * entry per load. An empty list removes them all.
  */
-export interface DataSetFileStylesCommand {
+interface DataSetFileStylesCommand {
     readonly op: "data.setFileStyles";
     readonly loads: readonly FileStyleLoadValues[];
 }

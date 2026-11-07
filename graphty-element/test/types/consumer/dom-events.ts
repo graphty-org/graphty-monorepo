@@ -151,8 +151,9 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         log(layoutType, options);
     });
     element.addEventListener("operation-cancelled", (e) => {
-        const { id, reason } = e.detail;
-        log(id, reason.length);
+        const { id, code } = e.detail;
+        const known: "queue-cleared" | "cancelled" = code;
+        log(id, known);
     });
     element.addEventListener("stats-update", (e) => {
         const { totalUpdates, stats } = e.detail;

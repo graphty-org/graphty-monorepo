@@ -73,7 +73,7 @@ export const slideCounters = {
 };
 
 /** What one kind's index holds for a slide: the instants per row, and their sorted order. */
-export interface SlideInstants extends TimeInstants {
+interface SlideInstants extends TimeInstants {
     /** Where each span starts, ascending: for a kind of instants, the instants. */
     readonly sorted: Float64Array;
     /** The row of each. */

@@ -2916,27 +2916,6 @@ function PaneMenu({ name, items }: Readonly<{ name: string; items: readonly Sele
 }
 
 /**
- * A pane's first row, the same in every pane: the add actions at the left, then the pane's icon
- * buttons, "..." and Done at the right.
- * @param props - Component props
- * @param props.adds - the add actions
- * @param props.children - the icon buttons, "..." and Done
- * @returns The row
- */
-export function PaneHead({
-    adds,
-    children,
-}: Readonly<{ adds: React.ReactNode; children: React.ReactNode }>): React.JSX.Element {
-    return (
-        <Group gap={4} wrap="nowrap" className="sel-pane-head">
-            {adds}
-            <span className="sel-spacer" />
-            {children}
-        </Group>
-    );
-}
-
-/**
  * A count in a pane, "24 of 77": in a style layer a click selects what it counts; in a filter it
  * opens the table on those rows (spec 2).
  * @param props - Component props

@@ -60,6 +60,7 @@ import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } 
 import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isPositive } from "./meshes/shapeOutlines";
@@ -115,6 +116,31 @@ const ARROW_CAPTION_OFFSET = 0.3;
  * the globe in a thick halo.
  */
 const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
+
+/** Style keys a pulled line can carry; any other set keeps the edge an object edge (`Edge.pullsLine`). */
+const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
+
+/** Line keys a pulled line draws exactly as the plain line does. */
+const PULLED_LINE_KEYS = new Set(["type", "animationSpeed", "width", "color", "opacity", "minScreenWidth"]);
+
+/**
+ * Whether every key set on a style block is one of the keys named.
+ * @param block - The block.
+ * @param keys - The keys it may set.
+ * @returns False when it sets any other.
+ */
+function setsOnly(block: object, keys: ReadonlySet<string>): boolean {
+    return Object.entries(block).every(([key, value]) => value === undefined || value === false || keys.has(key));
+}
+
+/**
+ * Whether an end draws no cap and no words.
+ * @param cap - The end's style.
+ * @returns True for none.
+ */
+function noCap(cap: EdgeStyleConfig["arrowHead"]): boolean {
+    return cap === undefined || ((cap.type ?? "none") === "none" && cap.text === undefined);
+}
 
 /** Which of an edge's caps an entry of {@link Edge.drawnCaps} is: an end's, or one drawn part-way along the line. */
 /**
@@ -196,6 +222,9 @@ interface EdgeOpts {
 
 /** Most uses along one edge drawn at once; past it the highest are kept. */
 const ALONG_CAP = 4;
+
+/** How near, in `along, across` units, a laid bend may sit to a line end the layout gives and be that end. */
+const LAID_END_MATCH = 1e-4;
 
 /**
  * The shader uses resolved on an edge: its style's `shaders`, which the painter writes from
@@ -485,6 +514,13 @@ export class Edge {
     private lineBatch: EdgeLineBatch | null = null;
 
     /**
+     * The piece this edge's line is pulled into instead ({@link Edge.pullsLine}), with the rows last
+     * written to it: -1 while hidden. Null for every other line.
+     */
+    private pulled: { batch: PulledLineBatch; piece: number; source: number; target: number; drawn: boolean } | null =
+        null;
+
+    /**
      * Which slots of {@link Edge.lineBatch} draw this edge: one for a straight line, and one per
      * segment of a curve, which is a run of straight segments. Empty when there is no batch.
      */
@@ -542,6 +578,8 @@ export class Edge {
         srcPort: [number, number] | null;
         dstPort: [number, number] | null;
         loop: boolean;
+        /** Whether the first and last bends are the line's ends, where the layout ended it ({@link fileRoute}). */
+        ends?: boolean;
     } | null = null;
 
     /** The texts {@link Edge.lineRoute} was read from, joined. See {@link syncContent}. */
@@ -746,6 +784,18 @@ export class Edge {
      *     {@link Edge.drawnPattern}.
      */
     get drawnLine(): { name: string; length: number; width: number; visibility: number; centre: Vector3 } | null {
+        if (this.pulled) {
+            const src = this.srcNode.drawnPosition;
+            const dst = this.dstNode.drawnPosition;
+            return {
+                name: this.pulled.batch.mesh.name,
+                length: Vector3.Distance(src, dst),
+                width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                visibility: this.pulled.batch.mesh.visibility,
+                centre: Vector3.Center(src, dst),
+            };
+        }
+
         if (this.lineBatch === null) {
             return null;
         }
@@ -1082,6 +1132,9 @@ export class Edge {
             return;
         }
 
+        // A renumbering freeze moves rows; a pulled piece follows by its nodes' rows, not their places.
+        this.pullRows();
+
         // DIRTY TRACKING FIRST, BEFORE ANYTHING THAT COSTS. On a still graph this comparison is
         // the whole of an edge's frame, and the update pass walks every edge in the graph on
         // every frame -- so whatever sits above this line is paid a million times a second at the
@@ -1125,7 +1178,7 @@ export class Edge {
             this.bundled = false;
             this.placeLifted(this.lineBatch, src, dst, lift);
         } else {
-            bent = this.placeLine(src, dst, lnk.bends);
+            bent = this.placeLine(src, dst, lnk.bends, lnk.lineEnds);
         }
 
         // the layout's place (Graphviz's `lp` and `xlp`) is the label's center
@@ -1155,9 +1208,15 @@ export class Edge {
      * @param src - The source end.
      * @param dst - The target end.
      * @param laid - The bends of the route the layout laid, if it laid one.
+     * @param laidEnds - Where the layout starts and ends the line, if it ends it itself: the line runs to them.
      * @returns Whether the line was laid along its bends.
      */
-    private placeLine(src: Vector3, dst: Vector3, laid?: readonly number[]): boolean {
+    private placeLine(
+        src: Vector3,
+        dst: Vector3,
+        laid?: readonly number[],
+        laidEnds?: EdgePosition["lineEnds"],
+    ): boolean {
         const lays = this.laysRoute();
         const batch = lays ? this.lineBatch : null;
         const stored = this.lineRoute;
@@ -1169,11 +1228,15 @@ export class Edge {
             stored === null &&
             laid !== undefined &&
             this.srcNode !== this.dstNode &&
-            this.placeBent(batch, src, dst, { bends: [...laid], srcPort: null, dstPort: null, loop: false });
+            this.placeBent(batch, src, dst, Edge.laidRoute(laid ?? [], laidEnds));
         const route = !bent && !followsLayout && lays ? this.bundleRoute(src, dst) : null;
         this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
-            const { srcPoint, dstPoint } = this.transformArrowCap();
+            // a straight line the layout ends itself runs between its ends, as a laid route does
+            const { srcPoint, dstPoint } =
+                laidEnds !== undefined && stored === null && this.srcNode !== this.dstNode
+                    ? this.placeLaidEnds(src, dst, laidEnds)
+                    : this.transformArrowCap();
             // A wave with a period of its own starts where the line leaves its node, as Cytoscape desktop
             // lays its strokes from the node's outline, so its turns fall where the program's do.
             const surface =
@@ -1187,6 +1250,36 @@ export class Edge {
         }
 
         return bent;
+    }
+
+    /**
+     * The route a layout laid: its bends, and when it ends the line itself, its ends first and last, in place of the
+     * bends that sit at them (a Graphviz route's first and last bends are its ends).
+     * @param laid - The bends.
+     * @param ends - The line's ends, if the layout gives them.
+     * @returns The route.
+     */
+    private static laidRoute(laid: readonly number[], ends: EdgePosition["lineEnds"]): NonNullable<Edge["lineRoute"]> {
+        if (ends === undefined) {
+            return { bends: [...laid], srcPort: null, dstPort: null, loop: false };
+        }
+
+        const at = (i: number, [along, across]: readonly [number, number]): boolean =>
+            Math.hypot(laid[i] - along, laid[i + 1] - across) < LAID_END_MATCH;
+        const inner: number[] = [];
+        for (let i = 0; i + 1 < laid.length; i += 2) {
+            if (!at(i, ends.source) && !at(i, ends.target)) {
+                inner.push(laid[i], laid[i + 1]);
+            }
+        }
+
+        return {
+            bends: [...ends.source, ...inner, ...ends.target],
+            srcPort: null,
+            dstPort: null,
+            loop: false,
+            ends: true,
+        };
     }
 
     /**
@@ -2030,6 +2123,15 @@ export class Edge {
             options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
 
         this.lineWanted = flavorOf(style);
+        const pulled = options.width > 0 && this.pullsLine(style) ? this.pullLine(options, style) : null;
+        if (pulled) {
+            this.lineBatch = null;
+            this.lineSlots = [];
+            this.lineBuilt = "plain";
+            this.readRoute(style);
+            return pulled;
+        }
+
         this.lineBatch = options.width > 0 ? this.shadedLineBatch(meshKey, style, options) : null;
         // A surface that cannot draw yet leaves a taper's or a fade's batch here, or nothing; which
         // of them was built is what wakes the edge once the surface can.
@@ -2062,6 +2164,90 @@ export class Edge {
         // a patterned line is laid along its bends too (issue #3102)
         this.readRoute(style);
         return EdgeMesh.createPatternedLine(options, style, this.context.getScene());
+    }
+
+    /**
+     * Whether this edge's line is pulled from the row table (`PulledLineBatch`, behind the internal
+     * switch `pulledEdgesDefault`): a plain solid straight line between two node centres -- no
+     * cap, gap, group, bend, loop, label, band or any other line key -- in 3D. Read when the line is
+     * built.
+     * @param style - The resolved style.
+     * @returns True when it is pulled.
+     */
+    private pullsLine(style: EdgeStyleConfig): boolean {
+        const line = style.line ?? {};
+        return (
+            pulledEdgesDefault.value &&
+            this.srcNode !== this.dstNode &&
+            !this.srcNode.isDrawnAsGroup &&
+            !this.dstNode.isDrawnAsGroup &&
+            !EdgeMesh.drawsFlat(this.context.getScene()) &&
+            setsOnly(style, PULLED_STYLE_KEYS) &&
+            setsOnly(line, PULLED_LINE_KEYS) &&
+            (line.type ?? "solid") === "solid" &&
+            !line.animationSpeed &&
+            drawnText(style.label) === undefined &&
+            noCap(style.arrowHead) &&
+            noCap(style.arrowTail) &&
+            style.band?.color === undefined &&
+            this.route === "straight"
+        );
+    }
+
+    /**
+     * Take a piece of the pulled batch of this line's look.
+     * @param options - The line's look.
+     * @param options.styleId - The look's key.
+     * @param options.width - Its width.
+     * @param options.color - Its color.
+     * @param style - The resolved style.
+     * @returns The batch's mesh, or null when the graph keeps no row table.
+     */
+    private pullLine(
+        options: { styleId: string; width: number; color: string },
+        style: EdgeStyleConfig,
+    ): AbstractMesh | null {
+        const rows = this.context.getRowTable?.() ?? null;
+        if (rows === null) {
+            return null;
+        }
+
+        const scene = this.context.getScene();
+        const batch = EdgeMesh.pulledBatch(
+            this.context.getMeshCache(),
+            options,
+            style,
+            scene,
+            () => rows.positionTexture,
+        );
+        this.pulled = { batch, piece: batch.acquire(), source: -1, target: -1, drawn: true };
+        this.pullRows();
+        return batch.mesh;
+    }
+
+    /** Write this edge's rows to its pulled piece when they changed: its nodes', or none while hidden. */
+    private pullRows(): void {
+        const { pulled } = this;
+        if (pulled === null) {
+            return;
+        }
+
+        const source = pulled.drawn ? this.srcNode.index : -1;
+        const target = pulled.drawn ? this.dstNode.index : -1;
+        if (source !== pulled.source || target !== pulled.target) {
+            pulled.batch.setRows(pulled.piece, source, target);
+            pulled.source = source;
+            pulled.target = target;
+        }
+    }
+
+    /**
+     * Whether this edge's line is pulled from the row table rather than placed.
+     * @returns True for a pulled line.
+     * @internal
+     */
+    get isPulled(): boolean {
+        return this.pulled !== null;
     }
 
     /**
@@ -2127,6 +2313,12 @@ export class Edge {
      * appearance off the screen with it.
      */
     private releaseLine(): void {
+        if (this.pulled) {
+            this.pulled.batch.release(this.pulled.piece);
+            this.pulled = null;
+            return;
+        }
+
         for (const { batch, slot } of this.gradientPieces) {
             batch.release(slot);
         }
@@ -2678,7 +2870,10 @@ export class Edge {
      * @param drawn - Whether it is drawn.
      */
     private setLineDrawn(drawn: boolean): void {
-        if (this.lineBatch) {
+        if (this.pulled) {
+            this.pulled.drawn = drawn;
+            this.pullRows();
+        } else if (this.lineBatch) {
             for (const slot of this.lineSlots) {
                 this.lineBatch.setDrawn(slot, drawn);
             }
@@ -3137,7 +3332,12 @@ export class Edge {
             return true;
         }
         const { route, sampled } = Edge.shapeBentRoute(line, through);
-        const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
+        // a layout's own line ends are drawn from where they lie, as ports are: on a cluster's border, a node's outer
+        // periphery or at a port inside the node
+        const ports = {
+            src: stored.srcPort !== null || stored.ends === true,
+            dst: stored.dstPort !== null || stored.ends === true,
+        };
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
         const outSrc = Edge.outside(this.srcNode, src, srcGap);
         const outDst = Edge.outside(this.dstNode, dst, dstGap);
@@ -3594,6 +3794,28 @@ export class Edge {
 
             this.haloBands.push({ kind, batch, slots: [batch.acquire(this)] });
         }
+    }
+
+    /**
+     * Place a straight line's arrow caps between the ends its layout gave it, as {@link transformArrowCap} places them
+     * between the node outlines.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param laidEnds - The line's ends, the target end at the arrow head's tip.
+     * @returns The line's ends, the end stopping short of the arrow head.
+     */
+    private placeLaidEnds(src: Vector3, dst: Vector3, laidEnds: NonNullable<EdgePosition["lineEnds"]>): EdgeLine {
+        const ends = bendPoints(src, dst, [...laidEnds.source, ...laidEnds.target]);
+        const start = Vector3.FromArray(ends, 0);
+        const end = Vector3.FromArray(ends, 3);
+        const direction = end.subtract(start).normalize();
+        if (this.arrowCap) {
+            this.placeArrowHead(this.arrowCap, end, direction, [end, start]);
+        }
+
+        const srcPoint = this.placeArrowTail(start, end, direction, [start, end]);
+        this.placeMidCaps([start, end]);
+        return { srcPoint, dstPoint: this.lineEndBefore(start, end) };
     }
 
     /**

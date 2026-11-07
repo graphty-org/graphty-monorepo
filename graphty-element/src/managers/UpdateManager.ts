@@ -1106,6 +1106,15 @@ export class UpdateManager implements Manager {
             }
         }
 
+        // `selectNode()` rings its node at once, before any frame draws the mask. A selection
+        // replaced again before this pass (by an edge, through the session) never had that node
+        // in a mask this pass drew, so its ring stayed on a node nothing selects (issue #6131).
+        for (const node of this.graphContext.getSelectionManager?.()?.highlightedNodes() ?? []) {
+            if (!next.has(node)) {
+                node.setSelected(false);
+            }
+        }
+
         for (const node of next) {
             node.setSelected(true);
         }
@@ -2423,6 +2432,21 @@ export class UpdateManager implements Manager {
      * @param frameMs - How long the previous frame took; 0 takes one round.
      */
     private updateLayout(frameMs: number): void {
+        // NOT WHILE A SIZE IS STILL TO COME. A layout that spaces nodes by their drawn size takes
+        // each size in at the step it arrives, and a repaint split across frames by the clock
+        // (STYLE_FRAME_BUDGET_MS) made that step depend on how fast the frames were: a seeded
+        // `nodeGap` layout rested elsewhere on a slow load. Held, it takes every size at one step.
+        // A repaint is spread over at most REPAINT_FRAMES frames, so the hold ends. A pass still on
+        // its way holds too: stepped then, a layout owing its pre-steps moves nothing, and with
+        // `minDelta` set that zero move read as settled and stopped it for good.
+        const painter = this.graphContext.getStylePainter?.();
+        if (
+            this.layoutManager.layoutEngine?.spacesBySize === true &&
+            (painter?.isPainting === true || painter?.hasPendingNodes === true)
+        ) {
+            return;
+        }
+
         this.statsManager.step();
         this.statsManager.graphStep.beginMonitoring();
 

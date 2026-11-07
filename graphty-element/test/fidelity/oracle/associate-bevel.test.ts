@@ -5,8 +5,11 @@
  */
 import { assert, describe, it } from "vitest";
 
+import type { Scene } from "../../../../graph-io/test/fidelity/scene";
+import type { DrawnGraph, DrawnNode } from "../drawn-scene";
 import { foldBevelHalves, lineOnTop } from "./associate";
 import { compareOracle, type OracleProperty } from "./compare-oracle";
+import { drawnPrimitives } from "./drawn-primitives";
 import { boxOfPoints, type PFill, type PNode, type Prim, type PScene, type PStroke, type Pt } from "./primitives";
 
 /**
@@ -135,5 +138,93 @@ describe("yFiles' bevel", () => {
         assert.deepEqual(failed(oracle), []);
         assert.include(failed({ ...oracle, fill: flat("#f1f1f1") }), "node.gradient");
         assert.include(failed({ ...oracle, stroke: line("#e5e5e5", 1) }), "node.stroke");
+    });
+
+    it("judges a line drawn well inside the node (inset 8) as the free shape the program's is, missing or extra", () => {
+        // yEd Live's BevelNodeStyle inset=8: a line 40 x 20 inside a node 56 x 36, under half of it, no outline
+        const line = { x0: 453, y0: 621, x1: 493, y1: 641 };
+        const drawnOf = (faceLine: boolean): PScene => {
+            const input = {
+                nodes: [
+                    {
+                        id: "n",
+                        x: 473,
+                        y: 631,
+                        w: 56,
+                        h: 36,
+                        shape: "rectangle",
+                        fill: "#c8c8c8",
+                        fillOpacity: 1,
+                        border: { color: null, width: 0, style: "solid" },
+                        label: null,
+                        visible: true,
+                        drawn: { subPixel: false, fillCovered: false, fillDrawn: null },
+                    },
+                ],
+                edges: [],
+                groups: [],
+                annotations: [],
+                gaps: [],
+            } as unknown as Scene;
+            const node = {
+                visible: true,
+                insetPx: 0,
+                label: null,
+                gradient: false,
+                ramp: null,
+                faceless: false,
+                glyph: null,
+                ...(faceLine ? { faceLine: { ...line, near: 0, far: 0 } } : {}),
+            };
+            const drawn: DrawnGraph = {
+                nodes: new Map([["n", node as unknown as DrawnNode]]),
+                edges: new Map(),
+                annotations: [],
+                background: { hex: "#ffffff", alpha: 1 },
+                width: 1200,
+                height: 900,
+            };
+            return { ...sheet("graphty", graphtyNode), strays: drawnPrimitives(input, drawn).strays };
+        };
+        const graphtyNode: PNode = {
+            id: "n",
+            cx: 473,
+            cy: 631,
+            w: 56,
+            h: 36,
+            shape: "rect",
+            fill: null,
+            stroke: null,
+            label: null,
+        };
+        const sheet = (side: PScene["side"], node: PNode): PScene => ({
+            side,
+            width: 1200,
+            height: 900,
+            background: "#ffffff",
+            nodes: [node, { ...node, id: "a", cx: 100, cy: 100 }, { ...node, id: "b", cx: 1000, cy: 100 }],
+            edges: [],
+            groups: [],
+            texts: [],
+            strays: [],
+        });
+        const stray = (i: number, color: string): PScene["strays"][number] => ({
+            index: i,
+            tag: "rect",
+            kind: "shape",
+            box: line,
+            fill: null,
+            stroke: color,
+            text: null,
+        });
+        const oracle = { ...sheet("oracle", graphtyNode), strays: [stray(0, "#f7f7f7"), stray(1, "#c8c8c8")] };
+        const failing = (o: PScene, g: PScene, property: OracleProperty): number =>
+            compareOracle("t", o, g).elements.filter((e) => e.failed.includes(property)).length;
+        assert.strictEqual(drawnOf(true).strays.filter((x) => x.tag === "face-line").length, 1);
+        assert.strictEqual(failing(oracle, drawnOf(true), "stray.present"), 0);
+        assert.strictEqual(failing(oracle, drawnOf(true), "stray.extra"), 0);
+        // a line graphty leaves out, and one it draws where the program draws none, still fail
+        assert.strictEqual(failing(oracle, drawnOf(false), "stray.present"), 2);
+        assert.strictEqual(failing(sheet("oracle", graphtyNode), drawnOf(true), "stray.extra"), 1);
     });
 });

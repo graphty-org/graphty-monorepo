@@ -1,8 +1,9 @@
+import type { GraphSnapshot } from "@graphty/graph-format";
 import { headBytes } from "@graphty/graph-io";
 import { dotImporter } from "@graphty/graph-io/dot";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
-import { columnsMapping, graphValuesOf, importWhole, toRecords } from "./graph-io-import.js";
+import { columnsMapping, graphValuesOf, importWhole, type RecordMapping, toRecords } from "./graph-io-import.js";
 import { sampleOf } from "./source-bytes.js";
 
 // DOT has no additional config currently, so just use the base config
@@ -75,7 +76,35 @@ export class DOTDataSource extends DataSource {
 
         this.declareGraphValues(graphValuesOf(snapshot));
         this.declareFileLayout(imported.importer.layout?.(snapshot) ?? null);
-        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this);
+        const { nodes, edges } = toRecords(imported, withStatementPorts(snapshot), this);
         yield* this.chunkData(nodes, edges);
     }
+}
+
+/**
+ * The record mapping for a DOT file, with the port an edge statement names on an end (`rec:c:w -> f7`) as the edge's
+ * `tailport` or `headport`, so a layout run by Graphviz leaves and meets the node there. Graphviz reads the statement's
+ * port into that attribute, and a `tailport` or `headport` in the edge's own attribute list wins over it (Graphviz
+ * 14.1.2: `rec:a -> f7 [tailport=e]` leaves rec at its east side). graph-io keeps the statement's port in a reserved
+ * column of its own, which the records leave out.
+ * @param snapshot - the imported graph
+ * @returns the mapping
+ */
+function withStatementPorts(snapshot: GraphSnapshot): RecordMapping {
+    const base = columnsMapping(snapshot);
+    const ports = [
+        ["tailport", snapshot.edges.byRole("sourcePort")],
+        ["headport", snapshot.edges.byRole("targetPort")],
+    ] as const;
+    return {
+        ...base,
+        edge: (row, record) => {
+            base.edge(row, record);
+            for (const [name, column] of ports) {
+                if (column?.isSet(row) === true && record[name] === undefined) {
+                    record[name] = column.value(row);
+                }
+            }
+        },
+    };
 }

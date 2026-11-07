@@ -357,7 +357,7 @@ const VALUE_BOX = "input:not([type=hidden]):not([type=checkbox]):not([readonly])
  * Cards a caller holds instead of a layer's (a filter step's rule): drawn and edited as a layer's
  * are, and handed back on every change instead of written.
  */
-export interface HeldCards {
+interface HeldCards {
     readonly cards: readonly Card[];
     readonly onChange: (cards: readonly Card[]) => void;
 }

@@ -68,6 +68,14 @@ export interface SlotOwner {
 const batchMeshes = new WeakSet<Mesh>();
 
 /**
+ * Count a mesh as a shared edge batch's, as {@link isEdgeLineBatchMesh} reads it (`PulledLineBatch`).
+ * @param mesh - The mesh.
+ */
+export function markEdgeLineBatchMesh(mesh: Mesh): void {
+    batchMeshes.add(mesh);
+}
+
+/**
  * Whether a mesh is a shared edge line batch rather than one edge's own mesh. An expanded batch has
  * no instances, so `hasThinInstances` cannot tell.
  * @param mesh - The mesh.

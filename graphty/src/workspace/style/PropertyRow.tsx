@@ -137,14 +137,14 @@ export interface ManyRows {
 }
 
 /** One layer's own plain value for a channel, with its row's name. */
-export interface LayerValue {
+interface LayerValue {
     readonly id: LayerId;
     readonly name: string;
     readonly value: ChannelValue;
 }
 
 /** Who sets a channel among several rows edited together. */
-export interface Breakdown {
+interface Breakdown {
     readonly set: readonly string[];
     readonly unset: readonly string[];
     readonly values: number;

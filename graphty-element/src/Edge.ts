@@ -309,6 +309,83 @@ function widensLine(style: EdgeStyleConfig | null): boolean {
 }
 
 /**
+ * A style with the colour and the opacity of its line and its end caps left out: what two looks
+ * that share their batches' geometry have in common. See `Edge.restyleInPlace`.
+ * @param style - The resolved style.
+ * @returns A shallow copy without those six values.
+ */
+function withoutColours(style: EdgeStyleConfig): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...style };
+    for (const part of ["line", "arrowHead", "arrowTail"] as const) {
+        const value = style[part];
+        if (value !== undefined) {
+            out[part] = { ...value, color: undefined, opacity: undefined };
+        }
+    }
+
+    return out;
+}
+
+/** What {@link differsOnlyInColour} found for each pair of styles it was asked about. */
+const colourOnlyPairs = new WeakMap<EdgeStyleConfig, WeakMap<EdgeStyleConfig, boolean>>();
+
+/** What {@link sameStyle} found for each pair of styles it was asked about. */
+const equalPairs = new WeakMap<EdgeStyleConfig, WeakMap<EdgeStyleConfig, boolean>>();
+
+/**
+ * A comparison of two styles, remembered per pair.
+ *
+ * Edges painted by their key alone share their paint (`StylePainter.edgePaint`), so a pass that
+ * moves thousands of edges between two looks asks about the same two objects every time, and a
+ * deep comparison of two whole styles per edge cost more than the rebuild it decides on (#6026).
+ * @param cache - Where this comparison's answers are kept.
+ * @param a - One look.
+ * @param b - The other.
+ * @param compare - The comparison, run once per pair.
+ * @returns Its answer.
+ */
+function rememberedPair(
+    cache: WeakMap<EdgeStyleConfig, WeakMap<EdgeStyleConfig, boolean>>,
+    a: EdgeStyleConfig,
+    b: EdgeStyleConfig,
+    compare: () => boolean,
+): boolean {
+    let row = cache.get(a);
+    if (row === undefined) {
+        row = new WeakMap();
+        cache.set(a, row);
+    }
+
+    let known = row.get(b);
+    if (known === undefined) {
+        known = compare();
+        row.set(b, known);
+    }
+
+    return known;
+}
+
+/**
+ * Whether two looks are deep-equal.
+ * @param a - One look.
+ * @param b - The other, or null for none.
+ * @returns True when they say the same thing.
+ */
+function sameStyle(a: EdgeStyleConfig, b: EdgeStyleConfig | null): boolean {
+    return a === b || (b !== null && rememberedPair(equalPairs, a, b, () => isEqual(a, b)));
+}
+
+/**
+ * Whether two looks differ at most in the colour and the opacity of their line and end caps.
+ * @param a - One look.
+ * @param b - The other.
+ * @returns True when nothing else differs.
+ */
+function differsOnlyInColour(a: EdgeStyleConfig, b: EdgeStyleConfig): boolean {
+    return rememberedPair(colourOnlyPairs, a, b, () => isEqual(withoutColours(a), withoutColours(b)));
+}
+
+/**
  * A stable 0..1 random per edge id.
  * @param id - The edge id.
  * @returns The seed.
@@ -1021,40 +1098,10 @@ export class Edge {
         }
 
         // create arrow mesh if needed
-        this.arrowCap = EdgeMesh.createArrowHead(
-            this.context.getMeshCache(),
-            paint.meshKey,
-            {
-                type: style.arrowHead?.type ?? "none",
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF",
-                size: style.arrowHead?.size,
-                breadth: style.arrowHead?.width,
-                side: style.arrowHead?.side,
-                opacity: style.arrowHead?.opacity,
-                image: style.arrowHead?.image,
-                outline: style.arrowHead?.outlineWidth,
-            },
-            this.context.getScene(),
-        );
+        this.arrowCap = this.createEndCap(paint.meshKey, style, "arrowHead");
 
         // create arrow tail mesh if needed
-        this.arrowTailCap = EdgeMesh.createArrowHead(
-            this.context.getMeshCache(),
-            `${paint.meshKey}-tail`,
-            {
-                type: style.arrowTail?.type ?? "none",
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.arrowTail?.color ?? style.line?.color ?? "#FFFFFF",
-                size: style.arrowTail?.size,
-                breadth: style.arrowTail?.width,
-                side: style.arrowTail?.side,
-                opacity: style.arrowTail?.opacity,
-                image: style.arrowTail?.image,
-                outline: style.arrowTail?.outlineWidth,
-            },
-            this.context.getScene(),
-        );
+        this.arrowTailCap = this.createEndCap(paint.meshKey, style, "arrowTail");
 
         this.createMidCaps(paint.meshKey, style);
 
@@ -1645,9 +1692,9 @@ export class Edge {
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
         const sameFlavor = flavorOf(style) === this.lineWanted;
-        const sameGeometry = sameRoute && sameFlavor && (meshKey === this.meshKey || isEqual(style, this.drawnStyle));
+        const sameGeometry = sameRoute && sameFlavor && (meshKey === this.meshKey || sameStyle(style, this.drawnStyle));
 
-        if (sameGeometry && !meshDisposed) {
+        if (!meshDisposed && (sameGeometry || (sameRoute && sameFlavor && this.restyleInPlace(meshKey, style)))) {
             this.meshKey = meshKey;
             this.drawnStyle = style;
             this.syncContent(style, false);
@@ -1671,44 +1718,14 @@ export class Edge {
             this.arrowCap.dispose();
         }
 
-        this.arrowCap = EdgeMesh.createArrowHead(
-            this.context.getMeshCache(),
-            meshKey,
-            {
-                type: style.arrowHead?.type ?? "none",
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF",
-                size: style.arrowHead?.size,
-                breadth: style.arrowHead?.width,
-                side: style.arrowHead?.side,
-                opacity: style.arrowHead?.opacity,
-                image: style.arrowHead?.image,
-                outline: style.arrowHead?.outlineWidth,
-            },
-            this.context.getScene(),
-        );
+        this.arrowCap = this.createEndCap(meshKey, style, "arrowHead");
 
         // recreate arrow tail mesh if needed
         if (this.arrowTailCap && !this.arrowTailCap.isDisposed()) {
             this.arrowTailCap.dispose();
         }
 
-        this.arrowTailCap = EdgeMesh.createArrowHead(
-            this.context.getMeshCache(),
-            `${meshKey}-tail`,
-            {
-                type: style.arrowTail?.type ?? "none",
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.arrowTail?.color ?? style.line?.color ?? "#FFFFFF",
-                size: style.arrowTail?.size,
-                breadth: style.arrowTail?.width,
-                side: style.arrowTail?.side,
-                opacity: style.arrowTail?.opacity,
-                image: style.arrowTail?.image,
-                outline: style.arrowTail?.outlineWidth,
-            },
-            this.context.getScene(),
-        );
+        this.arrowTailCap = this.createEndCap(meshKey, style, "arrowTail");
 
         this.createMidCaps(meshKey, style);
 
@@ -1730,6 +1747,147 @@ export class Edge {
         // Every mesh above is new, so whatever the visibility mask said about this edge has to be
         // said again -- otherwise a restyle silently puts a filtered-out edge back on screen.
         this.applyRenderState();
+    }
+
+    /**
+     * Build one end cap a resolved style asks for.
+     * @param meshKey - Which source mesh the edge is drawn from.
+     * @param style - The resolved style.
+     * @param end - The head or the tail.
+     * @returns The cap, or null for none.
+     */
+    private createEndCap(meshKey: string, style: EdgeStyleConfig, end: "arrowHead" | "arrowTail"): ArrowCap | null {
+        const arrow = style[end];
+        return EdgeMesh.createArrowHead(
+            this.context.getMeshCache(),
+            end === "arrowHead" ? meshKey : `${meshKey}-tail`,
+            {
+                type: arrow?.type ?? "none",
+                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                color: arrow?.color ?? style.line?.color ?? "#FFFFFF",
+                size: arrow?.size,
+                breadth: arrow?.width,
+                side: arrow?.side,
+                opacity: arrow?.opacity,
+                image: arrow?.image,
+                outline: arrow?.outlineWidth,
+            },
+            this.context.getScene(),
+        );
+    }
+
+    /**
+     * Whether this edge draws only a plain batched line and its end caps, which
+     * {@link Edge.restyleInPlace} knows how to move: no outline, gradient, band, middle cap, cap
+     * stack or arrow caption.
+     * @returns True for one.
+     */
+    private drawsPlainLine(): boolean {
+        return (
+            this.lineBatch !== null &&
+            this.pulled === null &&
+            this.lineBuilt === "plain" &&
+            this.lineWanted === "plain" &&
+            this.outlineBatch === null &&
+            this.gradientPieces.length === 0 &&
+            this.haloBands.length === 0 &&
+            this.arrowMiddleHeadCap === null &&
+            this.arrowMiddleTailCap === null &&
+            this.headStack.length === 0 &&
+            this.tailStack.length === 0 &&
+            this.arrowHeadText === null &&
+            this.arrowTailText === null
+        );
+    }
+
+    /**
+     * Move a plain line and its end caps to the batches of a look that differs from the one they
+     * are drawn with only in colour and opacity, copying where each is drawn rather than building
+     * and placing them again.
+     *
+     * WHY THIS EXISTS (#6026). Colour and opacity are a batch's, folded into the mesh key, so a
+     * look that changes only them -- the Ghost row, as a time window slides past thousands of
+     * edges a frame -- took the whole rebuild in `paintFrom` for every edge: release the line,
+     * dispose and rebuild every cap, rebuild the content, and place everything again on the next
+     * frame. Nothing about where the edge is drawn moved, so the slots are copied instead.
+     * Anything but the common case (see {@link Edge.drawsPlainLine}) takes the rebuild.
+     * @param meshKey - The new look's mesh key.
+     * @param style - The new look.
+     * @returns True when the edge now draws the new look; false, having changed nothing, when it
+     *     must be rebuilt.
+     */
+    private restyleInPlace(meshKey: string, style: EdgeStyleConfig): boolean {
+        const old = this.lineBatch;
+        const width = style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+        if (
+            old === null ||
+            width <= 0 ||
+            flavorOf(style) !== "plain" ||
+            !this.drawsPlainLine() ||
+            this.drawnStyle === null ||
+            !differsOnlyInColour(style, this.drawnStyle)
+        ) {
+            return false;
+        }
+
+        const next = EdgeMesh.lineBatch(
+            this.context.getMeshCache(),
+            { styleId: meshKey, width, color: style.line?.color ?? "#FFFFFF" },
+            style,
+            this.context.getScene(),
+            false,
+            this.srcNode === this.dstNode,
+        );
+        if (next === null) {
+            return false;
+        }
+
+        // Every slot is copied before any is released: the last release takes the old batch with it.
+        let placed = true;
+        const slots = this.lineSlots.map((slot) => {
+            const moved = next.adopt(old, slot, this);
+            placed &&= moved.copied;
+            return moved.slot;
+        });
+        for (const slot of this.lineSlots) {
+            old.release(slot);
+        }
+
+        this.lineBatch = next;
+        this.lineSlots = slots;
+        this.mesh = next.mesh;
+        placed = this.moveEndCaps(meshKey, style) && placed;
+
+        // Whatever could not be copied is placed by the next update.
+        if (!placed) {
+            this.invalidatePositionCache();
+        }
+
+        return true;
+    }
+
+    /**
+     * Rebuild both end caps in a new look, each standing where its old cap stood.
+     * @param meshKey - The new look's mesh key.
+     * @param style - The new look.
+     * @returns False when a cap could not take its old cap's place and must be placed again.
+     */
+    private moveEndCaps(meshKey: string, style: EdgeStyleConfig): boolean {
+        let placed = true;
+        const move = (cap: ArrowCap | null, end: "arrowHead" | "arrowTail"): ArrowCap | null => {
+            const made = this.createEndCap(meshKey, style, end);
+            const live = cap !== null && !cap.isDisposed();
+            if (live) {
+                placed = (made?.takePlaceOf(cap) ?? false) && placed;
+                cap.dispose();
+            }
+
+            return made;
+        };
+        this.arrowCap = move(this.arrowCap, "arrowHead");
+        this.arrowTailCap = move(this.arrowTailCap, "arrowTail");
+
+        return placed;
     }
 
     /**

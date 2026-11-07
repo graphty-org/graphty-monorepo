@@ -1052,9 +1052,7 @@ export class UpdateManager implements Manager {
      * @returns True when the change needs a walk.
      */
     private hasSupportPoint(edge: Edge): boolean {
-        // `hasEdges` first: with no support points at all (nearly always) it spares a map lookup per row.
-        const { supportPoints } = this.dataManager;
-        return edge.supportEdge() !== null || (supportPoints.hasEdges && supportPoints.pointOf(edge) !== null);
+        return edge.supportEdge() !== null || this.dataManager.supportPoints.pointOf(edge) !== null;
     }
 
     /**

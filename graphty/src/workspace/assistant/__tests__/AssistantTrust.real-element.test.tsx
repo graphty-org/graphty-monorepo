@@ -428,9 +428,27 @@ describe("checking what the Assistant says", () => {
         assert.strictEqual(store.get().announcement, "Opened Degree");
     });
 
+    it("a question answered from a run that painted nothing keeps the chip of the node it names", async () => {
+        const { session } = await openOn(3);
+        await session.data.addEdges([
+            { source: "n1", target: "n0" },
+            { source: "n1", target: "n2" },
+        ]);
+        model.turns = [
+            calling("run_algorithm", { name: "degree" }),
+            { text: "n1 is the most connected.", toolCalls: [] },
+        ];
+        await say("Which is the most connected?");
+        await screen.findByRole("button", { name: "Open run" });
+        await userEvent.click(await screen.findByRole("button", { name: "1 node, select" }));
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], ["n1"]);
+        });
+    });
+
     it("Open run keeps Style when the run painted", async () => {
         await openOn(3);
-        model.turns = [calling("run_algorithm", { name: "degree" }), { text: "Ran.", toolCalls: [] }];
+        model.turns = [calling("run_algorithm", { name: "degree", style: true }), { text: "Ran.", toolCalls: [] }];
         await say("How connected are they?");
         await userEvent.click(await screen.findByRole("button", { name: "Open run" }));
         const style = await screen.findByRole("tab", { name: "Style" });

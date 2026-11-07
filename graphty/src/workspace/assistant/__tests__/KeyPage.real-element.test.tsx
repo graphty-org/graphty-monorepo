@@ -67,6 +67,19 @@ describe("the AI provider page", () => {
         writeAssistantChoice(null);
     });
 
+    it("starts OpenAI at GPT-5.4 mini at Low, and still offers GPT-4o", async () => {
+        const dialog = await openKeyPage();
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "Provider" }));
+        await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+        const model = within(dialog).getByRole("combobox", { name: "Model" });
+        await waitFor(() => {
+            assert.strictEqual((model as HTMLInputElement).value, "GPT-5.4 mini");
+        });
+        assert.strictEqual(within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Effort" }).value, "Low");
+        await userEvent.click(model);
+        await screen.findByRole("option", { name: "GPT-4o" });
+    });
+
     it("keeps a typed key on Done, and the panel is ready", async () => {
         const dialog = await openKeyPage();
         await userEvent.click(within(dialog).getByLabelText("API key"));

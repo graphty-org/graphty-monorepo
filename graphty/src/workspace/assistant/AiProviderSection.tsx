@@ -26,6 +26,20 @@ import { effortRows, endWords, KEY_PAGES, keyShapeWords, providerWords, WORDS } 
 const PROVIDERS = AI_PROVIDER_DESCRIPTORS.filter((entry) => !entry.testOnly && entry.id !== "webllm");
 /** Where the Provider field starts. */
 const FIRST_PROVIDER: AiProviderId = "google";
+/**
+ * The app's own pick where it differs from the element's default model: GPT-5.4 mini answered the
+ * assistant's walk right where GPT-4o did not, and as fast. GPT-4o stays in the list.
+ */
+const APP_MODELS: Partial<Record<AiProviderId, string>> = { openai: "gpt-5.4-mini" };
+
+/**
+ * The model the Model field starts at for a provider.
+ * @param provider - the provider.
+ * @returns the model id.
+ */
+function startingModel(provider: AiProviderDescriptor): string {
+    return APP_MODELS[provider.id] ?? provider.defaultModel;
+}
 
 /**
  * The models a provider offers that can use the assistant's tools.
@@ -57,7 +71,7 @@ export default function AiProviderSection({
     );
     const descriptor = providerDescriptor(provider);
     const [model, setModel] = useState(
-        saved?.provider === provider ? saved.model : providerDescriptor(FIRST_PROVIDER).defaultModel,
+        saved?.provider === provider ? saved.model : startingModel(providerDescriptor(FIRST_PROVIDER)),
     );
     const [effort, setEffort] = useState<EffortLevel | undefined>(
         saved?.provider === provider && saved.model === model ? saved.effort : undefined,
@@ -170,7 +184,7 @@ export default function AiProviderSection({
                     const next = PROVIDERS.find((entry) => entry.id === picked);
                     if (next !== undefined) {
                         setProvider(next.id);
-                        setModel(next.defaultModel);
+                        setModel(startingModel(next));
                         setEffort(undefined);
                         setKey("");
                         setProblem(null);

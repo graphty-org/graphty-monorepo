@@ -317,8 +317,18 @@ function ReaderRows({ reader }: Readonly<{ reader: ReaderMessage }>): React.JSX.
 }
 
 /**
- * What a turn did: its changes, and unless one of them changed the graph (a selection does not) what
- * it found: its last result that found something, else its last empty one.
+ * Whether a change changed what the reader sees: a selection does not, nor a run that painted
+ * nothing (its column answers a question; the nodes the answer names still deserve chips).
+ * @param effect - the change.
+ * @returns true when the graph looks or holds different.
+ */
+const changesGraph = (effect: AiEffect): boolean =>
+    effect.code !== "AI_EFFECT_SELECTION" &&
+    !(effect.code === "AI_EFFECT_RUN" && Number(effect.params.painted ?? 0) === 0);
+
+/**
+ * What a turn did: its changes, and unless one of them changed the graph (a selection or an
+ * unpainted run does not) what it found: its last result that found something, else its last empty one.
  * @param props - Component props
  * @param props.turn - the turn
  * @param props.effects - what its calls did
@@ -332,7 +342,7 @@ function TurnEffects({
 }: Readonly<{ turn: Turn; effects: readonly AiEffect[]; onMore: () => void }>): React.JSX.Element {
     const changes = effects.filter(isChange);
     const result = effects.findLast((effect) => effect.code === "AI_EFFECT_FOUND") ?? effects.findLast(isResult);
-    const changedGraph = changes.some((effect) => effect.code !== "AI_EFFECT_SELECTION");
+    const changedGraph = changes.some(changesGraph);
     return (
         <>
             {changes.length > 0 ? (

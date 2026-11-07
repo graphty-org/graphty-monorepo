@@ -68,7 +68,10 @@ describe("the Assistant's effort", () => {
             assert.strictEqual(enabled.at(-1)?.reasoningEffort, "high");
         });
         assert.strictEqual(readAssistantChoice()?.effort, "high");
-        assert.strictEqual((effort as HTMLInputElement).value, "High");
+        // The relink after the pick redraws the composer: read the control it draws now.
+        await waitFor(() => {
+            assert.strictEqual(screen.getByRole<HTMLInputElement>("combobox", { name: "Effort" }).value, "High");
+        });
     });
 
     it("offers no effort for a model the catalog lists no reasoning setting for", async () => {

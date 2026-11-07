@@ -46,6 +46,15 @@ describe("DataManager", () => {
             assert.equal(node.id, "node1");
         });
 
+        it("finds no node on a row past the end, and the node on a live row", () => {
+            dataManager.addNodes([{ id: "node1" }, { id: "node2" }]);
+
+            assert.equal(dataManager.nodeAtRow(1)?.id, "node2");
+            // 0x999998: a row no graph here holds, as a stray texel of the node ID target names.
+            assert.isUndefined(dataManager.nodeAtRow(10066328));
+            assert.isUndefined(dataManager.nodeAtRow(-1));
+        });
+
         it("should add multiple nodes", () => {
             const nodesData = [
                 { id: "node1", label: "Node 1" },

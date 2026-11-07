@@ -555,7 +555,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];

@@ -14,6 +14,8 @@ import {
     VertexBuffer,
 } from "@babylonjs/core";
 
+import { UNTIMED_AGE } from "../session/time/ageFade";
+import { CustomLineRenderer } from "./CustomLineRenderer";
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
 import {
     EDGE_STATIC_ATTRIBUTES,
@@ -23,7 +25,7 @@ import {
     JOIN_TEMPLATE_POSITIONS,
     WIDENED_FLOATS_PER_PIECE,
 } from "./edgeJoinShader";
-import { batchUploadFrames, type RangedUploads } from "./FrameRoster";
+import { batchUploadFrames, type EdgeAgeState, type RangedUploads } from "./FrameRoster";
 import { discreteMeshCount } from "./PatternedLineMesh";
 
 /** Floats in one 4x4 world matrix, which is what a thin-instance slot holds. */
@@ -56,8 +58,22 @@ export function forceExpandedLines(expanded: boolean | null): void {
     expandedOverride = expanded;
 }
 
+/** What a slot draws: its row, which says how old it is when lines fade by age. */
+export interface SlotOwner {
+    /** The edge's row. */
+    readonly index: number;
+}
+
 /** Every mesh an edge line batch draws with, so a teardown can tell a shared batch from an edge's own mesh. */
 const batchMeshes = new WeakSet<Mesh>();
+
+/**
+ * Count a mesh as a shared edge batch's, as {@link isEdgeLineBatchMesh} reads it (`PulledLineBatch`).
+ * @param mesh - The mesh.
+ */
+export function markEdgeLineBatchMesh(mesh: Mesh): void {
+    batchMeshes.add(mesh);
+}
 
 /**
  * Whether a mesh is a shared edge line batch rather than one edge's own mesh. An expanded batch has
@@ -118,6 +134,8 @@ export interface EdgeLineMeta {
      * also carries the whole edge's length, and the static values in a buffer of their own.
      */
     widened?: boolean;
+    /** A line drawn without alpha blending (`line.blending` false), which never fades by age. */
+    opaque?: boolean;
 }
 
 /**
@@ -208,7 +226,34 @@ export class EdgeLineBatch {
      * An expanded batch's slots and static values repeated once per template vertex, so the
      * batch draws as one plain mesh ({@link drawsExpandedLines}); null for an instanced batch.
      */
-    private expanded: { slots: Float32Array; statics: Float32Array | null } | null = null;
+    private expanded: { slots: Float32Array; statics: Float32Array | null; ages: Float32Array | null } | null = null;
+
+    /** The scene's fade by age; see {@link batchUploadFrames}. */
+    private readonly ageState: EdgeAgeState;
+
+    /** Whether this batch can fade by age: a joined line that blends. */
+    private readonly ageable: boolean;
+
+    /** The look last asked for: fading by age or not. Drawn once its program has compiled. */
+    private agedTarget = false;
+
+    /** How many times the look was asked to change, so a compile that finished late is dropped. */
+    private ageSwitches = 0;
+
+    /** Who each slot draws, for its age. */
+    private readonly owners: (SlotOwner | undefined)[] = [];
+
+    /** Each slot's age while the batch fades by age; null otherwise. */
+    private ages: Float32Array | null = null;
+
+    /** The GPU buffer the ages are read from. */
+    private ageBuffer: Buffer | null = null;
+
+    /** Which ages have been written since the last upload. */
+    private readonly ageRuns = new DirtyRuns();
+
+    /** The scene's ages the slots' ages were last written from. */
+    private agesFrom: Float32Array | null = null;
 
     /** Slots handed out so far. Slots at or past this index have never been used. */
     private highWater = 0;
@@ -267,7 +312,16 @@ export class EdgeLineBatch {
         this.slots = new Float32Array(INITIAL_SLOTS * this.stride);
         this.matrices = meta.joinedLine === true ? null : new Float32Array(INITIAL_SLOTS * FLOATS_PER_MATRIX);
         if (meta.joinedLine === true && drawsExpandedLines(scene.getEngine())) {
-            this.expanded = { slots: new Float32Array(0), statics: null };
+            this.expanded = { slots: new Float32Array(0), statics: null, ages: null };
+        }
+
+        this.ageState = batchUploadFrames.edgeAges(scene);
+        this.ageable = meta.joinedLine === true && meta.opaque !== true;
+        // A batch built while lines fade by age starts with the look: it has drawn nothing yet.
+        if (this.ageable && this.ageState.on) {
+            this.agedTarget = true;
+            this.ages = new Float32Array(INITIAL_SLOTS);
+            CustomLineRenderer.setAged(mesh, true, this.ageState);
         }
 
         // An edge line was never a pick candidate and a batch of them is not one either.
@@ -367,24 +421,33 @@ export class EdgeLineBatch {
 
     /**
      * Take a slot to draw one edge in.
+     * @param owner - The edge it draws, whose row says how old it is when lines fade by age; a slot
+     *     with none draws as the newest.
      * @returns The slot's index, which the caller keeps until it releases it.
      */
-    acquire(): number {
+    acquire(owner?: SlotOwner): number {
         this.live++;
 
-        const recycled = this.free.pop();
+        let index = this.free.pop();
+        if (index === undefined) {
+            if (this.highWater === this.slots.length / this.stride) {
+                this.grow();
+            }
 
-        if (recycled !== undefined) {
-            return recycled;
+            index = this.highWater;
+            this.highWater++;
+            this.setCount();
         }
 
-        if (this.highWater === this.slots.length / this.stride) {
-            this.grow();
+        // ponytail: slots taken while the timeline is off record no edge, so a timeline switched
+        // on later fades them as the newest until they are rebuilt. Record always if that matters.
+        if (this.ageable && this.ageState.track) {
+            this.owners[index] = owner;
+            if (this.ages !== null) {
+                this.ages[index] = this.ageOf(owner);
+                this.ageRuns.mark(index, this.uploads.on, this.highWater);
+            }
         }
-
-        const index = this.highWater;
-        this.highWater++;
-        this.setCount();
 
         return index;
     }
@@ -403,6 +466,10 @@ export class EdgeLineBatch {
         }
 
         this.hide(index);
+        if (this.ageable && this.ageState.track) {
+            this.owners[index] = undefined;
+        }
+
         this.free.push(index);
         this.live--;
         this.slotReleased(index);
@@ -541,6 +608,7 @@ export class EdgeLineBatch {
         // of data uploaded in part), so the first frame after one uploads every slot again.
         if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
             this.slotRuns.whole();
+            this.ageRuns.whole();
             if (this.statics !== null) {
                 this.staticRuns.whole();
             }
@@ -550,7 +618,13 @@ export class EdgeLineBatch {
             return;
         }
 
+        this.followAges();
         const { expanded, uploads } = this;
+        if (this.ageRuns.dirty && this.ages !== null) {
+            const runs = this.ageRuns.take(uploads.on);
+            this.send(runs, this.ages, expanded?.ages ?? null, this.ageBuffer, 1);
+        }
+
         if (this.staticRuns.dirty && this.statics !== null) {
             const runs = this.staticRuns.take(uploads.on);
             this.send(runs, this.statics, expanded?.statics ?? null, this.staticBuffer, EDGE_STATIC_FLOATS);
@@ -602,6 +676,109 @@ export class EdgeLineBatch {
         this.buffer = null;
         this.staticBuffer?.dispose();
         this.staticBuffer = null;
+        this.ageBuffer?.dispose();
+        this.ageBuffer = null;
+    }
+
+    /**
+     * Follow the scene's fade by age: switch the look when it is turned on or off, and rewrite every
+     * slot's age when the scene's ages are new (an index build or merge). One comparison a frame
+     * otherwise; a step moves only the uniform.
+     */
+    private followAges(): void {
+        if (!this.ageable) {
+            return;
+        }
+
+        const state = this.ageState;
+        if (state.on !== this.agedTarget) {
+            this.switchAges(state.on);
+        }
+
+        if (this.ages !== null && state.ages !== this.agesFrom) {
+            this.agesFrom = state.ages;
+            for (let slot = 0; slot < this.highWater; slot++) {
+                this.ages[slot] = this.ageOf(this.owners[slot]);
+            }
+
+            this.ageRuns.whole();
+        }
+    }
+
+    /**
+     * Turn fading by age on or off. The ages are bound at once and the program compiled aside, so
+     * the lines keep drawing in the old look until the new one is ready; then the material
+     * switches, and the scene is told so the next frame re-reads what it draws.
+     * @param on - Whether lines fade by age.
+     */
+    private switchAges(on: boolean): void {
+        this.agedTarget = on;
+        const turn = ++this.ageSwitches;
+        if (on && this.ages === null) {
+            this.ages = new Float32Array(this.slots.length / this.stride);
+            this.agesFrom = null;
+            this.bindAges();
+        }
+
+        this.ageState.warming++;
+        CustomLineRenderer.warmAged(this.mesh, on).then(
+            () => {
+                this.ageState.warming--;
+                if (this.gone || turn !== this.ageSwitches) {
+                    return;
+                }
+
+                CustomLineRenderer.setAged(this.mesh, on, this.ageState);
+                if (!on) {
+                    this.ages = null;
+                    this.agesFrom = null;
+                    if (this.expanded) {
+                        this.expanded.ages = null;
+                    }
+
+                    this.mesh.removeVerticesData("edgeAge");
+                    this.ageBuffer?.dispose();
+                    this.ageBuffer = null;
+                }
+
+                this.ageState.switched();
+            },
+            () => {
+                this.ageState.warming--;
+                // ponytail: a program that fails to compile leaves the lines in the old look, and
+                // the batch does not try again until the setting changes twice.
+            },
+        );
+    }
+
+    /**
+     * How old a slot's edge is: its start normalized over the data's extent.
+     * @param owner - Who the slot draws.
+     * @returns The age; the newest for a slot with no owner or no time.
+     */
+    private ageOf(owner: SlotOwner | undefined): number {
+        const age = owner === undefined ? undefined : this.ageState.ages?.[owner.index];
+        return age ?? UNTIMED_AGE;
+    }
+
+    /** Hand the ages to the mesh as their own attribute, sized to the slots' capacity. */
+    private bindAges(): void {
+        if (this.ages === null) {
+            return;
+        }
+
+        this.ageBuffer?.dispose();
+        const instanced = this.expanded === null;
+        let data = this.ages;
+        if (this.expanded) {
+            data = new Float32Array(this.ages.length * TEMPLATE_VERTICES);
+            this.expanded.ages = data;
+        }
+
+        const buffer = new Buffer(this.mesh.getEngine(), data, true, 1, false, instanced);
+        this.mesh.setVerticesBuffer(buffer.createVertexBuffer("edgeAge", 0, 1, 1, instanced));
+        this.ageBuffer = buffer;
+        this.ageRuns.whole();
     }
 
     /**
@@ -835,6 +1012,8 @@ export class EdgeLineBatch {
                 });
                 this.staticBuffer = statics;
             }
+
+            this.bindAges();
         }
 
         // Rebuilding the buffer resets the instance count, so the high-water mark is written back.
@@ -851,6 +1030,12 @@ export class EdgeLineBatch {
             const statics = new Float32Array(this.statics.length * 2);
             statics.set(this.statics);
             this.statics = statics;
+        }
+
+        if (this.ages !== null) {
+            const ages = new Float32Array(this.ages.length * 2);
+            ages.set(this.ages);
+            this.ages = ages;
         }
 
         if (this.matrices) {
@@ -884,7 +1069,7 @@ export class EdgeLineBatch {
         const slots = new Float32Array(capacity * TEMPLATE_VERTICES * this.stride);
         const statics =
             this.statics === null ? null : new Float32Array(capacity * TEMPLATE_VERTICES * EDGE_STATIC_FLOATS);
-        this.expanded = { slots, statics };
+        this.expanded = { slots, statics, ages: null };
         this.slotRuns.whole();
         if (statics !== null) {
             this.staticRuns.whole();

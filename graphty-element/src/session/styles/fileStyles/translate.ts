@@ -187,7 +187,7 @@ export interface TranslateInput {
 }
 
 /** One layer the translation made. */
-export interface TranslatedLayer {
+interface TranslatedLayer {
     /** The layer. */
     readonly spec: LayerSpec;
     /**
@@ -502,7 +502,7 @@ function termsOf(where: Predicate): number {
  * @param where - The expression.
  * @returns The count.
  */
-export function expressionTerms(where: string): number {
+function expressionTerms(where: string): number {
     let terms = 0;
     let at = 0;
     while (at < where.length) {
@@ -720,6 +720,8 @@ function channelPlans(
                 ],
             ],
             ["shapeLineWidth", [length("node.shapeLineWidth")]],
+            ["shapeLineHaloColor", [id("node.shapeLineHaloColor")]],
+            ["shapeLineHaloWidth", [length("node.shapeLineHaloWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
             [
                 "image",

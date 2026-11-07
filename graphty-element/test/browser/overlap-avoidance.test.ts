@@ -54,6 +54,8 @@ function star(): { nodes: { id: string }[]; edges: { src: string; dst: string }[
 
 async function settle(g: Graph): Promise<void> {
     await operationQueueOf(g).waitForCompletion();
+    // The frames draw every node at its size first: a nodeGap layout spends its pre-steps only then.
+    await g.waitForStableFrame();
     for (let frame = 0; frame < 4000 && !g.getLayoutManager().isSettled; frame++) {
         g.getLayoutManager().step();
     }
@@ -331,6 +333,55 @@ describe.each([["spring"], ["forceatlas2"]])("%s's nodeGap in a graph too big fo
         assert.deepEqual(overlappingPairs(g, true), []);
     });
 });
+
+describe.each([["spring"], ["forceatlas2"], ["ngraph"], ["d3"]])(
+    "%s's nodeGap starts from the styled sizes",
+    (layout) => {
+        /**
+         * Lay the dense graph out with every node styled large, and read where the nodes ended up.
+         * @param drawFirst - Whether frames draw the style before the layout is set. Otherwise the style has arrived and no
+         *     frame has drawn it yet, which is where a load's own layout starts.
+         * @returns Each node's position.
+         */
+        async function positions(drawFirst: boolean): Promise<string[]> {
+            const g = await mount();
+            const { nodes, edges } = dense();
+            await g.addNodes(nodes);
+            await g.addEdges(edges);
+            // A static arrangement to start from, so the frames that draw the style move nothing.
+            await g.setLayout("random", { seed: 3, dim: 2 });
+            await settle(g);
+            if (drawFirst) {
+                await sizeEveryNode(g, DENSE_SIZE);
+            } else {
+                await g.getSession().styles.add({
+                    name: "big",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.size": DENSE_SIZE },
+                });
+            }
+
+            await g.setLayout(layout, { seed: 7, dim: 2, nodeGap: 1 });
+            await settle(g);
+            const engine = g.getLayoutManager().layoutEngine;
+            assert.isDefined(engine);
+            const placed = [...g.getDataManager().nodes.values()].map((node) => {
+                const { x, y } = engine.getNodePosition(node);
+                return `${x.toFixed(3)},${y.toFixed(3)}`;
+            });
+            g.dispose();
+            container?.remove();
+            graph = undefined;
+            return placed;
+        }
+
+        // Whether a frame fell between the style arriving and the layout starting decided the drawing (#6030).
+        it("draws the same whether or not a frame drew the style before the layout started", async () => {
+            assert.deepEqual(await positions(false), await positions(true));
+        });
+    },
+);
 
 interface Rect {
     left: number;

@@ -127,7 +127,7 @@ interface Pacer {
 const PACERS = new Map<string, Pacer>();
 
 /** What the runner reads back from a context after a load. */
-export interface ContextState {
+interface ContextState {
     /** Requests sent. */
     requests: number;
     /** Decoded response bytes read. */

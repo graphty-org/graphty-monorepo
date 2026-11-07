@@ -29,7 +29,7 @@ export type Selector = Layer["selector"];
 export type Side = "node" | "edge";
 
 /** The heading a field is listed under in the add menu. */
-export type FieldGroup = "Data" | "Results" | "Structure";
+type FieldGroup = "Data" | "Results" | "Structure";
 
 /** One value a card can test: an entry of `session.data.readableValues()`, named for a reader. */
 export interface CardField {
@@ -144,16 +144,11 @@ export type Card =
     | {
           readonly type: "fixed";
           readonly key: string;
-          /** The leaf it holds, or null for a whole selector that stands alone (selected, hovered). */
+          /** The leaf it holds, or null for a whole selector that stands alone (edges picked by hand). */
           readonly leaf: RuleTree | null;
           readonly selector?: Selector;
           readonly words: string;
       };
-
-/** A side's cards, and the edge reading the Ends card writes. */
-export interface SideCards {
-    readonly cards: readonly Card[];
-}
 
 /** The Data source field's path: not a column, the load an element came from (a `source` leaf). */
 export const SOURCE_PATH = "@source";
@@ -510,7 +505,7 @@ function textLeaf(card: CardOf<"text">, path: string): RuleTree | null {
 
 /**
  * Whether a card is finished: it makes a leaf, it is the Ends card, or it holds a whole selector
- * that stands alone (edges picked by hand, the selected or hovered elements).
+ * that stands alone (edges picked by hand).
  * @param card - the card.
  * @returns true when finished.
  */
@@ -533,8 +528,6 @@ function leavesOf(session: GraphSession, selector: Selector): Leaves {
     switch (selector.match) {
         case "everything":
             return { leaves: [] };
-        case "state":
-            return { whole: selector, words: `On the canvas: ${selector.state}` };
         case "ids": {
             // Ids picked by hand (a layer made from a selection): the nodes are a member leaf, so
             // a condition can be added beside them; edge ids have no leaf form and stand alone.
@@ -548,7 +541,7 @@ function leavesOf(session: GraphSession, selector: Selector): Leaves {
             return { leaves: [{ kind: "member", of: selector.of }] };
         default: {
             // A rule typed in find (`donations >= \`10000\``) reads as its cards too.
-            const rule = selectorRule(selector, { comparisons: true });
+            const rule = selectorRule(selector, { comparisons: true, states: true });
             if (rule === undefined) {
                 return selector.match === "expression"
                     ? { leaves: [{ kind: "expression", where: selector.where }] }
@@ -577,7 +570,7 @@ export const isPicked = (card: Card): boolean =>
  * @param edges - how many edges it lists.
  * @returns the words.
  */
-export function pickedWords(nodes: number, edges: number): string {
+function pickedWords(nodes: number, edges: number): string {
     const part = (n: number, one: string): string[] =>
         n === 0 && one === "edge" ? [] : [`${String(n)} ${one}${n === 1 ? "" : "s"}`];
     const parts = edges > 0 && nodes === 0 ? part(edges, "edge") : [...part(nodes, "node"), ...part(edges, "edge")];
@@ -673,6 +666,8 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
         }
         case "member":
             return memberCard(session, leaf, elsewhere);
+        case "state":
+            return { ...elsewhere, words: `On the canvas: ${leaf.state}` };
         default:
             return elsewhere;
     }
@@ -929,6 +924,10 @@ export function selectorOf(cards: readonly Card[], ends: readonly RuleTree[] = [
     const leaves = endsCard === undefined ? own : [...ends, ...own];
     if (leaves.length === 0) {
         return { match: "everything" };
+    }
+    // The bare state is the one selector the element tests per element, with no rule to resolve.
+    if (leaves.length === 1 && leaves[0].kind === "state") {
+        return { match: "state", state: leaves[0].state };
     }
     const where: RuleTree = leaves.length === 1 ? leaves[0] : { kind: "all", of: leaves };
     return endsCard?.type === "ends" && endsCard.reading === "incident"

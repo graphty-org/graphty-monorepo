@@ -35,7 +35,7 @@ const loadIntake = (): Promise<typeof import("./intake")> => import("./intake");
 const loadSamples = (): Promise<typeof import("./samples")> => import("./samples");
 
 export type { BuiltInModelFormat, ModelFormat } from "../../catalog/detectModel";
-export { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
+export { type AssetId, isAssetId } from "./assetId";
 
 /** A File, or anything shaped like one: a name and its bytes. No DOM type is named. */
 export interface NamedBlob {

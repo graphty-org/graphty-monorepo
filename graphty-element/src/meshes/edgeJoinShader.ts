@@ -38,6 +38,11 @@
  * vertex shader folds a fade by its length on screen into the coverage every fragment already
  * multiplies its alpha by. `EDGE_OPAQUE` (line.blending false) writes every fragment at alpha 1.
  *
+ * FADING BY AGE (`EDGE_AGED`, the timeline's `ageFade`). One more instanced float per piece, in a
+ * buffer of its own: its edge's start normalized over the data's extent. A uniform carries the
+ * window and the opacity at its start, so a step writes the uniform and no slot. It folds into the
+ * same coverage, since a widened batch already uses all 15 varying rows.
+ *
  * THE EDGE-SURFACE HOOK (`EDGE_SHADED`). With it the fragment's color is not the uniform color but
  * `graphty_edgeShade(t, side, lengthPx, widthPx, coverage)`, declared here and defined by the
  * shader runtime after this text (`src/shaders/runtime/edgePrograms.ts`), which fills `EdgeInput`
@@ -220,6 +225,13 @@ varying float vEdgeTotal;
 // In CSS pixels on screen: where the fade starts and ends, then what it multiplies the opacity by
 // at its end.
 uniform vec3 edgeFade;
+#endif
+
+#ifdef EDGE_AGED
+// The piece's edge's start, and the window's start and end and the opacity at its start, all
+// normalized over the data's extent (a float cannot hold an epoch).
+attribute float edgeAge;
+uniform vec3 edgeAgeWindow;
 #endif
 
 const float EPS = 1e-4;
@@ -505,6 +517,12 @@ void main() {
     float edgePx = worldOwn > EPS ? total * lenOwn / worldOwn : lenOwn;
     float faded = clamp((edgePx - edgeFade.x) / max(edgeFade.y - edgeFade.x, EPS), 0.0, 1.0);
     vWidth.z *= mix(1.0, edgeFade.z, faded);
+#endif
+#ifdef EDGE_AGED
+    // Age: 0 at the window's end, 1 at its start, folded into the coverage as the fade above is.
+    float ageSpan = edgeAgeWindow.y - edgeAgeWindow.x;
+    float age = ageSpan > 0.0 ? clamp((edgeAgeWindow.y - edgeAge) / ageSpan, 0.0, 1.0) : 0.0;
+    vWidth.z *= mix(1.0, edgeAgeWindow.z, age);
 #endif
 }
 `;

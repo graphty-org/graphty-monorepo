@@ -2,6 +2,7 @@ import {
     Color3,
     Constants,
     Effect,
+    type IShaderMaterialOptions,
     Mesh,
     MeshBuilder,
     Scene,
@@ -20,7 +21,36 @@ import {
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_POSITIONS,
 } from "./edgeJoinShader";
+import type { EdgeAgeState } from "./FrameRoster";
 import { PerSceneMaterials } from "./PerSceneMaterials";
+
+/** The define a line fading by age is compiled with. */
+const AGED_DEFINE = "#define EDGE_AGED";
+
+/**
+ * Add or remove what fading by age adds to a line material's options.
+ * @param options - The options, changed in place.
+ * @param aged - Whether the line fades by age.
+ * @param blends - Whether it blends without fading by age.
+ */
+function agedOptions(options: IShaderMaterialOptions, aged: boolean, blends: boolean): void {
+    const without = <T>(list: T[], item: T): void => {
+        const at = list.indexOf(item);
+        if (at !== -1) {
+            list.splice(at, 1);
+        }
+    };
+    const toggle = <T>(list: T[], item: T): void => {
+        without(list, item);
+        if (aged) {
+            list.push(item);
+        }
+    };
+    toggle(options.defines, AGED_DEFINE);
+    toggle(options.attributes, "edgeAge");
+    toggle(options.uniforms, "edgeAgeWindow");
+    options.needAlphaBlending = aged || blends;
+}
 
 /** A line's fade by its length on screen, in CSS pixels; see `line.fade`. */
 export interface EdgeFade {
@@ -178,6 +208,9 @@ interface CustomLineOptions {
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Utility class with static state for shader registration
 export class CustomLineRenderer {
     private static shadersRegistered = false;
+
+    /** The line materials that write the age uniform as they bind. */
+    private static readonly ageBound = new WeakSet<ShaderMaterial>();
 
     /**
      * Every line material, grouped by scene, each scene's group given that scene's render size
@@ -565,9 +598,54 @@ void main(void) {
                 ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
                 : undefined,
             ...(widened ? { widened: true } : {}),
+            ...(opaque ? { opaque: true } : {}),
         };
 
         return mesh;
+    }
+
+    /**
+     * Switch a joined line's material to or from fading by age (`EDGE_AGED`), in place: the define,
+     * the `edgeAge` attribute, the `edgeAgeWindow` uniform, and alpha blending, without which a
+     * faded line writes depth in the opaque pass and hides what is drawn after it. The next draw
+     * compiles the new program unless {@link CustomLineRenderer.warmAged} already has.
+     * @param mesh - A mesh from {@link CustomLineRenderer.createJoinedLineMesh}.
+     * @param aged - Whether it fades by age.
+     * @param state - The scene's fade by age, whose window the uniform carries.
+     */
+    static setAged(mesh: Mesh, aged: boolean, state: EdgeAgeState): void {
+        const material = mesh.material as ShaderMaterial;
+        if (aged && !this.ageBound.has(material)) {
+            this.ageBound.add(material);
+            material.onBindObservable.add((drawn) => {
+                const [from, to, fade] = state.window;
+                drawn.subMeshes[0]?.effect?.setFloat3("edgeAgeWindow", from, to, fade);
+            });
+        }
+
+        const blends = (mesh.metadata as { blends?: boolean } | null)?.blends;
+        const before = blends ?? material.options.needAlphaBlending;
+        mesh.metadata = { ...(mesh.metadata as object), blends: before };
+        agedOptions(material.options, aged, before);
+    }
+
+    /**
+     * Compile the program {@link CustomLineRenderer.setAged} would switch a line to, on a copy of its
+     * material, so the switch draws at once: Babylon draws nothing with a material while its new
+     * program compiles, and keeps a compiled program for every material that asks for it again.
+     * @param mesh - The line's mesh.
+     * @param aged - The look to compile.
+     * @returns Settles once it compiled; rejects if it failed.
+     */
+    static async warmAged(mesh: Mesh, aged: boolean): Promise<void> {
+        const material = mesh.material as ShaderMaterial;
+        const probe = material.clone(`${material.name}-aged`);
+        agedOptions(probe.options, aged, false);
+        try {
+            await probe.forceCompilationAsync(mesh, { useInstances: mesh.hasThinInstances });
+        } finally {
+            probe.dispose();
+        }
     }
 
     /**

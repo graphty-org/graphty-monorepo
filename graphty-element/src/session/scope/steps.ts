@@ -465,7 +465,7 @@ function freezeRule(
  * @param options.effect - `"exclude"` for what the rule leaves, read as what stays.
  * @returns The leaf, or null.
  */
-export function asUnion(
+function asUnion(
     rule: RuleTree,
     options: {
         readonly side: UnionLeaf["side"];
@@ -595,7 +595,7 @@ function leftBy(
 // ---------------------------------------------------------------------------------------------
 
 /** What turning a raw reading into a public one needs. */
-export interface ReadingSources {
+interface ReadingSources {
     /**
      * A half's members as a scope.
      * @param side - The side.
@@ -657,7 +657,7 @@ function lazy(make: () => Scope): () => Scope {
  * @param palette - The branch palette, which bounds how many branches the rule can take.
  * @returns The reading.
  */
-export function stepsReadingOf(
+function stepsReadingOf(
     leaf: UnionLeaf,
     read: UnionRead,
     sources: ReadingSources,
@@ -812,7 +812,7 @@ export interface ScopeStepsSources {
 }
 
 /** The part of the step runs the surface reaches. */
-export interface StepRunsLike {
+interface StepRunsLike {
     allow(step: UnionStep, within: UnionLeaf["within"]): void;
     cancel(step: UnionStep, within: UnionLeaf["within"]): void;
     runOf(step: UnionStep, within: UnionLeaf["within"]): RunId | null;

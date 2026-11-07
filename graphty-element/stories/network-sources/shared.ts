@@ -104,7 +104,7 @@ export interface StoryText {
 }
 
 /** What the `live` control does, for every story that has only that control. */
-export const LIVE_CONTROL =
+const LIVE_CONTROL =
     "`live`: off, the story answers every request from recorded responses, so the story gives the same result " +
     "offline; on, it asks the real service, whose answer may have changed since the recording.";
 

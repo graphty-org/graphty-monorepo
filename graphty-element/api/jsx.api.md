@@ -6,6 +6,7 @@
 
 import { AbstractMesh } from '@babylonjs/core';
 import { ActionManager } from '@babylonjs/core';
+import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
@@ -145,6 +146,8 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;
     "onelements-removed"?: (event: CustomEvent<EventOfType<"elements-removed">>) => void;
+    // (undocumented)
+    "ongraph-first-frame"?: (event: CustomEvent<EventOfType<"graph-first-frame">>) => void;
     // (undocumented)
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     // (undocumented)

@@ -107,7 +107,24 @@ class IdTexture extends RenderTargetTexture {
     onDrawn: (() => void) | null = null;
 
     override render(useCameraPostProcess?: boolean, dumpForDebug?: boolean): void {
-        super.render(useCameraPostProcess, dumpForDebug);
+        // Drawn as a frame draws its targets: as intermediate rendering. Outside it -- a read
+        // redrawing a stale target between frames -- the scene's effect layers (the node glow's
+        // highlight layer) composite their glow into whatever is bound after each rendering
+        // group, which here is this target, writing colors that name no row (#6121).
+        const scene = this.getScene();
+        const was = scene?._intermediateRendering ?? false;
+        if (scene) {
+            scene._intermediateRendering = true;
+        }
+
+        try {
+            super.render(useCameraPostProcess, dumpForDebug);
+        } finally {
+            if (scene) {
+                scene._intermediateRendering = was;
+            }
+        }
+
         this.onDrawn?.();
     }
 }
@@ -413,8 +430,9 @@ export class NodeIdTarget {
             return now ? ID_NONE : Promise.resolve(ID_NONE);
         }
 
-        // A WebGL texture's first row is the bottom of the picture.
-        const py = engine.isWebGPU ? row : height - 1 - row;
+        // A render target's first row is the bottom of the picture on either engine: Babylon draws
+        // into a target upside down on WebGPU (its invertY uniform) so that one samples as on WebGL.
+        const py = height - 1 - row;
         this.counts.reads++;
         if (now) {
             engine._readTexturePixelsSync(texture, 1, 1, -1, 0, this.texel, true, false, px, py);

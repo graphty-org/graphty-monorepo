@@ -187,7 +187,8 @@ async function openList(count: number): Promise<HTMLElement> {
     const list = await screen.findByRole("list", { name: "Chats" });
     await waitFor(() => {
         assert.strictEqual(within(list).getAllByRole("listitem").length, count);
-        assert.strictEqual(chatsButton().getAttribute("aria-label"), `Chats ${String(count)}`);
+        assert.strictEqual(chatsButton().getAttribute("aria-label"), `Chats, ${String(count)}`);
+        assert.strictEqual(chatsButton().textContent, "Chats", "the list open, the switch names it");
     });
     return list;
 }
@@ -352,15 +353,20 @@ describe("talking to the Assistant", () => {
         await screen.findByText("Looking at the graph.");
         await screen.findByRole("button", { name: "Stop" });
         assert.strictEqual(document.activeElement, field);
-        await screen.findByText("Sending to Mock");
+        // Three dots, named with what they stand for, in place of a working line.
+        await screen.findByRole("img", { name: "Sending to Mock" });
+        assert.isNull(screen.queryByText("Sending to Mock"));
         await userEvent.keyboard("next thing");
         assert.strictEqual(field.value, "next thing");
 
         model.release();
         await screen.findByRole("button", { name: "Send" });
         await screen.findByText(/It is empty\./);
-        await screen.findByRole("heading", { name: "You" });
-        await screen.findByRole("heading", { name: "Assistant" });
+        // The speakers are headings for screen readers only: nothing on screen says You or Assistant.
+        const you = await screen.findByRole("heading", { name: "You" });
+        const assistant = await screen.findByRole("heading", { name: "Assistant" });
+        assert.isAtMost(you.getBoundingClientRect().width, 1);
+        assert.isAtMost(assistant.getBoundingClientRect().width, 1);
         assert.strictEqual(field.value, "next thing");
 
         const steps = await screen.findByRole("button", { name: "1 step" });
@@ -372,6 +378,58 @@ describe("talking to the Assistant", () => {
         assert.notInclude(log.textContent, "overview");
         assert.notInclude(log.textContent, "{");
         assert.isNull(log.closest("[aria-live]"));
+    });
+
+    it("puts the Steps icon beside the working dots, so the step list opens and grows mid-run", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        const store = await open();
+        const said: string[] = [];
+        store.subscribe(() => {
+            said.push(store.get().announcement);
+        });
+        await openPanel();
+        model.turns = [
+            { text: "", toolCalls: [{ id: "c1", name: "query", arguments: { action: "overview" } }] },
+            { text: "Done.", toolCalls: [] },
+        ];
+        model.holdTurn = 1;
+        await say("What is here?");
+        await waitFor(() => {
+            assert.isTrue(model.held);
+        });
+        const steps = await screen.findByRole("button", { name: "1 step" });
+        const dots = screen.getByRole("img", { name: "Sending to Mock" });
+        assert.strictEqual(steps.textContent, "", "an icon, its count in its name");
+        assert.closeTo(steps.getBoundingClientRect().top, dots.getBoundingClientRect().top, 8, "on the dots' row");
+        assert.isAbove(steps.getBoundingClientRect().left, dots.getBoundingClientRect().left, "after the dots");
+        await userEvent.click(steps);
+        assert.strictEqual(steps.getAttribute("aria-expanded"), "true");
+        await screen.findByText("Query data");
+        assert.include(said, "Running Query data", "the step was announced as it ran");
+
+        model.release();
+        await screen.findByText("Done.");
+        await screen.findByRole("button", { name: "Send" });
+        assert.isNull(screen.queryByRole("img", { name: /^Sending|^Writing|^Running/ }));
+        // The list stays open after the run, under the same icon.
+        assert.strictEqual(screen.getByRole("button", { name: "1 step" }).getAttribute("aria-expanded"), "true");
+        screen.getByText("Query data");
+    });
+
+    it("sets the reader's message on a gray fill and the reply plain, with the caution on an empty chat", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        await screen.findByText("Answers can be wrong.");
+        assert.isNull(screen.queryByText(/It can be wrong/));
+        await chat("Hubs please");
+        const log = await chatLog();
+        const mine = within(log).getByText("Hubs please");
+        const reply = within(log).getByText("The reply.");
+        const fill = getComputedStyle(mine).backgroundColor;
+        assert.notInclude(["rgba(0, 0, 0, 0)", "transparent"], fill, "the reader's message has a fill");
+        assert.strictEqual(getComputedStyle(mine).borderTopStyle, "solid", "a border forced colors can draw");
+        assert.strictEqual(getComputedStyle(reply).backgroundColor, "rgba(0, 0, 0, 0)", "the reply is plain");
     });
 
     it("saves what the assistant exports once, named from the project and the format", async () => {
@@ -448,7 +506,9 @@ describe("talking to the Assistant", () => {
             assert.isTrue(model.held);
         });
         await userEvent.click(await screen.findByRole("button", { name: "Stop" }));
-        await within(screen.getByRole("region", { name: "Chat" })).findByText("Stopped.");
+        // A stop glyph ends the reply in place of the word.
+        await within(screen.getByRole("region", { name: "Chat" })).findByRole("img", { name: "Stopped" });
+        assert.notInclude(screen.getByRole("region", { name: "Chat" }).textContent, "Stopped");
         const field = await composer();
         assert.strictEqual(field.value, "Slow question");
         assert.strictEqual(document.activeElement, field);
@@ -479,7 +539,7 @@ describe("talking to the Assistant", () => {
             assert.isTrue(model.held);
         });
         await userEvent.keyboard("{Escape}");
-        await within(screen.getByRole("region", { name: "Chat" })).findByText("Stopped.");
+        await within(screen.getByRole("region", { name: "Chat" })).findByRole("img", { name: "Stopped" });
         assert.strictEqual(field.value, "kept");
     });
 
@@ -611,30 +671,29 @@ describe("talking to the Assistant", () => {
         });
     });
 
-    it("shows the chat count beside the open chat's title while closed, and marks the open one", async () => {
+    it("shows only the open chat's title while closed, counts chats in its name, and marks the open one", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         await open();
         await openPanel();
         await chat("Color by department");
         await waitFor(() => {
-            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 1, Color by department");
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, 1: Color by department");
         });
         await newChat();
         await waitFor(() => {
-            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 2, New chat");
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, 2: New chat");
         });
+        // An untitled chat shows the history glyph, not "New chat".
+        assert.strictEqual(chatsButton().textContent, "");
+        assert.isNotNull(chatsButton().querySelector("svg"));
         await chat("Hubs please");
         await waitFor(() => {
-            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 2, Hubs please");
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, 2: Hubs please");
         });
-        // Seen without opening anything: the count and the title, side by side on one line.
+        // Seen without opening anything: only the title; the count is in the spoken name.
         const closed = chatsButton();
         assert.strictEqual(closed.getAttribute("aria-expanded"), "false");
-        const count = within(closed).getByText("Chats 2").getBoundingClientRect();
-        const title = within(closed).getByText("Hubs please").getBoundingClientRect();
-        assert.isAtMost(count.right, title.left, "the count comes before the title");
-        assert.isAbove(count.width, 0, "the count shows");
-        assert.closeTo(count.top, title.top, 2, "on one line");
+        assert.strictEqual(closed.textContent, "Hubs please");
 
         const list = await openList(2);
         const hubs = within(list).getByRole("button", { name: "Hubs please" });
@@ -784,14 +843,14 @@ describe("talking to the Assistant", () => {
 
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 1, Departments");
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, 1: Departments");
         });
         cleanup();
 
         await open(createWorkspaceStore({ project: { name: "Talk", id: 1 } }));
         await openPanel();
         await waitFor(() => {
-            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 1, Departments");
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, 1: Departments");
         });
         const again = await openList(1);
         within(again).getByRole("button", { name: "Departments" });
@@ -820,7 +879,7 @@ describe("talking to the Assistant", () => {
         await typeName("{Backspace}{Enter}");
         await within(list).findByRole("button", { name: "First talk" });
         await waitFor(() => {
-            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 1");
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, 1");
         });
     });
 

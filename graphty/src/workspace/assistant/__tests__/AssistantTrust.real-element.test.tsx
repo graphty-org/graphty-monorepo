@@ -257,7 +257,9 @@ describe("checking what the Assistant says", () => {
         const { store, session } = await openOn(4);
         model.turns = [calling("query", FIND), { text: "Two.", toolCalls: [] }];
         await say("Which are even?");
-        await userEvent.click(await screen.findByRole("button", { name: "Show in table" }));
+        const table = await screen.findByRole("button", { name: "Show in table" });
+        assert.strictEqual(table.textContent, "", "an icon, named for what it does");
+        await userEvent.click(table);
         await waitFor(() => {
             assert.isTrue(store.get().dockOpen);
         });
@@ -358,9 +360,13 @@ describe("checking what the Assistant says", () => {
         await finished();
         const undos = screen.getAllByRole("button", { name: "Undo" }).filter(inLog);
         assert.lengthOf(undos, 1, "only the newest step offers it");
+        assert.strictEqual(undos[0].textContent, "", "an icon; its key is in the tooltip");
+        assert.strictEqual(undos[0].getAttribute("aria-keyshortcuts"), "Control+Z");
 
         await userEvent.click(undos[0]);
         await within(log()).findByText("Undone");
+        // Undone is for screen readers; on screen the change line is struck through.
+        assert.include(getComputedStyle(within(log()).getByText("Sized 3 nodes")).textDecorationLine, "line-through");
         assert.strictEqual(session.styles.list().length, layers + 1);
         await waitFor(() => {
             assert.lengthOf(screen.getAllByRole("button", { name: "Undo" }).filter(inLog), 1);
@@ -1074,6 +1080,9 @@ describe("checking what the Assistant says", () => {
         });
         await userEvent.keyboard("{Enter}");
         await screen.findByRole("heading", { name: "You (spoken)" });
+        // On screen, a microphone glyph starts the message in place of the words.
+        const message = within(log()).getByText("color these red");
+        assert.isNotNull(message.querySelector("svg"));
         assert.strictEqual(sent[0].via, "voice");
     });
 });

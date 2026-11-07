@@ -1,12 +1,13 @@
-import { EntityChip } from "@graphty/compact-mantine";
+import { EntityChip, TooltipShortcut } from "@graphty/compact-mantine";
 import type { AiEffect, AiTarget } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Button, Group, Text, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Button, Group, Text, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, rowName } from "../graph-place/rows";
+import { ariaKey, formatKey } from "../keys/keys";
 import { runName } from "../runWords";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -120,6 +121,8 @@ interface ChipRowProps {
     readonly kinds: readonly Kind[];
     /** Whether it offers Show in table. */
     readonly table?: boolean;
+    /** More icons for its right end: the reply's own. */
+    readonly actions?: React.ReactNode;
 }
 
 /**
@@ -129,9 +132,10 @@ interface ChipRowProps {
  * @param props.target - what the chips point at
  * @param props.kinds - the kinds it names
  * @param props.table - whether it offers Show in table
+ * @param props.actions - more icons for its right end
  * @returns The row, or nothing until it is read
  */
-export function ChipRow({ target, kinds, table = false }: Readonly<ChipRowProps>): React.JSX.Element | null {
+export function ChipRow({ target, kinds, table = false, actions }: Readonly<ChipRowProps>): React.JSX.Element | null {
     const { store, session } = useWorkspace();
     const live = useLiveCount(target);
     const [stop, setStop] = useState(0);
@@ -144,7 +148,12 @@ export function ChipRow({ target, kinds, table = false }: Readonly<ChipRowProps>
         return count > 0 ? [{ kind, count }] : [];
     });
     if (chips.length === 0) {
-        return <Text size="sm">{WORDS["assistant.chip.gone"]}</Text>;
+        return (
+            <Group gap={4} justify="space-between" wrap="nowrap">
+                <Text size="sm">{WORDS["assistant.chip.gone"]}</Text>
+                <Group gap={2}>{actions}</Group>
+            </Group>
+        );
     }
     const move = (event: React.KeyboardEvent): void => {
         const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
@@ -175,20 +184,30 @@ export function ChipRow({ target, kinds, table = false }: Readonly<ChipRowProps>
                     />
                 ))}
             </div>
-            {table ? (
-                <Button
-                    variant="subtle"
-                    color="gray"
-                    size="compact-xs"
-                    onClick={() => {
-                        void session?.selection.apply(target, "replace", { cause: "user" }).then(({ nodes, edges }) => {
-                            store.set({ dockOpen: true, dockTab: nodes === 0 && edges > 0 ? "edges" : "nodes" });
-                        });
-                    }}
-                >
-                    {WORDS["assistant.table"]}
-                </Button>
-            ) : null}
+            <Group gap={2} wrap="nowrap">
+                {table ? (
+                    <Tooltip label={WORDS["assistant.table"]}>
+                        <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            aria-label={WORDS["assistant.table"]}
+                            onClick={() => {
+                                void session?.selection
+                                    .apply(target, "replace", { cause: "user" })
+                                    .then(({ nodes, edges }) => {
+                                        store.set({
+                                            dockOpen: true,
+                                            dockTab: nodes === 0 && edges > 0 ? "edges" : "nodes",
+                                        });
+                                    });
+                            }}
+                        >
+                            <GLYPHS.table size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                ) : null}
+                {actions}
+            </Group>
         </Group>
     );
 }
@@ -211,22 +230,27 @@ function kindsOf(effect: AiEffect): readonly Kind[] {
  * @param props - Component props
  * @param props.effect - the found or empty effect
  * @param props.table - whether it offers Show in table
+ * @param props.actions - more icons for its right end
  * @returns The row, or nothing for an effect that names no elements
  */
 export function ResultRow({
     effect,
     table = false,
-}: Readonly<{ effect: AiEffect; table?: boolean }>): React.JSX.Element | null {
+    actions,
+}: Readonly<{ effect: AiEffect; table?: boolean; actions?: React.ReactNode }>): React.JSX.Element | null {
     if (effect.code === "AI_EFFECT_EMPTY") {
         return (
             <Group gap={4} wrap="nowrap">
                 <GLYPHS.warning size={12} aria-hidden />
-                <Text size="sm">{emptyWords(effect.params.searched)}</Text>
+                <Text size="sm" flex={1}>
+                    {emptyWords(effect.params.searched)}
+                </Text>
+                {actions}
             </Group>
         );
     }
     return effect.target === undefined ? null : (
-        <ChipRow target={effect.target} kinds={kindsOf(effect)} table={table} />
+        <ChipRow target={effect.target} kinds={kindsOf(effect)} table={table} actions={actions} />
     );
 }
 
@@ -242,6 +266,8 @@ interface ChangeRowsProps {
     readonly undone: boolean;
     /** Called as the reader opens the rest of the lines. */
     readonly onMore: () => void;
+    /** More icons for the row of icons: the reply's own. */
+    readonly actions?: React.ReactNode;
 }
 
 /** A link from a turn to the real editor of what it made. */
@@ -295,17 +321,24 @@ function openLinks(session: GraphSession, changes: readonly AiEffect[]): readonl
 
 /**
  * What a turn did to the graph: one line per change, up to three until "and {N} more" opens the rest in
- * place, then the links to the real editor,
+ * place, then the links to the real editor as icons,
  * each only while its layer or run stands, and Undo on the newest step only. Once no step of the
- * message stands, it reads Undone.
+ * message stands, its lines are struck through and screen readers hear Undone.
  * @param props - Component props
  * @param props.changes - the turn's changes
  * @param props.provenance - the id its steps carry
  * @param props.undone - whether none of its changes stands
  * @param props.onMore - called as the reader opens the rest of the lines
+ * @param props.actions - more icons for the row of icons
  * @returns The rows
  */
-export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<ChangeRowsProps>): React.JSX.Element {
+export function ChangeRows({
+    changes,
+    provenance,
+    undone,
+    onMore,
+    actions,
+}: Readonly<ChangeRowsProps>): React.JSX.Element {
     const { store, session, run } = useWorkspace();
     useVisibilityVersion(session);
     const next = session?.history.nextUndo;
@@ -329,6 +362,7 @@ export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<Cha
                 <Text
                     key={index} // NOSONAR(S6479): a line's place is its identity
                     size="sm"
+                    td={undone ? "line-through" : undefined}
                     ref={index === MAX_LINES ? firstMore : undefined}
                     tabIndex={index === MAX_LINES ? -1 : undefined}
                 >
@@ -349,34 +383,38 @@ export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<Cha
                 </Button>
             ) : null}
             {excluded === null ? null : <Text size="sm">{excluded}</Text>}
-            <Group gap={4} justify="space-between">
-                <Group gap={4}>
-                    {links.map((link) => (
-                        <Button
-                            key={link.label}
+            {undone ? <VisuallyHidden>{WORDS["assistant.undone"]}</VisuallyHidden> : null}
+            <Group gap={2} justify="flex-end">
+                {links.map((link) => (
+                    <Tooltip key={link.label} label={link.label}>
+                        <ActionIcon
                             variant="subtle"
                             color="gray"
-                            size="compact-xs"
+                            aria-label={link.label}
                             onClick={() => {
                                 store.set({ inspected: link.inspected, announcement: openedWords(link.name) });
                             }}
                         >
-                            {link.label}
-                        </Button>
-                    ))}
-                </Group>
+                            <GLYPHS.openExternal size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                ))}
                 {newest ? (
-                    <Button
-                        variant="default"
-                        size="compact-xs"
-                        onClick={() => {
-                            run("history.undo");
-                        }}
-                    >
-                        {WORDS["assistant.undo"]}
-                    </Button>
+                    <Tooltip label={<TooltipShortcut label={WORDS["assistant.undo"]} shortcut={formatKey("Mod+Z")} />}>
+                        <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            aria-label={WORDS["assistant.undo"]}
+                            aria-keyshortcuts={ariaKey("Mod+Z")}
+                            onClick={() => {
+                                run("history.undo");
+                            }}
+                        >
+                            <GLYPHS.undo size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
                 ) : null}
-                {undone ? <Text size="sm">{WORDS["assistant.undone"]}</Text> : null}
+                {actions}
             </Group>
         </div>
     );

@@ -51,7 +51,7 @@ function NoProvider(): React.JSX.Element {
 }
 
 /**
- * An empty conversation's intro and starters: questions that fill the composer and never send, the
+ * An empty conversation's one caution and starters: questions that fill the composer and never send, the
  * third from the graph's first categorical column.
  * @returns The intro
  */
@@ -67,8 +67,8 @@ function Starters(): React.JSX.Element {
     ];
     return (
         <Stack gap={4} className="ws-assistant-starters">
-            <Text size="sm" mb={4}>
-                {WORDS["assistant.intro"]}
+            <Text size="sm" c="dimmed" mb={4}>
+                {WORDS["assistant.wrong"]}
             </Text>
             {starters.map((starter) => (
                 <Button
@@ -175,11 +175,19 @@ export default function AssistantPanel(): React.JSX.Element {
         }
     }, [running]);
     const listId = useId();
-    // Loaded while set up, not only while listing: the closed header shows the count too.
+    // Loaded while set up, not only while listing: the closed header's spoken name counts them too.
     const { rows, reload } = useChatRows(setUp, view.conversation);
     const title = chatTitle(view.conversation);
-    const count = chatsCountLabel(rows.length);
-    const switchName = listing ? count : `${rows.length > 0 ? count : WORDS["assistant.title.tooltip"]}, ${title}`;
+    // An untitled chat shows the history glyph in place of "New chat"; its spoken name still says it.
+    const untitled = (view.conversation?.name ?? view.conversation?.firstWords ?? null) === null;
+    const count = rows.length > 0 ? chatsCountLabel(rows.length) : WORDS["assistant.title.tooltip"];
+    const switchName = listing ? count : `${count}: ${title}`;
+    let shown: React.ReactNode = <span className="ws-chat-title">{title}</span>;
+    if (listing) {
+        shown = WORDS["assistant.title.tooltip"];
+    } else if (untitled) {
+        shown = <GLYPHS.history size={14} aria-hidden />;
+    }
     const backToLog = (): void => {
         setListing(false);
         store.set((state) => ({ composerCalls: state.composerCalls + 1 }));
@@ -206,8 +214,7 @@ export default function AssistantPanel(): React.JSX.Element {
                                 }
                             }}
                         >
-                            {rows.length > 0 ? <span className="ws-chat-count">{count}</span> : null}
-                            {listing ? null : <span className="ws-chat-title">{title}</span>}
+                            {shown}
                         </Button>
                     </Tooltip>
                 ) : (

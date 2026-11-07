@@ -1,6 +1,6 @@
 import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
-import { Alert, Button, Collapse, Group, Stack, Text } from "@mantine/core";
+import { ActionIcon, Alert, Button, Collapse, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { AssistantChoice } from "../assistant-door/provider";
@@ -15,6 +15,7 @@ import {
     endWords,
     isChange,
     isResult,
+    runningWords,
     stepName,
     stepsWords,
     WORDS,
@@ -23,7 +24,7 @@ import {
 
 /** A scrolled-up reader this close to the foot still counts as following. */
 const FOOT_SLACK_PX = 8;
-/** How long a run goes before its working line shows (design 4.5). */
+/** How long a run goes before its working dots show (design 4.5). */
 const WORKING_AFTER_MS = 1000;
 
 type ReaderMessage = Extract<AiConversationMessage, { role: "reader" }>;
@@ -106,68 +107,74 @@ function useLate(running: boolean): boolean {
     return late;
 }
 
-/** Props for Steps. */
-interface StepsProps {
-    readonly steps: readonly Step[];
+/** Props for StepsButton. */
+interface StepsButtonProps {
+    readonly count: number;
     readonly open: boolean;
     readonly onToggle: () => void;
 }
 
 /**
- * A turn's steps: collapsed, a plain name, a time and any chips each.
+ * The list glyph that opens a turn's steps in place, named and tipped with how many.
+ * @param props - Component props
+ * @param props.count - how many steps
+ * @param props.open - whether they show
+ * @param props.onToggle - opens or closes them
+ * @returns The button
+ */
+function StepsButton({ count, open, onToggle }: Readonly<StepsButtonProps>): React.JSX.Element {
+    const name = stepsWords(count);
+    return (
+        <Tooltip label={name}>
+            <ActionIcon variant="subtle" color="gray" aria-label={name} aria-expanded={open} onClick={onToggle}>
+                <GLYPHS.steps size={14} aria-hidden />
+            </ActionIcon>
+        </Tooltip>
+    );
+}
+
+/**
+ * A turn's steps, while open: a plain name, a time and any chips each. They grow as a run adds them.
  * @param props - Component props
  * @param props.steps - the steps
  * @param props.open - whether they show
- * @param props.onToggle - opens or closes them
- * @returns The row, or nothing with no steps
+ * @returns The list, or nothing with no steps
  */
-function Steps({ steps, open, onToggle }: Readonly<StepsProps>): React.JSX.Element | null {
+function StepList({ steps, open }: Readonly<{ steps: readonly Step[]; open: boolean }>): React.JSX.Element | null {
     if (steps.length === 0) {
         return null;
     }
     return (
-        <div>
-            <Button
-                variant="subtle"
-                color="gray"
-                size="compact-xs"
-                aria-expanded={open}
-                leftSection={<GLYPHS.expand size={12} aria-hidden className={open ? undefined : "ws-assistant-shut"} />}
-                onClick={onToggle}
-            >
-                {stepsWords(steps.length)}
-            </Button>
-            <Collapse in={open}>
-                <ul className="ws-assistant-steps">
-                    {steps.map((step, index) => (
-                        // A step has no id of its own, and a turn's steps only ever grow at the end.
-                        <li
-                            key={index} // NOSONAR(S6479): a step has no id to key by
-                        >
-                            <span className="ws-assistant-step">
-                                <Text span size="xs">
-                                    {step.name}
+        <Collapse in={open}>
+            <ul className="ws-assistant-steps">
+                {steps.map((step, index) => (
+                    // A step has no id of its own, and a turn's steps only ever grow at the end.
+                    <li
+                        key={index} // NOSONAR(S6479): a step has no id to key by
+                    >
+                        <span className="ws-assistant-step">
+                            <Text span size="xs">
+                                {step.name}
+                            </Text>
+                            {step.ms === undefined ? null : (
+                                <Text span size="xs" c="dimmed">
+                                    {durationWords(step.ms)}
                                 </Text>
-                                {step.ms === undefined ? null : (
-                                    <Text span size="xs" c="dimmed">
-                                        {durationWords(step.ms)}
-                                    </Text>
-                                )}
-                            </span>
-                            {open
-                                ? step.results?.map((effect, at) => (
-                                      // A reply's results never reorder.
-                                      <ResultRow
-                                          key={at} // NOSONAR(S6479): an effect has no id to key by
-                                          effect={effect}
-                                      />
-                                  ))
-                                : null}
-                        </li>
-                    ))}
-                </ul>
-            </Collapse>
-        </div>
+                            )}
+                        </span>
+                        {open
+                            ? step.results?.map((effect, at) => (
+                                  // A reply's results never reorder.
+                                  <ResultRow
+                                      key={at} // NOSONAR(S6479): an effect has no id to key by
+                                      effect={effect}
+                                  />
+                              ))
+                            : null}
+                    </li>
+                ))}
+            </ul>
+        </Collapse>
     );
 }
 
@@ -185,7 +192,8 @@ interface EndRowProps {
  * How a turn ended, in words from its code, with its buttons under it, so the words get the
  * panel's width. A new failure is the alert. The buttons stay out of the alert, so the one going
  * away on the next send changes nothing it says, and a space keeps its two lines two sentences when
- * read as one. A provider out of credit is a warning, with Add credit opening its billing page.
+ * read as one. A failure is drawn as an error, and a provider out of credit as a warning, with Add
+ * credit opening its billing page. A stopped run shows the stop glyph in place of "Stopped.".
  * @param props - Component props
  * @param props.words - the words
  * @param props.unchanged - whether nothing changed
@@ -204,55 +212,80 @@ function EndRow({ words, unchanged, onAgain, alert }: Readonly<EndRowProps>): Re
             ) : null}
         </>
     );
-    return (
-        <Stack gap={4} align="flex-start">
-            {/* Keyed, so a failure becoming news mounts with its role and is said. */}
-            {words.billing === undefined ? (
-                <div key={String(alert)} role={role}>
-                    {said}
-                </div>
-            ) : (
-                <Alert
-                    key={String(alert)}
-                    role={role ?? "note"}
-                    color="yellow"
-                    p="xs"
-                    icon={<GLYPHS.warning size={14} aria-hidden />}
-                >
-                    {said}
-                </Alert>
-            )}
-            <Group gap={4} wrap="wrap">
-                {words.billing === undefined ? null : (
-                    <Button
-                        component="a"
-                        href={words.billing}
-                        target="_blank"
-                        rel="noreferrer"
-                        variant="default"
-                        size="compact-xs"
-                    >
-                        {WORDS["assistant.add-credit"]}
-                    </Button>
-                )}
-                {(words.action === "again" || words.action === "again-or-provider") && onAgain !== null ? (
-                    <Button variant="default" size="compact-xs" onClick={onAgain}>
-                        {WORDS["assistant.again"]}
-                    </Button>
-                ) : null}
-                {words.action === "provider" || words.action === "again-or-provider" ? (
-                    <Button
-                        variant="default"
-                        size="compact-xs"
-                        onClick={() => {
-                            run("settings.assistant");
-                        }}
-                    >
-                        {WORDS["assistant.setup.button"]}
-                    </Button>
-                ) : null}
+    let row: React.JSX.Element;
+    // Keyed, so a failure becoming news mounts with its role and is said.
+    if (words.stopped !== undefined) {
+        row = (
+            <Group key={String(alert)} gap={4} wrap="nowrap">
+                <GLYPHS.stop
+                    size={10}
+                    role="img"
+                    aria-label={WORDS["assistant.stopped"]}
+                    className="ws-assistant-stopped"
+                />
+                {words.stopped === "" ? null : <Text size="sm">{words.stopped}</Text>}
             </Group>
+        );
+    } else if (words.failed) {
+        row = (
+            <Alert
+                key={String(alert)}
+                role={role ?? "note"}
+                color={words.billing === undefined ? "red" : "yellow"}
+                p="xs"
+                icon={<GLYPHS.warning size={14} aria-hidden />}
+            >
+                {said}
+            </Alert>
+        );
+    } else {
+        row = <div key={String(alert)}>{said}</div>;
+    }
+    const buttons = (
+        <Group gap={4} wrap="wrap" justify="flex-end">
+            {words.billing === undefined ? null : (
+                <Button
+                    component="a"
+                    href={words.billing}
+                    target="_blank"
+                    rel="noreferrer"
+                    variant="default"
+                    size="compact-xs"
+                >
+                    {WORDS["assistant.add-credit"]}
+                </Button>
+            )}
+            {words.action === "provider" || words.action === "again-or-provider" ? (
+                <Button
+                    variant="default"
+                    size="compact-xs"
+                    onClick={() => {
+                        run("settings.assistant");
+                    }}
+                >
+                    {WORDS["assistant.setup.button"]}
+                </Button>
+            ) : null}
+            {(words.action === "again" || words.action === "again-or-provider") && onAgain !== null ? (
+                <Tooltip label={WORDS["assistant.again"]}>
+                    <ActionIcon variant="subtle" color="gray" aria-label={WORDS["assistant.again"]} onClick={onAgain}>
+                        <GLYPHS.again size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            ) : null}
+        </Group>
+    );
+    // A stopped run's glyph is short: Send again sits on its row.
+    return words.stopped === undefined ? (
+        <Stack gap={4} align="stretch">
+            {row}
+            {buttons}
         </Stack>
+    ) : (
+        <Group gap={4} justify="space-between" wrap="nowrap">
+            {row}
+            {buttons}
+        </Group>
     );
 }
 
@@ -328,18 +361,21 @@ function proseOf(turn: Turn, status: AiStatus | null): string {
 }
 
 /**
- * What the reader said.
+ * What the reader said, on a gray fill. Its heading is for screen readers only, and a spoken message
+ * starts with the microphone glyph.
  * @param props - Component props
  * @param props.reader - the message
  * @returns The rows
  */
 function ReaderRows({ reader }: Readonly<{ reader: ReaderMessage }>): React.JSX.Element {
+    const spoken = reader.via === "voice";
     return (
         <>
             <h3 className="ws-assistant-who">
-                {reader.via === "voice" ? WORDS["assistant.turn.you-spoken"] : WORDS["assistant.turn.you"]}
+                {spoken ? WORDS["assistant.turn.you-spoken"] : WORDS["assistant.turn.you"]}
             </h3>
-            <Text size="sm" className="ws-assistant-prose">
+            <Text size="sm" className="ws-assistant-prose ws-assistant-mine">
+                {spoken ? <GLYPHS.talk size={12} aria-hidden className="ws-assistant-spoken" /> : null}
                 {reader.text}
             </Text>
         </>
@@ -356,41 +392,61 @@ const changesGraph = (effect: AiEffect): boolean =>
     effect.code !== "AI_EFFECT_SELECTION" &&
     !(effect.code === "AI_EFFECT_RUN" && Number(effect.params.painted ?? 0) === 0);
 
+/** Props for TurnEffects. */
+interface TurnEffectsProps {
+    readonly turn: Turn;
+    readonly effects: readonly AiEffect[];
+    readonly onMore: () => void;
+    /** The reply's own icons (Steps), on the last row of icons. */
+    readonly actions: React.ReactNode;
+}
+
 /**
  * What a turn did: its changes, and unless one of them changed the graph (a selection or an
- * unpainted run does not) what it found: its last result that found something, else its last empty one.
+ * unpainted run does not) what it found: its last result that found something, else its last empty
+ * one. The reply's own icons go on the last row that has icons, else on a row of their own.
  * @param props - Component props
  * @param props.turn - the turn
  * @param props.effects - what its calls did
  * @param props.onMore - called as the reader opens the rest of the change lines
+ * @param props.actions - the reply's own icons
  * @returns The rows
  */
-function TurnEffects({
-    turn,
-    effects,
-    onMore,
-}: Readonly<{ turn: Turn; effects: readonly AiEffect[]; onMore: () => void }>): React.JSX.Element {
+function TurnEffects({ turn, effects, onMore, actions }: Readonly<TurnEffectsProps>): React.JSX.Element {
     const changes = effects.filter(isChange);
-    const result = effects.findLast((effect) => effect.code === "AI_EFFECT_FOUND") ?? effects.findLast(isResult);
-    const changedGraph = changes.some(changesGraph);
+    const found = effects.findLast((effect) => effect.code === "AI_EFFECT_FOUND") ?? effects.findLast(isResult);
+    const result = changes.some(changesGraph) ? undefined : found;
+    const resultShown = result !== undefined && (result.code === "AI_EFFECT_EMPTY" || result.target !== undefined);
+    const changesShown = changes.length > 0;
     return (
         <>
-            {changes.length > 0 ? (
-                <ChangeRows changes={changes} provenance={turn.provenance} undone={turn.undone} onMore={onMore} />
+            {changesShown ? (
+                <ChangeRows
+                    changes={changes}
+                    provenance={turn.provenance}
+                    undone={turn.undone}
+                    onMore={onMore}
+                    actions={resultShown ? null : actions}
+                />
             ) : null}
-            {result === undefined || changedGraph ? null : <ResultRow effect={result} table />}
+            {resultShown ? <ResultRow effect={result} table actions={actions} /> : null}
+            {resultShown || changesShown || actions === null ? null : (
+                <Group gap={2} justify="flex-end">
+                    {actions}
+                </Group>
+            )}
         </>
     );
 }
 
 /**
- * The Assistant's half of a turn: its steps, its prose, what it did and how it ended. Prose is text,
- * never HTML.
+ * The Assistant's half of a turn: its prose, the working dots while it runs, what it did, its steps
+ * and how it ended. Prose is text, never HTML.
  * @param props - Component props
  * @param props.turn - the turn
  * @param props.status - the status, on the newest turn
  * @param props.provider - the provider's id
- * @param props.late - whether the working line shows
+ * @param props.late - whether the working dots show
  * @param props.onAgain - sends a message again, on the newest turn
  * @param props.onHold - keeps the log where it is for the reader's own toggle
  * @returns The rows, or nothing with nothing to show
@@ -416,24 +472,38 @@ function ReplyRows({
     if (!running && prose === "" && steps.length === 0 && words === null) {
         return null;
     }
-    return (
-        <>
-            <h3 className="ws-assistant-who">{WORDS["assistant.turn.assistant"]}</h3>
-            <Steps
-                steps={steps}
+    const stepsButton =
+        steps.length === 0 ? null : (
+            <StepsButton
+                count={steps.length}
                 open={stepsOpen}
                 onToggle={() => {
                     onHold();
                     setStepsOpen(!stepsOpen);
                 }}
             />
+        );
+    return (
+        <>
+            <h3 className="ws-assistant-who">{WORDS["assistant.turn.assistant"]}</h3>
             {prose === "" ? null : (
                 <Text size="sm" className="ws-assistant-prose">
                     {prose}
                 </Text>
             )}
-            {running && late && status !== null ? <Text size="sm">{workingLine(status, provider)}</Text> : null}
-            <TurnEffects turn={turn} effects={effects} onMore={onHold} />
+            {running && status !== null && (late || stepsButton !== null) ? (
+                <Group gap={4} wrap="nowrap" className="ws-assistant-working">
+                    {/* The dots are named with what they stand for; each step is also announced. */}
+                    <span role="img" aria-label={workingLine(status, provider)} className="ws-assistant-dots">
+                        <span />
+                        <span />
+                        <span />
+                    </span>
+                    {stepsButton}
+                </Group>
+            ) : null}
+            {running ? null : <TurnEffects turn={turn} effects={effects} onMore={onHold} actions={stepsButton} />}
+            <StepList steps={steps} open={stepsOpen} />
             {words === null ? null : (
                 <EndRow
                     words={words}
@@ -538,6 +608,16 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
             observer.disconnect();
         };
     }, []);
+    // Each step is announced as it starts: the dots on screen do not say which one runs.
+    const toolCalls = running ? (status?.toolCalls ?? []) : [];
+    const at = toolCalls.findLastIndex((call) => call.status === "executing");
+    const executing = toolCalls[at] as (typeof toolCalls)[number] | undefined;
+    const stepSaid = executing === undefined ? null : runningWords(stepName(executing.name, executing.arguments));
+    useEffect(() => {
+        if (stepSaid !== null) {
+            store.set({ announcement: stepSaid });
+        }
+    }, [at, stepSaid, store]);
     const again = ({ text, via }: ReaderMessage): void => {
         if (element !== null) {
             const scope = scopeKind(session, store.get().assistantScopeSelection);
@@ -586,9 +666,16 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
                 </div>
             </section>
             {behind ? (
-                <Button className="ws-assistant-jump" variant="default" size="compact-xs" onClick={toFoot}>
-                    {WORDS["assistant.jump"]}
-                </Button>
+                <Tooltip label={WORDS["assistant.jump"]}>
+                    <ActionIcon
+                        className="ws-assistant-jump"
+                        variant="default"
+                        aria-label={WORDS["assistant.jump"]}
+                        onClick={toFoot}
+                    >
+                        <GLYPHS.newest size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
             ) : null}
         </div>
     );

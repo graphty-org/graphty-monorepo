@@ -32,6 +32,7 @@ export const WORDS = {
     "assistant.new": "New chat",
     "assistant.close": "Close",
     "assistant.intro": "Ask about this graph or change it. It can be wrong.",
+    "assistant.wrong": "Answers can be wrong.",
     "assistant.setup.line": "Needs a key from an AI provider. Nothing is sent until you add one.",
     "assistant.setup.button": "AI provider...",
     "assistant.starter.matter": "Which nodes matter most?",
@@ -58,6 +59,7 @@ export const WORDS = {
     "assistant.open-run": "Open run",
     "assistant.undo": "Undo",
     "assistant.undone": "Undone",
+    "assistant.stopped": "Stopped",
     "assistant.waiting.name": "Waiting for you",
     "assistant.waiting.change": "Change this",
     "assistant.waiting.answer": "Answer",
@@ -112,12 +114,12 @@ export const WORDS = {
 } as const;
 
 /**
- * The header's count of chats, open or closed: "Chats 3".
+ * The header's count of chats, in its spoken name: "Chats, 3".
  * @param count - the chats
  * @returns the label
  */
 export function chatsCountLabel(count: number): string {
-    return `${WORDS["assistant.list.name"]} ${formatNumber(count)}`;
+    return `${WORDS["assistant.list.name"]}, ${formatNumber(count)}`;
 }
 
 /**
@@ -157,6 +159,8 @@ export interface EndWords {
     readonly failed: boolean;
     /** Where the reader adds credit, for a provider out of it: the row is a warning with this link. */
     readonly billing?: string;
+    /** For a stopped run: what shows beside the stop glyph, which stands for "Stopped." in the line. */
+    readonly stopped?: string;
 }
 
 /**
@@ -330,8 +334,13 @@ export function endWords(code: string, params: AiResultParams, provider: string,
             return retry(failedStepWords(params.tool, params.cause));
         case "AI_CANCELLED":
             return Number(params.steps) > 0
-                ? { line: "Stopped. Changes taken back.", action: "again", failed: false }
-                : { line: "Stopped.", action: "again", failed: false };
+                ? {
+                      line: "Stopped. Changes taken back.",
+                      stopped: "Changes taken back.",
+                      action: "again",
+                      failed: false,
+                  }
+                : { line: "Stopped.", stopped: "", action: "again", failed: false };
         case "AI_UNDONE":
             return note("Undone while running. Changes taken back.");
         case "AI_ROLLBACK_PARTIAL":
@@ -364,7 +373,7 @@ export function endWords(code: string, params: AiResultParams, provider: string,
 export const starterColumn = (column: string): string => `Does ${column} line up with the groups?`;
 
 /**
- * The steps row.
+ * The Steps button's name and tooltip.
  * @param count - how many.
  * @returns its words.
  */

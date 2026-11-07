@@ -24,6 +24,7 @@ import {
     Check,
     ChevronDown,
     ChevronLeft,
+    ChevronsDown,
     ChevronsRight,
     Circle,
     CircleAlert,
@@ -65,6 +66,7 @@ import {
     Link,
     Link2,
     List,
+    ListChecks,
     ListFilter,
     ListOrdered,
     ListPlus,
@@ -96,6 +98,7 @@ import {
     Plus,
     Redo2,
     RefreshCw,
+    RotateCw,
     Route,
     Search,
     Send,
@@ -304,6 +307,12 @@ export const GLYPHS = {
     // The Assistant composer's Talk and Send.
     talk: Mic,
     send: Send,
+    // The Assistant's reply actions: its steps, Send again and Jump to newest.
+    steps: ListChecks,
+    again: RotateCw,
+    newest: ChevronsDown,
+    // An untitled chat in the Assistant's header: the way into the chat history.
+    history: History,
     key: KeyRound,
     // The Data place's Fields entries a column glyph does not name.
     location: MapPin,

@@ -65,20 +65,87 @@
     margin-bottom: 12px;
 }
 
+/* "You" and "Assistant": headings for screen readers only, so heading navigation still goes turn by turn. */
 .ws-assistant-who {
-    margin: 4px 0 0;
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 16px;
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* The reader's own message: a light gray fill, and a transparent border that forced colors draw, so
+   the speakers stay apart without color. Replies run plain at full width. */
+.ws-assistant-mine {
+    margin-top: 4px;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: var(--cm-bg-secondary);
+}
+
+.ws-assistant-spoken {
+    margin-inline-end: 4px;
+    vertical-align: -1px;
+    color: var(--cm-icon-secondary);
+}
+
+.ws-assistant-stopped {
+    flex: none;
+    color: var(--cm-icon-secondary);
+    fill: currentcolor;
+}
+
+/* A reply running: three dots that pulse in turn, still with reduced motion. */
+.ws-assistant-dots {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    height: 24px;
+}
+
+.ws-assistant-dots span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--cm-icon-secondary);
+    animation: ws-assistant-dot 1.2s ease-in-out infinite;
+}
+
+.ws-assistant-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.ws-assistant-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes ws-assistant-dot {
+    0%,
+    80%,
+    100% {
+        opacity: 0.3;
+    }
+
+    40% {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ws-assistant-dots span {
+        opacity: 0.6;
+        animation: none;
+    }
 }
 
 .ws-assistant-prose {
     overflow-wrap: anywhere;
     white-space: pre-wrap;
-}
-
-.ws-assistant-shut {
-    transform: rotate(-90deg);
 }
 
 .ws-assistant-steps {
@@ -174,18 +241,6 @@
 
 .ws-assistant-switch[aria-expanded="true"] .mantine-Button-section svg {
     transform: rotate(180deg);
-}
-
-/* "Chats 3" before the open chat's title: says there are several, in the secondary ink. */
-.ws-chat-count {
-    flex: none;
-    margin-inline-end: 6px;
-    color: var(--cm-text-secondary);
-}
-
-.ws-assistant-switch[aria-expanded="true"] .ws-chat-count {
-    margin-inline-end: 0;
-    color: inherit;
 }
 
 .ws-chat-title {

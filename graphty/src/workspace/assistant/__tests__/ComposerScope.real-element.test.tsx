@@ -1,5 +1,5 @@
 /**
- * The composer's placeholder says what the next message is about, as the scope line above it does,
+ * The composer's placeholder says what the next message is about, picked in the options cog,
  * on the REAL graphty-element with its mock provider, by real clicks and keys.
  */
 
@@ -80,7 +80,7 @@ describe("the composer's placeholder", () => {
         writeAssistantChoice(null);
     });
 
-    it("follows Selection, the x and Use selection, and a waiting question wins", async () => {
+    it("stays on the whole graph with nodes selected, follows the pick, and a waiting question wins", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         render(<Workspace store={createWorkspaceStore({ project: { name: "Check", id: 1 } })} />);
         await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
@@ -93,13 +93,15 @@ describe("the composer's placeholder", () => {
         await placeholder("Ask about this graph");
 
         await session.selection.apply({ ids: ["a", "b"] });
-        await placeholder("Ask about this selection");
-
-        await userEvent.click(screen.getByRole("button", { name: "Ask about the whole graph" }));
         await placeholder("Ask about this graph");
 
-        await userEvent.click(screen.getByRole("button", { name: "Use selection" }));
+        await userEvent.click(screen.getByRole("button", { name: "Options" }));
+        await userEvent.click(await screen.findByRole("menuitemradio", { name: /^Selection/ }));
         await placeholder("Ask about this selection");
+
+        await userEvent.click(screen.getByRole("button", { name: "Options, asking about the selection" }));
+        await userEvent.click(await screen.findByRole("menuitemradio", { name: "Whole graph" }));
+        await placeholder("Ask about this graph");
 
         await userEvent.click(screen.getByRole("textbox", COMPOSER));
         await userEvent.keyboard("Pick one{Enter}");

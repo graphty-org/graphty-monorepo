@@ -5,10 +5,11 @@ import type {
     AiVoiceSupportChangeEvent,
     AiVoiceTranscriptEvent,
 } from "@graphty/graphty-element/ai";
-import { Button, Tooltip } from "@mantine/core";
+import { ActionIcon, Tooltip } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { formatKey } from "../keys/keys";
+import { GLYPHS } from "../glyphs";
+import { ariaKey, formatKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { audioWords, voiceWords, WORDS } from "./words";
 
@@ -193,9 +194,9 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
     if (support === null) {
         // Its place is held, unseen, until the element says whether speech is heard, so the row never jumps.
         return (
-            <Button variant="default" size="compact-xs" tabIndex={-1} aria-hidden style={{ visibility: "hidden" }}>
-                {WORDS["assistant.talk"]}
-            </Button>
+            <ActionIcon variant="subtle" tabIndex={-1} aria-hidden style={{ visibility: "hidden" }}>
+                <GLYPHS.talk size={16} aria-hidden />
+            </ActionIcon>
         );
     }
     if (!available) {
@@ -211,9 +212,13 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
                 )
             }
         >
-            <Button
-                variant="default"
-                size="compact-xs"
+            <ActionIcon
+                variant="subtle"
+                color="gray"
+                className={listening ? "ws-assistant-listening" : undefined}
+                aria-label={listening ? WORDS["assistant.talk.stop"] : WORDS["assistant.talk"]}
+                aria-pressed={listening}
+                aria-keyshortcuts={ariaKey(TALK_KEY)}
                 onPointerDown={(event) => {
                     event.currentTarget.setPointerCapture(event.pointerId);
                     press();
@@ -228,8 +233,8 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
                     }
                 }}
             >
-                {listening ? WORDS["assistant.talk.stop"] : WORDS["assistant.talk"]}
-            </Button>
+                {listening ? <GLYPHS.stop size={14} aria-hidden /> : <GLYPHS.talk size={16} aria-hidden />}
+            </ActionIcon>
         </Tooltip>
     );
 }

@@ -540,7 +540,7 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
     }, []);
     const again = ({ text, via }: ReaderMessage): void => {
         if (element !== null) {
-            const scope = scopeKind(session, store.get().assistantScopeDropped);
+            const scope = scopeKind(session, store.get().assistantScopeSelection);
             void send(element, store, choice, text, { via, scope });
         }
     };

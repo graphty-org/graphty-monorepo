@@ -152,7 +152,8 @@ describe("the AI provider page", () => {
         assert.isNull(within(dialog).queryByRole("button", { name: "Forget key" }));
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
         await screen.findByRole("textbox", { name: "Message the assistant" });
-        await userEvent.click(await screen.findByRole("button", { name: /^Gemini 3.8 Flash/ }));
+        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Gemini 3.8 Flash..." }));
         const again = await screen.findByRole("dialog", { name: "Settings" });
         await within(again).findByRole("button", { name: "Forget key" });
     });

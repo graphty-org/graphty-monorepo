@@ -139,7 +139,7 @@ async function say(text: string): Promise<void> {
 /** Waits for the run to end and Send to come back. */
 async function finished(): Promise<void> {
     await waitFor(() => {
-        assert.isNull(screen.queryByRole("button", { name: "Stop Esc" }));
+        assert.isNull(screen.queryByRole("button", { name: "Stop" }));
     });
 }
 
@@ -638,31 +638,52 @@ describe("checking what the Assistant says", () => {
         assert.isNull(within(log()).queryByText(/waits for your approval/));
     });
 
-    it("reads Selection with 42 selected, and x sends scope graph for one message", async () => {
+    it("asks about the whole graph with 42 selected until Selection is picked, which lasts", async () => {
         const { session } = await openOn(50);
         await session.selection.apply({ ids: ids(42) });
-        const line = await within(panel()).findByText("Selection");
-        assert.include(line.parentElement?.textContent, "42");
-
-        await userEvent.click(screen.getByRole("button", { name: "Ask about the whole graph" }));
-        await within(panel()).findByText("Whole graph");
-        await screen.findByRole("button", { name: "Use selection" });
         await say("About everything");
         await screen.findByText("The reply.");
         await finished();
-        await within(panel()).findByText("Selection");
+
+        await pickScope("Selection");
+        const cog = screen.getByRole("button", { name: "Options, asking about the selection" });
+        assert.isNotNull(cog.parentElement?.querySelector(".mantine-Indicator-indicator"));
         await say("About these");
+        await finished();
+        await say("Still these");
+        await finished();
+        await pickScope("Whole graph");
+        await screen.findByRole("button", { name: "Options" });
+        await say("Everything again");
         await waitFor(() => {
             assert.deepEqual(
                 sent.map((options) => options.scope),
-                ["graph", "selection"],
+                ["graph", "selection", "selection", "graph"],
             );
         });
     });
 
-    it("Send again goes with the selection the scope line still shows", async () => {
+    it("offers Selection with its count, grayed out while nothing is selected", async () => {
+        const { session } = await openOn(50);
+        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
+        const empty = await screen.findByRole("menuitemradio", { name: "Selection" });
+        assert.isTrue(empty.hasAttribute("data-disabled") || empty.hasAttribute("disabled"));
+        assert.strictEqual(
+            screen.getByRole("menuitemradio", { name: "Whole graph" }).getAttribute("aria-checked"),
+            "true",
+        );
+        await userEvent.keyboard("{Escape}");
+        await session.selection.apply({ ids: ids(42) });
+        await userEvent.click(screen.getByRole("button", { name: "Options" }));
+        const item = await screen.findByRole("menuitemradio", { name: /^Selection/ });
+        assert.include(item.textContent, "42");
+        assert.isFalse(item.hasAttribute("data-disabled"));
+    });
+
+    it("Send again goes with the selection the reader picked", async () => {
         const { session } = await openOn(50);
         await session.selection.apply({ ids: ids(3) });
+        await pickScope("Selection");
         Object.defineProperty(model, "name", { value: "google" });
         model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
         await say("About these");
@@ -679,17 +700,17 @@ describe("checking what the Assistant says", () => {
         });
     });
 
-    it("Send again after the x goes with the graph and spends the x, as Send does", async () => {
+    it("Send again after Whole graph is picked goes with the graph", async () => {
         const { session } = await openOn(50);
         await session.selection.apply({ ids: ids(3) });
+        await pickScope("Selection");
         Object.defineProperty(model, "name", { value: "google" });
         model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
         await say("About these");
         await screen.findByRole("alert");
         model.clearError();
 
-        await userEvent.click(screen.getByRole("button", { name: "Ask about the whole graph" }));
-        await within(panel()).findByText("Whole graph");
+        await pickScope("Whole graph");
         await userEvent.click(within(log()).getByRole("button", { name: "Send again" }));
         await screen.findByText("The reply.");
         await finished();
@@ -697,12 +718,12 @@ describe("checking what the Assistant says", () => {
             sent.map((options) => options.scope),
             ["selection", "graph"],
         );
-        await within(panel()).findByText("Selection");
     });
 
-    it("Send again after the selection went goes with the graph", async () => {
+    it("an emptied selection takes the scope back to the whole graph, and a new one does not bring it back", async () => {
         const { session } = await openOn(50);
         await session.selection.apply({ ids: ids(3) });
+        await pickScope("Selection");
         Object.defineProperty(model, "name", { value: "google" });
         model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
         await say("About these");
@@ -710,7 +731,8 @@ describe("checking what the Assistant says", () => {
         model.clearError();
 
         await session.selection.apply({ ids: [] });
-        await within(panel()).findByText("Whole graph");
+        await screen.findByRole("button", { name: "Options" });
+        await session.selection.apply({ ids: ids(2) });
         await userEvent.click(within(log()).getByRole("button", { name: "Send again" }));
         await screen.findByText("The reply.");
         await finished();
@@ -718,17 +740,19 @@ describe("checking what the Assistant says", () => {
             sent.map((options) => options.scope),
             ["selection", "graph"],
         );
+        assert.strictEqual(screen.getByRole("textbox", COMPOSER).getAttribute("placeholder"), "Ask about this graph");
     });
 
-    it("updates the line while typing and keeps the draft when the selection changes", async () => {
+    it("keeps the draft and the whole graph when the selection changes while typing", async () => {
         const { session } = await openOn(5);
         const field = await screen.findByRole<HTMLTextAreaElement>("textbox", COMPOSER);
         await userEvent.click(field);
         await userEvent.keyboard("color th");
         await session.selection.apply({ ids: ["n1", "n2"] }, "replace", { cause: "user" });
-        const line = await within(panel()).findByText("Selection");
-        assert.include(line.parentElement?.textContent, "2");
+        await pickScope("Selection");
+        await screen.findByRole("button", { name: "Options, asking about the selection" });
         assert.strictEqual(field.value, "color th");
+        assert.strictEqual(field.placeholder, "Ask about this selection");
     });
 
     it("closing the panel leaves a run running; its request shows the rail dot and a lasting notice", async () => {
@@ -931,8 +955,13 @@ describe("checking what the Assistant says", () => {
     it("a click on Talk latches, and a click on Stop talking stops with the words in the composer", async () => {
         fakeSpeech();
         await openOn(3);
-        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        const talk = await screen.findByRole("button", { name: "Talk" });
+        assert.strictEqual(talk.getAttribute("aria-pressed"), "false");
+        await userEvent.click(talk);
+        const stop = await screen.findByRole("button", { name: "Stop talking" });
+        assert.strictEqual(stop.getAttribute("aria-pressed"), "true");
+        assert.strictEqual(stop, talk, "one button, so focus stays on it");
+        await userEvent.click(stop);
         await screen.findByRole("button", { name: "Talk" });
         const field = screen.getByRole<HTMLTextAreaElement>("textbox", COMPOSER);
         await waitFor(() => {
@@ -1006,7 +1035,7 @@ describe("checking what the Assistant says", () => {
         assert.include(said, "Heard nothing.");
     });
 
-    it("keeps Send's place and width while it reads Stop, so Talk never moves", async () => {
+    it("keeps Send's place and width while it is Stop, so Talk never moves", async () => {
         fakeSpeech();
         await openOn(3);
         const talk = await screen.findByRole("button", { name: "Talk" });
@@ -1014,7 +1043,7 @@ describe("checking what the Assistant says", () => {
         const before = { talk: talk.getBoundingClientRect().toJSON(), send: send.getBoundingClientRect().toJSON() };
         model.holdTurn = 0;
         await say("Take your time");
-        const stop = await screen.findByRole("button", { name: "Stop Esc" });
+        const stop = await screen.findByRole("button", { name: "Stop" });
         assert.strictEqual(stop, send, "one button, so focus survives the change");
         assert.deepEqual(stop.getBoundingClientRect().toJSON(), before.send);
         assert.deepEqual(screen.getByRole("button", { name: "Talk" }).getBoundingClientRect().toJSON(), before.talk);
@@ -1056,10 +1085,16 @@ describe("checking what the Assistant says", () => {
 const log = (): HTMLElement => screen.getByRole("region", { name: "Chat" });
 
 /**
- * The panel.
- * @returns the panel.
+ * Picks what the next message is about in the composer's options.
+ * @param name - Whole graph or Selection.
  */
-const panel = (): HTMLElement => screen.getByRole("region", { name: "Assistant" });
+async function pickScope(name: "Whole graph" | "Selection"): Promise<void> {
+    await userEvent.click(screen.getByRole("button", { name: /^Options/ }));
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: new RegExp(`^${name}`) }));
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("menu"));
+    });
+}
 
 /**
  * The notice slot.

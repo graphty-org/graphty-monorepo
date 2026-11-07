@@ -26,14 +26,14 @@ const WAITING = new Set<AiResultCode>(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_AS
 export type ScopeKind = NonNullable<AiCommandOptions["scope"]>;
 
 /**
- * What the next message is about, as the scope line says it.
+ * What the next message is about: the whole graph unless the reader picked Selection.
  * @param session - the element's session.
- * @param dropped - whether the x is on.
- * @returns the selection while one stands and the x is off, else the graph.
+ * @param picked - whether the reader picked Selection.
+ * @returns the selection while one stands and was picked, else the graph.
  */
-export function scopeKind(session: GraphSession | null, dropped: boolean): ScopeKind {
+export function scopeKind(session: GraphSession | null, picked: boolean): ScopeKind {
     const { nodes = [], edges = [] } = session?.selection ?? {};
-    return nodes.length + edges.length > 0 && !dropped ? "selection" : "graph";
+    return nodes.length + edges.length > 0 && picked ? "selection" : "graph";
 }
 
 /**
@@ -253,7 +253,6 @@ export async function send(
         assistantDraft: "",
         assistantEnded: null,
         assistantSpoken: null,
-        assistantScopeDropped: false,
         assistantRefused: false,
     });
     await follow(element, store, choice, text, () => element.aiCommand(text, options));

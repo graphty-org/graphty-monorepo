@@ -78,6 +78,7 @@ import {
     Maximize2,
     Menu,
     MessageSquare,
+    Mic,
     Minimize2,
     Minus,
     MoreHorizontal,
@@ -97,6 +98,7 @@ import {
     RefreshCw,
     Route,
     Search,
+    Send,
     Server,
     Settings,
     Shapes,
@@ -299,6 +301,9 @@ export const GLYPHS = {
     // A selection whose step waits for the reader's Run (its run was removed).
     waiting: Hourglass,
     stop: Square,
+    // The Assistant composer's Talk and Send.
+    talk: Mic,
+    send: Send,
     key: KeyRound,
     // The Data place's Fields entries a column glyph does not name.
     location: MapPin,

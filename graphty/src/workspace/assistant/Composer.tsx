@@ -1,5 +1,5 @@
-import { EntityChip } from "@graphty/compact-mantine";
-import { ActionIcon, Button, Group, Select, Text, Textarea, Tooltip } from "@mantine/core";
+import { EntityChip, MenuCheckItem, TargetTooltip, TooltipShortcut } from "@graphty/compact-mantine";
+import { ActionIcon, Group, Indicator, Menu, Text, Textarea, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import {
@@ -9,7 +9,6 @@ import {
     providerDescriptor,
     writeAssistantChoice,
 } from "../assistant-door/provider";
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -17,94 +16,158 @@ import { useSessionVersion } from "../toolbar/useSessionVersion";
 import { answerQuestion, link, type ScopeKind, scopeKind, send } from "./connection";
 import { Talk } from "./Talk";
 import { type AssistantView, isRunning } from "./useAssistantView";
-import { effortRows, hiddenWords, WORDS } from "./words";
+import { effortRows, optionsSelectionTip, WORDS } from "./words";
 
 /** The scope a message goes with. */
 interface Scope {
     /** What the next message is about. */
     readonly kind: ScopeKind;
-    readonly line: React.JSX.Element;
+    /** How many nodes and edges are selected now. */
+    readonly nodes: number;
+    readonly edges: number;
 }
 
 /**
- * What the next message is about, in one line above the composer, live while typing. The x lasts
- * for one message, or until the selection changes (Workspace watches the selection, so closing the
- * panel keeps it).
- * @returns The scope and its line
+ * What the next message is about: the whole graph, unless the reader picked Selection in the
+ * options and something is still selected. Workspace drops the pick when the selection empties.
+ * @returns The scope
  */
 function useScope(): Scope {
-    const { session, store } = useWorkspace();
-    useVisibilityVersion(session);
+    const { session } = useWorkspace();
     useSessionVersion(session);
-    const dropped = useWorkspaceState((state) => state.assistantScopeDropped);
-    const setDropped = (assistantScopeDropped: boolean): void => {
-        store.set({ assistantScopeDropped });
+    const picked = useWorkspaceState((state) => state.assistantScopeSelection);
+    return {
+        kind: scopeKind(session, picked),
+        nodes: session?.selection.nodes.length ?? 0,
+        edges: session?.selection.edges.length ?? 0,
     };
-    const selected = session?.selection.nodes.length ?? 0;
-    const selectedEdges = session?.selection.edges.length ?? 0;
-    const any = selected + selectedEdges > 0;
-    const kind = scopeKind(session, dropped);
-    const { nodes = 0, edges = 0 } = session?.status.counts ?? {};
-    const hidden = nodes - (session?.visibility.summary.visibleNodes ?? nodes);
-    const chips = (nodeCount: number, edgeCount: number): React.JSX.Element => (
-        <>
-            {nodeCount > 0 ? <EntityChip kind="node">{formatNumber(nodeCount)}</EntityChip> : null}
-            {edgeCount > 0 ? <EntityChip kind="edge">{formatNumber(edgeCount)}</EntityChip> : null}
-        </>
+}
+
+/** Props for Options. */
+interface OptionsProps {
+    readonly choice: AssistantChoice;
+    readonly scope: Scope;
+    readonly running: boolean;
+    readonly model: string;
+}
+
+/**
+ * The cog at the composer's left: what to ask about, the effort level, and the model, which opens
+ * Settings. A dot on the cog marks a message about the selection.
+ * @param props - Component props
+ * @param props.choice - the provider and model
+ * @param props.scope - what the next message is about
+ * @param props.running - whether a message runs
+ * @param props.model - the model's name
+ * @returns The cog and its menu
+ */
+function Options({ choice, scope, running, model }: Readonly<OptionsProps>): React.JSX.Element {
+    const { store, element, run } = useWorkspace();
+    const levels = effortLevels(choice);
+    const effort = effortOf(choice);
+    const about = scope.kind === "selection";
+    const any = scope.nodes + scope.edges > 0;
+    const pick = (assistantScopeSelection: boolean): void => {
+        store.set({ assistantScopeSelection });
+    };
+    return (
+        <Indicator inline size={7} offset={5} withBorder disabled={!about}>
+            <Menu position="top-start">
+                <Menu.Target>
+                    <TargetTooltip
+                        label={about ? optionsSelectionTip(scope.nodes, scope.edges) : WORDS["assistant.options"]}
+                    >
+                        <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            aria-label={about ? WORDS["assistant.options.selection"] : WORDS["assistant.options"]}
+                        >
+                            <GLYPHS.settings size={16} aria-hidden />
+                        </ActionIcon>
+                    </TargetTooltip>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    <Menu.Label>{WORDS["assistant.scope.about"]}</Menu.Label>
+                    <MenuCheckItem
+                        radio
+                        checked={!about}
+                        onClick={() => {
+                            pick(false);
+                        }}
+                    >
+                        {WORDS["assistant.scope.graph"]}
+                    </MenuCheckItem>
+                    <MenuCheckItem
+                        radio
+                        checked={about}
+                        disabled={!any}
+                        rightSection={
+                            <Group gap={2} wrap="nowrap">
+                                {scope.nodes > 0 ? (
+                                    <EntityChip kind="node">{formatNumber(scope.nodes)}</EntityChip>
+                                ) : null}
+                                {scope.edges > 0 ? (
+                                    <EntityChip kind="edge">{formatNumber(scope.edges)}</EntityChip>
+                                ) : null}
+                            </Group>
+                        }
+                        onClick={() => {
+                            pick(true);
+                        }}
+                    >
+                        {WORDS["assistant.scope.selection"]}
+                    </MenuCheckItem>
+                    {levels.length > 0 ? (
+                        <>
+                            <Menu.Divider />
+                            <Menu.Label>{WORDS["assistant.provider.effort"]}</Menu.Label>
+                            {effortRows(levels).map((row) => (
+                                <MenuCheckItem
+                                    key={row.value}
+                                    radio
+                                    checked={effort === row.value}
+                                    disabled={running}
+                                    onClick={() => {
+                                        if (element === null || effort === row.value) {
+                                            return;
+                                        }
+                                        const next = { ...choice, effort: row.value };
+                                        writeAssistantChoice(next);
+                                        // The assistant takes a new level by being set up again, as Settings' Save does.
+                                        void link(element, store, next).catch(() => undefined);
+                                    }}
+                                >
+                                    {row.label}
+                                </MenuCheckItem>
+                            ))}
+                        </>
+                    ) : null}
+                    <Menu.Divider />
+                    <Menu.Item
+                        onClick={() => {
+                            run("settings.assistant");
+                        }}
+                    >
+                        {`${model}...`}
+                    </Menu.Item>
+                </Menu.Dropdown>
+            </Menu>
+        </Indicator>
     );
-    const line =
-        kind === "selection" ? (
-            <Group gap={4} wrap="nowrap" className="ws-assistant-scope">
-                <Text size="xs">{WORDS["assistant.scope.selection"]}</Text>
-                {chips(selected, selectedEdges)}
-                <Tooltip label={WORDS["assistant.scope.drop"]}>
-                    <ActionIcon
-                        variant="subtle"
-                        color="gray"
-                        size="xs"
-                        aria-label={WORDS["assistant.scope.drop"]}
-                        onClick={() => {
-                            setDropped(true);
-                        }}
-                    >
-                        <GLYPHS.close size={12} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-            </Group>
-        ) : (
-            <Group gap={4} wrap="nowrap" className="ws-assistant-scope">
-                <Text size="xs">{WORDS["assistant.scope.graph"]}</Text>
-                {chips(nodes, edges)}
-                {hidden > 0 ? <Text size="xs">{hiddenWords(hidden)}</Text> : null}
-                {any ? (
-                    <Button
-                        variant="subtle"
-                        color="gray"
-                        size="compact-xs"
-                        onClick={() => {
-                            setDropped(false);
-                        }}
-                    >
-                        {WORDS["assistant.scope.use"]}
-                    </Button>
-                ) : null}
-            </Group>
-        );
-    return { kind, line };
 }
 
 /** Props for Composer. */
 interface ComposerProps {
     readonly choice: AssistantChoice;
     readonly view: AssistantView;
-    /** The model's name, shown because the reader pays for it. */
+    /** The model's name, in the options because the reader pays for it. */
     readonly model: string;
 }
 
 /**
- * The composer, pinned at the panel's foot: the scope line, the message field, the model label, Talk
- * and Send, which is Stop while a message runs. The field stays typable through a run, and Send and
- * Stop are one button, so focus survives the change.
+ * The composer, pinned at the panel's foot: one box holding the message field over a row of
+ * icons -- the options cog, Talk, and Send, which is Stop while a message runs. The field stays
+ * typable through a run, and Send and Stop are one button, so focus survives the change.
  * @param props - Component props
  * @param props.choice - the provider and model
  * @param props.view - what the element reports
@@ -112,7 +175,7 @@ interface ComposerProps {
  * @returns The composer
  */
 export function Composer({ choice, view, model }: Readonly<ComposerProps>): React.JSX.Element {
-    const { store, element, run } = useWorkspace();
+    const { store, element } = useWorkspace();
     const draft = useWorkspaceState((state) => state.assistantDraft);
     const composerCalls = useWorkspaceState((state) => state.composerCalls);
     const spoken = useWorkspaceState((state) => state.assistantSpoken);
@@ -128,12 +191,10 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
         }
     }, [composerCalls]);
     const running = isRunning(view.status);
-    const levels = effortLevels(choice);
     const empty = draft.trim() === "";
     const [question] = view.questions;
     const asking = view.approvals.length === 0 && question !== undefined;
     const waiting = view.approvals.length > 0 || question !== undefined;
-    // Keyed on the scope's kind, not on a selection: the x makes a selection read Whole graph.
     const about =
         scope.kind === "selection"
             ? WORDS["assistant.composer.placeholder.selection"]
@@ -152,12 +213,14 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
             ...(spoken === null ? {} : { via: "voice" as const, ...spoken }),
         });
     };
+    const sendName = running ? WORDS["assistant.stop"] : WORDS["assistant.send"];
     return (
         <div className="ws-assistant-foot">
-            {scope.line}
-            <div data-panel-always="">
+            <div className="ws-assistant-box" data-panel-always="">
                 <Textarea
                     ref={field}
+                    variant="unstyled"
+                    classNames={{ input: "ws-assistant-input" }}
                     aria-label={WORDS["assistant.composer.name"]}
                     placeholder={placeholder}
                     // The browser does not read a named field's placeholder, so its words describe it too.
@@ -188,76 +251,41 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                         }
                     }}
                 />
-            </div>
-            {/* Wraps in a narrow panel, Talk and Send kept together at the right. */}
-            <Group justify="space-between" gap={4}>
-                <Group gap={4} wrap="nowrap">
-                    <Tooltip label={WORDS["assistant.model.tooltip"]}>
-                        <Button
-                            variant="subtle"
-                            color="gray"
-                            size="compact-xs"
-                            onClick={() => {
-                                run("settings.assistant");
-                            }}
-                        >
-                            {model}
-                        </Button>
-                    </Tooltip>
-                    {levels.length > 0 ? (
-                        <Tooltip label={WORDS["assistant.effort.tooltip"]}>
-                            <Select
-                                aria-label={WORDS["assistant.provider.effort"]}
-                                size="xs"
-                                w={88}
-                                allowDeselect={false}
-                                disabled={running}
-                                value={effortOf(choice) ?? null}
-                                data={effortRows(levels)}
-                                onChange={(picked) => {
-                                    const effort = levels.find((level) => level === picked);
-                                    if (effort === undefined || element === null) {
-                                        return;
+                <Group gap={2} wrap="nowrap">
+                    <Options choice={choice} scope={scope} running={running} model={model} />
+                    <Group gap={4} wrap="nowrap" ml="auto">
+                        <Talk
+                            provider={providerDescriptor(choice.provider).plainName}
+                            linked={view.linked}
+                            onLine={setVoiceLine}
+                        />
+                        <Tooltip label={<TooltipShortcut label={sendName} shortcut={running ? "Esc" : "Enter"} />}>
+                            <ActionIcon
+                                className="ws-assistant-send"
+                                radius="xl"
+                                variant={running || waiting ? "default" : "filled"}
+                                aria-label={sendName}
+                                aria-disabled={!running && empty}
+                                aria-keyshortcuts={running ? "Escape" : "Enter"}
+                                onClick={() => {
+                                    if (running) {
+                                        element?.cancelAiCommand();
+                                    } else {
+                                        submit();
                                     }
-                                    const next = { ...choice, effort };
-                                    writeAssistantChoice(next);
-                                    // The assistant takes a new level by being set up again, as Settings' Save does.
-                                    void link(element, store, next).catch(() => undefined);
+                                    field.current?.focus();
                                 }}
-                            />
+                            >
+                                {running ? (
+                                    <GLYPHS.stop size={14} aria-hidden />
+                                ) : (
+                                    <GLYPHS.send size={14} aria-hidden />
+                                )}
+                            </ActionIcon>
                         </Tooltip>
-                    ) : null}
+                    </Group>
                 </Group>
-                <Group gap={4} wrap="nowrap" ml="auto">
-                    <Talk
-                        provider={providerDescriptor(choice.provider).plainName}
-                        linked={view.linked}
-                        onLine={setVoiceLine}
-                    />
-                    <Tooltip label={WORDS["assistant.send.tooltip"]} disabled={running}>
-                        <Button
-                            size="compact-xs"
-                            variant={running || waiting ? "default" : "filled"}
-                            aria-disabled={!running && empty}
-                            aria-keyshortcuts={running ? "Escape" : undefined}
-                            onClick={() => {
-                                if (running) {
-                                    element?.cancelAiCommand();
-                                } else {
-                                    submit();
-                                }
-                                field.current?.focus();
-                            }}
-                        >
-                            {/* Both labels hold the slot, the one not shown hidden, so the button keeps one width. */}
-                            <span className="ws-assistant-swap">
-                                <span aria-hidden={running}>{WORDS["assistant.send"]}</span>
-                                <span aria-hidden={!running}>{WORDS["assistant.stop"]}</span>
-                            </span>
-                        </Button>
-                    </Tooltip>
-                </Group>
-            </Group>
+            </div>
             {/* Over the log's foot, so the line coming and going never moves the composer. */}
             {voiceLine === null ? null : (
                 <Text size="xs" className="ws-assistant-voice">

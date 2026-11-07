@@ -42,15 +42,15 @@ export const WORDS = {
     "assistant.composer.answer": "Or type an answer",
     "assistant.composer.name": "Message the assistant",
     "assistant.send": "Send",
-    "assistant.send.tooltip": "Enter sends, Shift+Enter makes a new line",
-    "assistant.stop": "Stop Esc",
+    "assistant.stop": "Stop",
     "assistant.talk": "Talk",
     "assistant.talk.stop": "Stop talking",
     "assistant.talk.nothing": "Heard nothing.",
     "assistant.scope.graph": "Whole graph",
     "assistant.scope.selection": "Selection",
-    "assistant.scope.use": "Use selection",
-    "assistant.scope.drop": "Ask about the whole graph",
+    "assistant.scope.about": "Ask about",
+    "assistant.options": "Options",
+    "assistant.options.selection": "Options, asking about the selection",
     "assistant.chips.name": "Results",
     "assistant.chip.gone": "Not in this graph",
     "assistant.table": "Show in table",
@@ -63,7 +63,6 @@ export const WORDS = {
     "assistant.waiting.answer": "Answer",
     "assistant.waiting.invalid": "That is not one of the choices.",
     "assistant.answered": "The assistant answered",
-    "assistant.model.tooltip": "Change provider or model",
     "assistant.log.name": "Chat",
     "assistant.jump": "Jump to newest",
     "assistant.turn.you": "You",
@@ -785,11 +784,13 @@ export const moreWords = (count: number): string => `and ${formatNumber(count)} 
 export const chipName = (kind: "node" | "edge", count: number): string => `${counted(count, kind)}, select`;
 
 /**
- * The hidden part of the scope line.
- * @param count - how many nodes a filter hides.
- * @returns the words.
+ * The composer's options tooltip while the next message is about the selection.
+ * @param nodes - how many nodes are selected.
+ * @param edges - how many edges are selected.
+ * @returns such as "Options: selection, 5 nodes".
  */
-export const hiddenWords = (count: number): string => `${formatNumber(count)} hidden`;
+export const optionsSelectionTip = (nodes: number, edges: number): string =>
+    `${WORDS["assistant.options"]}: selection, ${nodesAndEdges(nodes, edges)}`;
 
 /**
  * Where a first press of Talk says the audio goes.

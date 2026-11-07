@@ -1,6 +1,7 @@
 /**
  * The Assistant's effort control: it offers the levels the element's catalog lists for the chosen
- * model, starts at the lowest, and a level picked in the composer is saved and reaches the element.
+ * model, starts at the lowest, and a level picked in the composer's options is saved and reaches
+ * the element.
  */
 import "@graphty/graphty-element";
 
@@ -9,7 +10,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
-import { cleanup, render, screen, waitFor } from "../../../test/test-utils";
+import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { effortConfig, effortLevels, readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -45,41 +46,60 @@ afterEach(() => {
     resetSiteConfig();
 });
 
+/**
+ * The effort rows of the composer's options menu, opening it first.
+ * @param open - whether to open the menu; false reads the one already open.
+ * @returns the rows, lowest first.
+ */
+async function effortItems(open = true): Promise<HTMLElement[]> {
+    if (open) {
+        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
+    }
+    const menu = await screen.findByRole("menu");
+    const scope = ["Whole graph", "Selection"];
+    return within(menu)
+        .getAllByRole("menuitemradio")
+        .filter((item) => !scope.some((name) => item.textContent.startsWith(name)));
+}
+
 describe("the Assistant's effort", () => {
-    it("starts Gemini Flash at Low, offers its three levels, and a pick in the composer is saved and sent", async () => {
+    it("starts Gemini Flash at Low, offers its three levels, and a pick in the options is saved and sent", async () => {
         writeAssistantChoice({ provider: "google", model: "gemini-3.8-flash", remember: false });
         render(<Workspace store={createWorkspaceStore({ project: { name: "Effort", id: 1 } })} />);
         await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
-        const effort = await screen.findByRole("combobox", { name: "Effort" });
-        assert.strictEqual((effort as HTMLInputElement).value, "Low");
         await waitFor(() => {
             assert.strictEqual(enabled.at(-1)?.reasoningEffort, "low");
         });
 
-        await userEvent.click(effort);
-        const options = await screen.findAllByRole("option");
+        const levels = await effortItems();
         assert.deepEqual(
-            options.map((option) => option.textContent),
+            levels.map((item) => item.textContent),
             ["Low", "Medium", "High"],
         );
-        await userEvent.click(await screen.findByRole("option", { name: "High" }));
+        assert.deepEqual(
+            levels.map((item) => item.getAttribute("aria-checked")),
+            ["true", "false", "false"],
+        );
+        await userEvent.click(levels[2]);
 
         await waitFor(() => {
             assert.strictEqual(enabled.at(-1)?.reasoningEffort, "high");
         });
         assert.strictEqual(readAssistantChoice()?.effort, "high");
-        // The relink after the pick redraws the composer: read the control it draws now.
         await waitFor(() => {
-            assert.strictEqual(screen.getByRole<HTMLInputElement>("combobox", { name: "Effort" }).value, "High");
+            assert.isNull(screen.queryByRole("menu"));
         });
+        const again = await effortItems();
+        assert.strictEqual(again[2].getAttribute("aria-checked"), "true");
     });
 
     it("offers no effort for a model the catalog lists no reasoning setting for", async () => {
         writeAssistantChoice({ provider: "openai", model: "gpt-4o", remember: false });
         render(<Workspace store={createWorkspaceStore({ project: { name: "Effort", id: 1 } })} />);
         await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
-        await screen.findByRole("button", { name: "GPT-4o" });
-        assert.isNull(screen.queryByRole("combobox", { name: "Effort" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Options" }));
+        await screen.findByRole("menuitem", { name: "GPT-4o..." });
+        assert.lengthOf(await effortItems(false), 0);
     });
 
     it("turns Claude's levels into thinking budgets from the catalog's least, and Off into no thinking", () => {

@@ -121,6 +121,15 @@ async function say(text: string): Promise<void> {
     await userEvent.keyboard(`${text}{Enter}`);
 }
 
+/**
+ * Opens Settings from the model's row in the composer's options.
+ * @param model - the model's name.
+ */
+async function openModel(model: string): Promise<void> {
+    await userEvent.click(screen.getByRole("button", { name: "Options" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: `${model}...` }));
+}
+
 /** Sets up Google through the panel's own door, ending in the composer. */
 async function setUpGoogle(): Promise<void> {
     await openPanel();
@@ -277,7 +286,9 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, field);
         });
-        await screen.findByRole("button", { name: "Gemini 3.8 Flash" });
+        await userEvent.click(screen.getByRole("button", { name: "Options" }));
+        await screen.findByRole("menuitem", { name: "Gemini 3.8 Flash..." });
+        await userEvent.keyboard("{Escape}");
         await screen.findByRole("button", { name: "Sends to Google" });
         assert.deepInclude(readAssistantChoice(), { provider: "google", model: "gemini-3.8-flash", remember: false });
     });
@@ -339,7 +350,7 @@ describe("talking to the Assistant", () => {
 
         // Mid-run: the first words are on screen as text, and Send has become Stop in place.
         await screen.findByText("Looking at the graph.");
-        await screen.findByRole("button", { name: "Stop Esc" });
+        await screen.findByRole("button", { name: "Stop" });
         assert.strictEqual(document.activeElement, field);
         await screen.findByText("Sending to Mock");
         await userEvent.keyboard("next thing");
@@ -436,7 +447,7 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        await userEvent.click(await screen.findByRole("button", { name: "Stop Esc" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Stop" }));
         await within(screen.getByRole("region", { name: "Chat" })).findByText("Stopped.");
         const field = await composer();
         assert.strictEqual(field.value, "Slow question");
@@ -698,14 +709,44 @@ describe("talking to the Assistant", () => {
         }
     });
 
-    it("keeps Send whole inside the composer beside the model and its effort, at the narrowest panel", async () => {
+    it("keeps the options, Talk and Send in one row inside the composer, at the narrowest panel", async () => {
         await open(createWorkspaceStore({ project: { name: "Talk", id: 1 }, assistantWidth: 240 }));
         await setUpGoogle();
-        await screen.findByRole("combobox", { name: "Effort" });
-        const foot = (await composer()).closest(".ws-assistant-foot")?.getBoundingClientRect();
+        const box = (await composer()).closest(".ws-assistant-box")?.getBoundingClientRect();
+        const options = screen.getByRole("button", { name: "Options" }).getBoundingClientRect();
         const send = screen.getByRole("button", { name: "Send" }).getBoundingClientRect();
-        assert.exists(foot);
-        assert.isAtMost(send.right, foot.right, "Send ends inside the composer");
+        assert.exists(box);
+        assert.isAtMost(send.right, box.right, "Send ends inside the composer");
+        assert.isAtLeast(options.left, box.left, "the options start inside the composer");
+        assert.closeTo(options.top, send.top + (send.height - options.height) / 2, 1, "one row");
+        assert.isNull(screen.queryByRole("combobox", { name: "Effort" }), "effort sits behind the options");
+    });
+
+    it("dims Send while the box is empty, names Send and Stop, and keeps their keys", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        await composer();
+        const send = screen.getByRole("button", { name: "Send" });
+        assert.strictEqual(send.getAttribute("aria-disabled"), "true");
+        assert.strictEqual(send.getAttribute("aria-keyshortcuts"), "Enter");
+        assert.isBelow(Number(getComputedStyle(send).opacity), 1, "dimmed, not removed");
+        await userEvent.hover(send);
+        const tip = await screen.findByRole("tooltip");
+        assert.include(tip.textContent, "Send");
+        assert.include(tip.textContent, "Enter");
+        await userEvent.unhover(send);
+
+        model.holdTurn = 0;
+        await say("Slow question");
+        const stop = await screen.findByRole("button", { name: "Stop" });
+        assert.strictEqual(stop, send, "one button, so focus survives the change");
+        assert.strictEqual(stop.getAttribute("aria-keyshortcuts"), "Escape");
+        await waitFor(() => {
+            assert.isTrue(model.held);
+        });
+        model.release();
+        await screen.findByRole("button", { name: "Send" });
     });
 
     it("lists a new chat before its first message as a checked New chat row, and counts it", async () => {
@@ -810,7 +851,7 @@ describe("talking to the Assistant", () => {
         await setUpGoogle();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
-        await userEvent.click(screen.getByRole("button", { name: "Gemini 3.8 Flash" }));
+        await openModel("Gemini 3.8 Flash");
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         await userEvent.click(await within(dialog).findByRole("button", { name: "Forget key" }));
         await waitFor(() => {
@@ -834,7 +875,7 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.isNotNull(document.querySelector("graphty-element")?.getAiConversation());
         });
-        await userEvent.click(screen.getByRole("button", { name: "Gemini 3.8 Flash" }));
+        await openModel("Gemini 3.8 Flash");
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         await userEvent.click(await within(dialog).findByRole("button", { name: "Forget key" }));
         await waitFor(() => {

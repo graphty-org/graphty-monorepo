@@ -121,10 +121,6 @@
     gap: 2px;
 }
 
-.ws-assistant-scope {
-    min-height: 24px;
-}
-
 .ws-assistant-waiting {
     flex: none;
     overflow-y: auto;
@@ -226,18 +222,33 @@
     border-top: 1px solid var(--cm-border);
 }
 
-/* Send and Stop share one cell; the hidden label still sizes it. */
-.ws-assistant-swap {
-    display: inline-grid;
+/* One rounded box: the message field over the row of icons. */
+.ws-assistant-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--cm-border);
+    border-radius: 8px;
 }
 
-.ws-assistant-swap > * {
-    grid-area: 1 / 1;
-    text-align: center;
+.ws-assistant-box:has(textarea:focus-visible) {
+    border-color: var(--mantine-primary-color-filled);
 }
 
-.ws-assistant-swap > [aria-hidden="true"] {
-    visibility: hidden;
+.ws-assistant-input {
+    padding: 2px 4px;
+}
+
+/* Send stays in its place while the box is empty, dimmed. */
+.ws-assistant-send[aria-disabled="true"] {
+    opacity: 0.45;
+}
+
+/* Talk while it listens: the stop square inside a thin accent ring. */
+.ws-assistant-listening {
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px var(--mantine-primary-color-filled);
 }
 
 /* What Talk last heard (or did not), laid over the log's foot above the composer. */

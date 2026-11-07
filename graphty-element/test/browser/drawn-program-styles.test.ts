@@ -21,7 +21,7 @@ import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { gradientPieceColors } from "../../src/meshes/edgeGradient";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
-import { readDrawn } from "../fidelity/drawn-scene";
+import { type DrawnAnnotation, readDrawn } from "../fidelity/drawn-scene";
 import { strokedBarb } from "../fidelity/oracle/primitives";
 import { asData, edgeBetween, styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
 
@@ -456,11 +456,37 @@ describe("a node's underlay and overlay", () => {
         assert.strictEqual(paint(parts.overlay).emissiveColor.toHexString().toLowerCase(), "#0000ff");
     });
 
+    test("are read off the scene as shapes of their own round the node, in their colors", async () => {
+        await oneEdge(
+            {},
+            {
+                "node.underlayOpacity": 0.5,
+                "node.underlayColor": "#00ff00",
+                "node.underlayPadding": 0.5,
+                "node.overlayOpacity": 0.25,
+                "node.overlayColor": "#0000ff",
+                "node.overlayPadding": 0.25,
+            },
+        );
+        assert(graph);
+        const drawn = readDrawn(graph);
+        const node = drawn.nodes.get("A");
+        assert(node);
+        const around = (fill: string): DrawnAnnotation | undefined =>
+            drawn.annotations.find((a) => a.kind === "shape" && a.fill === fill && a.box.x0 < node.box.x0);
+        const under = around("#00ff00");
+        const over = around("#0000ff");
+        assert(under && over, "the drawn scene reads both");
+        assert.isBelow(under.box.x0, over.box.x0, "the underlay padded the farther");
+        assert.isAbove(over.box.x1, node.box.x1);
+    });
+
     test("draws none without an opacity", async () => {
         await oneEdge({}, { "node.underlayColor": "#00ff00", "node.underlayPadding": 0.5 });
         assert(graph);
         const node = graph.getDataManager().nodes.get("A");
         assert.isNull((node as unknown as { underlay: AbstractMesh | null }).underlay);
+        assert.isFalse(readDrawn(graph).annotations.some((a) => a.fill === "#00ff00"));
     });
 });
 

@@ -395,6 +395,66 @@ function boxReach(mesh: AbstractMesh, direction: Vector3): number {
 }
 
 /**
+ * Visit some slots of one batch, every one of them.
+ * @param batch - The batch.
+ * @param slots - The slots.
+ * @param visit - Called with each.
+ * @returns True when every visit returned true.
+ */
+function everySlotOf(
+    batch: EdgeLineBatch,
+    slots: readonly number[],
+    visit: (batch: EdgeLineBatch, slot: number) => boolean,
+): boolean {
+    let all = true;
+    for (const slot of slots) {
+        all = visit(batch, slot) && all;
+    }
+
+    return all;
+}
+
+/**
+ * Park one edge batch slot; see `Edge.parkPieces`.
+ * @param batch - The batch.
+ * @param slot - The slot.
+ * @returns True, always.
+ */
+function parkSlot(batch: EdgeLineBatch, slot: number): boolean {
+    batch.park(slot);
+    return true;
+}
+
+/**
+ * Put one parked edge batch slot back; see `Edge.unparkPieces`.
+ * @param batch - The batch.
+ * @param slot - The slot.
+ * @returns Whether it was put back.
+ */
+function unparkSlot(batch: EdgeLineBatch, slot: number): boolean {
+    return batch.unpark(slot);
+}
+
+/**
+ * Park one arrow cap.
+ * @param cap - The cap.
+ * @returns True, always.
+ */
+function parkCap(cap: ArrowCap): boolean {
+    cap.park();
+    return true;
+}
+
+/**
+ * Put one parked arrow cap back.
+ * @param cap - The cap.
+ * @returns Whether it was put back.
+ */
+function unparkCap(cap: ArrowCap): boolean {
+    return cap.unpark();
+}
+
+/**
  * Represents a directed edge between two nodes in the graph visualization.
  * Handles rendering of edge lines, arrow heads/tails, and labels with support for various styles.
  */
@@ -2737,9 +2797,9 @@ export class Edge {
      * Say whether the renderer should draw this edge.
      *
      * HIDING IS NOT DELETION: the edge keeps its row in the store, its dense index, its endpoints
-     * and its style. Showing it again re-enables the meshes it already has and invalidates the
-     * endpoint cache so the next frame recomputes where the line meets the two node surfaces --
-     * which is a ray cast, not a layout.
+     * and its style. Showing it again puts back the slots it was hidden from as they were (see
+     * `applyRenderState`), and the next frame re-places it only if its endpoint cache says
+     * something moved while it was hidden.
      * @param visible - What the visibility mask says about this edge.
      * @returns True when this changed the state.
      */
@@ -2781,10 +2841,16 @@ export class Edge {
     /**
      * Enable or disable every mesh this edge owns, to match {@link Edge.renderVisible}.
      *
-     * The arrowheads are only ever DISABLED here. Whether an edge has an arrowhead at all, and
-     * where it sits, is decided while the endpoints are recomputed, so re-enabling one from here
-     * would show a cap on an edge whose style asks for none. Invalidating the endpoint cache hands
-     * that decision back to the next update, which is the code that owns it.
+     * HIDING PARKS, SHOWING PUTS BACK (issue #6025). Every slot this edge holds in a batch is parked
+     * when it is hidden: zeroed, with what it held kept aside. Showing it puts each slot back as it
+     * was and keeps the endpoint cache, so the next update re-places the edge only if an end moved
+     * (or anything else its cache answers for) while it was hidden. A time window that jumps shows
+     * tens of thousands of edges whose nodes did not move, and placing each again was most of the
+     * jump. A slot that cannot be put back -- taken anew by a restyle, or written since -- drops the
+     * cache, so the edge is placed as before.
+     *
+     * The arrowheads come back only as they were parked: whether an edge has one at all is decided
+     * while its endpoints are recomputed, and a cap that placement hid was parked hidden.
      */
     private applyRenderState(): void {
         if (this.disposed) {
@@ -2792,35 +2858,129 @@ export class Edge {
         }
 
         const drawn = this.isRenderVisible();
-
-        for (const slot of this.haloSlots) {
-            this.haloBatch?.setDrawn(slot, drawn);
-        }
-
-        for (const run of this.effectRuns.values()) {
-            for (const slot of run.slots) {
-                run.batch.setDrawn(slot, drawn);
-            }
-        }
-
-        this.setBatchedPiecesDrawn(drawn);
-        this.setLineDrawn(drawn);
-
-        if (!drawn) {
-            this.arrowCap?.setDrawn(false);
-            this.arrowTailCap?.setDrawn(false);
-            this.arrowMiddleHeadCap?.setDrawn(false);
-            this.arrowMiddleTailCap?.setDrawn(false);
-            for (const cap of this.stackCaps()) {
-                cap.setDrawn(false);
-            }
+        let back = true;
+        if (drawn) {
+            back = this.unparkPieces();
+        } else {
+            this.parkPieces();
         }
 
         this.setTextsDrawn(drawn);
 
-        if (drawn) {
+        if (!back) {
             this.invalidatePositionCache();
         }
+    }
+
+    /**
+     * Visit every slot this edge holds in an edge batch: its line, halo, effects, outline, bands and gradient.
+     * @param visit - Called with each batch and slot; a module-level function, so a visit allocates nothing.
+     * @returns True when every visit returned true.
+     */
+    private everySlot(visit: (batch: EdgeLineBatch, slot: number) => boolean): boolean {
+        let all = true;
+        if (this.lineBatch && !this.pulled) {
+            all = everySlotOf(this.lineBatch, this.lineSlots, visit);
+        }
+
+        if (this.haloBatch) {
+            all = everySlotOf(this.haloBatch, this.haloSlots, visit) && all;
+        }
+
+        for (const run of this.effectRuns.values()) {
+            all = everySlotOf(run.batch, run.slots, visit) && all;
+        }
+
+        if (this.outlineBatch) {
+            all = everySlotOf(this.outlineBatch, this.outlineSlots, visit) && all;
+        }
+
+        for (const { batch, slots } of this.haloBands) {
+            all = everySlotOf(batch, slots, visit) && all;
+        }
+
+        for (const { batch, slot } of this.gradientPieces) {
+            all = visit(batch, slot) && all;
+        }
+
+        return all;
+    }
+
+    /**
+     * Visit every arrow cap this edge holds: head, tail, the mid caps and the stacked caps.
+     * @param visit - Called with each cap; a module-level function, so a visit allocates nothing.
+     * @returns True when every visit returned true.
+     */
+    private everyCap(visit: (cap: ArrowCap) => boolean): boolean {
+        let all = true;
+        if (this.arrowCap) {
+            all = visit(this.arrowCap) && all;
+        }
+
+        if (this.arrowTailCap) {
+            all = visit(this.arrowTailCap) && all;
+        }
+
+        if (this.arrowMiddleHeadCap) {
+            all = visit(this.arrowMiddleHeadCap) && all;
+        }
+
+        if (this.arrowMiddleTailCap) {
+            all = visit(this.arrowMiddleTailCap) && all;
+        }
+
+        for (const { cap } of this.headStack) {
+            all = visit(cap) && all;
+        }
+
+        for (const { cap } of this.tailStack) {
+            all = visit(cap) && all;
+        }
+
+        return all;
+    }
+
+    /** Stop drawing every piece of this edge, keeping each batch slot's place to put back. */
+    private parkPieces(): void {
+        this.everySlot(parkSlot);
+        this.everyCap(parkCap);
+
+        if (this.pulled) {
+            this.pulled.drawn = false;
+            this.pullRows();
+        } else if (this.lineBatch) {
+            // parked with the slots above
+        } else if (this.mesh instanceof PatternedLineMesh) {
+            this.mesh.park();
+        } else if (!this.mesh.isDisposed()) {
+            // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
+            // isPickable here would lose whatever the edge style asked for on the way back.
+            this.mesh.setEnabled(false);
+        }
+    }
+
+    /**
+     * Draw every piece of this edge again as it was parked.
+     * @returns True when every piece is back as it was; false when one must be placed again.
+     */
+    private unparkPieces(): boolean {
+        let back = this.everySlot(unparkSlot);
+        back = this.everyCap(unparkCap) && back;
+
+        if (this.pulled) {
+            // a pulled piece is drawn from its nodes' rows, and placed by its next update
+            this.pulled.drawn = true;
+            this.pullRows();
+            back = false;
+        } else if (this.lineBatch) {
+            // put back with the slots above
+        } else if (this.mesh instanceof PatternedLineMesh) {
+            back = this.mesh.unpark() && back;
+        } else if (!this.mesh.isDisposed()) {
+            this.mesh.setEnabled(true);
+        }
+
+        return back;
     }
 
     /**
@@ -2840,49 +3000,6 @@ export class Edge {
             if (labelMesh && !labelMesh.isDisposed()) {
                 labelMesh.setEnabled(drawn && !this.leftOutLabels.includes(part));
             }
-        }
-    }
-
-    /**
-     * Show or hide the outline, halo and gradient pieces this edge holds in shared batches.
-     * @param drawn - Whether they are drawn.
-     */
-    private setBatchedPiecesDrawn(drawn: boolean): void {
-        if (this.outlineBatch) {
-            for (const slot of this.outlineSlots) {
-                this.outlineBatch.setDrawn(slot, drawn);
-            }
-        }
-
-        for (const { batch, slots } of this.haloBands) {
-            for (const slot of slots) {
-                batch.setDrawn(slot, drawn);
-            }
-        }
-
-        for (const { batch, slot } of this.gradientPieces) {
-            batch.setDrawn(slot, drawn);
-        }
-    }
-
-    /**
-     * Show or hide the line itself, however it is drawn: batched slots, a patterned line or a mesh.
-     * @param drawn - Whether it is drawn.
-     */
-    private setLineDrawn(drawn: boolean): void {
-        if (this.pulled) {
-            this.pulled.drawn = drawn;
-            this.pullRows();
-        } else if (this.lineBatch) {
-            for (const slot of this.lineSlots) {
-                this.lineBatch.setDrawn(slot, drawn);
-            }
-        } else if (this.mesh instanceof PatternedLineMesh) {
-            this.mesh.setDrawn(drawn);
-        } else if (!this.mesh.isDisposed()) {
-            // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
-            // isPickable here would lose whatever the edge style asked for on the way back.
-            this.mesh.setEnabled(drawn);
         }
     }
 

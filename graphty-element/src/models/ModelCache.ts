@@ -403,7 +403,7 @@ export class ModelCache {
             return;
         }
 
-        const picture = TextureCache.forScene(this.scene, this.session)?.load(entry.image) ?? Promise.resolve(null);
+        const picture = this.textures()?.load(entry.image) ?? Promise.resolve(null);
         const go = (image: BaseTexture | null): void => {
             if (this.entries.get(entry.key) === entry) {
                 this.loadWith(entry, shape, image);
@@ -483,6 +483,11 @@ export class ModelCache {
                     return;
                 }
 
+                // The picture stays while this template draws with it.
+                if (image !== null && entry.image !== undefined) {
+                    this.textures()?.hold(entry.image, 1);
+                }
+
                 this.requestRepaint(entry);
             } catch (error) {
                 const fact =
@@ -491,6 +496,30 @@ export class ModelCache {
                         : { code: "E_MODEL_PARSE", params: { format: record.format } };
                 this.settle(ref, "failed", [fact]);
             }
+        }
+    }
+
+    /**
+     * The scene's pictures.
+     * @returns The picture cache, or null.
+     */
+    private textures(): TextureCache | null {
+        return TextureCache.forScene(this.scene, this.session);
+    }
+
+    /**
+     * Dispose an entry's template, and let go of the picture it was built with.
+     * @param entry - The entry.
+     */
+    private free(entry: Entry): void {
+        if (entry.template === null) {
+            return;
+        }
+
+        entry.template.dispose();
+        entry.template = null;
+        if (entry.image !== undefined) {
+            this.textures()?.hold(entry.image, -1);
         }
     }
 
@@ -732,7 +761,11 @@ export class ModelCache {
         }
 
         for (const entry of this.entries.values()) {
-            const named = layersNaming(this.session.styles, entry.ref, "node.model").length > 0;
+            // A template built with a picture no layer names any more is not the one its nodes ask for.
+            const named =
+                layersNaming(this.session.styles, entry.ref, "node.model").length > 0 &&
+                (entry.image === undefined ||
+                    layersNaming(this.session.styles, entry.image, "node.texture").length > 0);
             if (named) {
                 entry.idle = -1;
             } else if (entry.idle < 0) {
@@ -756,8 +789,7 @@ export class ModelCache {
 
             entry.idle++;
             if (entry.idle >= IDLE_FRAMES) {
-                entry.template?.dispose();
-                entry.template = null;
+                this.free(entry);
                 this.entries.delete(entry.key);
             }
         }
@@ -769,6 +801,7 @@ export class ModelCache {
         this.unwatchSupplied();
         this.unwatchAllowed();
         this.scene.onAfterRenderObservable.remove(this.frames);
+        // The scene's pictures go with the scene: nothing to let go of.
         for (const entry of this.entries.values()) {
             entry.template?.dispose();
         }

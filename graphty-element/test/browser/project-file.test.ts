@@ -153,4 +153,28 @@ describe("the project file on a renderer", () => {
         assert.deepStrictEqual(confirmed, ["Discard unsaved changes?"]);
         assert.isFalse(element.session.project.dirty);
     });
+
+    it("downloads a copy that leaves the project unsaved with markSaved: false", async () => {
+        const element = document.createElement("graphty-element");
+        document.body.append(element);
+        const downloads: HTMLAnchorElement[] = [];
+        const realClick = HTMLAnchorElement.prototype.click;
+        HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+            downloads.push(this);
+        };
+        cleanups.push(() => {
+            HTMLAnchorElement.prototype.click = realClick;
+            element.remove();
+        });
+
+        await element.session.data.addNodes([{ id: "ada" }]);
+        assert.isTrue(element.session.project.dirty);
+        await element.downloadProject({ fileName: "copy.graphty.json", markSaved: false });
+        assert.lengthOf(downloads, 1);
+        assert.strictEqual(downloads[0].download, "copy.graphty.json");
+        assert.isTrue(element.session.project.dirty, "a copy is not a save");
+
+        await element.downloadProject();
+        assert.isFalse(element.session.project.dirty, "the default download still saves");
+    });
 });

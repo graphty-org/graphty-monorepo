@@ -196,6 +196,27 @@ already picks through `pickRayAsDrawn`. A trigger tap selects a meshless row (Ba
 stand-in's metadata) and a trigger drag moves it with no mesh built; `node-batch-xr.test.ts` drives both through
 IWER.
 
+As built (stage 12): `NodeBatches.roster` is the set a frame's walks visit under `"batched"`: every member a batch
+does not draw, plus batched rows with a halo or context point enabled, plus batched rows the row table holds off
+their layout place (`Node.walksEachFrame`), kept by `NodeBatches.rewalk` on every batch change, overlay change and
+change of the held flag in `Node.setMeshPosition`. A held row has to stay on the roster: only `RowTable.place`
+clears the flag and the repack skips a held row, and a drag writes the mesh before the layout, so a row
+dropped while the layout publishes every frame would stay where it was dropped. It answers null, and the walks visit every node,
+while some node is not yet a member. `Node.update` walks the roster and the group nodes, and the row table is
+flushed in the same pass, so the edge walk and the framing measure read this frame's places; the moved-node
+check on a frame at rest and the screen-width border check walk the roster too. A batched row's anchor
+follows its table row only when read (`getPosition`, `drawnAnchor`, framing, bounds, the world matrix,
+leaving the batch), stamped by `RowTable.moves`, with its world matrix recomputed, since stories read
+`absolutePosition`. Correction to the row: the roster walk applies only on a frame whose layout step
+published (`LayoutManager.steppedPublishes`). The position array is not always the engine's answer
+otherwise: a static or snapshot layout computes its answer in `getNodePosition` (Graphviz placed every node
+at the origin without that read), and d3 publishes a row when it is read. Frames that walk for a transition,
+a zoom to fit or a redrawn arrangement still visit every node. Measured at 100,000 nodes (`benchmarks/results/stage-12`):
+the moved-node and border walks, 3 and 4.5 ms of CPU a frame before, are gone from the profile; the moving
+frame is 88 ms against 95 before at similar load, the still frame 87 against 90, both bound by the GPU.
+The 10,000-node still frame stays 26 ms, all of it the card drawing 100,000 edges, so its 8 ms target
+waits for the edge stages.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

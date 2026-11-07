@@ -3,14 +3,15 @@
 //
 //   node tools/results/plan-read.mjs <affected-projects-json> <out-dir> [--sha <sha>] [--base <sha>] [--files <file>]
 //
-// Asks GET /v1/plan once for the shard families of the affected packages (both run shapes, `whole` and
-// `selected`), and writes two files into <out-dir>:
+// Asks GET /v1/plan once for the shard families of the affected packages, and of the packages whose files import
+// theirs by relative path (both run shapes, `whole` and `selected`), and writes two files into <out-dir>:
 //   results-plan.json  the store's answer, or `{ "unavailable": "<why>" }`; ci.yml uploads it as the artifact
 //                      `results-plan` for every later job
 //   durations.json     `{ "<family>": { "<file>": ms } }` for `tools/test-select.mjs --plan --durations`
 // Fails open: with no store, no answer or an error it writes the unavailable plan and empty durations, and
 // exits 0, so the plan packs bins without history (each file counts as the family's longest).
 
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -41,6 +42,38 @@ export function variantsOf(shards, affected, storyShards = []) {
             `${f}|flags=off|selected`,
             ...(shots.has(f) ? [`${f}-shots|flags=off|shots`] : []),
         ]);
+}
+
+const CODE = /\.[cm]?[jt]sx?$/u;
+
+/**
+ * The packages, outside `affected`, with a code file that imports an affected package's file by relative path
+ * (`../../graphty-element/index.ts`). nx does not count such a package affected (graph-io's fidelity stories draw
+ * with graphty-element, and graph-io/project.json drops that edge), but the test selector follows the import and
+ * bins its tests; without their recorded durations each counted as 35 s, so graph-io-storybook's slowest stories
+ * shared one bin that ran 520 to 670 s against an 8-minute budget in every graphty-element pull request (#6229).
+ * @param root the checkout
+ * @param affected package directory names
+ * @param packages the package directories to look in
+ * @returns package directory names, sorted; none when git cannot answer
+ */
+export function readersOf(root, affected, packages) {
+    const others = [...new Set(packages)].filter((p) => !affected.includes(p));
+    if (affected.length === 0 || others.length === 0) return [];
+    const re = String.raw`(from |import\(|import )["'](\.\./)+(${affected.join("|")})/`;
+    let out;
+    try {
+        out = execFileSync("git", ["grep", "-l", "-E", re, "--", ...others.map((p) => `${p}/`)], {
+            cwd: root,
+            encoding: "utf8",
+            maxBuffer: 64 << 20,
+        });
+    } catch {
+        // exit 1 is no match; any other failure only leaves the plan as narrow as before
+        return [];
+    }
+    const files = out.split("\n").filter((f) => CODE.test(f));
+    return [...new Set(files.map((f) => f.split("/")[0]))].sort();
 }
 
 /**
@@ -83,7 +116,12 @@ export function fallback(why) {
  */
 export async function planRead({ root, affected, out, sha, base, files = [], env = process.env }) {
     const { SHARDS, STORY_SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
-    const variants = variantsOf(SHARDS, affected, STORY_SHARDS);
+    const readers = readersOf(
+        root,
+        affected,
+        SHARDS.map((s) => s.package),
+    );
+    const variants = variantsOf(SHARDS, [...affected, ...readers], STORY_SHARDS);
     const cfg = config(env, root);
     let plan = null;
     let why = "results store not configured";
@@ -102,7 +140,8 @@ export async function planRead({ root, affected, out, sha, base, files = [], env
     writeFileSync(join(out, "results-plan.json"), JSON.stringify(plan ? { ...plan, families } : { unavailable: why }));
     writeFileSync(join(out, "durations.json"), JSON.stringify(durations));
     const n = Object.values(durations).reduce((t, d) => t + Object.keys(d).length, 0);
-    if (plan) console.log(`results store: plan read for ${variants.length} variants, durations of ${n} files`);
+    const also = readers.length > 0 ? ` (with ${readers.join(", ")}: its files import an affected package)` : "";
+    if (plan) console.log(`results store: plan read for ${variants.length} variants${also}, durations of ${n} files`);
     else if (variants.length === 0) console.log(`results store: no plan (${why})`);
     else fallback(why);
     return { plan, durations };

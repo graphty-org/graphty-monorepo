@@ -16,6 +16,7 @@ import type {
     GraphSession,
     LoadDraft,
     NoteTargetInput,
+    ScopeInput,
     SourceKey,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
@@ -136,6 +137,11 @@ export interface WorkspaceState {
      * list's Show rows outside the table and cleared by the dock; null when none is asked for.
      */
     readonly dockIssue: string | null;
+    /**
+     * The rows a table tab narrows to once the dock shows it, set by the Assistant's Show in table
+     * and cleared by the dock: its Nodes or Edges tab, and the rows; null when none is asked for.
+     */
+    readonly dockRows: { readonly kind: "node" | "edge"; readonly scope: ScopeInput } | null;
     /**
      * The selection open in an editor (a style layer's Which nodes / Which edges, or a filter
      * card), as graphty-element holds it, and the group a filter's count chip narrowed the matches
@@ -342,6 +348,7 @@ const INITIAL: WorkspaceState = {
     dockTab: "nodes",
     dockColumn: null,
     dockIssue: null,
+    dockRows: null,
     editingSelection: null,
     selectionWorkspace: null,
     filterDraft: null,

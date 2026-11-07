@@ -192,14 +192,23 @@ export function ChipRow({ target, kinds, table = false, actions }: Readonly<Chip
                             color="gray"
                             aria-label={WORDS["assistant.table"]}
                             onClick={() => {
-                                void session?.selection
-                                    .apply(target, "replace", { cause: "user" })
-                                    .then(({ nodes, edges }) => {
-                                        store.set({
-                                            dockOpen: true,
-                                            dockTab: nodes === 0 && edges > 0 ? "edges" : "nodes",
-                                        });
+                                // The table lists the reply's rows; the selection, and with it the
+                                // next message's scope, stays the reader's.
+                                void session?.selection.members(target).then(({ nodes, edges }) => {
+                                    const edgesOnly = nodes.length === 0 && edges.length > 0;
+                                    store.set({
+                                        dockOpen: true,
+                                        dockTab: edgesOnly ? "edges" : "nodes",
+                                        dockRows: edgesOnly
+                                            ? {
+                                                  kind: "edge",
+                                                  scope: {
+                                                      define: { kind: "fixed", nodes: [], edges, reading: "listed" },
+                                                  },
+                                              }
+                                            : { kind: "node", scope: { nodes } },
                                     });
+                                });
                             }}
                         >
                             <GLYPHS.table size={14} aria-hidden />

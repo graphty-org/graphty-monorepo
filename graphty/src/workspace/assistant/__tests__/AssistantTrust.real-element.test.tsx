@@ -253,7 +253,7 @@ describe("checking what the Assistant says", () => {
         assert.isNull(screen.queryByRole("button", { name: /select$/ }));
     });
 
-    it("Show in table selects them and opens the dock, with the chat still open", async () => {
+    it("Show in table opens the dock on them without selecting, with the chat still open", async () => {
         const { store, session } = await openOn(4);
         model.turns = [calling("query", FIND), { text: "Two.", toolCalls: [] }];
         await say("Which are even?");
@@ -263,7 +263,7 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.isTrue(store.get().dockOpen);
         });
-        assert.strictEqual(session.selection.size, 2);
+        assert.strictEqual(session.selection.size, 0, "the selection stays the reader's");
         await screen.findByRole("region", { name: "Chat" });
     });
 

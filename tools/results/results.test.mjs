@@ -5,6 +5,7 @@
 //   node --test tools/results/results.test.mjs
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
@@ -1606,6 +1607,23 @@ describe("health API fan-out", () => {
             },
         ]);
         assert.deepEqual(unstableStories({ items: [] }, index, []), []);
+
+        // With the capture's directory, each story names its two shots: results.json's capture, then second/<file>.
+        const dir = mkdtempSync(join(TMP, "capture-"));
+        mkdirSync(join(dir, "second"));
+        writeFileSync(join(dir, "second", "gone--story.png"), "second shot");
+        const first = "a".repeat(64);
+        const withPictures = unstableStories(
+            { items: [{ id: "gone--story", file: "gone--story.png", status: "unstable", capture: first }] },
+            index,
+            [],
+            dir,
+        );
+        const second = createHash("sha256").update("second shot").digest("hex");
+        assert.deepEqual(withPictures[0].pictures, [first, second]);
+        // A missing second shot names no pictures.
+        const noSecond = { id: "x", file: "x.png", status: "unstable", capture: first };
+        assert.equal(unstableStories({ items: [noSecond] }, index, [], dir)[0].pictures, undefined);
     });
     it("sends a benchmark job's results to the health API as one post", async () => {
         const h = await serveHealth();

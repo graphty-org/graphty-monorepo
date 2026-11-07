@@ -7,6 +7,7 @@ import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { loadGraphtyElement } from "../../elementLoader";
 import { siteConfig } from "../../siteConfig";
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
+import { cosmographOn } from "../features";
 import { LAYOUT_SEED } from "../layout/methods";
 import { ACCELERATION, readPreference } from "../settings/preferences";
 import { bindShaderSettings } from "../settings/shaderPreferences";
@@ -144,6 +145,10 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         if (defined && element !== null && session?.status.ready === true) {
             // The app keeps one highlight color, a presentation choice (constants/highlight.ts).
             session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
+            // The Cosmograph-inspired rendering experiment draws with the batched render path (#3247).
+            if (cosmographOn(session)) {
+                element.renderPath = "batched";
+            }
             // The reader's shader preferences and remembered approvals (Graph settings).
             const unbindShaders = bindShaderSettings(element);
             setHosted(session);

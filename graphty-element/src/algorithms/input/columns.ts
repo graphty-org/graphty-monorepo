@@ -156,7 +156,7 @@ export function sessionColumns(
             }
 
             const key = path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
-            const carried = session.data.attributes().filter((attribute) => attribute.name === key);
+            const carried = session.data.attributes({ scope: "graph" }).filter((attribute) => attribute.name === key);
             // A key both nodes and edges carry is read on nodes unless the option fixes the kind.
             const kind = on ?? (carried.some((a) => a.kind === "node") ? "node" : carried[0]?.kind);
             if (kind === undefined || !carried.some((attribute) => attribute.kind === kind)) {

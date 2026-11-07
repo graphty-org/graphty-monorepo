@@ -747,7 +747,7 @@ class Session implements ElementSession {
             // A group with no stored position is drawn as the box around its members, so it is
             // placed whenever they are.
             const groups = groupsOf(this.dispatcher.state.graph.values.get(GROUPS_VALUE));
-            const advice = recommendLayout(this.data.statistics(), {
+            const advice = recommendLayout(this.data.statistics({ scope: "graph" }), {
                 placedNodes: this.store.seededNodeCount + groups.length,
                 file: fileGraph(),
                 graphvizAvailable: graphviz === true,
@@ -1184,7 +1184,7 @@ class Session implements ElementSession {
      * @returns The recommendation.
      */
     recommendLayout(): LayoutRecommendation | undefined {
-        return recommendLayout(this.data.statistics(), {
+        return recommendLayout(this.data.statistics({ scope: "graph" }), {
             placedNodes: this.seededNodeCount,
             locations: this.estimate({ op: "layout.set", id: "location-map" }).available,
         });
@@ -1918,7 +1918,7 @@ function resolveAcceleration(
  * Read attribute values the way a filter and a time window address them.
  *
  * A filter names an attribute by its published path -- `data.type`, the same string
- * `data.attributes()` reports -- while a record bag is keyed by the key the record arrived with.
+ * `data.attributes({ scope: "graph" })` reports -- while a record bag is keyed by the key the record arrived with.
  * The prefix is what separates the two, and stripping it here is what keeps every other caller
  * from having to know that the session's attributes all live under one root today.
  * A run's value (`results.<run>.<field>`, the run named by its id or its algorithm) is read
@@ -1989,7 +1989,7 @@ function fieldKindsOf(
     }
 
     return data
-        .attributes()
+        .attributes({ scope: "graph" })
         .filter((attribute) => attribute.path === path)
         .map((attribute) => attribute.kind);
 }
@@ -2012,7 +2012,7 @@ function componentLabelsOf(data: SessionDataApi): () => ComponentLabels {
         const snapshot = data.snapshot();
 
         if (against !== snapshot) {
-            const { components } = data.statistics();
+            const { components } = data.statistics({ scope: "graph" });
             const labels = new Int32Array(snapshot.nodeCount);
 
             for (let index = 0; index < snapshot.nodeCount; index++) {
@@ -2119,7 +2119,7 @@ function elementBaseLayers(): readonly ElementLayerSpec[] {
 function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "edge"): readonly Path[] {
     const paths: Path[] = [];
 
-    for (const attribute of data.attributes()) {
+    for (const attribute of data.attributes({ scope: "graph" })) {
         if (attribute.kind === target) {
             paths.push(attribute.path);
         }
@@ -2171,7 +2171,7 @@ function runFieldPaths(runs: RunsApi, target: "node" | "edge"): Path[] {
  * @returns The paths.
  */
 function structurePaths(data: SessionDataApi): readonly Path[] {
-    return data.statistics().directedness === "directed" ? STRUCTURE_PATHS : ["graphty.degree"];
+    return data.statistics({ scope: "graph" }).directedness === "directed" ? STRUCTURE_PATHS : ["graphty.degree"];
 }
 
 /**
@@ -2311,7 +2311,7 @@ function fieldWordsOf(
     runs: RunsApi,
 ): (path: Path, target: "node" | "edge") => FieldWords | undefined {
     return (path: Path, target: "node" | "edge"): FieldWords | undefined => {
-        for (const attribute of data.attributes()) {
+        for (const attribute of data.attributes({ scope: "graph" })) {
             if (attribute.path === path && attribute.kind === target) {
                 return { plainName: attribute.plainName, technicalName: attribute.technicalName };
             }
@@ -2840,6 +2840,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeline: () => timelineOn(),
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
             working: () => working.current(),
+            mode: () => working.mode,
         },
     );
     let values: FilterValueSource | undefined;
@@ -2960,9 +2961,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             resolve: (spec: Scope) => scope.resolutionOf(spec),
             readingOf: (spec: Scope) => scope.readingOf(spec),
             edgeMember,
+            // Save as set keeps the members as read.
             selection: () => ({
-                nodes: requireSelection(selection).nodeMembers(),
-                edges: requireSelection(selection).edgeMembers(),
+                nodes: requireSelection(selection).readNodeMembers(),
+                edges: requireSelection(selection).readEdgeMembers(),
             }),
             offering,
         }),
@@ -3045,7 +3047,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         components,
         // Read through a call rather than captured: both of these are built below, and the
         // resolver only reaches them when somebody resolves a scope that names them.
-        selection: { nodes: () => requireSelection(selection).nodeMembers() },
+        // The selection as its readers read it: with the working graph on, what the filter shows.
+        selection: { nodes: () => requireSelection(selection).readNodeMembers() },
         visibility: {
             nodes: () => visibility.masks.nodes(),
             edges: () => visibility.masks.edges(),
@@ -3375,6 +3378,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         column: (kind, key) => records.column(kind, key),
         dataRevision,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
+        mode: () => working.mode,
         knownFields: () => {
             const known = readProject().data.knownFields;
             return {
@@ -3394,7 +3398,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         declarations: () => dispatcher.state.attributes,
         columns: () =>
             data
-                .attributes()
+                .attributes({ scope: "graph" })
                 .filter((each) => each.origin !== "result")
                 .map((each) => ({ kind: each.kind, name: each.name })),
         dispatcher,
@@ -3500,7 +3504,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
         // A rule reads a file column by its bare name ("minutes"); the published path is the
-        // attribute's ("data.minutes"), so a caller can look the column up in `data.attributes()`.
+        // attribute's ("data.minutes"), so a caller can look the column up in `data.attributes({ scope: "graph" })`.
         pathsOf: (where: Query) =>
             engine.pathsOf(where).map((path) => {
                 const answered = (p: Path): boolean => paths.answers(p, "node") || paths.answers(p, "edge");
@@ -3582,6 +3586,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, "selection:origin-changed", { origin });
         },
         onMaskVersion: advanceTick,
+        // With the working graph on, the readers read the selected elements the filter shows.
+        mode: () => working.mode,
+        filterKept: () => visibility.filterBytes(),
     });
 
     // ONE registry for the stack and for the pass that paints from it. Two would let a layer be
@@ -3813,7 +3820,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         scales,
         runs: encodingSourceOf(runs),
         columns: {
-            attributes: () => data.attributes(),
+            attributes: () => data.attributes({ scope: "graph" }),
             declaration: (column) => dispatcher.state.attributes.get(declarationKey(column)),
         },
         nodeIndex,
@@ -3838,6 +3845,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         inputRevision: () => inputs.tick.value,
+        workingMode: () => working.mode,
         stateRevision: () => stateRevision,
         onChange: (change) => {
             // Only the scopes the stack names stay live.
@@ -4117,7 +4125,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
-        nodeAttributes: () => data.attributes().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
+        nodeAttributes: () => data.attributes({ scope: "graph" }).flatMap((a) => (a.kind === "node" ? [a.name] : [])),
         locationDesignation: () => session.config.data.knownFields,
         previewSteps: (steps) => visibility.previewSteps(steps),
         workingGraph: () => working.mode,
@@ -4257,7 +4265,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             estimate: (algorithm) => estimateCommand(planning, { op: "algo.run", algorithm }),
             runs: () => runs.list(),
             resolve: (spec) => scope.resolutionOf(spec ?? defaultScope),
-            attributes: () => data.attributes(),
+            attributes: () => data.attributes({ scope: "graph" }),
             results: () => results,
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
@@ -4694,7 +4702,7 @@ function planningContext(
 
     return {
         algorithms: () => SESSION_CATALOG_TABLES.algorithms(),
-        statistics: () => data.statistics(),
+        statistics: () => data.statistics({ scope: "graph" }),
         resolveScope,
         defaultScope,
         limits: runsOptions.limits ?? DEFAULT_COST_GATE_LIMITS,

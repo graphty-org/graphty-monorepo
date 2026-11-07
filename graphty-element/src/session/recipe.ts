@@ -199,7 +199,7 @@ export function recipeOf(session: GraphSession): RecipeDocument {
 
     // Sample values and counts describe this dataset's elements, not what was done to it.
     const columns = session.data
-        .attributes()
+        .attributes({ scope: "graph" })
         .filter((column) => column.origin === "imported" || column.origin === "joined")
         .map((column): RecipeColumn => ({
             kind: column.kind,

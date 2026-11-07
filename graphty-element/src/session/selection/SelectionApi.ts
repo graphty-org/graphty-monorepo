@@ -34,7 +34,7 @@
 
 import type { GraphSnapshot, U8, U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, ScopeId, Selector } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, ScopeId, ScopeInput, Selector } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { deepFreeze } from "../project/draft";
 import { arrayColumn, computeColumnStatistics } from "../results/statistics";
@@ -43,7 +43,9 @@ import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import { edgeSpaceOf, nodeSpaceOf, type ScopeResolver } from "../scope/ScopeApi";
 import { createSetAs } from "../sets/SetsApi";
 import { deepEquals } from "../styles/predicate";
-import { ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "../types";
+import { ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource, type WorkingGraphMode } from "../types";
+import type { FilterBytes } from "../visibility/slide";
+import { readerScope } from "../working/WorkingGraph";
 import {
     resolveTarget,
     type SelectionMatch,
@@ -113,10 +115,19 @@ export interface SelectionDelta {
     readonly added: readonly NodeId[];
     /** The elements that left the selection, nodes first and then edges. */
     readonly removed: readonly NodeId[];
-    /** How many nodes the selection holds now. */
+    /**
+     * How many nodes the selection holds now: with `config.workingGraph` set to `"visible"`, the
+     * selected nodes the filter shows, as {@link SelectionApi.nodes} reads them.
+     */
     readonly nodes: number;
-    /** How many edges the selection holds now. */
+    /** How many edges the selection holds now, read as {@link SelectionDelta.nodes} is. */
     readonly edges: number;
+    /**
+     * With `config.workingGraph` set to `"visible"`: how many elements the selection keeps in all,
+     * nodes and edges together, those the filter hides included (they read as selected again when
+     * the filter shows them). Absent in the default mode, where every kept element is read.
+     */
+    readonly storedCount?: number;
     /** Whether this mutation dropped elements it would otherwise have selected, to stay in cap. */
     readonly truncated: boolean;
     /** The pasted ids that named nothing in this graph. Absent when every id named something. */
@@ -414,9 +425,13 @@ export interface SelectionApi {
     promote(name: string): ScopeId;
     /**
      * What the current selection adds up to.
+     * @param options - What to count.
+     * @param options.scope - The joining and cut edges, the degrees and the graph-wide averages
+     *     count only this scope's elements. Default `"graph"`; with `config.workingGraph` set to
+     *     `"visible"`, the default is `"visible"`.
      * @returns The statistics.
      */
-    statistics(): Promise<SelectionStatistics>;
+    statistics(options?: { readonly scope?: ScopeInput }): Promise<SelectionStatistics>;
 }
 
 /**
@@ -465,6 +480,17 @@ export interface SelectionOwner extends SelectionApi {
      * @returns The live mask, which the caller must not mutate.
      */
     edgeMembers(): ElementMask<EdgeId>;
+    /**
+     * The selected nodes as the readers read them: the stored mask, or with the working graph on,
+     * the members the filter shows. The same object until either changes.
+     * @returns The mask, which the caller must not mutate.
+     */
+    readNodeMembers(): ElementMask<NodeId>;
+    /**
+     * The selected edges as the readers read them.
+     * @returns The mask, which the caller must not mutate.
+     */
+    readEdgeMembers(): ElementMask<EdgeId>;
     /**
      * Follow a freeze that renumbered the nodes.
      * @param remap - The freeze report's node remap.
@@ -532,6 +558,19 @@ export interface SelectionSources {
     readonly layer?: TargetContext["layer"];
     /** Where the attribute bags are read. Absent leaves the attribute statistics empty. */
     readonly records?: SessionRecordSource;
+    /**
+     * The working-graph mode. With `"visible"`, the readers read the selected elements the filter
+     * shows (the time window aside), and a walk, an invert, a rule or a layer target reaches only
+     * the working graph. Absent reads `"documented"`.
+     * @returns The mode.
+     */
+    readonly mode?: () => WorkingGraphMode;
+    /**
+     * What the filter alone keeps, the window aside: the same object until the filter or the data
+     * changes. Absent reads as keeping everything.
+     * @returns Each kind's bytes, null for a kind the filter says nothing of.
+     */
+    readonly filterKept?: () => FilterBytes;
     /**
      * Called whenever the membership actually moves, so a host can mirror it onto an event.
      *
@@ -774,6 +813,19 @@ class Selection implements SelectionOwner {
     /** The target the selection is exactly, while nothing else has changed it. */
     #origin: SelectionTarget | null = null;
 
+    /**
+     * The members as the readers read them with the working graph on, kept until the stored
+     * masks, the filter's bytes or the graph move.
+     */
+    #read: {
+        readonly graph: GraphSnapshot;
+        readonly kept: FilterBytes;
+        readonly nodesVersion: number;
+        readonly edgesVersion: number;
+        readonly nodes: ElementMask<NodeId>;
+        readonly edges: ElementMask<EdgeId>;
+    } | null = null;
+
     /** A change {@link Selection.applyAtNextRead} is holding for the next read. */
     #pending: { readonly target: SelectionTarget; readonly op: SelectionOp; readonly cause: SelectionCause } | null =
         null;
@@ -807,7 +859,7 @@ class Selection implements SelectionOwner {
     get nodes(): readonly NodeId[] {
         this.#sync();
 
-        return this.#nodes.ids();
+        return this.#readMembers().nodes.ids();
     }
 
     /**
@@ -817,7 +869,7 @@ class Selection implements SelectionOwner {
     get edges(): readonly EdgeId[] {
         this.#sync();
 
-        return this.#edges.ids();
+        return this.#readMembers().edges.ids();
     }
 
     /**
@@ -826,8 +878,9 @@ class Selection implements SelectionOwner {
      */
     get size(): number {
         this.#sync();
+        const { nodes, edges } = this.#readMembers();
 
-        return this.#nodes.size + this.#edges.size;
+        return nodes.size + edges.size;
     }
 
     /**
@@ -911,12 +964,16 @@ class Selection implements SelectionOwner {
             this.#sync();
         }
 
-        if (this.#nodes.size > 0 && this.#nodes.hasId(id)) {
+        // With the working graph on, the members the filter shows, read from a mask kept until
+        // something moves; otherwise the stored masks themselves.
+        const kept = this.#kept();
+        const { nodes, edges } = kept === null ? { nodes: this.#nodes, edges: this.#edges } : this.#readMembers();
+        if (nodes.size > 0 && nodes.hasId(id)) {
             return true;
         }
 
         // An edge id is text; the number it spells names the same edge.
-        return this.#edges.size > 0 && this.#edges.hasId(String(id));
+        return edges.size > 0 && edges.hasId(String(id));
     }
 
     /**
@@ -926,7 +983,7 @@ class Selection implements SelectionOwner {
     nodeMask(): Uint8Array {
         this.#sync();
 
-        return this.#nodes.bytes();
+        return this.#readMembers().nodes.bytes();
     }
 
     /**
@@ -936,7 +993,87 @@ class Selection implements SelectionOwner {
     edgeMask(): Uint8Array {
         this.#sync();
 
-        return this.#edges.bytes();
+        return this.#readMembers().edges.bytes();
+    }
+
+    readNodeMembers(): ElementMask<NodeId> {
+        this.#sync();
+
+        return this.#readMembers().nodes;
+    }
+
+    readEdgeMembers(): ElementMask<EdgeId> {
+        this.#sync();
+
+        return this.#readMembers().edges;
+    }
+
+    /**
+     * What the filter keeps when the working graph is on and the filter narrows anything.
+     * @returns The bytes, or null when every stored member is read.
+     */
+    #kept(): FilterBytes | null {
+        if (this.#sources.mode?.() !== "visible") {
+            return null;
+        }
+
+        const kept = this.#sources.filterKept?.() ?? null;
+        return kept === null || (kept.nodes === null && kept.edges === null) ? null : kept;
+    }
+
+    /**
+     * The members as the readers read them: the stored masks, or with the working graph on, the
+     * members the filter keeps (an edge needs both its ends kept too). The time window never
+     * hides a member here (design/ui/framework/interaction-patterns.md).
+     * @returns The two masks.
+     */
+    #readMembers(): { readonly nodes: ElementMask<NodeId>; readonly edges: ElementMask<EdgeId> } {
+        const kept = this.#kept();
+        if (kept === null) {
+            return { nodes: this.#nodes, edges: this.#edges };
+        }
+
+        const { graph } = this.#frame;
+        const held = this.#read;
+        if (
+            held?.graph === graph &&
+            held.kept === kept &&
+            held.nodesVersion === this.#nodes.version &&
+            held.edgesVersion === this.#edges.version
+        ) {
+            return held;
+        }
+
+        const keptNodes = kept.nodes;
+        const keptEdges = kept.edges;
+        const nodes = new ElementMask<NodeId>(() => this.#frame.nodeSpace, Math.max(1, graph.nodeCount));
+        nodes.grow(graph.nodeCount);
+        this.#nodes.forEachMember((row) => {
+            if (keptNodes === null || keptNodes[row] === MEMBER) {
+                nodes.add(row);
+            }
+        });
+        const edges = new ElementMask<EdgeId>(() => this.#frame.edgeSpace, Math.max(1, graph.edgeCount));
+        edges.grow(graph.edgeCount);
+        const list = keptNodes === null ? null : graph.edgeList();
+        this.#edges.forEachMember((row) => {
+            const passes = keptEdges === null || keptEdges[row] === MEMBER;
+            const ends =
+                list === null || (keptNodes?.[list.src[row]] === MEMBER && keptNodes[list.dst[row]] === MEMBER);
+            if (passes && ends) {
+                edges.add(row);
+            }
+        });
+        this.#read = {
+            graph,
+            kept,
+            nodesVersion: this.#nodes.version,
+            edgesVersion: this.#edges.version,
+            nodes,
+            edges,
+        };
+
+        return this.#read;
     }
 
     /**
@@ -1033,6 +1170,10 @@ class Selection implements SelectionOwner {
         const before = this.#capture();
         const originBefore = this.#origin;
 
+        // A target narrowed to the working graph replaces or intersects only within it: a selected
+        // element it could not reach stays selected.
+        const outside = members.reached === undefined ? null : this.#outside(members.reached);
+
         if (op === "replace") {
             this.#nodes.clear();
             this.#edges.clear();
@@ -1052,11 +1193,40 @@ class Selection implements SelectionOwner {
             this.#edges.intersect(members.edges);
         }
 
+        if (outside !== null && (op === "replace" || op === "intersect")) {
+            this.#nodes.union(outside.nodes);
+            this.#edges.union(outside.edges);
+        }
+
         this.#truncated = this.#enforceCap(cap);
         // Only a whole replace a caller asked for leaves the selection exactly what the target named.
         this.#origin = op === "replace" && named && !this.#truncated ? deepFreeze(structuredClone(target)) : null;
 
         return this.#delta(before, originBefore, members.unmatched, members.unresolvedPaths, cause, members.skipped);
+    }
+
+    /**
+     * The stored members a reach does not cover.
+     * @param reached - The reach's members.
+     * @param reached.nodes - Its nodes.
+     * @param reached.edges - Its edges.
+     * @returns Copies of the stored masks less the reach.
+     */
+    #outside(reached: { readonly nodes: ElementMask<NodeId>; readonly edges: ElementMask<EdgeId> }): {
+        readonly nodes: ElementMask<NodeId>;
+        readonly edges: ElementMask<EdgeId>;
+    } {
+        const { graph } = this.#frame;
+        const nodes = new ElementMask<NodeId>(() => this.#frame.nodeSpace, Math.max(1, graph.nodeCount));
+        nodes.grow(graph.nodeCount);
+        nodes.union(this.#nodes);
+        nodes.subtract(reached.nodes);
+        const edges = new ElementMask<EdgeId>(() => this.#frame.edgeSpace, Math.max(1, graph.edgeCount));
+        edges.grow(graph.edgeCount);
+        edges.union(this.#edges);
+        edges.subtract(reached.edges);
+
+        return { nodes, edges };
     }
 
     count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }> {
@@ -1163,7 +1333,9 @@ class Selection implements SelectionOwner {
             });
         }
 
-        if (this.#nodes.size === 0 && this.#edges.size === 0) {
+        // The members as read: with the working graph on, a member the filter hides is not kept.
+        const read = this.#readMembers();
+        if (read.nodes.size === 0 && read.edges.size === 0) {
             throw new GraphtyError({
                 code: "E_SCOPE_EMPTY",
                 message: `Nothing is selected, so there is nothing to save as "${name}".`,
@@ -1172,11 +1344,11 @@ class Selection implements SelectionOwner {
             });
         }
 
-        const reading = this.#nodes.size === 0 ? "listed" : "induced";
+        const reading = read.nodes.size === 0 ? "listed" : "induced";
 
         return createSetAs(
             scope.sets,
-            { kind: "fixed", nodes: this.#nodes.ids(), edges: this.#edges.ids(), reading },
+            { kind: "fixed", nodes: read.nodes.ids(), edges: read.edges.ids(), reading },
             name,
             { kind: "selection" },
         );
@@ -1184,47 +1356,94 @@ class Selection implements SelectionOwner {
 
     /**
      * What the current selection adds up to.
+     * @param options - What to count.
+     * @param options.scope - The elements the edges, degrees and averages count; the working-graph
+     *     mode's default when absent.
      * @returns The statistics.
      */
-    statistics(): Promise<SelectionStatistics> {
+    statistics(options: { readonly scope?: ScopeInput } = {}): Promise<SelectionStatistics> {
         this.#sync();
         const { graph } = this.#frame;
         const list = graph.edgeList();
+        const selected = this.#readMembers();
+        const within = this.#within(readerScope(options.scope, "graph", this.#sources.mode?.() ?? "documented"));
         let induced = 0;
         let cut = 0;
+        // Each selected node's degree, counting only the edges in scope with both ends in it.
+        const degrees = new Map<number, number>();
 
         for (let edge = 0; edge < graph.edgeCount; edge++) {
-            const source = this.#nodes.has(list.src[edge]);
-            const target = this.#nodes.has(list.dst[edge]);
+            if (within !== null && !within.edge(edge)) {
+                continue;
+            }
+
+            const src = list.src[edge];
+            const dst = list.dst[edge];
+            const source = selected.nodes.has(src);
+            const target = selected.nodes.has(dst);
 
             if (source && target) {
                 induced += 1;
             } else if (source || target) {
                 cut += 1;
             }
-        }
 
-        const degrees = graph.degree();
-        let min = Infinity;
-        let max = -Infinity;
+            if (source) {
+                degrees.set(src, (degrees.get(src) ?? 0) + 1);
+            }
 
-        for (let node = 0; node < this.#nodes.count; node++) {
-            if (this.#nodes.has(node)) {
-                min = Math.min(min, degrees[node]);
-                max = Math.max(max, degrees[node]);
+            if (target) {
+                degrees.set(dst, (degrees.get(dst) ?? 0) + 1);
             }
         }
 
+        let min = Infinity;
+        let max = -Infinity;
+        // Over the whole graph, the graph's own degree (`graphty.degree`), self-loops as it counts them.
+        const whole = within === null ? graph.degree() : null;
+
+        selected.nodes.forEachMember((node) => {
+            const degree = whole === null ? (degrees.get(node) ?? 0) : whole[node];
+            min = Math.min(min, degree);
+            max = Math.max(max, degree);
+        });
+
         return Promise.resolve(
             Object.freeze({
-                nodes: this.#nodes.size,
-                edges: this.#edges.size,
+                nodes: selected.nodes.size,
+                edges: selected.edges.size,
                 inducedEdges: induced,
                 cutEdges: cut,
-                attributes: this.#attributeStatistics(),
-                ...(this.#nodes.size === 0 ? {} : { degree: Object.freeze({ min, max }) }),
+                attributes: this.#attributeStatistics(selected.nodes, within),
+                ...(selected.nodes.size === 0 ? {} : { degree: Object.freeze({ min, max }) }),
             }),
         );
+    }
+
+    /**
+     * A scope as tests by row, for the statistics: an edge is in it when the edge and both its
+     * ends are.
+     * @param scope - The scope.
+     * @returns The tests, or null for the whole graph.
+     */
+    #within(
+        scope: ScopeInput,
+    ): { readonly node: (row: number) => boolean; readonly edge: (row: number) => boolean } | null {
+        const resolver = this.#sources.scope;
+        if (scope === "graph" || resolver === undefined) {
+            return null;
+        }
+
+        const resolved = resolver.resolveNow(resolver.canonical(resolver.admit(scope)));
+        const { graph, edgeSpace } = this.#frame;
+        const list = graph.edgeList();
+        const node = (row: number): boolean => resolved.nodes.has(graph.ids.idOf(row));
+
+        return {
+            node,
+            edge: (row: number): boolean =>
+                resolved.edges.has(edgeSpace.idOf(row)) && node(list.src[row]) && node(list.dst[row]),
+        };
     }
 
     /**
@@ -1275,6 +1494,7 @@ class Selection implements SelectionOwner {
             selectedNodes: this.#nodes,
             selectedEdges: this.#edges,
             ...(scope === undefined ? {} : { scope }),
+            ...(this.#sources.mode?.() === "visible" ? { reach: "visible" as const } : {}),
             ...(results === undefined ? {} : { results }),
             ...(match === undefined ? {} : { match }),
             ...(find === undefined ? {} : { find }),
@@ -1378,11 +1598,13 @@ class Selection implements SelectionOwner {
         diffMembership(this.#nodes, before.nodes, (index) => nodeSpace.idOf(index), added, removed);
         diffMembership(this.#edges, before.edges, (index) => edgeSpace.idOf(index), added, removed);
 
+        const read = this.#readMembers();
         const delta: SelectionDelta = Object.freeze({
             added: Object.freeze(added),
             removed: Object.freeze(removed),
-            nodes: this.#nodes.size,
-            edges: this.#edges.size,
+            nodes: read.nodes.size,
+            edges: read.edges.size,
+            ...(this.#sources.mode?.() === "visible" ? { storedCount: this.#nodes.size + this.#edges.size } : {}),
             truncated: this.#truncated,
             ...(unmatched.length === 0 ? {} : { unmatched: Object.freeze([...unmatched]) }),
             unresolvedPaths: Object.freeze([...unresolvedPaths]),
@@ -1405,20 +1627,25 @@ class Selection implements SelectionOwner {
      * The graph-wide average is computed the same way as the selection's -- the same function over
      * the values in the same order -- so a selection of every node reports `"equal"` rather than a
      * direction invented by the last bits of two different summations.
+     * @param members - The selected nodes, as read.
+     * @param within - The scope the graph-wide averages read, or null for the whole graph.
      * @returns The entries, in the order the attribute names were first seen.
      */
-    #attributeStatistics(): readonly SelectionAttributeStatistics[] {
+    #attributeStatistics(
+        members: ElementMask<NodeId>,
+        within: { readonly node: (row: number) => boolean } | null,
+    ): readonly SelectionAttributeStatistics[] {
         const { records } = this.#sources;
 
-        if (records === undefined || this.#nodes.size === 0) {
+        if (records === undefined || members.size === 0) {
             return Object.freeze([]);
         }
 
         const { graph } = this.#frame;
         const selected = new Map<string, AttributeAccumulator>();
 
-        for (let index = 0; index < this.#nodes.count; index++) {
-            if (!this.#nodes.has(index)) {
+        for (let index = 0; index < members.count; index++) {
+            if (!members.has(index)) {
                 continue;
             }
 
@@ -1439,7 +1666,7 @@ class Selection implements SelectionOwner {
             }
         }
 
-        const graphValues = this.#graphValues(records, numeric);
+        const graphValues = this.#graphValues(records, numeric, within);
         const described: SelectionAttributeStatistics[] = [];
 
         for (const [key, accumulator] of selected) {
@@ -1453,9 +1680,14 @@ class Selection implements SelectionOwner {
      * Every graph-wide value of the attributes the selection summarised numerically.
      * @param records - Where the attribute bags are read.
      * @param wanted - The attribute names to gather.
+     * @param within - The scope to gather over, or null for the whole graph.
      * @returns The values by attribute name, in node index order.
      */
-    #graphValues(records: SessionRecordSource, wanted: ReadonlySet<string>): ReadonlyMap<string, number[]> {
+    #graphValues(
+        records: SessionRecordSource,
+        wanted: ReadonlySet<string>,
+        within: { readonly node: (row: number) => boolean } | null,
+    ): ReadonlyMap<string, number[]> {
         const values = new Map<string, number[]>();
 
         if (wanted.size === 0) {
@@ -1469,7 +1701,10 @@ class Selection implements SelectionOwner {
         }
 
         for (let index = 0; index < graph.nodeCount; index++) {
-            const bag = records.nodeAttributes(index, graph.ids.idOf(index));
+            const bag =
+                within === null || within.node(index)
+                    ? records.nodeAttributes(index, graph.ids.idOf(index))
+                    : undefined;
 
             if (bag === undefined) {
                 continue;

@@ -235,6 +235,15 @@ an optional one: `data.nodes({ scope })`, `data.edges({ scope })`, `data.attribu
 shown degree and the neighbor list of one node (O(degree) over the mask bytes), category counts.
 The compact snapshot is reserved for topology readers: statistics, components, runs, layouts.
 
+Built so far: `readerScope` (in `session/working/WorkingGraph.ts`) and every reader above, with
+`issues({ scope })` counting an issue's records in scope (an issue about the load itself, such as
+a refused row, keeps its count) and `attributes({ scope })` keeping the whole graph's columns,
+types and measurements while `completeness`, `uniqueCount`, `min`, `max` and `sampleValues` come
+from the scope. `time.bins` with `"visible"` keeps meaning what passes the filter, the window
+aside. The element's own whole-graph readers (project file, export, recipe, component labels, the
+cost planner, the layout advice) name `scope: "graph"`. Not built: `structureValues({ within })`,
+because the list of structure values does not depend on what is shown.
+
 ## 6. Algorithms (S3)
 
 - **Built-in algorithms** declare `scopeInput: "subgraph"` and default to "visible". The scoped
@@ -322,7 +331,9 @@ and group boxes read that resolved set, so the picker and the estimate measure t
 runs on. Built so far: group boxes skip members outside the part, the location map and `clusterBy`
 of a one-pass layout read the compact graph, and the force driver's CPU or GPU choice counts the
 working graph. The estimate, the refusals, `optionsFor` and `recommendLayout` still read the whole
-graph; they move with the session readers.
+graph, recorded on #6201: they must read the layout's resolved set (its scope intersected with the
+working graph), not the session readers' default, and `recommendLayout` compares the statistics
+with the whole graph's placed-node count, so it names `scope: "graph"` until both move together.
 
 **When it re-runs.** On `working-graph:changed` with `settled` true, when the shown node or edge
 ids differ from the ones the engine was built over (`LayoutManager.followWorkingGraph`): a filter
@@ -362,9 +373,18 @@ whole-graph layout under a filter is the layout scope `"graph"`. #6117's app tes
 - **Styling (S7)**: painting matches over the whole graph, because a hidden node draws nothing.
   Rankings and counts read shown. The legend returns only rows the layer holds that are shown, each
   with its count, in no promised order; the app keeps its own sort and deletes only the filtering
-  and the row-cap workaround in `heldRows`.
+  and the row-cap workaround in `heldRows`. Built: `styles.categories` counts by the layer's
+  selector in every mode; `styles.groups` gives each group's `visibleCount` in every mode;
+  `counts().visible.painted`; with the option on, categories, groups and the legend's category
+  rows count only what is shown. Not built, recorded on #6201: the threshold rule's `within` and
+  the encode `domainFrom` option. A style layer repaints on a style, data, run or state change
+  but not on a visibility change, so a rule ranking what is shown would paint stale until that
+  reactivity exists.
 - **AI tools (S8)**: `queryGraph` gives shown and whole counts; the schema prompt says a filter is
-  on and how much it hides.
+  on and how much it hides. Built in every mode (it is additive): `queryGraph` adds
+  `shownNodeCount` and `shownEdgeCount` when something is hidden, the prompt's graph state says so,
+  and `findNodes` lists hidden matches in `hiddenNodeIds` with `hiddenTotal`; with the option on it
+  leaves them out unless `includeHidden` is true.
 - **Project file and journal (S9)**: the option is not saved; see section 4.
 
 **The selection (S6).** The stored selection keeps its ids. With the option on, its readers
@@ -382,6 +402,15 @@ Save as set saves the members as read. Writes:
 
 Undo restores the stored selection exactly. Contract cases cover replace and clear with a hidden
 selected node.
+
+Built: the readers read the filter's bytes (`visibility.filterBytes()`, an edge also needing both
+ends kept), so the window never hides a member; a walk, an invert, a rule, a search and a layer
+target reach the working graph (window included), take an optional `scope` (`"graph"` widens
+them), and replace or intersect only within what they reached. The scope resolver's
+`"selection"` and Save as set read the members as read. `selection.statistics({ scope })` counts
+joining and cut edges, degrees and graph-wide averages over the scope. Still reading stored
+members: the project file's and autosave's view state, so a member a filter hides while the
+option is on is not saved; recorded on #6201.
 
 ## 9. Performance
 

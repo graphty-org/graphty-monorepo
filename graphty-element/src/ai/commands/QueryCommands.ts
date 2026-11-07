@@ -8,7 +8,16 @@ import { z } from "zod";
 import type { Graph } from "../../Graph";
 import { SchemaExtractor } from "../schema/SchemaExtractor";
 import type { PropertySummary, SchemaSummary } from "../schema/types";
-import { CONNECTED_BY_SYNTAX, isMatchAllSelector, matchingNodeIds, noMatchMessage, SELECTOR_SYNTAX } from "./selectors";
+import {
+    CONNECTED_BY_SYNTAX,
+    isMatchAllSelector,
+    matchingNodeIds,
+    noMatchMessage,
+    readsShown,
+    SELECTOR_SYNTAX,
+    type ShownPart,
+    shownPart,
+} from "./selectors";
 import type { CommandResult, GraphCommand } from "./types";
 
 /**
@@ -19,13 +28,39 @@ const QueryTypeSchema = z
     .describe("Type of information to query about the graph");
 
 /**
+ * How many of a kind are shown, said after the whole graph's count when something is hidden.
+ * @param shown - The shown part, or null when everything is shown.
+ * @param kind - Nodes or edges.
+ * @returns The clause, empty when nothing is hidden.
+ */
+function shownClause(shown: ShownPart | null, kind: "node" | "edge"): string {
+    if (shown === null) {
+        return "";
+    }
+
+    const count = kind === "node" ? shown.view.nodeCount : shown.view.edgeCount;
+    const all = kind === "node" ? shown.allNodes : shown.allEdges;
+    return `; ${count} ${count === 1 ? "is" : "are"} shown, a filter or the time window hides ${all - count}`;
+}
+
+/**
+ * The shown counts a result carries when something is hidden.
+ * @param shown - The shown part, or null when everything is shown.
+ * @returns The fields, none when nothing is hidden.
+ */
+function shownCounts(shown: ShownPart | null): { shownNodeCount?: number; shownEdgeCount?: number } {
+    return shown === null ? {} : { shownNodeCount: shown.view.nodeCount, shownEdgeCount: shown.view.edgeCount };
+}
+
+/**
  * Command to query graph information.
- * Returns statistics and metadata about the current graph state.
+ * Returns statistics and metadata about the current graph state: the whole graph's counts, and
+ * when a filter or the time window hides part of it, how much is shown.
  */
 export const queryGraph: GraphCommand = {
     name: "queryGraph",
     description:
-        "Query information about the graph structure, including node count, edge count, current layout, and overall statistics.",
+        "Query information about the graph structure, including node count, edge count, current layout, and overall statistics. The counts are the whole graph's; when a filter or the time window hides part of it, the result also says how many nodes and edges are shown.",
     parameters: z.object({
         query: QueryTypeSchema,
     }),
@@ -41,13 +76,14 @@ export const queryGraph: GraphCommand = {
         const { query } = params as { query: z.infer<typeof QueryTypeSchema> };
 
         try {
+            const shown = shownPart(graph);
             switch (query) {
                 case "nodeCount": {
                     const nodeCount = graph.getNodeCount();
                     return Promise.resolve({
                         success: true,
-                        message: `The graph has ${nodeCount} node${nodeCount !== 1 ? "s" : ""}.`,
-                        data: { nodeCount },
+                        message: `The graph has ${nodeCount} node${nodeCount !== 1 ? "s" : ""}${shownClause(shown, "node")}.`,
+                        data: { nodeCount, ...shownCounts(shown) },
                     });
                 }
 
@@ -55,8 +91,8 @@ export const queryGraph: GraphCommand = {
                     const edgeCount = graph.getEdgeCount();
                     return Promise.resolve({
                         success: true,
-                        message: `The graph has ${edgeCount} edge${edgeCount !== 1 ? "s" : ""}.`,
-                        data: { edgeCount },
+                        message: `The graph has ${edgeCount} edge${edgeCount !== 1 ? "s" : ""}${shownClause(shown, "edge")}.`,
+                        data: { edgeCount, ...shownCounts(shown) },
                     });
                 }
 
@@ -78,16 +114,21 @@ export const queryGraph: GraphCommand = {
                     const layout = layoutManager.layoutEngine?.type ?? "unknown";
                     const is2D = graph.getViewMode() === "2d";
 
+                    const shownLines =
+                        shown === null
+                            ? ""
+                            : `\n- Shown: ${shown.view.nodeCount} nodes and ${shown.view.edgeCount} edges (a filter or the time window hides the rest)`;
                     return Promise.resolve({
                         success: true,
                         message: `Graph Summary:
 - Nodes: ${nodeCount}
-- Edges: ${edgeCount}
+- Edges: ${edgeCount}${shownLines}
 - Layout: ${layout}
 - Mode: ${is2D ? "2D" : "3D"}`,
                         data: {
                             nodeCount,
                             edgeCount,
+                            ...shownCounts(shown),
                             layout,
                             is2D,
                         },
@@ -124,11 +165,17 @@ const DEFAULT_FIND_NODES_LIMIT = 50;
 export const findNodes: GraphCommand = {
     name: "findNodes",
     description:
-        "Find nodes in the graph that match a selector. Returns the total number of matches and at most `limit` matching node IDs (50 when no limit is given), with `truncated` true when the list was cut. Takes the same selector and connectedBy as findAndStyleNodes and zoomToNodes.",
+        "Find nodes in the graph that match a selector. Returns the total number of matches and at most `limit` matching node IDs (50 when no limit is given), with `truncated` true when the list was cut. Matches a filter or the time window hides are listed in `hiddenNodeIds` and counted in `hiddenTotal`. Takes the same selector and connectedBy as findAndStyleNodes and zoomToNodes.",
     parameters: z.object({
         selector: z.string().describe(`Expression matching nodes. ${SELECTOR_SYNTAX}`),
         connectedBy: z.string().optional().describe(CONNECTED_BY_SYNTAX),
         limit: z.number().optional().describe("Maximum number of node IDs to return (default 50)"),
+        includeHidden: z
+            .boolean()
+            .optional()
+            .describe(
+                "Whether to find nodes a filter or the time window hides too, each listed in hiddenNodeIds. Default: true, unless the graph reads only what is shown.",
+            ),
     }),
     examples: [
         { input: "Find all server nodes", params: { selector: "data.type == 'server'" } },
@@ -137,17 +184,32 @@ export const findNodes: GraphCommand = {
     ],
 
     async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
-        const { selector, connectedBy, limit } = params as { selector: string; connectedBy?: string; limit?: number };
+        const { selector, connectedBy, limit, includeHidden } = params as {
+            selector: string;
+            connectedBy?: string;
+            limit?: number;
+            includeHidden?: boolean;
+        };
 
         try {
-            const matchingNodes = await matchingNodeIds(graph, selector, connectedBy);
+            const shown = shownPart(graph);
+            const matched = await matchingNodeIds(graph, selector, connectedBy);
+            // While the graph reads only what is shown, a hidden match is found only when asked for.
+            const keepHidden = includeHidden ?? !readsShown(graph);
+            const matchingNodes = shown === null || keepHidden ? matched : matched.filter((id) => shown.view.has(id));
+            const hidden = shown === null ? [] : matchingNodes.filter((id) => !shown.view.has(id));
             const total = matchingNodes.length;
             const nodeIds = matchingNodes.slice(0, limit !== undefined && limit > 0 ? limit : DEFAULT_FIND_NODES_LIMIT);
             const returned = nodeIds.length;
             const truncated = total > returned;
             const plural = total === 1 ? "" : "s";
             const showing = truncated ? ` (showing ${returned})` : "";
-            const found = `Found ${total} matching node${plural}${showing}.`;
+            const hiddenNote =
+                hidden.length === 0
+                    ? ""
+                    : ` ${hidden.length} of them ${hidden.length === 1 ? "is" : "are"} hidden by a filter or the time window.`;
+            const found = `Found ${total} matching node${plural}${showing}.${hiddenNote}`;
+            const returnedSet = new Set(nodeIds);
 
             return {
                 success: true,
@@ -161,6 +223,9 @@ export const findNodes: GraphCommand = {
                     count: returned,
                     truncated,
                     nodeIds,
+                    ...(hidden.length === 0
+                        ? {}
+                        : { hiddenNodeIds: hidden.filter((id) => returnedSet.has(id)), hiddenTotal: hidden.length }),
                 },
                 affectedNodes: nodeIds,
             };

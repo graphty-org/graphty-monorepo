@@ -496,6 +496,17 @@ export interface LegendSources {
      * @returns The reach by category, or undefined when the layer binds no category there.
      */
     readonly reach?: (layerId: LayerId, channel: Channel) => ReadonlyMap<string, ValueReach> | undefined;
+    /**
+     * With the working graph on: {@link LegendSources.reach} read over what is drawn, so a
+     * categorical block lists only the values shown elements the layer selects carry, each with
+     * its count.
+     *
+     * Absent, or undefined for a layer, every row is listed.
+     * @param layerId - The layer.
+     * @param channel - The channel.
+     * @returns The reach by category among what is drawn, or undefined.
+     */
+    readonly shownReach?: (layerId: LayerId, channel: Channel) => ReadonlyMap<string, ValueReach> | undefined;
 }
 
 /** What one category of a layer's binding reaches; see {@link LegendSources.reach}. */
@@ -1118,7 +1129,11 @@ function buildBlock(
     const { channel } = prepared;
     const rule = authoredRule(layer, channel);
     const kind = kindOf(prepared, layer);
-    const all = markPaintedOver(allSwatches(prepared, layer, sources), kind, () => sources.reach?.(layer.id, channel));
+    const rows =
+        kind === "categorical"
+            ? shownOnly(allSwatches(prepared, layer, sources), sources.shownReach?.(layer.id, channel))
+            : allSwatches(prepared, layer, sources);
+    const all = markPaintedOver(rows, kind, () => sources.reach?.(layer.id, channel));
     const capped = capSwatches(all);
     const { path, scale } = prepared;
     const domain = domainOf(prepared, rule);
@@ -1184,6 +1199,30 @@ function markPaintedOver(
         return at !== undefined && at.carried > 0 && at.shown === 0 && at.coveredBy !== undefined
             ? { ...row, paintedOverBy: at.coveredBy }
             : row;
+    });
+}
+
+/**
+ * The rows of a categorical block that shown elements carry, each with how many carry it.
+ * @param rows - The rows.
+ * @param shown - What each category reaches among what is drawn, or undefined to keep every row.
+ * @returns The rows shown elements carry; the `"other"` row when any of its values is carried.
+ */
+function shownOnly(
+    rows: readonly LegendSwatch[],
+    shown: ReadonlyMap<string, ValueReach> | undefined,
+): readonly LegendSwatch[] {
+    if (shown === undefined) {
+        return rows;
+    }
+
+    const carried = (value: unknown): number => shown.get(String(value))?.carried ?? 0;
+    return rows.flatMap((row) => {
+        const count =
+            row.role === "other" && Array.isArray(row.value)
+                ? row.value.reduce((sum: number, value: unknown) => sum + carried(value), 0)
+                : carried(row.value);
+        return count === 0 ? [] : [{ ...row, count }];
     });
 }
 

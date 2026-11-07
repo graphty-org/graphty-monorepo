@@ -239,7 +239,10 @@ export interface RecordPageOptions {
     readonly offset?: number;
     /** The most records the page holds; `Infinity` reads to the end. Default 100. */
     readonly limit?: number;
-    /** Which records: any scope, such as `"selection"` or `{ set: id }`. Default `"graph"`. */
+    /**
+     * Which records: any scope, such as `"selection"` or `{ set: id }`. Default `"graph"`.
+     * With `config.workingGraph` set to `"visible"`, the default is `"visible"`: what the filter and the time window leave shown.
+     */
     readonly scope?: ScopeInput;
     /**
      * The order. Absent, records come in the graph's own order: the order they were added, which
@@ -353,7 +356,8 @@ export interface FindOptions {
     readonly kinds?: readonly FindKind[];
     /**
      * Where to search. Default the whole graph: a hit the visibility filter hides is still
-     * listed, and carries `excludedBy`.
+     * listed, and carries `excludedBy`. With `config.workingGraph` set to `"visible"`, the default
+     * is `"visible"` and a hidden element is not found; pass `"graph"` to find it, marked.
      */
     readonly scope?: ScopeInput;
     /**
@@ -576,7 +580,10 @@ export interface NeighborOptions {
      * weight the graph was loaded with, read as a strength; counts when it was loaded with none.
      */
     readonly weight?: WeightMeaning | null;
-    /** Which neighbors are listed: any scope, such as `"selection"`. Default `"graph"`. */
+    /**
+     * Which neighbors are listed: any scope, such as `"selection"`. Default `"graph"`.
+     * With `config.workingGraph` set to `"visible"`, the default is `"visible"`: what the filter and the time window leave shown.
+     */
     readonly scope?: ScopeInput;
     /**
      * The order. Absent: strongest first when the page has a weight (largest first for a
@@ -1057,15 +1064,19 @@ export interface SessionDataApi {
     /**
      * Every node, in the graph's order: the records {@link node} reads one at a time. Walks the
      * whole graph on every call, so read it when the graph changes, not every frame.
+     * @param options - Which nodes.
+     * @param options.scope - Any scope. Default `"graph"`. With `config.workingGraph` set to `"visible"`, the default is `"visible"`: what the filter and the time window leave shown.
      * @returns the records, deep-frozen
      */
-    nodes(): readonly NodeRecord[];
+    nodes(options?: { readonly scope?: ScopeInput }): readonly NodeRecord[];
     /**
      * Every edge, in the graph's order: the records {@link edge} reads one at a time. Walks the
      * whole graph on every call, so read it when the graph changes, not every frame.
+     * @param options - Which edges.
+     * @param options.scope - Any scope. Default `"graph"`. With `config.workingGraph` set to `"visible"`, the default is `"visible"`: what the filter and the time window leave shown.
      * @returns the records, deep-frozen
      */
-    edges(): readonly EdgeRecord[];
+    edges(options?: { readonly scope?: ScopeInput }): readonly EdgeRecord[];
     /**
      * One page of node records, without reading the rest: what a table showing a few rows of a
      * large graph reads. The order is computed once per revision, scope and sort and then reused,
@@ -1176,10 +1187,18 @@ export interface SessionDataApi {
      *     `status: "ignored"` (default false)
      * @param options.includeFixed - list the issues `data.fix` settled too, after the rest, each with
      *     `status: "fixed"` and `fixedBy`, as they stood then (default false)
+     * @param options.scope - Count only the records in this scope: an issue's `count` is how many
+     *     of its records the scope holds, and an issue none of them is in is not listed; an issue
+     *     about the load itself (a refused row) keeps its count. Default `"graph"`. With
+     *     `config.workingGraph` set to `"visible"`, the default is `"visible"`.
      * @returns the issues, those a load saw first
      * @since 3.30.0
      */
-    issues(options?: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean }): readonly DataIssue[];
+    issues(options?: {
+        readonly includeIgnored?: boolean;
+        readonly includeFixed?: boolean;
+        readonly scope?: ScopeInput;
+    }): readonly DataIssue[];
     /**
      * Apply one of an issue's fixes, as one undoable step: `session.undo()` puts the data back.
      *
@@ -1332,9 +1351,15 @@ export interface SessionDataApi {
     /**
      * Every attribute the graph's records carry, with its type, what it measures, how complete
      * it is and a few sample values. Walked once per revision and cached.
+     *
+     * A scope measures `completeness`, `uniqueCount`, `min`, `max` and `sampleValues` over its
+     * elements only; the columns listed, their types and what they measure stay the whole graph's,
+     * so a filter never takes a column away.
+     * @param options - What to measure over.
+     * @param options.scope - The elements measured: any scope. Default `"graph"`. With `config.workingGraph` set to `"visible"`, the default is `"visible"`: what the filter and the time window leave shown.
      * @returns the descriptors, node attributes first, each kind in first-seen order
      */
-    attributes(): readonly AttributeDescriptor[];
+    attributes(options?: { readonly scope?: ScopeInput }): readonly AttributeDescriptor[];
     /**
      * Every value a rule or a binding can read, in one list: the node id, every data column and
      * every field a finished run published per element. Each entry carries its path (what a rule
@@ -1378,12 +1403,15 @@ export interface SessionDataApi {
      * One node's structure value, as a column of a table reads it.
      * @param id - The node.
      * @param path - A path {@link SessionDataApi.structureValues} lists (`graphty.degree`).
+     * @param options - What to count.
+     * @param options.within - Count only the edges whose both ends and the edge itself are in this
+     *     scope. Default `"graph"`. With `config.workingGraph` set to `"visible"`, the default is `"visible"`: what the filter and the time window leave shown.
      * @returns The value, or undefined for an unknown node or a path that is no structure value.
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      * @example
      * const degree = session.data.structureValue("Valjean", "graphty.degree");
      */
-    structureValue(id: NodeId, path: Path): number | undefined;
+    structureValue(id: NodeId, path: Path, options?: { readonly within?: ScopeInput }): number | undefined;
     /**
      * Say what a column measures, as one undoable step in the `"attributes"` project slice.
      *
@@ -1537,12 +1565,13 @@ export interface SessionDataApi {
      * ```
      * @param column - the column; an attribute descriptor can be passed as it is
      * @param options - `bins`: how many bars, or how many values a categorical column lists (20
-     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it
+     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it;
+     *     `scope`: the elements counted, any scope, default `"graph"`. With `config.workingGraph` set to `"visible"`, the default is `"visible"`: what the filter and the time window leave shown.
      * @returns the distribution
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
      *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
      */
-    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
+    histogram(column: ColumnRef, options?: HistogramOptions & { readonly scope?: ScopeInput }): ColumnHistogram;
     /**
      * How many elements carry each value of a readable path, for a checklist of values with their
      * counts: a data column, a run's field (`results.<run>.group`) or a node value read at an
@@ -1557,18 +1586,20 @@ export interface SessionDataApi {
      * @param options - What to count.
      * @param options.kind - Nodes or edges; by default the kind `readableValues()` lists the path
      *     on, nodes first.
+     * @param options.scope - The elements counted: any scope. Default `"graph"`. With `config.workingGraph` set to `"visible"`, the default is `"visible"`: what the filter and the time window leave shown.
      * @returns The counts, most elements first.
      * @since 3.37.0
      */
-    valueCounts(path: Path, options?: { readonly kind?: "node" | "edge" }): ValueCounts;
+    valueCounts(path: Path, options?: { readonly kind?: "node" | "edge"; readonly scope?: ScopeInput }): ValueCounts;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @param options - What to measure.
      * @param options.scope - `"visible"` measures only what the filters and the time window leave
-     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`.
+     *     showing (the same as the whole graph while nothing is hidden); `"graph"` measures the
+     *     whole graph. Default `"graph"`. With `config.workingGraph` set to `"visible"`, the default is `"visible"`: what the filter and the time window leave shown. `"all"` is the old spelling of `"graph"`.
      * @returns the statistics
      */
-    statistics(options?: { readonly scope?: "all" | "visible" }): GraphStatistics;
+    statistics(options?: { readonly scope?: StatisticsScope }): GraphStatistics;
     /**
      * A stable identity for the graph's topology: equal fingerprints mean the same node ids in
      * the same order with the same arcs between them. Attributes and coordinates are not in it.
@@ -2868,6 +2899,16 @@ export interface ProjectConfigPatch {
  * OPEN UNION: may gain members.
  */
 export type WorkingGraphMode = "documented" | "visible";
+
+/**
+ * What {@link SessionDataApi.statistics} measures: `"graph"` the whole graph, `"visible"` what is
+ * shown. `"all"` is the old spelling of `"graph"`.
+ */
+export type StatisticsScope =
+    | "graph"
+    | "visible"
+    /** @deprecated Spell it `"graph"`; `"all"` goes in the next major. */
+    | "all";
 
 /** Every {@link WorkingGraphMode} this release knows. */
 export const WORKING_GRAPH_MODES: readonly WorkingGraphMode[] = Object.freeze(["documented", "visible"]);

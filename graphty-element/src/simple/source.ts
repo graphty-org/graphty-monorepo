@@ -111,7 +111,7 @@ export function viewSourceOf(session: GraphSession, scope?: DerivedInput): ViewS
         edgeValue: (row, path) => values.edgeValue(edgeRow(row), path),
         attributeNames: (target) =>
             session.data
-                .attributes()
+                .attributes({ scope: "graph" })
                 .filter((attribute) => attribute.kind === target && !IDENTITY_KEYS[target].has(attribute.name))
                 .map((attribute) => attribute.name),
     };

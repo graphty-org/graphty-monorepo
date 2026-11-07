@@ -5129,7 +5129,9 @@ export interface SelectionApi {
     // @deprecated
     promote(name: string): ScopeId;
     readonly size: number;
-    statistics(): Promise<SelectionStatistics>;
+    statistics(options?: {
+        readonly scope?: ScopeInput;
+    }): Promise<SelectionStatistics>;
     readonly truncated: boolean;
 }
 
@@ -5166,6 +5168,7 @@ export interface SelectionDelta {
     readonly nodes: number;
     readonly removed: readonly NodeId[];
     readonly skipped?: number;
+    readonly storedCount?: number;
     readonly truncated: boolean;
     readonly unmatched?: readonly string[];
     readonly unresolvedPaths: readonly Path[];
@@ -5254,9 +5257,14 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
 | {
     readonly edgesBetween: true;
 }
-/** Everything that is not selected, in both halves. */
+/**
+* Everything that is not selected, in both halves, within `scope` when one is named. With
+* `config.workingGraph` set to `"visible"` and no scope, within what is shown, and a selected
+* element outside it stays selected; `"graph"` inverts over the whole graph.
+*/
 | {
     readonly invert: true;
+    readonly scope?: ScopeInput;
 }
 /**
 * What a note is about: its node, edge, set and item targets, or only the one at `target`.
@@ -5270,10 +5278,13 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
 /**
 * Every element a style layer's rule matches, whether or not the layer is shown: what
 * `styles.counts(layer).matched` counts. A layer paints one kind, so this names nodes or edges.
+* Within `scope` when one is named; with `config.workingGraph` set to `"visible"` and no scope,
+* within what is shown.
 * @since 3.26.0
 */
 | {
     readonly layer: LayerId;
+    readonly scope?: ScopeInput;
 };
 
 // @public
@@ -5397,7 +5408,9 @@ export interface SessionConfig extends ProjectConfig {
 export interface SessionDataApi {
     addEdges(records: readonly EdgeRecordInput[]): Promise<void>;
     addNodes(records: readonly NodeRecordInput[]): Promise<void>;
-    attributes(): readonly AttributeDescriptor[];
+    attributes(options?: {
+        readonly scope?: ScopeInput;
+    }): readonly AttributeDescriptor[];
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
@@ -5410,7 +5423,9 @@ export interface SessionDataApi {
     };
     // (undocumented)
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
-    edges(): readonly EdgeRecord[];
+    edges(options?: {
+        readonly scope?: ScopeInput;
+    }): readonly EdgeRecord[];
     editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
     expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<SourceExpandResult>;
@@ -5418,13 +5433,16 @@ export interface SessionDataApi {
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     hiddenColumns(): readonly ColumnRef[];
-    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
+    histogram(column: ColumnRef, options?: HistogramOptions & {
+        readonly scope?: ScopeInput;
+    }): ColumnHistogram;
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     issues(options?: {
         readonly includeIgnored?: boolean;
         readonly includeFixed?: boolean;
+        readonly scope?: ScopeInput;
     }): readonly DataIssue[];
     joins(): readonly JoinRecord[];
     lastImport(): LoadReport | null;
@@ -5445,7 +5463,9 @@ export interface SessionDataApi {
     };
     // (undocumented)
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
-    nodes(): readonly NodeRecord[];
+    nodes(options?: {
+        readonly scope?: ScopeInput;
+    }): readonly NodeRecord[];
     nodeSource(id: NodeId_2): NodeSource | null;
     pendingSourceLoads(): readonly PendingSourceLoad[];
     prepare(source: DataSourceInput, options?: {
@@ -5477,10 +5497,12 @@ export interface SessionDataApi {
         readonly kind?: "node" | "edge";
     }): readonly SourceKey[];
     statistics(options?: {
-        readonly scope?: "all" | "visible";
+        readonly scope?: StatisticsScope;
     }): GraphStatistics;
     readonly store: SessionGraphStore;
-    structureValue(id: NodeId_2, path: Path): number | undefined;
+    structureValue(id: NodeId_2, path: Path, options?: {
+        readonly within?: ScopeInput;
+    }): number | undefined;
     structureValues(): readonly StructureValue[];
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
@@ -5488,6 +5510,7 @@ export interface SessionDataApi {
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
     valueCounts(path: Path, options?: {
         readonly kind?: "node" | "edge";
+        readonly scope?: ScopeInput;
     }): ValueCounts;
     valueLabels(path: Path): ReadonlyMap<string, string>;
     working(): WorkingGraph;
@@ -6246,6 +6269,11 @@ export interface StateLeaf {
 // @public
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
+// @public
+export type StatisticsScope = "graph" | "visible"
+/** @deprecated Spell it `"graph"`; `"all"` goes in the next major. */
+| "all";
+
 // @beta
 export interface StepCheckOptions {
     readonly host: "selector" | "filter";
@@ -6389,6 +6417,7 @@ export interface StyleCounts {
     readonly visible?: {
         readonly matched: number;
         readonly of: number;
+        readonly painted?: Readonly<Partial<Record<Channel, number>>>;
     };
 }
 
@@ -6712,7 +6741,7 @@ export interface TimeBinsOptions {
         readonly edges?: readonly EdgeId[];
         readonly incident?: boolean;
     };
-    readonly scope?: "all" | "visible";
+    readonly scope?: StatisticsScope;
     readonly step?: TimeStep;
     readonly timeZone?: string;
     readonly to?: number;
@@ -7099,6 +7128,7 @@ export interface ValueGroup {
     readonly hidden: boolean;
     readonly name?: string;
     readonly value: unknown;
+    readonly visibleCount?: number;
 }
 
 // @beta

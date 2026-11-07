@@ -26,7 +26,11 @@ describe("a layer's count over the graph the filter leaves", () => {
             set: { "node.color": "#ff0000" },
         });
         await s.styles.settled();
-        assert.deepEqual(s.styles.counts(picked.id).visible, { matched: 3, of: 5 }, "no filter: the whole graph");
+        assert.deepEqual(
+            s.styles.counts(picked.id).visible,
+            { matched: 3, of: 5, painted: { "node.color": 3 } },
+            "no filter: the whole graph",
+        );
         const before = s.styles.counts(picked.id).revision;
 
         await s.visibility.set({ kind: "member", of: { nodes: ["c", "d", "e"] } });
@@ -34,9 +38,17 @@ describe("a layer's count over the graph the filter leaves", () => {
 
         const counts = s.styles.counts(picked.id);
         assert.strictEqual(counts.matched, 3, "matched still counts the whole graph");
-        assert.deepEqual(counts.visible, { matched: 2, of: 3 }, "a, filtered out, is not counted");
+        assert.deepEqual(
+            counts.visible,
+            { matched: 2, of: 3, painted: { "node.color": 2 } },
+            "a, filtered out, is not counted",
+        );
         assert.notStrictEqual(counts.revision, before, "a filter change moves the revision");
-        assert.deepEqual(s.styles.counts(all.id).visible, { matched: 3, of: 3 }, "everything is the 3 drawn");
+        assert.deepEqual(
+            s.styles.counts(all.id).visible,
+            { matched: 3, of: 3, painted: { "node.color": 1 } },
+            "everything is the 3 drawn: Picked paints over c and e",
+        );
         assert.strictEqual(s.styles.counts(all.id).matched, 5);
         s.dispose();
     });

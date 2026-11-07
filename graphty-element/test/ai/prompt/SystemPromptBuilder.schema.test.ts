@@ -17,6 +17,8 @@ function createMockGraph(): Graph {
         getNodeCount: () => 10,
         getEdgeCount: () => 5,
         getViewMode: () => "3d",
+        // Nothing hidden: what is shown is the whole graph.
+        getSession: () => ({ data: { working: () => ({ nodeCount: 10, edgeCount: 5 }) } }),
         getLayoutManager: () => ({
             layoutEngine: { type: "ngraph" },
         }),
@@ -50,6 +52,20 @@ describe("SystemPromptBuilder with schema", () => {
         builder = new SystemPromptBuilder();
         mockGraph = createMockGraph();
         builder.setGraph(mockGraph);
+    });
+
+    describe("the graph state", () => {
+        it("says a filter is on and how much it hides, and says nothing of one when nothing is hidden", () => {
+            assert.notInclude(builder.build(), "A filter or the time window is on");
+
+            const filtered = createMockGraph() as unknown as Record<string, unknown>;
+            filtered.getSession = () => ({ data: { working: () => ({ nodeCount: 6, edgeCount: 3 }) } });
+            builder.setGraph(filtered as unknown as Graph);
+            assert.include(
+                builder.build(),
+                "A filter or the time window is on: 6 nodes and 3 edges are shown, 4 nodes are hidden",
+            );
+        });
     });
 
     describe("setSchema", () => {

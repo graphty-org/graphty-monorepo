@@ -146,6 +146,22 @@ export function requireWorkingGraphMode(mode: unknown): asserts mode is WorkingG
 }
 
 /**
+ * The one rule every reader's default follows (design section 5): the scope the caller named, else
+ * `"visible"` in `"visible"` mode, else the reader's documented default.
+ * @param asked - The scope the caller named, or undefined.
+ * @param documented - What the reader reads by default today.
+ * @param mode - The session's working-graph mode.
+ * @returns The scope to read.
+ */
+export function readerScope<T>(asked: T | undefined, documented: T, mode: WorkingGraphMode): T | "visible" {
+    if (asked !== undefined) {
+        return asked;
+    }
+
+    return mode === "visible" ? "visible" : documented;
+}
+
+/**
  * Build the session's working graph.
  * @param sources - What it reads.
  * @param mode - The mode it starts in.

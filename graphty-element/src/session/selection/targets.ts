@@ -111,6 +111,12 @@ export interface NeighborhoodTarget {
     readonly depth?: 1 | 2 | 3;
     /** Which way to follow an edge. Both ways when absent. */
     readonly direction?: SelectionDirection;
+    /**
+     * Walk only through this scope: a neighbor outside it is neither selected nor walked past.
+     * Absent, the whole graph; with `config.workingGraph` set to `"visible"`, what is shown, and
+     * `"graph"` walks the whole graph.
+     */
+    readonly scope?: ScopeInput;
 }
 
 /**
@@ -159,8 +165,12 @@ export type SelectionTarget =
     | { readonly range: ResultRef & { readonly min?: number; readonly max?: number } }
     /** The edges whose endpoints are both selected. Names no nodes. */
     | { readonly edgesBetween: true }
-    /** Everything that is not selected, in both halves. */
-    | { readonly invert: true }
+    /**
+     * Everything that is not selected, in both halves, within `scope` when one is named. With
+     * `config.workingGraph` set to `"visible"` and no scope, within what is shown, and a selected
+     * element outside it stays selected; `"graph"` inverts over the whole graph.
+     */
+    | { readonly invert: true; readonly scope?: ScopeInput }
     /**
      * What a note is about: its node, edge, set and item targets, or only the one at `target`.
      * A target not in the graph is skipped and counted in `SelectionDelta.skipped`; a `graph` or
@@ -170,9 +180,11 @@ export type SelectionTarget =
     /**
      * Every element a style layer's rule matches, whether or not the layer is shown: what
      * `styles.counts(layer).matched` counts. A layer paints one kind, so this names nodes or edges.
+     * Within `scope` when one is named; with `config.workingGraph` set to `"visible"` and no scope,
+     * within what is shown.
      * @since 3.26.0
      */
-    | { readonly layer: LayerId };
+    | { readonly layer: LayerId; readonly scope?: ScopeInput };
 
 // ---------------------------------------------------------------------------------------------
 // What the resolver reads
@@ -228,6 +240,11 @@ export interface TargetContext {
     readonly selectedEdges: ElementMask<EdgeId>;
     /** Resolves a scope. Absent refuses a `scope` target. */
     readonly scope?: ScopeResolver;
+    /**
+     * The scope a walk, an invert, a rule, a search or a layer target reaches when it names none:
+     * `"visible"` with the working graph on; absent, the whole graph.
+     */
+    readonly reach?: ScopeInput;
     /** Reads finished runs. Absent refuses a `top`, `above` or `range` target. */
     readonly results?: ResultsApi;
     /**
@@ -270,6 +287,11 @@ export interface TargetMembers {
     readonly unresolvedPaths: readonly Path[];
     /** A note target's targets that are not in the graph. Absent for every other target. */
     readonly skipped?: number;
+    /**
+     * The members of the context's `reach` the target was narrowed to, when it named no scope of
+     * its own: a replace or an intersect leaves the selected elements outside them alone.
+     */
+    readonly reached?: { readonly nodes: ElementMask<NodeId>; readonly edges: ElementMask<EdgeId> };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -362,8 +384,26 @@ function narrowToScope(
     nodes: ElementMask<NodeId>,
     edges: ElementMask<EdgeId>,
 ): void {
-    if (scope === undefined) {
-        return;
+    const inScope = scopeMasks(context, scope);
+    if (inScope !== null) {
+        nodes.intersect(inScope.nodes);
+        edges.intersect(inScope.edges);
+    }
+}
+
+/**
+ * A scope's members as masks over the context's spaces.
+ * @param context - What the resolution reads.
+ * @param scope - The scope; undefined or `"graph"` for the whole graph.
+ * @returns The masks, or null for the whole graph.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no scope resolver is attached.
+ */
+function scopeMasks(
+    context: TargetContext,
+    scope: ScopeInput | undefined,
+): { nodes: ElementMask<NodeId>; edges: ElementMask<EdgeId> } | null {
+    if (scope === undefined || scope === "graph") {
+        return null;
     }
 
     if (context.scope === undefined) {
@@ -374,8 +414,32 @@ function narrowToScope(
     const inScope = emptyMasks(context);
     addIds(inScope.nodes, resolved.nodes);
     addIds(inScope.edges, resolved.edges);
-    nodes.intersect(inScope.nodes);
-    edges.intersect(inScope.edges);
+
+    return inScope;
+}
+
+/**
+ * Narrow a target's members to the scope it named, else to the context's reach, recording the
+ * reach's members when that is what narrowed it.
+ * @param context - What the resolution reads.
+ * @param named - The scope the target named, or undefined.
+ * @param members - The members to narrow, in place.
+ * @returns The members, with `reached` set when the reach narrowed them.
+ */
+function withinReach(context: TargetContext, named: ScopeInput | undefined, members: TargetMembers): TargetMembers {
+    if (named !== undefined) {
+        narrowToScope(context, named, members.nodes, members.edges);
+        return members;
+    }
+
+    const reached = scopeMasks(context, context.reach);
+    if (reached === null) {
+        return members;
+    }
+
+    members.nodes.intersect(reached.nodes);
+    members.edges.intersect(reached.edges);
+    return { ...members, reached };
 }
 
 /**
@@ -538,6 +602,7 @@ function neighborDepth(depth: number | undefined): number {
  * @param seeds - The seed indices, already in the mask.
  * @param depth - How many steps to take.
  * @param direction - Which way to follow an edge.
+ * @param within - The nodes and edges a walk may pass through, or null for the whole graph.
  */
 function walkNeighborhood(
     nodes: ElementMask<NodeId>,
@@ -545,6 +610,7 @@ function walkNeighborhood(
     seeds: readonly number[],
     depth: number,
     direction: SelectionDirection,
+    within: { nodes: ElementMask<NodeId>; edges: ElementMask<EdgeId> } | null = null,
 ): void {
     let frontier = seeds;
 
@@ -552,7 +618,11 @@ function walkNeighborhood(
         const next: number[] = [];
 
         for (const node of frontier) {
-            eachAdjacentArc(graph, node, direction, (other) => {
+            eachAdjacentArc(graph, node, direction, (other, edge) => {
+                if (within !== null && !(within.nodes.has(other) && within.edges.has(edge))) {
+                    return;
+                }
+
                 if (nodes.add(other)) {
                     next.push(other);
                 }
@@ -591,9 +661,18 @@ function resolveNeighborhood(target: NeighborhoodTarget, context: TargetContext)
         }
     }
 
-    walkNeighborhood(nodes, context.graph, seeds, depth, target.direction ?? DEFAULT_DIRECTION);
+    // A named scope, else the reach: a walk never passes through what it cannot reach.
+    const reached = target.scope === undefined ? scopeMasks(context, context.reach) : null;
+    const within = target.scope === undefined ? reached : scopeMasks(context, target.scope);
+    walkNeighborhood(nodes, context.graph, seeds, depth, target.direction ?? DEFAULT_DIRECTION, within);
 
-    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+    return {
+        nodes,
+        edges,
+        unmatched: EMPTY_STRINGS,
+        unresolvedPaths: EMPTY_PATHS,
+        ...(reached === null ? {} : { reached }),
+    };
 }
 
 /**
@@ -737,14 +816,13 @@ function resolveWhere(target: Extract<SelectionTarget, { where: unknown }>, cont
     const matched = context.match(target.where);
     addIds(nodes, matched.nodes ?? []);
     addIds(edges, matched.edges ?? []);
-    narrowToScope(context, target.scope, nodes, edges);
 
-    return {
+    return withinReach(context, target.scope, {
         nodes,
         edges,
         unmatched: EMPTY_STRINGS,
         unresolvedPaths: Object.freeze([...(matched.unresolvedPaths ?? [])]),
-    };
+    });
 }
 
 /**
@@ -797,9 +875,7 @@ function resolveText(target: Extract<SelectionTarget, { text: unknown }>, contex
         addSearchHit(hit, nodes, edges);
     }
 
-    narrowToScope(context, target.scope, nodes, edges);
-
-    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+    return withinReach(context, target.scope, { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS });
 }
 
 /**
@@ -962,7 +1038,7 @@ function resolveInvert(target: Extract<SelectionTarget, { invert: unknown }>, co
     edges.fill();
     edges.subtract(context.selectedEdges);
 
-    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+    return withinReach(context, target.scope, { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS });
 }
 
 /**
@@ -984,13 +1060,18 @@ function resolveElementIds(target: ElementIdTarget, context: TargetContext): Tar
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The elements a style layer selects.
- * @param layer - The layer.
+ * The elements a style layer selects, within the scope it names or the context's reach.
+ * @param target - The layer target.
+ * @param target.layer - The layer.
+ * @param target.scope - The scope to stay within, when the target names one.
  * @param context - What the resolution reads.
  * @returns The two masks.
  * @throws A `GraphtyError` coded `E_UNSUPPORTED` when the session has no style stack.
  */
-function resolveLayer(layer: LayerId, context: TargetContext): TargetMembers {
+function resolveLayer(
+    { layer, scope }: Extract<SelectionTarget, { layer: unknown }>,
+    context: TargetContext,
+): TargetMembers {
     if (context.layer === undefined) {
         throw unsupported("a style layer", "a style stack");
     }
@@ -1000,7 +1081,7 @@ function resolveLayer(layer: LayerId, context: TargetContext): TargetMembers {
     addIds(nodes, matched.nodes ?? []);
     addIds(edges, matched.edges ?? []);
 
-    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+    return withinReach(context, scope, { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS });
 }
 
 /**
@@ -1029,7 +1110,7 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     }
 
     if ("layer" in target) {
-        return resolveLayer(target.layer, context);
+        return resolveLayer(target, context);
     }
 
     if ("text" in target) {
@@ -1038,6 +1119,15 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
 
     if ("ids" in target) {
         return resolvePastedIds(target.ids, context);
+    }
+
+    // Before the scope arm: an invert or a walk may name a scope to stay within.
+    if ("invert" in target) {
+        return resolveInvert(target, context);
+    }
+
+    if (isNeighborhood(target)) {
+        return resolveNeighborhood(target, context);
     }
 
     if ("scope" in target) {
@@ -1060,14 +1150,6 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
 
     if ("edgesBetween" in target) {
         return resolveEdgesBetween(target, context);
-    }
-
-    if ("invert" in target) {
-        return resolveInvert(target, context);
-    }
-
-    if (isNeighborhood(target)) {
-        return resolveNeighborhood(target, context);
     }
 
     if (isElementIds(target)) {

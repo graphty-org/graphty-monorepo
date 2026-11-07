@@ -251,6 +251,10 @@
                 "description": "Optional. An expression matching edges, in the same language: only nodes at an end of a matching edge are selected, so data.weight > `0.7` picks the nodes with heavy connections. Combined with selector, a node must match both; with an empty selector, every such node.",
                 "type": "string"
             },
+            "includeHidden": {
+                "description": "Whether to find nodes a filter or the time window hides too, each listed in hiddenNodeIds. Default: true, unless the graph reads only what is shown.",
+                "type": "boolean"
+            },
             "limit": {
                 "description": "Maximum number of node IDs to return (default 50)",
                 "type": "number"

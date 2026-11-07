@@ -352,34 +352,106 @@ function walk(
  *     holds none, which is what a session with no view sees until the store carries attribute
  *     columns of its own
  * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
+ * @param within - which rows of each kind to walk; every row by default
  * @returns the descriptors, node attributes first
  */
 export function describeAttributes(
     snapshot: GraphSnapshot,
     records: SessionRecordSource | null,
     readDates = true,
+    within: RowsWithin = {},
 ): readonly AttributeDescriptor[] {
     if (records === null) {
         return Object.freeze([]);
     }
 
+    const nodeIn = within.node ?? null;
+    const edgeIn = within.edge ?? null;
     const nodes = walk(
         snapshot.nodeCount,
-        (index) => records.nodeAttributes(index, snapshot.ids.idOf(index)),
+        (index) =>
+            nodeIn === null || nodeIn(index) ? records.nodeAttributes(index, snapshot.ids.idOf(index)) : undefined,
         (index) => snapshot.ids.idOf(index),
     );
-    const edges = walk(snapshot.edgeCount, (index) => records.edgeAttributes(index));
+    const edges = walk(snapshot.edgeCount, (index) =>
+        edgeIn === null || edgeIn(index) ? records.edgeAttributes(index) : undefined,
+    );
+    const nodeTotal = countRows(snapshot.nodeCount, nodeIn);
+    const edgeTotal = countRows(snapshot.edgeCount, edgeIn);
 
     const described: AttributeDescriptor[] = [];
     for (const [name, accumulator] of nodes) {
-        described.push(describe(name, "node", accumulator, snapshot.nodeCount, readDates));
+        described.push(describe(name, "node", accumulator, nodeTotal, readDates));
     }
 
     for (const [name, accumulator] of edges) {
-        described.push(describe(name, "edge", accumulator, snapshot.edgeCount, readDates));
+        described.push(describe(name, "edge", accumulator, edgeTotal, readDates));
     }
 
     return Object.freeze(described);
+}
+
+/** Which rows of each kind a description walks; an absent or null test walks every row. */
+export interface RowsWithin {
+    readonly node?: ((index: number) => boolean) | null;
+    readonly edge?: ((index: number) => boolean) | null;
+}
+
+/**
+ * How many rows a test holds.
+ * @param total - How many rows there are.
+ * @param test - The test, or null for every row.
+ * @returns The count.
+ */
+function countRows(total: number, test: ((index: number) => boolean) | null): number {
+    if (test === null) {
+        return total;
+    }
+
+    let count = 0;
+    for (let index = 0; index < total; index++) {
+        if (test(index)) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+/**
+ * The whole graph's columns, each measured as a scope measured it: the list, the types and what
+ * each column measures stay the whole graph's, so a scope never takes a column away, and
+ * `completeness`, `uniqueCount`, `min`, `max` and `sampleValues` come from the scope.
+ * @param whole - The columns described over the whole graph.
+ * @param scoped - The same columns described over the scope's rows.
+ * @returns The columns, in the whole graph's order.
+ */
+export function measuredWithin(
+    whole: readonly AttributeDescriptor[],
+    scoped: readonly AttributeDescriptor[],
+): readonly AttributeDescriptor[] {
+    const byKey = new Map(scoped.map((each) => [`${each.kind}:${each.name}`, each]));
+    return Object.freeze(
+        whole.map((each) => {
+            const measured = byKey.get(`${each.kind}:${each.name}`);
+            const {
+                completeness: _completeness,
+                uniqueCount: _uniqueCount,
+                min: _min,
+                max: _max,
+                sampleValues: _samples,
+                ...column
+            } = each;
+            return Object.freeze({
+                ...column,
+                completeness: measured?.completeness ?? 0,
+                ...(measured?.uniqueCount === undefined ? {} : { uniqueCount: measured.uniqueCount }),
+                ...(measured?.min === undefined || !Number.isFinite(measured.min) ? {} : { min: measured.min }),
+                ...(measured?.max === undefined || !Number.isFinite(measured.max) ? {} : { max: measured.max }),
+                sampleValues: measured?.sampleValues ?? Object.freeze([]),
+            });
+        }),
+    );
 }
 
 // ---------------------------------------------------------------------------------------------

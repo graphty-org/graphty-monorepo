@@ -62,7 +62,7 @@ import {
     resolveLocation,
 } from "../layout/locationMap/source";
 import { eachAdjacentArc } from "./adjacency";
-import { describeAttributes } from "./attributes";
+import { describeAttributes, measuredWithin } from "./attributes";
 import {
     convertValue,
     isValueType,
@@ -206,13 +206,16 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
+    StatisticsScope,
     TableMapping,
     TypeChangePreview,
     ValueCounts,
     ValueType,
     WorkingGraph,
+    WorkingGraphMode,
 } from "./types";
 import { valueLabelsAt } from "./valueLabels";
+import { readerScope } from "./working/WorkingGraph";
 
 /** A value a column holds that can be given a name (`data.label`) or counted. */
 type ColumnScalar = string | number | boolean;
@@ -333,6 +336,53 @@ interface PageSources {
      * @returns The view.
      */
     working(): WorkingGraph;
+    /**
+     * The working-graph mode: what a reader that names no scope reads.
+     * @returns The mode.
+     */
+    mode(): WorkingGraphMode;
+}
+
+/** How many scopes' attribute measurements are kept within one input revision. */
+const SCOPED_ATTRIBUTES_KEPT = 4;
+
+/**
+ * One node's structure value counted over the edges a scope holds: both ends and the edge itself.
+ * @param graph - The snapshot.
+ * @param row - The node's row.
+ * @param path - The structure value's path.
+ * @param nodeIn - Whether a node row is in scope, or null for every row.
+ * @param edgeIn - Whether an edge row is in scope, or null for every row.
+ * @returns The value, undefined for a path that is no structure value on this graph.
+ */
+function structureWithin(
+    graph: GraphSnapshot,
+    row: number,
+    path: Path,
+    nodeIn: ((index: number) => boolean) | null,
+    edgeIn: ((index: number) => boolean) | null,
+): number | undefined {
+    let direction: "all" | "in" | "out";
+    if (path === "graphty.degree") {
+        direction = "all";
+    } else if (graph.directed && (path === "graphty.inDegree" || path === "graphty.outDegree")) {
+        direction = path === "graphty.inDegree" ? "in" : "out";
+    } else {
+        return undefined;
+    }
+
+    if (nodeIn !== null && !nodeIn(row)) {
+        return 0;
+    }
+
+    let count = 0;
+    eachAdjacentArc(graph, row, direction, (other, edge) => {
+        if ((nodeIn === null || nodeIn(other)) && (edgeIn === null || edgeIn(edge))) {
+            count++;
+        }
+    });
+
+    return count;
 }
 
 /** One neighbor while its list is built: its row, and its name once a name sort read it. */
@@ -753,6 +803,10 @@ export class SessionData implements SessionDataApi {
     private readonly neighborLists: RevisionCache<NeighborList>;
     /** The attribute walk, for the current data revision. */
     private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
+    /** The attributes measured over a scope, kept while nothing a scope reads moves. */
+    private readonly scopedAttributes: RevisionCache<readonly AttributeDescriptor[]>;
+    /** The statistics of each working graph's compact snapshot, measured once. */
+    private readonly workingStatistics = new WeakMap<GraphSnapshot, GraphStatistics>();
     /** Whether an edge column of a name exists, for the current data revision. */
     private readonly edgeColumns: RevisionCache<boolean>;
     /** The descriptors with their declarations and roles laid over, and what they were laid from. */
@@ -842,6 +896,7 @@ export class SessionData implements SessionDataApi {
         this.orders = new RevisionCache(() => pages.revision());
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
         this.attributeCache = new RevisionCache(() => pages.dataRevision());
+        this.scopedAttributes = new RevisionCache(() => pages.revision(), SCOPED_ATTRIBUTES_KEPT);
         this.edgeColumns = new RevisionCache(() => pages.dataRevision());
     }
 
@@ -1837,27 +1892,84 @@ export class SessionData implements SessionDataApi {
 
     /**
      * Every node, in the graph's order.
+     * @param options - which nodes
+     * @param options.scope - any scope; the working-graph mode's default when absent
      * @returns the records, deep-frozen
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    nodes(): readonly NodeRecord[] {
+    nodes(options: { readonly scope?: ScopeInput } = {}): readonly NodeRecord[] {
         const snapshot = this.current();
-        return Array.from({ length: snapshot.nodeCount }, (_unused, index) =>
-            this.nodeAt(index, snapshot.ids.idOf(index)),
-        );
+        const inScope = this.rowsIn(this.scoped(options.scope, "graph"), "node", snapshot);
+        const records: NodeRecord[] = [];
+        for (let index = 0; index < snapshot.nodeCount; index++) {
+            if (inScope === null || inScope(index)) {
+                records.push(this.nodeAt(index, snapshot.ids.idOf(index)));
+            }
+        }
+
+        return records;
     }
 
     /**
      * Every edge, in the graph's order.
+     * @param options - which edges
+     * @param options.scope - any scope; the working-graph mode's default when absent
      * @returns the records, deep-frozen
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    edges(): readonly EdgeRecord[] {
+    edges(options: { readonly scope?: ScopeInput } = {}): readonly EdgeRecord[] {
         const snapshot = this.current();
         const space = edgeSpaceOf(snapshot);
-        return Array.from({ length: snapshot.edgeCount }, (_unused, index) =>
-            this.edgeAt(snapshot, index, space.idOf(index)),
-        );
+        const inScope = this.rowsIn(this.scoped(options.scope, "graph"), "edge", snapshot);
+        const records: EdgeRecord[] = [];
+        for (let index = 0; index < snapshot.edgeCount; index++) {
+            if (inScope === null || inScope(index)) {
+                records.push(this.edgeAt(snapshot, index, space.idOf(index)));
+            }
+        }
+
+        return records;
+    }
+
+    /**
+     * The scope a reader reads: the one asked for, else what the working-graph mode says.
+     * @param asked - The scope the caller named, or undefined.
+     * @param documented - The reader's documented default.
+     * @returns The scope.
+     */
+    private scoped<T>(asked: T | undefined, documented: T): T | "visible" {
+        return readerScope(asked, documented, this.pages.mode());
+    }
+
+    /**
+     * Which rows of one kind a scope holds, as a test by row.
+     * @param scope - The scope; undefined or `"graph"` for every row.
+     * @param kind - Nodes or edges.
+     * @param snapshot - The current snapshot.
+     * @returns The test, or null when every row is in it.
+     */
+    private rowsIn(
+        scope: ScopeInput | undefined,
+        kind: "node" | "edge",
+        snapshot: GraphSnapshot,
+    ): ((index: number) => boolean) | null {
+        if (scope === undefined || scope === "graph") {
+            return null;
+        }
+
+        const masks = scope === "visible" ? this.pages.visibleMasks?.() : undefined;
+        if (masks !== undefined) {
+            const bytes = kind === "node" ? masks.nodes : masks.edges;
+            return bytes.includes(0) ? (index: number): boolean => bytes[index] === 1 : null;
+        }
+
+        const resolved = this.pages.resolve(scope);
+        if (kind === "node") {
+            return (index: number): boolean => resolved.nodes.has(snapshot.ids.idOf(index));
+        }
+
+        const space = edgeSpaceOf(snapshot);
+        return (index: number): boolean => resolved.edges.has(space.idOf(index));
     }
 
     /**
@@ -1884,9 +1996,8 @@ export class SessionData implements SessionDataApi {
      */
     nodePage(options: RecordPageOptions = {}): RecordPage<NodeRecord> {
         const snapshot = this.current();
-        return this.page(snapshot, "node", options, "nodePage", (index) =>
-            this.nodeAt(index, snapshot.ids.idOf(index)),
-        );
+        const scoped = { ...options, scope: this.scoped(options.scope, "graph") };
+        return this.page(snapshot, "node", scoped, "nodePage", (index) => this.nodeAt(index, snapshot.ids.idOf(index)));
     }
 
     /**
@@ -1914,7 +2025,8 @@ export class SessionData implements SessionDataApi {
     edgePage(options: EdgePageOptions = {}): RecordPage<EdgeRecord> {
         const snapshot = this.current();
         const space = edgeSpaceOf(snapshot);
-        return this.page(snapshot, "edge", options, "edgePage", (index) =>
+        const scoped = { ...options, scope: this.scoped(options.scope, "graph") };
+        return this.page(snapshot, "edge", scoped, "edgePage", (index) =>
             this.edgeAt(snapshot, index, space.idOf(index)),
         );
     }
@@ -1942,13 +2054,14 @@ export class SessionData implements SessionDataApi {
     /**
      * Each distinct neighbor of a node once, with the combined weight of the edges between them.
      * @param id - the node
-     * @param options - the direction, the weight, the scope, the order and the window
+     * @param asked - the direction, the weight, the scope, the order and the window
      * @returns the page
      * @throws A `GraphtyError` with `E_UNKNOWN_ELEMENT` for an id the graph does not hold,
      *     `E_UNKNOWN_ATTRIBUTE` for a weight column no edge carries, `E_OPTION_RANGE` for a bad
      *     window, `E_DISPOSED` once disposed.
      */
-    neighbors(id: NodeId, options: NeighborOptions = {}): NeighborPage {
+    neighbors(id: NodeId, asked: NeighborOptions = {}): NeighborPage {
+        const options = { ...asked, scope: this.scoped(asked.scope, "graph") };
         const snapshot = this.current();
         const { offset, limit } = pageWindow(options, "neighbors");
         // Before the revision: the first read of the visible scope brings its masks up to date,
@@ -2084,7 +2197,7 @@ export class SessionData implements SessionDataApi {
             return typeof value === "number" && Number.isFinite(value) ? value : undefined;
         };
         if (asked !== undefined) {
-            resolveColumn(this.attributes(), { kind: "edge", name: asked.attribute });
+            resolveColumn(this.attributes({ scope: "graph" }), { kind: "edge", name: asked.attribute });
             return { measuredBy: asked, read: fromRecords(asked.attribute) };
         }
 
@@ -2097,7 +2210,9 @@ export class SessionData implements SessionDataApi {
 
         const meaning = this.readConfig().knownFields.edgeWeightMeaning === "distance" ? "distance" : "strength";
         const measuredBy: WeightMeaning = { attribute, meaning };
-        const carried = this.attributes().some((column) => column.kind === "edge" && column.name === attribute);
+        const carried = this.attributes({ scope: "graph" }).some(
+            (column) => column.kind === "edge" && column.name === attribute,
+        );
         // A session with no view holds no record attributes, only the store's weights, where a
         // missing number already weighs 1.
         return {
@@ -2131,11 +2246,13 @@ export class SessionData implements SessionDataApi {
     /**
      * What a find box lists, without selecting anything: `session.find`, which documents it.
      * @param text - what was typed
-     * @param options - the window, the kinds and the scope
+     * @param asked - the window, the kinds and the scope
      * @returns a page of hits and the value rows
      * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad window or kind, `E_DISPOSED` once disposed.
      */
-    find(text: string, options: FindOptions = {}): FindResult {
+    find(text: string, asked: FindOptions = {}): FindResult {
+        const scopeInput = this.scoped<ScopeInput | undefined>(asked.scope, undefined);
+        const options = scopeInput === undefined ? asked : { ...asked, scope: scopeInput };
         this.requireLive("find");
         const { offset, limit } = pageWindow(
             { offset: options.offset, limit: options.limit ?? DEFAULT_FIND_LIMIT },
@@ -2585,7 +2702,7 @@ export class SessionData implements SessionDataApi {
     private foundIssues(): readonly FoundIssue[] {
         const state = this.issueState();
         const snapshot = this.current();
-        const columns = this.attributes();
+        const columns = this.attributes({ scope: "graph" });
         const known = this.readConfig().knownFields;
         const gazetteer = gazetteerGeneration();
         const memo = this.issuesMemo;
@@ -2599,11 +2716,11 @@ export class SessionData implements SessionDataApi {
             return memo.found;
         }
 
-        const nodes = this.nodes();
+        const nodes = this.nodes({ scope: "graph" });
         const found = findIssues({
             columns,
             nodes,
-            edges: this.edges(),
+            edges: this.edges({ scope: "graph" }),
             directed: snapshot.directed,
             state,
             places: placeRows(columns, nodes, known),
@@ -2619,18 +2736,52 @@ export class SessionData implements SessionDataApi {
      * @param options.includeIgnored - list the ignored issues too (default false)
      * @param options.includeFixed - list the issues `data.fix` settled too, after the rest, as they
      *     stood then (default false); one the data has again is listed open instead
+     * @param options.scope - count only the records in this scope; the working-graph mode's
+     *     default when absent
      * @returns the issues, load issues first; never one with a zero count
      */
-    issues(options: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean } = {}): readonly DataIssue[] {
+    issues(
+        options: {
+            readonly includeIgnored?: boolean;
+            readonly includeFixed?: boolean;
+            readonly scope?: ScopeInput;
+        } = {},
+    ): readonly DataIssue[] {
         this.requireLive("issues");
         const found = this.foundIssues();
         const state = this.issueState();
         const ignored = new Set(state.ignored);
+        // A scope counts the records it holds; an issue about the load itself (a refused row) has
+        // no record a scope could leave out, and keeps its count.
+        const scope = this.scoped(options.scope, "graph");
+        const resolved = scope === "graph" ? null : this.pages.resolve(scope);
+        const countOf = ({ issue, affected }: FoundIssue): number => {
+            if (resolved === null || affected === undefined) {
+                return issue.count;
+            }
+
+            const members = affected.kind === "node" ? resolved.nodes : resolved.edges;
+            let count = 0;
+            for (const id of affected.ids) {
+                if (members.has(id)) {
+                    count++;
+                }
+            }
+
+            return count;
+        };
         const listed: DataIssue[] = found
-            .map(({ issue }): DataIssue => {
+            .map((each): DataIssue | null => {
+                const count = countOf(each);
+                if (count === 0) {
+                    return null;
+                }
+
+                const { issue } = each;
                 const isIgnored = ignored.has(issue.id);
-                return Object.freeze({ ...issue, ignored: isIgnored, status: isIgnored ? "ignored" : "open" });
+                return Object.freeze({ ...issue, count, ignored: isIgnored, status: isIgnored ? "ignored" : "open" });
             })
+            .filter((issue): issue is DataIssue => issue !== null)
             .filter((issue) => options.includeIgnored === true || !issue.ignored);
         if (options.includeFixed === true) {
             const open = new Set(found.map(({ issue }) => issue.id));
@@ -2963,7 +3114,9 @@ export class SessionData implements SessionDataApi {
                 nodes: new Set(nodes.filter((each) => others(index.nodes.get(each.id))).map((each) => each.id)),
                 edges: new Set(edges.filter((each) => others(index.edges.get(each.id))).map((each) => each.id)),
             },
-            graphPairs: new Set(this.edges().map((each) => pairKey(each.source, each.target, snapshot.directed))),
+            graphPairs: new Set(
+                this.edges({ scope: "graph" }).map((each) => pairKey(each.source, each.target, snapshot.directed)),
+            ),
             hasNode: (id) => rowOfEitherSpelling(snapshot.ids, id) !== INVALID_INDEX,
             directed: snapshot.directed,
             held,
@@ -3078,7 +3231,7 @@ export class SessionData implements SessionDataApi {
     ): { kind: "node" | "edge"; name: string }[] {
         const keysOf = (rows: readonly Readonly<Record<string, unknown>>[]): Set<string> =>
             new Set(rows.flatMap((row) => Object.keys(row)));
-        const elsewhere = this.columnSources(this.attributes());
+        const elsewhere = this.columnSources(this.attributes({ scope: "graph" }));
         const gone: { kind: "node" | "edge"; name: string }[] = [];
         for (const [kind, before, after] of [
             ["node", keysOf(nodes.map((each) => each.data)), keysOf(held.nodes)],
@@ -3727,22 +3880,38 @@ export class SessionData implements SessionDataApi {
 
     /**
      * Every attribute the graph's records carry.
+     * @param options - what to measure over
+     * @param options.scope - the elements measured; the working-graph mode's default when absent
      * @returns the descriptors, node attributes first
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    attributes(): readonly AttributeDescriptor[] {
+    attributes(options: { readonly scope?: ScopeInput } = {}): readonly AttributeDescriptor[] {
         // Keyed on the data revision, which moves on a freeze AND on an attribute write (keyed on the
         // snapshot alone, an edited value never reached the descriptors), and not on a mask change,
         // which moves the input tick but no column, type or value (issue #4386).
         const snapshot = this.current();
         // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns.
-        const described = this.attributeCache.get("", () =>
+        const whole = this.attributeCache.get("", () =>
             Object.freeze(
                 describeAttributes(snapshot, this.records, this.timelineOn).filter(
                     (each) => !isSourceFactKey(each.name),
                 ),
             ),
         );
+        // A scope measures the same columns over its own rows, kept while no input moves (a mask
+        // change moves the input tick, so a filter re-measures).
+        const scope = this.scoped(options.scope, "graph");
+        const nodeIn = this.rowsIn(scope, "node", snapshot);
+        const edgeIn = this.rowsIn(scope, "edge", snapshot);
+        const described =
+            nodeIn === null && edgeIn === null
+                ? whole
+                : this.scopedAttributes.get(JSON.stringify(scope), () =>
+                      measuredWithin(
+                          whole,
+                          describeAttributes(snapshot, this.records, this.timelineOn, { node: nodeIn, edge: edgeIn }),
+                      ),
+                  );
         const declarations = this.writes.declarations();
         const roles = this.columnRoles();
         const uses = this.columnUses(described);
@@ -3806,7 +3975,7 @@ export class SessionData implements SessionDataApi {
      */
     structureValues(): readonly StructureValue[] {
         // In and out degree only on a directed graph, where they differ from degree.
-        return this.statistics().directedness === "directed"
+        return this.statistics({ scope: "graph" }).directedness === "directed"
             ? STRUCTURE_VALUES
             : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
     }
@@ -3815,12 +3984,26 @@ export class SessionData implements SessionDataApi {
      * One node's structure value, as a column of a table reads it.
      * @param id - The node.
      * @param path - A path {@link structureValues} lists (`graphty.degree`).
+     * @param options - What to count.
+     * @param options.within - Count only this scope's edges; the working-graph mode's default when absent.
      * @returns The value, or undefined for an unknown node or a path that is no structure value.
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    structureValue(id: NodeId, path: Path): number | undefined {
+    structureValue(id: NodeId, path: Path, options: { readonly within?: ScopeInput } = {}): number | undefined {
         const snapshot = this.current();
-        return snapshot.ids.has(id) ? structureValuesOf(snapshot, path)?.[snapshot.ids.indexOf(id)] : undefined;
+        if (!snapshot.ids.has(id)) {
+            return undefined;
+        }
+
+        const row = snapshot.ids.indexOf(id);
+        const within = this.scoped(options.within, "graph");
+        const nodeIn = this.rowsIn(within, "node", snapshot);
+        const edgeIn = this.rowsIn(within, "edge", snapshot);
+        if (nodeIn === null && edgeIn === null) {
+            return structureValuesOf(snapshot, path)?.[row];
+        }
+
+        return structureWithin(snapshot, row, path, nodeIn, edgeIn);
     }
 
     /**
@@ -3842,8 +4025,8 @@ export class SessionData implements SessionDataApi {
 
         return readableValues({
             snapshot,
-            directed: this.statistics().directedness === "directed",
-            attributes: this.attributes(),
+            directed: this.statistics({ scope: "graph" }).directedness === "directed",
+            attributes: this.attributes({ scope: "graph" }),
             declarationOf: (column) => declarations.get(declarationKey(column)),
             runs,
             layersReading: (path, on) =>
@@ -3976,7 +4159,7 @@ export class SessionData implements SessionDataApi {
      */
     async declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void> {
         this.requireLive("declare");
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.attributes({ scope: "graph" }), column);
         await this.writes.declare({ kind, name }, declaration);
     }
 
@@ -4077,7 +4260,7 @@ export class SessionData implements SessionDataApi {
             throw featureOff("timeline", "data.setRole");
         }
 
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.attributes({ scope: "graph" }), column);
         const fields = ROLE_FIELDS[kind];
         const snapshot = this.current();
         const { knownFields } = this.readConfig();
@@ -4120,8 +4303,8 @@ export class SessionData implements SessionDataApi {
      */
     private locationListing(): LocationListing {
         const known = this.readConfig().knownFields;
-        const nodes = this.nodes();
-        const columns = this.attributes().flatMap((c) =>
+        const nodes = this.nodes({ scope: "graph" });
+        const columns = this.attributes({ scope: "graph" }).flatMap((c) =>
             c.kind === "node" ? [{ name: c.name, values: nodes.map((row) => row[c.name]) }] : [],
         );
         const places = cachedGazetteer();
@@ -4199,7 +4382,7 @@ export class SessionData implements SessionDataApi {
      */
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview {
         this.requireLive("previewType");
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.attributes({ scope: "graph" }), column);
         SessionData.checkType(type);
         return previewConversion(
             this.rawRows(kind).map((row) => row.data?.[name]),
@@ -4230,7 +4413,7 @@ export class SessionData implements SessionDataApi {
      */
     private async setTypeNow(column: ColumnRef, type: ValueType): Promise<void> {
         this.requireLive("setType");
-        const { kind, name } = resolveColumn(this.attributes(), column);
+        const { kind, name } = resolveColumn(this.attributes({ scope: "graph" }), column);
         SessionData.checkType(type);
         const rows: RowUpdate<NodeId | EdgeId>[] = [];
         let fails = 0;
@@ -4295,7 +4478,7 @@ export class SessionData implements SessionDataApi {
      */
     private async renameColumnNow(column: ColumnRef, name: string): Promise<void> {
         this.requireLive("renameColumn");
-        const attributes = this.attributes();
+        const attributes = this.attributes({ scope: "graph" });
         const { kind, name: from } = resolveColumn(attributes, column);
         if (typeof name !== "string" || name.trim() === "") {
             throw new GraphtyError({
@@ -4392,7 +4575,7 @@ export class SessionData implements SessionDataApi {
      */
     async setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void> {
         this.requireLive("setHidden");
-        const attributes = this.attributes();
+        const attributes = this.attributes({ scope: "graph" });
         // The id and the ends every record has, even when no column carries them (a graph file).
         const keyField = (column: ColumnRef): boolean =>
             (column.kind === "node" ? column.name === "id" : column.name === "source" || column.name === "target") &&
@@ -4429,20 +4612,29 @@ export class SessionData implements SessionDataApi {
     /**
      * How one data column's values are distributed.
      * @param column - the column
-     * @param options - the bin count and, for a numeric column, the scale
+     * @param options - the bin count, for a numeric column the scale, and the scope
+     * @param options.scope - the elements counted; the working-graph mode's default when absent
      * @returns the distribution
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
      *     `E_OPTION_RANGE` for a bad bin count.
      */
-    histogram(column: ColumnRef, options: HistogramOptions = {}): ColumnHistogram {
+    histogram(
+        column: ColumnRef,
+        { scope, ...options }: HistogramOptions & { readonly scope?: ScopeInput } = {},
+    ): ColumnHistogram {
         const snapshot = this.current();
-        const descriptor = resolveColumn(this.attributes(), column);
+        const descriptor = resolveColumn(this.attributes({ scope: "graph" }), column);
         const { name } = descriptor;
-        const count = descriptor.kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const valueAt =
+        const inScope = this.rowsIn(this.scoped(scope, "graph"), descriptor.kind, snapshot);
+        const all = descriptor.kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        // The rows counted: every row, or the scope's, in graph order.
+        const rows = inScope === null ? null : Array.from({ length: all }, (_unused, row) => row).filter(inScope);
+        const count = rows === null ? all : rows.length;
+        const read =
             descriptor.kind === "node"
                 ? (index: number): unknown => this.records?.nodeAttributes(index, snapshot.ids.idOf(index))?.[name]
                 : (index: number): unknown => this.records?.edgeAttributes(index)?.[name];
+        const valueAt = rows === null ? read : (index: number): unknown => read(rows[index]);
 
         if (descriptor.measurement === "quantitative") {
             const column = {
@@ -4481,23 +4673,37 @@ export class SessionData implements SessionDataApi {
      * @param path - the value path, or `"id"`
      * @param options - which kind to count
      * @param options.kind - nodes or edges; by default the kind the path is listed on
+     * @param options.scope - the elements counted; the working-graph mode's default when absent
      * @returns the counts, most elements first
      */
-    valueCounts(path: Path, options: { readonly kind?: "node" | "edge" } = {}): ValueCounts {
+    valueCounts(
+        path: Path,
+        options: { readonly kind?: "node" | "edge"; readonly scope?: ScopeInput } = {},
+    ): ValueCounts {
         const snapshot = this.current();
         const kind =
             options.kind ??
             (this.readableValues().find((value) => value.path === path)?.on === "edge" ? "edge" : "node");
-        const total = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        const scope = this.scoped(options.scope, "graph");
+        const inScope = this.rowsIn(scope, kind, snapshot);
+        const rows = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        let total = 0;
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
         const counts = new Map<ColumnScalar, number>();
         let missing = 0;
-        // Degree, in-degree and out-degree are read from the snapshot, not a column.
+        // Degree, in-degree and out-degree are read from the snapshot, not a column; over a scope
+        // they count the scope's edges, as structureValue does.
         const structure = kind === "node" ? structureValuesOf(snapshot, path) : undefined;
-        for (let index = 0; index < total; index++) {
+        const edgeIn = inScope === null ? null : this.rowsIn(scope, "edge", snapshot);
+        for (let index = 0; index < rows; index++) {
+            if (inScope !== null && !inScope(index)) {
+                continue;
+            }
+
+            total++;
             let value: unknown;
             if (structure !== undefined) {
-                value = structure[index];
+                value = inScope === null ? structure[index] : structureWithin(snapshot, index, path, inScope, edgeIn);
             } else {
                 value =
                     path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
@@ -4520,36 +4726,32 @@ export class SessionData implements SessionDataApi {
      * @returns the statistics
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    statistics(options: { readonly scope?: "all" | "visible" } = {}): GraphStatistics {
+    statistics(options: { readonly scope?: StatisticsScope } = {}): GraphStatistics {
         const derived = this.derivedFor(this.current());
         derived.statistics ??= computeStatistics(
             derived.snapshot,
             this.readConfig().directed,
             this.graphStore.directionSettledBy,
         );
-        const masks = options.scope === "visible" ? this.pages.visibleMasks?.() : undefined;
-        if (masks === undefined || (!masks.nodes.includes(0) && !masks.edges.includes(0))) {
+        if (this.scoped(options.scope, "graph") !== "visible") {
             return derived.statistics;
         }
 
-        // ponytail: recomputed on every call over the visible subgraph; cache by mask version when
-        // a large graph reads it per frame.
-        const pack = (bytes: Uint8Array, length: number): Uint32Array<ArrayBuffer> => {
-            const words = new Uint32Array(Math.ceil(length / 32));
-            for (let at = 0; at < length; at++) {
-                if (bytes[at] === 1) {
-                    words[at >>> 5] |= 1 << (at & 31);
-                }
-            }
+        // The working graph's compact snapshot: built once per state and shared with every reader
+        // and run over what is shown; the whole graph itself while nothing is hidden.
+        const working = this.pages.working();
+        if (working.nodeCount === derived.snapshot.nodeCount && working.edgeCount === derived.snapshot.edgeCount) {
+            return derived.statistics;
+        }
 
-            return words;
-        };
-        const graph = derived.snapshot;
-        const visible = graph
-            .filterEdges(pack(masks.edges, graph.edgeCount))
-            .snapshot.inducedSubgraph({ mask: pack(masks.nodes, graph.nodeCount) }).snapshot;
+        const shown = working.snapshot();
+        let measured = this.workingStatistics.get(shown);
+        if (measured === undefined) {
+            measured = computeStatistics(shown, this.readConfig().directed, this.graphStore.directionSettledBy);
+            this.workingStatistics.set(shown, measured);
+        }
 
-        return computeStatistics(visible, this.readConfig().directed, this.graphStore.directionSettledBy);
+        return measured;
     }
 
     /**

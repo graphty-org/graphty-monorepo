@@ -122,6 +122,65 @@ describe("QueryCommands", () => {
         });
     });
 
+    describe("with a filter hiding part of the graph", () => {
+        /**
+         * A graph of ten nodes and fifteen edges whose session shows node-0 to node-5 and nine edges.
+         * @param mode - What the session's readers read.
+         * @returns The graph.
+         */
+        function hiding(mode: "documented" | "visible"): Graph {
+            const hidden = createTestGraph({ nodes: 10, edges: 15 });
+            const session = hidden.getSession() as unknown as {
+                config: { workingGraph: string };
+                data: { working: () => unknown };
+            };
+            session.config = { workingGraph: mode };
+            session.data = {
+                working: () => ({
+                    nodeCount: 6,
+                    edgeCount: 9,
+                    has: (id: string) => Number(id.slice("node-".length)) < 6,
+                }),
+            };
+            return hidden;
+        }
+
+        it("queryGraph gives the shown counts beside the whole graph's", async () => {
+            const hidden = hiding("documented");
+            const nodes = await queryGraph.execute(hidden, { query: "nodeCount" }, createMockContext(hidden));
+            assert.deepStrictEqual(nodes.data, { nodeCount: 10, shownNodeCount: 6, shownEdgeCount: 9 });
+            assert.include(nodes.message, "6 are shown");
+
+            const summary = await queryGraph.execute(hidden, { query: "summary" }, createMockContext(hidden));
+            assert.include(summary.message, "Shown: 6 nodes and 9 edges");
+
+            const whole = await queryGraph.execute(graph, { query: "nodeCount" }, context);
+            assert.isUndefined((whole.data as { shownNodeCount?: number }).shownNodeCount, "nothing hidden");
+        });
+
+        it("findNodes marks the hidden matches, and leaves them out while the graph reads what is shown", async () => {
+            const documented = hiding("documented");
+            const all = await findNodes.execute(documented, { selector: "" }, createMockContext(documented));
+            const marked = all.data as { total: number; hiddenNodeIds: string[]; hiddenTotal: number };
+            assert.strictEqual(marked.total, 10);
+            assert.strictEqual(marked.hiddenTotal, 4);
+            assert.deepStrictEqual(marked.hiddenNodeIds, ["node-6", "node-7", "node-8", "node-9"]);
+            assert.include(all.message, "4 of them are hidden");
+
+            const visible = hiding("visible");
+            const shown = await findNodes.execute(visible, { selector: "" }, createMockContext(visible));
+            assert.strictEqual((shown.data as { total: number }).total, 6);
+            assert.isUndefined((shown.data as { hiddenTotal?: number }).hiddenTotal);
+
+            const asked = await findNodes.execute(
+                visible,
+                { selector: "", includeHidden: true },
+                createMockContext(visible),
+            );
+            assert.strictEqual((asked.data as { hiddenTotal: number }).hiddenTotal, 4);
+        });
+    });
+
     describe("getSchema", () => {
         /**
          * A graph whose nodes carry two types and a numeric score, and whose edges carry a

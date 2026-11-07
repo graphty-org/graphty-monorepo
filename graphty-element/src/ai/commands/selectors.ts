@@ -12,6 +12,39 @@
 
 import type { RuleTree, Scope } from "../../catalog/types";
 import type { Graph } from "../../Graph";
+import type { WorkingGraph } from "../../session/types";
+
+/** What the filter and the time window leave shown, when they hide anything. */
+export interface ShownPart {
+    /** The working graph: what is shown. */
+    readonly view: WorkingGraph;
+    /** How many nodes the whole graph holds. */
+    readonly allNodes: number;
+    /** How many edges the whole graph holds. */
+    readonly allEdges: number;
+}
+
+/**
+ * What is shown, when a filter or the time window hides part of the graph.
+ * @param graph - The graph.
+ * @returns The shown part, or null when everything is shown.
+ */
+export function shownPart(graph: Graph): ShownPart | null {
+    const view = graph.getSession().data.working();
+    const allNodes = graph.getNodeCount();
+    const allEdges = graph.getEdgeCount();
+
+    return view.nodeCount === allNodes && view.edgeCount === allEdges ? null : { view, allNodes, allEdges };
+}
+
+/**
+ * Whether the session's readers read only what is shown (`config.workingGraph` `"visible"`).
+ * @param graph - The graph.
+ * @returns True when they do.
+ */
+export function readsShown(graph: Graph): boolean {
+    return graph.getSession().config.workingGraph === "visible";
+}
 
 /** The sentence every selector parameter carries, so each tool describes the language the same way. */
 export const SELECTOR_SYNTAX =

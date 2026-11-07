@@ -254,6 +254,12 @@ export interface StyleCounts {
         readonly matched: number;
         /** How many elements of the layer's kind are drawn. */
         readonly of: number;
+        /**
+         * For each channel the layer writes, on how many of the drawn elements it is the layer the
+         * picture shows: {@link StyleCounts.painted} read over what is drawn. Always present on
+         * counts graphty-element returns.
+         */
+        readonly painted?: Readonly<Partial<Record<Channel, number>>>;
     };
     /**
      * For each channel the layer writes, on how many of the matched elements it is the layer the

@@ -45,8 +45,16 @@ import type { Layer } from "./Layer";
 export interface ValueGroup {
     /** The value, spelled as the data spells it. */
     readonly value: unknown;
-    /** How many of the layer's elements carry it. */
+    /**
+     * How many of the layer's elements carry it. With `config.workingGraph` set to `"visible"`,
+     * how many of those are shown: {@link ValueGroup.visibleCount}.
+     */
     readonly count: number;
+    /**
+     * How many of the layer's elements that carry it are drawn: those the filter and the time
+     * window leave shown. Present on every group `styles.groups` returns.
+     */
+    readonly visibleCount?: number;
     /** Whether the layer hides it (`styles.setValueHidden`), which it does in every channel at once. */
     readonly hidden: boolean;
     /** The name a reader gave the value (`session.data.setValueLabel`), when it has one. */
@@ -101,7 +109,10 @@ export interface ValueEntryWrite {
 export interface ValueCategory {
     /** The value, spelled as the data spells it: the number `3`, not the text `"3"`. */
     readonly value: unknown;
-    /** How many of the layer's elements carry it. */
+    /**
+     * How many of the layer's elements carry it. With `config.workingGraph` set to `"visible"`,
+     * how many of those are shown.
+     */
     readonly count: number;
     /** Whether the binding hides it (`styles.setValueHidden`). */
     readonly hidden: boolean;

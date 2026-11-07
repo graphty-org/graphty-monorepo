@@ -24,10 +24,11 @@ import type { Run } from "../runs";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
-import type { HistoryStepId, SessionEventMap } from "../types";
+import type { HistoryStepId, SessionEventMap, StatisticsScope, WorkingGraphMode } from "../types";
 import type { FilterResult, FilterValueSource, SessionVisibilityApi, TimeStep, TimeWindow } from "../visibility";
 import type { TimeInstants, TimePlayback, TimeResultsPolicy } from "../visibility/filter";
 import { diffCounts, type FilterBytes, type SlideCounts } from "../visibility/slide";
+import { readerScope } from "../working/WorkingGraph";
 import { ageFadeInactive, type AgeFadeInactiveReason, type EdgeAgeFade, normalizedStarts } from "./ageFade";
 import {
     addSteps,
@@ -217,9 +218,11 @@ export interface TimeBinsOptions {
     readonly to?: number;
     /**
      * `"visible"` counts only elements that pass every filter, the window aside, so a bar outside
-     * the window still holds its filtered count. Default `"all"`.
+     * the window still holds its filtered count; `"graph"` counts every element. Default `"graph"`;
+     * with `config.workingGraph` set to `"visible"`, the default is `"visible"`. `"all"` is the old
+     * spelling of `"graph"`.
      */
-    readonly scope?: "all" | "visible";
+    readonly scope?: StatisticsScope;
     /**
      * Count only these elements: the selection's activity over the histogram. With `incident`, the
      * edges at the given nodes count too, so a node selection over edge time shows its edges' activity.
@@ -596,6 +599,8 @@ export interface TimeSources {
      */
     readonly dataRevision?: () => unknown;
     readonly values: FilterValueSource;
+    /** The working-graph mode, which says what a histogram with no scope counts; absent reads `"documented"`. */
+    readonly mode?: () => WorkingGraphMode;
     /** A reader of a whole column, faster than `values` over every row; null when it has none. */
     readonly column?: (kind: "node" | "edge", key: string) => ((row: number) => unknown) | null;
     /** The designation, as `data.knownFields` holds it. */
@@ -2638,7 +2643,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return extentOf(indexIfReady());
         },
 
-        bins(options: TimeBinsOptions = {}): readonly TimeBin[] | null {
+        bins(given: TimeBinsOptions = {}): readonly TimeBin[] | null {
+            const options = { ...given, scope: readerScope(given.scope, "graph", sources.mode?.() ?? "documented") };
             const built = indexIfReady();
             const extent = extentOf(built);
             if (extent === null || built === null) {

@@ -622,7 +622,7 @@ export interface ProjectSources {
 
 /**
  * The node and edge ids every member but the data names, in the graph's order. Read from the
- * snapshot and the store's edge ids, never from `session.data.nodes()` or `edges()`, whose frozen
+ * snapshot and the store's edge ids, never from `session.data.nodes({ scope: "graph" })` or `edges()`, whose frozen
  * records cost most of a save: only the data member pays for them.
  */
 export interface GraphIds {
@@ -691,7 +691,9 @@ export function dataMember(
         const { "_source.loads": _held, ...rest } = record;
         return (loads === undefined ? rest : { ...rest, "_source.loads": loads }) as unknown as T;
     };
-    const nodes = session.data.nodes().map((node) => withLoads(node, session.data.sourcesOf(node.id)));
+    const nodes = session.data
+        .nodes({ scope: "graph" })
+        .map((node) => withLoads(node, session.data.sourcesOf(node.id)));
     const edges = session.data
         .edges()
         .map((edge) => withLoads(edge, session.data.sourcesOf(edge.id, { kind: "edge" })));
@@ -1437,7 +1439,7 @@ async function importInto(
     sources: unknown,
     provenance?: unknown,
 ): Promise<(EdgeId | undefined)[]> {
-    const before = tx.data.edges().length;
+    const before = tx.data.edges({ scope: "graph" }).length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
     await tx.execute({
         op: "data.apply",
@@ -1698,7 +1700,7 @@ async function readProject(
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
     const edgeIds = await importInto(tx, records, source, sources, provenance);
     opening.restored.add("graph");
-    const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
+    const nodeIds = new Set(tx.data.nodes({ scope: "graph" }).map((node) => node.id));
     await readDeclarations(opening, state.declarations);
     await readColumnSettings(opening, state.columns);
 
@@ -2408,7 +2410,8 @@ export function projectOf(
         starts: boolean,
     ): Promise<void> => {
         const data = doc.members.get("graphty-data")?.[0];
-        const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
+        const graph =
+            data === undefined || session.data.nodes({ scope: "graph" }).length > 0 ? undefined : nodeLinkOf(data);
         await restoreAssetsOf(session, doc, problems);
         fresh = false;
         await session.transaction(

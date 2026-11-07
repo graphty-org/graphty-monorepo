@@ -345,6 +345,15 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),
         // A history that records nothing, so an assistant message has no step to continue or undo.
         history: { steps: [], position: 0, nextUndo: null },
+        // Every reader reads the whole graph, and nothing is hidden: what is shown is every node.
+        config: { workingGraph: "documented" },
+        data: {
+            working: () => ({
+                nodeCount: mockNodes.size,
+                edgeCount: mockEdges.size,
+                has: () => true,
+            }),
+        },
         on: () => () => undefined,
     } as unknown as GraphSession;
 

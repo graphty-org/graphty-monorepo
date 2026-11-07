@@ -7,7 +7,7 @@ import { assert, describe, it } from "vitest";
 
 import { assistantSession, ScriptedAssistant, textTurn } from "../helpers/assistant";
 
-const LINE = "Earlier answers and conditions in this conversation were limited to a selection";
+const LINE = "Earlier messages in this conversation were about a selection.";
 
 /**
  * Send messages in turn with `a` and `b` selected, and read the facts each one went with.
@@ -36,7 +36,8 @@ describe("the scope line of a whole-graph message", () => {
 
         assert.notInclude(selection, LINE);
         assert.include(whole, LINE);
-        assert.include(whole, "add no condition the reader did not ask for");
+        // A fact, never an order: a model quotes an order it reads inside <graph-data> to the reader.
+        assert.notMatch(whole, /read again|add no condition/);
         assert.include(again, LINE);
     });
 

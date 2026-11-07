@@ -199,24 +199,26 @@ export function repairSelector(where: string, attributes: readonly string[]): st
 }
 
 /** `results.<run>.<field>`, the run written as an id, an algorithm key (quoted or not) or "latest". */
-const RESULT_REFERENCE = /results\.(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([\w:-]+))\.([A-Za-z_]\w*)/g;
+const RESULT_REFERENCE = /(?<![\w.])results\.(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([\w:-]+))\.([A-Za-z_]\w*)/g;
 
 /**
  * Rewrite each run a selector names by what the model knows -- its algorithm key, quoted or not, or
  * "latest" -- to the run's own path. A run id is not the key (`shortest-path` runs as
  * `shortest_path`), and a hyphen is no identifier character, so the model's natural spelling would
- * not parse. A reference to no run is left for the parser to report.
+ * not parse.
  * @param session - The runs.
  * @param where - The selector.
  * @returns The selector, its run references resolved.
+ * @throws {ToolRefusal} `AI_UNKNOWN_RUN` for a reference to no run.
  */
 function resultReferences(session: Pick<GraphSession, "runs" | "results">, where: string): string {
     return where.replaceAll(
         RESULT_REFERENCE,
         (match: string, double?: string, single?: string, tick?: string, bare?: string, field = ""): string => {
-            const name = double ?? single ?? tick ?? bare ?? "";
+            // A run that is gone (an Undo took it back) refuses: its column would match nothing, quietly.
+            const run = resolveRun(session, double ?? single ?? tick ?? bare ?? "");
             try {
-                return session.results.path(resolveRun(session, name), field);
+                return session.results.path(run, field);
             } catch {
                 return match;
             }

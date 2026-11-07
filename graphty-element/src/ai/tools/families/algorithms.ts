@@ -122,9 +122,25 @@ export function settleRun(run: Run, params: JsonObject): ActionResult {
     return {
         settle: async ({ session, signal }) => {
             await awaitRun(run, signal);
-            return { ...ok(summarizeRun(session, run), params), effects: () => runEffects(session, run) };
+            return {
+                ...ok(summarizeRun(session, run), { ...params, ...matchedFact(session, run) }),
+                effects: () => runEffects(session, run),
+            };
         },
     };
+}
+
+/**
+ * How many elements the layers a run colored match, as a style's result counts them, so a reply
+ * cannot say it colored fewer than it did.
+ * @param session - The session.
+ * @param run - The run.
+ * @returns `matched`, the most any of its layers matches; none when it colored nothing.
+ */
+function matchedFact(session: GraphSession, run: Run): { matched?: number } {
+    const layers = session.runs.layers(run.id)?.present ?? [];
+    const matched = Math.max(0, ...layers.map((id) => session.styles.counts(id).matched));
+    return matched > 0 ? { matched } : {};
 }
 
 /**
@@ -245,7 +261,8 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
         name: "run_algorithm",
         plainName: "Run an algorithm",
         core: true,
-        description: "Runs an algorithm and summarizes it; style true colors by it. Options: catalog describe.",
+        description:
+            "Runs an algorithm and summarizes it; style true colors all nodes by it. Options: catalog describe.",
         example: { name: "shortest-path", options: { source: "a", target: "b" } },
         actions: [
             {

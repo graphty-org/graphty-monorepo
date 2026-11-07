@@ -65,12 +65,21 @@ describe("a run says it painted", () => {
         assert.strictEqual(runEffects(scripted)[0]?.params.painted, 1);
     });
 
+    it("a styled run tells the model how many nodes its color reaches, so a reply cannot say fewer", async () => {
+        const scripted = await assistant();
+        await scripted.say("rank them", [DEGREE]);
+
+        const params = scripted.lastResults().at(-1)?.params ?? {};
+        assert.strictEqual(params.matched, scripted.session.status.counts.nodes);
+    });
+
     it("style: false reports no painting", async () => {
         const scripted = await assistant();
         await scripted.say("rank them", [UNSTYLED]);
 
         assert.notProperty(runEffects(scripted)[0]?.params ?? {}, "painted");
         assert.notProperty(lastData(scripted), "painted");
+        assert.notProperty(scripted.lastResults().at(-1)?.params ?? {}, "matched");
     });
 
     it("a suggestion a hand-written layer suppressed reports no painting", async () => {

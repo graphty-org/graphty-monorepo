@@ -36,7 +36,7 @@ import {
     yedLabelFillsNodeHeight,
 } from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
-import { CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
+import { arrowGap, arrowProportion, CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import {
     parseStyleBlock,
@@ -808,6 +808,11 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         return;
     }
     readColor(g.fill, "color", "opacity", writer, put, at);
+    if (v === "cytoscape") {
+        // Cytoscape's GML reader paints the whole edge with `fill`, its arrowheads too (gml-specimen-arrows-p4)
+        readColor(g.fill, "sourceArrowColor", null, writer, put, at);
+        readColor(g.fill, "targetArrowColor", null, writer, put, at);
+    }
     const width = v === "ogdf" ? first(g, "lineWidth", "width") : g.width;
     const read = width === undefined ? null : canonNumber(width, at("width"));
     put("width", writer.tool === "yed" ? yedDrawnWidth(read) : read);
@@ -855,11 +860,31 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
                 ? cytoscapeArrow(raw, at(property))
                 : canonEnum("arrow", raw, writer.spelling, at(property)),
         );
+        if (writer.vocabulary === "cytoscape") {
+            readCytoscapeArrowGeometry(property, raw, put, at);
+        }
         if (writer.tool === "yed") {
             put(`${property}Length`, yedArrowLength(raw));
             put(`${property}Width`, yedArrowWidth(raw));
         }
     }
+}
+
+/**
+ * The length, width and stand-off of a Cytoscape arrow drawn otherwise than its shape's neutral one, read from its
+ * name or 2.x number as a CYS session's are (a T stands 4 of its lengths off the node), the neutral values left unset.
+ * @param property - `sourceArrow` or `targetArrow`
+ * @param raw - the arrow's name or number
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readCytoscapeArrowGeometry(property: "sourceArrow" | "targetArrow", raw: unknown, put: Put, at: At): void {
+    const length = arrowProportion("length")(raw, at(`${property}Length`));
+    const width = arrowProportion("width")(raw, at(`${property}Width`));
+    const gap = arrowGap(raw, at(`${property}Gap`));
+    put(`${property}Length`, length === 1 ? null : length);
+    put(`${property}Width`, width === 1 ? null : width);
+    put(`${property}Gap`, gap === 0 ? null : gap);
 }
 
 /** gv2gml's `arrow`, from Graphviz's `dir`: `first` is `dir=forward` (the head's arrow), `last` is `dir=back`. */

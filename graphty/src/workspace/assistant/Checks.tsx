@@ -194,21 +194,31 @@ export function ChipRow({ target, kinds, table = false, actions }: Readonly<Chip
                             onClick={() => {
                                 // The table lists the reply's rows; the selection, and with it the
                                 // next message's scope, stays the reader's.
-                                void session?.selection.members(target).then(({ nodes, edges }) => {
-                                    const edgesOnly = nodes.length === 0 && edges.length > 0;
-                                    store.set({
-                                        dockOpen: true,
-                                        dockTab: edgesOnly ? "edges" : "nodes",
-                                        dockRows: edgesOnly
-                                            ? {
-                                                  kind: "edge",
-                                                  scope: {
-                                                      define: { kind: "fixed", nodes: [], edges, reading: "listed" },
-                                                  },
-                                              }
-                                            : { kind: "node", scope: { nodes } },
-                                    });
-                                });
+                                session?.selection.members(target).then(
+                                    ({ nodes, edges }) => {
+                                        const edgesOnly = nodes.length === 0 && edges.length > 0;
+                                        store.set({
+                                            dockOpen: true,
+                                            dockTab: edgesOnly ? "edges" : "nodes",
+                                            dockRows: edgesOnly
+                                                ? {
+                                                      kind: "edge",
+                                                      scope: {
+                                                          define: {
+                                                              kind: "fixed",
+                                                              nodes: [],
+                                                              edges,
+                                                              reading: "listed",
+                                                          },
+                                                      },
+                                                  }
+                                                : { kind: "node", scope: { nodes } },
+                                        });
+                                    },
+                                    () => {
+                                        store.set({ notice: { message: "Rows not shown" } });
+                                    },
+                                );
                             }}
                         >
                             <GLYPHS.table size={14} aria-hidden />

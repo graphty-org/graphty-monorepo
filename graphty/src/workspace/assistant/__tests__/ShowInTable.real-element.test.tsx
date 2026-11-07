@@ -116,6 +116,13 @@ const listed = (dock: HTMLElement, name: string): string[] =>
         .map((row) => row.querySelector("[role=rowheader]")?.textContent)
         .filter((key): key is string => typeof key === "string");
 
+/**
+ * What the page's polite live regions hold now.
+ * @returns their texts.
+ */
+const spoken = (): (string | null)[] =>
+    [...document.querySelectorAll('[aria-live="polite"]')].map((region) => region.textContent);
+
 describe("Show in table from a reply", () => {
     beforeEach(async () => {
         resetSiteConfig();
@@ -148,12 +155,17 @@ describe("Show in table from a reply", () => {
             assert.sameMembers(listed(dock, "Nodes"), ["n0", "n2", "n4"]);
         });
         assert.strictEqual(store.get().dockTab, "nodes");
-        assert.strictEqual(store.get().announcement, "Table: 3 of 6 nodes");
+        // What a screen reader is given: the page's polite live region, not the store.
+        await waitFor(() => {
+            assert.include(spoken(), "Table: 3 of 6 nodes");
+        });
         assert.deepEqual(session.selection.nodes.map(String), ["n1"], "the selection stays the reader's");
         assert.isNull(within(dock).queryByText("Assistant result"), "no pill names the narrowing");
 
         const showAll = within(dock).getByRole("button", { name: "Show all nodes" });
         assert.strictEqual(showAll.textContent, "", "an icon, named for what it does");
+        await userEvent.hover(showAll);
+        await screen.findByRole("tooltip", { name: "Show all nodes" });
         await userEvent.click(showAll);
         await within(dock).findByText("6 nodes");
         await waitFor(() => {

@@ -107,11 +107,19 @@ interface Arrangement {
     readonly rows: Rows | null;
 }
 
-/** The rows of one tab a reply named: its kind, and the scope that lists exactly them. */
+/**
+ * The rows of one tab a reply named: its kind, the scope that lists exactly them, the session whose
+ * ids they are (another project's never narrow the table), and which ask it was (the table's key).
+ */
 interface Rows {
     readonly kind: RecordKind;
     readonly scope: ScopeInput;
+    readonly session: GraphSession;
+    readonly ask: number;
 }
+
+/** Counts the reply asks, so each one draws a fresh table without reading its scope. */
+let asks = 0;
 
 const FIRST_ARRANGEMENT: Arrangement = {
     views: { node: EMPTY_VIEW, edge: EMPTY_VIEW },
@@ -285,16 +293,17 @@ function recordTotal(session: GraphSession, kind: RecordKind, scope: ScopeInput,
 }
 
 /**
- * The tab's count: "41 edges", or "12 of 41 edges" while a filter step, a members chip or a
- * reply's rows narrow it, in the filter chip's words.
+ * The tab's count: "41 edges", or "12 of 41 edges" while a filter step hides some or a reply's
+ * rows narrow it, in the filter chip's words. A members chip names its group and keeps "12 nodes".
  * @param session - the element's session.
  * @param kind - nodes or edges.
  * @param scope - the records showing.
+ * @param ofGraph - whether to count against the whole graph (a reply's rows).
  * @returns the words.
  */
-function recordCount(session: GraphSession, kind: RecordKind, scope: ScopeInput): string {
+function recordCount(session: GraphSession, kind: RecordKind, scope: ScopeInput, ofGraph = false): string {
     const shown = recordTotal(session, kind, scope);
-    const all = scope === "graph" ? shown : recordTotal(session, kind, "graph");
+    const all = scope === "visible" || ofGraph ? recordTotal(session, kind, "graph") : shown;
     return shown === all ? countOf(all, kind) : `${formatCount(shown)} of ${countOf(all, kind)}`;
 }
 
@@ -370,7 +379,7 @@ function tableKey(
     rows: Rows | null,
 ): string {
     const grouped = members === null || kind === "edge" ? kind : `node:${members.run}:${members.name}`;
-    const base = rows === null ? grouped : `${kind}:rows:${JSON.stringify(rows.scope)}`;
+    const base = rows === null ? grouped : `${kind}:rows:${String(rows.ask)}`;
     const narrowed = issue === null ? base : `${base}:issue:${issue}`;
     return shown === null ? narrowed : `${narrowed}:shown:${String(shown)}`;
 }
@@ -586,7 +595,7 @@ function dockScope(session: GraphSession, tab: string, { members, all, rows }: A
     const filtered = shownCount < (kind === "node" ? summary.totalNodes : summary.totalEdges);
     const narrowed: ScopeInput = filtered && !all ? "visible" : "graph";
     // A reply's rows are listed whole, filter or not: they are the answer the reader asked to see.
-    const shownRows = groupRun === undefined && rows?.kind === kind ? rows : null;
+    const shownRows = groupRun === undefined && rows?.kind === kind && rows.session === session ? rows : null;
     const membersScope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
     const scope = shownRows === null ? membersScope : shownRows.scope;
     return { groups, hasEdges, active, kind, groupRun, shownMembers, shownRows, shownCount, filtered, scope };
@@ -700,7 +709,7 @@ function tabValuesOf(hasEdges: boolean, groups: readonly { readonly id: string }
 
 /**
  * Show rows from an issue list outside the table: narrows the asked-for tab to the issue's rows,
- * then forgets the ask.
+ * then forgets the ask. A reply's rows go, so one narrowing stands.
  * @param store - the chrome store, which holds the ask
  * @param setArrangement - sets the dock's arrangement
  */
@@ -713,6 +722,8 @@ function useAskedIssue(store: WorkspaceStore, setArrangement: React.Dispatch<Rea
         const askedKind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
         setArrangement((now) => ({
             ...now,
+            // A reply's rows go, so one narrowing stands.
+            rows: null,
             views: { ...now.views, [askedKind]: { ...now.views[askedKind], issue: issueAsked } },
         }));
         store.set({ dockIssue: null });
@@ -736,10 +747,11 @@ function useAskedRows(
         if (rowsAsked === null || session === null) {
             return;
         }
-        setArrangement((now) => ({ ...now, members: null, rows: rowsAsked }));
+        asks += 1;
+        setArrangement((now) => ({ ...now, members: null, rows: { ...rowsAsked, session, ask: asks } }));
         store.set({
             dockRows: null,
-            announcement: `Table: ${recordCount(session, rowsAsked.kind, rowsAsked.scope)}`,
+            announcement: `Table: ${recordCount(session, rowsAsked.kind, rowsAsked.scope, true)}`,
         });
     }, [rowsAsked, session, store, setArrangement]);
 }
@@ -932,7 +944,10 @@ export function TableDock(): React.JSX.Element {
             actions: actionsFor(column),
         });
 
-    const count = groupRun === undefined ? recordCount(session, kind, scope) : countOf(groupRun.groupCount, "group");
+    const count =
+        groupRun === undefined
+            ? recordCount(session, kind, scope, shownRows !== null)
+            : countOf(groupRun.groupCount, "group");
 
     // Every tab names a rendered tab panel (aria-controls); the showing one holds the table.
     const tabValues = tabValuesOf(hasEdges, groups);

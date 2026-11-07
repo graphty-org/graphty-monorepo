@@ -785,12 +785,9 @@ function planPorts(
     const referenced = new Map<number, Set<string>>();
     edgePorts((node, port) => {
         if (port !== null) {
-            let names = referenced.get(node);
-            if (names === undefined) {
-                names = new Set();
-                referenced.set(node, names);
-            }
+            const names = referenced.get(node) ?? new Set<string>();
             names.add(port);
+            referenced.set(node, names);
         }
     });
     const keys = new Map<string, { id: string; type: string }>();
@@ -803,21 +800,7 @@ function planPorts(
     let dropped = 0;
     for (let r = 0; r < column.length; r++) {
         for (const entry of portEntries(column, r)) {
-            if (typeof entry.name !== "string") {
-                dropped++;
-                continue;
-            }
-            for (const [name, value] of Object.entries(entry)) {
-                if (name === "name") {
-                    continue;
-                }
-                const type = types[name];
-                if (typeof type !== "string" || treeProblem(value) !== null) {
-                    dropped++;
-                } else if (!keys.has(name)) {
-                    keys.set(name, { id: keyIds.next(null), type });
-                }
-            }
+            dropped += planPortEntry(entry, types, keys, keyIds);
         }
     }
     if (dropped > 0) {
@@ -829,6 +812,38 @@ function planPorts(
         );
     }
     return { column, keys, referenced };
+}
+
+/**
+ * Give a key to each value of a port entry that can be written, and count the values that cannot.
+ * @param entry - the port entry
+ * @param types - the yFiles type of each port key, by name
+ * @param keys - the port keys so far, added to
+ * @param keyIds - the key id allocator
+ * @returns how many of its values are not written (1 for an entry with no name)
+ */
+function planPortEntry(
+    entry: Record<string, unknown>,
+    types: Record<string, unknown>,
+    keys: Map<string, { id: string; type: string }>,
+    keyIds: KeyIds,
+): number {
+    if (typeof entry.name !== "string") {
+        return 1;
+    }
+    let dropped = 0;
+    for (const [name, value] of Object.entries(entry)) {
+        const type = types[name];
+        if (name === "name") {
+            continue;
+        }
+        if (typeof type !== "string" || treeProblem(value) !== null) {
+            dropped++;
+        } else if (!keys.has(name)) {
+            keys.set(name, { id: keyIds.next(null), type });
+        }
+    }
+    return dropped;
 }
 
 /**
@@ -849,6 +864,33 @@ function portEntries(column: Column, row: number): Record<string, unknown>[] {
 }
 
 /**
+ * One `<port>` element with the data of its entry that has a key.
+ * @param ports - the ports plan
+ * @param name - the port name
+ * @param entry - the port entry
+ * @param indent - the indentation of the port element
+ * @param step - one indentation step
+ * @returns the element text
+ */
+function portElement(
+    ports: PortsPlan,
+    name: string,
+    entry: Record<string, unknown>,
+    indent: string,
+    step: string,
+): string {
+    const data: string[] = [];
+    for (const [field, value] of Object.entries(entry)) {
+        const key = ports.keys.get(field);
+        if (key !== undefined && treeProblem(value) === null) {
+            writeTreeData(key.id, value, indent + step, data);
+        }
+    }
+    const open = `\n${indent}<port name="${escapeXmlAttribute(name)}"`;
+    return data.length === 0 ? `${open}/>` : `${open}>${data.join("")}\n${indent}</port>`;
+}
+
+/**
  * Write a node's `<port>` elements: those of its ports column entries with their yFiles data, then a bare one for each
  * other port name its edges reference.
  * @param ports - the ports plan
@@ -859,20 +901,10 @@ function portEntries(column: Column, row: number): Record<string, unknown>[] {
  */
 function writePorts(ports: PortsPlan, u: number, indent: string, step: string, out: string[]): void {
     const written = new Set<string>();
-    if (ports.column !== null) {
-        for (const entry of portEntries(ports.column, u)) {
-            if (typeof entry.name !== "string") {
-                continue;
-            }
-            const data: string[] = [];
-            for (const [name, value] of Object.entries(entry)) {
-                const key = ports.keys.get(name);
-                if (key !== undefined && treeProblem(value) === null) {
-                    writeTreeData(key.id, value, indent + step, data);
-                }
-            }
-            const open = `\n${indent}<port name="${escapeXmlAttribute(entry.name)}"`;
-            out.push(data.length === 0 ? `${open}/>` : `${open}>${data.join("")}\n${indent}</port>`);
+    const entries = ports.column === null ? [] : portEntries(ports.column, u);
+    for (const entry of entries) {
+        if (typeof entry.name === "string") {
+            out.push(portElement(ports, entry.name, entry, indent, step));
             written.add(entry.name);
         }
     }

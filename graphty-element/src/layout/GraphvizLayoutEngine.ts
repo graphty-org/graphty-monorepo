@@ -22,6 +22,7 @@ import {
     edgeLabelPlaces,
     type EdgeLabelsAt,
     edgeLabelsLeftOut,
+    edgeLineEnds,
     fromJson,
     nodeXlabelPlaces,
 } from "./graphviz/fromJson";
@@ -239,6 +240,7 @@ async function computeWith(
 ): Promise<{
     positions: F32;
     bends: ReadonlyMap<number, string>;
+    ends: ReadonlyMap<number, NonNullable<EdgePosition["lineEnds"]>>;
     labels: ReadonlyMap<number, EdgeLabelsAt>;
     xlabels: ReadonlyMap<number, readonly [number, number] | null>;
     margins: ReadonlyMap<number, GroupMargins>;
@@ -248,6 +250,7 @@ async function computeWith(
         return {
             positions: new Float32Array(0),
             bends: new Map(),
+            ends: new Map(),
             labels: new Map(),
             xlabels: new Map(),
             margins: new Map(),
@@ -301,6 +304,7 @@ async function computeWith(
     return {
         positions: fromJson(reply.json, n).map((value) => value * scale),
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
+        ends: edgeLineEnds(reply.json, structure.edges ?? []),
         labels: edgeLabelsAt(reply.json, structure.edges ?? []),
         xlabels: new Map(
             [...nodeXlabelPlaces(reply.json)].map(([row, place]) => [
@@ -492,6 +496,8 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         protected readonly options: Readonly<Record<string, unknown>>;
         /** The route Graphviz laid each edge along, as bends, for the edges it did not draw straight. */
         private routes = new Map<Edge, readonly number[]>();
+        /** Where Graphviz starts and ends each edge's line, for nodes Graphviz shaped as the element draws them. */
+        private lineEnds = new Map<Edge, NonNullable<EdgePosition["lineEnds"]>>();
         /** Where Graphviz put each labelled edge's label and end labels, as `along, across` its two ends. */
         private labelPlaces = new Map<Edge, EdgeLabelsAt>();
         /** Where Graphviz put each node's external label, right and down of its center in scene units, by node id as text. */
@@ -526,7 +532,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 false,
                 this.options.nodeSize === "label",
             );
-            const { positions, bends, labels, xlabels, margins } = await computeWith(
+            const { positions, bends, ends, labels, xlabels, margins } = await computeWith(
                 engine,
                 input,
                 this.options,
@@ -539,6 +545,12 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 // label and the edges it routes inside it
                 laidGroupMargins.set(this, margins);
                 this.routes = routesOf(bends, structure.edgeOf);
+                // only a node Graphviz shaped from its own attributes has the outline Graphviz ended the line on; a
+                // node handed over at its drawn size goes as a circle or a box, whatever the element draws
+                this.lineEnds =
+                    this.options.nodeSize === "label"
+                        ? new Map([...ends].map(([k, at]) => [structure.edgeOf[k], at]))
+                        : new Map();
                 this.labelPlaces = new Map([...labels].map(([k, place]) => [structure.edgeOf[k], place]));
                 this.xlabelPlaces = new Map(
                     [...xlabels].map(([row, place]) => [String(input.stored.ids.idOf(row)), place]),
@@ -574,7 +586,13 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         override getEdgePosition(e: Edge): EdgePosition {
             const ends = super.getEdgePosition(e);
             const bends = this.routes.get(e);
-            return { ...ends, ...(bends === undefined ? {} : { bends }), ...this.labelPlaces.get(e) };
+            const lineEnds = this.lineEnds.get(e);
+            return {
+                ...ends,
+                ...(bends === undefined ? {} : { bends }),
+                ...(lineEnds === undefined ? {} : { lineEnds }),
+                ...this.labelPlaces.get(e),
+            };
         }
     };
 }

@@ -98,6 +98,8 @@ export function parsePort(text: string | undefined): [number, number] | null {
  * @param route.srcPort - The source port, or null.
  * @param route.dstPort - The target port, or null.
  * @param route.loop - Whether the edge is a self-loop, whose bends are placed around its node.
+ * @param route.ends - Whether the first and last bends are where the line starts and ends (the layout's own line
+ *     ends): then no node center is added.
  * @param srcHalf - The source node's half extents.
  * @param dstHalf - The target node's half extents.
  * @returns The points, flat x, y, z, both ends included.
@@ -110,6 +112,7 @@ export function fileRoute(
         readonly srcPort: readonly number[] | null;
         readonly dstPort: readonly number[] | null;
         readonly loop: boolean;
+        readonly ends?: boolean;
     },
     srcHalf: Xyz,
     dstHalf: Xyz,
@@ -125,6 +128,10 @@ export function fileRoute(
     let mid: number[] = [];
     if (route.bends !== null) {
         mid = route.loop ? around(src, srcHalf, route.bends) : bendPoints(src, dst, route.bends);
+    }
+
+    if (route.ends === true) {
+        return mid;
     }
 
     return [

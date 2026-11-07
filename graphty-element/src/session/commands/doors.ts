@@ -1994,6 +1994,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getInterceptPoints: READ,
             trimInput: READ,
             supportEdge: READ,
+            isPulled: READ,
         },
     },
     {
@@ -2422,6 +2423,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     {
         name: "NodeBatches",
         file: "src/meshes/NodeBatch.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "PulledLineBatch",
+        file: "src/meshes/PulledLineBatch.ts",
         half: "renderer",
         whole: RENDER,
     },

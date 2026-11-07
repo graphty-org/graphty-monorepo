@@ -514,3 +514,47 @@ export function bpmnPicture(
         reach,
     };
 }
+
+/**
+ * A number as SVG text, to a thousandth.
+ * @param v - the number
+ * @returns the text
+ */
+function svgNumber(v: number): string {
+    return String(Math.round(v * 1000) / 1000);
+}
+
+/**
+ * The gloss yEd Live draws over a ShinyPlateNodeStyle: a white shape over its upper left, a corner of `radius` less a
+ * quarter of it, opaque at its top left and nearly clear eight tenths of the way across, as yEd Live 8.5.16 draws it
+ * (`yed-live-graphml-specimen-node-shapes-p2`): it reaches 0.65 of the node's width and 0.8 of its height, a quarter of
+ * the radius in from both, and its lower right side curves through its middle.
+ * @param width - the node's width
+ * @param height - the node's height
+ * @param radius - its corner radius
+ * @param border - its border's width
+ * @returns the picture URL
+ */
+export function shinyPlateGloss(width: number, height: number, radius: number, border: number): string {
+    const inset = radius / 4;
+    const c = radius - inset;
+    const [x0, y0, x1, y1] = [inset, inset, 0.65 * width - inset, 0.8 * height - inset];
+    const p = (x: number, y: number): string => `${svgNumber(x)},${svgNumber(y)}`;
+    const d = [
+        `M${p(x0, y0 + c)}`,
+        `Q${p(x0, y0)} ${p(x0 + c, y0)}`,
+        `L${p(x1 - c, y0)}`,
+        `Q${p(x1, y0)} ${p(x1, y0 + c)}`,
+        `Q${p(x1, y0 + 2 * c)} ${p((x0 + x1) / 2 + c, (y0 + y1) / 2 + c)}`,
+        `Q${p(x0 + 2 * c, y1)} ${p(x0 + c, y1)}`,
+        `Q${p(x0, y1)} ${p(x0, y1 - c)}Z`,
+    ].join("");
+    // ponytail: the ramp runs along the gloss box's diagonal, which is yEd Live's own with no radius; with one, its
+    // direction differs by a few degrees
+    const across = svgNumber(x1 > x0 ? (y1 - y0) / (x1 - x0) : 1);
+    const ramp =
+        `<linearGradient id="g" x1="0" y1="0" x2="${across}" y2="1">` +
+        '<stop stop-color="white" stop-opacity="0.859" offset="0"/>' +
+        '<stop stop-color="white" stop-opacity="0.078" offset="0.8"/></linearGradient>';
+    return svgPicture(width, height, border, `<defs>${ramp}</defs><path fill="url(#g)" d="${d}"/>`);
+}

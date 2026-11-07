@@ -238,6 +238,8 @@ interface NodeInternals {
     decorationPieces: readonly NodeDecorationPiece[];
     tableTexts: readonly unknown[] | null;
     shadow: readonly AbstractMesh[];
+    underlay: AbstractMesh | null;
+    overlay: AbstractMesh | null;
 }
 
 /** A piece a node draws over its face, on screen: a body piece with its fill. */
@@ -752,6 +754,8 @@ export interface DrawnNode {
     pieces: { kind: "shape" | "image"; box: ScreenBox; fill?: string }[];
     /** The shadow drawn beneath the node (`shadow`), out to the edge of its soft edge, its screen box; absent for none. */
     shadow?: ScreenBox;
+    /** The filled shapes drawn beneath and over the node (`underlay`, `overlay`), each its screen box and color. */
+    halos?: { box: ScreenBox; fill: string }[];
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
     picture?: ScreenBox;
     /** A picture graph-io drew for what a program draws piece by piece over a node: its box and its URL. */
@@ -1262,11 +1266,39 @@ function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx
  */
 function readShadow(node: Node, p: Projector): ScreenBox | null {
     const [outer] = (node as unknown as NodeInternals).shadow;
-    if (outer === undefined || outer.isDisposed() || !outer.isEnabled()) {
+    return outer === undefined ? null : meshBox(outer, p);
+}
+
+/**
+ * The filled shapes drawn beneath (`underlay`) and over (`overlay`) a node, each its screen box and color: shapes of
+ * their own round the node, as Cytoscape.js draws them.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the shapes, none for a node that draws neither
+ */
+function readHalos(node: Node, p: Projector): { box: ScreenBox; fill: string }[] {
+    const { underlay, overlay } = node as unknown as NodeInternals;
+    return [underlay, overlay].flatMap((mesh) => {
+        const box = mesh === null ? null : meshBox(mesh, p);
+        const material = mesh instanceof InstancedMesh ? mesh.sourceMesh.material : null;
+        return box === null || !(material instanceof StandardMaterial)
+            ? []
+            : [{ box, fill: hex(material.emissiveColor) }];
+    });
+}
+
+/**
+ * The screen box of a flat mesh drawn beside a node, from its world bounds in the plane.
+ * @param mesh - the mesh
+ * @param p - the projector
+ * @returns the box, or null for a mesh not drawn
+ */
+function meshBox(mesh: AbstractMesh, p: Projector): ScreenBox | null {
+    if (mesh.isDisposed() || !mesh.isEnabled()) {
         return null;
     }
-    outer.computeWorldMatrix(true);
-    const { minimumWorld: min, maximumWorld: max } = outer.getBoundingInfo().boundingBox;
+    mesh.computeWorldMatrix(true);
+    const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
     const corners = [
         p.point(new Vector3(min.x, min.y, min.z)),
         p.point(new Vector3(max.x, min.y, min.z)),
@@ -1466,6 +1498,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
             : {}),
         ...(figure === undefined ? {} : { figure }),
         ...(shadow === null ? {} : { shadow }),
+        halos: readHalos(node, p),
         ...(inner === null || inner.outline || own !== null || outer !== null ? {} : { faceLine: inner.box }),
         pieces: pieces
             .filter((piece) => piece !== picture && piece.kind !== "body")
@@ -1965,6 +1998,8 @@ export function readDrawn(graph: Graph): DrawnGraph {
     const pieces = [
         ...shown.flatMap((n) => n.pieces),
         ...shown.flatMap((n) => (n.shadow === undefined ? [] : [{ kind: "image" as const, box: n.shadow }])),
+        // and so are the shapes it draws beneath and over itself (Cytoscape.js's underlay and overlay)
+        ...shown.flatMap((n) => (n.halos ?? []).map((h) => ({ kind: "shape" as const, ...h }))),
     ];
     return {
         nodes,

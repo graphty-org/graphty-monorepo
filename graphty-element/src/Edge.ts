@@ -1226,13 +1226,21 @@ export class Edge {
             !bent &&
             lays &&
             stored === null &&
-            (laid !== undefined || laidEnds !== undefined) &&
+            laid !== undefined &&
             this.srcNode !== this.dstNode &&
             this.placeBent(batch, src, dst, Edge.laidRoute(laid ?? [], laidEnds));
         const route = !bent && !followsLayout && lays ? this.bundleRoute(src, dst) : null;
         this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
-            const { srcPoint, dstPoint } = this.transformArrowCap();
+            // a straight line the layout ends itself runs between its ends, as a laid route does
+            const ends =
+                laidEnds !== undefined && stored === null && this.srcNode !== this.dstNode
+                    ? bendPoints(src, dst, [...laidEnds.source, ...laidEnds.target])
+                    : null;
+            const { srcPoint, dstPoint } =
+                ends === null
+                    ? this.transformArrowCap()
+                    : this.placeLaidEnds(Vector3.FromArray(ends, 0), Vector3.FromArray(ends, 3));
             // A wave with a period of its own starts where the line leaves its node, as Cytoscape desktop
             // lays its strokes from the node's outline, so its turns fall where the program's do.
             const surface =
@@ -3790,6 +3798,24 @@ export class Edge {
 
             this.haloBands.push({ kind, batch, slots: [batch.acquire(this)] });
         }
+    }
+
+    /**
+     * Place a straight line's arrow caps between the ends its layout gave it, as {@link transformArrowCap} places them
+     * between the node outlines.
+     * @param start - Where the line starts.
+     * @param end - Where it ends: the arrow head's tip.
+     * @returns The line's ends, the end stopping short of the arrow head.
+     */
+    private placeLaidEnds(start: Vector3, end: Vector3): EdgeLine {
+        const direction = end.subtract(start).normalize();
+        if (this.arrowCap) {
+            this.placeArrowHead(this.arrowCap, end, direction, [end, start]);
+        }
+
+        const srcPoint = this.placeArrowTail(start, end, direction, [start, end]);
+        this.placeMidCaps([start, end]);
+        return { srcPoint, dstPoint: this.lineEndBefore(start, end) };
     }
 
     /**

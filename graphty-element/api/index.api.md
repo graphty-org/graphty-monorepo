@@ -1206,6 +1206,10 @@ export interface EdgePosition {
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
+    lineEnds?: {
+        readonly source: readonly [along: number, across: number];
+        readonly target: readonly [along: number, across: number];
+    };
     // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];

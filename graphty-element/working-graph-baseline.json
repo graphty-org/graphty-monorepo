@@ -1,0 +1,127 @@
+{
+    "wholeGraph": [
+        {
+            "method": "GraphSession.recipe",
+            "reason": "A recipe rebuilds the whole project, so it names the whole graph."
+        },
+        {
+            "method": "GraphSession.snapshot",
+            "reason": "The snapshot of the whole graph, by name; data.working().snapshot() is what is shown."
+        },
+        {
+            "method": "ProjectApi.save",
+            "reason": "The project file saves the whole graph; a filter hides, it never deletes."
+        },
+        {
+            "method": "ScopeApi.checkStep",
+            "reason": "A filter step is checked against the whole graph: a filter's own conditions read everything."
+        },
+        {
+            "method": "ScopeApi.count",
+            "reason": "Resolves the scope it is named: \"visible\" is what is shown, and a base selector ({ where }, { nodes }) is matched over the whole graph, as scope.histogram's is (design section 5)."
+        },
+        {
+            "method": "ScopeApi.histogram",
+            "reason": "With no within, a base selector's values over the whole graph (design section 5); within narrows it."
+        },
+        {
+            "method": "ScopeApi.resolve",
+            "reason": "Resolves the scope it is named: \"visible\" is what is shown, and a base selector ({ where }, { nodes }) is matched over the whole graph, as scope.histogram's is (design section 5)."
+        },
+        {
+            "method": "ScopeApi.watchSteps",
+            "reason": "A filter's steps are counted over the whole graph: a filter's own conditions read everything."
+        },
+        {
+            "method": "SessionDataApi.snapshot",
+            "reason": "The snapshot of the whole graph, by name; data.working().snapshot() is what is shown."
+        },
+        {
+            "method": "SessionDataApi.undirected",
+            "reason": "Derives the undirected form of the snapshot it is handed, by default the whole store snapshot."
+        },
+        {
+            "method": "SessionGraphStore.getSnapshot",
+            "reason": "The store's own snapshot: the source of truth the working graph is derived from."
+        },
+        {
+            "method": "StylesApi.encode",
+            "reason": "An automatic domain stays the whole column (owner decision); the additive domainFrom option is recorded on #6201."
+        },
+        {
+            "method": "StylesApi.layerGroups",
+            "reason": "Makes one rule per value of the whole column, so a value a filter hides keeps its look when it is shown again."
+        },
+        {
+            "method": "StylesApi.preview",
+            "reason": "A rule's preview bins the whole column, as the rule paints the whole graph (design section 4)."
+        },
+        {
+            "method": "StylesApi.proposeEncoding",
+            "reason": "An automatic domain stays the whole column (owner decision); the additive domainFrom option is recorded on #6201."
+        },
+        {
+            "method": "StylesApi.sequence",
+            "reason": "Makes one rule per value of the whole column, so a value a filter hides keeps its look when it is shown again."
+        },
+        {
+            "method": "TimeApi.extent",
+            "reason": "The timeline spans the whole graph, so a window can move to any time a hidden element holds."
+        },
+        {
+            "method": "TimeApi.window",
+            "reason": "A window's result counts the whole graph and what it leaves shown, both by name."
+        },
+        {
+            "method": "VisibilityApi.addCondition",
+            "reason": "A filter's result counts the whole graph and what it leaves shown, both by name."
+        },
+        {
+            "method": "VisibilityApi.conditionCounts",
+            "reason": "A filter's own conditions match over the whole graph: a condition must find what it would hide."
+        },
+        {
+            "method": "VisibilityApi.edgeMask",
+            "reason": "The filter's own mask over every row of the whole graph; a row a filter hides reads 0."
+        },
+        {
+            "method": "VisibilityApi.nodeMask",
+            "reason": "The filter's own mask over every row of the whole graph; a row a filter hides reads 0."
+        },
+        {
+            "method": "VisibilityApi.removeCondition",
+            "reason": "A filter's result counts the whole graph and what it leaves shown, both by name."
+        },
+        {
+            "method": "VisibilityApi.set",
+            "reason": "A filter's result counts the whole graph and what it leaves shown, both by name."
+        },
+        {
+            "method": "VisibilityApi.setConditions",
+            "reason": "A filter's result counts the whole graph and what it leaves shown, both by name."
+        },
+        {
+            "method": "VisibilityApi.setSteps",
+            "reason": "A filter's result counts the whole graph and what it leaves shown, both by name."
+        },
+        {
+            "method": "VisibilityApi.setWindow",
+            "reason": "A filter's result counts the whole graph and what it leaves shown, both by name."
+        },
+        {
+            "method": "VisibilityApi.summaryOf",
+            "reason": "Says how much of a source the filter hides, so it counts the whole source."
+        },
+        {
+            "method": "VisibilityApi.updateCondition",
+            "reason": "A filter's result counts the whole graph and what it leaves shown, both by name."
+        }
+    ],
+    "notYetWorking": [
+        {
+            "method": "GraphSession.recommendLayout",
+            "reason": "Compares the whole graph's statistics with its placed-node count; it must read the layout's resolved set (its scope within the working graph), and both move together (design section 7).",
+            "issue": "#6201"
+        }
+    ]
+}

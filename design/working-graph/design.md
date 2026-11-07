@@ -484,6 +484,26 @@ mask. That is acceptable because:
 2. **A ratchet,** `tools/check-working-graph.mjs`, over `graphty-element/working-graph-baseline.json`
    of methods not yet passing, each with a reason and `Refs #6201`. It may only shrink (compared
    with the merge base) and is empty when this work is done.
+
+   Built. The test walks the session's public API from `GraphSession` through every namespace
+   property in the reports (its methods and plain properties, such as `selection.nodes`), so no
+   hand list of readers exists. A probe runs on the graph with a filter hiding one node and on the
+   same graph without it: `working` and `writer` probes answer the same on both (a scoped one's
+   `scope: "graph"` answer differs), every such probe must also change when the node is shown, so
+   none passes vacuously, and `whole` probes answer the same in both modes and differ from the
+   graph without the node. The baseline holds two lists: `wholeGraph`, each reader that reads the
+   whole graph by name with its reason (probed where a probe is meaningful), and `notYetWorking`,
+   each reader still to fix (its probe must still fail, so a fixed reader cannot stay listed). The
+   ratchet fails when `notYetWorking` gains a row, and when `wholeGraph` gains one that no commit of
+   the branch reviews with a `Whole-Graph-Reader: <Owner.method> -- <why>` trailer. It runs in
+   `check:quick` and the CI Checks job (`pnpm run check:working-graph`). Found by it:
+   `recommendLayout` (already recorded above) is the one `notYetWorking` row; `scope.count` and
+   `scope.resolve` of a base selector (`{ where }`) match over the whole graph, like
+   `scope.histogram`, and are `wholeGraph` rows. `styles.agreement` over a base selector does the
+   same, through the scope it resolves; over `"selection"` it reads what is shown, which its probe
+   checks. The layout run is checked by the browser tests, since a session in Node lays
+   out nothing; the element's own readers outside the session (Fit, `zoomToNodes`) are not
+   enumerated.
 3. **App lint,** `graphty/eslint-rules/no-scope-visible.js`: the app may not pass
    `scope: "visible"`, intersect ids with `visibility.nodes`, or call a scoped reader with no scope
    (an unscoped call would silently change meaning with the mode).

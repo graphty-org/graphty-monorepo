@@ -1352,6 +1352,14 @@ jobs:
             - name: No special style layers
               run: pnpm run check:special-layers
 
+            # Session readers read the working graph (#6201): the wholeGraph and notYetWorking lists in
+            # graphty-element/working-graph-baseline.json may not grow against the merge base (a new
+            # wholeGraph row needs a "Whole-Graph-Reader: <method> -- <why>" commit trailer). The contract
+            # test test/contracts/working-graph-readers.test.ts fails on a stale row. The same check runs
+            # in tools/check-quick.sh.
+            - name: Session readers read the working graph
+              run: pnpm run check:working-graph
+
             # No pile of images committed outside the folders that hold them (more than 20 new images or
             # 20 MB against the base; an `Images-Approved: <reason>` trailer passes a deliberate addition).
             # The same check runs in tools/prepush-source-checks.sh.

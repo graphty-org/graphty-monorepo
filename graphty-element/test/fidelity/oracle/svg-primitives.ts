@@ -15,6 +15,8 @@ import {
     dashAsDrawn,
     dashClassOf,
     dented,
+    type FramedBand,
+    framedBand,
     isLettering,
     outlinePaintedAsFill,
     PAINTED_OUTLINE,
@@ -27,12 +29,19 @@ import {
     type PText,
     rampAngleOnScreen,
     solidOuter,
+    spacedAlong,
 } from "./primitives";
 
 const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "polygon", "path"]);
 const CLOSED = new Set(["rect", "circle", "ellipse", "polygon"]);
 /** Points an outline is sampled to, by arc length. */
 const SAMPLES = 48;
+/**
+ * The widest, in the drawing's own units, a band yEd draws round a framed edge is read to be: its line's width. A thin
+ * node or label box (yEd's 17 high labels and 30 high nodes, graphml-synthetic-nodes, the yEd specimen sheets) is a
+ * closed outline as long and straight as a band, told apart only by how wide it is.
+ */
+const FRAMED_WIDEST = 10;
 /** Points a curved figure's outline is sampled to (`Prim.fine`): a few to a pixel round a node. */
 const FIGURE_SAMPLES = 512;
 /** Points an open path (an edge's line) is sampled to, by arc length: enough for a route's wave or bend. */
@@ -1203,6 +1212,74 @@ function panelFillOf(el: Element, root: Element, opacities: Map<Element, number>
 }
 
 /** The SVG primitives of a document, in document order. */
+/**
+ * What a framed edge draws, as the primitives an edge drawn in strokes gives: its line through the band's middle, in
+ * the paint of the band's inside, as wide as the inside, with the outline as a band along it (`lineOutline`) as wide
+ * as the band and its outline together; where the inside is not painted, the line is that band. Each arrowhead is a
+ * closed shape, filled as the band is, outlined as it is.
+ * @param band - the band read off the outline
+ * @param stroke - the outline's stroke
+ * @param inside - the fill painted inside the outline, or null for none
+ * @param index - the outline's document index, the line's
+ * @param next - takes the next document index, for each further primitive
+ * @param hint - what the markup says the outline belongs to
+ * @returns the primitives, in drawing order
+ */
+function framedEdgePrims(
+    band: FramedBand,
+    stroke: PStroke,
+    inside: PFill | null,
+    index: number,
+    next: () => number,
+    hint: Prim["hint"],
+): Prim[] {
+    const whole = { ...stroke, width: r3(band.width + stroke.width) };
+    const painted = inside !== null && band.width > stroke.width;
+    const out: Prim[] = [
+        {
+            index,
+            tag: "path",
+            kind: "path",
+            box: boxOfPoints(band.route),
+            points: band.route.map(([x, y]): Pt => [x, y]),
+            closed: false,
+            corners: 0,
+            fill: null,
+            stroke: painted
+                ? {
+                      color: inside.color,
+                      opacity: inside.opacity,
+                      width: r3(band.width - stroke.width),
+                      dash: null,
+                      dashClass: "solid",
+                  }
+                : whole,
+            text: null,
+            markers: { start: false, end: false },
+            hint,
+            ...(painted ? { lineOutline: { color: whole.color, opacity: whole.opacity, width: whole.width } } : {}),
+        },
+    ];
+    for (const head of band.heads) {
+        const points = spacedAlong([...head.outline, head.outline[0]], SAMPLES);
+        out.push({
+            index: next(),
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(points),
+            points,
+            closed: true,
+            corners: head.outline.length,
+            fill: inside,
+            stroke,
+            text: null,
+            markers: { start: false, end: false },
+            hint,
+        });
+    }
+    return out;
+}
+
 export interface SvgPrimitives {
     width: number;
     height: number;
@@ -1245,6 +1322,12 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
         const prims: Prim[] = [];
         // the `d` of the last filled path read, whose outline a stroke-only twin may draw
         let lastFilledPath = "";
+        // the primitive read from that filled path, which a framed edge's outline drawn next takes for its band's inside
+        let lastFilledPrim: Prim | null = null;
+        // yEd's own writer, ySVG, says so in a comment at the root: only yEd draws a framed edge
+        const ySvg = [...root.childNodes].some(
+            (n) => n.nodeType === Node.COMMENT_NODE && n.nodeValue?.includes("ySVG"),
+        );
         // the geometry read last (a path's `d`, matrix and sample count) and its points
         let lastGeometry: { key: string; points: Pt[] } = { key: "", points: [] };
         const opacities = new Map<Element, number>();
@@ -1360,6 +1443,31 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             const d = tag === "path" ? (el.getAttribute("d") ?? "") : "";
             const outlineOfFill = fill === null && d !== "" && d === lastFilledPath;
             lastFilledPath = fill !== null ? d : lastFilledPath;
+            // yEd's framed edge (com.yworks.edge.framed): one closed outline round a band as wide as the edge's line,
+            // its arrowheads part of the outline, drawn over a fill of the same outline just before it
+            // (graphml-galaxy-lcms-workflow) or alone (graphml-synthetic-edges): the edge's line, its outline and its
+            // arrowheads, not a shape
+            const framed =
+                ySvg &&
+                tag === "path" &&
+                fill === null &&
+                stroke !== null &&
+                d.split(/[Mm]/).length === 2 &&
+                /[Zz]\s*$/.test(d)
+                    ? framedBand(straightPathVertices(d) ?? [], PATH_SAMPLES)
+                    : null;
+            if (framed !== null && framed.width <= FRAMED_WIDEST && stroke !== null) {
+                const twin = outlineOfFill && lastFilledPrim !== null && prims.at(-1) === lastFilledPrim;
+                const inside = twin ? (prims.pop()?.fill ?? null) : null;
+                const onScreen = (pts: readonly Pt[]): Pt[] => pts.map(([x, y]) => at(m, x, y));
+                const band = {
+                    route: onScreen(framed.route),
+                    width: framed.width * scale,
+                    heads: framed.heads.map((h) => ({ ...h, outline: onScreen(h.outline) })),
+                };
+                prims.push(...framedEdgePrims(band, stroke, inside, i, () => index++, hintOf(el)));
+                continue;
+            }
             const open =
                 fill === null && !outlineOfFill && !CLOSED.has(tag) && !/[Zz]\s*$/.test(el.getAttribute("d") ?? "");
             // a path drawn again at once with the same geometry (vis-network's outline over its fill) is not sampled
@@ -1444,7 +1552,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                     ? subpathsOf(el, m)
                     : null;
             const panel = panelFillOf(el, root, opacities, m);
-            prims.push({
+            const prim: Prim = {
                 index: i,
                 tag: painted === null ? tag : PAINTED_OUTLINE,
                 kind: closed ? "shape" : "path",
@@ -1469,7 +1577,11 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 ...(lettering ? { lettering: true as const } : {}),
                 ...(panel === null ? {} : { panel }),
                 ...(cut === null ? {} : { uncut }),
-            });
+            };
+            prims.push(prim);
+            if (fill !== null && d !== "") {
+                lastFilledPrim = prim;
+            }
         }
         return { width: r3(rect.width), height: r3(rect.height), prims: withoutHiddenCuts(prims) };
     } finally {

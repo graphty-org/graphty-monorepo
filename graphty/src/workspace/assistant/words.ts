@@ -788,6 +788,8 @@ export function voiceWords(reason: string | number | undefined): string {
             return "This browser cannot take speech here.";
         case "recognition-network":
             return "Speech stopped: the connection dropped.";
+        case "recognition-failed":
+            return "Speech stopped before it heard you. Try again.";
         case "no-key":
             return "Speech needs a key.";
         default:

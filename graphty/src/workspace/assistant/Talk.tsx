@@ -12,7 +12,7 @@ import { formatKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { audioWords, voiceWords, WORDS } from "./words";
 
-/** A press longer than this stops on release; a shorter one latches (design 4.12). */
+/** A press longer than this stops on release; a shorter one latches, and ends when the reader stops talking (design 4.12). */
 const HOLD_MS = 300;
 const TALK_KEY = "Shift+Mod+Space";
 /** Marks that the reader was told where the audio goes. */
@@ -155,9 +155,15 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
     const release = useCallback((): void => {
         const held = pressedAt.current === null ? 0 : performance.now() - pressedAt.current;
         pressedAt.current = null;
-        if (element !== null && held > HOLD_MS && element.isAiTalking()) {
+        if (element === null || !element.isAiTalking()) {
+            return;
+        }
+        if (held > HOLD_MS) {
             element.aiTalk(false);
             setListening(element.isAiTalking());
+        } else {
+            // Latched: nobody is holding it, so it ends when the reader stops talking.
+            element.aiTalk(true, { endOnSilence: true });
         }
     }, [element]);
 
@@ -218,6 +224,7 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
                     // A click with no pointer behind it: Enter, Space, or a screen reader's press.
                     if (event.detail === 0) {
                         press();
+                        release();
                     }
                 }}
             >

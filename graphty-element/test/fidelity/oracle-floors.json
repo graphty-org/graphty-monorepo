@@ -56550,8 +56550,8 @@
             },
             "stray.present": {
                 "floor": 1,
-                "to": 0.176,
-                "reason": "yEd's own drawing replaced draw.io's stand-in (#5792): yEd draws an unset ImageNode as nothing, an SVGNode at its SVG's own bounds, a label's text beside its icon, and the icons and images where graphty does not; these are graphty's real differences from yEd, first judged now",
+                "to": 0.158,
+                "reason": "first measurement of this sheet against yEd's real drawing under the #6187 comparator (every differently colored piece of a node's fill is checked); graphty does not draw yEd's chart squares yet; owner decision on #6184 2026-11-07",
                 "date": "2026-11-07"
             }
         },
@@ -56588,8 +56588,8 @@
             },
             "stray.present": {
                 "floor": 1,
-                "to": 0.176,
-                "reason": "yEd's own drawing replaced draw.io's stand-in (#5792): yEd draws an unset ImageNode as nothing, an SVGNode at its SVG's own bounds, a label's text beside its icon, and the icons and images where graphty does not; these are graphty's real differences from yEd, first judged now",
+                "to": 0.158,
+                "reason": "first measurement of this sheet against yEd's real drawing under the #6187 comparator (every differently colored piece of a node's fill is checked); graphty does not draw yEd's chart squares yet; owner decision on #6184 2026-11-07",
                 "date": "2026-11-07"
             }
         }

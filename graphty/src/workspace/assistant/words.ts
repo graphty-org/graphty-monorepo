@@ -22,7 +22,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { wordsFor } from "../analyze/words";
 import { type EffortLevel, providerDisclosure } from "../assistant-door/provider";
 import { formatNumber } from "../settings/numberFormat";
-import { attributeName, channelWord } from "../style/words";
+import { attributeName, channelWord, plainRule, shownRule } from "../style/words";
 import { PROVIDER_PAGES } from "./providerPages";
 
 export const WORDS = {
@@ -843,4 +843,185 @@ export function voiceWords(reason: string | number | undefined): string {
         default:
             return "Speech is not available.";
     }
+}
+
+/** One call as its step line reads it: the tool, what the model passed, and what came of it. */
+export interface StepCall {
+    readonly tool: string;
+    readonly arguments?: Readonly<Record<string, unknown>>;
+    /** Its outcome's code, once it has one. */
+    readonly code?: string;
+    readonly params?: AiResultParams;
+    /** What it did, once it ran. */
+    readonly effects?: readonly AiEffect[];
+}
+
+/** The longest stretch of the model's own words a step line quotes. */
+const QUOTED_MAX = 32;
+
+/**
+ * Some of the model's words, as a step line quotes them: cut short past a few words.
+ * @param value - an argument.
+ * @returns the words, or undefined for anything but text.
+ */
+function quoted(value: unknown): string | undefined {
+    if (typeof value !== "string" || value.trim() === "") {
+        return undefined;
+    }
+    const words = value.trim();
+    return words.length > QUOTED_MAX ? `${words.slice(0, QUOTED_MAX - 3).trimEnd()}...` : words;
+}
+
+/**
+ * A rule as a step line says it: its columns by their shown names, its numbers bare.
+ * @param session - the session, to name columns; null says the rule as written.
+ * @param where - the rule.
+ * @returns the words.
+ */
+const ruleSaid = (session: GraphSession | null, where: string): string =>
+    quoted(session === null ? plainRule(where) : shownRule(session, where)) ?? where;
+
+/**
+ * The step line of a read that named elements: how many, and the rule or text it read by.
+ * @param session - the session.
+ * @param action - the query's action.
+ * @param effect - the found effect.
+ * @returns the line.
+ */
+function foundLine(session: GraphSession | null, action: unknown, effect: AiEffect): string {
+    const count = nodesAndEdges(Number(effect.params.nodes ?? 0), Number(effect.params.edges ?? 0)) || "0 nodes";
+    const { target } = effect;
+    if (target !== undefined && "text" in target) {
+        return `Found ${count} matching ${quoted(target.text) ?? ""}`.trimEnd();
+    }
+    if (target !== undefined && "top" in target) {
+        const algorithm = session?.runs.get(target.top.run)?.algorithm;
+        const name = (algorithm === undefined ? undefined : algorithmByKey(algorithm)?.plainName) ?? target.top.run;
+        return `Found top ${count} by ${name}`;
+    }
+    const by = target !== undefined && "where" in target ? ` with ${ruleSaid(session, target.where)}` : "";
+    return `${action === "count" ? "Counted" : "Found"} ${count}${by}`;
+}
+
+/**
+ * A page of records in words, from what the model asked for: "Read top 5 nodes by Degree".
+ * @param session - the session.
+ * @param args - the call's arguments.
+ * @param kind - nodes or edges.
+ * @returns the line.
+ */
+function recordsLine(session: GraphSession | null, args: Readonly<Record<string, unknown>>, kind: string): string {
+    const limit = typeof args.limit === "number" ? `${formatNumber(args.limit)} ` : "";
+    const sort = quoted(args.sort);
+    if (sort === undefined) {
+        return `Read ${limit}${kind}`;
+    }
+    const path = sort.replace(/^-/, "");
+    const name = session === null ? path : attributeName(session, path.replace(/^data\./, ""));
+    return `Read ${sort.startsWith("-") ? "top" : "bottom"} ${limit}${kind} by ${name}`;
+}
+
+/**
+ * A query that named nothing, in words from its action and what the model asked for.
+ * @param session - the session.
+ * @param args - the call's arguments.
+ * @returns the line, or undefined for an action with no words.
+ */
+function queryLine(session: GraphSession | null, args: Readonly<Record<string, unknown>>): string | undefined {
+    const first = Array.isArray(args.ids) ? quoted(args.ids[0]) : undefined;
+    const where = typeof args.where === "string" && args.where !== "" ? args.where : undefined;
+    switch (args.action) {
+        case "overview":
+            return "Read the graph summary";
+        case "nodes":
+        case "edges":
+            return recordsLine(session, args, args.action);
+        case "node":
+            return first === undefined ? "Read a node" : `Read ${first}`;
+        case "neighbors":
+            return first === undefined ? "Read neighbors" : `Read neighbors of ${first}`;
+        case "find":
+            return `Searched for ${quoted(args.text) ?? "text"}`;
+        case "attributes":
+            return "Read the columns";
+        case "histogram": {
+            const column = quoted(args.column);
+            const name = session === null || column === undefined ? column : attributeName(session, column);
+            return name === undefined ? "Read a histogram" : `Read values of ${name}`;
+        }
+        case "statistics":
+            return "Read graph statistics";
+        case "count":
+            return where === undefined ? "Counted nodes" : `Counted nodes with ${ruleSaid(session, where)}`;
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * A call that changed nothing it reports, in words from its tool, its action and what the model
+ * asked for.
+ * @param session - the session.
+ * @param call - the call.
+ * @returns the line, or undefined for a call with no words of its own.
+ */
+function argumentsLine(session: GraphSession | null, call: StepCall): string | undefined {
+    const args = call.arguments ?? {};
+    switch (call.tool) {
+        case "query":
+            return queryLine(session, args);
+        case "catalog":
+            return args.action === "describe"
+                ? `Looked up ${quoted(args.name) ?? "an entry"}`
+                : `Searched tools for ${quoted(args.text) ?? quoted(args.kind) ?? "a tool"}`;
+        case "run_algorithm": {
+            const name = calledAlgorithm(call.tool, args)?.plainName ?? quoted(args.name);
+            return name === undefined ? undefined : `Ran ${name}`;
+        }
+        case "undo":
+            return { undo: "Undid the last change", redo: "Redid the last change", recent: "Read recent changes" }[
+                String(args.action)
+            ];
+        case "export_graph": {
+            const format = session?.catalog.formats().find((each) => each.id === args.format)?.plainName;
+            return `Exported as ${format ?? quoted(args.format) ?? "a file"}`;
+        }
+        case "filter":
+            return args.action === "clear" ? "Cleared the filter" : undefined;
+        case "select":
+            return args.action === "clear" ? "Cleared the selection" : undefined;
+        case "ask_reader":
+            return "Asked you";
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * A step's line: what the call did, in a few words -- "Counted 22 nodes with Degree >= 3",
+ * "Colored 12 nodes", "Ran Louvain" -- from what it did when it reports that, else from what the
+ * model asked for, else the tool's name. A failed step says why.
+ * @param session - the session, to name columns and formats; null words without them.
+ * @param call - the call.
+ * @returns the line.
+ */
+export function stepLine(session: GraphSession | null, call: StepCall): string {
+    if (call.code === "AI_TOOL_FAILED") {
+        return failedStepWords(call.tool, call.params?.cause).replace(/\.$/, "");
+    }
+    const effects = call.effects ?? [];
+    const changes = [...new Set(effects.filter(isChange).map((effect) => effectLine(session, effect)))];
+    if (changes.length > 0) {
+        return changes.join(", ");
+    }
+    const found = effects.find((effect) => effect.code === "AI_EFFECT_FOUND");
+    if (found !== undefined) {
+        return foundLine(session, call.arguments?.action, found);
+    }
+    const empty = effects.find((effect) => effect.code === "AI_EFFECT_EMPTY");
+    if (empty !== undefined) {
+        const searched = quoted(empty.params.searched);
+        return searched === undefined ? "No matches" : `No matches for ${ruleSaid(session, searched)}`;
+    }
+    return argumentsLine(session, call) ?? stepName(call.tool, call.arguments);
 }

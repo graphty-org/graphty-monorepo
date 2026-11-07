@@ -2,7 +2,7 @@ import { AI_RESULT_CODES, type AiEffect } from "@graphty/graphty-element/catalog
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { changeLines, effectLine, endWords, voiceWords, workingLine } from "../words";
+import { changeLines, effectLine, endWords, type StepCall, stepLine, voiceWords, workingLine } from "../words";
 
 const AGAIN = { action: "again", failed: true } as const;
 const PROVIDER = { action: "provider", failed: true } as const;
@@ -178,5 +178,122 @@ describe("workingLine", () => {
             workingLine({ ...sending, pending: { approvals: 0, questions: 1 } }, "google"),
             "Waiting for your answer",
         );
+    });
+});
+
+describe("stepLine", () => {
+    const found = (params: AiEffect["params"], target?: AiEffect["target"]): readonly AiEffect[] => [
+        { code: "AI_EFFECT_FOUND", params, ...(target === undefined ? {} : { target }) },
+    ];
+    // Every tool family: what it did when it says, else what the model asked for, else its name.
+    const ROWS: readonly (readonly [StepCall, string])[] = [
+        [
+            {
+                tool: "query",
+                arguments: { action: "count", where: "degree >= `3`" },
+                effects: found({ nodes: 22 }, { where: "degree >= `3`" }),
+            },
+            "Counted 22 nodes with degree >= 3",
+        ],
+        [{ tool: "query", arguments: { action: "count", where: "degree >= `3`" } }, "Counted nodes with degree >= 3"],
+        [{ tool: "query", arguments: { action: "nodes", sort: "-degree", limit: 5 } }, "Read top 5 nodes by degree"],
+        [{ tool: "query", arguments: { action: "nodes", sort: "degree", limit: 5 } }, "Read bottom 5 nodes by degree"],
+        [{ tool: "query", arguments: { action: "edges" } }, "Read edges"],
+        [
+            {
+                tool: "query",
+                arguments: { action: "nodes" },
+                effects: found({ nodes: 5 }, { top: { run: "degree-1", n: 5 } }),
+            },
+            "Found top 5 nodes by degree-1",
+        ],
+        [{ tool: "query", arguments: { action: "overview" } }, "Read the graph summary"],
+        [{ tool: "query", arguments: { action: "statistics" } }, "Read graph statistics"],
+        [{ tool: "query", arguments: { action: "attributes" } }, "Read the columns"],
+        [{ tool: "query", arguments: { action: "histogram", column: "weight" } }, "Read values of weight"],
+        [{ tool: "query", arguments: { action: "node", ids: ["Valjean"] } }, "Read Valjean"],
+        [{ tool: "query", arguments: { action: "neighbors", ids: ["Valjean"] } }, "Read neighbors of Valjean"],
+        [
+            {
+                tool: "query",
+                arguments: { action: "find", text: "Val" },
+                effects: found({ nodes: 2 }, { text: "Val" }),
+            },
+            "Found 2 nodes matching Val",
+        ],
+        [
+            {
+                tool: "query",
+                arguments: { action: "count", where: "x == `1`" },
+                effects: [{ code: "AI_EFFECT_EMPTY", params: { tool: "query", searched: "x == `1`" } }],
+            },
+            "No matches for x == 1",
+        ],
+        [
+            {
+                tool: "style",
+                arguments: { action: "add" },
+                effects: [
+                    { code: "AI_EFFECT_STYLE", params: { channel: "node.color", nodes: 12, hidden: 0, layer: "l" } },
+                ],
+            },
+            "Colored 12 nodes",
+        ],
+        [
+            {
+                tool: "layout",
+                arguments: { action: "set" },
+                effects: [{ code: "AI_EFFECT_LAYOUT", params: { layout: "circular" } }],
+            },
+            "Arranged as Ring",
+        ],
+        [
+            {
+                tool: "filter",
+                arguments: { action: "hide" },
+                effects: [{ code: "AI_EFFECT_FILTER", params: { kept: 4, total: 10 } }],
+            },
+            "Filtered to 4 of 10 nodes",
+        ],
+        [{ tool: "filter", arguments: { action: "clear" } }, "Cleared the filter"],
+        [{ tool: "select", arguments: { action: "clear" } }, "Cleared the selection"],
+        [{ tool: "run_algorithm", arguments: { name: "louvain" } }, "Ran Communities"],
+        [
+            {
+                tool: "edit_data",
+                arguments: { action: "add_nodes" },
+                effects: [{ code: "AI_EFFECT_DATA", params: { addedNodes: 3 } }],
+            },
+            "Added 3 nodes",
+        ],
+        [{ tool: "export_graph", arguments: { action: "export", format: "graphml" } }, "Exported as graphml"],
+        [{ tool: "catalog", arguments: { action: "search", text: "export" } }, "Searched tools for export"],
+        [{ tool: "catalog", arguments: { action: "describe", name: "louvain" } }, "Looked up louvain"],
+        [{ tool: "undo", arguments: { action: "undo" } }, "Undid the last change"],
+        [{ tool: "undo", arguments: { action: "redo" } }, "Redid the last change"],
+        [{ tool: "ask_reader", arguments: { question: "Which?" } }, "Asked you"],
+        [{ tool: "view", arguments: { action: "zoom" } }, "View"],
+        [{ tool: "something_new" }, "A step"],
+        [
+            {
+                tool: "query",
+                arguments: { action: "count" },
+                code: "AI_TOOL_FAILED",
+                params: { cause: "AI_BAD_SELECTOR" },
+            },
+            "Query data failed: its rule could not be read",
+        ],
+    ];
+
+    for (const [call, line] of ROWS) {
+        it(`words ${call.tool} as "${line}"`, () => {
+            assert.strictEqual(stepLine(null, call), line);
+        });
+    }
+
+    it("cuts the model's own long words short", () => {
+        const line = stepLine(null, { tool: "catalog", arguments: { action: "search", text: "x".repeat(80) } });
+        assert.isAtMost(line.length, "Searched tools for ".length + 32);
+        assert.isTrue(line.endsWith("..."));
     });
 });

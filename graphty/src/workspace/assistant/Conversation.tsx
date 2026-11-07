@@ -1,5 +1,6 @@
 import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Collapse, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -16,6 +17,7 @@ import {
     isChange,
     isResult,
     runningWords,
+    stepLine,
     stepName,
     stepsWords,
     WORDS,
@@ -46,7 +48,7 @@ interface Ending {
     readonly params: AiResultParams;
 }
 
-/** One step, as a row shows it: never its arguments. */
+/** One step, as a row shows it: what it did in a few words. */
 interface Step {
     readonly name: string;
     readonly ms?: number;
@@ -153,36 +155,37 @@ function StepList({ steps, open }: Readonly<{ steps: readonly Step[]; open: bool
     if (steps.length === 0) {
         return null;
     }
+    // Drawn only while open, like their chips: a closed list's lines would repeat the change lines.
     return (
         <Collapse in={open}>
-            <ul className="ws-assistant-steps">
-                {steps.map((step, index) => (
-                    // A step has no id of its own, and a turn's steps only ever grow at the end.
-                    <li
-                        key={index} // NOSONAR(S6479): a step has no id to key by
-                    >
-                        <span className="ws-assistant-step">
-                            <Text span size="xs">
-                                {step.name}
-                            </Text>
-                            {step.ms === undefined ? null : (
-                                <Text span size="xs" c="dimmed">
-                                    {durationWords(step.ms)}
+            {open ? (
+                <ul className="ws-assistant-steps">
+                    {steps.map((step, index) => (
+                        // A step has no id of its own, and a turn's steps only ever grow at the end.
+                        <li
+                            key={index} // NOSONAR(S6479): a step has no id to key by
+                        >
+                            <span className="ws-assistant-step">
+                                <Text span size="xs">
+                                    {step.name}
                                 </Text>
-                            )}
-                        </span>
-                        {open
-                            ? step.results?.map((effect, at) => (
-                                  // A reply's results never reorder.
-                                  <ResultRow
-                                      key={at} // NOSONAR(S6479): an effect has no id to key by
-                                      effect={effect}
-                                  />
-                              ))
-                            : null}
-                    </li>
-                ))}
-            </ul>
+                                {step.ms === undefined ? null : (
+                                    <Text span size="xs" c="dimmed">
+                                        {durationWords(step.ms)}
+                                    </Text>
+                                )}
+                            </span>
+                            {step.results?.map((effect, at) => (
+                                // A reply's results never reorder.
+                                <ResultRow
+                                    key={at} // NOSONAR(S6479): an effect has no id to key by
+                                    effect={effect}
+                                />
+                            ))}
+                        </li>
+                    ))}
+                </ul>
+            ) : null}
         </Collapse>
     );
 }
@@ -312,18 +315,22 @@ function EndRow({ words, unchanged, onAgain, alert }: Readonly<EndRowProps>): Re
 }
 
 /**
- * A turn's steps: the running calls while it runs, then what its replies recorded.
+ * A turn's steps, each said by what it did: the running calls while it runs, then what its replies
+ * recorded.
+ * @param session - the session, to name columns and formats.
  * @param turn - the turn.
  * @param status - the status, on the newest turn.
  * @returns the steps.
  */
-function stepsOf(turn: Turn, status: AiStatus | null): readonly Step[] {
+function stepsOf(session: GraphSession | null, turn: Turn, status: AiStatus | null): readonly Step[] {
     if (isRunning(status)) {
-        return (status?.toolCalls ?? []).map((call) => ({ name: stepName(call.name, call.arguments) }));
+        return (status?.toolCalls ?? []).map((call) => ({
+            name: stepLine(session, { tool: call.name, arguments: call.arguments }),
+        }));
     }
     return turn.replies.flatMap((reply) =>
         reply.calls.map((call, index) => ({
-            name: stepName(call.command, call.arguments),
+            name: stepLine(session, { ...call, tool: call.command }),
             ...(call.durationMs === undefined ? {} : { ms: call.durationMs }),
             ...(index === reply.calls.length - 1 ? { results: (reply.effects ?? []).filter(isResult) } : {}),
         })),
@@ -481,6 +488,7 @@ function ReplyRows({
     onAgain,
     onHold,
 }: Readonly<TurnViewProps>): React.JSX.Element | null {
+    const { session } = useWorkspace();
     const lastEnded = useWorkspaceState((state) => state.assistantEnded);
     const news = useWorkspaceState((state) => state.assistantEnded?.news === true);
     const [stepsOpen, setStepsOpen] = useState(false);
@@ -500,7 +508,7 @@ function ReplyRows({
     }, []);
     const running = isRunning(status);
     const prose = proseOf(turn, status);
-    const steps = stepsOf(turn, status);
+    const steps = stepsOf(session, turn, status);
     const effects = running ? [] : turn.replies.flatMap((reply) => reply.effects ?? []);
     const ended = endingOf(turn, status, lastEnded);
     const words = running || ended === undefined ? null : endWords(ended.code, ended.params, provider, false);

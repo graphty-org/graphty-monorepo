@@ -385,12 +385,73 @@ describe("talking to the Assistant", () => {
         const steps = await screen.findByRole("button", { name: "1 step" });
         assert.strictEqual(steps.getAttribute("aria-expanded"), "false");
         await userEvent.click(steps);
-        await screen.findByText("Query data");
+        await screen.findByText("Read the graph summary");
         await screen.findByText(/^\d+ ms$/);
         const log = screen.getByRole("region", { name: "Chat" });
         assert.notInclude(log.textContent, "overview");
         assert.notInclude(log.textContent, "{");
         assert.isNull(log.closest("[aria-live]"));
+    });
+
+    it("says what each step did: what it counted, what it colored, what it searched for", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        const session = await waitFor(() => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            return found;
+        });
+        await session.data.addNodes([
+            { id: "a", group: "even" },
+            { id: "b", group: "odd" },
+            { id: "c", group: "even" },
+        ]);
+        await openPanel();
+        model.turns = [
+            {
+                text: "",
+                toolCalls: [
+                    { id: "c1", name: "query", arguments: { action: "count", where: "data.group == 'even'" } },
+                    {
+                        id: "c2",
+                        name: "style",
+                        arguments: { action: "add", where: "all", values: { "node.color": "#ff0000" } },
+                    },
+                    { id: "c3", name: "catalog", arguments: { action: "search", text: "export" } },
+                ],
+            },
+            { text: "Done.", toolCalls: [] },
+        ];
+        await say("Count and color");
+        await screen.findByText("Done.");
+        await userEvent.click(await screen.findByRole("button", { name: "3 steps" }));
+        const turn = screen.getByText("Done.").closest<HTMLElement>(".ws-assistant-turn");
+        assert.isNotNull(turn);
+        const lines = await waitFor(() => {
+            const said = [...turn.querySelectorAll(".ws-assistant-step > :first-child")].map(
+                (each) => each.textContent,
+            );
+            assert.lengthOf(said, 3);
+            return said;
+        });
+        assert.match(lines[0] ?? "", /^Counted 2 nodes with \S.*even/);
+        assert.strictEqual(lines[1], "Colored 3 nodes");
+        assert.strictEqual(lines[2], "Searched tools for export");
+    });
+
+    it("lets the reader select what was said and its reply, by real clicks", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        await chat("Hubs please");
+        const log = await chatLog();
+        const reply = within(log).getByText("The reply.");
+        assert.strictEqual(getComputedStyle(reply).userSelect, "text");
+        await userEvent.tripleClick(reply);
+        assert.strictEqual(window.getSelection()?.toString().trim(), "The reply.");
+        // The reader's own words select too: a double click takes one word of them.
+        await userEvent.dblClick(within(log).getByText("Hubs please"), { position: { x: 4, y: 4 } });
+        assert.strictEqual(window.getSelection()?.toString().trim(), "Hubs");
     });
 
     it("puts the Steps icon beside the working dots, so the step list opens and grows mid-run", async () => {
@@ -426,7 +487,7 @@ describe("talking to the Assistant", () => {
         assert.isAbove(steps.getBoundingClientRect().left, dots.getBoundingClientRect().left, "after the dots");
         await userEvent.click(steps);
         assert.strictEqual(steps.getAttribute("aria-expanded"), "true");
-        await within(turn).findByText("Query data");
+        await within(turn).findByText("Read the graph summary");
         assert.include(said, "Running Query data", "the step was announced as it ran");
         assert.strictEqual(document.activeElement, steps, "the reader is on Steps");
 
@@ -438,7 +499,7 @@ describe("talking to the Assistant", () => {
             assert.isTrue(model.held);
         });
         await waitFor(() => {
-            assert.lengthOf(within(turn).getAllByText("Query data"), 2);
+            assert.lengthOf(within(turn).getAllByText("Read the graph summary"), 2);
         });
         assert.strictEqual(steps.getAttribute("aria-label"), "2 steps");
         assert.strictEqual(document.activeElement, steps);
@@ -451,7 +512,7 @@ describe("talking to the Assistant", () => {
         const ended = within(turn).getByRole("button", { name: "2 steps" });
         assert.lengthOf(screen.getAllByRole("button", { name: "2 steps" }), 2);
         assert.strictEqual(ended.getAttribute("aria-expanded"), "true");
-        assert.lengthOf(within(turn).getAllByText("Query data"), 2);
+        assert.lengthOf(within(turn).getAllByText("Read the graph summary"), 2);
         await waitFor(() => {
             assert.strictEqual(document.activeElement, ended);
         });

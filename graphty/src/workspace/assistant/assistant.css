@@ -169,6 +169,13 @@
     white-space: pre-wrap;
 }
 
+/* What was said and what was done are text to copy, unlike the workspace around them. */
+.ws-assistant-prose,
+.ws-assistant-step {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
 .ws-assistant-steps {
     margin: 2px 0 0;
     padding: 0;

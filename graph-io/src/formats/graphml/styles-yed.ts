@@ -1764,7 +1764,7 @@ function putOverlay(
     const [color, line] = [painted.get("borderColor"), Number(painted.get("borderWidth") ?? 1)];
     const paint: NodePaint = {
         line: line > 0 && typeof color === "string" ? color : "none",
-        width: line > 0 ? line : 0,
+        width: Math.max(line, 0),
     };
     const overlay = realizerOverlay(real, width, height, paint);
     if (overlay === null) {
@@ -1781,6 +1781,37 @@ function putOverlay(
     put("imageHeight", height - paint.width + overlay.reach);
     put("imageOffsetX", overlay.reach / 2);
     put("imageOffsetY", overlay.reach / 2);
+}
+
+/**
+ * Reads what a node realizer draws over its fill: a table's bands, an image or SVG node's picture, or what yEd strokes
+ * over the node beside its outline (`putOverlay`).
+ * @param real - the realizer
+ * @param width - the node's width, or null
+ * @param height - its height, or null
+ * @param painted - the border values written for it
+ * @param put - receives the values
+ * @param at - the sites
+ * @param resources - the graph's shared pictures, for image and SVG nodes
+ */
+function readFace(
+    real: Realizer,
+    width: number | null,
+    height: number | null,
+    painted: ReadonlyMap<string, unknown>,
+    put: PutValue,
+    at: SiteOf,
+    resources?: ReadonlyMap<string, string>,
+): void {
+    if (real.type === "TableNode") {
+        readTable(real, put, at);
+    }
+    if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
+        readPicture(real, resources, put);
+    }
+    if (width !== null && height !== null) {
+        putOverlay(real, width, height, painted, put);
+    }
 }
 
 /**
@@ -1829,15 +1860,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     if (outline?.bevelInset !== undefined) {
         putBevel(outline, unfilled(fill) ? null : color, outline.bevelInset, hasLine(border), put);
     }
-    if (real.type === "TableNode") {
-        readTable(real, put, at);
-    }
-    if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
-        readPicture(real, resources, put);
-    }
-    if (width !== null && height !== null) {
-        putOverlay(real, width, height, painted, put);
-    }
+    readFace(real, width, height, painted, put, at, resources);
     const header = readEntityHeader(real, height, put, at);
     const labelPut: PutValue = (property, value) => {
         if (header === null || property !== "labelBackground") {

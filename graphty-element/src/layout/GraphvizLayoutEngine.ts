@@ -471,6 +471,9 @@ export async function pinnedRoutes(
     return bends;
 }
 
+/** How far, as a share of their distance, two nodes may sit from where Graphviz laid them and keep its line ends. */
+const LAID_CHORD_SLACK = 1e-3;
+
 /** One engine's layout class: a single-pass snapshot layout, two-dimensional. */
 type GraphvizLayoutClass = (new (opts: object) => SnapshotLayoutEngine) & {
     readonly type: string;
@@ -496,8 +499,11 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         protected readonly options: Readonly<Record<string, unknown>>;
         /** The route Graphviz laid each edge along, as bends, for the edges it did not draw straight. */
         private routes = new Map<Edge, readonly number[]>();
-        /** Where Graphviz starts and ends each edge's line, for nodes Graphviz shaped as the element draws them. */
-        private lineEnds = new Map<Edge, NonNullable<EdgePosition["lineEnds"]>>();
+        /**
+         * Where Graphviz starts and ends each edge's line, for nodes Graphviz shaped as the element draws them, with the
+         * line between the two centers Graphviz laid them at (`dx, dy`), which those ends hold for.
+         */
+        private lineEnds = new Map<Edge, { at: NonNullable<EdgePosition["lineEnds"]>; chord: readonly number[] }>();
         /** Where Graphviz put each labelled edge's label and end labels, as `along, across` its two ends. */
         private labelPlaces = new Map<Edge, EdgeLabelsAt>();
         /** Where Graphviz put each node's external label, right and down of its center in scene units, by node id as text. */
@@ -547,9 +553,13 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 this.routes = routesOf(bends, structure.edgeOf);
                 // only a node Graphviz shaped from its own attributes has the outline Graphviz ended the line on; a
                 // node handed over at its drawn size goes as a circle or a box, whatever the element draws
+                const chord = (k: number): number[] => {
+                    const { src, dst } = structure.edges?.[k] ?? { src: 0, dst: 0 };
+                    return [positions[2 * dst] - positions[2 * src], positions[2 * dst + 1] - positions[2 * src + 1]];
+                };
                 this.lineEnds =
                     this.options.nodeSize === "label"
-                        ? new Map([...ends].map(([k, at]) => [structure.edgeOf[k], at]))
+                        ? new Map([...ends].map(([k, at]) => [structure.edgeOf[k], { at, chord: chord(k) }]))
                         : new Map();
                 this.labelPlaces = new Map([...labels].map(([k, place]) => [structure.edgeOf[k], place]));
                 this.xlabelPlaces = new Map(
@@ -586,7 +596,15 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         override getEdgePosition(e: Edge): EdgePosition {
             const ends = super.getEdgePosition(e);
             const bends = this.routes.get(e);
-            const lineEnds = this.lineEnds.get(e);
+            // the ends hold only while the two nodes are where Graphviz laid them, one against the other: a node moved
+            // since (dragged, pinned elsewhere) leaves its line cut at the outlines again
+            const laid = this.lineEnds.get(e);
+            const dx = ends.dst.x - ends.src.x;
+            const dy = ends.dst.y - ends.src.y;
+            const moved =
+                laid === undefined ||
+                Math.hypot(dx - laid.chord[0], dy - laid.chord[1]) > LAID_CHORD_SLACK * Math.max(1, Math.hypot(dx, dy));
+            const lineEnds = moved ? undefined : laid.at;
             return {
                 ...ends,
                 ...(bends === undefined ? {} : { bends }),

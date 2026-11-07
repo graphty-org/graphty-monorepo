@@ -42,7 +42,7 @@ import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { svgPicture } from "./styles-yed-live-drawing.js";
+import { type BpmnDrawing, svgPicture, yedBpmnPicture } from "./styles-yed-live-drawing.js";
 
 // ============================================================ the kept trees
 
@@ -1748,11 +1748,69 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
 }
 
 /**
- * Writes what yEd strokes over a node beside its outline (`realizerOverlay`) as the node's picture.
+ * Writes a picture drawn over a node, which may reach past its box, as the node's picture.
+ * @param drawing - the picture, its size and its reach
+ * @param put - receives the values
+ */
+export function putNodeDrawing(drawing: BpmnDrawing, put: PutValue): void {
+    put("image", drawing.picture);
+    put("imageClip", "none");
+    const { left, top, right, bottom } = drawing.reach;
+    if (left + top + right + bottom === 0) {
+        put("imageFit", "fill");
+        return;
+    }
+    put("imageFit", "none");
+    put("imageWidth", drawing.width);
+    put("imageHeight", drawing.height);
+    put("imageOffsetX", (right - left) / 2);
+    put("imageOffsetY", (bottom - top) / 2);
+}
+
+/** A `#rrggbb` color. */
+const HEX_COLOR = /^#[\da-f]{6}$/;
+
+/**
+ * The symbols yEd draws over a BPMN GenericNode (`yedBpmnPicture`), in its `com.yworks.bpmn.icon.*` colors, unset the
+ * node's own.
  * @param real - the realizer
  * @param width - the node's width
  * @param height - its height
- * @param painted - the border values written for it
+ * @param paint - its border
+ * @param fill - its fill, or null where it has none
+ * @returns the picture, or null where it is no BPMN node or yEd draws nothing over it
+ */
+function genericBpmnDrawing(
+    real: Realizer,
+    width: number,
+    height: number,
+    paint: NodePaint,
+    fill: string | null,
+): BpmnDrawing | null {
+    const conf = (treeAttr(real.r, "configuration") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
+    if (real.type !== "GenericNode" || !conf.startsWith("com.yworks.bpmn.")) {
+        return null;
+    }
+    const color = (name: string): string | undefined => {
+        const value = bpmnProperty(real.r, name);
+        return value !== undefined && HEX_COLOR.test(value) ? value : undefined;
+    };
+    const face = color("icon.fill") ?? fill ?? "none";
+    const kind = conf.replace(/^com\.yworks\.bpmn\./, "").replace(/\.withshadow$/, "");
+    return yedBpmnPicture(kind, (name) => bpmnProperty(real.r, name), { width, height }, paint.width, {
+        line: color("icon.line.color") ?? paint.line,
+        fill: face,
+        shade: face === "none" ? paint.line : javaDarker(face),
+    });
+}
+
+/**
+ * Writes what yEd strokes over a node beside its outline (`realizerOverlay`, or a BPMN node's symbols) as the node's
+ * picture.
+ * @param real - the realizer
+ * @param width - the node's width
+ * @param height - its height
+ * @param painted - the border and fill values written for it
  * @param put - receives the values
  */
 function putOverlay(
@@ -1767,6 +1825,12 @@ function putOverlay(
         line: line > 0 && typeof color === "string" ? color : "none",
         width: Math.max(line, 0),
     };
+    const fill = painted.get("fill");
+    const bpmn = genericBpmnDrawing(real, width, height, paint, typeof fill === "string" ? fill : null);
+    if (bpmn !== null) {
+        putNodeDrawing(bpmn, put);
+        return;
+    }
     const overlay = realizerOverlay(real, width, height, paint);
     if (overlay === null) {
         return;
@@ -1790,7 +1854,7 @@ function putOverlay(
  * @param real - the realizer
  * @param width - the node's width, or null
  * @param height - its height, or null
- * @param painted - the border values written for it
+ * @param painted - the border and fill values written for it
  * @param put - receives the values
  * @param at - the sites
  * @param resources - the graph's shared pictures, for image and SVG nodes
@@ -1861,6 +1925,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     if (outline?.bevelInset !== undefined) {
         putBevel(outline, unfilled(fill) ? null : color, outline.bevelInset, hasLine(border), put);
     }
+    painted.set("fill", unfilled(fill) ? null : color);
     readFace(real, width, height, painted, put, at, resources);
     const header = readEntityHeader(real, height, put, at);
     const labelPut: PutValue = (property, value) => {

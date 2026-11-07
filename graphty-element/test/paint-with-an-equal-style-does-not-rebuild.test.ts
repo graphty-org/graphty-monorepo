@@ -246,6 +246,32 @@ describe("a paint that changes only an edge's colour moves it without placing it
         assert.strictEqual(caps.mock.calls.length, 0, "no cap was placed again");
     });
 
+    it("keeps a hidden edge's parked placement, so showing it puts it back", () => {
+        const { edge, ghost } = ghostable();
+        const ends = endsOf(edge);
+        const headAt = edge.arrowCap?.position.asArray();
+        const before = lineOf(edge);
+        for (const slot of before.slots) {
+            before.batch.park(slot);
+        }
+        edge.arrowCap?.park();
+
+        edge.applySessionPaint(ghost);
+
+        const { batch, slots } = lineOf(edge);
+        assert.isTrue(
+            endsOf(edge).every((value) => value === 0),
+            "still hidden after the move",
+        );
+        assert.isTrue(
+            slots.every((slot) => batch.unpark(slot)),
+            "and parked in the new batch",
+        );
+        assert.deepStrictEqual(endsOf(edge), ends, "shown where it was");
+        assert.isTrue(edge.arrowCap?.unpark(), "the head too");
+        assert.deepStrictEqual(edge.arrowCap?.position.asArray(), headAt);
+    });
+
     it("still rebuilds an edge whose line changed more than its colour", () => {
         const { edge, ghost } = ghostable();
         const line = edge.mesh;

@@ -362,9 +362,12 @@ export class ArrowCapBatch {
             return false;
         }
 
-        const at = fromIndex * FLOATS_PER_MATRIX;
-        this.matrices.set(from.matrices.subarray(at, at + FLOATS_PER_MATRIX), index * FLOATS_PER_MATRIX);
+        // A slot the visibility mask parked stays parked, holding the placement it will be shown at.
+        this.matrices.set(from.parking.placementOf(from.matrices, fromIndex), index * FLOATS_PER_MATRIX);
         this.written("matrix", index);
+        if (from.parking.isParked(fromIndex)) {
+            this.park(index);
+        }
         if (this.billboard !== null && from.billboard !== null) {
             for (const kind of ["arrowDirection", "arrowSize", "arrowClip"] as const) {
                 const stride = BILLBOARD_BUFFERS[kind];

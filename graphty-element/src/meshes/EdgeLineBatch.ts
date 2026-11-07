@@ -481,17 +481,25 @@ export class EdgeLineBatch {
             return { slot, copied };
         }
 
+        // A slot the visibility mask parked stays parked, holding the placement it will be shown at.
         const { stride } = this;
-        this.slots.set(from.slots.subarray(index * stride, (index + 1) * stride), slot * stride);
+        const parked = from.parking.isParked(index);
+        this.slots.set(from.parking.placementOf(from.slots, index), slot * stride);
+        if (this.statics !== null && from.statics !== null) {
+            this.writeStatic(slot, from.statics.subarray(index * EDGE_STATIC_FLOATS, (index + 1) * EDGE_STATIC_FLOATS));
+        }
+
+        if (parked) {
+            this.park(slot);
+            return { slot, copied };
+        }
+
         if (this.matrices !== null && from.matrices !== null) {
             const at = index * FLOATS_PER_MATRIX;
             this.matrices.set(from.matrices.subarray(at, at + FLOATS_PER_MATRIX), slot * FLOATS_PER_MATRIX);
         }
 
         this.slotRuns.mark(slot, this.uploads.on, this.highWater);
-        if (this.statics !== null && from.statics !== null) {
-            this.writeStatic(slot, from.statics.subarray(index * EDGE_STATIC_FLOATS, (index + 1) * EDGE_STATIC_FLOATS));
-        }
 
         return { slot, copied };
     }

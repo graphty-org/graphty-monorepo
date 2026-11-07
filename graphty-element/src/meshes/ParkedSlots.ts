@@ -84,7 +84,23 @@ export class ParkedSlots {
         }
     }
 
-    private isParked(index: number): boolean {
+    /**
+     * What a slot is drawn as when it is shown: what it held when it was parked, or what it holds.
+     * @param data - The batch's array.
+     * @param index - The slot.
+     * @returns A view of the slot's floats; copy it before either array is written.
+     */
+    placementOf(data: Float32Array, index: number): Float32Array {
+        const at = index * this.stride;
+        return (this.isParked(index) ? this.stash : data).subarray(at, at + this.stride);
+    }
+
+    /**
+     * Whether a slot is parked.
+     * @param index - The slot.
+     * @returns True while it is.
+     */
+    isParked(index: number): boolean {
         return index < this.parked.length && this.parked[index] === 1;
     }
 }

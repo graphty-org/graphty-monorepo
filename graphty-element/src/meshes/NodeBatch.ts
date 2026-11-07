@@ -306,8 +306,7 @@ export function scaleAgainst(mesh: Mesh, canonical: Mesh): number | null {
     const toIndices = mesh.getIndices() ?? [];
     if (
         from === null ||
-        to === null ||
-        from.length !== to.length ||
+        to?.length !== from.length ||
         fromNormals.length !== toNormals.length ||
         fromIndices.length !== toIndices.length
     ) {

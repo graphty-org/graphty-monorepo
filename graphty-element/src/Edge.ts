@@ -3333,12 +3333,10 @@ export class Edge {
         }
         const { route, sampled } = Edge.shapeBentRoute(line, through);
         // a layout's own line ends are drawn from where they lie, as ports are: on a cluster's border, a node's outer
-        // periphery or at a port inside the node. A port on a node drawn behind every edge, which hides no stretch of
-        // the line, only aims it: the line is cut at the node's outline, as yEd cuts one at a group's border
-        // (graphml-galaxy-lcms-workflow's bands from its "3 tabulars" group, ports at its middle).
+        // periphery or at a port inside the node
         const ports = {
-            src: (stored.srcPort !== null && !this.srcNode.isDrawnBehindEdges) || stored.ends === true,
-            dst: (stored.dstPort !== null && !this.dstNode.isDrawnBehindEdges) || stored.ends === true,
+            src: stored.srcPort !== null || stored.ends === true,
+            dst: stored.dstPort !== null || stored.ends === true,
         };
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
         const outSrc = Edge.outside(this.srcNode, src, srcGap);
@@ -3363,8 +3361,32 @@ export class Edge {
             out: typeof outSrc,
             gap: number,
         ): Vector3 => (i >= 0 && i < route.length / 3 ? cross(i, to, out) : this.leaveNode(node, centre, to, gap));
-        const start = ports.src ? a : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
-        const end = ports.dst ? b : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
+        // A port inside a node drawn behind every edge, which hides no stretch of the line, only aims it: the line is
+        // cut where it leaves the node's outline toward its next point, as yEd cuts one at a group's border
+        // (graphml-galaxy-lcms-workflow's bands from its "3 tabulars" group, ports at its middle).
+        const aimed = (node: Node, port: Vector3, to: Vector3, out: typeof outSrc): Vector3 => {
+            if (!node.isDrawnBehindEdges || out(port.x, port.y, port.z) || !out(to.x, to.y, to.z)) {
+                return port;
+            }
+            const c = crossingOf(port, to, out);
+            return new Vector3(c.x, c.y, c.z);
+        };
+        const start = ports.src
+            ? aimed(
+                  this.srcNode,
+                  a,
+                  span.first < span.last ? Vector3.FromArray(route, 3 * span.first + 3) : dst,
+                  outSrc,
+              )
+            : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
+        const end = ports.dst
+            ? aimed(
+                  this.dstNode,
+                  b,
+                  span.last > span.first ? Vector3.FromArray(route, 3 * span.last - 3) : start,
+                  outDst,
+              )
+            : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
         const mid = clearOfCaps(
             route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1))),
             start,

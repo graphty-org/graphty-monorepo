@@ -704,6 +704,136 @@ function clipCut(el: Element, root: SVGSVGElement, m: DOMMatrix, shape: PBox): P
 }
 
 /**
+ * The part of a picture that draws anything: the box round its pixels that are not wholly transparent, in the image
+ * element's own units. A picture's PNG is often larger than what it paints: yEd draws a node's soft shadow in a PNG as
+ * wide as the node and its labels, so a 35 by 55 artifact's shadow in `graphml-galaxy-lcms-workflow` is a 113 by 76
+ * PNG whose pixels are transparent outside columns 6 to 48 and rows 6 to 69, and in `yed-graphml-specimen-node-shapes-p3`
+ * a 36 by 36 event's shadow is a 77 by 57 PNG; the reader sees the shadow, not the PNG's edges. Read only where the
+ * pixels are stretched over the element's box (`preserveAspectRatio="none"`, or a box of the PNG's own proportions).
+ * @param pixels - the decoded picture
+ * @param b - the image element's box in its own units
+ * @param stretched - whether it stretches the pixels over its box whatever their proportions
+ * @returns the part that draws, or null where that cannot be read or is the whole picture
+ */
+export function inkedPart(pixels: Pixels, b: Rect, stretched: boolean): Rect | null {
+    const { width: w, height: h, data } = pixels;
+    if (
+        w === 0 ||
+        h === 0 ||
+        b.width <= 0 ||
+        b.height <= 0 ||
+        (!stretched && Math.abs(w / h - b.width / b.height) > 1e-3)
+    ) {
+        return null;
+    }
+    let [x0, y0, x1, y1] = [w, h, 0, 0];
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            if (data[4 * (y * w + x) + 3] > 0) {
+                [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x + 1), Math.max(y1, y + 1)];
+            }
+        }
+    }
+    if (x1 <= x0 || (x0 === 0 && y0 === 0 && x1 === w && y1 === h)) {
+        return null;
+    }
+    const [sx, sy] = [b.width / w, b.height / h];
+    return { x: b.x + x0 * sx, y: b.y + y0 * sy, width: (x1 - x0) * sx, height: (y1 - y0) * sy };
+}
+
+/** A box as an image element gives it: its corner and its size. */
+interface Rect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+/**
+ * The pictures, with each picture a program draws in pieces read as one: consecutive images whose whole boxes meet edge
+ * to edge, in any order, no piece over another. yEd paints a node's soft shadow as nine-slice PNGs, eight images of one shadow
+ * whose boxes meet exactly (`yed-graphml-specimen-node-shapes-p2`, `BevelNode3`: 783 to 815, 815 to 839 and 839 to 871
+ * across, 769.444 to 801.444, 801.444 to 805.444 and 805.444 to 837.444 down), and yEd Live a group's shadow the same
+ * way (`yfiles-dropshadow-image`, `yed-live-graphml-specimen-groups-p3`). Each piece read as a picture of its own is a
+ * shadow's corner or side no reader sees apart from the rest.
+ * @param prims - the primitives, in drawing order
+ * @param wholes - each picture's whole box, by its index
+ * @returns the primitives, each picture drawn in pieces one picture over the boxes its pieces draw
+ */
+export function joinedPictures(prims: readonly Prim[], wholes: ReadonlyMap<number, PBox>): Prim[] {
+    const eps = 0.01;
+    const meet = (a: PBox, b: PBox): boolean => {
+        const across = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > eps;
+        const down = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > eps;
+        return (
+            (across && (Math.abs(a.x1 - b.x0) < eps || Math.abs(b.x1 - a.x0) < eps)) ||
+            (down && (Math.abs(a.y1 - b.y0) < eps || Math.abs(b.y1 - a.y0) < eps))
+        );
+    };
+    const over = (a: PBox, b: PBox): boolean =>
+        Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > eps && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > eps;
+    const wholeOf = (p: Prim): PBox => wholes.get(p.index) ?? p.box;
+    // runs of consecutive pictures, each split into the pieces that meet edge to edge in whatever order they are drawn
+    const runs: Prim[][] = [];
+    for (const p of prims) {
+        const last = runs.at(-1);
+        if (p.kind === "image" && wholes.has(p.index) && last?.[0].kind === "image" && wholes.has(last[0].index)) {
+            last.push(p);
+        } else {
+            runs.push([p]);
+        }
+    }
+    const out: Prim[] = [];
+    for (const run of runs) {
+        const groups: Prim[][] = [];
+        for (const p of run) {
+            const touching = groups.filter((g) => g.some((q) => meet(wholeOf(q), wholeOf(p))));
+            const merged = [...touching.flat(), p];
+            const lapped = merged.some((a, i) => merged.slice(i + 1).some((b) => over(wholeOf(a), wholeOf(b))));
+            if (touching.length === 0 || lapped) {
+                groups.push([p]);
+                continue;
+            }
+            for (const g of touching) {
+                groups.splice(groups.indexOf(g), 1);
+            }
+            groups.push(merged.sort((a, b) => a.index - b.index));
+        }
+        for (const g of groups.sort((a, b) => a[0].index - b[0].index)) {
+            out.push(g.length === 1 ? g[0] : joined(g));
+        }
+    }
+    return out;
+}
+
+/**
+ * One picture over the boxes its pieces draw, read otherwise as its first piece; one picture of several PNGs is no one
+ * PNG's gradient.
+ * @param pieces - the pieces, the first drawn first
+ * @returns the picture
+ */
+function joined(pieces: readonly Prim[]): Prim {
+    const box = {
+        x0: Math.min(...pieces.map((p) => p.box.x0)),
+        y0: Math.min(...pieces.map((p) => p.box.y0)),
+        x1: Math.max(...pieces.map((p) => p.box.x1)),
+        y1: Math.max(...pieces.map((p) => p.box.y1)),
+    };
+    const picture: Prim = {
+        ...pieces[0],
+        box,
+        quad: [
+            [box.x0, box.y0],
+            [box.x1, box.y0],
+            [box.x1, box.y1],
+            [box.x0, box.y1],
+        ],
+    };
+    delete picture.gradient;
+    return picture;
+}
+
+/**
  * The shapes without a cut fill painted over by a solid fill of the same box: nothing of it shows (yEd's panel group
  * clips a flat fill to its label's band and draws the band over it).
  * @param prims - the shapes, in drawing order
@@ -1320,6 +1450,9 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             throw new Error("the oracle SVG has no screen matrix");
         }
         const prims: Prim[] = [];
+        // each picture's whole box, transparent pixels and all, by its index: where the next piece of a picture drawn
+        // in pieces must lie (`joinedPictures`)
+        const pictureBoxes = new Map<number, PBox>();
         // the `d` of the last filled path read, whose outline a stroke-only twin may draw
         let lastFilledPath = "";
         // the primitive read from that filled path, which a framed edge's outline drawn next takes for its band's inside
@@ -1408,7 +1541,11 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
                 const pixels = href === null ? undefined : pictures.get(unbrokenHref(href));
                 const gradient = pixels === undefined ? null : pictureGradient(pixels);
-                const b = el.getBBox();
+                const whole = el.getBBox();
+                const stretched = el.getAttribute("preserveAspectRatio")?.trim() === "none";
+                const inked = pixels === undefined ? null : inkedPart(pixels, whole, stretched);
+                const b = inked === null ? whole : new DOMRect(inked.x, inked.y, inked.width, inked.height);
+                pictureBoxes.set(i, boxThrough(m, whole));
                 prims.push({
                     ...(gradient === null ? {} : { gradient }),
                     index: i,
@@ -1583,7 +1720,11 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 lastFilledPrim = prim;
             }
         }
-        return { width: r3(rect.width), height: r3(rect.height), prims: withoutHiddenCuts(prims) };
+        return {
+            width: r3(rect.width),
+            height: r3(rect.height),
+            prims: withoutHiddenCuts(joinedPictures(prims, pictureBoxes)),
+        };
     } finally {
         host.remove();
     }

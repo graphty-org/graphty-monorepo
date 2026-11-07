@@ -42,8 +42,8 @@ import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { svgPicture } from "./styles-yed-live-drawing.js";
 import { yedNodePicture } from "./styles-yed-drawing.js";
+import { svgPicture } from "./styles-yed-live-drawing.js";
 
 // ============================================================ the kept trees
 
@@ -1862,6 +1862,70 @@ function readMarks(
 }
 
 /**
+ * The soft shadow yEd 3.25 paints under a GenericNode (`y.view.ShadowNodePainter`), as its drawings show it: the node's
+ * outline, border included, in black at 75/255, moved 2.5 down and right, its edge fading over 4 on each side
+ * (`yed-graphml-specimen-node-shapes-p2`'s entity relationship nodes, `-p3`'s BPMN `.withShadow` nodes,
+ * `graphml-galaxy-lcms-workflow`'s artifacts); and the one under its old `BevelNode3` and `BevelNodeWithShadow`, drawn
+ * in nine pieces, moved 3 and fading over 3.5 (`-p2`).
+ */
+const SOFT_SHADOW = { opacity: 0.294, offset: 2.5, blur: 4 };
+const LEGACY_SHADOW = { opacity: 0.294, offset: 3, blur: 3.5 };
+
+/**
+ * The shadow yEd paints under a GenericNode, or null: the one its configuration paints by default (a BPMN
+ * `.withShadow` configuration, an entity relationship node, the old `BevelNode3` and `BevelNodeWithShadow`), turned on
+ * or off by its `y.view.ShadowNodePainter.SHADOW_PAINTING` style property, which turns it on for any other
+ * configuration (a flowchart process in `yed-graphml-specimen-node-fills-borders`). A flowchart node is drawn with none
+ * by default, and an entity relationship node with `SHADOW_PAINTING` false draws none (`graphml-galaxy-lcms-workflow`).
+ * @param real - the realizer
+ * @returns the shadow, or null
+ */
+function genericShadow(real: Realizer): typeof SOFT_SHADOW | null {
+    if (real.type !== "GenericNode") {
+        return null;
+    }
+    const conf = (treeAttr(real.r, "configuration") ?? "").toLowerCase();
+    const legacy = conf === "bevelnode3" || conf === "bevelnodewithshadow";
+    const painting = styleProperty(real.r, "y.view.ShadowNodePainter.SHADOW_PAINTING");
+    const byDefault = legacy || conf.endsWith(".withshadow") || conf.startsWith("com.yworks.entityrelationship.");
+    if (painting === undefined ? !byDefault : painting !== "true") {
+        return null;
+    }
+    return legacy ? LEGACY_SHADOW : SOFT_SHADOW;
+}
+
+/**
+ * Reads the shadow drawn under a node: a `y:DropShadow` (a hard copy of the node's shape in its color, moved by its
+ * offsets, as yEd draws it in `yed-graphml-specimen-node-fills-borders`), or the soft one a GenericNode's painter draws
+ * (`genericShadow`).
+ * @param real - the realizer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readShadow(real: Realizer, put: PutValue, at: SiteOf): void {
+    const drop = treeChild(real.r, "DropShadow");
+    if (drop !== undefined) {
+        const color = canonColor(treeAttr(drop, "color"), "yed", at("shadowColor"));
+        if (color !== null) {
+            put("shadowColor", color.color);
+            put("shadowOpacity", color.alpha);
+            put("shadowBlur", 0);
+            put("shadowOffsetX", canonSigned(treeAttr(drop, "offsetX") ?? "0", at("shadowOffsetX")));
+            put("shadowOffsetY", canonSigned(treeAttr(drop, "offsetY") ?? "0", at("shadowOffsetY")));
+            return;
+        }
+    }
+    const soft = genericShadow(real);
+    if (soft !== null) {
+        put("shadowColor", "#000000");
+        put("shadowOpacity", soft.opacity);
+        put("shadowBlur", soft.blur);
+        put("shadowOffsetX", soft.offset);
+        put("shadowOffsetY", soft.offset);
+    }
+}
+
+/**
  * Reads one node realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1910,6 +1974,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     if (width !== null && height !== null && real.type === "GenericNode") {
         readMarks(real, outline, { width, height }, color, put, at);
     }
+    readShadow(real, put, at);
     readFace(real, width, height, painted, put, at, resources);
     const header = readEntityHeader(real, height, put, at);
     const labelPut: PutValue = (property, value) => {

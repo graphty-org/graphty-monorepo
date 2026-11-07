@@ -441,6 +441,11 @@ export interface ChannelValues {
     "node.raisedBorderWidth": number;
     "node.raisedBorderLightColor": ColorValue;
     "node.raisedBorderDarkColor": ColorValue;
+    "node.shadowColor": ColorValue;
+    "node.shadowOpacity": number;
+    "node.shadowBlur": number;
+    "node.shadowOffsetX": number;
+    "node.shadowOffsetY": number;
     "node.cornerRadius": number;
     "node.exactCornerRadius": boolean;
     "node.cornerFraction": number;
@@ -743,6 +748,7 @@ export type ColorChannel =
     | "node.outerBorderColor"
     | "node.raisedBorderLightColor"
     | "node.raisedBorderDarkColor"
+    | "node.shadowColor"
     | "node.underlayColor"
     | "node.overlayColor"
     | "node.glyphColor"
@@ -1147,6 +1153,11 @@ const NODE_OUTER_BORDER_CAVEAT =
     "(Cytoscape.js's outline): drawn only with a width above 0. Widths and the offset are in the units " +
     "of `node.borderWidth`; `node.outerBorderCount` draws that many rings, each the offset beyond the one before. " +
     "It is not `node.outline`, which is a highlight drawn over the node's rim.";
+
+const NODE_SHADOW_CAVEAT =
+    "A shadow drawn beneath the node: the node's own shape in `node.shadowColor`, moved by `node.shadowOffsetX` " +
+    "(right) and `node.shadowOffsetY` (down), its edge fading over `node.shadowBlur` on each side, as yEd draws a " +
+    "node's drop shadow. Drawn only with a `node.shadowOpacity` above 0. Lengths are in the units of `node.size`.";
 
 const NODE_RAISED_BORDER_CAVEAT =
     "Strips along the inside of the node's edge that make it look raised: `node.raisedBorderLightColor` on its left " +
@@ -2885,6 +2896,69 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "raisedBorder.darkColor",
         renderable: true,
         caveat: NODE_RAISED_BORDER_CAVEAT,
+    },
+    "node.shadowColor": {
+        channel: "node.shadowColor",
+        target: "node",
+        plainName: "Node Shadow Color",
+        shortName: "Shadow color",
+        group: "shape",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "shadow.color",
+        renderable: true,
+        caveat: NODE_SHADOW_CAVEAT,
+    },
+    "node.shadowOpacity": {
+        channel: "node.shadowOpacity",
+        target: "node",
+        plainName: "Node Shadow Opacity",
+        shortName: "Shadow opacity",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "shadow.opacity",
+        renderable: true,
+        caveat: NODE_SHADOW_CAVEAT,
+    },
+    "node.shadowBlur": {
+        channel: "node.shadowBlur",
+        target: "node",
+        plainName: "Node Shadow Blur",
+        shortName: "Shadow blur",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shadow.blur",
+        renderable: true,
+        caveat: NODE_SHADOW_CAVEAT,
+    },
+    "node.shadowOffsetX": {
+        channel: "node.shadowOffsetX",
+        target: "node",
+        plainName: "Node Shadow Offset X",
+        shortName: "Shadow offset X",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "shadow.offsetX",
+        renderable: true,
+        caveat: NODE_SHADOW_CAVEAT,
+    },
+    "node.shadowOffsetY": {
+        channel: "node.shadowOffsetY",
+        target: "node",
+        plainName: "Node Shadow Offset Y",
+        shortName: "Shadow offset Y",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "shadow.offsetY",
+        renderable: true,
+        caveat: NODE_SHADOW_CAVEAT,
     },
     ...haloRows("node", "underlay"),
     ...haloRows("node", "overlay"),

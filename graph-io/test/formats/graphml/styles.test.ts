@@ -637,6 +637,48 @@ describe("GraphML styles: yEd", () => {
             expect(await values(nodes, "borderWidth")).toEqual([0, 1, 0]);
         });
 
+        it("draws the soft shadow yEd paints under a node whose configuration or SHADOW_PAINTING asks for one", async () => {
+            const painting = (value: string): string =>
+                `<y:Property class="java.lang.Boolean" name="y.view.ShadowNodePainter.SHADOW_PAINTING" value="${value}"/>`;
+            const legacy = (id: string, conf: string): string =>
+                realizer(id, "GenericNode", ` configuration="${conf}"`, "");
+            const nodes =
+                generic("a", "bpmn.Activity.withShadow") +
+                generic("b", "entityRelationship.big_entity") +
+                generic("c", "entityRelationship.big_entity", painting("false")) +
+                generic("d", "flowchart.process") +
+                generic("e", "flowchart.process", painting("true")) +
+                legacy("f", "BevelNode3") +
+                legacy("g", "BevelNodeWithShadow") +
+                legacy("h", "BevelNode2");
+            const soft = 2.5;
+            expect(await values(nodes, "shadowOpacity")).toEqual([
+                ...[0.294, 0.294, null, null, 0.294, 0.294, 0.294],
+                null,
+            ]);
+            expect(await values(nodes, "shadowColor")).toEqual([
+                ...["#000000", "#000000", null, null, "#000000", "#000000", "#000000"],
+                null,
+            ]);
+            expect(await values(nodes, "shadowOffsetX")).toEqual([soft, soft, null, null, soft, 3, 3, null]);
+            expect(await values(nodes, "shadowOffsetY")).toEqual([soft, soft, null, null, soft, 3, 3, null]);
+            expect(await values(nodes, "shadowBlur")).toEqual([4, 4, null, null, 4, 3.5, 3.5, null]);
+        });
+
+        it("draws a y:DropShadow as a hard shadow in its color, moved by its offsets", async () => {
+            const nodes = realizer(
+                "a",
+                "ShapeNode",
+                "",
+                '<y:DropShadow color="#B3A691" offsetX="4" offsetY="8"/><y:Shape type="rectangle"/>',
+            );
+            expect(await values(nodes, "shadowColor")).toEqual(["#b3a691"]);
+            expect(await values(nodes, "shadowOpacity")).toEqual([1]);
+            expect(await values(nodes, "shadowBlur")).toEqual([0]);
+            expect(await values(nodes, "shadowOffsetX")).toEqual([4]);
+            expect(await values(nodes, "shadowOffsetY")).toEqual([8]);
+        });
+
         it("reads the strips of a raised node from its fill, as Java's brighter() and darker() paint them", async () => {
             const uml = (id: string, fill: string): string =>
                 `<node id="${id}"><data key="d6"><y:UMLClassNode>${box}${fill}<y:UML use3DEffect="true"/></y:UMLClassNode></data></node>`;

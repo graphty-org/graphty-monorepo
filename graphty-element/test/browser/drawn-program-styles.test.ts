@@ -6,7 +6,14 @@
  * - an end caption placed on the line some distance from its node (Cytoscape.js `source-text-offset`),
  * - a node's outer border, a second ring outside its border (Cytoscape.js `outline-*`).
  */
-import { type AbstractMesh, Color3, type Mesh, type StandardMaterial, type Vector3 } from "@babylonjs/core";
+import {
+    type AbstractMesh,
+    type BoundingBox,
+    Color3,
+    type Mesh,
+    type StandardMaterial,
+    type Vector3,
+} from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { StaticStyle } from "../../src/catalog/types";
@@ -454,6 +461,67 @@ describe("a node's underlay and overlay", () => {
         assert(graph);
         const node = graph.getDataManager().nodes.get("A");
         assert.isNull((node as unknown as { underlay: AbstractMesh | null }).underlay);
+    });
+});
+
+describe("a node's shadow", () => {
+    const shadowOf = (): { mesh: AbstractMesh; shadow: AbstractMesh[] } => {
+        assert(graph);
+        const node = graph.getDataManager().nodes.get("A");
+        assert(node);
+        return node as unknown as { mesh: AbstractMesh; shadow: AbstractMesh[] };
+    };
+    const box = (m: AbstractMesh): BoundingBox => {
+        m.computeWorldMatrix(true);
+        return m.getBoundingInfo().boundingBox;
+    };
+
+    test("is the node's shape moved right and down behind it, its soft edge in layers whose opacities make its own", async () => {
+        await oneEdge(
+            {},
+            {
+                "node.shadowOpacity": 0.3,
+                "node.shadowColor": "#ff0000",
+                "node.shadowBlur": 0.1,
+                "node.shadowOffsetX": 0.2,
+                "node.shadowOffsetY": 0.2,
+            },
+        );
+        const { mesh, shadow } = shadowOf();
+        assert.strictEqual(shadow.length, 4, "a soft edge is drawn in layers");
+        const fill = box(mesh);
+        const [outer, ...inner] = shadow.map(box);
+        // moved right and down (y up in the scene), the outermost layer the widest
+        assert.isAbove(outer.centerWorld.x, fill.centerWorld.x);
+        assert.isBelow(outer.centerWorld.y, fill.centerWorld.y);
+        for (const b of inner) {
+            assert.isBelow(b.maximumWorld.x - b.minimumWorld.x, outer.maximumWorld.x - outer.minimumWorld.x);
+        }
+        // 2D looks along +z: behind the node's back, the outermost layer farthest
+        assert.isAbove(outer.minimumWorld.z, fill.maximumWorld.z);
+        assert.isAbove(outer.minimumWorld.z, inner[0].maximumWorld.z);
+        const paints = shadow.map(
+            (m) => (m as unknown as { sourceMesh: Mesh }).sourceMesh.material as StandardMaterial,
+        );
+        assert.strictEqual(paints[0].emissiveColor.toHexString().toLowerCase(), "#ff0000");
+        const through = paints.reduce((left, p) => left * (1 - p.alpha), 1);
+        assert.closeTo(1 - through, 0.3, 1e-9);
+    });
+
+    test("is one layer at its opacity with no blur, read off the scene as a picture beside the node", async () => {
+        await oneEdge({}, { "node.shadowOpacity": 1, "node.shadowOffsetX": 0.2 });
+        assert.strictEqual(shadowOf().shadow.length, 1);
+        assert(graph);
+        const drawn = readDrawn(graph);
+        const node = drawn.nodes.get("A");
+        assert(node?.shadow, "the drawn scene reads the shadow");
+        assert.isAbove(node.shadow.x0, node.box.x0);
+        assert.isTrue(drawn.annotations.some((a) => a.kind === "image" && a.box === node.shadow));
+    });
+
+    test("draws none without an opacity", async () => {
+        await oneEdge({}, { "node.shadowColor": "#ff0000", "node.shadowOffsetX": 0.2 });
+        assert.strictEqual(shadowOf().shadow.length, 0);
     });
 });
 

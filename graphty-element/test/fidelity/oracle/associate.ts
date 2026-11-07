@@ -219,6 +219,44 @@ function curvedShapeOf(p: Prim): PShape | null {
 const guideSize = (n: PNode): number => Math.max(n.w, n.h) + (n.inset === true ? (n.stroke?.width ?? 0) : 0);
 
 /**
+ * Whether a shape of a node's drawing is the shadow yEd draws under the node, not the node: drawn before an opaque
+ * body of the node and off its spot, either a hard copy of the body's box in a color of its own (`y:DropShadow`: a
+ * 36 by 36 rect at 1006,604.222 under the 36 by 36 node at 1002,600.222 in `yed-graphml-specimen-node-fills-borders`),
+ * or a picture about the body's size its body mostly covers (a soft shadow: the PNG under the 56 by 36 entity at
+ * 1020,509.111 in `yed-graphml-specimen-node-shapes-p2` paints 1018 to 1082 across and 507.111 to 552.111 down).
+ * @param u - the shape
+ * @param shapes - the node's shapes
+ * @param body - whether a shape can be the node's body
+ * @returns true for a shadow
+ */
+function shadowOf(u: Prim, shapes: readonly Prim[], body: (p: Prim) => boolean): boolean {
+    const picture = u.kind === "image";
+    if (!picture && (!body(u) || u.stroke !== null || u.fill === null)) {
+        return false;
+    }
+    return shapes.some((v) => {
+        // a body mostly opaque hides what is under it (`graphml-galaxy-lcms-workflow`'s artifacts are filled at 0.9)
+        const opaque = (v.fill?.opacity ?? 0) >= 0.5;
+        if (v === u || !body(v) || v.index < u.index || !opaque || area(v.box) <= 0) {
+            return false;
+        }
+        const off = Math.hypot(cx(u.box) - cx(v.box), cy(u.box) - cy(v.box));
+        // mostly under the body: pieces side by side (stripes, a table's rows) are not under one another
+        const covered =
+            Math.max(0, Math.min(u.box.x1, v.box.x1) - Math.max(u.box.x0, v.box.x0)) *
+                Math.max(0, Math.min(u.box.y1, v.box.y1) - Math.max(u.box.y0, v.box.y0)) >=
+            0.5 * area(u.box);
+        if (!picture) {
+            // opaque, as yEd paints it: a see-through copy off its spot is a node beside another or a ghost
+            const same = Math.abs(bw(u.box) - bw(v.box)) <= 0.5 && Math.abs(bh(u.box) - bh(v.box)) <= 0.5;
+            return off >= 1 && covered && same && (u.fill?.opacity ?? 0) >= 0.99;
+        }
+        const near = (a: number, b: number): boolean => a >= b && a <= 1.5 * b;
+        return off >= 1 && covered && near(bw(u.box), bw(v.box)) && near(bh(u.box), bh(v.box));
+    });
+}
+
+/**
  * The shapes a node's drawing holds that are an underlay or a halo, not its body: a see-through, unstroked fill drawn
  * before a smaller, opaque shape of the node and reaching past it by the same padding on every side (Cytoscape.js's
  * `underlay-*`), or drawn just before an opaque copy of itself, off its spot (Cytoscape.js's `ghost`: json-cyjs-synth-nodes
@@ -230,6 +268,10 @@ export function underlaysOf(shapes: readonly Prim[]): Set<Prim> {
     const body = (p: Prim): boolean => p.kind !== "image" && p.tag !== PAINTED_OUTLINE;
     const out = new Set<Prim>();
     for (const u of shapes) {
+        if (shadowOf(u, shapes, body)) {
+            out.add(u);
+            continue;
+        }
         if (!body(u) || u.stroke !== null || u.fill === null || u.fill.opacity >= 1) {
             continue;
         }

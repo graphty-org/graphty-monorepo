@@ -24,6 +24,7 @@ import { type Column, type ColumnDecl, type GraphSnapshot, type JsonColumn } fro
 
 import { localName } from "../../common/xml.js";
 import type { ImporterPositions } from "../../positions/types.js";
+import { graphmlGroupBounds } from "./styles-yed.js";
 
 /** The name prefix of every column mapped from yFiles graphics. */
 const YFILES_COLUMN_PREFIX = "yfiles.";
@@ -90,12 +91,21 @@ export function graphicsDecl(domain: "node" | "edge", field: string, keyId: stri
 
 /**
  * The tool behind a GraphML file's positions, for `extractPositions()`: yEd when they come from
- * yFiles graphics. The column's `meta.extra` already says how they are spelled.
+ * yFiles graphics, and the boxes yEd draws the open groups in. The column's `meta.extra` already says how they are
+ * spelled.
  * @param snapshot - the graph the GraphML importer read
  * @returns the tool, or null to read the position column as declared
  */
 export function yfilesPositions(snapshot: GraphSnapshot): ImporterPositions | null {
-    return snapshot.nodes.byRole("position")?.meta.origin?.namespace === "yfiles" ? { tool: "yed" } : null;
+    if (snapshot.nodes.byRole("position")?.meta.origin?.namespace !== "yfiles") {
+        return null;
+    }
+    // an open group is drawn round its members, not at the box the file stores (graphmlGroupBounds)
+    const groups = [...graphmlGroupBounds(snapshot)].map(([node, [x0, y0, x1, y1]]) => ({
+        node,
+        box: { x: x0, y: y0, width: x1 - x0, height: y1 - y0 },
+    }));
+    return { tool: "yed", ...(groups.length === 0 ? {} : { groups }) };
 }
 
 /**

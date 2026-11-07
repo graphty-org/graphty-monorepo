@@ -545,6 +545,25 @@ describe("a community result", () => {
             assert.strictEqual(ranks?.get(String(group.group)), group.rank);
         }
     });
+
+    it("counts all its groups when the list of them stops short", () => {
+        const result = createRunResult({
+            runId: "components",
+            shape: "community",
+            fields: [
+                field({ name: "group", plainName: "Group", technicalName: "group", kind: "node", type: "integer" }),
+            ],
+            measured: { nodes: 26, edges: 0 },
+            nodes: Array.from({ length: 26 }, (_unused, index) => ({ id: `n${index}`, values: { group: index } })),
+            caveats: CAVEATS,
+            durationMs: 3,
+        });
+
+        const summary = result.summary();
+        assert.strictEqual(summary.groupCount, 26);
+        assert.strictEqual(summary.groups?.length, SUMMARY_GROUP_LIMIT);
+        assert.strictEqual(result.readingFact().params.groups, 26);
+    });
 });
 
 describe("a layered grouping result", () => {

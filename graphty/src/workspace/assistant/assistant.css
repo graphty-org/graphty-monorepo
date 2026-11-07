@@ -1,0 +1,247 @@
+/* The Assistant's panel: a title row, the log that scrolls, and the composer pinned at the foot.
+   Nothing inside it is boxed; sections part on hairlines. */
+.ws-assistant {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.ws-assistant-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 8px 4px 8px;
+}
+
+.ws-assistant-title {
+    margin: 0;
+    padding-left: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 24px;
+}
+
+.ws-assistant-actions {
+    display: flex;
+    flex: none;
+    gap: 2px;
+}
+
+.ws-assistant-logwrap {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* Positioned, so a visually hidden label's absolute box stays inside the scroll and never overflows the
+   panel into a second scrollbar. */
+.ws-assistant-log {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px 16px 8px;
+}
+
+.ws-assistant-jump {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.ws-assistant-setup {
+    padding: 8px 16px;
+}
+
+.ws-assistant-turn {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.ws-assistant-who {
+    margin: 4px 0 0;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+}
+
+.ws-assistant-prose {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.ws-assistant-shut {
+    transform: rotate(-90deg);
+}
+
+.ws-assistant-steps {
+    margin: 2px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ws-assistant-steps li {
+    padding-left: 8px;
+}
+
+.ws-assistant-step {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ws-assistant-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.ws-assistant-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+}
+
+.ws-assistant-change {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ws-assistant-scope {
+    min-height: 24px;
+}
+
+.ws-assistant-waiting {
+    flex: none;
+    overflow-y: auto;
+    max-height: 40%;
+    padding: 8px;
+    border-top: 1px solid var(--cm-border);
+}
+
+.ws-assistant-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ws-assistant-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+    border-bottom: 1px solid var(--cm-border);
+}
+
+/* The header's chat switch, and each row's open button: the title gives way with an ellipsis. */
+.ws-assistant-switch,
+.ws-chat-open,
+.ws-chat-rename {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.ws-assistant-switch {
+    flex: 0 1 auto;
+}
+
+/* Mantine's inner box centers its content and does not shrink: it starts the title at the left and
+   gives way, so the label can, and the title in it ends in an ellipsis inside the button. */
+.ws-assistant-switch .mantine-Button-inner,
+.ws-chat-open .mantine-Button-inner {
+    justify-content: flex-start;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ws-assistant-switch .mantine-Button-label,
+.ws-chat-open .mantine-Button-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ws-assistant-switch[aria-expanded="true"] .mantine-Button-section svg {
+    transform: rotate(180deg);
+}
+
+/* "Chats 3" before the open chat's title: says there are several, in the secondary ink. */
+.ws-chat-count {
+    flex: none;
+    margin-inline-end: 6px;
+    color: var(--cm-text-secondary);
+}
+
+.ws-assistant-switch[aria-expanded="true"] .ws-chat-count {
+    margin-inline-end: 0;
+    color: inherit;
+}
+
+.ws-chat-title {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The check's slot keeps its width when a long title squeezes the row, so every title starts in
+   one column. */
+.ws-chat-open .mantine-Button-section {
+    flex: none;
+}
+
+/* Keeps the titles of rows without the check in line with the checked one. */
+.ws-chat-nocheck {
+    display: inline-block;
+    width: 12px;
+}
+
+.ws-chat-date {
+    flex: none;
+}
+
+.ws-assistant-foot {
+    position: relative;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border-top: 1px solid var(--cm-border);
+}
+
+/* Send and Stop share one cell; the hidden label still sizes it. */
+.ws-assistant-swap {
+    display: inline-grid;
+}
+
+.ws-assistant-swap > * {
+    grid-area: 1 / 1;
+    text-align: center;
+}
+
+.ws-assistant-swap > [aria-hidden="true"] {
+    visibility: hidden;
+}
+
+/* What Talk last heard (or did not), laid over the log's foot above the composer. */
+.ws-assistant-voice {
+    position: absolute;
+    right: 0;
+    bottom: 100%;
+    left: 0;
+    padding: 2px 16px;
+    border-top: 1px solid var(--cm-border);
+    background: var(--cm-bg);
+    pointer-events: none;
+}

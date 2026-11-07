@@ -15,6 +15,8 @@ export class ApiKeyManager {
     disablePersistence(clearStorage?: boolean): void;
     enablePersistence(config?: PersistenceConfig): void;
     enablePersistenceWithPassphrase(passphrase: string, config?: PassphrasePersistenceConfig): Promise<void>;
+    forgetKey(provider: ProviderType): void;
+    forgetKeys(): void;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
@@ -22,6 +24,7 @@ export class ApiKeyManager {
     hasKey(provider: ProviderType): boolean;
     isPersistenceEnabled(): boolean;
     removeKey(provider: ProviderType): void;
+    retireOtherStorage(): void;
     setDefaultProvider(provider: ProviderType | null): void;
     setKey(provider: ProviderType, key: string): void;
     setStoredItem(name: string, value: unknown): void;

@@ -9,7 +9,7 @@
  */
 
 /** The id of an experiment, as `features="..."` and `createGraphSession({ features })` take it. */
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {
@@ -28,6 +28,7 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // The graphty app's full-screen selection editor; graphty-element's selection API is not gated.
     { id: "selection-workspace", plainName: "Selection workspace", issue: 5805, since: "2026-11-04" },
     { id: "timeline", plainName: "Timeline", issue: 300, since: "2026-11-04" },
+    { id: "assistant", plainName: "Assistant", issue: 2000, since: "2026-11-04" },
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */

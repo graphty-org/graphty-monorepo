@@ -1198,6 +1198,44 @@ export function algorithmByKey(key: string): BuiltInAlgorithmDescriptor | undefi
     return BUILT_IN_ALGORITHMS.find((descriptor) => descriptor.key === key);
 }
 
+/**
+ * The catalog key a name means: its own key, any case, `_` for `-`, a `graphty:` prefix, or a
+ * legacy key (`dijkstra` is `shortest-path` with `method: "dijkstra"`).
+ * @param name - The name, as the model wrote it.
+ * @param algorithms - The algorithms to look in.
+ * @returns The key and the parameters the legacy key implies, or undefined.
+ */
+export function algorithmKeyOf(
+    name: string,
+    algorithms: readonly AlgorithmDescriptor[],
+): { key: string; params: Readonly<Record<string, unknown>> } | undefined {
+    const bare = name.trim().replace(/^graphty:/i, "");
+    const lower = bare.toLowerCase().replaceAll("_", "-");
+    const direct = algorithms.find((entry) => entry.key === bare || entry.key.toLowerCase() === lower);
+    if (direct !== undefined) {
+        return { key: direct.key, params: {} };
+    }
+
+    const legacy = algorithmByLegacyKey(lower) ?? algorithmByLegacyKey(lower.replaceAll("-", ""));
+    return legacy === undefined ? undefined : { key: legacy.descriptor.key, params: legacy.params };
+}
+
+/**
+ * The built-in algorithm an assistant's tool call runs, however the model spelled its name.
+ * @param tool - The call's tool.
+ * @param args - The call's arguments.
+ * @returns The descriptor, or undefined when the call runs none.
+ * @experimental assistant
+ */
+export function calledAlgorithm(
+    tool: string,
+    args: Readonly<Record<string, unknown>> | undefined,
+): BuiltInAlgorithmDescriptor | undefined {
+    const name = tool === "run_algorithm" ? args?.name : undefined;
+    const found = typeof name === "string" ? algorithmKeyOf(name, BUILT_IN_ALGORITHMS) : undefined;
+    return found === undefined ? undefined : algorithmByKey(found.key);
+}
+
 /** Where a 1.10 key ended up: the descriptor that replaced it, and the parameters it needs. */
 export interface LegacyAlgorithmMapping {
     descriptor: BuiltInAlgorithmDescriptor;

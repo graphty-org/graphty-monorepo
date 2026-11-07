@@ -110,6 +110,13 @@
     border-inline-start: 1px solid var(--cm-border);
 }
 
+/* A window too narrow for the panel beside the canvas: the Assistant takes the area right of the
+   rail, as the Data page does. */
+.ws-left[data-fills] {
+    grid-column: 2 / -1;
+    border-inline-end: 0;
+}
+
 .ws-main {
     position: relative;
     display: grid;

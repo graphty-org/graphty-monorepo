@@ -1,5 +1,10 @@
-import * as ai from "ai";
-import { assert, describe, it, vi } from "vitest";
+/**
+ * What a provider failure carries out of the assistant: never the key, the prompt or the response.
+ * The built-in providers fail against a faked `fetch`, through TanStack AI and each provider's SDK.
+ * @module test/ai/providers/VercelAiProvider.errors.test
+ */
+
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { AiController } from "../../../src/ai/AiController";
 import { CommandRegistry } from "../../../src/ai/commands";
@@ -9,30 +14,24 @@ import type { AiEvent } from "../../../src/events";
 import { redactSecrets } from "../../../src/logging";
 import { createMessageGraph } from "../../helpers/message-graph";
 
-vi.mock("ai", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("ai")>();
-    return { ...actual, generateText: vi.fn(), streamText: vi.fn() };
-});
-
 /** The configured key, and a value from the graph that must never leave in an error. */
 const KEY = "sk-ant-api03-SENTINELKEY0123456789abcdefghij";
 const CANARY = "canary-graph-value-7f3a";
 
 /**
- * A provider error shaped like the AI SDK's own after a failed call: the request it sent (the
- * prompt with a graph value), the response it got, and the key in the request headers and in the
+ * A provider error shaped like an SDK's own after a failed call: the request it sent (the prompt
+ * with a graph value), the response it got, and the key in the request headers and in the
  * message, as a provider that echoes the key would put it.
  * @returns the error.
  */
-function providerError(): ai.APICallError {
-    return new ai.APICallError({
-        message: `Incorrect API key provided: ${KEY}`,
+function providerError(): Error {
+    return Object.assign(new Error(`Incorrect API key provided: ${KEY}`), {
+        name: "APICallError",
         url: `https://api.example.com/v1/messages?key=${KEY}`,
         requestBodyValues: { messages: [{ role: "user", content: `color the node ${CANARY}` }] },
         statusCode: 401,
         responseHeaders: { "x-api-key": KEY },
         responseBody: JSON.stringify({ error: { message: `bad key ${KEY}` }, echo: CANARY }),
-        isRetryable: false,
         cause: new Error(`inner ${CANARY}`),
     });
 }
@@ -57,57 +56,69 @@ function everything(error: unknown): string {
 /**
  * Asserts the thrown error leaks neither the key nor the graph value, and still says what failed.
  * @param error - what the provider threw.
+ * @param name - the name the error keeps.
  */
-function assertClean(error: unknown): void {
+function assertClean(error: unknown, name: string): void {
     const text = everything(error);
     assert.notInclude(text, KEY);
     assert.notInclude(text, CANARY);
     assert.instanceOf(error, Error);
-    assert.strictEqual(error.name, "AI_APICallError");
+    assert.strictEqual(error.name, name);
     assert.include(error.message, "Incorrect API key provided");
     assert.strictEqual((error as { statusCode?: number }).statusCode, 401);
 }
 
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
+
 describe("VercelAiProvider errors", () => {
-    it("throws a provider error from generate with no key, prompt or response attached", async () => {
-        vi.mocked(ai.generateText).mockRejectedValueOnce(providerError());
-        const provider = new VercelAiProvider("anthropic");
-        provider.configure({ apiKey: KEY });
+    /** Every provider refuses the key with a 401 whose message echoes it. */
+    function refusal(): void {
+        vi.stubGlobal("fetch", () =>
+            Promise.resolve(
+                new Response(JSON.stringify({ error: { message: `Incorrect API key provided: ${KEY}` } }), {
+                    status: 401,
+                    headers: { "content-type": "application/json" },
+                }),
+            ),
+        );
+    }
 
-        const thrown = await provider.generate([{ role: "user", content: CANARY }], []).catch((e: unknown) => e);
+    for (const type of ["openai", "anthropic", "google"] as const) {
+        it(`${type}: throws a provider error from generate with no key, prompt or response attached`, async () => {
+            refusal();
+            const provider = new VercelAiProvider(type);
+            provider.configure({ apiKey: KEY });
 
-        assertClean(thrown);
-    });
+            const thrown = await provider.generate([{ role: "user", content: CANARY }], []).catch((e: unknown) => e);
 
-    it("reports and throws a stream error with no key, prompt or response attached", async () => {
-        const error = providerError();
-        vi.mocked(ai.streamText).mockReturnValueOnce({
-            fullStream: (function* stream() {
-                yield { type: "error", error };
-                throw error;
-            })(),
-        } as unknown as ReturnType<typeof ai.streamText>);
-        const provider = new VercelAiProvider("anthropic");
-        provider.configure({ apiKey: KEY });
-        const reported: Error[] = [];
+            assertClean(thrown, "ProviderApiError");
+        });
 
-        const thrown = await provider
-            .generateStream([{ role: "user", content: CANARY }], [], {
-                onChunk: () => undefined,
-                onToolCall: () => undefined,
-                onToolResult: () => undefined,
-                onComplete: () => undefined,
-                onError: (e) => reported.push(e),
-            })
-            .catch((e: unknown) => e);
+        it(`${type}: reports and throws a stream error with no key, prompt or response attached`, async () => {
+            refusal();
+            const provider = new VercelAiProvider(type);
+            provider.configure({ apiKey: KEY });
+            const reported: Error[] = [];
 
-        assertClean(thrown);
-        assert.strictEqual(reported.length, 2);
-        reported.forEach(assertClean);
-        // The SDK's own console.error of the raw error is turned off.
-        const options = vi.mocked(ai.streamText).mock.lastCall?.[0];
-        assert.isFunction(options?.onError);
-    });
+            const thrown = await provider
+                .generateStream([{ role: "user", content: CANARY }], [], {
+                    onChunk: () => undefined,
+                    onToolCall: () => undefined,
+                    onToolResult: () => undefined,
+                    onComplete: () => undefined,
+                    onError: (e) => reported.push(e),
+                })
+                .catch((e: unknown) => e);
+
+            assertClean(thrown, "ProviderApiError");
+            assert.strictEqual(reported.length, 1);
+            reported.forEach((e) => {
+                assertClean(e, "ProviderApiError");
+            });
+        });
+    }
 });
 
 describe("AiController errors", () => {
@@ -126,9 +137,9 @@ describe("AiController errors", () => {
 
         const errorEvent = events.find((e) => e.type === "ai-command-error");
         assert.ok(errorEvent?.type === "ai-command-error");
-        assertClean(errorEvent.error);
-        assertClean(controller.getLastError());
-        assertClean(controller.getStatus().error);
+        assertClean(errorEvent.error, "APICallError");
+        assertClean(controller.getLastError(), "APICallError");
+        assertClean(controller.getStatus().error, "APICallError");
         assert.notInclude(result.message, KEY);
     });
 });

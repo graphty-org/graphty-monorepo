@@ -24,7 +24,7 @@ import {
     type OptionDescriptor,
     PROJECT_FILE,
 } from "./types";
-import { catalogFormatDescriptors, COMMON_WRITER_OPTIONS } from "./writerRegistry";
+import { catalogFormatDescriptors, COMMON_WRITER_OPTIONS, withCommonWriterOptions } from "./writerRegistry";
 
 /** A built-in format name no registered data source reads. */
 export interface UnservedFormat {
@@ -480,7 +480,7 @@ export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = [
  * @returns Its writer options, the common ones included.
  */
 function writerOptionsOf(id: string): readonly OptionDescriptor[] {
-    return [...(writerOptions[id] ?? []), ...COMMON_WRITER_OPTIONS];
+    return withCommonWriterOptions(writerOptions[id]);
 }
 
 /**

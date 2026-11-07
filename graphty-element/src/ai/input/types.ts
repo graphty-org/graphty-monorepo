@@ -13,6 +13,17 @@ export interface InputOptions {
     interimResults?: boolean;
     /** Language code for speech recognition (e.g., "en-US") */
     language?: string;
+    /**
+     * Ask the browser to recognize speech on the device rather than on its vendor's servers
+     * (Chrome's `processLocally`); ignored where the recognizer has no such switch.
+     */
+    processLocally?: boolean;
+    /**
+     * Words the speaker is likely to say ("nodes", a column's name), which on-device recognition
+     * favors (Chrome's contextual biasing, `SpeechRecognitionPhrase`). Ignored where the
+     * recognizer cannot take them, and by recognition at the vendor.
+     */
+    phrases?: readonly string[];
 }
 
 /**

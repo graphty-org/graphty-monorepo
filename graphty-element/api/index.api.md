@@ -206,7 +206,7 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
     readonly __brand?: "AdHocData";
 };
 
-// @public (undocumented)
+// @public
 export type AiEventType = AiEvent["type"];
 
 // @public
@@ -2429,6 +2429,7 @@ export type ElementAtResult = {
 // @public
 export interface EnabledFeatures {
     readonly enabled: readonly FeatureId[];
+    has(id: FeatureId): boolean;
     readonly unknown: readonly string[];
 }
 
@@ -2505,7 +2506,7 @@ export class EventManager implements Manager {
     withRetry<T>(operation: () => Promise<T>, context: GraphErrorEvent["context"], graph: Graph | GraphContext | null, details?: Record<string, unknown>): Promise<T>;
 }
 
-// @public (undocumented)
+// @public
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 
 // @public
@@ -2552,13 +2553,15 @@ export interface ExportResult {
 // @public
 export type ExportScope = RuleTree | "shown" | "selection" | {
     readonly set: SetId;
+} | {
+    readonly nodes: readonly NodeId[];
 };
 
 // @public
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace";
 
 // @public
 export interface FindAtLeastRow {
@@ -2721,7 +2724,9 @@ export class Graph implements GraphContext {
     addListener<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): symbol;
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
-    aiCommand(input: string): Promise<ExecutionResult>;
+    aiCommand(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    aiTalk(down: boolean, options?: AiTalkOptions): void;
+    answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -2739,8 +2744,12 @@ export class Graph implements GraphContext {
     canvas: HTMLCanvasElement;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
+    clearAiHistory(options?: {
+        readonly database?: string;
+    }): Promise<void>;
     clearData(): void;
-    static createApiKeyManager(): Promise<ApiKeyManager>;
+    static createApiKeyManager(options?: ApiKeyManagerOptions): Promise<ApiKeyManager>;
+    deleteAiConversation(id: string): Promise<void>;
     deselectNode(): void;
     disableAiControl(): void;
     dispose(): void;
@@ -2755,6 +2764,7 @@ export class Graph implements GraphContext {
     enableAiControl(config: AiManagerConfig): Promise<void>;
     // (undocumented)
     enableDetailedProfiling?: boolean;
+    endAiLive(): void;
     // (undocumented)
     engine: WebGPUEngine | Engine;
     enterXR(mode: "immersive-vr" | "immersive-ar"): Promise<void>;
@@ -2763,16 +2773,24 @@ export class Graph implements GraphContext {
     exitXR(): Promise<void>;
     // @internal
     expectRenderer(): void;
+    exportAiConversation(id: string): Promise<string | null>;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
     fetchEdges?: FetchEdgesFn;
     // (undocumented)
     fetchNodes?: FetchNodesFn;
+    forgetAiKeys(options?: {
+        readonly provider?: ProviderType;
+        readonly prefix?: string;
+    }): Promise<void>;
     get framing(): boolean;
     getAcceleration(): AccelerationController;
+    getAiCapabilities(): AiCapabilities | null;
+    getAiConversation(): AiConversationSnapshot | null;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
+    getAiVoiceSupport(): Promise<AiVoiceSupport>;
     getApiKeyManager(): ApiKeyManager | null;
     getAutoFrame(): boolean;
     getCameraController(): CameraController | null;
@@ -2799,6 +2817,8 @@ export class Graph implements GraphContext {
     getNodeIdTarget(): NodeIdTarget | null;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    getPendingAiApprovals(): readonly AiApprovalRequest[];
+    getPendingAiQuestions(): readonly AiQuestionRequest[];
     // @internal
     getRowTable(): RowTable | null;
     getScene(): Scene;
@@ -2828,6 +2848,7 @@ export class Graph implements GraphContext {
     // @deprecated
     is2D(): boolean;
     isAiEnabled(): boolean;
+    isAiTalking(): boolean;
     isAnimationCapturing(): boolean;
     isARSupported(): Promise<boolean>;
     isCameraPlaced(): boolean;
@@ -2839,6 +2860,9 @@ export class Graph implements GraphContext {
     isVoiceActive(): boolean;
     isVRSupported(): Promise<boolean>;
     labelOf(nodeId: string | number): NodeLabel | undefined;
+    listAiConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly AiConversationSummary[]>;
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -2874,12 +2898,14 @@ export class Graph implements GraphContext {
     needRays: boolean;
     // @deprecated
     needsRayUpdate(): boolean;
+    newAiConversation(): Promise<AiConversationSnapshot | null>;
     get nodeLabelCounts(): NodeLabelCounts;
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined;
     nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
     on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     readonly onNodeLabelCounts: Observable<NodeLabelCounts>;
+    openAiConversation(id: string): Promise<AiConversationSnapshot | null>;
     // @internal
     openRowTable(): RowTable;
     // (undocumented)
@@ -2889,6 +2915,7 @@ export class Graph implements GraphContext {
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
+    renameAiConversation(id: string, name: string | null): Promise<void>;
     render(): void;
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
@@ -2896,6 +2923,7 @@ export class Graph implements GraphContext {
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
     // @internal
     resize(): void;
+    resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;
@@ -2981,6 +3009,7 @@ export class Graph implements GraphContext {
         onTranscript?: (text: string, isFinal: boolean) => void;
         onStart?: (started: boolean, error?: string) => void;
     }): boolean;
+    stopAiSpeech(): void;
     stopInputRecording(): RecordedInputEvent[];
     stopVoiceInput(): void;
     get styles(): Styles;
@@ -3200,9 +3229,11 @@ export class Graphty extends LitElement {
     addListener(type: EventType, callback: EventCallbackType): void;
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: AdHocData[], idPath?: string, options?: QueueableOptions): Promise<void>;
-    aiCommand(message: string): Promise<ExecutionResult>;
+    aiCommand(message: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    aiTalk(down: boolean, options?: AiTalkOptions): void;
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined;
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined);
+    answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -3236,6 +3267,9 @@ export class Graphty extends LitElement {
     cancelAnimationCapture(): boolean;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
+    clearAiHistory(options?: {
+        readonly database?: string;
+    }): Promise<void>;
     clearData(): void;
     connectedCallback(): void;
     static createApiKeyManager(): Promise<ApiKeyManager>;
@@ -3244,6 +3278,7 @@ export class Graphty extends LitElement {
     set dataSource(value: string | undefined);
     get dataSourceConfig(): Record<string, unknown> | undefined;
     set dataSourceConfig(value: Record<string, unknown> | undefined);
+    deleteAiConversation(id: string): Promise<void>;
     deselectNode(): void;
     get directed(): boolean | "auto" | undefined;
     set directed(value: boolean | "auto" | undefined);
@@ -3284,8 +3319,10 @@ export class Graphty extends LitElement {
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);
     get enabledFeatures(): EnabledFeatures;
+    endAiLive(): void;
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     exitXR(): Promise<void>;
+    exportAiConversation(id: string): Promise<string | null>;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     get features(): readonly string[] | undefined;
@@ -3293,9 +3330,13 @@ export class Graphty extends LitElement {
     firstUpdated(changedProperties: Map<string, unknown>): void;
     get fitInsets(): FitInsets;
     set fitInsets(value: Partial<FitInsets>);
+    forgetAiKeys(options?: Parameters<Graph["forgetAiKeys"]>[0]): Promise<void>;
     get framing(): boolean;
+    getAiCapabilities(): AiCapabilities | null;
+    getAiConversation(): AiConversationSnapshot | null;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
+    getAiVoiceSupport(): Promise<AiVoiceSupport>;
     getApiKeyManager(): ApiKeyManager | null;
     getCameraController(): CameraController | null;
     getCameraPresets(): Record<string, CameraState | {
@@ -3311,6 +3352,8 @@ export class Graphty extends LitElement {
     getNodeCount(): number;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    getPendingAiApprovals(): readonly AiApprovalRequest[];
+    getPendingAiQuestions(): readonly AiQuestionRequest[];
     getScene(): Scene;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;
@@ -3334,6 +3377,7 @@ export class Graphty extends LitElement {
     importCameraPresets(presets: Record<string, CameraState>): void;
     is2D(): boolean;
     isAiEnabled(): boolean;
+    isAiTalking(): boolean;
     isAnimationCapturing(): boolean;
     isARSupported(): Promise<boolean>;
     get isFrameStable(): boolean;
@@ -3360,6 +3404,9 @@ export class Graphty extends LitElement {
     set layoutScope(value: ScopeInput | undefined);
     get lighting(): Lighting;
     set lighting(value: Lighting);
+    listAiConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly AiConversationSummary[]>;
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -3394,6 +3441,7 @@ export class Graphty extends LitElement {
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    newAiConversation(): Promise<AiConversationSnapshot | null>;
     get nodeData(): Record<string, unknown>[] | undefined;
     set nodeData(value: Record<string, unknown>[] | undefined);
     get nodeIdPath(): string | undefined;
@@ -3421,6 +3469,7 @@ export class Graphty extends LitElement {
     static get observedAttributes(): string[];
     on(type: EventType, callback: EventCallbackType): void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
+    openAiConversation(id: string): Promise<AiConversationSnapshot | null>;
     pin(ids: (string | number) | readonly (string | number)[]): void;
     get pinnedNodes(): ReadonlySet<string | number>;
     get pixelRatio(): PixelRatio;
@@ -3434,6 +3483,7 @@ export class Graphty extends LitElement {
     removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
     removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
+    renameAiConversation(id: string, name: string | null): Promise<void>;
     render(): Element;
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);
@@ -3446,6 +3496,7 @@ export class Graphty extends LitElement {
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
+    resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;
@@ -3517,6 +3568,7 @@ export class Graphty extends LitElement {
         onTranscript?: (text: string, isFinal: boolean) => void;
         onStart?: (started: boolean, error?: string) => void;
     }): boolean;
+    stopAiSpeech(): void;
     stopVoiceInput(): void;
     static styles: CSSResult;
     unpin(ids: (string | number) | readonly (string | number)[]): void;
@@ -7996,6 +8048,24 @@ export interface WorkerCapability {
 }
 
 // @public
+export interface XRAiConfig {
+    labels?: Readonly<Record<string, string>>;
+    panel?: boolean;
+    pendingButtons?: {
+        approve?: readonly XRControllerButton[];
+        deny?: readonly XRControllerButton[];
+    };
+    pendingControl?: boolean;
+    pushToTalk?: {
+        buttons?: readonly XRControllerButton[];
+        wristOrb?: boolean;
+    };
+}
+
+// @public
+export type XRAiControlCode = "XR_APPROVE" | "XR_DENY" | "XR_TRANSCRIPT" | (string & {});
+
+// @public
 export interface XrCapability {
     readonly active: "vr" | "ar" | null;
     readonly ar: boolean;
@@ -8008,6 +8078,7 @@ export interface XrCapability {
 
 // @public
 export interface XRConfig {
+    ai?: XRAiConfig;
     ar: XRModeConfig;
     enabled: boolean;
     input: XRInputConfig;
@@ -8015,6 +8086,9 @@ export interface XRConfig {
     ui: XRUIConfig;
     vr: XRModeConfig;
 }
+
+// @public
+export type XRControllerButton = "a" | "b" | "x" | "y";
 
 // @public
 export interface XRInputConfig {

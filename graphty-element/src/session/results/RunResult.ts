@@ -927,14 +927,20 @@ function summaryValueField(shape: ResultShape): string | null {
  * @param limit - How many rows a summary may carry.
  * @param named - Whether each group gets its rank and display name, which a partition into
  *   groups does and a table of levels or of named categories does not.
- * @returns The groups, bounded, or undefined when the value is not a table this can read.
+ * @returns The groups, bounded, and how many the whole table holds, or undefined when the value is
+ *   not a table this can read.
  */
-function toSummaryGroups(value: unknown, limit: number, named: boolean): readonly SummaryGroup[] | undefined {
+function toSummaryGroups(
+    value: unknown,
+    limit: number,
+    named: boolean,
+): { readonly groups: readonly SummaryGroup[]; readonly groupCount: number } | undefined {
     if (!Array.isArray(value)) {
         return undefined;
     }
 
     const groups: SummaryGroup[] = [];
+    let groupCount = 0;
 
     for (const row of value) {
         if (typeof row !== "object" || row === null) {
@@ -945,16 +951,15 @@ function toSummaryGroups(value: unknown, limit: number, named: boolean): readonl
         const group = record.group ?? record.category;
         const size = record.size ?? record.count;
         if (isGroupKey(group) && typeof size === "number") {
-            const rank = groups.length + 1;
-            groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
-        }
-
-        if (groups.length === limit) {
-            break;
+            groupCount++;
+            if (groups.length < limit) {
+                const rank = groupCount;
+                groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
+            }
         }
     }
 
-    return Object.freeze(groups);
+    return { groups: Object.freeze(groups), groupCount };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1464,9 +1469,9 @@ class Result implements RunResult {
         };
 
         const table = this.graph.sizes ?? this.graph.categories;
-        const groups = toSummaryGroups(table, SUMMARY_GROUP_LIMIT, this.shape === "community");
+        const grouped = toSummaryGroups(table, SUMMARY_GROUP_LIMIT, this.shape === "community");
 
-        return Object.freeze(groups === undefined ? summary : { ...summary, groups });
+        return Object.freeze(grouped === undefined ? summary : { ...summary, ...grouped });
     }
 
     /**

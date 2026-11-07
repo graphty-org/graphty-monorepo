@@ -365,6 +365,7 @@ const TX_PARTS = [
     "visibility",
     "styles",
     "shaders",
+    "time",
     "views",
     "positions",
     "config",
@@ -2069,6 +2070,47 @@ function elementBaseLayers(): readonly ElementLayerSpec[] {
     ];
 }
 
+/** No element layers. */
+const NO_LAYERS: readonly ElementLayerSpec[] = Object.freeze([]);
+
+/**
+ * The layers that draw a peek: a slate halo and band, in no hue the data draws with, dark enough to
+ * read on the element's light canvas. Base layers, so a key never lists them.
+ * @param peeked - What it shows.
+ * @param peeked.nodes - The nodes.
+ * @param peeked.edges - The edges.
+ * @returns The layers.
+ */
+function peekLayersOf(peeked: {
+    readonly nodes: readonly NodeId[];
+    readonly edges: readonly EdgeId[];
+}): ElementLayerSpec[] {
+    const made: ElementLayerSpec[] = [];
+    if (peeked.nodes.length > 0) {
+        made.push({
+            name: "Peeked nodes",
+            kind: "base",
+            source: { by: "element", reason: "hover" },
+            target: "node",
+            selector: { match: "ids", nodes: peeked.nodes },
+            set: { "node.haloColor": "#334155", "node.haloScale": 1.6, "node.haloOpacity": 1 },
+        });
+    }
+
+    if (peeked.edges.length > 0) {
+        made.push({
+            name: "Peeked edges",
+            kind: "base",
+            source: { by: "element", reason: "hover" },
+            target: "edge",
+            selector: { match: "ids", edges: peeked.edges },
+            set: { "edge.bandColor": "#334155", "edge.bandWidth": 2.5, "edge.bandOpacity": 1 },
+        });
+    }
+
+    return made;
+}
+
 /**
  * Every path this session can answer for one kind of element.
  * @param data - The session's data surface, which lists the attributes.
@@ -2634,6 +2676,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let stack: SessionStylesApi | null = null;
     // Set once the stack exists; until then no layer reads the pointer.
     let repaintHover = (): void => undefined;
+    let repaintPeek = (_dirty: ElementIndices): void => undefined;
     // Moves whenever the selection, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
@@ -2736,6 +2779,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // And the query engine, below that.
             search: (text, request) => requireQuery(query).search(text, request),
             textTest: (text, mode, target, only) => requireQuery(query).textTest(text, mode, target, only),
+            matchWhere: (where, target) =>
+                new Set<NodeId | EdgeId>(
+                    target === "node" ? requireQuery(query).nodes(where) : requireQuery(query).edges(where),
+                ),
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),
@@ -3387,6 +3434,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const engine = query;
 
+    // Settled on first asking, as the session's `features` is.
+    let peekable: boolean | undefined;
+    let peekLayers: readonly ElementLayerSpec[] = NO_LAYERS;
     selection = createSelectionApi({
         snapshot,
         scope,
@@ -3469,6 +3519,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             advanceTick();
             repaintStates({ node: ids.flatMap((id) => nodeIndex(id) ?? []), edge: [] });
         },
+        onPeek: (dirty, peeked) => {
+            peekLayers = peeked === null ? NO_LAYERS : peekLayersOf(peeked);
+            advanceTick();
+            repaintPeek(dirty);
+        },
+        canPeek: () => {
+            peekable ??= resolveFeatures(options.features?.()).has("assistant");
+            return peekable;
+        },
         // The origin moved with no member: `selection:changed` stays a membership event, so the
         // origin has its own.
         onOriginChange: (origin) => {
@@ -3521,6 +3580,20 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             .catch((error: unknown) => {
                 if (!teardown.signal.aborted) {
                     console.error("[graphty] Could not repaint the layers reading the selection.", error);
+                }
+            });
+    };
+    // The peek's layers leave the stack as it ends, so its repaint cannot ask what reads a state.
+    repaintPeek = (dirty: ElementIndices): void => {
+        if (stack === null) {
+            return;
+        }
+
+        painter
+            .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
+            .catch((error: unknown) => {
+                if (!teardown.signal.aborted) {
+                    console.error("[graphty] Could not repaint the elements a peek moved.", error);
                 }
             });
     };
@@ -3651,6 +3724,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         stopHearing();
         layerScopes.dispose();
         notifier.dispose();
+        selection?.endPeek();
     });
     const nodeIndex = nodeIndexOf(snapshot);
     const edgeIndex = edgeIndexOf(snapshot);
@@ -3697,6 +3771,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitScope: (spec: unknown) => scope.admit(spec),
         admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
+        transient: () => peekLayers,
         directed: () => snapshot().directed,
         // `edge.lift` rises out of a flat layout's plane: drawn only for a flat layout in 3D.
         liftDrawn: () => {

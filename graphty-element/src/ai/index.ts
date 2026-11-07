@@ -8,11 +8,55 @@ export type { AiStage, AiState, AiStatus, StatusChangeCallback, ToolCallStatus, 
 export { AiStatusManager } from "./AiStatus";
 
 // Controller
-export type { AiControllerOptions, AiEventEmitter, ExecutionResult } from "./AiController";
+export type {
+    AiAnswerOptions,
+    AiApprovalAnswer,
+    AiApprovalsSetting,
+    AiApprovalVerdict,
+    AiCommandOptions,
+    AiControllerOptions,
+    AiEventEmitter,
+    AiHistoryOptions,
+    AiToolCallFacts,
+    ExecutionResult,
+} from "./AiController";
 export { AiController } from "./AiController";
+export type { AiPointing } from "./tools/prompt";
+
+// Saved conversations, as an application reads them
+export type {
+    AiCallRecord,
+    AiConversationMessage,
+    AiConversationSnapshot,
+    AiConversationSummary,
+    AiSource,
+} from "./conversation/snapshot";
+
+// Helpers, plans and their configuration errors
+export type { AiCapabilities } from "../catalog/ai";
+export type {
+    AiAgentRole,
+    AiAgentsSetting,
+    AiHostedToolOptions,
+    AiPlan,
+    AiRouter,
+    AiTokenUsage,
+    AiToolOptions,
+} from "./agents";
+export { MAX_AGENT_NAME_LENGTH, MAX_AGENT_PURPOSE_LENGTH, MAX_AGENTS, MAX_HELPERS_PER_TURN } from "./agents";
+export { AiConfigError } from "./agents";
 
 // Manager (Phase 3)
-export type { AiManagerConfig, KeyPersistenceConfig } from "./AiManager";
+export type {
+    AiManagerConfig,
+    AiTalkOptions,
+    AiVoiceConversationMode,
+    AiVoiceMode,
+    AiVoiceOptions,
+    AiVoicePath,
+    AiVoiceSupport,
+    KeyPersistenceConfig,
+} from "./AiManager";
 export { AiManager, createAiManager } from "./AiManager";
 
 // Commands

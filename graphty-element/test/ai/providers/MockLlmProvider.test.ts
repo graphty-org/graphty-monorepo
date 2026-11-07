@@ -183,6 +183,30 @@ describe("MockLlmProvider", () => {
             assert.strictEqual(response.toolCalls[1].name, "zoomToFit");
         });
 
+        it("matches the reader's words on a message that carries facts beside them", async () => {
+            provider.setResponse("zoom", { text: "zoomed", toolCalls: [] });
+
+            const facts = await provider.generate(
+                [{ role: "user", content: "<graph-data>zoom</graph-data>\nhello", readerText: "hello" }],
+                [],
+            );
+            const said = await provider.generate(
+                [{ role: "user", content: "<graph-data>x</graph-data>\nzoom", readerText: "zoom" }],
+                [],
+            );
+
+            assert.notStrictEqual(facts.text, "zoomed");
+            assert.strictEqual(said.text, "zoomed");
+        });
+
+        it("matches the whole content of a message with no reader's words of its own", async () => {
+            provider.setResponse("zoom", { text: "zoomed", toolCalls: [] });
+
+            const response = await provider.generate([{ role: "user", content: "<graph-data>zoom</graph-data>" }], []);
+
+            assert.strictEqual(response.text, "zoomed");
+        });
+
         it("supports abort signal", async () => {
             const controller = new AbortController();
             controller.abort();

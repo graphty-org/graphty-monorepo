@@ -209,6 +209,18 @@ export function Workspace({
     // Focus never falls to the page, on the start screen or in a project: Tab wraps, and a
     // control that goes while it holds focus hands it on (focus.ts).
     useEffect(() => installFocusGuard(), []);
+    // The Assistant's x lasts one message or until the selection changes; it is watched here, not in
+    // the panel, so closing the panel keeps it. A new session starts without it.
+    useEffect(() => {
+        const forget = (): void => {
+            store.set({ assistantScopeDropped: false });
+        };
+        const off = element.session?.on("selection:changed", forget);
+        return () => {
+            off?.();
+            forget();
+        };
+    }, [element.session, store]);
     useEffect(() => {
         // A project that opens on the Data page (New from data...) keeps focus on that page; one
         // with a sample or file to read takes focus once it is read (focusOpenedGraph).

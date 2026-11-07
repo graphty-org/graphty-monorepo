@@ -1,0 +1,98 @@
+{
+  "version": 2,
+  "pr": 1998,
+  "subject": {
+    "builtMerge": "86ddf658c5dc5016519ffbbd0b6bcfbdc0d650de",
+    "head": "85a0dc62c71f44df1dcba730f7bb367cfccc8f05",
+    "runId": null,
+    "runAttempt": null,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "Intel(R) Core(TM) i9-14900KF",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "86ddf658c5dc5016519ffbbd0b6bcfbdc0d650de"
+    },
+    "scale": 2,
+    "local": [
+      {
+        "project": "graphty",
+        "merge": "86ddf658c5dc5016519ffbbd0b6bcfbdc0d650de",
+        "host": "dev.ato.ms",
+        "tool": "86ddf658c5dc5016519ffbbd0b6bcfbdc0d650de"
+      },
+      {
+        "project": "graphty-element",
+        "merge": "86ddf658c5dc5016519ffbbd0b6bcfbdc0d650de",
+        "host": "dev.ato.ms",
+        "tool": "86ddf658c5dc5016519ffbbd0b6bcfbdc0d650de"
+      }
+    ]
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/ai-control--approvals.png",
+      "from": null,
+      "to": "828f965925fb2f804a27f7e738bb52c47894b5c4e04c9d743223b3b5efff8154",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--helpers.png",
+      "from": null,
+      "to": "3c64b74404f5226f1f2d78d95a037458aeb631d756e72454397dd5e3678a3459",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--live-voice.png",
+      "from": null,
+      "to": "e1192286cada75b1465b9413b4822471df6677343ce6845b52b9e9acee157acf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--question.png",
+      "from": null,
+      "to": "207509951063653b310ddb37d3c5b7230263aaf8cf152635f1598c9a4afcd037",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--remembered-conversation.png",
+      "from": null,
+      "to": "5a0592eaad17b32e65999bb7090d9cab009e733454b25f79a871d469c0963693",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--run-code.png",
+      "from": null,
+      "to": "5d42f705da593796f7ecc5c77571d83c68c90c4723625c0d45ff95cd6328cd31",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/ai-control--voice.png",
+      "from": null,
+      "to": "485b154adcb02bd5749f75371a6814bdde3205dab56df79171abff3921f8385e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/ai-assistant--remembered-approval.dark.png",
+      "from": null,
+      "to": "2370a47727f85f2494d0935afba66a071b0dde05a7928df15726c8b2d82d714b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/ai-assistant--remembered-approval.light.png",
+      "from": null,
+      "to": "57279466564e7748dd186e5ea3b58f64af829e1a342651d939449b92015eaf63",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-13T02:43:35.397Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoid2x3LXhyV0NBVkJLejAzYUVzUHRDVVpRd2lZMGdPb0ZDc19CUHBjOFVTZyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIQCNW1C-q0AEmI97T01Vpdl2bEk2cWs9A_t3ZqYgHc1XkAIgSq-W-xwmOp6fXkyRB9Ej7hekjhHfTKM_Z-xyUHE8XCI"
+  }
+}

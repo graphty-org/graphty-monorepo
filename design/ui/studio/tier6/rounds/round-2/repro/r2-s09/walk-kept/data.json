@@ -1,0 +1,76 @@
+{
+ "counts": {
+  "totalEdges": 254,
+  "totalNodes": 77,
+  "visibleEdges": 254,
+  "visibleNodes": 77,
+  "selectedNodes": 0,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "Les Miserables",
+   "kind": "url",
+   "counts": {
+    "nodes": 77,
+    "edges": 254
+   },
+   "recount": {
+    "nodes": 77,
+    "edges": 254
+   },
+   "chips": null,
+   "join": null,
+   "leftOut": null,
+   "mapping": null
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": "label",
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.name",
+   "name": "name",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "edge",
+   "path": "data.shared_chapters",
+   "name": "shared_chapters",
+   "type": "integer",
+   "roles": [],
+   "hidden": false
+  }
+ ],
+ "filters": [],
+ "filter": null,
+ "window": null
+}

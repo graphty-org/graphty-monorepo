@@ -212,7 +212,8 @@ export function refusedName(line) {
     );
 }
 // One line's facts: `refused "<name>": <candidates, sorted>` for a refusal (in any of its wordings,
-// or a name a replay found resolved where the recording refused it); any other line as it is
+// or a name a replay found resolved where the recording refused it); any other line as it is, but
+// for the session's own loopback port, which a browser error quotes and every session draws anew
 export function refusalFacts(line) {
     let name, list;
     const one = line.match(/^ambiguous: "(.*?)" matches \d+ controls, so the step did nothing; name one: (.*)$/);
@@ -227,7 +228,7 @@ export function refusalFacts(line) {
         name = pos[1];
         list = pos[2].split(/, (?=[a-z]+ ")/);
     } else if (now) [name, list] = [now[1], [now[2]]];
-    else return line;
+    else return line.replace(/\/\/127\.0\.0\.1:\d+/g, "//127.0.0.1:<port>");
     if (list.some((d) => KINDS.has(kindOf(d)))) list = list.filter((d) => KINDS.has(kindOf(d)));
     return `refused "${name}": ${list.sort().join(" | ")}`;
 }

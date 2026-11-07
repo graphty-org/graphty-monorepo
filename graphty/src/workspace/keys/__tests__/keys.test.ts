@@ -40,6 +40,11 @@ describe("workspace keys", () => {
         assert.isFalse(matchesKey(press("g", { ctrlKey: true }), "G"));
     });
 
+    it("matches the space bar as Space, its Shift exactly", () => {
+        assert.isTrue(matchesKey(press(" ", { ctrlKey: true, shiftKey: true }), "Shift+Mod+Space"));
+        assert.isFalse(matchesKey(press(" ", { ctrlKey: true }), "Shift+Mod+Space"));
+    });
+
     it("matches punctuation whatever Shift it took to type", () => {
         assert.isTrue(matchesKey(press("?", { shiftKey: true }), "?"));
         assert.isTrue(matchesKey(press("/"), "/"));

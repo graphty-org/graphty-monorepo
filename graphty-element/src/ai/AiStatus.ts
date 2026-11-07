@@ -22,6 +22,8 @@ export interface ToolCallStatus {
     name: string;
     /** Current status of the tool call */
     status: ToolCallStatusType;
+    /** The arguments the model called it with. */
+    arguments?: Readonly<Record<string, unknown>>;
     /** Result of the tool call (if complete or error) */
     result?: unknown;
 }
@@ -61,6 +63,9 @@ export interface AiStatus {
     // Control
     /** Whether the current operation can be cancelled */
     canCancel: boolean;
+
+    /** What waits on the reader: open approval requests and questions. Absent when nothing does. */
+    pending?: { approvals: number; questions: number };
 }
 
 /** Callback type for status change subscriptions */
@@ -117,7 +122,27 @@ export class AiStatusManager {
             state: "submitted",
             startTime: Date.now(),
             canCancel: true,
+            ...(this.status.pending && { pending: this.status.pending }),
         };
+        this.notify();
+    }
+
+    /**
+     * Set how many approval requests wait on the reader.
+     * @param approvals - The open requests.
+     */
+    setPendingApprovals(approvals: number): void {
+        this.setPending(approvals, this.status.pending?.questions ?? 0);
+    }
+
+    /**
+     * Set what waits on the reader.
+     * @param approvals - The open approval requests.
+     * @param questions - The open questions.
+     */
+    setPending(approvals: number, questions: number): void {
+        const { pending: _was, ...rest } = this.status;
+        this.status = approvals + questions > 0 ? { ...rest, pending: { approvals, questions } } : rest;
         this.notify();
     }
 
@@ -177,19 +202,21 @@ export class AiStatusManager {
     /**
      * Add a new tool call to track.
      * @param name - Name of the tool being called
+     * @param args - The arguments it was called with
      */
-    addToolCall(name: string): void {
+    addToolCall(name: string, args?: Readonly<Record<string, unknown>>): void {
         const toolCalls = this.status.toolCalls ?? [];
 
         this.status = {
             ...this.status,
-            toolCalls: [...toolCalls, { name, status: "pending" }],
+            toolCalls: [...toolCalls, { name, status: "pending", ...(args && { arguments: args }) }],
         };
         this.notify();
     }
 
     /**
-     * Update the status of a tool call.
+     * Update the status of the latest tool call of that name (calls run one after another, so a
+     * tool called twice in a message updates its second call, not its first).
      * @param name - Name of the tool call to update
      * @param status - New status for the tool call
      * @param result - Optional result data
@@ -201,7 +228,7 @@ export class AiStatusManager {
             return;
         }
 
-        const index = toolCalls.findIndex((tc) => tc.name === name);
+        const index = toolCalls.map((tc) => tc.name).lastIndexOf(name);
 
         if (index === -1) {
             return;

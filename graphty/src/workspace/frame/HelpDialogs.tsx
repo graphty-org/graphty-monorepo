@@ -4,6 +4,7 @@ import { Button, Kbd, Modal, Stack, Text, Title } from "@mantine/core";
 import React, { useState } from "react";
 
 import { BrandLogo } from "../../components/BrandLogo";
+import { switchedOff } from "../commands/registry";
 import { formatKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { readBuildStamp } from "./buildStamp";
@@ -64,7 +65,8 @@ function canvasRows(): { label: string; keys: string[] }[] {
  * @returns The dialog, open while the workspace dialog is "shortcuts"
  */
 function ShortcutsDialog(): React.JSX.Element {
-    const { store, registry, session } = useWorkspace();
+    const workspace = useWorkspace();
+    const { store, registry, session } = workspace;
     const opened = useWorkspaceState((state) => state.dialog === "shortcuts");
     const [current, setCurrent] = useState("all");
     const close = (): void => {
@@ -75,7 +77,7 @@ function ShortcutsDialog(): React.JSX.Element {
         const keys = [...(command.keys ?? []), ...(command.rowKeys ?? [])];
         const featureOff =
             command.feature !== undefined && session?.features.enabled.includes(command.feature) !== true;
-        if (keys.length > 0 && !featureOff) {
+        if (keys.length > 0 && !featureOff && !switchedOff(command, workspace)) {
             const rows = groups.get(command.group) ?? [];
             rows.push({ label: command.label, keys: keys.map(formatKey) });
             groups.set(command.group, rows);

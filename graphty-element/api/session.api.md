@@ -915,6 +915,7 @@ export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
 // @public
 export interface EnabledFeatures {
     readonly enabled: readonly FeatureId[];
+    has(id: FeatureId): boolean;
     readonly unknown: readonly string[];
 }
 
@@ -1029,7 +1030,7 @@ export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace";
 
 // @public
 export interface FieldBand {
@@ -4213,6 +4214,7 @@ export interface RecordPageOptions {
     readonly offset?: number;
     readonly scope?: ScopeInput;
     readonly sort?: RecordSort | ResultSort;
+    readonly where?: Query;
 }
 
 // @public
@@ -4489,6 +4491,7 @@ export interface ResultSummary {
     readonly caveats: Caveats;
     readonly count: number;
     readonly durationMs: number;
+    readonly groupCount?: number;
     readonly groups?: readonly SummaryGroup[];
     readonly max: number | null;
     readonly mean: number | null;
@@ -5116,6 +5119,14 @@ export interface SelectionApi {
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;
     readonly originPaths: readonly Path[];
+    peek(target: SelectionTarget | null): Promise<{
+        readonly nodes: number;
+        readonly edges: number;
+    }>;
+    readonly peeked: {
+        readonly nodes: number;
+        readonly edges: number;
+    } | null;
     previewHover(on: boolean): void;
     // @deprecated
     promote(name: string): ScopeId;
@@ -6460,6 +6471,7 @@ export interface StylesApi {
     counts(id: LayerId): StyleCounts;
     defaultValue(channel: Channel): ChannelValue | undefined;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
+    drawnCount(id: LayerId): number;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;

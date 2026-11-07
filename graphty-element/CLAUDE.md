@@ -3,8 +3,8 @@
 This file provides guidance to Claude Code when working with the @graphty/graphty-element package.
 
 Read `design/graphty-element/agent-reference.md` (from the repository root) before you add or change an entry point,
-an import reached by a Node-safe entry point, an extension point, acceleration, a test project or a story, or when
-you need the package layout, the architecture or the debugging screenshot commands.
+an import reached by a Node-safe entry point, an extension point, acceleration, the AI engine, a test project or a
+story, or when you need the package layout, the architecture or the debugging screenshot commands.
 
 ## Project Overview
 

@@ -7,32 +7,53 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-0. (2026-11-03, tier 5 round 1 closed at its cap after 30 valid sessions) Bars 1, 3, 4, 8, 9 fail.
-   Severity 3: speech from a covered panel, and a results-derived filter step bound to another run.
-1. (2026-11-03) One surface speaks: only the surface on screen writes to the status region (the
-   covered inspector row announced "4 of 24" over the workspace's "15 of 24"). Fixed after freeze.
-2. (2026-11-03) A run's scope is a fact, not a label. Two runs (visible, whole graph) named alike
-   let a picker entry describe one and bind the other. graphty-element supplies scope; the app names it.
-3. (2026-11-03) Connectives must be words: "Condition..." and "Or..." never say and / or else; three
-   sessions resolved it only by watching the count. A new Or group must open at a neutral state.
-4. (2026-11-03) A control's labels must carry direction and unit (By position: top or bottom,
-   number or percent); an error must never claim a default the screen does not apply.
-5. (2026-11-03) Empty value boxes need a cue: the empty Fill color box was the least-sure moment for
-   8 of 28 sessions and the largest share of T70's overage.
-6. (2026-11-03) Escape and Clear must never delete saved work (Clear then Escape removed a reopened
-   card). Needs a precedence entry in decided.md, not a local patch.
-7. (2026-11-03) Names must survive edits: Clear renamed a card "a selection"; a card's name goes
-   stale after an Or group; a chosen reference shows only its id.
-8. (2026-11-03) One picker for every "choose a thing" step; one number format per surface.
-9. (2026-11-03) No workspace layout below 1280 px (44 px preview at 900 x 700); add a width rule.
-10. (2026-11-03) Workspace header sits far back in Tab order (Done 11 to 34 keys away, no F6 stop).
-11. (2026-10-31) One editor, one field picker for Which nodes / Which edges and Filters; count chip
-    is the door to the table; runs stay outside the cards. `tier5/panel/ia.md`.
-12. (2026-10-30) Decide before the act; one fact, one drawing; a door lands on its control.
-13. Study lessons: a task whose key wants a rule must ask for something only a rule gives (T73);
-    "would you rather" follow-ups invite wishes; fixtures pre-colored in the task's color inflate
-    "drowned color" findings; a held bar on 2 to 4 sessions is weak evidence.
-14. Standing rules: one home per capability; "+" only adds; unset is the minus; two row kinds.
+1. (2026-11-06) Chat switcher decided (`tier6/decided.md`): "Chats {N}" only while open, "chat" as the
+   reader's word, one door for New chat (the header "+"). My "+ New chat" list row was cut as a second
+   home for one command; the element already keeps empty chats out of the list.
+1. (2026-11-06, tier 6 round 2 decided) Round 3 credits one change per problem, and words at rest
+   do not rise: a fix joins an existing line or replaces words, never adds a row. My "About 14
+   selected nodes" turn mark was refused as a second count to keep true; the placeholder now
+   follows the scope ("Ask about this selection"). Watch T92: does the placeholder stop Dev?
+1. (2026-11-06) One name per measure: the Assistant's lines take `wordsFor(...).name`, as the
+   legend does. Limit: the model still sees `plainName`, so a reply can say "Reach". Watch whether
+   replies alone still split names in round 3.
+1. (2026-11-06) A painting run says so on its existing line, not a Colored row (ruling in
+   decided.md); the element reports `painted` from `runs.painting`. Default stays: changing it
+   breaks. Check that the line reads true when `style: false`.
+1. (2026-11-06) Show in table narrows to its rows with the members chip (reach all 7 of 331);
+   `scrollToRow` and selected-first sort were refused. My door rule held: a door lands on what it names.
+1. (2026-11-06) Autosave: only the tooltip changes ("Changes not yet in a file are kept...").
+   Real gap stays open: no way of opening a file reaches Recent projects (`pickFiles` on every
+   open door; only Save and Locate get a handle). `showOpenFilePicker` refused for now.
+1. (2026-11-06) A refused key reads "connection failed" because the browser hides the 401; the
+   app can only say the key "may be" at fault, offers the provider, and keeps Send again.
+1. (2026-11-06) After a press that removes its own button, focus goes to the composer; Settings
+   returns to its opener. One rule, not stretched.
+1. (2026-11-06) Rulings: a rollback leaves no selection and no Redo (a failed message did not
+   happen); closing the panel does not end the scope x (the build is wrong, not the entry).
+1. (2026-11-06) Two scrollbars: measure `position: relative` on the log first, build step two
+   only if it falls short. Read-only mechanisms are measured before they are built on.
+1. (2026-11-06) Refused because the product lacks the concept: names for Group 1 to N; plain
+   words for opened steps (a per-tool wording design). Do not re-raise without new evidence.
+1. (2026-11-06) Watch in round 3: bar 9 rests on the 400% Settings fix; the 193-screen audit for
+   bars 10 and 11; whether the conversation comes back with a key after a reopen; the backlog's
+   "Open run lands on Style" and "Done drops a typed key" if they recur.
+1. (2026-11-05) Lasting facts live on lasting surfaces; words that read as finishing must finish.
+1. (2026-10-30) Decide before the act; one fact, one drawing; a door lands on its control.
+1. Study lessons: settle a disputed fact at its source (my "a different door gets a handle" was
+   false -- read the code before claiming a door exists); hover counts measure the tool; one model
+   plays every participant, so a fail is strong and a pass weak; a planted session is one reader.
+1. Standing rules: one home per capability; "+" only adds; unset is the minus; two row kinds;
+   check proposals at their edges and round trip.
+
+### Archived top of mind (2026-11-05 and tier 5, summarized 2026-11-06)
+
+- Tier 6 round 2 first read: scope marks at the answer; one name per result; every effect a line;
+  Recent projects never fills from opening; truth that varies with the fact; Show in table narrows.
+- Tier 5: only the surface on screen speaks; a run's scope is a fact from the element; connectives
+  are words; labels carry direction and unit; empty value boxes need a cue; Escape and Clear never
+  delete saved work; names survive edits; one picker for "choose a thing"; no workspace layout
+  below 1280 px; one editor and field picker for Which nodes and Filters.
 
 ## Priorities and values
 
@@ -82,10 +103,35 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   screen (owner 2026-09-26), friendly words still findable.
 - **A rail button names a collection, never an activity.** Present and Export get no rail
   button. Reason: refined B section 4.
+- **Every effect has a line**: whatever a turn changed, including selection, appears in the
+  change line, from an effect the element reports. Reason: tier 6 round 1, a selection moved the
+  next message's scope with no line.
+- **Lasting facts live on lasting surfaces**: what was asked and declined stays in the log after
+  its card goes. Reason: same round, the question exists only on the card.
 - **Every top task has a starting place and a place where its answer is read** (refined B 15).
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 round 2 (proposed; nothing built).** (a) The sent turn states its scope from
+  the stored `AiMessageScope`, and the placeholder follows the scope, because a warning on the scope
+  line sits where Dev already read and went on. (b) The Assistant's run, step and approval lines use
+  `wordsFor`, so one result has one name. (c) A run that painted gets a Colored row, from an additive
+  element effect; this answers the open ruling yes. (d) Autosave's tooltip and label branch on
+  `unexported`, and Open uses the handle picker where one exists. (e) Show in table narrows to its
+  rows with a removable chip; selecting them stays, as design 5.3 settles. (f) A failure with no
+  status says the key may be at fault and offers AI provider... beside Send again. Not changed:
+  apply at once, no preview, Group 1 to N, starters, Open run's landing. None is a one-way door.
+
+- **2026-11-05, tier 6 round 1 (no fixes built yet; studio stopped on the Gemini cap).** Positions:
+  (a) a selection made by the model reports as its own change line, from an additive element
+  effect; (b) app names results by id to match the glossary, leaving catalog `plainName` alone;
+  (c) focus returns to the composer after Undo, Remove and Answer only; (d) a declined approval
+  gets a line in the log, since "Keep them" left none and the model then called the removal
+  irreversible; (e) on the three open rulings I lean: the kept undo reselect should not cover a
+  rollback whose reader never made that selection, because the turn says "Nothing changed" while
+  scope has changed; the x's lasting rule should not be stretched without its dated line; a painting
+  run's Colored row stays a design question for sessions. None is a one-way door. Reason: each
+  puts a fact in the one place readers check it. Evidence: tier 6 round 1 insights 2 to 4, 7, 9.
 - **2026-10-30, tier 4 round 1 (no fixes built; studio stopped at its cap).** Positions to carry
   into the next tier: (a) the join screen previews every row's outcome with the same words Join
   will use, and the unknown-end choice is made on that screen before Join, with no pre-applied
@@ -122,6 +168,8 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 - 2026-10-11 to 10-16: bulk <<Layer>> token with chits; Node/Edge tab switch; owner answers on
   unset and split parent; round 5 element facts.
+- 2026-10-30 (tier 4 round 1): task success held (25 of 26), no severity 3 or 4; bars failed on
+  keyboard, the joined row's ratio and cost (joining a file: about 12 inputs against 7).
 - 2026-10-21 (tier 3 round 1): 55 of 56 succeeded; judge by cost and wrong first places;
   Location split into six Fields kinds (#3315); color names by hue family first in
   compact-mantine; <<Layer>> avoidance is not understanding; keyboard route costs 30+ Tabs and
@@ -129,6 +177,16 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Tried: worked / did not work
 
+- (2026-11-05) Tier 6 round 2, first readers: chat as a place WORKED (word found 2 of 2, approval read
+  2 of 2, Undo restored 2 of 2). The scope line alone did NOT carry scope: one reader read it and was
+  narrowed anyway. Show in table as a proof door did NOT land on its rows. Reading the tool's source
+  beat the insights' "the model's" on repainting: the default is ours.
+
+- (2026-11-05) Tier 6 round 1, the Assistant: expert walks WORKED for what is on screen (scope
+  chain on one screen, naming clashes) and did NOT stand in for readers: of 4 candidate insights,
+  all were weakened, and the 6 scope routes in scoring shrank to about 3 mechanisms once a
+  reader's own acts were removed. A true scope label did NOT prevent a surprise. Approval card,
+  peek, rail dot and lasting notice HELD, and no count disagreed on the walks' turns.
 - (2026-10-30) Tier 4 round 1, returning users managing data: the table header as the home for
   column work WORKED (T62 3 of 4, T63 2 of 2 used the Role menu). The join preview did NOT work as
   a preview (wrong rows tagged; the result was learned from counts afterward). Choices placed
@@ -173,6 +231,16 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Sources
 
+- (2026-11-05) `tier6/rounds/round-2/insights.md`, `scores.md`; screens `sessions/r2-s05/05.png`,
+  `r2-s10/05.png`, `r2-s01/18.png`, `repro/r2-s06/walk/04.png`; app `assistant/words.ts`,
+  `assistant/Composer.tsx`, `analyze/words.ts`, `runWords.ts`, `autosave/words.ts`, `start/open.ts`,
+  `project/files.ts`, `table/TableDock.tsx`; element `ai/tools/families/algorithms.ts`,
+  `ai/conversation/snapshot.ts`, `catalog/ai.ts`, `catalog/types.ts`, `autosave/types.ts`.
+
+- (2026-11-05) `tier6/rounds/round-1/insights.md`; screenshots `expert/a11y/k1/99.png`,
+  `expert/engineer/setup-1200x900/29.png`, `38.png`; graphty-element
+  `src/ai/tools/families/algorithms.ts`; app `Waiting.tsx`, `Composer.tsx`, `Checks.tsx`.
+
 - (2026-10-13) `tier3/iterations/2/review.md` "Decided for iteration 3"; graphty-element
   `catalog/types.ts` (`ReadableValue.end`, `valueCount`, `valuesAreColors`), `session/query.ts`
   (`namedRows`), `session/styles/legend.ts` (`kindOf`); app `rules/conditions.ts`
@@ -192,63 +260,8 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   `ControlSection.tsx` (`summary`), `GradientEditor.tsx`; app `data-place/Filters.tsx`; Figma help
   articles on effects, strokes, variables, text properties.
 
-- `tier2/rounds/round-4/insights.md`, `decisions.md` (changes 3, 4, 5, 8, 9, 12) (2026-10-11)
-
-- `tier2/rounds/round-4/insights.md`, `scores.md` (bars 9 (b), 10; T17, T22, T23), `expert/figma.md`;
-  screenshots `expert/figma/find/04.png`, `08.png`, `sessions/r4-s27/09.png`;
-  `graph-place/FindBox.tsx` (`ruleFromText`, value rows), `table/TableDock.tsx` (scope),
-  `canvas/legendWords.ts` (`rowName`), graphty-element `session/query.ts` (`atLeastOf`) (2026-10-11)
-
-- `tier2/rounds/round-3/insights.md`, `scores.md`, `expert/figma.md`, `expert/visual.md`,
-  `expert/a11y.md`; screenshots `r3-s10/02.png`, `r3-s33/03.png`, `r3-s43/13.png`,
-  `expert/visual/path/02.png`, `10.png`; `graphty/src/workspace/analyze/words.ts`,
-  `graph-place/FindBox.tsx`, `inspector/NodeValues.tsx` (2026-10-10)
-
-- `tier2/rounds/round-2/decisions.md` (changes 1-15, "Not changed") (2026-10-10)
-
-- `tier2/rounds/round-2/insights.md`, `scores.md`, `expert/figma.md`, `expert/engineer.md`;
-  screenshots `r2-s33/05.png`, `r2-s12/03.png`; `graphty/src/workspace/graph-place/FindBox.tsx`
-  (`columnOptions`) (2026-10-09)
-
-- `tier2/rounds/round-1/insights.md`, `decisions.md` (2026-10-09)
-
-- `tier2/rounds/round-1/insights.md`, `scores.md`, `expert/figma.md`; screenshots
-  `r1-s46/12.png`, `r1-s29/08.png`, `r1-s05/09.png`; `graphty/src/workspace/project/actions.ts`
-  (openInSession), `data-place/DataPlace.tsx` (row menu), `graph-place/FindBox.tsx` (2026-10-09)
-
-- refined B sections 2.1, 2.3 (selection bar, Path popover), 7, 8, 10.1 (Select where), 11.3
-  (weight, several tables); tier1-design.md section 7; the tier 2 audit list (2026-10-07)
-- `design/ui/studio/rounds/round-2/decisions.md`, `insights.md`; `rounds/r2/pilot/T6`-`T16/pilot.md`
-  (2026-10-07)
-
-- `design/ui/studio/rounds/round-2/insights.md`, `scores.md`; screenshots `repro/r2-s19/run1/04.png`,
-  `repro/r2-s56/run/07.png`, `sessions/r2-s29/09.png`, `sessions/r2-s12/10.png`;
-  `graphty/src/workspace/layout/methods.ts` `groupings()` (2026-10-07)
-
-- `design/ui/studio/rounds/round-1/insights.md`, `scores.md`, sessions r1-s17b, s29b, s10b
-  screenshots (2026-10-06)
-
-- `design/ui/studio/digests/decisions.md`, `framework.md`, `tier1.md`, `study-rounds.md`,
-  `owner-voice.md` (this worktree, 2026-10-06)
-- `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/structure-comparison/structure-b-refined.md`
-  (sections 2.5 "One pattern per job", 4 "The rail", 15 "Every top task has a home",
-  17 "One home per feature")
-- `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/structure-comparison/ia-owner-structure.md`
-  (the IA's specification of the owner's structure, 2026-09-30)
-- `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/decision-log.md`
-  (rounds 3-8: Data place, Results placement, File list, Layout group, find, neighbors)
-- `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/round-8/tree-test/grades.md`
-- `.worktrees/feat-tier1-real-app/design/ui/tier1-real-app/tier1-design.md` (sections 2.1-2.7,
-  4, 9 "Calls made on this page", "Adversarial review changes")
-- `design/ui/framework/information-architecture.md`, `principles.md`, `top-tasks.md`
-  (via the framework digest)
-- `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536/workflows/scripts/graphty-structure-comparison-wf_94d61710-fbb.js`
-  and `graphty-design-study-rounds-4-onward-wf_6818e34f-76d.js` (the IA role's charter,
-  2026-09-30 and 2026-09-28)
-- `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/agent-a53a98e32cd016a86.jsonl`
-  (IA canon research: Rosenfeld/Morville/Arango; tree test vs first click, 2026-09-27)
-- `design/ui/studio/tmp/explore-02.png` (smoke render of the real build, 2026-10-06)
-- Extraction script: `design/ui/studio/tmp/ia/agents.py`
+- Earlier sources (2026-10-06 to 2026-10-11): tier 1 and tier 2 round insights, scores and
+  decisions; refined structure B; the framework digests; `.claudehistory` IA charter and canon research.
 
 ## 2026-11-03: tier 5 round 1 (closed, expert walks only)
 
@@ -274,3 +287,18 @@ The earlier "no valid session" entry above is superseded: insights.md scores 30 
 - Did not work: By position as one bare box; empty color box with no cue; Escape branch ignoring
   whether a card was newly opened.
 - Study: T73 measured its key, not the build; reword before round 2.
+
+## 2026-11-06: tier 6 round 2 (closed and decided)
+
+- Decided: the composer placeholder follows the scope. Reason: the warning belongs where the reader
+  types; a turn mark would add a second count. Evidence: r2-s05 read "Selection 14" and asked anyway.
+- Decided: one name per measure through `wordsFor`; no catalog or default change (both breaking).
+- Decided: a painting run's fact joins its Computed line; no separate Colored row (rows stack).
+- Decided: Show in table narrows with the members chip. Reason: only it reaches every row.
+- Decided: Autosave tooltip only; the open-with-handle gap and "Autosave: no changes" refused.
+- Tried: claiming another open door gets a handle -- did not work; it was false at the source.
+- Worked: "door lands on what it names" and "after an act, the composer" both carried into units.
+- Insight: severity 3 claims keep falling to 2 under skeptics when the reader kept a true belief;
+  the persona's own rule (close the tab to test) can drive a fail.
+- Watch round 3: T92 placeholder, reply names vs line names, 400% Settings, key after reopen.
+- Source: `tier6/rounds/round-2/insights.md`, `decisions.md`.

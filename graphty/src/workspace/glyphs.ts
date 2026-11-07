@@ -38,6 +38,7 @@ import {
     Columns3,
     Combine,
     Copy,
+    createLucideIcon,
     Database,
     Disc,
     Eye,
@@ -57,6 +58,7 @@ import {
     History,
     Hourglass,
     KeyRound,
+    Lamp,
     Layers,
     LayoutGrid,
     Lightbulb,
@@ -101,7 +103,6 @@ import {
     Share2,
     Shuffle,
     Sigma,
-    Sparkles,
     Spline,
     Square,
     SquareArrowOutUpRight,
@@ -136,12 +137,30 @@ import {
 import type { SourceKind } from "./data-place/words";
 import type { InspectedKindId } from "./inspector/inspected";
 
+/**
+ * The AI sparkle: one large four-point star and two small ones, drawn as lucide draws its own
+ * icons. lucide's Sparkle is one star and its Sparkles adds plus-crosses, neither of them this.
+ */
+const AiSparkles = createLucideIcon("ai-sparkles", [
+    [
+        "path",
+        {
+            d: "M8.5 8.5Q9.76 14.24 15.5 15.5Q9.76 16.76 8.5 22.5Q7.24 16.76 1.5 15.5Q7.24 14.24 8.5 8.5Z",
+            key: "large",
+        },
+    ],
+    ["path", { d: "M18.5 7Q19.5 10 22.5 11Q19.5 12 18.5 15Q17.5 12 14.5 11Q17.5 10 18.5 7Z", key: "medium" }],
+    ["path", { d: "M14 1Q14.84 3.16 17 4Q14.84 4.84 14 7Q13.16 4.84 11 4Q13.16 3.16 14 1Z", key: "small" }],
+]);
+
 /** The icon of each concept the workspace draws. */
 export const GLYPHS = {
     // Things in the graph.
     graph: Workflow,
     node: CircleDot,
     edge: Spline,
+    // The AI assistant: one large sparkle and two small ones.
+    assistant: AiSparkles,
     // A style layer that paints nodes and edges: a dot on a line.
     bothKinds: GitCommitHorizontal,
     several: Group,
@@ -165,7 +184,8 @@ export const GLYPHS = {
     everything: Layers,
     // The effects a layer adds to nodes (outline, glow, halo) and to edges (band, motion).
     outline: Disc,
-    glow: Sparkles,
+    // A lamp: light given off. Sparkles would read as the assistant.
+    glow: Lamp,
     halo: Sun,
     band: Highlighter,
     motion: ChevronsRight,

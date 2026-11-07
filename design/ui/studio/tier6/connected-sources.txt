@@ -1,0 +1,11 @@
+# The reporter's sources, with the assistant already connected and its panel closed.
+--click Open a file
+--upload sources.graphml
+--click Assistant
+--click AI provider...
+--expect API key
+--click API key
+--type study-access-4471
+--click Save
+--expect-not Get a key from Google
+--click role=button:Graph

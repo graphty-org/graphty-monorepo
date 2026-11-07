@@ -8,6 +8,9 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** Two yEd nodes: a gradient-filled box, and a group whose right-aligned header runs along its top. */
 const DOC = [

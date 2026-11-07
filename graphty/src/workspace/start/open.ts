@@ -17,7 +17,7 @@ import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import { siteConfig } from "../../siteConfig";
-import { putAssetOnNodes, putModelOnNodes } from "../canvas/models";
+import { holdsAsset, holdsModel, putAssetOnNodes, putModelOnNodes } from "../canvas/models";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
 import { nodeModelsOn } from "../features";
@@ -467,6 +467,26 @@ export function readDataUrl(file: File): Promise<string> {
         });
         reader.readAsDataURL(file);
     });
+}
+
+/**
+ * Opens files dropped or chosen on the start screen: a model, or with the node-models experiment
+ * a picture too, opens a new project drawing it (graphty-element says which it is); anything else
+ * opens as {@link openFiles} opens it. The drop and Open a file share it, so neither is the only way.
+ * @param ctx - the command context.
+ * @param files - the files; nothing happens without one.
+ * @param session - the start screen's element session, whose experiments decide.
+ */
+export async function openOnStart(
+    ctx: CommandContext,
+    files: readonly File[],
+    session: GraphSession | null,
+): Promise<void> {
+    if (await (nodeModelsOn(session) ? holdsAsset : holdsModel)(files)) {
+        openModel(ctx.workspace, files[0]?.name ?? "Model", files);
+    } else {
+        openFiles(ctx, files);
+    }
 }
 
 /**

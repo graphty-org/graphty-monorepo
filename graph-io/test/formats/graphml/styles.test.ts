@@ -723,6 +723,48 @@ describe("GraphML styles: yEd", () => {
             expect(await values(nodes, "imageFit")).toEqual(["fill"]);
         });
 
+        it("draws a UML class's stereotype, constraint, attributes and methods as yEd 3.25 does", async () => {
+            // the numbers are yed-graphml-specimen-node-shapes-p3's: a 76 x 56 class named in 10px DejaVu Sans
+            const label =
+                '<y:NodeLabel fontFamily="DejaVu Sans" fontSize="10" height="17.0" modelName="internal" modelPosition="t" width="22.6" x="26.7" y="4.0">Cls</y:NodeLabel>';
+            const uml = (id: string, attrs: string, attributes = "-a: int", methods = "+m()"): string =>
+                realizer(
+                    id,
+                    "UMLClassNode",
+                    "",
+                    `${label}<y:UML use3DEffect="true"${attrs}><y:AttributeLabel>${attributes}</y:AttributeLabel><y:MethodLabel>${methods}</y:MethodLabel></y:UML>`,
+                    '<y:Geometry height="56" width="76" x="0" y="0"/>',
+                );
+            const nodes =
+                uml("plain", "") +
+                uml("stereotype", ' stereotype="entity"') +
+                uml("constraint", ' constraint="abstract"') +
+                uml("omit", ' omitDetails="true"') +
+                uml("empty", "", "", "");
+            const pictures = (await values(nodes, "image")).map((p) =>
+                typeof p === "string" ? decodeURIComponent(p) : null,
+            );
+            const [plain, stereotype, constraint, omit, empty] = pictures;
+            // a rule in the border's color under the name and under the attributes, 1 in from each side
+            expect(plain).toContain('<path fill="none" stroke="#505050" d="M1,20.641H75M1,44.609H75"/>');
+            // each row 5 in from the left in 12px type of the label's family, its baseline as yEd's
+            expect(plain).toMatch(
+                /<text x="5" y="37.779" font-size="12" font-family="DejaVu Sans[^"]*" fill="#000000">-a: int<\/text>/,
+            );
+            expect(plain).toContain('y="61.748"');
+            expect(plain).toContain(">+m()</text>");
+            // the stereotype above the name in the middle; the name, the rules and the rows drop under it
+            expect(stereotype).toMatch(
+                /<text x="38" y="16.139" text-anchor="middle"[^>]*>&lt;&lt;entity&gt;&gt;<\/text>/,
+            );
+            expect(stereotype).toContain('y="60.748"');
+            // the constraint under the name in the middle
+            expect(constraint).toMatch(/<text x="38" y="34.779" text-anchor="middle"[^>]*>\{abstract\}<\/text>/);
+            expect(constraint).toContain('y="60.748"');
+            expect([omit, empty]).toEqual([null, null]);
+            expect(await values(nodes, "labelOffsetY")).toEqual([4, 26.969, 4, 4, 4]);
+        });
+
         it("draws the part of an SBGN multimer's copy 6 down and right of it that shows", async () => {
             const mcount = '<y:Property class="java.lang.Integer" name="com.yworks.sbgn.style.mcount" value="2"/>';
             const nodes = generic("a", "sbgn.Macromolecule", mcount) + generic("b", "sbgn.Macromolecule");

@@ -1527,7 +1527,7 @@ export function putRaisedBorder(fill: string | null, put: PutValue): void {
  * @param share - how far, 0 to 1
  * @returns the lighter color
  */
-function towardWhite(hex: string, share: number): string {
+export function towardWhite(hex: string, share: number): string {
     return hexOf(channelsOf(hex).map((c) => Math.round(c + (255 - c) * share)));
 }
 
@@ -1546,7 +1546,8 @@ export function putBevelPaint(color: string, put: PutValue): void {
 
 /**
  * Writes the line a bevel draws inside its edge, in the node's border color, in place of a border: a box `inset` in
- * from the node's, its corners `radius` less that. yFiles draws it over a wider, lighter line that is not drawn here.
+ * from the node's, its corners `radius` less that. yFiles draws it over a wider, lighter line (`shapeLineHaloColor`),
+ * which the reader of each style writes where it knows that line's color.
  * @param radius - the node's corner radius
  * @param inset - how far in the line runs
  * @param put - receives the values

@@ -739,6 +739,8 @@ export type Channel =
     | "node.shapeTexts"
     | "node.labelTable"
     | "node.shapeLineWidth"
+    | "node.shapeLineHaloColor"
+    | "node.shapeLineHaloWidth"
     | "node.labelFit"
     | "node.labelPaddingX"
     | "node.labelPaddingY"

@@ -28,7 +28,7 @@ import { asFileStyleStore, FILE_STYLES_VALUE, type FileStyleColumnValues, fileSt
 import { type FileStyleNote, type FileStyleOptions, translateFileStyles, type Translation } from "./translate";
 
 /** The template a file's layers are filed under: `file:<importId>`. */
-export const FILE_TEMPLATE_PREFIX = "file:";
+const FILE_TEMPLATE_PREFIX = "file:";
 
 /** A file's styles, as the data source that read the file gives them. */
 export interface FileStylesRead {
@@ -391,7 +391,7 @@ async function applyRead(
  * @returns The px per unit, or undefined when the positions keep their own length or there is no
  *     canvas to fit them to.
  */
-export function labelPxPerUnit(
+function labelPxPerUnit(
     fit: FileStylesRead["positionFit"],
     viewport: { readonly width: number; readonly height: number } | null,
 ): number | undefined {

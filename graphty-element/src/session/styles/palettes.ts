@@ -128,7 +128,7 @@ export function overflowCapacity(named: PaletteId | undefined): number | null {
 }
 
 /** The id a binding's own stops are reported under, in a legend and a prepared binding. */
-export const INLINE_PALETTE_ID: PaletteId = "custom";
+const INLINE_PALETTE_ID: PaletteId = "custom";
 
 /**
  * A binding's own stops as a palette: categorical under a scale that names groups (one colour per
@@ -138,7 +138,7 @@ export const INLINE_PALETTE_ID: PaletteId = "custom";
  * @param diverging - Whether the binding has a midpoint.
  * @returns The palette.
  */
-export function inlinePalette(stops: readonly string[], categorical: boolean, diverging: boolean): PaletteDescriptor {
+function inlinePalette(stops: readonly string[], categorical: boolean, diverging: boolean): PaletteDescriptor {
     let kind: PaletteDescriptor["kind"] = diverging ? "diverging" : "sequential";
     if (categorical) {
         kind = "categorical";

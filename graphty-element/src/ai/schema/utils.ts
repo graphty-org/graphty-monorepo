@@ -51,7 +51,7 @@ function truncateString(str: string, maxLength = 100): string {
  * @param path - Dot-notation path (e.g., "data.type")
  * @returns The value at the path, or undefined if not found
  */
-export function getNestedProperty(obj: unknown, path: string): unknown {
+function getNestedProperty(obj: unknown, path: string): unknown {
     if (obj === null || obj === undefined) {
         return undefined;
     }

@@ -52,7 +52,7 @@ const STRUCTURE_WORDS: Readonly<Record<string, string>> = {
 const LINK_ALIASES: readonly string[] = ["links", "connections"];
 
 /** The While preset's tooltip: what it holds, in plain words. */
-export const WHILE_TIP = "Everything while it holds a node, else nothing";
+const WHILE_TIP = "Everything while it holds a node, else nothing";
 
 /** What a state condition is called. */
 export const STATE_WORDS: Readonly<Record<ElementState, string>> = {

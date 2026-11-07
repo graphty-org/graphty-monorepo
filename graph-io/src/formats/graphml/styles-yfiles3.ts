@@ -31,6 +31,7 @@ import {
     putPanelPaint,
     type PutValue,
     type SiteOf,
+    towardWhite,
     treeAttr,
     treeChild,
     treeChildren,
@@ -41,7 +42,7 @@ import {
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
-import { bpmnPicture, type PortEvent, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
+import { bpmnPicture, type PortEvent, shinyPlateGloss, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
 
 /** How deep a chain of shared references is followed. */
 const MAX_REFERENCE_DEPTH = 16;
@@ -444,6 +445,12 @@ function putPaint(pt: Paint, property: string, opacity: string | null, put: PutV
 /** BevelNodeStyle's corner `radius` and the `inset` of its line with neither written. */
 const BEVEL_RADIUS = 10;
 const BEVEL_INSET = 3;
+/** How far toward white, and how wide, the lighter line under a BevelNodeStyle's line is drawn. */
+const BEVEL_HALO_SHARE = 0.85;
+const BEVEL_HALO_WIDTH = 2;
+
+/** ShinyPlateNodeStyle's corner `radius` with none written. */
+const SHINY_RADIUS = 5;
 
 /** yFiles' black, the documented default color of the 2.6 Bevel, ShinyPlate and Panel styles. */
 const BLACK = "#FF000000";
@@ -530,15 +537,17 @@ interface Size {
  * @param fallback - the style's documented default radius
  * @param put - receives the values
  * @param at - the sites
+ * @returns the radius, or null where it is not a number
  */
-function putRounded(radius: string | undefined, fallback: number, put: PutValue, at: SiteOf): void {
+function putRounded(radius: string | undefined, fallback: number, put: PutValue, at: SiteOf): number | null {
     const r = radius === undefined ? fallback : canonNumber(radius, at("cornerRadius"));
     if (r === 0) {
         put("shape", "rectangle");
-        return;
+        return r;
     }
     put("shape", "round-rectangle");
     put("cornerRadius", r);
+    return r;
 }
 
 /**
@@ -559,6 +568,10 @@ function readBevelStyle(style: StyleObject, color: string | null, put: PutValue,
     const size = (name: string, fallback: number): number =>
         canonNumber(treeAttr(style.e, name) ?? fallback, at("shapeLines")) ?? fallback;
     putBevelLine(size("radius", BEVEL_RADIUS), size("inset", BEVEL_INSET), put);
+    // under it yFiles for HTML draws a line of 2 most of the way to white (#c8c8c8 over #f7f7f7, #3366ff over
+    // #e0e8ff: yed-live-graphml-specimen-node-shapes-p2)
+    put("shapeLineHaloColor", towardWhite(color, BEVEL_HALO_SHARE));
+    put("shapeLineHaloWidth", BEVEL_HALO_WIDTH);
 }
 
 /**
@@ -575,16 +588,38 @@ function readPanelStyle(color: string | null, put: PutValue): void {
 }
 
 /**
+ * Reads the rest of a ShinyPlateNodeStyle past its fill: an outline only where `stroke` is set, its corners, and the
+ * gloss yEd Live draws over its upper left, as the node's picture where its size is known.
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the node's size, where it has one
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readShinyPlateStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): void {
+    const stroke = prop(style, "stroke") === undefined ? NULL : strokeOf(refs, prop(style, "stroke"));
+    putStroke(stroke, put, at);
+    const radius = putRounded(treeAttr(style.e, "radius"), SHINY_RADIUS, put, at) ?? 0;
+    if (size !== null) {
+        const border = stroke === null || stroke === NULL ? 0 : Number(stroke.width) || 0;
+        put("image", shinyPlateGloss(size.width, size.height, radius, border));
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/**
  * Reads the yFiles for HTML 2.6 node styles yEd Live wrote before yFiles 3, and the demos' FlowchartNodeStyle:
  * BevelNodeStyle and PanelNodeStyle (painted from their `color`), ShinyPlateNodeStyle (an outline only where `stroke`
  * is set) and FlowchartNodeStyle (its `type`'s outline, drawn as yEd's flowchart palette draws the same type).
  * @param refs - the references
  * @param style - the style
+ * @param size - the node's size, where it has one
  * @param put - receives the values
  * @param at - the sites
  * @returns true when the style is one of these
  */
-function readStyle26(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
+function readStyle26(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): boolean {
     const fill = (v: unknown): string | null => {
         const gradient = (g: StyleObject): void => {
             putGradient(refs, g, style.tag, put, at);
@@ -602,17 +637,10 @@ function readStyle26(refs: References, style: StyleObject, put: PutValue, at: Si
         case "PanelNodeStyle":
             readPanelStyle(fill(prop(style, "color") ?? BLACK), put);
             return true;
-        case "ShinyPlateNodeStyle": {
+        case "ShinyPlateNodeStyle":
             fill(prop(style, "fill") ?? BLACK);
-            const stroke = prop(style, "stroke");
-            if (stroke === undefined) {
-                put("borderWidth", 0);
-            } else {
-                putStroke(strokeOf(refs, stroke), put, at);
-            }
-            putRounded(treeAttr(style.e, "radius"), 5, put, at);
+            readShinyPlateStyle(refs, style, size, put, at);
             return true;
-        }
         case "FlowchartNodeStyle": {
             fill(prop(style, "fill") ?? FLOWCHART_FILL);
             const type = treeAttr(style.e, "type") ?? "";
@@ -1043,7 +1071,7 @@ function readNodeStyle(
         return;
     }
     const style = st;
-    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, size, put, at, ports)) {
+    if (readStyle26(refs, style, size, put, at) || readBpmnStyle(refs, style, size, put, at, ports)) {
         return;
     }
     if (style.tag === "UMLNodeStyle") {

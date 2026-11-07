@@ -533,7 +533,10 @@ logic is unchanged, so a non-gating job still never fails a lane.
 - **Chronically failing jobs** (`ci.chronic_jobs`). Any job of a master push, a full run or another
   non-pull-request run, gating or not, bins and shards folded into their family, that failed in at
   least half of its newest 10 finished runs (4 at least), or has failed in every run for 3 days
-  (however few). Cancelled and skipped jobs say nothing about a job and are not runs. A job with no
+  (however few). Cancelled and skipped jobs say nothing about a job and are not runs. An aggregator
+  (`All Checks Pass`) is not judged: it fails whenever any job it summarizes fails, so its share is the
+  union of theirs, and it stood alone on the list at 8 of 10 while no lane was chronic (issue #6068).
+  A job with no
   run in 2 days, or in twice its usual gap between runs when that is longer (a weekly job), has
   stopped -- removed or renamed -- and is not judged. A ci.yml job (run on its own, or called as
   `CI / ...` by release.yml) that ci.yml on master no longer defines is not judged from the hour the

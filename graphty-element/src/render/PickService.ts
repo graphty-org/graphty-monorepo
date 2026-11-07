@@ -82,7 +82,7 @@ export function pickAsDrawn(scene: Scene, x: number, y: number): TransformNode |
  * @param admit - Which meshes may be picked at all.
  * @returns The predicate.
  */
-export function alongRay(
+function alongRay(
     scene: Scene,
     ray: Ray,
     admit: (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean,

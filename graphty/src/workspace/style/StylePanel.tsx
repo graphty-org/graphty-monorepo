@@ -371,7 +371,7 @@ export interface KindControl {
 }
 
 /** How a kind's picker and the other kind's tab hand a field between them. */
-export interface Elsewhere {
+interface Elsewhere {
     /** The field to open on with a card on it. */
     readonly adding?: string;
     /** Goes to the other kind's tab with a card on a field it carries. */

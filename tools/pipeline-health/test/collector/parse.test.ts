@@ -395,6 +395,7 @@ describe("pull requests and issues", () => {
                                         __typename: "CheckRun",
                                         name,
                                         conclusion: "FAILURE",
+                                        signatures: ["graphty/test/a.test.ts > opens"],
                                     })),
                                 },
                             },

@@ -185,7 +185,7 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
 };
 
 /** The Line properties the `cosmograph` experiment adds (issue #3247): the long-edge fade and blending. */
-export const COSMOGRAPH_LINE_CHANNELS: readonly Channel[] = [
+const COSMOGRAPH_LINE_CHANNELS: readonly Channel[] = [
     "edge.fadeEnd",
     "edge.fadeStart",
     "edge.fadeOpacity",
@@ -547,6 +547,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shapeTexts": "Shape texts",
     "node.labelTable": "Label table",
     "node.shapeLineWidth": "Shape line width",
+    "node.shapeLineHaloColor": "Shape line halo color",
+    "node.shapeLineHaloWidth": "Shape line halo width",
     "node.gradientColors": "Gradient colors",
     "node.gradientStops": "Gradient stops",
     "node.gradientKind": "Gradient kind",
@@ -1285,7 +1287,7 @@ export function madeWords(name: string, nodes: number, edges: number): string {
  * @param edges - how many edges are selected.
  * @returns the words.
  */
-export function selectedWords(nodes: number, edges: number): string {
+function selectedWords(nodes: number, edges: number): string {
     const [first, ...rest] = pickedCount(nodes, edges).split(" and ");
     const [n, word] = first.split(" ");
     const selected = n === "1" ? `selected ${word}` : `${n} selected ${word}`;

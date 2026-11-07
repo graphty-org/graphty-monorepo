@@ -631,6 +631,26 @@ describe("GraphML styles: yEd", () => {
             const nodes = realizer("a", "UMLNoteNode", "", "", '<y:Geometry height="50" width="100" x="0" y="0"/>');
             expect(await values(nodes, "shape")).toEqual(["polygon"]);
             expect(await values(nodes, "shapePoints")).toEqual(["-1,1 0.7,1 0.7,0.4 1,0.4 1,-1 -1,-1"]);
+            const [picture] = await values(nodes, "image");
+            // the fold: a white triangle in the cut corner, outlined, so its two creases show
+            expect(decodeURIComponent(String(picture))).toContain(
+                'stroke="#505050" stroke-width="1" d="M85,0 L85,15 L100,15 Z"',
+            );
+            expect(await values(nodes, "imageFit")).toEqual(["fill"]);
+        });
+
+        it("draws the part of an SBGN multimer's copy 6 down and right of it that shows", async () => {
+            const mcount = '<y:Property class="java.lang.Integer" name="com.yworks.sbgn.style.mcount" value="2"/>';
+            const nodes = generic("a", "sbgn.Macromolecule", mcount) + generic("b", "sbgn.Macromolecule");
+            const [picture, none] = await values(nodes, "image");
+            expect(none).toBeNull();
+            const svg = decodeURIComponent(String(picture));
+            expect(svg).toContain('<path fill="none" stroke="#505050" stroke-width="1" d="M');
+            // from the copy's top right corner, round its bottom right one, to its bottom left one
+            expect(svg).toContain("L62,18");
+            expect(svg).toContain("L50,42");
+            expect(await values(nodes, "imageWidth")).toEqual([61, null]);
+            expect(await values(nodes, "imageOffsetX")).toEqual([3, null]);
         });
 
         it("draws an event, a gateway and the round flowchart and SBGN nodes in the largest square of their box", async () => {

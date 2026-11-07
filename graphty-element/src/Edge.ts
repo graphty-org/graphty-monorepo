@@ -223,6 +223,9 @@ interface EdgeOpts {
 /** Most uses along one edge drawn at once; past it the highest are kept. */
 const ALONG_CAP = 4;
 
+/** How near, in `along, across` units, a laid bend may sit to a line end the layout gives and be that end. */
+const LAID_END_MATCH = 1e-4;
+
 /**
  * The shader uses resolved on an edge: its style's `shaders`, which the painter writes from
  * `edge.shaders`.
@@ -575,6 +578,8 @@ export class Edge {
         srcPort: [number, number] | null;
         dstPort: [number, number] | null;
         loop: boolean;
+        /** Whether the first and last bends are the line's ends, where the layout ended it ({@link fileRoute}). */
+        ends?: boolean;
     } | null = null;
 
     /** The texts {@link Edge.lineRoute} was read from, joined. See {@link syncContent}. */
@@ -1173,7 +1178,7 @@ export class Edge {
             this.bundled = false;
             this.placeLifted(this.lineBatch, src, dst, lift);
         } else {
-            bent = this.placeLine(src, dst, lnk.bends);
+            bent = this.placeLine(src, dst, lnk.bends, lnk.lineEnds);
         }
 
         // the layout's place (Graphviz's `lp` and `xlp`) is the label's center
@@ -1203,9 +1208,15 @@ export class Edge {
      * @param src - The source end.
      * @param dst - The target end.
      * @param laid - The bends of the route the layout laid, if it laid one.
+     * @param laidEnds - Where the layout starts and ends the line, if it ends it itself: the line runs to them.
      * @returns Whether the line was laid along its bends.
      */
-    private placeLine(src: Vector3, dst: Vector3, laid?: readonly number[]): boolean {
+    private placeLine(
+        src: Vector3,
+        dst: Vector3,
+        laid?: readonly number[],
+        laidEnds?: EdgePosition["lineEnds"],
+    ): boolean {
         const lays = this.laysRoute();
         const batch = lays ? this.lineBatch : null;
         const stored = this.lineRoute;
@@ -1217,11 +1228,15 @@ export class Edge {
             stored === null &&
             laid !== undefined &&
             this.srcNode !== this.dstNode &&
-            this.placeBent(batch, src, dst, { bends: [...laid], srcPort: null, dstPort: null, loop: false });
+            this.placeBent(batch, src, dst, Edge.laidRoute(laid ?? [], laidEnds));
         const route = !bent && !followsLayout && lays ? this.bundleRoute(src, dst) : null;
         this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
-            const { srcPoint, dstPoint } = this.transformArrowCap();
+            // a straight line the layout ends itself runs between its ends, as a laid route does
+            const { srcPoint, dstPoint } =
+                laidEnds !== undefined && stored === null && this.srcNode !== this.dstNode
+                    ? this.placeLaidEnds(src, dst, laidEnds)
+                    : this.transformArrowCap();
             // A wave with a period of its own starts where the line leaves its node, as Cytoscape desktop
             // lays its strokes from the node's outline, so its turns fall where the program's do.
             const surface =
@@ -1235,6 +1250,36 @@ export class Edge {
         }
 
         return bent;
+    }
+
+    /**
+     * The route a layout laid: its bends, and when it ends the line itself, its ends first and last, in place of the
+     * bends that sit at them (a Graphviz route's first and last bends are its ends).
+     * @param laid - The bends.
+     * @param ends - The line's ends, if the layout gives them.
+     * @returns The route.
+     */
+    private static laidRoute(laid: readonly number[], ends: EdgePosition["lineEnds"]): NonNullable<Edge["lineRoute"]> {
+        if (ends === undefined) {
+            return { bends: [...laid], srcPort: null, dstPort: null, loop: false };
+        }
+
+        const at = (i: number, [along, across]: readonly [number, number]): boolean =>
+            Math.hypot(laid[i] - along, laid[i + 1] - across) < LAID_END_MATCH;
+        const inner: number[] = [];
+        for (let i = 0; i + 1 < laid.length; i += 2) {
+            if (!at(i, ends.source) && !at(i, ends.target)) {
+                inner.push(laid[i], laid[i + 1]);
+            }
+        }
+
+        return {
+            bends: [...ends.source, ...inner, ...ends.target],
+            srcPort: null,
+            dstPort: null,
+            loop: false,
+            ends: true,
+        };
     }
 
     /**
@@ -3288,7 +3333,12 @@ export class Edge {
             return true;
         }
         const { route, sampled } = Edge.shapeBentRoute(line, through);
-        const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
+        // a layout's own line ends are drawn from where they lie, as ports are: on a cluster's border, a node's outer
+        // periphery or at a port inside the node
+        const ports = {
+            src: stored.srcPort !== null || stored.ends === true,
+            dst: stored.dstPort !== null || stored.ends === true,
+        };
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
         const outSrc = Edge.outside(this.srcNode, src, srcGap);
         const outDst = Edge.outside(this.dstNode, dst, dstGap);
@@ -3745,6 +3795,28 @@ export class Edge {
 
             this.haloBands.push({ kind, batch, slots: [batch.acquire(this)] });
         }
+    }
+
+    /**
+     * Place a straight line's arrow caps between the ends its layout gave it, as {@link transformArrowCap} places them
+     * between the node outlines.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param laidEnds - The line's ends, the target end at the arrow head's tip.
+     * @returns The line's ends, the end stopping short of the arrow head.
+     */
+    private placeLaidEnds(src: Vector3, dst: Vector3, laidEnds: NonNullable<EdgePosition["lineEnds"]>): EdgeLine {
+        const ends = bendPoints(src, dst, [...laidEnds.source, ...laidEnds.target]);
+        const start = Vector3.FromArray(ends, 0);
+        const end = Vector3.FromArray(ends, 3);
+        const direction = end.subtract(start).normalize();
+        if (this.arrowCap) {
+            this.placeArrowHead(this.arrowCap, end, direction, [end, start]);
+        }
+
+        const srcPoint = this.placeArrowTail(start, end, direction, [start, end]);
+        this.placeMidCaps([start, end]);
+        return { srcPoint, dstPoint: this.lineEndBefore(start, end) };
     }
 
     /**

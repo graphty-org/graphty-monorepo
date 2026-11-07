@@ -8,6 +8,8 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { GRAPHML_LOSS } from "../../../src/formats/graphml/constants.js";
+import { graphmlExporter } from "../../../src/formats/graphml/exporter.js";
 import { createRegistry } from "../../../src/registry.js";
 import { resolveStyles } from "../../../src/styles/internal.js";
 import type { StyleProperty } from "../../../src/styles/types.js";
@@ -130,10 +132,30 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
         expect(node("fillGradientAngle", "bevel-color")).toBe(90);
         expect(node("borderColor", "bevel-color")).toBe("#3366ff");
         expect(node("shapeLineWidth", "bevel")).toBe(1);
+        // over a line of 2 most of the way to white, as yEd Live draws it
+        expect(node("shapeLineHaloWidth", "bevel")).toBe(2);
+        expect(node("shapeLineHaloColor", "bevel")).toBe("#f7f7f7");
+        expect(node("shapeLineHaloColor", "bevel-color")).toBe("#e0e8ff");
         expect(String(node("shapeLines", "bevel")).split(" ")[0]).toBe("-1+3.000,1-10.000");
         expect(String(node("shapeLines", "bevel-inset-8")).split(" ")[0]).toBe("-1+8.000,1-10.000");
         // no corner left to round: one point a corner
         expect(String(node("shapeLines", "bevel-radius-0")).split(" ")).toHaveLength(5);
+    });
+
+    it("draws ShinyPlateNodeStyle's gloss over its upper left as yEd Live does", async () => {
+        const { node } = await sheet("specimen-node-shapes-p2.graphml");
+        const svg = (id: string): string => decodeURIComponent(String(node("image", id)).split(",")[1]);
+        // yEd Live 8.5.16 on this sheet: M 1.25,5 Q 1.25,1.25 5,1.25 L 31.4,1.25 ... for a node of 56 by 36, radius 5
+        expect(svg("shiny-plate")).toContain(
+            'd="M1.25,5Q1.25,1.25 5,1.25L31.4,1.25Q35.15,1.25 35.15,5Q35.15,8.75 21.95,18.15Q8.75,27.55 5,27.55Q1.25,27.55 1.25,23.8Z"',
+        );
+        expect(svg("shiny-plate-radius-0")).toContain(
+            'd="M0,0Q0,0 0,0L36.4,0Q36.4,0 36.4,0Q36.4,0 18.2,14.4Q0,28.8 0,28.8Q0,28.8 0,28.8Z"',
+        );
+        expect(node("imageFit", "shiny-plate")).toBe("fill");
+        // a line of 2 cuts the picture to the middle of it
+        expect(svg("shiny-plate-stroke")).toContain('viewBox="1 1 54 34"');
+        expect(node("image", "bevel")).toBeNull();
     });
 
     it("paints a PanelNodeStyle as a ramp into its color, lined in its color at 0.8", async () => {
@@ -541,5 +563,20 @@ describe("yEd Live GraphML: a node label with no layout parameter", () => {
         expect((await sheet("specimen-labels-p3.graphml")).node("labelPadding", "v2-insets-8")).toBe(8);
         // a label with no box keeps the default padding
         expect(labels("labelPadding", "cap-background-fill")).toBeNull();
+    });
+});
+
+describe("yEd Live GraphML: ports on a save", () => {
+    it("writes every port of the BPMN sheet back as <port> elements that read back the same", async () => {
+        const read = async (bytes: Uint8Array) =>
+            (await registry.importGraph(bytes, { format: "graphml", errorLimit: Infinity })).snapshot;
+        const first = await read(new Uint8Array(readFileSync(join(SHEETS, "specimen-node-shapes-p6.graphml"))));
+        const ports = first.nodes.require("ports");
+        expect(ports.length - ports.nullCount).toBeGreaterThan(0);
+        expect(graphmlExporter.check(first).map((n) => n.code)).not.toContain(GRAPHML_LOSS.PORTS_DROPPED);
+        const again = await read(new TextEncoder().encode(await graphmlExporter.exportToString(first)));
+        const rows = (snapshot: typeof first): unknown[] =>
+            Array.from({ length: snapshot.nodeCount }, (_, r) => snapshot.nodes.require("ports").value(r));
+        expect(rows(again)).toEqual(rows(first));
     });
 });

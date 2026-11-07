@@ -14,6 +14,7 @@ import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
 import { mapTileCommands } from "../vitest.map-tiles.mjs";
+import { StoryShardSequencer } from "./test/story-shards";
 import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
 
@@ -196,6 +197,9 @@ const config = defineConfig({
         ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
         globals: true,
         exclude: BASE_EXCLUDE,
+        // A --shard of the storybook project alone is split by the story files' measured times, so
+        // ci.yml's two Story tests (graphty-N) legs take about as long as each other (issue #5161).
+        sequence: { sequencer: StoryShardSequencer },
         // The tests that mount the real graphty-element get a project of their own, run after
         // the others finish (sequence.groupOrder). Browser test files share the renderer's main
         // thread, and a real element loading and laying out a sample holds it for seconds at a

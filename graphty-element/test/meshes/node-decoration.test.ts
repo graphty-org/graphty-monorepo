@@ -227,6 +227,22 @@ describe("a node's further parts and lines (shape.parts, shape.lines)", () => {
         assert.deepEqual(shapeLinePieces({ lines: "-1,-1 1,-1" }, { color: "#000000" }, 20, 10), []);
     });
 
+    test("draws a halo under each line, wider, in its own color, and none without a halo width or color", () => {
+        const [halo, line] = shapeLinePieces(
+            { lines: "-1,0 1,0", lineWidth: 1, lineHaloWidth: 2, lineHaloColor: "#f7f7f7" },
+            { width: 0, color: "#c8c8c8" },
+            36,
+            36,
+        );
+        assert.deepEqual(halo.rgb, [247 / 255, 247 / 255, 247 / 255]);
+        assert.approximately(boxOf(halo.outline).y1 - boxOf(halo.outline).y0, 2, 1e-9);
+        assert.deepEqual(line.rgb, [200 / 255, 200 / 255, 200 / 255]);
+        assert.approximately(boxOf(line.outline).y1 - boxOf(line.outline).y0, 1, 1e-9);
+        const plain = { width: 1, color: "#000000" };
+        assert.equal(shapeLinePieces({ lines: "-1,0 1,0", lineHaloColor: "#f7f7f7" }, plain, 36, 36).length, 1);
+        assert.equal(shapeLinePieces({ lines: "-1,0 1,0", lineHaloWidth: 2 }, plain, 36, 36).length, 1);
+    });
+
     test("closes a line that ends where it starts: a square ring of four sides meeting at their miters", () => {
         const ring = shapeLinePieces(
             { lines: "0.5,0.5 0.5,-0.5 -0.5,-0.5 -0.5,0.5 0.5,0.5" },

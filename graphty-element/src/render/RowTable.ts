@@ -16,7 +16,7 @@ import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { Node } from "../Node";
 
 /** Texels across both textures: a shader reads texel `i` at `(i % 1024, i / 1024)`. */
-export const ROW_TEXTURE_WIDTH = 1024;
+const ROW_TEXTURE_WIDTH = 1024;
 
 const FLOATS_PER_TEXEL = 4;
 /** `rowPosition` and `rowBounds`: x, y, z and w; x, y, z and radius times w. */
@@ -29,7 +29,7 @@ const EXTENT_FLOATS = 12;
 const EXTENT_BOUNDING_RADIUS = 7;
 
 /** The `rowExtent` flag of a row whose surface is the same distance from its center every way. */
-export const ROW_EXTENT_ROUND = 1;
+const ROW_EXTENT_ROUND = 1;
 
 /** Drawn somewhere other than its lane row (a drag, a transition, a group), so a repack leaves it. */
 const HELD = 1;

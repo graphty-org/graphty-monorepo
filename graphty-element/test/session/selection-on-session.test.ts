@@ -62,6 +62,37 @@ describe("session.selection", () => {
         session.dispose();
     });
 
+    it("lists the ids apply would select, edges a rule matches included, without selecting", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", group: 1 },
+            { id: "b", group: 2 },
+            { id: "c", group: 1 },
+        ]);
+        await session.data.addEdges([
+            { source: "a", target: "b", minutes: 12 },
+            { source: "b", target: "c", minutes: 4 },
+        ]);
+        const { selection } = session;
+
+        const nodes = await selection.members({ where: "data.group == `1`" });
+        assert.sameMembers(nodes.nodes.map(String), ["a", "c"]);
+        assert.deepStrictEqual(nodes.edges, []);
+        const edges = await selection.members({ where: "minutes >= `10`" });
+        assert.deepStrictEqual(edges.nodes, []);
+        assert.strictEqual(edges.edges.length, 1);
+        assert.strictEqual(selection.size, 0, "listing selects nothing");
+        await selection.apply({ where: "minutes >= `10`" });
+        assert.deepStrictEqual(selection.edges, edges.edges);
+        try {
+            await selection.members({ where: "minutes >= 10" });
+            assert.fail("a bare number is refused");
+        } catch (error) {
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_SELECTOR");
+        }
+        session.dispose();
+    });
+
     it("starts empty and holds two sets, not one node", async () => {
         const harness = harnessOf();
 

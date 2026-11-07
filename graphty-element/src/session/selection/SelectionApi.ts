@@ -340,6 +340,21 @@ export interface SelectionApi {
      */
     count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }>;
     /**
+     * Which nodes and edges `apply(target)` would select, without changing the selection: the ids
+     * behind {@link SelectionApi.count}, read the same way, so a consumer can list or narrow to a
+     * target's elements (a table showing only an answer's rows) and leave the selection alone.
+     *
+     * ```ts
+     * const { nodes } = await session.selection.members({ where: "data.group == `3`" });
+     * session.data.nodePage({ scope: { nodes } });
+     * ```
+     * @param target - What `apply` would select.
+     * @returns The node ids and edge ids it names, before the selection's cap.
+     * @throws The same `GraphtyError` as `apply` for a target it refuses.
+     * @since 3.36.0
+     */
+    members(target: SelectionTarget): Promise<{ readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }>;
+    /**
      * Which paths a rule reads that nothing in this session answers, before it is applied: a rule
      * over a misspelt column matches nothing, which reads like a correct answer of zero. Each
      * unknown path carries the readable values whose name it is, and when each has exactly one,
@@ -1104,6 +1119,18 @@ class Selection implements SelectionOwner {
         this.#sync();
         const members = resolveTarget(target, this.#context());
         return Promise.resolve({ nodes: members.nodes.size, edges: members.edges.size });
+    }
+
+    members(
+        target: SelectionTarget,
+    ): Promise<{ readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }> {
+        try {
+            this.#sync();
+            const members = resolveTarget(target, this.#context());
+            return Promise.resolve({ nodes: members.nodes.ids(), edges: members.edges.ids() });
+        } catch (error) {
+            return Promise.reject(error);
+        }
     }
 
     checkRule(where: Query): RuleCheck {

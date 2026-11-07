@@ -5112,6 +5112,10 @@ export interface SelectionApi {
     readonly hovered: NodeId | null;
     readonly hoverPreview: boolean;
     readonly layerSelector: Selector;
+    members(target: SelectionTarget): Promise<{
+        readonly nodes: readonly NodeId[];
+        readonly edges: readonly EdgeId[];
+    }>;
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;

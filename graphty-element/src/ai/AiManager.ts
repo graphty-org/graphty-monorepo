@@ -155,6 +155,11 @@ export interface AiVoiceOptions {
      */
     speechLevel?: number;
     /**
+     * How long a pause, in seconds, ends a press made with `aiTalk(true, { endOnSilence: true })`.
+     * Default 1.5.
+     */
+    silenceSeconds?: number;
+    /**
      * Transcribe through another provider than the chat's, with its key from `apiKeys`: an
      * Anthropic reader's speech through OpenAI. `model` names the transcription model; for a
      * provider whose chat model transcribes (Google), it names that chat model.
@@ -176,6 +181,19 @@ export interface AiVoiceOptions {
      * only text the model wrote, never words of its own.
      */
     say?: (fact: { code: AiResultCode; params: AiResultParams }) => string | undefined;
+}
+
+/** How one press of talk behaves (`aiTalk(true, options)`). */
+export interface AiTalkOptions {
+    /**
+     * End the press on its own once the speaker has spoken and paused for `voice.silenceSeconds`,
+     * as a release would: the browser recognizer's end of speech, or the microphone's level staying
+     * under `voice.speechLevel`. Default false: the press listens until released. Given on
+     * `aiTalk(true, ...)` while a press already listens (with `push: "hold"`), it applies to that
+     * press: a button that latches on a short click asks for it on the click's release. Not for a
+     * live conversation, whose provider hears the pauses itself.
+     */
+    endOnSilence?: boolean;
 }
 
 /** How one direction of speech would be carried now (`getAiVoiceSupport()`). */
@@ -794,6 +812,11 @@ export class AiManager {
                     liveEngine: () => this.liveEngine(),
                     immersive: () => (graph.getXRSessionManager()?.getActiveMode() ?? null) !== null,
                     selected: () => graph.getSession().selection.nodes,
+                    vocabulary: () =>
+                        graph
+                            .getSession()
+                            .data.readableValues()
+                            .map((value) => value.plainName),
                     onPointed: (listener) => {
                         const id = graph.eventManager.addListener("node-hover", (event) => {
                             listener((event as NodeHoverEvent).node.id);
@@ -1039,8 +1062,9 @@ export class AiManager {
      * the outcome when `voice.output` is on. Without `voice` a press ends at once with
      * `ai-voice-end` `{ reason: "error", code: "AI_NOT_ENABLED" }`, and a release does nothing.
      * @param down - True to press, false to release.
+     * @param options - How the press behaves.
      */
-    talk(down: boolean): void {
+    talk(down: boolean, options?: AiTalkOptions): void {
         const voice = this.voiceOptions;
         if (voice === undefined || !this.initialized) {
             if (down) {
@@ -1052,7 +1076,7 @@ export class AiManager {
 
         // Once loaded, at once: what the reader points at in the same frame belongs to this press.
         if (this.voiceSessionNow !== undefined) {
-            this.voiceSessionNow.talk(down);
+            this.voiceSessionNow.talk(down, options);
             return;
         }
 
@@ -1061,7 +1085,7 @@ export class AiManager {
         const { graph } = this;
         this.voice(voice).then(
             (session) => {
-                session.talk(down);
+                session.talk(down, options);
             },
             () => {
                 this.talkAsked = false;

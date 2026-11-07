@@ -400,7 +400,7 @@ export class AiManager {
     retry(): Promise<ExecutionResult>;
     setApiKey(provider: ProviderType, key: string): void;
     stopSpeech(): void;
-    talk(down: boolean): void;
+    talk(down: boolean, options?: AiTalkOptions): void;
 }
 
 // @public
@@ -539,6 +539,11 @@ export class AiStatusManager {
 }
 
 // @public
+export interface AiTalkOptions {
+    endOnSilence?: boolean;
+}
+
+// @public
 export interface AiTokenUsage {
     readonly inputTokens: number;
     readonly outputTokens: number;
@@ -604,6 +609,7 @@ export interface AiVoiceOptions {
         code: AiResultCode;
         params: AiResultParams;
     }) => string | undefined;
+    silenceSeconds?: number;
     speechLevel?: number;
     transcription?: {
         provider: AiProviderId;
@@ -824,6 +830,7 @@ export interface InputOptions {
     continuous?: boolean;
     interimResults?: boolean;
     language?: string;
+    phrases?: readonly string[];
     processLocally?: boolean;
 }
 
@@ -1126,6 +1133,7 @@ export class VoiceInputAdapter implements InputAdapter {
     onActiveChange(callback: VoiceActiveCallback): void;
     onError(callback: (error: string) => void): void;
     onInput(callback: InputCallback): void;
+    onSpeechEnd(callback: () => void): void;
     onStart(callback: VoiceStartCallback): void;
     start(options?: InputOptions): void;
     stop(): void;

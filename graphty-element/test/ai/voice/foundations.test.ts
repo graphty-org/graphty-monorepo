@@ -60,6 +60,7 @@ describe("the provider voice table", () => {
                 "no-live-transport",
                 "output-off",
                 "live-busy",
+                "recognition-failed",
             ],
         );
     });

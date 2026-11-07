@@ -45,6 +45,9 @@ export class FakeRecognition {
     onerror: ((event: { error: string }) => void) | null = null;
     onend: (() => void) | null = null;
     onstart: (() => void) | null = null;
+    onspeechend: (() => void) | null = null;
+    /** Chrome's contextual biasing, as `SpeechRecognitionPhrase` objects. */
+    phrases: unknown[] = [];
     stopCalls = 0;
 
     constructor(

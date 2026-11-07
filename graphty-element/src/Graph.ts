@@ -8583,11 +8583,12 @@ export class Graph implements GraphContext {
      * what was said as a command (`AiManagerConfig.voice`). Without `voice`, or before AI is
      * enabled, a press ends at once with `ai-voice-end` `{ code: "AI_NOT_ENABLED" }`.
      * @param down - True to press, false to release.
+     * @param options - How the press behaves (`endOnSilence`).
      * @since 4.0.0
      */
-    aiTalk(down: boolean): void {
+    aiTalk(down: boolean, options?: import("./ai/AiManager").AiTalkOptions): void {
         if (this.aiManager) {
-            this.aiManager.talk(down);
+            this.aiManager.talk(down, options);
         } else if (down) {
             this.eventManager.emit("ai-voice-end", { reason: "error", code: "AI_NOT_ENABLED", params: {} });
         }

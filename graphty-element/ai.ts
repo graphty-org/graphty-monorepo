@@ -78,6 +78,7 @@ export { AiConfigError } from "./src/ai/index";
 // AI Manager
 export type {
     AiManagerConfig,
+    AiTalkOptions,
     AiVoiceConversationMode,
     AiVoiceMode,
     AiVoiceOptions,

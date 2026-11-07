@@ -8,8 +8,9 @@
 import { AI_VOICE_APPROVABLE_GATES, type AiProviderId, type AiResultCode, type AiResultParams } from "../../catalog/ai";
 import type { NodeId } from "../../catalog/types";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
+import { GraphtyLogger, type Logger } from "../../logging";
 import { type AiApprovalAnswer, type AiCommandOptions, type ExecutionResult, LIVE_MESSAGE } from "../AiController";
-import type { AiVoiceOptions, AiVoicePath, AiVoiceSupport } from "../AiManager";
+import type { AiTalkOptions, AiVoiceOptions, AiVoicePath, AiVoiceSupport } from "../AiManager";
 import { comparable } from "../comparable";
 import type { AiEngine, LiveConnection, LiveOpened, LiveOptions } from "../engine/types";
 import type { AiPointing } from "../tools/prompt";
@@ -26,6 +27,11 @@ import { PointingRecord } from "./pointing";
 import { type SpeechInput, type SpeechInputEnd, startSpeechInput } from "./SpeechInput";
 import { createSpeechOutput, type SpeechOutput } from "./SpeechOutput";
 import { readLiveTransport, readVoiceEnvironment, voiceLanguage } from "./support";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai", "voice"]);
+
+/** The most phrases a press asks recognition to favor. */
+const MAX_PHRASES = 50;
 
 /** The voice events a session emits. */
 export type VoiceEventType =
@@ -95,6 +101,8 @@ export interface VoiceHost {
     immersive(): boolean;
     /** The selected nodes now; absent, none. */
     selected?(): readonly NodeId[];
+    /** The names of the graph's columns and values, which recognition favors; absent, none. */
+    vocabulary?(): readonly string[];
     /**
      * Listen for the pointer entering a node, while talk is held.
      * @returns A function that stops listening.
@@ -117,6 +125,8 @@ export class VoiceSession {
     private input: SpeechInput | undefined;
     /** Every press not yet ended: listening, or still being transcribed. */
     private readonly inputs = new Set<SpeechInput>();
+    /** The press listening now ends on silence (`AiTalkOptions.endOnSilence`). */
+    private endOnSilence = false;
     /** Releases a press that ran past `maxPressSeconds`. */
     private pressTimer: ReturnType<typeof setTimeout> | undefined;
     /** The support last reported, to tell when it changed. */
@@ -155,8 +165,9 @@ export class VoiceSession {
     /**
      * Press or release talk. With `push: "toggle"` each press starts or ends listening.
      * @param down - True to press, false to release.
+     * @param options - How the press behaves; `endOnSilence` on a press already listening applies to it.
      */
-    talk(down: boolean): void {
+    talk(down: boolean, options?: AiTalkOptions): void {
         if (this.disposed) {
             return;
         }
@@ -171,6 +182,7 @@ export class VoiceSession {
 
         if (down && !this.listening) {
             this.listening = true;
+            this.endOnSilence = options?.endOnSilence === true;
             // Barge-in: talking cuts off the answer being spoken.
             this.stopSpeech();
             // What the reader points at while talking, from a fresh record each press.
@@ -191,6 +203,10 @@ export class VoiceSession {
             void this.listen(press, pointing);
         } else if (!down && this.listening) {
             this.release();
+        } else if (down && options?.endOnSilence === true && !this.endOnSilence) {
+            // A latched press: from now on it ends when the speaker stops.
+            this.endOnSilence = true;
+            this.input?.endOnSilence();
         }
     }
 
@@ -536,15 +552,27 @@ export class VoiceSession {
         }
 
         const transcriber = this.host.transcriber();
+        const processLocally = facts.onDevice === "process-locally";
+        const { silenceSeconds } = this.host.options;
+        logger.debug("Press route", {
+            path: path.path,
+            destination: path.destination,
+            onDevice: facts.onDevice,
+            recognition: facts.recognition,
+            permission: facts.permission,
+            endOnSilence: this.endOnSilence,
+        });
         this.host.emit("ai-voice-start", start);
         const input = startSpeechInput(
             path.path,
             {
                 language: this.language,
-                processLocally: facts.onDevice === "process-locally",
+                processLocally,
                 engine: transcriber.engine,
                 model: transcriber.model,
                 speechLevel: this.host.options.speechLevel ?? DEFAULT_SPEECH_LEVEL,
+                ...(silenceSeconds === undefined ? {} : { silenceMs: silenceSeconds * 1000 }),
+                ...(processLocally ? { phrases: this.phrases() } : {}),
             },
             {
                 onTranscript: (transcript, isFinal) => {
@@ -563,10 +591,23 @@ export class VoiceSession {
         );
         this.inputs.add(input);
         this.input = input;
+        if (this.endOnSilence) {
+            input.endOnSilence();
+        }
+
         // Released while the path was being chosen.
         if (!this.listening) {
             input.stop();
         }
+    }
+
+    /**
+     * What recognition is asked to favor: what a graph is made of, and the names of its columns.
+     * @returns The phrases, each once.
+     */
+    private phrases(): string[] {
+        const names = ["node", "nodes", "edge", "edges", ...(this.host.vocabulary?.() ?? [])];
+        return [...new Set(names.map((name) => name.trim()).filter((name) => name !== ""))].slice(0, MAX_PHRASES);
     }
 
     /**

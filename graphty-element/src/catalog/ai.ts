@@ -466,6 +466,9 @@ export type AiVoiceDestination = "on-device" | "browser-vendor" | "provider" | "
  * WebSocket and `AudioWorklet` for Google), `"output-off"` (`AiVoiceOptions.output` is `"off"`,
  * and a live answer is always spoken), `"live-busy"` (a spoken message still runs its tools; the
  * press is sent after it, turn by turn).
+ *
+ * `"recognition-failed"`: browser recognition stopped with an error that has no reason of its own
+ * (Chrome's `"aborted"`, say); the recognizer's name for it is in the params as `error`.
  */
 export const AI_VOICE_UNAVAILABLE_REASONS = Object.freeze([
     "no-recognition",
@@ -484,6 +487,7 @@ export const AI_VOICE_UNAVAILABLE_REASONS = Object.freeze([
     "no-live-transport",
     "output-off",
     "live-busy",
+    "recognition-failed",
 ] as const);
 
 /**

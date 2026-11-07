@@ -513,6 +513,28 @@ describe("a press's limits", () => {
         }
     });
 
+    it("a latched press (endOnSilence on a press already held) ends when the speaker stops; a held one does not", async () => {
+        const h = await harness();
+        h.engine.push(textTurn("Done."));
+        h.voice.talk(true);
+        await vi.waitFor(() => {
+            assert.lengthOf(h.fake.recognizers, 1);
+        });
+        const held = h.fake.recognizers[0];
+        held.hear("show the servers", true);
+        held.onspeechend?.();
+        await flushMicrotasks();
+        assert.isTrue(h.voice.talking, "held: a pause does not end it");
+
+        h.voice.talk(true, { endOnSilence: true });
+        held.onspeechend?.();
+        await vi.waitFor(() => {
+            assert.strictEqual(h.engine.requests.length, 1, "ended on silence and sent");
+        });
+        assert.isFalse(h.voice.talking);
+        assert.strictEqual(h.fake.liveTracks(), 0);
+    });
+
     it("cancel stops an earlier press still being transcribed: it sends nothing", async () => {
         const fake = installFakeSpeech({ recognition: "absent" });
         const session = await assistantSession();

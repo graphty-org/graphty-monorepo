@@ -5884,16 +5884,21 @@ export class Graphty extends LitElement {
      * Press (`true`) or release (`false`) talk: while it is held the assistant listens, then sends
      * what was said as a command (`voice` in `enableAiControl`). Without `voice`, or before AI is
      * enabled, a press ends at once with `ai-voice-end` `{ code: "AI_NOT_ENABLED" }`.
+     * With `{ endOnSilence: true }` the press also ends on its own once the speaker has spoken and
+     * paused (`voice.silenceSeconds`); given while a press already listens, it applies to that press.
      * @param down - True to press, false to release.
+     * @param options - How the press behaves.
      * @since 4.0.0
      * @example
      * ```typescript
      * talkButton.onpointerdown = () => element.aiTalk(true);
      * talkButton.onpointerup = () => element.aiTalk(false);
+     * // Or: one click listens until the speaker stops.
+     * talkButton.onclick = () => element.aiTalk(true, { endOnSilence: true });
      * ```
      */
-    aiTalk(down: boolean): void {
-        this.#graph.aiTalk(down);
+    aiTalk(down: boolean, options?: import("./ai/AiManager").AiTalkOptions): void {
+        this.#graph.aiTalk(down, options);
     }
 
     /**

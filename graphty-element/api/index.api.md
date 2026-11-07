@@ -2721,7 +2721,7 @@ export class Graph implements GraphContext {
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     aiCommand(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
-    aiTalk(down: boolean): void;
+    aiTalk(down: boolean, options?: AiTalkOptions): void;
     answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
@@ -3222,7 +3222,7 @@ export class Graphty extends LitElement {
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: AdHocData[], idPath?: string, options?: QueueableOptions): Promise<void>;
     aiCommand(message: string, options?: AiCommandOptions): Promise<ExecutionResult>;
-    aiTalk(down: boolean): void;
+    aiTalk(down: boolean, options?: AiTalkOptions): void;
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined;
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined);
     answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;

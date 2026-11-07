@@ -303,6 +303,152 @@ describe("browser recognition", () => {
     });
 });
 
+describe("one microphone request per press", () => {
+    it("starts the recognizer only once the level's stream has opened, on every press", async () => {
+        // Started at once, the recognizer asked for the microphone beside getUserMedia (two prompts
+        // on the first press) and, on later presses, opened the device before the level's stream:
+        // desktop Chrome then heard nothing, and the press ended "heard nothing".
+        const fake = installFakeSpeech({ microphone: "prompt" });
+        for (const [index, said] of ["make the nodes red", "now the edges"].entries()) {
+            const run = press("browser");
+            assert.strictEqual(fake.recognizers.length, index, "no recognizer before the microphone opened");
+            await flushMicrotasks();
+            assert.strictEqual(fake.microphoneOpens, index + 1, "one request for the microphone");
+            const recognizer = fake.recognizers[index];
+            assert.isDefined(recognizer, "the recognizer starts once it opened");
+            recognizer?.hear(said, true);
+            run.press.stop();
+            assert.strictEqual((await run.ended).text, said);
+            assert.strictEqual(fake.liveTracks(), 0);
+        }
+    });
+
+    it("a refused microphone fails once, with no recognizer started", async () => {
+        const fake = installFakeSpeech({ microphone: "denied" });
+        const run = press("browser");
+        assert.deepStrictEqual((await run.ended).params, { path: "input", reason: "permission-denied" });
+        assert.strictEqual(fake.recognizers.length, 0);
+    });
+
+    it("a release before the microphone opened ends with nothing heard, no recognizer started", async () => {
+        const fake = installFakeSpeech();
+        const run = press("browser");
+        run.press.stop();
+        assert.deepStrictEqual(await run.ended, { code: "AI_COMPLETED", params: {}, text: "" });
+        assert.strictEqual(fake.recognizers.length, 0);
+        assert.strictEqual(fake.liveTracks(), 0);
+    });
+});
+
+describe("every recognizer error is said", () => {
+    it("an error with no reason of its own ends recognition-failed, naming it", async () => {
+        const fake = installFakeSpeech();
+        const run = press("browser");
+        await flushMicrotasks();
+        fake.recognizers[0]?.fail("aborted");
+        assert.deepStrictEqual(await run.ended, {
+            code: "AI_VOICE_UNAVAILABLE",
+            params: { path: "input", reason: "recognition-failed", error: "aborted" },
+            text: "",
+        });
+        assert.isUndefined(recallRecognition(), "nothing is remembered");
+    });
+
+    it("no-speech is what it says: nothing heard", async () => {
+        const fake = installFakeSpeech();
+        const run = press("browser");
+        await flushMicrotasks();
+        fake.recognizers[0]?.fail("no-speech");
+        assert.deepStrictEqual(await run.ended, { code: "AI_COMPLETED", params: {}, text: "" });
+    });
+});
+
+describe("ending on silence", () => {
+    it("browser: the recognizer's end of speech ends a press asked to, with what was heard", async () => {
+        const fake = installFakeSpeech();
+        const run = press("browser");
+        await flushMicrotasks();
+        const recognizer = fake.recognizers[0];
+        recognizer?.hear("color the hubs", true);
+        recognizer?.onspeechend?.();
+        assert.strictEqual(recognizer?.stopCalls, 0, "not asked: the press listens on");
+
+        run.press.endOnSilence();
+        recognizer?.onspeechend?.();
+        assert.strictEqual(recognizer?.stopCalls, 1);
+        assert.strictEqual((await run.ended).text, "color the hubs");
+        assert.strictEqual(fake.liveTracks(), 0);
+    });
+
+    it("provider: the level falling under speech level for silenceMs ends it, after speech", async () => {
+        vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+        try {
+            const fake = installFakeSpeech();
+            const engine = transcriber("make it bigger");
+            fake.setSample(0);
+            const run = press("provider", engine, { speechLevel: 0.04, silenceMs: 500 });
+            run.press.endOnSilence();
+            await flushMicrotasks();
+            vi.advanceTimersByTime(2000);
+            assert.strictEqual(fake.recorders[0]?.state, "recording", "silence before speech ends nothing");
+
+            fake.setSample(0.25);
+            vi.advanceTimersByTime(100);
+            fake.setSample(0);
+            vi.advanceTimersByTime(450);
+            assert.strictEqual(fake.recorders[0]?.state, "recording", "a short pause ends nothing");
+            vi.advanceTimersByTime(50);
+            assert.strictEqual(fake.recorders[0]?.state, "inactive");
+            assert.strictEqual((await run.ended).text, "make it bigger");
+            assert.strictEqual(fake.liveTracks(), 0);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
+
+describe("phrases", () => {
+    /**
+     * Install the fakes with Chrome's `SpeechRecognitionPhrase`.
+     * @returns The fakes.
+     */
+    function withPhrases(): ReturnType<typeof installFakeSpeech> {
+        const fake = installFakeSpeech();
+        class Phrase {
+            constructor(
+                readonly phrase: string,
+                readonly boost: number,
+            ) {}
+        }
+        vi.stubGlobal("SpeechRecognitionPhrase", Phrase);
+        return fake;
+    }
+
+    it("on-device recognition favors the phrases it is given", async () => {
+        const fake = withPhrases();
+        press("browser", undefined, { processLocally: true, phrases: ["nodes", "edges", "degree"] });
+        await flushMicrotasks();
+        const phrases = fake.recognizers[0]?.phrases as { phrase: string; boost: number }[];
+        assert.deepStrictEqual(
+            phrases.map((each) => each.phrase),
+            ["nodes", "edges", "degree"],
+        );
+        assert.isTrue(phrases.every((each) => each.boost > 0));
+    });
+
+    it("recognition at the vendor, or a browser without phrases, is left unbiased", async () => {
+        const fake = withPhrases();
+        press("browser", undefined, { phrases: ["nodes"] });
+        await flushMicrotasks();
+        assert.deepStrictEqual(fake.recognizers[0]?.phrases, []);
+        vi.unstubAllGlobals();
+        const bare = installFakeSpeech();
+        press("browser", undefined, { processLocally: true, phrases: ["nodes"] });
+        await flushMicrotasks();
+        assert.deepStrictEqual(bare.recognizers[0]?.phrases, []);
+    });
+});
+
 describe("the probe, remembered per origin", () => {
     it("Quest: the constructor is there, start fails, and the next press takes the provider", async () => {
         const fake = installFakeSpeech({ recognition: "start-throws" });

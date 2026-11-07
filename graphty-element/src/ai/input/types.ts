@@ -18,6 +18,12 @@ export interface InputOptions {
      * (Chrome's `processLocally`); ignored where the recognizer has no such switch.
      */
     processLocally?: boolean;
+    /**
+     * Words the speaker is likely to say ("nodes", a column's name), which on-device recognition
+     * favors (Chrome's contextual biasing, `SpeechRecognitionPhrase`). Ignored where the
+     * recognizer cannot take them, and by recognition at the vendor.
+     */
+    phrases?: readonly string[];
 }
 
 /**

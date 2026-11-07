@@ -13,7 +13,7 @@ import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
 import { dynamoStore } from "../dynamo.js";
-import { BENCH_PK, type BenchItem, benchKey, withPoint } from "../model/benchmarks.js";
+import { BENCH_PK, type BenchItem, benchKey, type BenchPoint, withPoint } from "../model/benchmarks.js";
 import {
     BUMP_BRANCH,
     DAY,
@@ -579,6 +579,15 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
 }
 
 /**
+ * A benchmark point with the input its row names (a fingerprint of what it timed), when it names one.
+ * @param p - the point
+ * @param input - the row's `input`, if any
+ * @returns the point, with its input
+ */
+const withInput = (p: BenchPoint, input: unknown): BenchPoint =>
+    typeof input === "string" && input ? { ...p, input: input.slice(0, MAX_BENCH_NAME) } : p;
+
+/**
  * A benchmark job's results (`{ source, sha?, machine?, unit?, rows: [{ name, value, input? }] }`,
  * tools/results/post-benchmarks.mjs),
  * each added to its benchmark's item (model/benchmarks.ts) as this run's point. Only from master's workflows: a pull
@@ -611,16 +620,8 @@ async function benchItems(b: Record<string, unknown>, who: Who, db: Store, now: 
             refuse(400, "bad_field", { field: "value", type: "non-negative" });
         }
         const benchmark = `${source}: ${(r.name as string).slice(0, MAX_BENCH_NAME)}`;
-        const input = typeof r.input === "string" ? r.input.slice(0, MAX_BENCH_NAME) : undefined;
-        const point = {
-            at: now,
-            v: r.value as number,
-            run,
-            ...(sha ? { sha } : {}),
-            ...(machine ? { machine } : {}),
-            ...(input ? { input } : {}),
-        };
-        out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, point, now));
+        const point = { at: now, v: r.value as number, run, ...(sha ? { sha } : {}), ...(machine ? { machine } : {}) };
+        out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, withInput(point, r.input), now));
     }
     return [...out.values()];
 }

@@ -584,6 +584,15 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         const p4 = await sheet("specimen-groups-p4.graphml");
         expect(svg(p4.node, "v2-group-folder-state")).toContain('fill="#aaaaaa" d="M0.7,-3.5h-1.4v2.8h-2.8');
     });
+
+    it("draws a collapsed group at its FolderNodeState layout, as yEd Live does", async () => {
+        // FolderNodeState Layout="990,416,60,40"; yEd Live 8.5.16 draws the plus at translate(49 11) on that box
+        const p4 = await sheet("specimen-groups-p4.graphml");
+        expect(p4.node("width", "v2-group-folder-state")).toBe(60);
+        expect(p4.node("height", "v2-group-folder-state")).toBe(40);
+        const icon = decodeURIComponent(String(p4.node("image", "v2-group-folder-state")).split(",")[1]);
+        expect(icon).toContain('transform="translate(49 11) scale(1)"');
+    });
 });
 
 describe("yEd Live GraphML: a node label with no layout parameter", () => {

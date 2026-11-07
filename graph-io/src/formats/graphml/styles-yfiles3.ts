@@ -2514,6 +2514,7 @@ function readYfiles3Target(
     const cell = (name: string | undefined, i: number): unknown =>
         name === undefined ? undefined : plainCell(table.value(name, i));
     const expanded = isNode ? [...table].find((col) => col.meta.name === "Expanded")?.meta.name : undefined;
+    const viewState = isNode ? [...table].find((col) => col.meta.name === "NodeViewState")?.meta.name : undefined;
     for (let i = 0; i < n; i++) {
         budget.spend(target, 1);
         const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
@@ -2529,7 +2530,8 @@ function readYfiles3Target(
         if (!isNode) {
             putEdgePorts(ctx, i, put);
         } else if (geometry !== undefined) {
-            size = readNodeGeometry(cell(geometry, i), i, boxes, put, at);
+            const folder = cell(expanded, i) === false ? folderLayout(cell(viewState, i)) : null;
+            size = readNodeGeometry(folder ?? cell(geometry, i), i, boxes, put, at);
         }
         if (style !== undefined && isNode) {
             readNodeStyle(refs, cell(style, i), put, at, size, cell(expanded, i) === false, cell(ports, i));
@@ -2539,6 +2541,23 @@ function readYfiles3Target(
         readLabels(refs, cell(labels, i), put, at, size, isNode ? null : edgePath(ctx, i, cell(geometry, i)));
     }
     return out.values;
+}
+
+/**
+ * The box a collapsed group is drawn in: its NodeViewState's `<y:FolderNodeState Layout="x,y,w,h"/>`, as a
+ * NodeGeometry `RectD`. yEd Live 8.5.16 draws the collapsed group of `yed-live-graphml-specimen-groups-p4` at that
+ * layout (990,416,60,40), not at its expanded NodeGeometry (945,396,150,80).
+ * @param viewState - the NodeViewState cell
+ * @returns a geometry holding that box, or null when the file stores none
+ */
+function folderLayout(viewState: unknown): unknown {
+    const layout = treeAttr(treeChild(treeChild(viewState, "ViewState"), "FolderNodeState"), "Layout");
+    const parts = typeof layout === "string" ? layout.split(",").map(Number) : [];
+    if (parts.length !== 4 || parts.some((v) => !Number.isFinite(v))) {
+        return null;
+    }
+    const [x, y, w, h] = parts.map(String);
+    return { RectD: { "@_X": x, "@_Y": y, "@_Width": w, "@_Height": h } };
 }
 
 /**

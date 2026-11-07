@@ -42,6 +42,7 @@ import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
+import { svgPicture } from "./styles-yed-live-drawing.js";
 
 // ============================================================ the kept trees
 
@@ -589,45 +590,102 @@ function styleProperty(r: unknown, name: string): string | undefined {
 const MULTIMER_OFFSET = 6;
 const MACROMOLECULE_RADIUS = 12;
 
+/** A rounded box: its left, top, right and bottom, and its corners' radius. */
+type RoundBox = readonly [number, number, number, number, number];
+
 /**
- * The part of an SBGN multimer macromolecule's second outline yEd strokes: a copy of its rounded box
- * `MULTIMER_OFFSET` down and right, behind it, drawn where the node does not cover it
- * (`yed-graphml-specimen-node-shapes-p3`, `com.yworks.sbgn.style.mcount` 2).
- * @param width - the node's width
- * @param height - its height
- * @returns the line as neutral `shapeLines`
+ * Points along the right and bottom of a rounded box, from its top right corner round to its bottom left one.
+ * @param box - the box
+ * @returns the points along its three corners, eight steps each
  */
-function multimerLine(width: number, height: number): string {
-    const [d, r] = [MULTIMER_OFFSET, Math.min(MACROMOLECULE_RADIUS, width / 2, height / 2)];
-    const [right, bottom] = [width + d, height + d];
+function lowerRightCorners(box: RoundBox): [number, number][] {
+    const [x0, y0, x1, y1, r] = box;
     const corners: [number, number][][] = [
         [
-            [right - r, d],
-            [right, d],
-            [right, d + r],
+            [x1 - r, y0],
+            [x1, y0],
+            [x1, y0 + r],
         ],
         [
-            [right, bottom - r],
-            [right, bottom],
-            [right - r, bottom],
+            [x1, y1 - r],
+            [x1, y1],
+            [x1 - r, y1],
         ],
         [
-            [d + r, bottom],
-            [d, bottom],
-            [d, bottom - r],
+            [x0 + r, y1],
+            [x0, y1],
+            [x0, y1 - r],
         ],
     ];
-    const covered = (x: number, y: number): boolean => {
-        const [cx, cy] = [Math.min(Math.max(x, r), width - r), Math.min(Math.max(y, r), height - r)];
-        return x >= 0 && x <= width && y >= 0 && y <= height && (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
-    };
-    // ponytail: the line stops at the last of curvePoints' samples outside the node, up to an eighth of a corner short
-    return corners
-        .flatMap(([from, control, to]) => curvePoints(from, control, to))
-        .map((point) => point.split(",").map(Number))
-        .filter(([x, y]) => !covered(x, y))
-        .map(([x, y]) => pointText((2 * x) / width - 1, 1 - (2 * y) / height))
-        .join(" ");
+    const steps = 8;
+    return corners.flatMap(([from, control, to]) =>
+        Array.from({ length: steps + 1 }, (_, i): [number, number] => {
+            const t = i / steps;
+            const at = (k: 0 | 1): number => (1 - t) ** 2 * from[k] + 2 * t * (1 - t) * control[k] + t ** 2 * to[k];
+            return [at(0), at(1)];
+        }),
+    );
+}
+
+/**
+ * Whether a rounded box holds a point.
+ * @param box - the box
+ * @param point - the point
+ * @returns true when the point is in it or on its outline
+ */
+function roundBoxHolds(box: RoundBox, point: [number, number]): boolean {
+    const [x0, y0, x1, y1, r] = box;
+    const [x, y] = point;
+    const [cx, cy] = [Math.min(Math.max(x, x0 + r), x1 - r), Math.min(Math.max(y, y0 + r), y1 - r)];
+    return x >= x0 && x <= x1 && y >= y0 && y <= y1 && (x - cx) ** 2 + (y - cy) ** 2 <= r * r + 1e-9;
+}
+
+/** A node's fill, its border's color and its border's width, as the picture drawn over it paints them. */
+interface NodePaint {
+    readonly fill: string;
+    readonly line: string;
+    readonly width: number;
+}
+
+/**
+ * What yEd strokes over a node beside its outline, as a picture over the node: the fold of a UMLNoteNode (a white
+ * triangle in the cut corner, outlined: its two creases), and the part of an SBGN multimer macromolecule's copy that
+ * shows, `MULTIMER_OFFSET` down and right of it behind it (`com.yworks.sbgn.style.mcount` 2 or more), filled and
+ * outlined, as yEd 3.25 draws them (`yed-graphml-specimen-node-shapes-p3`, `graphml-libcitygml-mapping`).
+ * @param real - the realizer
+ * @param width - the node's width
+ * @param height - its height
+ * @param paint - its colors
+ * @returns the picture and how far it reaches past the node's right and bottom, or null where yEd strokes nothing more
+ */
+function realizerOverlay(
+    real: Realizer,
+    width: number,
+    height: number,
+    paint: NodePaint,
+): { picture: string; reach: number } | null {
+    const stroke = `stroke="${paint.line}" stroke-width="${String(paint.width)}"`;
+    if (real.type === "UMLNoteNode") {
+        const [x, y] = [width - Math.min(NOTE_FOLD, width), Math.min(NOTE_FOLD, height)];
+        const d = `M${pointText(x, 0)} L${pointText(x, y)} L${pointText(width, y)} Z`;
+        const body = `<path fill="white" d="${d}"/><path fill="none" ${stroke} d="${d}"/>`;
+        return { picture: svgPicture(width, height, paint.width, body), reach: 0 };
+    }
+    const multimer = Number(styleProperty(real.r, "com.yworks.sbgn.style.mcount") ?? 1) > 1;
+    const conf = treeAttr(real.r, "configuration") ?? "";
+    if (real.type !== "GenericNode" || !multimer || !/^com\.yworks\.sbgn\.macromolecule$/i.test(conf)) {
+        return null;
+    }
+    const [o, r] = [MULTIMER_OFFSET, Math.min(MACROMOLECULE_RADIUS, width / 2, height / 2)];
+    const node: RoundBox = [0, 0, width, height, r];
+    const copy: RoundBox = [o, o, width + o, height + o, r];
+    // the copy's outline outside the node, then back along the node's outline inside the copy
+    const shown = lowerRightCorners(copy).filter((q) => !roundBoxHolds(node, q));
+    const back = lowerRightCorners(node).filter((q) => roundBoxHolds(copy, q));
+    const d = `M${[...shown, ...back.reverse()].map(([x, y]) => pointText(x, y)).join(" L")} Z`;
+    const body = `<path fill="${paint.fill}" ${stroke} d="${d}"/>`;
+    const reach = { left: 0, top: 0, right: o, bottom: o };
+    return { picture: svgPicture(width, height, paint.width, body, "", reach), reach: o };
 }
 
 /**
@@ -715,9 +773,7 @@ function noteOutline(width: number, height: number): YedOutline {
     const x = 1 - (2 * Math.min(NOTE_FOLD, width)) / width;
     const y = 1 - (2 * Math.min(NOTE_FOLD, height)) / height;
     const points = ["-1,1", pointText(x, 1), pointText(x, y), pointText(1, y), "1,-1", "-1,-1"];
-    // the fold's two creases, which yEd strokes over the cut corner
-    const lines = [pointText(x, 1), pointText(x, y), pointText(1, y)];
-    return { shape: "polygon", points: points.join(" "), lines: lines.join(" ") };
+    return { shape: "polygon", points: points.join(" ") };
 }
 
 /**
@@ -733,12 +789,7 @@ function realizerOutline(real: Realizer, width: number | null, height: number | 
         return typeOutline(treeAttr(shape, "type"), "rectangle");
     }
     if (real.type === "GenericNode") {
-        const outline = genericOutline(real.r);
-        const multimer = Number(styleProperty(real.r, "com.yworks.sbgn.style.mcount") ?? 1) > 1;
-        const macromolecule = /^com\.yworks\.sbgn\.macromolecule$/i.test(treeAttr(real.r, "configuration") ?? "");
-        return outline !== null && multimer && macromolecule && width !== null && height !== null
-            ? { ...outline, lines: multimerLine(width, height) }
-            : outline;
+        return genericOutline(real.r);
     }
     return real.type === "UMLNoteNode" && width !== null && height !== null ? noteOutline(width, height) : null;
 }
@@ -1697,6 +1748,48 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
 }
 
 /**
+ * Writes what yEd strokes over a node beside its outline (`realizerOverlay`) as the node's picture.
+ * @param real - the realizer
+ * @param width - the node's width
+ * @param height - its height
+ * @param painted - the fill and border values written for it
+ * @param put - receives the values
+ */
+function putOverlay(
+    real: Realizer,
+    width: number,
+    height: number,
+    painted: ReadonlyMap<string, unknown>,
+    put: PutValue,
+): void {
+    const color = (property: string): string | null => {
+        const value = painted.get(property);
+        return typeof value === "string" ? value : null;
+    };
+    const line = Number(painted.get("borderWidth") ?? 1);
+    const paint: NodePaint = {
+        fill: painted.get("fillOpacity") === 0 ? "none" : (color("fill") ?? "white"),
+        line: line > 0 ? (color("borderColor") ?? "black") : "none",
+        width: line > 0 ? line : 0,
+    };
+    const overlay = realizerOverlay(real, width, height, paint);
+    if (overlay === null) {
+        return;
+    }
+    put("image", overlay.picture);
+    put("imageClip", "none");
+    if (overlay.reach === 0) {
+        put("imageFit", "fill");
+        return;
+    }
+    put("imageFit", "none");
+    put("imageWidth", width - paint.width + overlay.reach);
+    put("imageHeight", height - paint.width + overlay.reach);
+    put("imageOffsetX", overlay.reach / 2);
+    put("imageOffsetY", overlay.reach / 2);
+}
+
+/**
  * Reads one node realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1705,9 +1798,14 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
  */
 function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: ReadonlyMap<string, string>): void {
     const { r } = real;
-    readFill(real, put, at);
+    const painted = new Map<string, unknown>();
+    const paintPut: PutValue = (property, value) => {
+        painted.set(property, value);
+        put(property, value);
+    };
+    readFill(real, paintPut, at);
     const border = treeChild(r, "BorderStyle");
-    readBorder(border, put, at);
+    readBorder(border, paintPut, at);
     if (yedDefaultPainted(real) && border !== undefined && hasLine(border)) {
         put("borderWidth", 1);
         put("borderStyle", canonEnum("borderStyle", "line", "yed", at("borderStyle")));
@@ -1739,6 +1837,9 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     }
     if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
         readPicture(real, resources, put);
+    }
+    if (width !== null && height !== null) {
+        putOverlay(real, width, height, painted, put);
     }
     const header = readEntityHeader(real, height, put, at);
     const labelPut: PutValue = (property, value) => {

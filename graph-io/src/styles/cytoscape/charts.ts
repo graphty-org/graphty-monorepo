@@ -834,8 +834,14 @@ function chartAxes(
 ): { plot: Record<string, StyleValue>; texts: ChartText[] } | null {
     const [range, domain] = [options.cy_showRangeAxis === true, options.cy_showDomainAxis === true];
     const { w, h } = node;
+    if (w === null || h === null || !(w > 0 && h > 0)) {
+        return null;
+    }
+    if (plotted.chartKind === "cells") {
+        return domain ? heatMapDomain(options, plotted, disc, { w, h }, nameOf) : null;
+    }
     const upright = (plotted.chartKind === "bar" || plotted.chartKind === "line") && plotted.chartHorizontal !== true;
-    if (!(range || domain) || !upright || w === null || h === null || !(w > 0 && h > 0)) {
+    if (!(range || domain) || !upright) {
         return null;
     }
     const [lo, hi] = [Number(plotted.chartMin), Number(plotted.chartMax)];
@@ -884,6 +890,70 @@ function chartAxes(
             chartOffsetY: num6((plot.y0 + plot.y1) / 2),
         },
         texts,
+    };
+}
+
+/**
+ * The room JFreeChart keeps between a heat map's domain label and the top of its plot, beyond the label's length, and
+ * how far above the plot's top the label starts, in the file's lengths (measured from Cytoscape 3.10.5's SVG export of
+ * images-charts-p5 and -p7 heat maps at label sizes 1 and 10: the plot's top 2.434 and 24.34 plus 2 lower, the
+ * label's origin 0.5 above where the top was at both).
+ */
+const HEAT_MAP_DOMAIN_ROOM = 2;
+const HEAT_MAP_DOMAIN_RISE = 0.5;
+
+/**
+ * A heat map's domain axis as Cytoscape draws it on a column standing up: one category, named by its data columns
+ * joined with commas, its name turned to read down above the plot, centered across it, and the plot's top lowered by
+ * the name's length.
+ * @param options - the chart's options
+ * @param plotted - its properties so far
+ * @param disc - how far across a pie would be drawn on the node
+ * @param node - the node's width and height
+ * @param node.w - the width
+ * @param node.h - the height
+ * @param nameOf - a category's name by its value's place
+ * @returns the plot's box and the label, or null when there is none
+ */
+function heatMapDomain(
+    options: ChartOptions,
+    plotted: Record<string, StyleValue>,
+    disc: number,
+    node: { w: number; h: number },
+    nameOf: (k: number) => string | undefined,
+): { plot: Record<string, StyleValue>; texts: ChartText[] } | null {
+    // ponytail: only a vertical heat map named by its columns is measured; a horizontal one or other names wait for
+    // a sample
+    const values = String(plotted.chartValues).split(" ");
+    const names = values.map((_, k) => nameOf(k) ?? "");
+    if (plotted.chartHorizontal !== true || names.includes("")) {
+        return null;
+    }
+    const text = names.join(",");
+    const size = Number(options.cy_axisLabelFontSize ?? AXIS_LABEL_FONT_SIZE);
+    const f = Number.isFinite(size) && size > 0 ? size : AXIS_LABEL_FONT_SIZE;
+    const length = f * dialogWidth(text);
+    const half = Math.max(0, disc - CHART_INSET - HEAT_MAP_INSET) / 2;
+    const top = -half + length + HEAT_MAP_DOMAIN_ROOM;
+    if (!(half - top > 0)) {
+        return null;
+    }
+    const { w, h } = node;
+    return {
+        plot: {
+            chartWidth: num6((2 * half) / w),
+            chartHeight: num6((half - top) / h),
+            chartOffsetX: 0,
+            chartOffsetY: num6((top + half) / 2),
+        },
+        texts: [
+            [
+                0,
+                num6((half + HEAT_MAP_DOMAIN_RISE - length / 2) / (h / 2)),
+                text,
+                { size: num6(f / h), color: CHART_LABEL_COLOR, rotation: 90 },
+            ],
+        ],
     };
 }
 

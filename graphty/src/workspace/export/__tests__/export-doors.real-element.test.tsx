@@ -13,6 +13,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { HOSTS_CSV } from "../../data-place/fixtures";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
@@ -143,6 +144,9 @@ describe("Export's scope says what it writes and starts on the whole graph", () 
 });
 
 describe("the Data output's format list and losses (R14)", () => {
+    // Styles from files are an experiment: these tests switch it on.
+    withFeatures(["file-styles"]);
+
     it("groups formats into Tables and Network files, with no style suffix, and offers Include styles only where a format keeps styles", async () => {
         const session = await open({ dockOpen: true, dockTab: "nodes" });
         await session.data.addNodes(NODES);

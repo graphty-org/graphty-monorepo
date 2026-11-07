@@ -608,6 +608,8 @@ export class Node implements ModelUser {
     /** The filled shapes drawn beneath (`underlay`) and over (`overlay`) the node, children of its mesh, or null. */
     private underlay: AbstractMesh | null = null;
     private overlay: AbstractMesh | null = null;
+    /** The layers of the shadow drawn beneath the node (`shadow`), outermost first, children of its mesh. */
+    private shadow: AbstractMesh[] = [];
 
     /** What is drawn over the node's face (`pie`, `stripes`, `image`), children of its mesh like its border. */
     private decorations: AbstractMesh[] = [];
@@ -999,6 +1001,24 @@ export class Node implements ModelUser {
 
             this[kind] = halo;
         }
+
+        for (const layer of this.shadow) {
+            if (!layer.isDisposed()) {
+                layer.dispose();
+            }
+        }
+        this.shadow = NodeMesh.createShadow(
+            this.context.getMeshCache(),
+            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            style.shape,
+            style.shadow,
+            this.#mesh,
+            this.context.getScene(),
+        );
+        for (const layer of this.shadow) {
+            layer.parent = this.#mesh;
+            layer.position.setAll(0);
+        }
     }
 
     /**
@@ -1315,6 +1335,10 @@ export class Node implements ModelUser {
         this.underlay = null;
         this.overlay?.dispose();
         this.overlay = null;
+        for (const layer of this.shadow) {
+            layer.dispose();
+        }
+        this.shadow = [];
 
         this.label?.reattach();
         this.xlabelLabel?.reattach();

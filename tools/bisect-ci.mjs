@@ -279,7 +279,18 @@ export function judge(s, results) {
         });
     if (s.round > MAX_ROUNDS) return finish(s, { culprit: null, noLanding: `no answer after ${MAX_ROUNDS} rounds` });
     if (confirm && !s.results[s.bad]) return s; // the confirming job was lost before it reported: confirm again
-    return confirm ? afterConfirm(s) : decide(s);
+    return shortPoints(s, results) ?? (confirm ? afterConfirm(s) : decide(s));
+}
+
+// A point whose job ran out of time reported fewer runs than the round asked (runPoint's deadline): it is run
+// again for the rest before anything is judged on it, so an intermittent target is never read from too few runs.
+// ponytail: one `runs` per round, so every short point gets the largest shortfall; a per-point count if it matters.
+function shortPoints(s, results) {
+    const asked = s.next?.runs ?? 0;
+    const short = results.filter((r) => !("status" in r) && r.runs < asked);
+    if (!short.length) return null;
+    const runs = Math.max(...short.map((r) => asked - r.runs));
+    return { ...s, next: { ...s.next, points: [...new Set(short.map((r) => r.sha))], runs } };
 }
 
 /**
@@ -327,7 +338,7 @@ const KILL_AFTER_MS = 60_000; // runLimited's --kill-after
  * `deadline` is when the point's job must have its result: `runs` runs of every shard at up to the lane's
  * `minutes` each can pass bisect.yml's job timeout (5 runs of 3 shards, #5845), which wrote no result and lost the
  * point. A run the deadline cuts short is not a failure: its round of runs is dropped and the point reports the
- * rounds it finished, so `runs` may be fewer than asked (a later round asks for the rest) or 0.
+ * rounds it finished, so `runs` may be fewer than asked (judge runs the point again for the rest) or 0.
  * ponytail: judged by the exit code, not per test; read the shard's JUnit when two targets share a shard.
  * @param s the state
  * @param sha the point

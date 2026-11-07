@@ -174,6 +174,23 @@ describe("the lane rules", () => {
         assert.deepEqual(again.next, { points: ["m8"], runs: 5, confirm: true });
     });
 
+    it("runs a point that ran out of time again for the rest, never judging an intermittent test on too few runs", () => {
+        let s = start({ lane: "ci", good: "g", bad: "m8", targets: [TEST] }, fakeGit(8));
+        // the confirming job finished 1 of 5 runs, and the test failed in it
+        s = judge(s, [{ sha: "m8", runs: 1, failed: { [ID]: 1 } }]);
+        assert.deepEqual(s.next, { points: ["m8"], runs: 4, confirm: true }, "not read as consistent from 1 run");
+        // the rest: it passes 2 of them, so it is newly intermittent and followed by its rate
+        s = judge(s, [{ sha: "m8", runs: 4, failed: { [ID]: 2 } }]);
+        assert.equal(s.next.confirm, undefined);
+        assert.deepEqual(s.followed, [{ ...TEST, id: ID, rate: true }]);
+        // a candidate that finished 1 of 5 runs and passed is run again, not marked good
+        const point = s.next.points[0];
+        const others = s.next.points.slice(1).map((sha) => ({ sha, runs: 5, failed: { [ID]: 0 } }));
+        s = judge(s, [{ sha: point, runs: 1, failed: {} }, ...others]);
+        assert.deepEqual(s.next.points, [point]);
+        assert.equal(s.next.runs, 4);
+    });
+
     it("names no merge for a ci red that names no test or shard, and runs an LLM red's whole suite", () => {
         const ci = start({ lane: "ci", good: "g", bad: "m4", targets: [] }, fakeGit(4));
         assert.match(ci.answer.noLanding, /names no failing test or shard/);

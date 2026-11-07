@@ -556,7 +556,7 @@ export function useDropToOpen(ctx: CommandContext): void {
  * @param fileName - the model's main file name.
  * @param source - the model's files.
  */
-export function openModel(workspace: WorkspaceStore, fileName: string, source: AssetSource): void {
+function openModel(workspace: WorkspaceStore, fileName: string, source: AssetSource): void {
     openProject(workspace, fileName.replace(/\.[^.]*$/, "") || fileName, async (session) => {
         // The node-models experiment draws a dropped picture as well.
         await (nodeModelsOn(session) ? putAssetOnNodes : putModelOnNodes)(session, workspace, source);

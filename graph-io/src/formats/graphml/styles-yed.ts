@@ -1778,6 +1778,38 @@ export function yedArrowWidth(arrow: unknown): number | null {
 }
 
 /**
+ * Reads a framed edge (GenericEdge `com.yworks.edge.framed`) as yEd draws it: a closed outline 1 wide in the line's
+ * color round a band as wide as the line, filled with `FramedEdgePainter.fillColor` (graphml-galaxy-lcms-workflow: a
+ * band 3 wide stroked 1 wide over a #ffffff fill of the same outline). The fill is the line, 1 narrower than the band,
+ * and the outline reaches 1 past the band each side: 2 wider than the line. With no fill color yEd draws the outline
+ * alone (graphml-synthetic-edges), as is a band too narrow to show a fill inside its outline: one line 1 wider than the
+ * band, in the line's color.
+ * @param r - the realizer element
+ * @param line - its `y:LineStyle`
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): void {
+    const band = canonNumber(treeAttr(line, "width"), at("width")) ?? 1;
+    const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
+    const fill = treeAttr(
+        props.find((p) => treeAttr(p, "name") === "FramedEdgePainter.fillColor"),
+        "value",
+    );
+    if (fill === undefined || band <= 1) {
+        put("width", band + 1);
+        return;
+    }
+    readColor(treeAttr(line, "color"), "outlineColor", "outlineOpacity", put, at);
+    // its arrowheads are part of the outline, in the line's color (yed-graphml-specimen-edges-lines generic-framed)
+    readColor(treeAttr(line, "color"), "sourceArrowColor", null, put, at);
+    readColor(treeAttr(line, "color"), "targetArrowColor", null, put, at);
+    readColor(fill, "color", "opacity", put, at);
+    put("width", band - 1);
+    put("outlineWidth", 2);
+}
+
+/**
  * Reads one edge realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1790,6 +1822,9 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         readColor(treeAttr(line, "color"), "color", "opacity", put, at);
         put("width", yedDrawnWidth(canonNumber(treeAttr(line, "width"), at("width"))));
         put("lineStyle", canonEnum("lineStyle", treeAttr(line, "type"), "yed", at("lineStyle")));
+        if (real.type === "GenericEdge" && treeAttr(r, "configuration") === "com.yworks.edge.framed") {
+            readFramedEdge(r, line, put, at);
+        }
     }
     const arrows = treeChild(r, "Arrows");
     if (arrows !== undefined) {

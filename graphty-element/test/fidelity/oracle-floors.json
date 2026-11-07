@@ -41812,14 +41812,15 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 0.75,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.96,
-            "raster.canvas": 0.98
+            "raster.canvas": 0.98,
+            "stray.extra": 1
         },
         "yed-live-graphml-specimen-node-shapes-p2@matched": {
             "node.present": 1,
@@ -41837,11 +41838,12 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 0.75,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.extra": 1
         },
         "yed-live-graphml-specimen-node-shapes-p3": {
             "node.present": 1,

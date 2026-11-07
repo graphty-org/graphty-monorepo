@@ -136,6 +136,22 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
         expect(String(node("shapeLines", "bevel-radius-0")).split(" ")).toHaveLength(5);
     });
 
+    it("draws ShinyPlateNodeStyle's gloss over its upper left as yEd Live does", async () => {
+        const { node } = await sheet("specimen-node-shapes-p2.graphml");
+        const svg = (id: string): string => decodeURIComponent(String(node("image", id)).split(",")[1]);
+        // yEd Live 8.5.16 on this sheet: M 1.25,5 Q 1.25,1.25 5,1.25 L 31.4,1.25 ... for a node of 56 by 36, radius 5
+        expect(svg("shiny-plate")).toContain(
+            'd="M1.25,5Q1.25,1.25 5,1.25L31.4,1.25Q35.15,1.25 35.15,5Q35.15,8.75 21.95,18.15Q8.75,27.55 5,27.55Q1.25,27.55 1.25,23.8Z"',
+        );
+        expect(svg("shiny-plate-radius-0")).toContain(
+            'd="M0,0Q0,0 0,0L36.4,0Q36.4,0 36.4,0Q36.4,0 18.2,14.4Q0,28.8 0,28.8Q0,28.8 0,28.8Z"',
+        );
+        expect(node("imageFit", "shiny-plate")).toBe("fill");
+        // a line of 2 cuts the picture to the middle of it
+        expect(svg("shiny-plate-stroke")).toContain('viewBox="1 1 54 34"');
+        expect(node("image", "bevel")).toBeNull();
+    });
+
     it("paints a PanelNodeStyle as a ramp into its color, lined in its color at 0.8", async () => {
         const { node } = await sheet("specimen-node-shapes-p2.graphml");
         expect(node("fill", "panel-color")).toBe("#ccd9ff");

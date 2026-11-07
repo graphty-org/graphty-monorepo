@@ -6,13 +6,14 @@
  *
  * Two graphs of 1,000,000 edges with uniform instants over five years: on 100,000 nodes, and on
  * 10,000 nodes, because a frame of 100,000 node instances costs about a second on its own
- * (`session/limits.ts`) and that cost may not be edges at all. For each, five cases:
+ * (`session/limits.ts`) and that cost may not be edges at all. For each, these cases:
  *
  * - `all`: no window, nothing moves.
  * - `still`: a window 2% of the span wide, standing still.
  * - `step`: that window sliding a day a frame, as smooth play does (`seek` with `commit: false`).
  * - `jump`: that window jumping to a seeded place each frame, as a brush drag or a scrub does.
  * - `ghost`: the sliding window under `outside: "ghost"`.
+ * - `step-edges-only`: the step with `nodes: "all"`, so only edges are shown and hidden.
  *
  * The render loop is stopped and each frame is pumped by hand -- the move, `styles.settled()` (the
  * repaint a Ghost move starts), `graph.update()`, `scene.render()`, then the read back -- so a frame
@@ -25,8 +26,10 @@
  * Known costs over a 16 ms frame, tracked as issues: a jump under the cap spends tens of
  * milliseconds per 10,000 changed rows showing and hiding edges, and its scattered rows still send
  * about two thirds of each buffer in 4,096 runs (#6025); a Ghost step costs about twice a Hide step,
- * because every edge that crosses the window is restyled into another batch (#6026); every move
- * re-evaluates every active mesh, 35 to 62 ms on 100,000 nodes against 6 ms on 10,000 (#6027).
+ * because every edge that crosses the window is restyled into another batch (#6026); a move that
+ * shows or hides nodes re-evaluates every active mesh, about 50 ms on 100,000 nodes against 17 ms on
+ * 10,000, because each node is a mesh instance of its own (#6027). The `step-edges-only` case draws
+ * every node, so its moves show and hide only edges and evaluate nothing.
  *
  * Numbers go to the console as `[timeline-frame]` lines; nothing about speed is asserted. What is
  * asserted, at the end of the jumps, of a Hide slide and of a Ghost slide: every edge, one by one, is drawn or not
@@ -317,7 +320,7 @@ function assertEdgesMatchWindow(
 }
 
 /**
- * The five cases on one graph of 1,000,000 edges.
+ * The cases on one graph of 1,000,000 edges.
  * @param nodes - How many nodes the edges join.
  */
 export function describeFrames(nodes: number): void {
@@ -494,6 +497,14 @@ export function describeFrames(nodes: number): void {
             await check(slideOnce, true);
             await time().setSettings({ outside: "hide" });
             await run("step-after-ghost", slide);
+            await check(slideOnce, false);
+        });
+
+        it("a 2% window stepping with every node drawn", async () => {
+            // Nodes follow their edges by default; with every node drawn a step shows and hides
+            // only edges, which write batch slots and leave the frozen list of what is drawn alone.
+            await time().window({ from: OPENING, to: OPENING + WIDTH, step: DAY, nodes: "all" });
+            await run("step-edges-only", slide);
             await check(slideOnce, false);
         });
     });

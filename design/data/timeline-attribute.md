@@ -1,7 +1,8 @@
 # Timeline attribute: design
 
-Status: proposed, 2026-10-22. Tracking issue: #300 ("graphty-element: no time-series playback
-over a time attribute").
+Status: phases 1 to 4 built behind the `timeline` experiment (2026-11-06); phases 5 to 7 not
+built. Section 8.3 lists where the build differs from this design and what is left. Tracking issue:
+#300 ("graphty-element: no time-series playback over a time attribute").
 
 ## 1. Summary
 
@@ -168,13 +169,15 @@ synchronous and cheap (section 5.2).
 - `time.window(w | null, options?)`: Set or clear the window. `w` is a `TimeWindow` whose `attribute` is optional. It IS the `visibility.setWindow` command: same masks, undo and persistence.
 - `time.current`: The window on screen: the playback cursor while one is active, else the committed window.
 - `time.committed`: The window history and the project file hold (equal to `visibility.window`).
-- `time.play(options?)`: Start advancing. Options: `step`, `mode: "sliding" | "cumulative"`, `interval` (ms between steps, default 1000), `loop` (default false), `rerun` (re-run stale runs each step, default false), `waitForRender` (default true), `timeZone`.
+- `time.play(options?)`: Start advancing. Options: `step`, `mode: "sliding" | "cumulative"`, `interval` (ms between steps, default 1000), `loop` (default false), `motion: "smooth" | "steps"` (default smooth: the window slides a little every frame), `waitForRender` (default false), `timeZone`. Re-running results on each step is the setting `results: "rerun"` (`time.setSettings`), not a play option.
 - `time.pause()`: Stop advancing and commit the cursor (one history step).
 - `time.stepBy(n)`: Move by `n` steps (negative goes back); commits.
 - `time.seek(instant, { commit? })`: Move the window so it starts (sliding) or ends (cumulative) at `instant`, one history step. With `commit: false` it moves only the cursor.
 - `time.commit()`: Record the cursor as one history step. The dock calls it on pointer-up and key-up.
 - `time.playing`, `time.mode`, `time.interval`: Read state.
-- `time.transition`: Read and write: `{ fadeMs: number }`, default `{ fadeMs: 0 }` (phase 5).
+- `time.transition`: Read and write: `{ fadeMs: number }`, default `{ fadeMs: 0 }` (phase 5, not built).
+- `time.settings`, `time.setSettings(patch)`: `results`, `mode`, `step`, `missing`, `outside`, `timeZone`, `ageFade`, saved as `visibility.playback` (section 8.5).
+- `time.atStart`, `time.atEnd`, `time.timeZone`, `time.candidates()`, `time.notices()`, `time.parse(text)`: built from the studio rulings (section 8.5).
 
 **Events** join `SessionEventMap`, so `session.on` autocompletes them: `time:step`, `time:play`,
 `time:pause`, `time:end`, `time:field`, `time:ready`. `time:step` carries numbers only:
@@ -212,6 +215,7 @@ type TimeMeasure =
     | "nodes"
     | "edges"
     | "density" // free from the step
+    // built: the three above. Phase 5: the two below.
     | { id: string; kind: "components" } // a pass per window, priced
     | { id: string; algorithm: AlgorithmId; result: string; aggregate?: "mean" | "max" | "min" | "sum" | "count" };
 ```
@@ -297,11 +301,13 @@ instead of hide"; it already applies to windowed-out elements.
 
 ### 2.5 History, undo, runs and autosave
 
-- **The cursor.** `play`, `seek` without `commit`, and dragging move a cursor window held in a
-  non-history slot of the session state, `visibility.cursor`. The mask tag (`wantedTag()`)
-  includes the cursor, so mask copies, run identity and what is on screen agree. Playback writes
-  the masks directly through the incremental path (section 5.3), not through a command and a
-  `ManagedRun`, so a step pays no command overhead.
+- **The cursor.** A smooth play and `seek` with `commit: false` slide the window without a
+  command (`session/visibility/slide.ts`): `time.current` is the window on screen and
+  `time.committed` the recorded one. There is no `visibility.cursor` slot in the mask tag; a
+  slid mask carries a `slid` flag, which tells mask copies and run identity the masks are not the
+  recorded window's. The slide writes the masks through the incremental path (section 5.3), so a
+  frame pays no command overhead. `seek` commits by default. Moves made in quick succession merge
+  into one history step, as a drag does.
 - **Commit.** `pause`, `time:end`, `stepBy`, `seek(..., { commit: true })` and `time.commit()`
   record one `visibility.window` command holding the cursor and clear it. The dock commits on
   pointer-up and key-up: one gesture, one history step, no timer. Undo after a 50-step play
@@ -531,6 +537,40 @@ same benchmark run inside the element through the real `evaluate` and `ElementMa
 node-timed and Zipf-distributed (bursty, hub-heavy) cases, reporting the worst case. No budget
 counts as met until that run.
 
+That run is `graphty-element/test/session/time/time-pipeline.bench.test.ts` (100,000 nodes and
+1,000,000 edges under a node filter, a 30-day window, seven rounds, Node 22 on the i9-14900 with
+other work on the machine). Slowest round of two runs on 2026-11-06, in milliseconds:
+
+| Operation (budget)                    | Uniform edges | Node-timed | Zipf     | Long-lived spans |
+| ------------------------------------- | ------------- | ---------- | -------- | ---------------- |
+| Build (150)                           | 128-227       | 56-66      | 493-498  | 958-1,339        |
+| Jump (10)                             | 3.0-4.3       | 1.3-2.0    | 9.1-10.1 | 26-28            |
+| `stepBy` (2)                          | 0.9-2.6       | 0.3-0.5    | 2.7-5.0  | 1.3              |
+| Smooth-play slide (2)                 | 0.7-1.7       | 0.1-0.2    | 3.4-4.7  | 0.8-1.2          |
+| Bins, 500 (1)                         | 0.1           | 0.1        | 0.1      | 0.2-1.4          |
+| Bins of the filter (5)                | 1.4-1.9       | 0.4-0.8    | 2.0-2.1  | 2.8-3.4          |
+| Bins of the filter under a window (5) | 3.9-6.2       | 3.4-4.8    | 4.8-11.4 | 4.9-6.6          |
+| Series of 100 windows (100)           | 58-174        | 92-153     | 37-56    | 491-686          |
+| Bytes per timed element (25 to 35)    | 38.7          | 254.6      | 37.0     | 79.0             |
+
+The second run shared the machine with more work than the first (load average 22 against 9 on 32
+threads), which accounts for most of the spread. Builds read through the test harness's record
+maps; records loaded through `session.data` built in 372 to 428 ms median, and date text with no
+offset read in a named zone in 1,626 ms median.
+
+Medians are within the step budgets in every case (Zipf `stepBy` 0.9 to 1.5 ms). What misses:
+
+- **A Zipf step that crosses a burst.** The round that moves the window over a burst crosses about
+  9,000 rows, and the work is linear in rows crossed (about 0.4 microseconds each), so it takes 3
+  to 5 ms. The 2 ms budget holds to about 4,000 rows crossed.
+- **Builds** of skewed or long-lived columns, of records loaded through `session.data` and, most
+  of all, of zone-less date text in a named zone. Builds over 50,000 rows are time-sliced (section
+  5.7), so the page keeps drawing, but `time.ready` takes that long.
+- **Long-lived spans:** a jump (26 to 28 ms) and a series (491 to 686 ms). Section 5.3's duration buckets are
+  the fallback named for the jump.
+- **Memory** is above 24 bytes per timed element in every case; node-timed is highest because the
+  per-node structures count against far fewer timed rows.
+
 Render side, by visible edges (the measured renderer: 60 fps to about 40k drawn edges):
 
 | Visible edges in the window           | First release (phases 1 to 3)             | After phase 4                           |
@@ -542,6 +582,15 @@ Render side, by visible edges (the measured renderer: 60 fps to about 40k drawn 
 So the first release targets playback on graphs up to about 80k edges. Above that, scrubbing and
 stepping are correct and the data side is fast, but each frame costs a whole-graph draw. No
 budget promises smooth playback of a window that is itself near the edge ceiling.
+
+Measured after phase 4 (`graphty-element/test/browser/timeline-frame-bench.ts`, RTX 4070 SUPER,
+1,000,000 edges, a window 2% of the span, medians): a step costs 20.8 ms a frame on 10,000 nodes and
+122 ms on 100,000; a still window 12.4 ms and 49.6 ms. Phase 4 did not reach smooth playback at 1M
+edges. What is left, each tracked: every window move re-evaluates all active meshes, 62 ms on
+100,000 node instances (#6027); a jump costs about 100 ms of CPU and uploads about 105 MB (#6025);
+a step under `outside: "ghost"` costs twice a hidden step (#6026). Collapsing hidden edges in the
+shader was built and measured, saved no GPU time (16.6 ms of edge drawing with it and without),
+and was taken out.
 
 ### 5.3 Index structures and the incremental mask pipeline
 
@@ -1010,61 +1059,62 @@ Each is argued where it appears; listed here so the choices can be found in one 
   `data.attributes()` counts the values that parse as time, not the values present. This settles
   item 2 of section 8.4.
 
-### 8.3 What the prototype built (branch feat/timeline-prototype)
+### 8.3 What is built, and where it differs
 
-The element half of phases 1 and 2, kept small. Shipped: `session.time` with `field`, `setField`,
-`ready`, `extent`, `bins` (count or step, `scope: "visible"`, `of`), `changes`, `current`,
-`window`, `play`, `pause`, `stepBy`, `seek`, `playing`, `mode`, `interval`; the events
-`time:step`, `time:play`, `time:pause`, `time:end`, `time:field`, `time:ready`; `E_NO_TIME_FIELD`;
-the attributes `node-time-path`, `edge-time-path`, `node-time-unit`, `edge-time-unit`; the
-`TimeWindow` options `nodes`, `missing`, `mode`, `results`.
+Phases 1 to 4 are built in graphty-element and the graphty app, every member tagged
+`@experimental` and reachable only with the `timeline` experiment on (`features="timeline"`;
+`docs/guide/experiments.md`). With it off, `session.time`'s actions throw or reject with
+`E_FEATURE_OFF`, its reads answer as with nothing designated, the time attributes are refused, and a saved time field, window or setting stays
+saved and is not applied. The consumer guide is `graphty-element/docs/guide/timeline.md`; its first
+example compiles against the built types (`test/types/consumer/timeline-guide.ts`, which also
+compiles the guide's other snippets) and runs in a browser test (`test/browser/timeline-guide.test.ts`).
 
-Where it differs from sections 2 to 7:
+**Built differently from sections 2 to 7:**
 
-- The unit is stored in `data.knownFields` (`nodeTimeUnit`, `edgeTimeUnit`) beside the path, not
-  on the measurement declaration: designation then works before the data has loaded (an element
-  attribute), and the measurement is derived from the designation instead of being written.
-- `mode`, `step`, `results` and `missing` are settings held with the field (section 8.5), saved
-  and undone; the window carries the step and mode in use. `interval` and `loop` are playback
-  options and are not saved.
-- No cursor slot: every move is a `visibility.window` command. A play's steps merge into one
-  history step (a transaction continuing the play's first step), so one undo returns to the
-  window before the play; `stepBy` and `seek` are one step each. `seek` commits by default.
-- Nodes and edges must name the same column (`reason: "time-paths-differ"`), because a window
-  reads one attribute.
-- `nodes: "ends"` counts edges inside the window only, not edges that also pass the filter.
+- The unit and parse zone are stored in `data.knownFields` beside the path, not on the measurement
+  declaration, so designation works before the data has loaded. The measurement is derived from
+  the designation.
+- `mode`, `step`, `results`, `missing`, `outside`, `timeZone` and `ageFade` are settings held with
+  the field (`time.settings`, section 8.5), saved and undone; `interval`, `loop` and `motion` are
+  play options and are not saved. `play({ rerun })` is the setting `results: "rerun"`.
+- `seek` commits by default; `commit: false` moves only the window on screen. There is no
+  `visibility.cursor` slot (section 2.5).
+- `time.bins` returns null with nothing designated, rather than throwing `E_NO_TIME_FIELD`: the dock
+  reads it on every render.
+- `play` defaults `waitForRender` to false and slides smoothly unless `motion: "steps"`, reduced
+  motion, or no animation frames.
+- Nodes and edges must name the same start column (`reason: "time-paths-differ"`), and the same
+  `end` and `spells` when both name one, because a window reads one attribute.
+- Values are read from records, not from f64 columns: the element's snapshot holds no attribute
+  columns. The speed comes from a fast path for exact ISO text and from reading numbers directly.
+- Intervals use sorted starts, sorted ends and a scan; there are no duration buckets.
+- A missing end is always open: `2019` with no end is not the whole year.
+- Fade by age is `time.settings.ageFade`, an attribute holding each edge's start normalized over the
+  extent and a uniform holding the window (float32 cannot hold an epoch). Hidden edges are not
+  collapsed in the shader: that was built, measured to save nothing, and taken out (section 5.2).
+- Arrowheads stay on the CPU path, with changed-row updates and partial uploads.
+- The dock draws one kind of bar (edges when edges are timed), not stacked node and edge bars; its
+  drag threshold is the shared brush's 3 px, not 8; Sliding and Cumulative are on the Time card,
+  not the dock. Each would change compact-mantine, whose look is locked to Figma.
+- The phone layout is one row over the 32 px sparkline with no brush; the bottom sheet holds the
+  brush and the typed range.
 
-Left out, each marked `ponytail:` in the code where it applies: the parse zone (date-times with
-no offset read as UTC) and the `timeZone` option (calendar steps and bins align in UTC); the
-radix sort and the time-sliced index build; the incremental mask pipeline (a step diffs both
-masks in full); `series`, `transition`; intervals (phase 4);
-the import-screen suggestion and `time.found`; the in-element benchmark.
+**Not built:**
 
-The app half (graphty app, `graphty/src/workspace/time/`):
+- Phases 5 to 7: `timeline.*` value sources (`timeline.time`, `timeline.entered`), `time.transition`
+  and `fadeMs`, series measures for components and algorithms, time encodings, the Analyze chart,
+  the XR time panel, comparison views.
+- Designating an `ordinal` column with an `order` (feature 34): `setField` refuses any declaration
+  but `time`.
+- `TableMapping.timeEnd`: an import names a start only; the End row beside the time field in
+  Fields, or `setField`, adds the end after the load.
+- An app control for fade by age: settings API only.
+- Arrow keys through the histogram's bars: the hidden table of every bar and the busiest bar in the
+  accessible name serve as its text alternative.
+- Stories of the dock at phone and touch sizes, which need a capture viewport per story (#6018).
 
-- **Dock** under the canvas while a field is designated: step back, play/pause, step forward,
-  the window readout (inclusive end, dates in UTC to agree with the element's bins), visible
-  counts, the field name and a close button that clears the window; then compact-mantine's
-  `HistogramRow` of the field (100 bins, bars in the window drawn in the accent), Mantine's
-  `RangeSlider` as the brush (thumbs snap to bins, one undoable step per drag), and a
-  `SparklineRow` of the selection's activity while something is selected. 44 px targets under a
-  coarse pointer. Space in the dock plays and pauses.
-- **Time section** in the Data place, after Filters: Time field (nodes and edges grouped, or
-  None), Unit for a number column (Epoch ms, Epoch s, Number), Step, Mode (Sliding,
-  Cumulative), Speed (1x, 2x, 4x; the app's preference, not saved) and Results (Mark out of
-  date, Keep, Re-run). An attribute's menu also has "Set as time".
-- **Header chip** beside the filter chip while a window is on: the tier 3 shell has no status
-  bar, so the chip is the Viewing slot. Comma and period step (switchable single keys); "Play or
-  pause time" is in Quick actions.
-
-Element additions the app needed: `time.window` takes a window with its bounds left out (they
-keep the current window's, or open one step at the start of the data), a first calendar window
-starts on the step's boundary, and `bins({ of: { nodes, incident: true } })` counts the edges at
-the given nodes, so a node selection over edge time has an activity line.
-
-Not built in the app: wheel or pinch zoom of the time axis, "jump to the selection's span", the
-phone sparkline layout and bottom sheet, the import-screen time
-role suggestion and the Overview finding, and Storybook stories for each dock state.
+**Measured and short of budget:** the data side at 1M edges on Zipf and long-lived data, and frame
+time at 1M edges (section 5.2).
 
 ### 8.4 For the owner
 
@@ -1145,7 +1195,8 @@ readouts finer than a day instead).
 
 ## 9. Phased implementation plan
 
-Each phase lands on its own and leaves the product working.
+Each phase lands on its own and leaves the product working. Phases 1 to 4 are built (section 8.3
+says where they differ); phases 5 to 7 are not.
 
 **Phase 1: the designated field drives a fast window (element).**
 

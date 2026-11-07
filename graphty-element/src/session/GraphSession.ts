@@ -631,7 +631,7 @@ class Session implements ElementSession {
             },
             () => this.project.id,
         );
-        this.assets = createAssetsApi(this.network);
+        this.assets = createAssetsApi(this.network, () => this.styles);
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
@@ -759,6 +759,9 @@ class Session implements ElementSession {
                 publish(this.watchers, "project:status", change);
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
+            restoreDerived: (id) => {
+                this.sessionRuns.restoreDerived(id);
+            },
             projectChanged: () => {
                 this.network.projectChanged();
             },

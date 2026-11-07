@@ -26,6 +26,7 @@ import {
     WIDENED_FLOATS_PER_PIECE,
 } from "./edgeJoinShader";
 import { batchUploadFrames, type EdgeAgeState, type RangedUploads } from "./FrameRoster";
+import { ParkedSlots } from "./ParkedSlots";
 import { discreteMeshCount } from "./PatternedLineMesh";
 
 /** Floats in one 4x4 world matrix, which is what a thin-instance slot holds. */
@@ -204,6 +205,9 @@ export class EdgeLineBatch {
      */
     private readonly stride: number;
 
+    /** What the slots the visibility mask hid held, so showing one puts it back (see {@link ParkedSlots}). */
+    private readonly parking: ParkedSlots;
+
     /**
      * A widened batch's static values, {@link EDGE_STATIC_FLOATS} per slot, uploaded only when one
      * is written (a repaint), never because an edge moved; null for a plain batch.
@@ -308,6 +312,7 @@ export class EdgeLineBatch {
         this.pattern = meta.pattern;
         const widened = meta.joinedLine === true && meta.widened === true;
         this.stride = widened ? WIDENED_FLOATS_PER_PIECE : FLOATS_PER_SLOT;
+        this.parking = new ParkedSlots(this.stride);
         this.statics = widened ? new Float32Array(INITIAL_SLOTS * EDGE_STATIC_FLOATS) : null;
         this.slots = new Float32Array(INITIAL_SLOTS * this.stride);
         this.matrices = meta.joinedLine === true ? null : new Float32Array(INITIAL_SLOTS * FLOATS_PER_MATRIX);
@@ -439,6 +444,8 @@ export class EdgeLineBatch {
             this.setCount();
         }
 
+        this.parking.forget(index);
+
         // ponytail: slots taken while the timeline is off record no edge, so a timeline switched
         // on later fades them as the newest until they are rebuilt. Record always if that matters.
         if (this.ageable && this.ageState.track) {
@@ -450,6 +457,51 @@ export class EdgeLineBatch {
         }
 
         return index;
+    }
+
+    /**
+     * Take a slot drawn exactly as a slot of another batch is drawn: its placement copied, not
+     * placed again. What an edge whose colour or opacity changed takes, because those are its
+     * batch's and nothing about where it is drawn moved.
+     * @param from - The batch the edge is drawn in now.
+     * @param index - Its slot there, which the caller releases afterwards.
+     * @param owner - The edge it draws; see {@link EdgeLineBatch.acquire}.
+     * @returns The new slot, and whether its placement was copied: false when the two batches lay
+     *     their slots out differently, and the slot is left for the next placement.
+     */
+    adopt(from: EdgeLineBatch, index: number, owner?: SlotOwner): { slot: number; copied: boolean } {
+        const slot = this.acquire(owner);
+        const copied =
+            !this.gone &&
+            !from.gone &&
+            from.stride === this.stride &&
+            (from.matrices === null) === (this.matrices === null) &&
+            (from.statics === null) === (this.statics === null);
+        if (!copied) {
+            return { slot, copied };
+        }
+
+        // A slot the visibility mask parked stays parked, holding the placement it will be shown at.
+        const { stride } = this;
+        const parked = from.parking.isParked(index);
+        this.slots.set(from.parking.placementOf(from.slots, index), slot * stride);
+        if (this.statics !== null && from.statics !== null) {
+            this.writeStatic(slot, from.statics.subarray(index * EDGE_STATIC_FLOATS, (index + 1) * EDGE_STATIC_FLOATS));
+        }
+
+        if (parked) {
+            this.park(slot);
+            return { slot, copied };
+        }
+
+        if (this.matrices !== null && from.matrices !== null) {
+            const at = index * FLOATS_PER_MATRIX;
+            this.matrices.set(from.matrices.subarray(at, at + FLOATS_PER_MATRIX), slot * FLOATS_PER_MATRIX);
+        }
+
+        this.slotRuns.mark(slot, this.uploads.on, this.highWater);
+
+        return { slot, copied };
     }
 
     /**
@@ -534,8 +586,8 @@ export class EdgeLineBatch {
      * Draw or stop drawing one slot.
      *
      * Only the hiding half does anything. A zero slot collapses the piece to a point, and the
-     * shader draws no fragments for it; showing it again is left to the next placement, which the
-     * visibility mask always asks for by invalidating the edge's cached endpoints.
+     * shader draws no fragments for it; showing it again is left to the next placement. The
+     * visibility mask hides with {@link EdgeLineBatch.park} instead, which can put the slot back.
      * @param index - The slot.
      * @param drawn - Whether the edge is on screen.
      */
@@ -543,6 +595,37 @@ export class EdgeLineBatch {
         if (!drawn) {
             this.hide(index);
         }
+    }
+
+    /**
+     * Stop drawing one slot because the visibility mask hid its edge, keeping what it held so
+     * {@link EdgeLineBatch.unpark} can put it back. See {@link ParkedSlots}.
+     * @param index - The slot.
+     */
+    park(index: number): void {
+        if (this.gone) {
+            return;
+        }
+
+        this.parking.park(this.slots, index);
+        this.collapse(index);
+    }
+
+    /**
+     * Draw a parked slot again as it was when it was parked.
+     * @param index - The slot.
+     * @returns True when it was put back; false when it was not parked (or was written since), so
+     *     its edge has to place it.
+     */
+    unpark(index: number): boolean {
+        if (this.gone || !this.parking.unpark(this.slots, index)) {
+            return false;
+        }
+
+        this.writeMatrix(index);
+        this.slotRuns.mark(index, this.uploads.on, this.highWater);
+
+        return true;
     }
 
     /**
@@ -866,6 +949,7 @@ export class EdgeLineBatch {
         along: { readonly distance: number; readonly spacing: number; readonly total: number },
     ): void {
         const { distance, spacing, total } = along;
+        this.parking.forget(index);
         const at = index * this.stride;
         const s = this.slots;
         prev.toArray(s, at);
@@ -911,6 +995,7 @@ export class EdgeLineBatch {
         const prev2 = piece < 2 ? prev : piece - 2;
         const next = piece === pieces - 1 ? piece + 1 : piece + 2;
         const next2 = piece >= pieces - 2 ? next : piece + 3;
+        this.parking.forget(index);
         const at = index * this.stride;
         const s = this.slots;
         for (let k = 0; k < 3; k++) {
@@ -957,6 +1042,15 @@ export class EdgeLineBatch {
             return;
         }
 
+        this.parking.forget(index);
+        this.collapse(index);
+    }
+
+    /**
+     * Zero one slot and note it for upload, parked or not.
+     * @param index - The slot.
+     */
+    private collapse(index: number): void {
         this.slots.fill(0, index * this.stride, (index + 1) * this.stride);
         this.matrices?.fill(0, index * FLOATS_PER_MATRIX, (index + 1) * FLOATS_PER_MATRIX);
         this.slotRuns.mark(index, this.uploads.on, this.highWater);

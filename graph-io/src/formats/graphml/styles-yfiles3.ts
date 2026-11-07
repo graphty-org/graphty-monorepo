@@ -29,6 +29,7 @@ import {
     putBevelLine,
     putBevelPaint,
     putEdgeLabelAt,
+    putNodeDrawing,
     putPanelPaint,
     type PutValue,
     type SiteOf,
@@ -876,21 +877,9 @@ function putBpmnPicture(
     ports: unknown,
 ): void {
     const drawing = bpmnPicture(style.tag, styleReader(refs, style, at), size, portEvents(refs, ports, size, at));
-    if (drawing === null) {
-        return;
+    if (drawing !== null) {
+        putNodeDrawing(drawing, put);
     }
-    put("image", drawing.picture);
-    put("imageClip", "none");
-    const { left, top, right, bottom } = drawing.reach;
-    if (left + top + right + bottom === 0) {
-        put("imageFit", "fill");
-        return;
-    }
-    put("imageFit", "none");
-    put("imageWidth", drawing.width);
-    put("imageHeight", drawing.height);
-    put("imageOffsetX", (right - left) / 2);
-    put("imageOffsetY", (bottom - top) / 2);
 }
 
 /** How far under the top of a UMLNodeStyle yEd Live writes its class's name, past where `inside-top` puts it. */

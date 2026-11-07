@@ -156,6 +156,8 @@ export interface WorkspaceState {
     readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
     /** The Sources row the reader picked, kept while they visit another place; null: the newest load. */
     readonly pickedSource: SourceKey | null;
+    /** The Data place's tab: what was loaded or what was calculated; kept per project, Loaded first. */
+    readonly dataTab: "loaded" | "calculated";
     /**
      * Whether the timeline dock is shown under the canvas while a time field is set;
      * `timeline.toggle` (T) flips it. Shut until the reader asks: the canvas keeps its size.
@@ -299,6 +301,7 @@ const INITIAL: WorkspaceState = {
     editingJoin: null,
     ends: null,
     pickedSource: null,
+    dataTab: "loaded",
     timelineOpen: false,
     timeSheetOpen: false,
     timeWindowCard: false,
@@ -470,7 +473,7 @@ export function tabFor(kind: InspectedKind | undefined, remembered: WorkspaceSta
 const PLACE_ITEM = "app.graphty.workspace.place";
 
 /** The part of the chrome a reload of this tab puts back: the page, the place, the tab and the row. */
-type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | "styleSide">;
+type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | "styleSide" | "dataTab">;
 
 /**
  * Keeps the reader's place in this tab's session storage while a project is open, so a reload
@@ -482,8 +485,8 @@ type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | 
 export function keepPlace(store: WorkspaceStore): () => void {
     let last = "";
     const write = (): void => {
-        const { project, page, place, inspected, tabs, styleSide } = store.get();
-        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide });
+        const { project, page, place, inspected, tabs, styleSide, dataTab } = store.get();
+        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide, dataTab });
         if (text === last) {
             return;
         }

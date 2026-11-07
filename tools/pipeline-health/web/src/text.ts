@@ -735,7 +735,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.bench_regressions": {
         name: "Benchmark regressions",
         short: "benchmark regressions",
-        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before, by more than one step of the timer's resolution. A benchmark with fewer than 13 runs is not judged, so the count stays 0 until benchmarks have that history.",
+        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before, by more than one step of the timer's resolution and by more than 3 times the median scatter of those 10 runs. A benchmark with fewer than 13 runs is not judged, so the count stays 0 until benchmarks have that history.",
         red: "3 or more: performance regressed. See Benchmarks below.",
     },
     "flaky.blocked": {
@@ -950,7 +950,7 @@ export const LABEL: Record<string, string> = {
     "stage.checks": "checks running",
     "stage.red": "red and being fixed",
     "stage.merging": "green to merged",
-    "cause.shared_check": "shared: the same check in 3 or more pull requests",
+    "cause.shared_check": "shared: the same check in 2 or more pull requests",
     "cause.shared_aggregator": "shared: an aggregator failing alone",
     "cause.change": "the change itself",
     "cause.flaky": "flaky",
@@ -1230,7 +1230,7 @@ const S: Record<string, (p: P) => string> = {
     "section.no_detail": () => "Not collected yet: no writer records this detail.",
     "section.no_events": () => "Nothing recorded in this range.",
     "master.no_red_span": () => "No red span in the range.",
-    "master.no_shared": () => "No check failing in 3 or more pull requests in the last 24 h.",
+    "master.no_shared": () => "No check failing the same way in 2 or more pull requests in the last 24 h.",
     "runners.no_holders": () => "No job running or queued now.",
     "runners.no_superseded": () => "No superseded run still running.",
     "ci.no_chronic": () => "No job is failing chronically.",

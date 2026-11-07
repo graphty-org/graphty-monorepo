@@ -7,7 +7,7 @@
 import { assert, describe, it } from "vitest";
 
 import { checklistRows } from "../../style/cards";
-import { valuesWords } from "../words";
+import { summaryValues, valuesWords } from "../words";
 
 const VALUES = Array.from({ length: 5000 }, (_, at) => ({
     value: String(at),
@@ -45,6 +45,16 @@ describe("bounded lists", () => {
         assert.equal(
             valuesWords(["1", "3", ...Array.from({ length: 2083 }, (_, at) => String(at + 10))]),
             "1, 3 and 2,083 more",
+        );
+    });
+
+    it("a filter's summary lists values bare: shared words dropped, past six a count, no phrase", () => {
+        assert.equal(summaryValues(["Group 1", "Group 4", "Group 5", "Group 7"]), "1, 4, 5, 7");
+        assert.equal(summaryValues(["Paris", "Lyon"]), "Paris, Lyon", "names keep their words");
+        assert.equal(summaryValues(["Group 1", "Team 2"]), "Group 1, Team 2", "only a word every value shares goes");
+        assert.equal(
+            summaryValues(Array.from({ length: 9 }, (_, at) => `Group ${String(at + 1)}`)),
+            "1, 2, 3, 4, 5 +4",
         );
     });
 });

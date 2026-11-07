@@ -410,7 +410,8 @@ void main() {
      * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
      * slot in a line batch: every patterned type, laid along whatever route the edge takes
      * (issue #3102), except a dashed or dotted curve, or one through bends or round a self-loop,
-     * which is a joined line in a batch that measures its dashes along the whole route.
+     * which is a joined line in a batch that measures its dashes along the whole route. So is a dashed or dotted line
+     * with a dash length or gap of its own (`line.dashLength`, `line.dashGap`): a pattern element's shape is fixed.
      * @param style - The resolved style.
      * @param loop - Whether the edge is a self-loop, which is never a straight line.
      * @returns True for pattern elements.
@@ -426,7 +427,8 @@ void main() {
             loop ||
             line?.bezier === true ||
             [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
-        return !(routed && (lineType === "dash" || lineType === "dot"));
+        const ownDashes = line?.dashLength !== undefined || line?.dashGap !== undefined;
+        return !((routed || ownDashes) && (lineType === "dash" || lineType === "dot"));
     }
 
     /**
@@ -541,8 +543,9 @@ void main() {
                             opaque,
                             pattern: {
                                 kind: lineType,
-                                elementLength: lineType === "dash" ? width * 3 : width,
+                                elementLength: lineType === "dash" ? width * (style.line?.dashLength ?? 3) : width,
                                 count: style.line?.patternCount,
+                                gap: style.line?.dashGap === undefined ? undefined : width * style.line.dashGap,
                             },
                         },
                         scene,

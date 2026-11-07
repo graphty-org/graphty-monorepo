@@ -17,12 +17,14 @@ import type { Path } from "../../../catalog/types";
 /**
  * What a file's rule is: the defaults, a group, a data mapping, per-element copies or the
  * exceptions on top. Open union: later releases add values.
+ * @experimental file-styles
  */
 export type FileStyleRole = StyleRuleRole;
 
 /**
  * Where a file's rule came from: written by the file (`declared`), recovered from its values
  * (`inferred`), or the default of the program that wrote the file (`tool`). Open union.
+ * @experimental file-styles
  */
 export type FileStyleRuleOrigin = StyleRuleOrigin;
 
@@ -30,6 +32,7 @@ export type FileStyleRuleOrigin = StyleRuleOrigin;
  * Why a layer copies a file's values instead of explaining them, or how it was built: no column
  * explains them, a style class, a cap on layers, a function, the work budget, a wide selector, a
  * table too large, a scale or calculated value the format cannot hold. Open union.
+ * @experimental file-styles
  */
 export type FileStyleReason = StyleRuleReason;
 
@@ -63,10 +66,14 @@ const REASONS: Readonly<Record<Named<FileStyleReason>, true>> = {
 /**
  * Every {@link FileStyleReason} this version gives, for an application that words each one. The
  * union is open: a later release may add a reason, which an application words generically.
+ * @experimental file-styles
  */
 export const FILE_STYLE_REASONS: readonly FileStyleReason[] = Object.freeze(Object.keys(REASONS));
 
-/** What one generated value of a style column means in the file's own words. */
+/**
+ * What one generated value of a style column means in the file's own words.
+ * @experimental file-styles
+ */
 export interface FileStyleMeaning {
     /** The generated value or class number, as the column holds it (`3` for `member.3`). */
     readonly value: string | number | boolean;
@@ -74,12 +81,16 @@ export interface FileStyleMeaning {
     readonly name: string;
 }
 
-/** How a layer turns a column's values into paint. */
+/**
+ * How a layer turns a column's values into paint.
+ * @experimental file-styles
+ */
 export type FileStyleMappingKind = "passthrough" | "discrete" | "continuous";
 
 /**
  * Where one style layer came from when it was made from a file's styles, as facts an application
  * words for itself. Read it with {@link fileStyleOf}.
+ * @experimental file-styles
  */
 export interface FileStyleOrigin {
     /** The graph-io format id or JSON dialect the file was read as (`gexf`, `cytoscape-js`). */
@@ -175,6 +186,7 @@ function meaningsOf(value: unknown): readonly FileStyleMeaning[] | undefined {
  *     }
  * }
  * ```
+ * @experimental file-styles
  */
 export function fileStyleOf(layer: { readonly fileStyle?: unknown }): FileStyleOrigin | null {
     const held = layer.fileStyle;

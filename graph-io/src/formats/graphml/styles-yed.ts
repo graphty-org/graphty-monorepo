@@ -43,6 +43,7 @@ import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { svgPicture } from "./styles-yed-live-drawing.js";
+import { yedNodePicture } from "./styles-yed-drawing.js";
 
 // ============================================================ the kept trees
 
@@ -377,8 +378,8 @@ const ROUND_BEVEL: YedOutline = { shape: "round-rectangle", cornerRadius: 10, be
  * The shape each configuration of yEd's GenericNode palettes draws (flowchart, entity relationship, BPMN, SBGN), by
  * its name after `com.yworks.` without a `.withShadow` suffix, lowercase. Matched whole, before the words below:
  * "data" is a parallelogram, but "storedData" and "directData" are not. A shape no neutral one names is the polygon
- * yEd draws it as (curves as short segments); the lines some draw inside (predefined process, internal storage) are
- * not drawn. The BPMN artifact's outline follows its `com.yworks.bpmn.type` style property (`genericOutline`). The
+ * yEd draws it as (curves as short segments); the lines some draw inside (predefined process, internal storage) and
+ * the BPMN symbols are a picture over the node (`readMarks`). The BPMN artifact's outline follows its `com.yworks.bpmn.type` style property (`genericOutline`). The
  * corner radii, the shapes that keep their proportions in a box of another shape and the lines round them are as
  * yEd 3.25 draws them (`yed-graphml-specimen-node-shapes-p2`, `-p3`).
  */
@@ -1816,6 +1817,51 @@ function readFace(
 }
 
 /**
+ * Reads what yEd draws inside a GenericNode beside its outline (`yedNodePicture`) as a picture over the
+ * node's box as drawn: a node kept square in a box of another shape is drawn in the middle square.
+ * @param real - the realizer
+ * @param outline - its outline, if known
+ * @param size - its stored size
+ * @param size.width - its width
+ * @param size.height - its height
+ * @param fill - its fill, or null
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readMarks(
+    real: Realizer,
+    outline: YedOutline | null,
+    size: { width: number; height: number },
+    fill: string | null,
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const aspect = outline?.aspect;
+    const width = aspect === undefined ? size.width : Math.min(size.width, size.height * aspect);
+    const height = aspect === undefined ? size.height : width / aspect;
+    const border = treeChild(real.r, "BorderStyle");
+    const props = treeChildren(treeChild(real.r, "StyleProperties"), "Property");
+    const picture = yedNodePicture({
+        kind: real.type === "GenericNode" ? (treeAttr(real.r, "configuration") ?? "") : real.type,
+        property: (name) =>
+            treeAttr(
+                props.find((p) => treeAttr(p, "name") === `com.yworks.bpmn.${name}`),
+                "value",
+            )?.slice(0, MAX_STYLE_VALUE_LENGTH),
+        width,
+        height,
+        fill,
+        line: hasLine(border) ? (canonColor(treeAttr(border, "color"), "yed", at("borderColor"))?.color ?? null) : null,
+        border: hasLine(border) ? (yedDrawnWidth(canonNumber(treeAttr(border, "width"), at("borderWidth"))) ?? 1) : 0,
+    });
+    if (picture !== null) {
+        put("image", picture);
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/**
  * Reads one node realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1860,6 +1906,9 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     }
     if (outline?.bevelInset !== undefined) {
         putBevel(outline, unfilled(fill) ? null : color, outline.bevelInset, hasLine(border), put);
+    }
+    if (width !== null && height !== null && real.type === "GenericNode") {
+        readMarks(real, outline, { width, height }, color, put, at);
     }
     readFace(real, width, height, painted, put, at, resources);
     const header = readEntityHeader(real, height, put, at);
@@ -1912,6 +1961,38 @@ export function yedArrowWidth(arrow: unknown): number | null {
 }
 
 /**
+ * Reads a framed edge (GenericEdge `com.yworks.edge.framed`) as yEd draws it: a closed outline 1 wide in the line's
+ * color round a band as wide as the line, filled with `FramedEdgePainter.fillColor` (graphml-galaxy-lcms-workflow: a
+ * band 3 wide stroked 1 wide over a #ffffff fill of the same outline). The fill is the line, 1 narrower than the band,
+ * and the outline reaches 1 past the band each side: 2 wider than the line. With no fill color yEd draws the outline
+ * alone (graphml-synthetic-edges), as is a band too narrow to show a fill inside its outline: one line 1 wider than the
+ * band, in the line's color.
+ * @param r - the realizer element
+ * @param line - its `y:LineStyle`
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): void {
+    const band = canonNumber(treeAttr(line, "width"), at("width")) ?? 1;
+    const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
+    const fill = treeAttr(
+        props.find((p) => treeAttr(p, "name") === "FramedEdgePainter.fillColor"),
+        "value",
+    );
+    if (fill === undefined || band <= 1) {
+        put("width", band + 1);
+        return;
+    }
+    readColor(treeAttr(line, "color"), "outlineColor", "outlineOpacity", put, at);
+    // its arrowheads are part of the outline, in the line's color (yed-graphml-specimen-edges-lines generic-framed)
+    readColor(treeAttr(line, "color"), "sourceArrowColor", null, put, at);
+    readColor(treeAttr(line, "color"), "targetArrowColor", null, put, at);
+    readColor(fill, "color", "opacity", put, at);
+    put("width", band - 1);
+    put("outlineWidth", 2);
+}
+
+/**
  * Reads one edge realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1924,6 +2005,9 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         readColor(treeAttr(line, "color"), "color", "opacity", put, at);
         put("width", yedDrawnWidth(canonNumber(treeAttr(line, "width"), at("width"))));
         put("lineStyle", canonEnum("lineStyle", treeAttr(line, "type"), "yed", at("lineStyle")));
+        if (real.type === "GenericEdge" && treeAttr(r, "configuration") === "com.yworks.edge.framed") {
+            readFramedEdge(r, line, put, at);
+        }
     }
     const arrows = treeChild(r, "Arrows");
     if (arrows !== undefined) {

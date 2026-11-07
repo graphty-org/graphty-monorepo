@@ -10,7 +10,15 @@ import {
 } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { INITIAL_CHOICES, loadChoices, roleOf, setRole, setRowsAre, setWeightMeaning } from "../choices";
+import {
+    INITIAL_CHOICES,
+    initialChoices,
+    loadChoices,
+    roleOf,
+    setRole,
+    setRowsAre,
+    setWeightMeaning,
+} from "../choices";
 
 const PEOPLE = "id,name,team\na,Ann,red\nb,Bo,blue\nc,Cy,red\n";
 const TIES = "source,target,weight\na,b,2\nb,c,5\nc,z,1\n";
@@ -55,7 +63,7 @@ describe("the Data page's choices", () => {
             edgeFile: new File([TIES], "ties.csv"),
         });
 
-        const choices = loadChoices(draft, INITIAL_CHOICES, "replace");
+        const choices = loadChoices(draft, INITIAL_CHOICES, "replace", true);
         assert.deepEqual(choices, {
             mode: "replace",
             unmatched: "leave-out",
@@ -65,6 +73,21 @@ describe("the Data page's choices", () => {
         });
         const report = await draft.report(choices);
         assert.deepEqual(report.unmatched, { rows: 1, values: 1 });
+    });
+
+    it("asks for no styles, and starts with none, while the element's file styles experiment is off", async () => {
+        const draft = await prepare({
+            nodeFile: new File([PEOPLE], "people.csv"),
+            edgeFile: new File([TIES], "ties.csv"),
+        });
+
+        assert.deepEqual(loadChoices(draft, INITIAL_CHOICES, "replace", false), {
+            mode: "replace",
+            unmatched: "leave-out",
+            directed: "auto",
+        });
+        assert.strictEqual(initialChoices(false).styles, "none");
+        assert.strictEqual(initialChoices(true).styles, "file");
     });
 
     it("moves a role to the chosen column and gives the old holder no role", async () => {

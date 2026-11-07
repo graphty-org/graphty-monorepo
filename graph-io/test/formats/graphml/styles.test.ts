@@ -448,6 +448,29 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["vee", "none", "triangle"]);
     });
 
+    it("reads a framed edge as yEd draws it: a band of the line's width outlined 1 wide, filled or hollow", async () => {
+        const framed = (line: string, fill: string): string =>
+            `<edge source="a" target="b"><data key="d10"><y:GenericEdge configuration="com.yworks.edge.framed"><y:LineStyle ${line}/><y:Arrows source="none" target="none"/>${fill}</y:GenericEdge></data></edge>`;
+        const fillOf = (c: string): string =>
+            `<y:StyleProperties><y:Property class="java.awt.Color" name="FramedEdgePainter.fillColor" value="${c}"/></y:StyleProperties>`;
+        const { snapshot, styles } = await load(
+            `${YED_HEAD}<node id="a"/><node id="b"/>
+            ${framed('color="#5F809D" type="line" width="3.0"', fillOf("#ffffff"))}
+            ${framed('color="#00CC99" type="line" width="2.0"', "")}
+            ${framed('color="#000000" type="line" width="1.0"', fillOf("#ffffff"))}
+            </graph></graphml>`,
+        );
+        const get = (p: StyleProperty): readonly unknown[] => resolveStyles(styles, "edge", p, snapshot);
+        // graphml-galaxy-lcms-workflow: a band 3 wide stroked 1 wide in #5F809D over a fill of #ffffff, so the white
+        // inside is 2 wide and the outline reaches 2 past it; graphml-synthetic-edges: no fill color, the outline alone
+        expect(get("color")).toEqual(["#ffffff", "#00cc99", "#000000"]);
+        expect(get("width")).toEqual([2, 3, 2]);
+        expect(get("outlineColor")).toEqual(["#5f809d", null, null]);
+        expect(get("outlineWidth")).toEqual([2, null, null]);
+        // its arrowheads are outlined in the line's color, not the fill's
+        expect(get("targetArrowColor")).toEqual(["#5f809d", null, null]);
+    });
+
     it("reads a generic node's gradient corner to corner and draws none on a table", async () => {
         const fill = '<y:Fill color="#FF0000" color2="#0000FF" transparent="false"/>';
         const { snapshot, styles } = await load(
@@ -700,6 +723,64 @@ describe("GraphML styles: yEd", () => {
             expect(String(transaction).split(" ").at(-1)).toBe("1-2.5,1-6.5");
             expect(start).toBeNull();
             expect(message).toBe("-1,1 0,0 1,1");
+        });
+
+        describe("the marks yEd draws inside a node", () => {
+            const square = '<y:Geometry height="40" width="40" x="0" y="0"/>';
+            const picture = (src: unknown): string =>
+                typeof src === "string" ? decodeURIComponent(src.slice(src.indexOf(",") + 1)) : "";
+
+            it("draws a gateway's marker about its middle and a task's icon in its top left corner", async () => {
+                const nodes =
+                    generic("a", "bpmn.Gateway", prop("type", "GATEWAY_TYPE_INCLUSIVE"), square) +
+                    generic("b", "bpmn.Activity", prop("taskType", "TASK_TYPE_RECEIVE")) +
+                    generic("c", "bpmn.Gateway", prop("type", "GATEWAY_TYPE_PLAIN"), square) +
+                    generic("d", "bpmn.Activity");
+                const [gateway, task, plain, none] = (await values(nodes, "image")).map(picture);
+                // yEd 3.25's ring of 9.66 and line of 3.5 about the middle of a gateway 40 across
+                expect(gateway).toContain('transform="translate(20 20)');
+                expect(gateway).toContain('stroke-width="3.5"');
+                expect(gateway).toContain('stroke="#505050"');
+                expect(task).toContain("M5,8.33L25,8.33L25,21.67L5,21.67Z");
+                expect([plain, none]).toEqual(["", ""]);
+                expect((await values(nodes, "imageFit")).slice(0, 2)).toEqual(["fill", "fill"]);
+            });
+
+            it("lays an activity's markers side by side along its bottom, its loop before its kind", async () => {
+                const nodes =
+                    generic("a", "bpmn.Activity", prop("type", "ACTIVITY_TYPE_SUBPROCESS_LOOP")) +
+                    generic("b", "bpmn.Activity", prop("marker1", "BPMN_MARKER_PARALLEL")) +
+                    generic("c", "bpmn.Activity", prop("type", "ACTIVITY_TYPE_STATELESS_TASK_PLAIN"));
+                const [two, one, none] = (await values(nodes, "image")).map(picture);
+                // 15 across, 5 apart, about the middle of a box 56 x 36, their bottoms 4 above its own
+                expect(two).toMatch(/translate\(10\.5 17\).*translate\(30\.5 17\)/);
+                expect(one).toContain("translate(20.5 17)");
+                expect(none).toBe("");
+            });
+
+            it("draws an event's symbol in its icon colors, the lines of a predefined process and a data object's arrow", async () => {
+                const nodes =
+                    generic(
+                        "a",
+                        "bpmn.Event",
+                        prop("type", "EVENT_TYPE_MESSAGE") + prop("icon.line.color", "#ff0000"),
+                        square,
+                    ) +
+                    generic("b", "flowchart.predefinedProcess") +
+                    generic(
+                        "c",
+                        "bpmn.Artifact",
+                        prop("type", "ARTIFACT_TYPE_DATA_OBJECT") + prop("dataObjectType", "DATA_OBJECT_TYPE_OUTPUT"),
+                        '<y:Geometry height="44" width="36" x="0" y="0"/>',
+                    );
+                const [event, process, data] = (await values(nodes, "image")).map(picture);
+                expect(event).toContain('stroke="#ff0000"');
+                expect(event).toContain('fill="#c8c8c8"');
+                expect(process).toContain("M10,0L10,36M46,0L46,36");
+                expect(data).toContain("M11.64,3.7L11.64,8.24");
+                // the fold of the page, 0.4 of its width
+                expect(data).toContain("M21.6,0L21.6,14.4L36,14.4");
+            });
         });
 
         it("draws BPMN group, annotation and message artifacts as yEd does", async () => {

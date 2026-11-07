@@ -12,11 +12,15 @@ import { act } from "react";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../test/features";
 import { render, screen, waitFor } from "../../test/test-utils";
 import { openDataPage } from "../../workspace/data-page/request";
 import { IMPORT_FILE_STYLES } from "../../workspace/settings/preferences";
 import { createWorkspaceStore } from "../../workspace/state/store";
 import { Workspace } from "../../workspace/Workspace";
+
+// Styles from files are an experiment: these tests switch it on.
+withFeatures(["file-styles"]);
 
 /**
  * Twelve nodes in two groups, each group with its own viz color: red for x, blue for y. The first
@@ -181,15 +185,19 @@ describe("import styles from files, on the real element", () => {
     });
 
     it("keeps the Settings choice across a reload", async () => {
-        const first = render(<Workspace store={createWorkspaceStore()} />);
-        await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+        // In an open project: the switch shows once the element says the experiment is on.
+        const project = { project: { name: "Untitled", id: 1 } };
+        const first = render(<Workspace store={createWorkspaceStore(project)} />);
+        await elementSession();
+        await userEvent.keyboard("{Control>},{/Control}");
         const on = await screen.findByRole("switch", { name: /^Import styles from files/ });
         assert.isTrue((on as HTMLInputElement).checked);
         await userEvent.click(on);
         first.unmount();
 
-        render(<Workspace store={createWorkspaceStore()} />);
-        await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+        render(<Workspace store={createWorkspaceStore(project)} />);
+        await elementSession();
+        await userEvent.keyboard("{Control>},{/Control}");
         const off = await screen.findByRole("switch", { name: /^Import styles from files/ });
         assert.isFalse((off as HTMLInputElement).checked);
     });

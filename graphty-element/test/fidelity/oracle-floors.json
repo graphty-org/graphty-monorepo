@@ -12488,7 +12488,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.9,
+            "raster.arrowhead": 0.91,
             "raster.canvas": 0.99,
             "raster.edge": 0.87,
             "raster.label": 0.89,
@@ -12844,7 +12844,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.96,
+            "raster.edge": 0.99,
             "raster.label": 0.88,
             "raster.nodeBody": 0.89,
             "raster.nodeOutline": 0.98,
@@ -17269,7 +17269,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.99,
-            "edge.route": 0.96,
+            "edge.route": 0.98,
             "edge.curve": 1,
             "edge.color": 0.99,
             "edge.width": 1,
@@ -17414,7 +17414,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 0.991,
             "edge.extra": 1,
-            "edge.route": 0.917,
+            "edge.route": 0.954,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -56251,14 +56251,6 @@
                 "to": 0.895,
                 "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
                 "date": "2026-11-04"
-            }
-        },
-        "dot-real-linux-kernel": {
-            "edge.route": {
-                "floor": 1,
-                "to": 0.975,
-                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
-                "date": "2026-11-01"
             }
         },
         "dot-real-linux-kernel@matched": {

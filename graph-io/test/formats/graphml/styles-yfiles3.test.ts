@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
 import { spreadRamp } from "../../../src/styles/canon/yed-gradient.js";
@@ -407,6 +407,27 @@ describe("yEd Live GraphML: a LinearGradient fill", () => {
             colors: ["#ffffff", "#0000ff", "#ffffff", "#0000ff"],
             stops: [0, 0.5, 0.5, 1],
         });
+    });
+
+    it("notes a REFLECT ramp run again too many times across its box, as a hostile file's tiny ramp is", async () => {
+        const text = readFileSync(join(SHEETS, "specimen-node-fills-borders.graphml"), "utf8").replace(
+            'startPoint="0.4,0.5" endPoint="0.6,0.5"',
+            'startPoint="0.4,0.5" endPoint="0.400000001,0.5"',
+        );
+        assert(text.includes("0.400000001"));
+        const result = await registry.importGraph(new TextEncoder().encode(text), {
+            format: "graphml",
+            styles: { toolDefaults: true },
+            errorLimit: Infinity,
+        });
+        const { styles, snapshot } = result;
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const at = snapshot.ids.requireIndex("linear-gradient-reflect");
+        expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at]).toBeNull();
+        expect(resolveStyles(styles, "node", "fill", snapshot)[at]).toBe("#ffffff");
+        expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
     });
 
     it("keeps a radial gradient in its first stop", async () => {

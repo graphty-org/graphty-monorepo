@@ -317,6 +317,9 @@ function gradientPoint(g: StyleObject, name: string, fallback: readonly [number,
     return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : fallback;
 }
 
+/** The most times a REFLECT or REPEAT ramp is unrolled across its node; a file asking for more is noted. */
+const MAX_RAMP_REPEATS = 64;
+
 /**
  * Reads a node's gradient fill. A yFiles 3 LinearGradient's startPoint and endPoint are fractions of the node's box
  * (yEd Live draws it as an SVG gradient in objectBoundingBox units), so one whose ramp spans the box -- from side to
@@ -352,7 +355,9 @@ function putGradient(refs: References, g: StyleObject, owner: string, put: PutVa
     // nearest corner along the ramp to its farthest (yed-live-graphml-specimen-node-fills-borders
     // linear-gradient-reflect, 0.4 to 0.6 across, is white and blue five times over)
     const spread = (treeAttr(g.e, "spreadMethod") ?? "").toLowerCase();
-    const unrolls = !spans && len2 > 0 && (spread === "reflect" || spread === "repeat");
+    // a ramp run again more than MAX_RAMP_REPEATS times across the box (a hostile file's tiny ramp) is noted instead
+    const repeats = Math.max(...along) - Math.min(...along);
+    const unrolls = !spans && len2 > 0 && repeats <= MAX_RAMP_REPEATS && (spread === "reflect" || spread === "repeat");
     if (g.tag !== "LinearGradient" || !(spans || unrolls) || colors.length < 2 || colors.length !== stops.length) {
         noteAt(at("fill"), STYLE_ISSUE.GRADIENT, owner);
         return;

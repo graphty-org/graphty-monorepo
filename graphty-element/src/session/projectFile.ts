@@ -166,8 +166,9 @@ export interface ProjectSaveOptions {
      * the file's digest, so the file is fetched again when the project opens (after the reader
      * allows it) and reported with `W_MODEL_CHANGED` when it is no longer the same file.
      * `session.assets.list()` gives each asset's `url`, and `project.assetChoices()` lists the ones
-     * to ask about. A URL with no entry is kept as the project last kept it (as the file it was
-     * opened from, or the last save that had an entry for it), else embedded.
+     * to ask about. A URL with no entry is embedded; with the `node-models` experiment on, it is
+     * kept as the project last kept it (as the file it was opened from, or the last written save
+     * that had an entry for it), else embedded.
      */
     readonly assets?: Readonly<Record<string, AssetStorage>>;
 }
@@ -2254,6 +2255,8 @@ export function projectOf(
     // only weakly, so a write that failed and is never marked keeps no copy of the file alive.
     const waiting = new Set<SavePoint>();
     const pointOf = new WeakMap<SavedProject, SavePoint>();
+    // An unmarked save's asset choices, remembered when it is marked saved.
+    const rememberOf = new WeakMap<SavedProject, () => void>();
     let seq = 0;
     let top: string | null = null;
     let last: ProjectStatus = { name: null, dirty: false };
@@ -2366,6 +2369,8 @@ export function projectOf(
         if (state?.network !== undefined) {
             problems.push({ code: "W_NETWORK_POLICY_IGNORED", params: { kind: "graphty-session" } });
         }
+        // How the project it replaces kept its URLs is not this project's.
+        (session.assets as AssetsApiInternal).forgetProjectStorage();
         await restoreAssetsOf(session, doc, problems);
         const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
         // A project opens with a fresh history: its opened state is the baseline, and the steps
@@ -2485,10 +2490,14 @@ export function projectOf(
         },
         save(options = {}) {
             const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
-            // What this save was told is how the next save without a choice keeps the same URL.
-            for (const [url, storage] of Object.entries(options.assets ?? {})) {
-                (session.assets as AssetsApiInternal).rememberStorage(url, storage);
-            }
+            // What this save was told is how the next save without a choice keeps the same URL,
+            // once its file is written: now, or at `markSaved` for a save that waits on its write.
+            // A copy that is never marked saved, or a write that failed, changes nothing.
+            const remember = (): void => {
+                for (const [url, storage] of Object.entries(options.assets ?? {})) {
+                    (session.assets as AssetsApiInternal).rememberStorage(url, storage);
+                }
+            };
 
             const text = JSON.stringify(document);
             const saved: SavedProject = Object.freeze({
@@ -2504,13 +2513,17 @@ export function projectOf(
                 const waited = pointNow();
                 waiting.add(waited);
                 pointOf.set(saved, waited);
+                rememberOf.set(saved, remember);
             } else {
                 adopt(pointNow());
+                remember();
             }
 
             return Promise.resolve(saved);
         },
         markSaved(saved) {
+            rememberOf.get(saved)?.();
+            rememberOf.delete(saved);
             const waited = pointOf.get(saved);
             if (waited !== undefined && waiting.has(waited)) {
                 adopt(waited);

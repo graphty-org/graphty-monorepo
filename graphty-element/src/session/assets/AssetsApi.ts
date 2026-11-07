@@ -434,6 +434,11 @@ export interface AssetsApiInternal extends AssetsApi {
      */
     rememberedStorage(ref: string): "embed" | "url" | undefined;
     /**
+     * Forget how the last project kept each URL and the digests its file recorded, when another
+     * project opens in its place: none of it carries into the new one.
+     */
+    forgetProjectStorage(): void;
+    /**
      * Whether an accepted asset's parts came from more than one place (`supply`), so no single URL
      * brings it back.
      * @param id - The id.
@@ -1813,6 +1818,11 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         rememberedStorage(ref) {
             const url = parseUrl(ref);
             return url === undefined ? undefined : storedAs.get(url.href);
+        },
+
+        forgetProjectStorage() {
+            storedAs.clear();
+            expectedDigests.clear();
         },
 
         bindUrl(ref, id) {

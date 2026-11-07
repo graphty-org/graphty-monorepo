@@ -1,7 +1,8 @@
 /**
  * `project.assetChoices()`: the models and pictures a layer names by URL that a save can embed or
- * keep by URL, what a save without a choice does with each, and that the choice a file was opened
- * with, or the last save was given, carries over to the next save -- but never to autosave.
+ * keep by URL, what a save without a choice does with each, and that, with the node-models
+ * experiment on, the choice a file was opened with, or the last written save was given, carries
+ * over to the next save of that project -- but never to autosave.
  *
  * The fixture is laid out as a Kenney car kit's GLB: police.glb names its one picture as the
  * separate file Textures/colormap.png.
@@ -134,7 +135,7 @@ describe("project.assetChoices", () => {
         });
     });
 
-    it("keeps a URL the way the opened file kept it, on the next save with no choice", async () => {
+    it("embeds a URL an opened file kept by URL, on a save with no choice, with node-models off", async () => {
         stubSite({ [BALL]: sphereGlb(8, 4) });
         const session = await baseSession();
         await layer(session, "ball", { "node.model": BALL });
@@ -143,6 +144,23 @@ describe("project.assetChoices", () => {
         assert.strictEqual(entriesOf(saved.text)[0].stored, "url");
 
         const opened = sessionWithRuns();
+        await opened.project.open(saved.text);
+        assert.strictEqual((await opened.assets.ready(BALL)).state, "accepted");
+        assert.strictEqual(opened.project.assetChoices()[0].storage, "embed");
+        const [entry] = entriesOf((await opened.project.save()).text);
+        assert.isUndefined(entry.stored);
+        assert.isDefined(entry.files, "embedded, as before the experiment");
+    });
+
+    it("keeps a URL the way the opened file kept it, on the next save with no choice", async () => {
+        stubSite({ [BALL]: sphereGlb(8, 4) });
+        const session = await baseSession(["node-models"]);
+        await layer(session, "ball", { "node.model": BALL });
+        await session.assets.ready(BALL);
+        const saved = await session.project.save({ assets: { [BALL]: "url" } });
+        assert.strictEqual(entriesOf(saved.text)[0].stored, "url");
+
+        const opened = sessionWithRuns(["node-models"]);
         await opened.project.open(saved.text);
         assert.strictEqual((await opened.assets.ready(BALL)).state, "accepted");
         assert.strictEqual(opened.project.assetChoices()[0].storage, "url");
@@ -157,9 +175,35 @@ describe("project.assetChoices", () => {
         assert.isDefined(entriesOf((await opened.project.save()).text)[0].files);
     });
 
+    it("remembers a copy's or an unwritten save's choice only once it is marked saved", async () => {
+        stubSite({ [BALL]: sphereGlb(8, 4) });
+        const session = await baseSession(["node-models"]);
+        await layer(session, "ball", { "node.model": BALL });
+        await session.assets.ready(BALL);
+        const copy = await session.project.save({ assets: { [BALL]: "url" }, markSaved: false });
+        assert.strictEqual(session.project.assetChoices()[0].storage, "embed", "a copy changes nothing");
+
+        session.project.markSaved(copy);
+        assert.strictEqual(session.project.assetChoices()[0].storage, "url");
+    });
+
+    it("forgets how the last project kept a URL when another project opens in its place", async () => {
+        stubSite({ [BALL]: sphereGlb(8, 4) });
+        const session = await baseSession(["node-models"]);
+        await layer(session, "ball", { "node.model": BALL });
+        await session.assets.ready(BALL);
+        await session.project.save({ assets: { [BALL]: "url" } });
+        assert.strictEqual(session.project.assetChoices()[0].storage, "url");
+
+        const other = await baseSession();
+        await session.project.open((await other.project.save()).text);
+        await layer(session, "ball", { "node.model": BALL });
+        assert.strictEqual(session.project.assetChoices()[0].storage, "embed");
+    });
+
     it("never lets autosave keep a model by URL", async () => {
         stubSite({ [BALL]: sphereGlb(8, 4) });
-        const session = await baseSession();
+        const session = await baseSession(["node-models"]);
         await layer(session, "ball", { "node.model": BALL });
         await session.assets.ready(BALL);
         await session.project.save({ assets: { [BALL]: "url" } });

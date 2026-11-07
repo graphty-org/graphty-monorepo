@@ -431,9 +431,11 @@ The file then records the address and a fingerprint of the file. When the projec
 address is fetched (after the reader agrees), and if the site now serves a different file it is
 drawn and reported with `W_MODEL_CHANGED`.
 
-A project keeps each address the way it was last kept: a file opened with an address kept that
-way saves it that way again, and so does a later save after one that was told. Autosave always
-embeds.
+A save with no choice for an address embeds it. With the `node-models` experiment switched on
+(`features="node-models"`), a project keeps each address the way it was last kept instead: a file
+opened with an address kept that way saves it that way again, and so does a later save after a
+written one that was told (a `markSaved: false` copy counts once it is marked saved). Opening
+another project starts over. Autosave always embeds.
 
 ### Asking before a save
 

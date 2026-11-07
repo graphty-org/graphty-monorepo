@@ -32,8 +32,9 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // The graphty app's use of batched drawing and the long-edge fade and blending options;
     // graphty-element's `renderPath`, edge styles and layout options are not gated.
     { id: "cosmograph", plainName: "Cosmograph-inspired rendering", issue: 3247, since: "2026-11-06" },
-    // The graphty app's model and picture UI in the Style panel and the save question; graphty-element's
-    // node.model* and node.texture channels, session.assets and session.network are not gated.
+    // The graphty app's model and picture UI in the Style panel and the save question, and in
+    // graphty-element a save with no choice for a URL keeping it as the project last kept it (off:
+    // embedded, as before); node.model* and node.texture, session.assets and session.network are not gated.
     { id: "node-models", plainName: "Node models", issue: 3396, since: "2026-11-07" },
 ]);
 

@@ -71,21 +71,23 @@ const PICTURE_SCALE = 3;
  * @param body - the elements
  * @param background - the color behind them, unset none: light words on a clear picture take a dark edge when drawn
  * @param reach - how far the drawing reaches past the node's box (a BPMN event on a port)
+ * @param program - the program whose drawing it is, as the picture's `data-node-drawing`
  * @returns the URL
  */
-function svgPicture(
+export function svgPicture(
     width: number,
     height: number,
     border: number,
     body: string,
     background = "",
     reach: PictureReach = NO_REACH,
+    program = "yed-live",
 ): string {
     const [w, h] = [width - border + reach.left + reach.right, height - border + reach.top + reach.bottom];
     const size = `width="${String(w * PICTURE_SCALE)}" height="${String(h * PICTURE_SCALE)}"`;
     const view = `viewBox="${String(border / 2 - reach.left)} ${String(border / 2 - reach.top)} ${String(w)} ${String(h)}"`;
     const paint = background === "" ? "" : ` style="background:${background}"`;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" data-node-drawing="yed-live" ${size} ${view}${paint}>${body}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" data-node-drawing="${program}" ${size} ${view}${paint}>${body}</svg>`;
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 

@@ -8,6 +8,8 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { GRAPHML_LOSS } from "../../../src/formats/graphml/constants.js";
+import { graphmlExporter } from "../../../src/formats/graphml/exporter.js";
 import { createRegistry } from "../../../src/registry.js";
 import { resolveStyles } from "../../../src/styles/internal.js";
 import type { StyleProperty } from "../../../src/styles/types.js";
@@ -541,5 +543,20 @@ describe("yEd Live GraphML: a node label with no layout parameter", () => {
         expect((await sheet("specimen-labels-p3.graphml")).node("labelPadding", "v2-insets-8")).toBe(8);
         // a label with no box keeps the default padding
         expect(labels("labelPadding", "cap-background-fill")).toBeNull();
+    });
+});
+
+describe("yEd Live GraphML: ports on a save", () => {
+    it("writes every port of the BPMN sheet back as <port> elements that read back the same", async () => {
+        const read = async (bytes: Uint8Array) =>
+            (await registry.importGraph(bytes, { format: "graphml", errorLimit: Infinity })).snapshot;
+        const first = await read(new Uint8Array(readFileSync(join(SHEETS, "specimen-node-shapes-p6.graphml"))));
+        const ports = first.nodes.require("ports");
+        expect(ports.length - ports.nullCount).toBeGreaterThan(0);
+        expect(graphmlExporter.check(first).map((n) => n.code)).not.toContain(GRAPHML_LOSS.PORTS_DROPPED);
+        const again = await read(new TextEncoder().encode(await graphmlExporter.exportToString(first)));
+        const rows = (snapshot: typeof first): unknown[] =>
+            Array.from({ length: snapshot.nodeCount }, (_, r) => snapshot.nodes.require("ports").value(r));
+        expect(rows(again)).toEqual(rows(first));
     });
 });

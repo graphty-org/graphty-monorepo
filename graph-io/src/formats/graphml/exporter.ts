@@ -50,6 +50,7 @@ import {
     META_KEY,
     ORIGINAL_ID_ATTRIBUTE,
     PARENT_COLUMN,
+    PORT_KEYS_EXTRA,
     RESERVED_EDGE_NAMES,
     RESERVED_NODE_NAMES,
     SCHEMA_LOCATION,
@@ -205,6 +206,16 @@ interface KeyPlan {
     readonly column: Column | null;
 }
 
+/** The `<port>` elements of nodes, from the ports column and the port names edges reference. */
+interface PortsPlan {
+    /** The ports column (yFiles data of ports), or null. */
+    readonly column: Column | null;
+    /** Each port key written, by the name its values have in the ports column. */
+    readonly keys: ReadonlyMap<string, { readonly id: string; readonly type: string }>;
+    /** The port names edges reference, by node, so each is declared on its node. */
+    readonly referenced: ReadonlyMap<number, ReadonlySet<string>>;
+}
+
 /** Containment as the exporter writes it. */
 interface Hierarchy {
     /** The parent column, or null. */
@@ -239,6 +250,7 @@ interface Plan {
     readonly edgeIdColumn: Column | null;
     readonly sourcePortColumn: Column | null;
     readonly targetPortColumn: Column | null;
+    readonly ports: PortsPlan;
     readonly hierarchy: Hierarchy;
     readonly meta: GraphmlMeta | null;
     readonly needsOriginalIdKey: boolean;
@@ -383,6 +395,17 @@ function planExport(
         );
     }
     const edgedefault = planEdgedefault(snapshot, folding, format, meta);
+    const sourcePortColumn = snapshot.edges.byRole("sourcePort");
+    const targetPortColumn = snapshot.edges.byRole("targetPort");
+    const ports = planPorts(snapshot, keyIds, note, (record) => {
+        const list = snapshot.edgeList();
+        for (let e = 0; e < snapshot.edgeCount; e++) {
+            if (!folding.folded(e)) {
+                record(list.src[e], portText(sourcePortColumn, e));
+                record(list.dst[e], portText(targetPortColumn, e));
+            }
+        }
+    });
 
     // containment
     const hierarchy = planHierarchy(snapshot);
@@ -415,8 +438,9 @@ function planExport(
         edgedefault,
         folding,
         edgeIdColumn,
-        sourcePortColumn: snapshot.edges.byRole("sourcePort"),
-        targetPortColumn: snapshot.edges.byRole("targetPort"),
+        sourcePortColumn,
+        targetPortColumn,
+        ports,
         hierarchy,
         meta,
         needsOriginalIdKey,
@@ -728,6 +752,138 @@ interface TablePlanContext {
 }
 
 /**
+ * Whether a column holds the yFiles data of ports, as the importer keeps it.
+ * @param column - the column
+ * @returns true for a ports column
+ */
+function isPortsColumn(column: Column): boolean {
+    const { meta } = column;
+    return (
+        meta.domain === "node" &&
+        meta.dtype === "json" &&
+        meta.origin?.namespace === "yfiles" &&
+        meta.origin.type === "port"
+    );
+}
+
+/**
+ * Plan the `<port>` elements: a port key for each name of the ports column whose yFiles type the column records, and
+ * the port names edges reference. A value with no recorded type, one that is not an XML tree and an entry with no name
+ * are noted as dropped.
+ * @param snapshot - the snapshot
+ * @param keyIds - the key id allocator
+ * @param note - the note recorder
+ * @param edgePorts - calls its argument with each written edge end's node and port name (null when none)
+ * @returns the plan
+ */
+function planPorts(
+    snapshot: GraphSnapshot,
+    keyIds: KeyIds,
+    note: NoteFn,
+    edgePorts: (record: (node: number, port: string | null) => void) => void,
+): PortsPlan {
+    const referenced = new Map<number, Set<string>>();
+    edgePorts((node, port) => {
+        if (port !== null) {
+            let names = referenced.get(node);
+            if (names === undefined) {
+                names = new Set();
+                referenced.set(node, names);
+            }
+            names.add(port);
+        }
+    });
+    const keys = new Map<string, { id: string; type: string }>();
+    const column = [...snapshot.nodes].find(isPortsColumn) ?? null;
+    if (column === null) {
+        return { column, keys, referenced };
+    }
+    const recorded = column.meta.extra[PORT_KEYS_EXTRA];
+    const types = typeof recorded === "object" && recorded !== null ? (recorded as Record<string, unknown>) : {};
+    let dropped = 0;
+    for (let r = 0; r < column.length; r++) {
+        for (const entry of portEntries(column, r)) {
+            if (typeof entry.name !== "string") {
+                dropped++;
+                continue;
+            }
+            for (const [name, value] of Object.entries(entry)) {
+                if (name === "name") {
+                    continue;
+                }
+                const type = types[name];
+                if (typeof type !== "string" || treeProblem(value) !== null) {
+                    dropped++;
+                } else if (!keys.has(name)) {
+                    keys.set(name, { id: keyIds.next(null), type });
+                }
+            }
+        }
+    }
+    if (dropped > 0) {
+        note(
+            GRAPHML_LOSS.PORTS_DROPPED,
+            `${dropped} port value${plural(dropped)} of node column "${column.meta.name}" ${agree(dropped, "has", "have")} no yFiles key type, no port name or no XML tree, and ${agree(dropped, "is", "are")} not written`,
+            column.meta.name,
+            dropped,
+        );
+    }
+    return { column, keys, referenced };
+}
+
+/**
+ * The port entries of a row of the ports column: its objects, skipping anything else.
+ * @param column - the ports column
+ * @param row - the row
+ * @returns the entries
+ */
+function portEntries(column: Column, row: number): Record<string, unknown>[] {
+    const value: unknown = column.isSet(row) ? column.value(row) : null;
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return value.filter(
+        (entry): entry is Record<string, unknown> =>
+            typeof entry === "object" && entry !== null && !Array.isArray(entry),
+    );
+}
+
+/**
+ * Write a node's `<port>` elements: those of its ports column entries with their yFiles data, then a bare one for each
+ * other port name its edges reference.
+ * @param ports - the ports plan
+ * @param u - the node
+ * @param indent - the indentation of the port elements
+ * @param step - one indentation step
+ * @param out - the parts
+ */
+function writePorts(ports: PortsPlan, u: number, indent: string, step: string, out: string[]): void {
+    const written = new Set<string>();
+    if (ports.column !== null) {
+        for (const entry of portEntries(ports.column, u)) {
+            if (typeof entry.name !== "string") {
+                continue;
+            }
+            const data: string[] = [];
+            for (const [name, value] of Object.entries(entry)) {
+                const key = ports.keys.get(name);
+                if (key !== undefined && treeProblem(value) === null) {
+                    writeTreeData(key.id, value, indent + step, data);
+                }
+            }
+            const open = `\n${indent}<port name="${escapeXmlAttribute(entry.name)}"`;
+            out.push(data.length === 0 ? `${open}/>` : `${open}>${data.join("")}\n${indent}</port>`);
+            written.add(entry.name);
+        }
+    }
+    for (const name of ports.referenced.get(u) ?? []) {
+        if (!written.has(name)) {
+            out.push(`\n${indent}<port name="${escapeXmlAttribute(name)}"/>`);
+        }
+    }
+}
+
+/**
  * Whether a column is not written as a key of its own (a yfiles graphics column, a ports column, a
  * parents column, a structural, dropped or slot role column), noting what it loses.
  * @param column - the column
@@ -750,13 +906,8 @@ function skipColumn(column: Column, ctx: TablePlanContext): boolean {
         }
         return true;
     }
-    if (meta.dtype === "json" && meta.origin?.namespace === "yfiles" && meta.origin.type === "port") {
-        note(
-            GRAPHML_LOSS.PORTS_DROPPED,
-            `${domain} column "${name}" (the yFiles data of ports) is not written back as <port> elements`,
-            name,
-            column.length - column.nullCount,
-        );
+    if (isPortsColumn(column)) {
+        // written as <port> elements (planPorts)
         return true;
     }
     if (role === "parents") {
@@ -1286,6 +1437,16 @@ function pushDefault(key: KeyPlan, column: Column, inner: string, parts: string[
 }
 
 /**
+ * The attribute naming a yFiles key's type: a yFiles 3 key is identified by its attr.uri, which the importer keeps as
+ * the type, an older one by its yfiles.type.
+ * @param type - the type
+ * @returns the attribute text, with its leading space
+ */
+function yfilesTypeAttribute(type: string): string {
+    return ` ${type.includes("://") ? "y:attr.uri" : "yfiles.type"}="${escapeXmlAttribute(type)}"`;
+}
+
+/**
  * The `<key>` element of a plan.
  * @param key - the key plan
  * @param indent - the indentation
@@ -1301,9 +1462,7 @@ function keyElement(key: KeyPlan, indent: string): string {
         text += ` attr.type="${escapeXmlAttribute(key.attrType)}"`;
     }
     if (key.yfilesType !== null) {
-        // a yFiles 3 key is identified by its attr.uri, which the importer keeps as the column's type
-        const uri = key.yfilesType.includes("://");
-        text += ` ${uri ? "y:attr.uri" : "yfiles.type"}="${escapeXmlAttribute(key.yfilesType)}"`;
+        text += yfilesTypeAttribute(key.yfilesType);
     }
     const { column } = key;
     const desc = column?.meta.extra.desc;
@@ -1394,6 +1553,9 @@ function* writeGraphml(snapshot: GraphSnapshot, plan: Plan): Generator<string, v
     if (plan.originalIdKey !== null) {
         yield `${i1}<key id="${plan.originalIdKey}" for="node" attr.name="${ORIGINAL_ID_ATTRIBUTE}" attr.type="string"/>\n`;
     }
+    for (const [name, key] of plan.ports.keys) {
+        yield `${i1}<key id="${key.id}" for="port" attr.name="${escapeXmlAttribute(name)}"${yfilesTypeAttribute(key.type)}/>\n`;
+    }
 
     const graphId = plan.meta?.graphId ?? "G";
     yield `${i1}<graph id="${escapeXmlAttribute(graphId)}" edgedefault="${plan.edgedefault}">`;
@@ -1444,7 +1606,8 @@ function rootElement(plan: Plan): string {
     const yfilesColumns =
         plan.nodeColumns.some((c) => c.yfiles) ||
         plan.edgeColumns.some((c) => c.yfiles) ||
-        plan.graphColumns.some((c) => c.yfiles);
+        plan.graphColumns.some((c) => c.yfiles) ||
+        plan.ports.keys.size > 0;
     if (
         plan.yedGraphics === true ||
         (yfilesColumns &&
@@ -1592,6 +1755,7 @@ function* writeNodeSubtree(
         for (const column of plan.nodeColumns) {
             writeData(column, u, pad + step, parts);
         }
+        writePorts(plan.ports, u, pad + step, step, parts);
         if (hasChildren(u)) {
             parts.splice(open, 0, ">");
             const graphId = `${String(ids.idAt(u))}:`;

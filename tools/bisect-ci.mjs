@@ -307,13 +307,15 @@ export async function runArgs(shard, files) {
 }
 
 // One run of tools/run-tests.sh, stopped at `limit`. coreutils timeout signals the run's whole process group
-// (vitest and its browsers too) and exits 124.
-function runLimited(spawn, limit, args, what) {
+// (vitest and its browsers too) and exits 124. A run `cut` to the job's deadline is reported by runPoint instead.
+function runLimited(spawn, limit, args, what, cut = false) {
     const command = ["--kill-after=1m", limit, join(ROOT, "tools/run-tests.sh"), ...args];
     const code = spawn("timeout", command, { cwd: ROOT, stdio: "inherit" }).status;
-    if (code === 124) console.log(`::warning::${what}: no result in the lane's ${limit}; failed`);
+    if (code === 124 && !cut) console.log(`::warning::${what}: no result in the lane's ${limit}; failed`);
     return code;
 }
+
+const KILL_AFTER_MS = 60_000; // runLimited's --kill-after
 
 /**
  * Runs the round's targets `runs` times on this checkout; a failed run of a shard fails each of its targets.
@@ -322,25 +324,54 @@ function runLimited(spawn, limit, args, what) {
  * that merge would read as bad, or be lost and picked again every round.
  * A run past the lane's `minutes` is stopped and fails its targets, as the lane's job timeout fails the full run,
  * so the point writes a result instead of holding its job to bisect.yml's timeout and being picked again.
+ * `deadline` is when the point's job must have its result: `runs` runs of every shard at up to the lane's
+ * `minutes` each can pass bisect.yml's job timeout (5 runs of 3 shards, #5845), which wrote no result and lost the
+ * point. A run the deadline cuts short is not a failure: its round of runs is dropped and the point reports the
+ * rounds it finished, so `runs` may be fewer than asked (a later round asks for the rest) or 0.
  * ponytail: judged by the exit code, not per test; read the shard's JUnit when two targets share a shard.
  * @param s the state
  * @param sha the point
  * @param runs how many runs
  * @param [spawn] spawnSync, or a stand-in
  * @param [exists] whether a repo-relative file exists at the point
+ * @param [deadline] epoch ms by which every run must have ended
+ * @param [now] the clock
  * @returns the point's result
  */
-export async function runPoint(s, sha, runs, spawn = spawnSync, exists = (f) => existsSync(join(ROOT, f))) {
+export async function runPoint(
+    s,
+    sha,
+    runs,
+    spawn = spawnSync,
+    exists = (f) => existsSync(join(ROOT, f)),
+    deadline = Infinity,
+    now = Date.now,
+) {
     const targets = (s.next.confirm ? s.targets : s.followed).filter((t) => !t.file || exists(t.file));
     const byShard = Map.groupBy(targets, (t) => t.shard ?? "");
-    const r = { sha, runs, failed: {} };
-    for (let i = 0; i < runs; i++)
+    const laneMs = (LANES[s.lane] ?? LANES.ci).minutes * 60_000;
+    const r = { sha, runs: 0, failed: {} };
+    for (let i = 0; i < runs; i++) {
+        const failed = {};
         for (const [shard, ts] of byShard) {
             const args = await runArgs(shard, [...new Set(ts.map((t) => t.file).filter(Boolean))]);
             if (!args) continue;
-            const code = runLimited(spawn, `${(LANES[s.lane] ?? LANES.ci).minutes}m`, args, `${short(sha)} ${shard}`);
-            if (code !== 0) for (const t of ts) r.failed[t.id] = (r.failed[t.id] ?? 0) + 1;
+            const left = deadline - now() - KILL_AFTER_MS;
+            const cut = left < laneMs;
+            if (cut && left < 60_000) return outOfTime(r, runs, sha);
+            const limit = cut ? `${Math.floor(left / 1000)}s` : `${laneMs / 60_000}m`;
+            const code = runLimited(spawn, limit, args, `${short(sha)} ${shard}`, cut);
+            if (cut && code === 124) return outOfTime(r, runs, sha);
+            if (code !== 0) for (const t of ts) failed[t.id] = (failed[t.id] ?? 0) + 1;
         }
+        for (const [id, n] of Object.entries(failed)) r.failed[id] = (r.failed[id] ?? 0) + n;
+        r.runs++;
+    }
+    return r;
+}
+
+function outOfTime(r, runs, sha) {
+    console.log(`::warning::${short(sha)}: the job's time ran out after ${r.runs} of ${runs} runs`);
     return r;
 }
 
@@ -414,7 +445,11 @@ async function main() {
     }
     if (cmd === "run") {
         const s = read(v.state);
-        const r = await runPoint(s, v.sha, s.next.runs);
+        // POINT_DEADLINE (epoch s, bisect.yml): when the job must have its result
+        const deadline = env.POINT_DEADLINE ? Number(env.POINT_DEADLINE) * 1000 : Infinity;
+        const r = await runPoint(s, v.sha, s.next.runs, spawnSync, undefined, deadline);
+        // no run finished: no result, so the point is lost and picked again, as a cancelled job's is
+        if (r.runs === 0) return;
         return writeFileSync(v.out, JSON.stringify(r));
     }
     if (cmd === "setup-failed") {

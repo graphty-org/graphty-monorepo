@@ -967,6 +967,17 @@ describe("checking what the Assistant says", () => {
         const stop = await screen.findByRole("button", { name: "Stop talking" });
         assert.strictEqual(stop.getAttribute("aria-pressed"), "true");
         assert.strictEqual(stop, talk, "one button, so focus stays on it");
+        // Its key still shows while it listens: the same key stops.
+        await userEvent.unhover(stop);
+        await userEvent.hover(stop);
+        await waitFor(() => {
+            const tips = screen.queryAllByRole("tooltip").map((tip) => tip.textContent);
+            assert.isTrue(
+                tips.some((tip) => tip.includes("Stop talking") && tip.includes("Space")),
+                JSON.stringify(tips),
+            );
+        });
+        await userEvent.unhover(stop);
         await userEvent.click(stop);
         await screen.findByRole("button", { name: "Talk" });
         const field = screen.getByRole<HTMLTextAreaElement>("textbox", COMPOSER);

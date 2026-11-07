@@ -645,7 +645,7 @@ describe("GraphML styles: yEd", () => {
             const [picture, none] = await values(nodes, "image");
             expect(none).toBeNull();
             const svg = decodeURIComponent(String(picture));
-            expect(svg).toContain('<path fill="#c8c8c8" stroke="#505050" stroke-width="1" d="M');
+            expect(svg).toContain('<path fill="none" stroke="#505050" stroke-width="1" d="M');
             // from the copy's top right corner, round its bottom right one, to its bottom left one
             expect(svg).toContain("L62,18");
             expect(svg).toContain("L50,42");

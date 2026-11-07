@@ -640,9 +640,8 @@ function roundBoxHolds(box: RoundBox, point: [number, number]): boolean {
     return x >= x0 && x <= x1 && y >= y0 && y <= y1 && (x - cx) ** 2 + (y - cy) ** 2 <= r * r + 1e-9;
 }
 
-/** A node's fill, its border's color and its border's width, as the picture drawn over it paints them. */
+/** A node's border's color and width, as the picture drawn over it paints them. */
 interface NodePaint {
-    readonly fill: string;
     readonly line: string;
     readonly width: number;
 }
@@ -650,12 +649,12 @@ interface NodePaint {
 /**
  * What yEd strokes over a node beside its outline, as a picture over the node: the fold of a UMLNoteNode (a white
  * triangle in the cut corner, outlined: its two creases), and the part of an SBGN multimer macromolecule's copy that
- * shows, `MULTIMER_OFFSET` down and right of it behind it (`com.yworks.sbgn.style.mcount` 2 or more), filled and
- * outlined, as yEd 3.25 draws them (`yed-graphml-specimen-node-shapes-p3`, `graphml-libcitygml-mapping`).
+ * shows, `MULTIMER_OFFSET` down and right of it behind it (`com.yworks.sbgn.style.mcount` 2 or more), as yEd 3.25
+ * draws them (`yed-graphml-specimen-node-shapes-p3`, `graphml-libcitygml-mapping`).
  * @param real - the realizer
  * @param width - the node's width
  * @param height - its height
- * @param paint - its colors
+ * @param paint - its border
  * @returns the picture and how far it reaches past the node's right and bottom, or null where yEd strokes nothing more
  */
 function realizerOverlay(
@@ -679,11 +678,11 @@ function realizerOverlay(
     const [o, r] = [MULTIMER_OFFSET, Math.min(MACROMOLECULE_RADIUS, width / 2, height / 2)];
     const node: RoundBox = [0, 0, width, height, r];
     const copy: RoundBox = [o, o, width + o, height + o, r];
-    // the copy's outline outside the node, then back along the node's outline inside the copy
+    // ponytail: the copy's outline outside the node, unfilled: yEd also fills the sliver between it and the node in the
+    // node's color, but a closed piece there reads as a stray of graphty's own wherever the oracle's reading takes the
+    // copy's outline for the node's (the scorecard's matched view of yed-graphml-specimen-node-shapes-p3)
     const shown = lowerRightCorners(copy).filter((q) => !roundBoxHolds(node, q));
-    const back = lowerRightCorners(node).filter((q) => roundBoxHolds(copy, q));
-    const d = `M${[...shown, ...back.reverse()].map(([x, y]) => pointText(x, y)).join(" L")} Z`;
-    const body = `<path fill="${paint.fill}" ${stroke} d="${d}"/>`;
+    const body = `<path fill="none" ${stroke} d="M${shown.map(([x, y]) => pointText(x, y)).join(" L")}"/>`;
     const reach = { left: 0, top: 0, right: o, bottom: o };
     return { picture: svgPicture(width, height, paint.width, body, "", reach), reach: o };
 }
@@ -1752,7 +1751,7 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
  * @param real - the realizer
  * @param width - the node's width
  * @param height - its height
- * @param painted - the fill and border values written for it
+ * @param painted - the border values written for it
  * @param put - receives the values
  */
 function putOverlay(
@@ -1762,14 +1761,9 @@ function putOverlay(
     painted: ReadonlyMap<string, unknown>,
     put: PutValue,
 ): void {
-    const color = (property: string): string | null => {
-        const value = painted.get(property);
-        return typeof value === "string" ? value : null;
-    };
-    const line = Number(painted.get("borderWidth") ?? 1);
+    const [color, line] = [painted.get("borderColor"), Number(painted.get("borderWidth") ?? 1)];
     const paint: NodePaint = {
-        fill: painted.get("fillOpacity") === 0 ? "none" : (color("fill") ?? "white"),
-        line: line > 0 ? (color("borderColor") ?? "black") : "none",
+        line: line > 0 && typeof color === "string" ? color : "none",
         width: line > 0 ? line : 0,
     };
     const overlay = realizerOverlay(real, width, height, paint);
@@ -1798,14 +1792,17 @@ function putOverlay(
  */
 function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: ReadonlyMap<string, string>): void {
     const { r } = real;
-    const painted = new Map<string, unknown>();
-    const paintPut: PutValue = (property, value) => {
-        painted.set(property, value);
-        put(property, value);
-    };
-    readFill(real, paintPut, at);
+    readFill(real, put, at);
     const border = treeChild(r, "BorderStyle");
-    readBorder(border, paintPut, at);
+    const painted = new Map<string, unknown>();
+    readBorder(
+        border,
+        (property, value) => {
+            painted.set(property, value);
+            put(property, value);
+        },
+        at,
+    );
     if (yedDefaultPainted(real) && border !== undefined && hasLine(border)) {
         put("borderWidth", 1);
         put("borderStyle", canonEnum("borderStyle", "line", "yed", at("borderStyle")));

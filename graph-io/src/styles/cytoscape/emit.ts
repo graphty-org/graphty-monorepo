@@ -189,9 +189,11 @@ const DESKTOP_BORDERS = {
     "dash-dot": "DASH_DOT",
     double: "PARALLEL_LINES",
 };
-// LONG_DASH is read as dashed (CX2 has no long dash), so long-dash is written as its nearest, EQUAL_DASH
-const DESKTOP_LINES = { ...DESKTOP_BORDERS, zigzag: "ZIGZAG", sinewave: "SINEWAVE" };
-const CX2_LINES = { solid: "solid", dashed: "dashed", dotted: "dotted", double: "double" };
+// a border has no long dash, so there long-dash is written as its nearest, dashed; CX2's `dashed` is drawn in long
+// dashes and its `equal_dash` in equal ones (lexicon.ts, CY_LONG_DASHES)
+const DESKTOP_LINES = { ...DESKTOP_BORDERS, "long-dash": "LONG_DASH", zigzag: "ZIGZAG", sinewave: "SINEWAVE" };
+const CX2_BORDERS = { solid: "solid", dashed: "dashed", dotted: "dotted", double: "double" };
+const CX2_LINES = { ...CX2_BORDERS, dashed: "equal_dash", "long-dash": "dashed" };
 const NEAR_LINES = { "dash-dot": "dashed", "long-dash": "dashed", zigzag: "solid", sinewave: "solid" };
 
 const DESKTOP_ARROWS = {
@@ -381,7 +383,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
                 "borderStyle",
                 {
                     vp: "NODE_BORDER_STYLE",
-                    write: enumOut(CX2_LINES, nearIn(CX2_LINES, NEAR_LINES), false, CY_OTHER_BORDERS),
+                    write: enumOut(CX2_BORDERS, nearIn(CX2_BORDERS, NEAR_LINES), false, CY_OTHER_BORDERS),
                 },
             ],
             [

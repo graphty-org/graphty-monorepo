@@ -911,10 +911,6 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        // A mask has just hidden or revealed something, so the cached list of what is drawn is
-        // out of date. See `settleActiveMeshFreeze`.
-        this.sceneChanged = true;
-
         // A time window's slide says which rows it moved, so a step costs those rows and not the
         // graph. Anything else that moved a mask answers null here and walks, as below.
         const sameLook =
@@ -987,15 +983,22 @@ export class UpdateManager implements Manager {
         selectionMoved: boolean,
         apply: { rows(rows: readonly number[]): void; selection(): void; walk(): void },
     ): void {
+        // A selection or a walk may enable, disable or rebuild meshes anywhere, so the cached list
+        // of what is drawn is out of date (see `settleActiveMeshFreeze`). Rows say for themselves
+        // whether they reached a mesh: a time window that only moves edges drawn from shared
+        // batches writes slots, and leaves the list -- a hundred thousand node instances -- frozen.
         if (rows !== null) {
             apply.rows(rows);
             if (selectionMoved) {
                 apply.selection();
+                this.sceneChanged = true;
             }
         } else if (moved && selectionOnly) {
             apply.selection();
+            this.sceneChanged = true;
         } else if (moved) {
             apply.walk();
+            this.sceneChanged = true;
         }
     }
 
@@ -1014,7 +1017,12 @@ export class UpdateManager implements Manager {
         const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
 
         for (const row of rows) {
-            nodesByIndex[row]?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState);
+            // Showing or hiding a node enables or disables its mesh, which the frozen list must see.
+            if (
+                nodesByIndex[row]?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState) === true
+            ) {
+                this.sceneChanged = true;
+            }
         }
     }
 
@@ -1033,6 +1041,10 @@ export class UpdateManager implements Manager {
             const visible = edgeVisibility?.has(row) === true;
 
             if (edge?.setRenderVisible(visible) === true) {
+                if (edge.togglesOwnMeshes()) {
+                    this.sceneChanged = true;
+                }
+
                 if (visible) {
                     this.edgesToPlace.push(edge);
                 }

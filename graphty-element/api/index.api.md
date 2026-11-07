@@ -1121,6 +1121,8 @@ export class Edge {
     srcNode: Node_2;
     // @internal
     supportEdge(): SupportEdge | null;
+    // @internal
+    togglesOwnMeshes(): boolean;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     // @internal

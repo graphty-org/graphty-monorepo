@@ -375,6 +375,42 @@ describe("changed rows on real nodes and edges", () => {
         assert.isAbove(thaw.mock.calls.length, 0, "the list of what is drawn was made again");
     });
 
+    it("keeps the frozen list of what is drawn through a step that shows and hides only batched edges", async () => {
+        const element = await slidingElement();
+        const { session, graph } = element;
+        const scene = graph.getScene();
+        const frozen = async (): Promise<void> => {
+            await drawn(element);
+            await vi.waitFor(() => {
+                assert.isTrue(scene._activeMeshesFrozen, "the scene at rest froze what it draws");
+            });
+        };
+
+        // Every node drawn: a step moves edges only, and each writes slots of a shared batch.
+        await session.time.window({ from: 0, to: 100, step: 10, nodes: "all" });
+        await session.time.seek(5, { commit: false });
+        await frozen();
+        const thaw = vi.spyOn(scene, "unfreezeActiveMeshes");
+        const edgesOnly = await session.time.seek(25, { commit: false });
+        await drawn(element);
+        assert.isAbove(edgesOnly.entered.edges + edgesOnly.left.edges, 0, "the step moved edges");
+        assert.strictEqual(edgesOnly.entered.nodes + edgesOnly.left.nodes, 0, "and no node");
+        assert.strictEqual(thaw.mock.calls.length, 0, "the list of what is drawn was not made again");
+        assertDrawnAsVisible(element, "after an edges-only step");
+        assertEdgesOnNodes(element, "after an edges-only step");
+
+        // Nodes following their edges: a node shown or hidden is a mesh enabled or disabled.
+        await session.time.window({ from: 0, to: 100, step: 10, nodes: "ends" });
+        await session.time.seek(5, { commit: false });
+        await frozen();
+        thaw.mockClear();
+        const withNodes = await session.time.seek(505, { commit: false });
+        await drawn(element);
+        assert.isAbove(withNodes.entered.nodes + withNodes.left.nodes, 0, "the step moved nodes");
+        assert.isAbove(thaw.mock.calls.length, 0, "the list of what is drawn was made again");
+        assertDrawnAsVisible(element, "after a step that moved nodes");
+    });
+
     it("places the edges of a node a Ghost step resized, and only those, with no walk", async () => {
         const element = await slidingElement(async (mountedElement) => {
             await drawGhosts(mountedElement);

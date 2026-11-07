@@ -292,7 +292,7 @@ export function neighborhood(
     // key it returned. ponytail: a page boundary falling between two paths to the same neighbor
     // (parallel relationships, or depth > 1) drops the later paths; page on (key, path) if that matters.
     const head = [
-        `MATCH (s) WHERE ${seedMatch(profile, filters)}`,
+        `MATCH (s) WHERE ${idExpression("s", profile, filters)} IN $ids`,
         `OPTIONAL MATCH p = (s)${pattern}(x)${whereClause(x)}`,
     ];
     if (shape.limit === null) {
@@ -307,19 +307,6 @@ export function neighborhood(
     ]
         .filter((l) => l !== null)
         .join(" ");
-}
-
-/**
- * The seed predicate of a neighborhood: the id property in `$ids`, or -- for a node an earlier
- * neighborhood keyed by the server's id because it lacked the property -- the server's id. Two
- * seekable predicates joined by OR, never coalesce(), so a property index still serves the lookup.
- * @param profile - the server's profile
- * @param filters - the id property
- * @returns the predicate; it reads `$ids`
- */
-function seedMatch(profile: CypherProfile, filters: QueryFilters): string {
-    const server = `${idExpression("s", profile, filters, false)} IN $ids`;
-    return filters.idProperty === null ? server : `(s.${filters.idProperty} IN $ids OR ${server})`;
 }
 
 /**

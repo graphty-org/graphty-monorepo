@@ -71,7 +71,7 @@ describe("generated queries", () => {
         const byUuid = { ...filters, idProperty: "`uuid`" };
         const out = neighborhood(neo4jProfile(null), byUuid, { depth: "2", direction: "out", limit: "50" }, false);
         expect(out).toBe(
-            "MATCH (s) WHERE (s.`uuid` IN $ids OR elementId(s) IN $ids) OPTIONAL MATCH p = (s)-[:`KNOWS`|`LIKES`*1..2]->(x) WHERE (x:`Person`) WITH s, p, coalesce(x.`uuid`, elementId(x)) AS key WITH s, p, key ORDER BY key LIMIT 50 RETURN s, p, key",
+            "MATCH (s) WHERE s.`uuid` IN $ids OPTIONAL MATCH p = (s)-[:`KNOWS`|`LIKES`*1..2]->(x) WHERE (x:`Person`) WITH s, p, coalesce(x.`uuid`, elementId(x)) AS key WITH s, p, key ORDER BY key LIMIT 50 RETURN s, p, key",
         );
         // A capped expansion's next page starts after the last neighbor key it returned.
         expect(

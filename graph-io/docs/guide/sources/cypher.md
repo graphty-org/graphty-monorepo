@@ -136,8 +136,8 @@ A node's id is the server's id: `elementId(n)` on Neo4j 5 and later, `id(n)` bef
 3.5), and the `~id` string on Neptune. A Neo4j id is stable while the node exists, but may be reused
 after it is deleted. If your nodes have a stable key of their own, pass it as `idProperty`: nodes
 are then keyed by that property. Mode `"all"` leaves out nodes without it; a neighborhood (mode
-`"neighborhood"` and `expandFromSource`) keeps them, keyed by the server's id, and accepts either
-kind of id as a seed.
+`"neighborhood"` and `expandFromSource`) keeps them, keyed by the server's id. Seeds are always
+matched by the property, so a node keyed by its server id cannot itself be a seed.
 
 ## Expanding a node
 

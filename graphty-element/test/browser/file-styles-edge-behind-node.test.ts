@@ -25,9 +25,11 @@ afterEach(() => {
 /**
  * Where the line from `free` to `back` ends, as a share of `back`'s half width from its middle.
  * @param zIndex - The z-index `back` is drawn at.
+ * @param port - Whether the line ends at a port at `back`'s middle, as yEd's do (`edge.targetPort` "0,0").
  * @returns The share: 0 at its middle, 1 at its outline.
  */
-async function endShare(zIndex: number): Promise<number> {
+async function endShare(zIndex: number, port = false): Promise<number> {
+    mounted?.remove();
     const element = document.createElement("graphty-element");
     element.style.cssText = "display:block;width:480px;height:360px";
     document.body.appendChild(element);
@@ -46,7 +48,7 @@ async function endShare(zIndex: number): Promise<number> {
         name: "bare",
         target: "edge",
         selector: { match: "everything" },
-        set: { "edge.arrowHead": "none" },
+        set: { "edge.arrowHead": "none", ...(port ? { "edge.targetPort": "0,0" } : {}) },
     });
     await element.session.data.addNodes([
         { id: "back", position: { x: 0, y: 0, z: 0 } },
@@ -75,6 +77,10 @@ async function endShare(zIndex: number): Promise<number> {
 describe("a line to a node drawn behind every edge", () => {
     it("ends at the node's outline", async () => {
         assert.closeTo(await endShare(-1), 1, 0.05);
+    });
+
+    it("ends at the node's outline though its port is at the node's middle", async () => {
+        assert.closeTo(await endShare(-1, true), 1, 0.05);
     });
 
     it("runs to the middle of a node at z-index 0, which hides it", async () => {

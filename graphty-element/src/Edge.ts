@@ -3333,10 +3333,12 @@ export class Edge {
         }
         const { route, sampled } = Edge.shapeBentRoute(line, through);
         // a layout's own line ends are drawn from where they lie, as ports are: on a cluster's border, a node's outer
-        // periphery or at a port inside the node
+        // periphery or at a port inside the node. A port on a node drawn behind every edge, which hides no stretch of
+        // the line, only aims it: the line is cut at the node's outline, as yEd cuts one at a group's border
+        // (graphml-galaxy-lcms-workflow's bands from its "3 tabulars" group, ports at its middle).
         const ports = {
-            src: stored.srcPort !== null || stored.ends === true,
-            dst: stored.dstPort !== null || stored.ends === true,
+            src: (stored.srcPort !== null && !this.srcNode.isDrawnBehindEdges) || stored.ends === true,
+            dst: (stored.dstPort !== null && !this.dstNode.isDrawnBehindEdges) || stored.ends === true,
         };
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
         const outSrc = Edge.outside(this.srcNode, src, srcGap);

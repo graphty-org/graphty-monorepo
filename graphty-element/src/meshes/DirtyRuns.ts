@@ -2,7 +2,15 @@ import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import type { Mesh } from "@babylonjs/core";
 
-/** The most runs one upload sends: past it, the runs nearest each other are joined into one. */
+/**
+ * The most runs one upload sends: past it, the runs nearest each other are joined into one.
+ *
+ * A CALL COSTS MORE THAN THE BYTES IT SAVES, so do not raise this to make a scattered write upload
+ * less. A time-window jump over 1,000,000 edges (test/browser/timeline-frame-bench.ts, RTX 4070
+ * SUPER, 40,000 rows changed, render milliseconds at each cap): 1,024 runs sent 138 MB in 47.5 ms,
+ * 4,096 sent 103 MB in 45.6 ms, 16,384 sent 37 MB in 57.4 ms, and no cap sent 7 MB in 96,000 calls
+ * in 71.4 ms. Each call costs about 0.3 us more than the unwritten slots it skips.
+ */
 export const MAX_RUNS = 4_096;
 
 /**

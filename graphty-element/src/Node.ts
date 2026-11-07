@@ -907,6 +907,7 @@ export class Node implements ModelUser {
      * @internal
      */
     framingBounds(): { min: Vector3; max: Vector3 } {
+        this.followRow();
         if (this.#anchor.isDisposed()) {
             const pos = this.#anchor.getAbsolutePosition();
             const half = new Vector3(this.size / 2, this.size / 2, this.size / 2);
@@ -1400,6 +1401,7 @@ export class Node implements ModelUser {
             }
         }
 
+        this.followRow();
         return this.#anchor.getAbsolutePosition();
     }
 
@@ -1413,12 +1415,50 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether a frame's walk still has to visit this node: it is drawn by its own mesh, or carries
+     * an overlay placed from its position. A batched row is drawn from the row table and follows
+     * it only when read ({@link Node.followRow}).
+     * @returns True when it does.
+     * @internal
+     */
+    get walksEachFrame(): boolean {
+        return this.batchSource === null || this.halo?.isEnabled() === true || this.contextPoint?.isEnabled() === true;
+    }
+
+    /** The table's `moves` when a batched row's anchor last followed its row. */
+    private followedMoves = -1;
+
+    /**
+     * Bring a batched row's anchor to where its table row is drawn. Under `"batched"` the frame's
+     * walk visits no batched row, so its anchor is moved here, by whatever reads it, and only when
+     * the table moved a row since it last followed. A held row was put by setMeshPosition, which
+     * wrote the anchor itself.
+     */
+    private followRow(): void {
+        const table = this.batchTable;
+        if (table === null || table.moves === this.followedMoves || table.isHeld(this.row) || this.row >= table.rows) {
+            return;
+        }
+
+        this.followedMoves = table.moves;
+        this.#anchor.position.copyFrom(table.centerOf(this.row));
+        // Its world place too, which Babylon would otherwise refresh only at the next frame.
+        this.#anchor.computeWorldMatrix(true);
+    }
+
+    /**
      * Say a batch draws this node, or that it no longer does. Call it again when the row's source changes.
      * @param source - The shared mesh the batch draws from, or null.
      * @internal
      */
     drawInBatch(source: AbstractMesh | null): void {
+        // Leaving the batch, the row takes its anchor's place with it: bring it to the table first.
+        if (source === null) {
+            this.followRow();
+        }
+
         this.batchSource = source;
+        this.followedMoves = -1;
         if (
             source !== null &&
             this.#mesh instanceof InstancedMesh &&
@@ -1476,6 +1516,7 @@ export class Node implements ModelUser {
         }
 
         const { minimum, maximum } = this.#source.getBoundingInfo();
+        this.followRow();
         return new BoundingInfo(minimum, maximum, this.#anchor.computeWorldMatrix());
     }
 
@@ -1545,6 +1586,7 @@ export class Node implements ModelUser {
      * @internal
      */
     drawnWorldMatrix(force?: boolean): Matrix {
+        this.followRow();
         return this.#anchor.computeWorldMatrix(force);
     }
 
@@ -1608,6 +1650,7 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnAnchor(): TransformNode {
+        this.followRow();
         return this.#anchor;
     }
 
@@ -2554,6 +2597,7 @@ export class Node implements ModelUser {
         // Save the current position before disposing the mesh
         // This is critical for style changes when layout is settled,
         // because updateNodes() won't be called to restore positions
+        this.followRow();
         const savedPosition = {
             x: this.#anchor.position.x,
             y: this.#anchor.position.y,
@@ -2965,6 +3009,7 @@ export class Node implements ModelUser {
         // halo is drawn even while the selection's own halo is hidden at opacity 0.
         if (!wanted || (kind === "halo" && look.opacity === 0)) {
             this.hideOverlay(kind, existing);
+            this.context.getNodeBatches?.()?.rewalk(this);
             return;
         }
 
@@ -2997,8 +3042,10 @@ export class Node implements ModelUser {
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
         }
 
+        this.followRow();
         overlay.position.copyFrom(this.#anchor.position);
         overlay.setEnabled(true);
+        this.context.getNodeBatches?.()?.rewalk(this);
     }
 
     /**
@@ -3443,6 +3490,7 @@ export class Node implements ModelUser {
      * overlay parented to the node's own mesh would vanish in exactly the case it exists for.
      */
     private syncOverlayPositions(): void {
+        this.followRow();
         if (this.halo && !this.halo.isDisposed()) {
             this.halo.position.copyFrom(this.#anchor.position);
         }
@@ -4004,6 +4052,7 @@ export class Node implements ModelUser {
      * @returns An object containing the x, y, and z coordinates of the node
      */
     getPosition(): { x: number; y: number; z: number } {
+        this.followRow();
         return {
             x: this.#anchor.position.x,
             y: this.#anchor.position.y,

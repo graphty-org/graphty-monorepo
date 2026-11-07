@@ -79,7 +79,10 @@ const MAX_TABLE_KEYS = 256;
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
 export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 
-/** How a file's styles are turned into layers: choices another consumer may make differently. */
+/**
+ * How a file's styles are turned into layers: choices another consumer may make differently.
+ * @experimental file-styles
+ */
 export interface FileStyleOptions {
     /**
      * How lengths are scaled: `"median"` (the default) scales every length by one factor, so the
@@ -88,8 +91,8 @@ export interface FileStyleOptions {
      * proportions; `"file"` keeps the file's numbers as they are; `"spacing"` scales every length by one factor too,
      * chosen so the spacing the writing program's own layout leaves between nodes once it settles (graph-io's
      * `layoutSpacing`) is drawn at the spacing the element's force layout settles at, so a file that stores no
-     * positions is laid out with its nodes as large beside the gaps as the program draws them. A program with no stated spacing is scaled
-     * as `"median"` is.
+     * positions is laid out with its nodes as large beside the gaps as the program draws them. A file that stores
+     * positions, or one from a program with no stated spacing, is scaled as `"median"` is.
      */
     readonly lengths?: "median" | "file" | "spacing";
     /**
@@ -147,7 +150,10 @@ export function pictureUrl(src: string, base: string | undefined): string {
     }
 }
 
-/** One note of a translation: a code and the facts it is about. */
+/**
+ * One note of a translation: a code and the facts it is about.
+ * @experimental file-styles
+ */
 export interface FileStyleNote {
     /** What happened. */
     readonly code: FileStyleNoteCode;
@@ -184,6 +190,8 @@ export interface TranslateInput {
      * the unit of its other lengths.
      */
     readonly labelPxPerUnit?: number;
+    /** Whether the file stored a usable position for any node, so no program's own layout placed it. */
+    readonly positionsStored?: boolean;
 }
 
 /** One layer the translation made. */
@@ -1860,7 +1868,11 @@ function sceneScaleOf(input: TranslateInput): number {
     // size of the element's own node with its label, as a file that sizes its nodes does.
     const labelMedian = nodeMedian === null ? median(resolved("node", "labelSize")) : null;
     const labelBase = typeof base.node["node.labelSize"] === "number" ? base.node["node.labelSize"] : DEFAULT_LABEL_PX;
-    const spacing = input.options.lengths === "spacing" ? programSpacing(extracted.styles.source.tool) : null;
+    // The program's layout spacing says nothing about a file that stores its own positions: it is drawn as "median"
+    const spacing =
+        input.options.lengths === "spacing" && input.positionsStored !== true
+            ? programSpacing(extracted.styles.source.tool, snapshot.nodeCount)
+            : null;
     if (spacing !== null) {
         return NGRAPH_SETTLED_SPACING / spacing;
     }
@@ -1874,12 +1886,19 @@ function sceneScaleOf(input: TranslateInput): number {
 }
 
 /**
- * How far apart the program that wrote a file leaves the nodes of its layout once it settles, in the file's units.
+ * How far apart the program that wrote a file leaves the nodes of its layout once it settles, in the file's units:
+ * its stated settled spacing, or, for a program that scatters the nodes over a square at random (Gephi), the median
+ * nearest-node distance of that many uniform points, side * sqrt(ln 2 / (pi n)).
  * @param tool - The program.
+ * @param nodes - How many nodes the file has.
  * @returns The spacing, or null when the program states none.
  */
-function programSpacing(tool: StyleTool | null): number | null {
-    const spacing = tool === null ? undefined : toolDefaults(tool)?.layoutSpacing?.value;
+function programSpacing(tool: StyleTool | null, nodes: number): number | null {
+    const defaults = tool === null ? undefined : toolDefaults(tool);
+    const side = defaults?.layoutScatterSide?.value;
+    const spacing =
+        defaults?.layoutSpacing?.value ??
+        (side === undefined || nodes < 2 ? undefined : side * Math.sqrt(Math.LN2 / (Math.PI * nodes)));
     return spacing !== undefined && spacing > 0 ? spacing : null;
 }
 

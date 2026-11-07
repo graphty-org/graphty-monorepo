@@ -10,6 +10,9 @@ import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { Projector } from "../fidelity/drawn-scene";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** Two nodes of one size, the second overlapping the first by half its width: red, then blue. */
 const DOC = JSON.stringify({

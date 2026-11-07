@@ -1861,7 +1861,6 @@ export const NodeShapes: z.ZodEnum<{
     cross: "cross";
     star: "star";
     sphere: "sphere";
-    ellipse: "ellipse";
     cylinder: "cylinder";
     cone: "cone";
     capsule: "capsule";
@@ -1889,6 +1888,7 @@ export const NodeShapes: z.ZodEnum<{
     "round-rectangle": "round-rectangle";
     "top-round-rectangle": "top-round-rectangle";
     "bottom-round-rectangle": "bottom-round-rectangle";
+    ellipse: "ellipse";
     triangle: "triangle";
     pentagon: "pentagon";
     hexagon: "hexagon";
@@ -1919,8 +1919,8 @@ export const NodeStyle: z.ZodObject<{
             diameter: "diameter";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
-            low: "low";
             full: "full";
+            low: "low";
         }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
@@ -1930,7 +1930,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -1958,6 +1957,7 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
             triangle: "triangle";
             pentagon: "pentagon";
             hexagon: "hexagon";
@@ -2134,7 +2134,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -2162,6 +2161,7 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
             triangle: "triangle";
             pentagon: "pentagon";
             hexagon: "hexagon";
@@ -2195,7 +2195,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -2223,6 +2222,7 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
             triangle: "triangle";
             pentagon: "pentagon";
             hexagon: "hexagon";
@@ -2335,9 +2335,9 @@ export const NodeStyle: z.ZodObject<{
         paddingRatio: z.ZodOptional<z.ZodNumber>;
         paddingOf: z.ZodOptional<z.ZodEnum<{
             width: "width";
-            height: "height";
             min: "min";
             max: "max";
+            height: "height";
             average: "average";
         }>>;
         minWidth: z.ZodOptional<z.ZodNumber>;

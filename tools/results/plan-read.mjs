@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-import { config, readPlan } from "./client.mjs";
+import { config, fetchPlan } from "./client.mjs";
 
 const familyOf = (shard) => shard.replace(/-\d+$/, "");
 
@@ -61,6 +61,15 @@ export function durationsOf(plan) {
 }
 
 /**
+ * Says why there is no plan, as a ::warning:: annotation on the run page: the bins fall back to one per file, which
+ * multiplies the run's jobs (#6164).
+ * @param why the reason the read failed
+ */
+export function fallback(why) {
+    console.log(`::warning::results store: no plan (${why}); test bins are packed without history, one job per file`);
+}
+
+/**
  * Reads the plan and writes results-plan.json and durations.json.
  * @param o options
  * @param o.root the checkout
@@ -77,10 +86,12 @@ export async function planRead({ root, affected, out, sha, base, files = [], env
     const variants = variantsOf(SHARDS, affected, STORY_SHARDS);
     const cfg = config(env, root);
     let plan = null;
-    let why = cfg ? "no answer" : "results store not configured";
+    let why = "results store not configured";
     if (cfg && variants.length > 0) {
         // the inputs key is per group and not known before the bins exist: no `passedWithInputs` reuse yet
-        plan = await readPlan(cfg, { sha, base, variants, inputs: variants.map(() => "-"), files });
+        const r = await fetchPlan(cfg, { sha, base, variants, inputs: variants.map(() => "-"), files });
+        if (r.ok && r.data) plan = r.data;
+        else why = r.ok ? "the store answered with no plan" : r.why;
     } else if (variants.length === 0) {
         why = "no affected shard";
     }
@@ -91,11 +102,9 @@ export async function planRead({ root, affected, out, sha, base, files = [], env
     writeFileSync(join(out, "results-plan.json"), JSON.stringify(plan ? { ...plan, families } : { unavailable: why }));
     writeFileSync(join(out, "durations.json"), JSON.stringify(durations));
     const n = Object.values(durations).reduce((t, d) => t + Object.keys(d).length, 0);
-    console.log(
-        plan
-            ? `results store: plan read for ${variants.length} variants, durations of ${n} files`
-            : `results store: no plan (${why}); bins are packed without history`,
-    );
+    if (plan) console.log(`results store: plan read for ${variants.length} variants, durations of ${n} files`);
+    else if (variants.length === 0) console.log(`results store: no plan (${why})`);
+    else fallback(why);
     return { plan, durations };
 }
 
@@ -117,7 +126,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         await planRead({ root: process.cwd(), affected, out, sha: values.sha, base: values.base, files });
     } catch (e) {
         // fail open: the plan is an optimisation, never a reason to fail the run
-        console.log(`results store: no plan (${e.message.split("\n")[0]}); bins are packed without history`);
+        fallback(e.message.split("\n")[0]);
         mkdirSync(out, { recursive: true });
         writeFileSync(join(out, "results-plan.json"), JSON.stringify({ unavailable: e.message.split("\n")[0] }));
         writeFileSync(join(out, "durations.json"), "{}");

@@ -90,7 +90,7 @@ export function layoutName(descriptor: LayoutDescriptor): string {
  * @param descriptor - the layout.
  * @returns true for a Graphviz engine.
  */
-export function isGraphviz(descriptor: LayoutDescriptor): boolean {
+function isGraphviz(descriptor: LayoutDescriptor): boolean {
     return layoutEntry(descriptor.id)?.implementations[0]?.fact.code === "implementation.graphviz";
 }
 
@@ -101,7 +101,7 @@ export function isGraphviz(descriptor: LayoutDescriptor): boolean {
  * @param implementation - the engine.
  * @returns the descriptor.
  */
-export function withEngine(descriptor: LayoutDescriptor, implementation: LayoutImplementation): LayoutDescriptor {
+function withEngine(descriptor: LayoutDescriptor, implementation: LayoutImplementation): LayoutDescriptor {
     return {
         ...descriptor,
         engine: implementation.engine,

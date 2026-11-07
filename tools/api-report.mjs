@@ -142,6 +142,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "credentialSlot",
     "field",
     "column",
+    // a table's id in a load draft, ready for a mapping (TimeFound)
+    "table",
     // the column a load read (the weight's attribute, the columns an edge's ends came from)
     "attribute",
     "source",

@@ -458,7 +458,7 @@ describe("keys and boxes in the panes", () => {
         const session = await lesMis();
         const layer = await openLayer(session, "Named", { match: "everything" });
         // A layer of every node opens on its new step's pane: its value field opens the picker.
-        await userEvent.click(screen.getByRole("button", { name: /^Edit Which nodes/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
         await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("name{Enter}");

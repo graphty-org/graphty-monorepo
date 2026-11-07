@@ -9,7 +9,6 @@ import {
 } from "@graphty/compact-mantine";
 import type { DataIssue, GraphSession, IssueId, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Chip, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/core";
-import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
@@ -19,6 +18,8 @@ import { runName } from "../runWords";
 import { formatCount, useNumberFormats } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { panelsInView } from "../time/timeActions";
+import { useBoxSize } from "../useBoxSize";
 import {
     columnChoices,
     columnSummary,
@@ -498,7 +499,9 @@ function MaximizeButton({
             aria-pressed={maximized}
             onClick={() => {
                 // Maximized, the configuration (Sources, Fields, Filters) is the Data place's.
-                store.set(maximized ? { dockMaximized: false } : { dockMaximized: true, place: "data" });
+                store.set(
+                    maximized ? { dockMaximized: false } : { dockMaximized: true, place: "data", ...panelsInView() },
+                );
             }}
         >
             {maximized ? <GLYPHS.minimize size={16} aria-hidden /> : <GLYPHS.maximize size={16} aria-hidden />}
@@ -700,7 +703,7 @@ export function TableDock(): React.JSX.Element {
     useNumberFormats();
     // A filter step changes which records the table lists.
     useVisibilityVersion(session);
-    const { ref: bodyRef, height: bodyHeight } = useElementSize();
+    const { ref: bodyRef, height: bodyHeight } = useBoxSize();
     const [renaming, setRenaming] = useState<string | null>(null);
     const [arrangement, setArrangement] = useState<Arrangement>(() => ARRANGEMENTS.get(store) ?? FIRST_ARRANGEMENT);
     useEffect(() => {

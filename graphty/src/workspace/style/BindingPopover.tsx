@@ -41,7 +41,7 @@ const PER_VALUE_MOST = 24;
  * What a categorical color binding does with more values than its palette tells apart. Repeated
  * colors always come with a second cue, a node's shape or an edge's pattern, never color alone.
  */
-export const OVERFLOW_WORDS = {
+const OVERFLOW_WORDS = {
     node: [
         { value: "other", label: "Fold into Other" },
         { value: "shape", label: "Repeat colors, change shape" },
@@ -1186,7 +1186,7 @@ function QuietButton({
  * @param props.patch - writes a change
  * @returns The two fields
  */
-export function Range({
+function Range({
     descriptor,
     range,
     patch,

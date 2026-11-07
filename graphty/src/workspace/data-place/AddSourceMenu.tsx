@@ -12,13 +12,7 @@ import { useCommand } from "../state/WorkspaceContext";
  * drawn only once its package registers it. Paste means what it means everywhere (`readPasted`):
  * the clipboard, opened as a web address when it is one, else read as data.
  */
-export const ADD_SOURCE = [
-    "data.add-file",
-    "data.samples",
-    "data.add-server",
-    "data.add-network",
-    "data.add-paste",
-] as const;
+const ADD_SOURCE = ["data.add-file", "data.samples", "data.add-server", "data.add-network", "data.add-paste"] as const;
 
 /** Each item's glyph, drawn before its label as the Style "+" items are. */
 const GLYPH: Readonly<Record<(typeof ADD_SOURCE)[number], React.ReactNode>> = {

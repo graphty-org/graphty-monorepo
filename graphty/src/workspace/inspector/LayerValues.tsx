@@ -1,11 +1,20 @@
 import { ControlSection, DataRow, DataRowHeader, HistogramRow } from "@graphty/compact-mantine";
-import type { Channel, GraphSession, Layer, NodeId, Path, Run, ScopeInput } from "@graphty/graphty-element/session";
+import {
+    type Channel,
+    type GraphSession,
+    type Layer,
+    type NodeId,
+    type Path,
+    type Run,
+    type ScopeInput,
+    selectorStates,
+} from "@graphty/graphty-element/session";
 import { Button, ColorSwatch, Text } from "@mantine/core";
 import React, { useState } from "react";
 
 import { findTreeRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { everythingRow, sourceName, startingEverything } from "../style/row";
+import { everythingRow, sourceName, wholeGraphRow } from "../style/row";
 import { useStyleVersion } from "../style/useStyleVersion";
 import { channelWord, groupRank, hexOf, valueName } from "../style/words";
 import { DistributionRows } from "./Distribution";
@@ -589,7 +598,7 @@ export function LayerValues({
     const counted = layers.map((layer) => ({ layer, counts: session.styles.counts(layer.id) }));
     const paths = [...new Set(counted.flatMap(({ counts }) => counts.reads))];
     const reads = paths.map((path) => valueRead(session, path));
-    const states = layers.flatMap((layer) => (layer.selector.match === "state" ? [layer.selector.state] : []));
+    const states = layers.flatMap((layer) => selectorStates(layer.selector));
     const readers = (path: Path): Layer[] =>
         counted.filter(({ counts }) => counts.reads.includes(path)).map(({ layer }) => layer);
     const version = `${String(styleVersion)}:${String(sessionVersion)}`;
@@ -648,8 +657,8 @@ export function LayerValues({
 }
 
 /**
- * The Everything row's Values tab: the same structure as every other layer's, read from the
- * starting Everything row (or the reader's own layer that paints everything).
+ * The Everything row's Values tab: the same structure as every other layer's, read from the row
+ * that paints the whole graph.
  * @returns the tab
  */
 export function EverythingRowValues(): React.JSX.Element | null {
@@ -657,7 +666,7 @@ export function EverythingRowValues(): React.JSX.Element | null {
     if (session === null) {
         return null;
     }
-    const id = startingEverything(session);
+    const id = wholeGraphRow(session);
     return id === undefined ? <LayerValues id="" layerIds={everythingRow(session)} /> : <LayerValues id={id} />;
 }
 

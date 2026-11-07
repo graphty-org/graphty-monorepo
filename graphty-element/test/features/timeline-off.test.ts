@@ -400,7 +400,7 @@ describe("a project saved with the timeline on, opened with it off", () => {
         await session.project.open(text);
         await session.visibility.setSteps([{ id: "first", on: true, rule: { kind: "edges", where: "source == 'A'" } }]);
 
-        const { jumps, rows, scans, filterReads } = slideCounters;
+        const { jumps, rows, scans, filterReads, rewritten, spans } = slideCounters;
         for (const days of [1, 2, 3]) {
             const { full } = slideCounters;
             await session.visibility.setWindow({ ...FIRST_DAYS, to: FIRST_DAYS.from + days * DAY });
@@ -411,7 +411,7 @@ describe("a project saved with the timeline on, opened with it off", () => {
         await session.undo();
         assert.deepEqual(
             { ...slideCounters, full: 0 },
-            { full: 0, jumps, rows, scans, filterReads },
+            { full: 0, jumps, rows, scans, filterReads, rewritten, spans },
             "nothing slid, jumped or kept the filter's tests",
         );
     });

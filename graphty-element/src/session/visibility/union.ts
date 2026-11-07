@@ -23,7 +23,7 @@ export type Bytes = Uint8Array;
 type Test = (index: number) => boolean;
 
 /** A compiled leaf's two halves, null where it is silent. */
-export interface Halves {
+interface Halves {
     readonly node: Test | null;
     readonly edge: Test | null;
 }
@@ -104,7 +104,7 @@ export interface StepGate {
 }
 
 /** One step as {@link readUnion} read it. */
-export interface StepRead {
+interface StepRead {
     readonly id: string | undefined;
     /** `"applied"`, `"inert"`, `"pending"` or `"off"`. */
     readonly state: "applied" | "inert" | "pending" | "off";
@@ -121,7 +121,7 @@ export interface StepRead {
 }
 
 /** One branch as {@link readUnion} read it. */
-export interface BranchRead {
+interface BranchRead {
     readonly id: string | undefined;
     readonly color: string | undefined;
     /** `"ready"`, `"pending"` (a step waits) or `"off"`. */
@@ -184,7 +184,7 @@ export function countOf(bytes: Bytes): number {
  * @param edges - The edges.
  * @returns The nodes.
  */
-export function endsOf(graph: GraphSnapshot, edges: Bytes): Bytes {
+function endsOf(graph: GraphSnapshot, edges: Bytes): Bytes {
     const { src, dst } = graph.edgeList();
     const nodes = new Uint8Array(graph.nodeCount);
     for (let edge = 0; edge < graph.edgeCount; edge++) {

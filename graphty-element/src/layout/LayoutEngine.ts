@@ -80,6 +80,19 @@ export interface EdgePosition {
      * @since 3.35.0
      */
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
+    /**
+     * Where the layout starts and ends the edge's line, when it ends it itself, each given as
+     * {@link EdgePosition.labelAt} is: `target` is where an arrowhead's tip goes. The line is drawn to these ends instead
+     * of being cut at its nodes' outlines. A Graphviz layout with `nodeSize: "label"`, whose nodes Graphviz shapes as
+     * the element draws them, gives them: Graphviz's spline ends, on the outer ring of a node of several peripheries, at
+     * a record's field port, or on the border of the cluster an `lhead` or `ltail` names. Absent, the line is cut at
+     * the outlines.
+     * @since 3.36.0
+     */
+    lineEnds?: {
+        readonly source: readonly [along: number, across: number];
+        readonly target: readonly [along: number, across: number];
+    };
 }
 
 /**
@@ -517,6 +530,16 @@ export abstract class LayoutEngine {
      * @internal
      */
     wakeForResize(): boolean {
+        return false;
+    }
+
+    /**
+     * Whether this engine keeps nodes apart by their drawn size (`nodeGap`), so it must not step while a size is still
+     * to come: see `UpdateManager.updateLayout`.
+     * @returns True when the engine reads node sizes.
+     * @internal
+     */
+    get spacesBySize(): boolean {
         return false;
     }
 
@@ -1301,6 +1324,17 @@ function compact<T>(list: T[], gone: Set<T>): T[] {
 }
 
 /**
+ * Sweep a list once half of it is marked removed. See {@link StaticLayoutEngine.removeNode}.
+ * @param list - the list
+ * @param gone - what is marked removed from it
+ */
+function sweepAtHalf<T>(list: T[], gone: Set<T>): void {
+    if (2 * gone.size >= list.length) {
+        compact(list, gone);
+    }
+}
+
+/**
  * Whether two lists hold the same items in the same order.
  * @param a - one list
  * @param b - the other
@@ -1522,6 +1556,8 @@ export const simpleLayoutInternals = {
     kept(engine: StaticLayoutEngine): NodeMask | null;
     /** The element's array for the run in progress, or null for an engine driven without one. */
     positions(engine: StaticLayoutEngine): ElementPositions | null;
+    /** How many nodes and edges the engine's lists hold, removed ones not yet swept included, without sweeping them. */
+    held(engine: StaticLayoutEngine): { readonly nodes: number; readonly edges: number };
 };
 
 /**
@@ -1548,6 +1584,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     static {
         simpleLayoutInternals.kept = (engine) => engine.#keep;
         simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
+        simpleLayoutInternals.held = (engine) => ({ nodes: engine.#nodes.length, edges: engine.#edges.length });
     }
 
     static type: string;
@@ -1860,12 +1897,19 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * layout is marked stale, so the next read recomputes it without the node.
      *
      * The node is only marked here, and the list is swept once, in order, at the next read of
-     * `_nodes`. Finding and splicing it out at once cost the length of the list per removal, so
-     * tearing down a graph of n nodes one node at a time cost n^2/2 moves: 8.6 s at 100,000 nodes.
+     * `_nodes` or once half of it is marked, whichever comes first. Finding and splicing it out at
+     * once cost the length of the list per removal, so tearing down a graph of n nodes one node at a
+     * time cost n^2/2 moves: 8.6 s at 100,000 nodes. Waiting only for a read held every removed
+     * node for as long as nothing read the list -- and the element's own engines read the graph
+     * snapshot, not the list -- so each replacing import left the whole graph it replaced behind,
+     * about 900 MB at 100,000 nodes (issue #6006). Sweeping at half costs each removal amortized
+     * constant time, empties the list when the whole graph goes, and holds no more removed nodes
+     * than live ones.
      * @param n - the node leaving the graph
      */
     override removeNode(n: Node): void {
         this.#goneNodes.add(n);
+        sweepAtHalf(this.#nodes, this.#goneNodes);
         this.stale = true;
     }
 
@@ -1875,6 +1919,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     override removeEdge(e: Edge): void {
         this.#goneEdges.add(e);
+        sweepAtHalf(this.#edges, this.#goneEdges);
         this.stale = true;
     }
 

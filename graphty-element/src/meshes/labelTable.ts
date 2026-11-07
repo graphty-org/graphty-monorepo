@@ -5,16 +5,16 @@
  */
 
 /** Which way something lines up across its room. */
-export type TableAlign = "left" | "right" | "center";
+type TableAlign = "left" | "right" | "center";
 
 /** Which way something lines up down its room. */
-export type TableVAlign = "top" | "bottom" | "middle";
+type TableVAlign = "top" | "bottom" | "middle";
 
 /** Which way a length lines up in a longer one: toward its start, its end, or in its middle. */
 type Way = "start" | "end" | "middle";
 
 /** One line of a cell's text: its words in label markup, and which way it lines up in the cell's text box. */
-export interface LabelTableLine {
+interface LabelTableLine {
     readonly text: string;
     readonly align?: TableAlign;
 }
@@ -30,7 +30,7 @@ export interface LabelTableImage {
 }
 
 /** One cell of a table. Lengths are in the units of the node's size. */
-export interface LabelTableCell {
+interface LabelTableCell {
     readonly lines?: readonly LabelTableLine[];
     readonly table?: LabelTable;
     readonly image?: LabelTableImage;
@@ -52,7 +52,7 @@ export interface LabelTableCell {
 }
 
 /** One row of a table. */
-export interface LabelTableRow {
+interface LabelTableRow {
     readonly cells: readonly LabelTableCell[];
     readonly rule?: boolean;
 }
@@ -91,7 +91,7 @@ export interface LabelTable {
 }
 
 /** A box, from the table's top left corner, y down. */
-export interface TableBox {
+interface TableBox {
     readonly x: number;
     readonly y: number;
     readonly width: number;

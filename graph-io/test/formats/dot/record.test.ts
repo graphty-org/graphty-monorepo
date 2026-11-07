@@ -6,11 +6,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { layoutRecord, textWidth } from "../../../src/formats/dot/record.js";
+import { fontWidths, layoutRecord, textWidth } from "../../../src/formats/dot/record.js";
 import { createRegistry } from "../../../src/registry.js";
 import { resolveStyles, type StyleProperty } from "../../../src/styles/index.js";
 
 const same = (line: string): string => line;
+const dejavu = fontWidths("DejaVu Sans");
 
 /**
  * Lays a fixed 80 x 40 record out at 10 points.
@@ -19,7 +20,7 @@ const same = (line: string): string => line;
  * @returns the layout
  */
 function record(label: string, lr = true): ReturnType<typeof layoutRecord> {
-    return layoutRecord(label, lr, 80, 40, true, 10, same);
+    return layoutRecord(label, lr, 80, 40, true, { size: 10, widths: dejavu }, same);
 }
 
 describe("Graphviz record layout", () => {
@@ -59,9 +60,27 @@ describe("Graphviz record layout", () => {
         // the divider at 1071.5 of a node centered on 1063; "left" starts at 1031, "right" ends at 1063.5
         expect(lay.dividers[0][0]).toBeCloseTo(8.5, 0);
         const [left, right] = lay.texts;
-        expect(left.x - textWidth("left", 10) / 2).toBeCloseTo(1031 - 1063, 0);
-        expect(right.x + textWidth("right", 10) / 2).toBeCloseTo(1063.5 - 1063, 0);
+        expect(left.x - textWidth("left", 10, dejavu) / 2).toBeCloseTo(1031 - 1063, 0);
+        expect(right.x + textWidth("right", 10, dejavu) / 2).toBeCloseTo(1063.5 - 1063, 0);
         expect(left.y).toBeGreaterThan(right.y);
+    });
+
+    it("measures a record's fields in the face its fontname is drawn in", () => {
+        // graph-io/test/fidelity/oracles/dot-synth-nodes.svg: s_record, 12 point Helvetica (Liberation Sans), drawn
+        // 106.5 points wide with dividers at 31.75 and 67.25 from its left side
+        const label = String.raw`{<f0> left|<f1> mid\nline|<f2> right}`;
+        const lay = layoutRecord(label, false, 54, 36, false, { size: 12, widths: fontWidths("Helvetica") }, (l) =>
+            l.replaceAll(String.raw`\n`, ""),
+        );
+        expect(lay.width).toBeCloseTo(106.5, 0);
+        expect(lay.dividers.map((d) => d[0] + lay.width / 2)).toEqual([
+            expect.closeTo(31.75, 0),
+            expect.closeTo(67.25, 0),
+        ]);
+        expect(fontWidths(null)).toBe(fontWidths("Times-Roman"));
+        expect(fontWidths("Courier-Bold")).toEqual([1229]);
+        expect(fontWidths("Lato")).toBe(fontWidths("sans-serif"));
+        expect(fontWidths("DejaVu Sans:bold")).toBe(fontWidths("serif"));
     });
 
     it("names each port's field", () => {

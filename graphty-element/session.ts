@@ -174,6 +174,7 @@ export type {
     StyleProblem,
     TableMapping,
     TableMappingRead,
+    TimeFound,
     TransactionOptions,
     TransactionScope,
     TypeChangePreview,
@@ -468,7 +469,9 @@ export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal"
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./src/session";
 export { browserProjects } from "./src/session";
 export type {
+    AssetStorage,
     ProjectApi,
+    ProjectAssetChoice,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
@@ -509,6 +512,7 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 
 export type {
     BySizeLeaf,
+    ElementState,
     HopsLeaf,
     MeasureLeaf,
     MeasureTest,
@@ -517,6 +521,7 @@ export type {
     RuleSide,
     SameValueLeaf,
     SourceKey,
+    StateLeaf,
     StepReference,
     TextMatchMode,
     TouchingLeaf,
@@ -764,6 +769,7 @@ export {
     renamePaths,
     rulePath,
     selectorRule,
+    selectorStates,
 } from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------

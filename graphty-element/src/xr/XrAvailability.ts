@@ -1,7 +1,7 @@
 import type { XrCapability, XrUnavailableReason } from "../acceleration/types";
 
 /** How long the browser gets to say whether it supports a mode before the answer is "no". */
-export const XR_PROBE_BOUND_MS = 1500;
+const XR_PROBE_BOUND_MS = 1500;
 
 /** What the availability reads from the graph it belongs to, live. */
 export interface XrAvailabilityInputs {

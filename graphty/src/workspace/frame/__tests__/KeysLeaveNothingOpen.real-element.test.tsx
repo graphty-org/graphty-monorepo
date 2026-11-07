@@ -14,6 +14,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -72,6 +73,10 @@ function focused(): string {
     const active = document.activeElement;
     return `${active?.tagName ?? "none"} ${active?.getAttribute("aria-label") ?? active?.textContent ?? ""}`;
 }
+
+// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
+// (covered by its own tests): the experiment stays off here.
+withFeatures([]);
 
 describe("keys that close what they leave and land focus in the right place", () => {
     it("Done on a new layer with no condition hands focus back to its Which row", async () => {

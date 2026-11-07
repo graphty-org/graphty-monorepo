@@ -16,9 +16,6 @@ import type { CodedFact } from "../shared";
 import type { HistoryCode } from "../types";
 import { inertReason } from "./union";
 
-/** No conditions. */
-export const NO_CONDITIONS: readonly FilterCondition[] = Object.freeze([]);
-
 /** The effects this element knows. */
 const EFFECTS: ReadonlySet<string> = new Set<FilterEffect>(["keep", "exclude", "select"]);
 
@@ -27,7 +24,7 @@ const EFFECTS: ReadonlySet<string> = new Set<FilterEffect>(["keep", "exclude", "
  * @param effect - The value.
  * @returns True for keep, exclude or select.
  */
-export function knownEffect(effect: unknown): effect is FilterEffect {
+function knownEffect(effect: unknown): effect is FilterEffect {
     return typeof effect === "string" && EFFECTS.has(effect);
 }
 
@@ -164,7 +161,7 @@ function withReading(
  * @param condition - The condition.
  * @returns The rule.
  */
-export function effectiveRule(condition: Pick<FilterCondition, "effect" | "rule">): RuleTree {
+function effectiveRule(condition: Pick<FilterCondition, "effect" | "rule">): RuleTree {
     return condition.effect === "keep" ? withReading(condition.rule, (nodes) => nodes ?? "ends") : condition.rule;
 }
 
@@ -176,7 +173,7 @@ export function effectiveRule(condition: Pick<FilterCondition, "effect" | "rule"
  * @param rule - The condition's rule.
  * @returns True for such a selection.
  */
-export function inertSelection(rule: RuleTree): boolean {
+function inertSelection(rule: RuleTree): boolean {
     return (
         rule.kind === "union" &&
         rule.branches.every(

@@ -4,6 +4,7 @@ import {
     DirectionalLight,
     Engine,
     EngineStore,
+    FloatingOriginCurrentScene,
     HemisphericLight,
     Logger,
     Material,
@@ -37,6 +38,7 @@ import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
+import { isRowBatch } from "../meshes/RowPullPlugin";
 import { reportCaught } from "../session/project/strict";
 import { idsNamedBy, shadersControllerOf } from "../session/shaders";
 import { placeOfUse } from "../session/styles/channels";
@@ -290,6 +292,21 @@ const GRAPH_ROOT_NAME = "graph-root";
 const RELEASE_POLL_MS = 16;
 
 /**
+ * Lets a disposed scene be collected. Every `Scene.render` points Babylon's module-wide
+ * `FloatingOriginCurrentScene.getScene` at a closure over that scene, and `Scene.dispose` leaves it
+ * there, so the last scene drawn on the page stays reachable -- and through it the whole graph:
+ * its nodes, edges, snapshot, time index and buffers, about 2.4 GB at 1,000,000 edges -- until
+ * another scene draws (issue #6028). A getter that answers undefined, as a disposed scene's or one
+ * without a floating origin does, is swapped for a fresh one that answers the same; a live
+ * floating-origin scene's is left alone.
+ */
+function forgetDisposedScene(): void {
+    if (FloatingOriginCurrentScene.getScene() === undefined) {
+        FloatingOriginCurrentScene.getScene = () => undefined;
+    }
+}
+
+/**
  * Gives a disposed graph's WebGL context back to the browser, once the GPU has finished with it.
  *
  * Kept until garbage collection instead, a page that creates and disposes graphs runs into
@@ -332,7 +349,11 @@ function releaseWhenIdle(gl: WebGLRenderingContext | WebGL2RenderingContext): vo
 }
 
 /** Events that say nothing about the picture, so they do not ask a resting loop to draw. */
-const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set(["graph-frame-stable", "stats-update"]);
+const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set([
+    "graph-frame-stable",
+    "graph-first-frame",
+    "stats-update",
+]);
 
 /**
  * The canvas events after which the next frame may differ: what a reader does, and the GL context
@@ -1037,6 +1058,7 @@ export class RenderManager implements Manager {
         const gl = this.engine instanceof Engine ? (this.engine._gl as WebGLRenderingContext | undefined) : undefined;
         this.scene.dispose();
         this.engine.dispose();
+        forgetDisposedScene();
         if (gl !== undefined) {
             releaseWhenIdle(gl);
         }
@@ -1893,7 +1915,10 @@ export class RenderManager implements Manager {
             if (isNodeMaterial(material)) {
                 lightNodeMaterial(material, lighting);
                 for (const mesh of material.getBindedMeshes()) {
-                    outlineNodeMesh(mesh, lighting);
+                    // A batch has no outline path: it would draw every row's at the root's origin.
+                    if (!isRowBatch(mesh)) {
+                        outlineNodeMesh(mesh, lighting);
+                    }
                 }
             }
 

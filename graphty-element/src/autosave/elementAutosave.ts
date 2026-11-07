@@ -33,7 +33,7 @@ import type {
 } from "./types";
 
 /** How often the storage estimate may be read after writes. */
-export const ESTIMATE_INTERVAL_MS = 60_000;
+const ESTIMATE_INTERVAL_MS = 60_000;
 
 /** The detail of `graphty-autosave-at-risk`. */
 export type AutosaveAtRisk = CodedFact<"W_AUTOSAVE_ORIGIN_EPHEMERAL">;
@@ -187,7 +187,7 @@ let browser: AutosaveEnvironment | undefined;
  * The page this module runs in.
  * @returns Its environment.
  */
-export function browserEnvironment(): AutosaveEnvironment {
+function browserEnvironment(): AutosaveEnvironment {
     if (browser !== undefined) {
         return browser;
     }

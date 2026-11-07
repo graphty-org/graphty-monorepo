@@ -12,7 +12,7 @@
  * against the row's place in its list, the one thing that may tell two rows apart, for every row.
  *
  * A difference must be listed in the `panelControls` section of
- * `tools/special-layers-baseline.json`, which `tools/check-special-layers.mjs` lets only shrink. A
+ * `graphty/special-layers-baseline.json`, which `tools/check-special-layers.mjs` lets only shrink. A
  * listed one that has gone fails here too, so the list cannot go stale.
  */
 
@@ -23,7 +23,7 @@ import type { GraphSession, StyleRow } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import baselineText from "../../../../../tools/special-layers-baseline.json?raw";
+import baselineText from "../../../../special-layers-baseline.json?raw";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -325,7 +325,7 @@ describe.each([
         assert.deepEqual(
             [...listed].filter((key) => !found.has(key)),
             [],
-            "the row now matches: delete this from tools/special-layers-baseline.json",
+            "the row now matches: delete this from graphty/special-layers-baseline.json",
         );
     });
 });

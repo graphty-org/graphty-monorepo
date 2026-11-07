@@ -1355,6 +1355,8 @@ export class LayoutManager implements Manager {
 
         const engine = await this.buildEngine(type, driver, driverClass, layoutOpts, how);
 
+        this.drawPaintForSizes(layoutOpts);
+
         if (ignored !== undefined) {
             this.warnLayout(type, { code: "W_UNKNOWN_OPTION", params: ignored });
         }
@@ -1443,6 +1445,20 @@ export class LayoutManager implements Manager {
             }
 
             throw this.reportLayoutFailure(type, error, "initialised");
+        }
+    }
+
+    /**
+     * Draw the arrived style paint before a layout that keeps nodes apart by their drawn size (`nodeGap`) reads every
+     * node's size, which it does when it starts. The build before it awaits the accelerator's probe, which ends at no
+     * fixed point against the frames that draw a load's style paint, so without this the layout started on unstyled
+     * sizes or on styled ones -- or on a mix, as frames draw the paint in batches -- and one seeded layout drew two
+     * pictures from load to load (#6030). A layout without `nodeGap` reads no sizes and is left to the frames.
+     * @param layoutOpts - The options the engine is built with.
+     */
+    private drawPaintForSizes(layoutOpts: object): void {
+        if (((layoutOpts as { nodeGap?: unknown }).nodeGap ?? null) !== null) {
+            this.drawArrivedPaint?.();
         }
     }
 
@@ -1617,7 +1633,7 @@ export class LayoutManager implements Manager {
             this.ownArrangement = true;
             // Run layout pre-steps -- unless there is nothing to step yet, in which case they
             // are owed to the first frame that has something. See `preStepsOwed`.
-            if (nodeArray.length === 0) {
+            if (nodeArray.length === 0 || this.sizesToCome(engine)) {
                 this.preStepsOwed = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw cancelledBuild();
@@ -2250,6 +2266,20 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Whether a layout that keeps nodes apart by their drawn size (`nodeGap`) would spend its pre-steps before
+     * every size has been drawn. A style pass arrives, and the object rows build their meshes over several
+     * frames, on the clock; pre-steps spent then took whichever sizes had arrived, so the same seed drew a
+     * different graph built before the nodes were drawn than after, and on the object rows than on the batch.
+     * The pre-steps are owed instead, and paid on the first frame with every size.
+     * @param engine - The engine about to spend them.
+     * @returns True while a size is still to come.
+     */
+    private sizesToCome(engine: LayoutEngine): boolean {
+        const painter = this.graphContext?.getStylePainter?.();
+        return engine.spacesBySize && (painter?.isPainting === true || painter?.hasPendingNodes === true);
+    }
+
+    /**
      * Spend the pre-steps a layout built over an empty graph could not spend at the time.
      *
      * WHY THIS EXISTS. `preSteps` promises the simulation is run that many times BEFORE THE FIRST
@@ -2278,7 +2308,7 @@ export class LayoutManager implements Manager {
         // The DataManager adds every node to the engine as it creates it, so this is the same
         // question as "does the engine have anything to move" without walking an iterable on
         // every frame of an empty graph.
-        if (this.dataManager.nodes.size === 0) {
+        if (this.dataManager.nodes.size === 0 || this.sizesToCome(engine)) {
             return;
         }
 
@@ -2680,8 +2710,8 @@ export class LayoutManager implements Manager {
         }
 
         this.runPreStepsOnceThereIsSomethingToStep();
-        if (this.preStepsInFlight) {
-            // The payment just started has its first chunk on the device.
+        if (this.preStepsInFlight || (this.preStepsOwed && this.dataManager.nodes.size > 0)) {
+            // The payment just started has its first chunk on the device, or it waits for sizes.
             return;
         }
         this.syncFollowers();

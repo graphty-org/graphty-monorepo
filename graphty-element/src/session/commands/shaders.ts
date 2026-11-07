@@ -14,7 +14,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { UndoableDefinition } from "../project/Dispatcher";
 
 /** `shader.set`: one shader's text in the project, or null to take it out. */
-export interface ShaderSetCommand {
+interface ShaderSetCommand {
     readonly op: "shader.set";
     /** The shader's namespaced id. */
     readonly id: string;

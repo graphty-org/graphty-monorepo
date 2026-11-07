@@ -24,6 +24,7 @@
  * | `/v1/page/issues?range=1h\|6h\|1d\|7d\|28d\|all`        | {@link PageResponse}       |
  * | `/v1/page/<page>/<section>?range=7d\|28d[&kind=...]`    | {@link SectionResponse}    |
  * | `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`    | {@link TestHistoryResponse}|
+ * | `/v1/page/flaky/test?file=<f>[&test=<t>]&range=7d\|28d` | {@link TestHistoryResponse}|
  * | `/v1/run/<run id>`                                      | {@link RunResponse}        |
  *
  * The slow sections served by the section route: `ci/shards` (`kind=full|pr-bins`) and
@@ -623,7 +624,8 @@ export interface TestHistoryResponse {
     range: SlowRange;
     file: string;
     test?: string;
-    family: string;
+    /** `null` when nothing was stored for the file or test in the range: then `events` is empty. */
+    family: string | null;
     issue?: number;
     events: {
         at: Iso;
@@ -631,10 +633,15 @@ export interface TestHistoryResponse {
         pr?: number;
         run: number;
         attempt: number;
+        /** The GitHub job key (`test`, `story-tests`, `stories`) and its shard or bin, from the invocation id. */
+        job?: string;
+        shard?: string;
         sha: string;
         outcome: "flaky" | "failed" | "failed-rerun" | "passed";
         /** A short, truncated failure signature. */
         signature?: string;
+        /** An unstable story's two shots on the same inputs: their PNG sha256 hashes, first then second. */
+        pictures?: [string, string];
     }[];
 }
 

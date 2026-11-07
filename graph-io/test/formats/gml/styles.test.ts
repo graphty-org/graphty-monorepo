@@ -98,6 +98,24 @@ describe("GML styles: who wrote the file", () => {
         expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_EXTRA_LABELS");
     });
 
+    it("reads yEd's fill2 as yEd draws it: left to right, and a diamond corner to corner", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                '  node [ id 0 label "a" graphics [ w 60 h 30 type "rectangle" fill "#FF0000" fill2 "#0000FF" ] ]',
+                '  node [ id 1 label "b" graphics [ w 60 h 30 type "diamond" fill "#FF0000" fill2 "#0000FF" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        const angle = resolveStyles(styles, "node", "fillGradientAngle", snapshot);
+        expect(resolveStyles(styles, "node", "fillGradient", snapshot)).toEqual(["#0000ff", "#0000ff"]);
+        expect(angle[0]).toBe(0);
+        // the ramp stretched over a 60 x 30 box changes color along its diagonal, as yEd's does
+        expect(angle[1]).toBe(14.036);
+        expect(styles.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_GRADIENT");
+    });
+
     it("reads Cytoscape's keys with Cytoscape's default style: numbered arrows, outline_width, nodes labeled", async () => {
         const { snapshot, styles } = await load(file("cytoscape-interactions.gml"));
         expect(styles.styles.source.tool).toBe("cytoscape");

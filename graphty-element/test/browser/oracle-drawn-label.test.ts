@@ -102,4 +102,40 @@ describe("a label as graphty drew it, for the oracle comparison", () => {
         // the words stay where they were drawn: the leading is cut evenly above and below
         assert.closeTo((d.textBox.y0 + d.textBox.y1) / 2, (d.box.y0 + d.box.y1) / 2, 1);
     });
+
+    // dot-specimen-edge-labels: an HTML-like table edge label is drawn as its table, its cell outlined inside the
+    // table's outline (the label's border), with no margin round it
+    it("draws a table label as the table: the plane its size, each cell's outline read off where it is drawn", () => {
+        const scene = sceneOf();
+        const table = {
+            border: 2,
+            cellBorder: 2,
+            cellSpacing: 4,
+            cellPadding: 6,
+            rows: [{ cells: [{ lines: [{ text: "t" }] }] }],
+        };
+        const label = new RichTextLabel(scene, {
+            text: "t",
+            fontSize: 24,
+            borderWidth: 2,
+            borderColor: "#00ff00",
+            table: JSON.stringify(table),
+            billboardMode: 0,
+        });
+        scene.render();
+        const d = readLabel(label, new Projector(scene));
+        assert.strictEqual(d?.cells?.length, 1);
+        const [cell] = d?.cells ?? [];
+        if (d === null || cell === undefined) {
+            return;
+        }
+        // the cell sits the table's border and spacing in from the plane on every side
+        const inset = [cell.x0 - d.box.x0, d.box.x1 - cell.x1, cell.y0 - d.box.y0, d.box.y1 - cell.y1];
+        for (const v of inset) {
+            assert.closeTo(v, inset[0], 0.5);
+        }
+        assert.isAbove(inset[0], 0);
+        const [frame] = label.tableFrames;
+        assert.deepEqual([frame.x, frame.y, frame.border], [6, 6, 2]);
+    });
 });

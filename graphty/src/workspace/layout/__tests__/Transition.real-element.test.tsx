@@ -12,6 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -70,6 +71,11 @@ function trackDrawn(element: Element, id: string): () => { x: number; y: number 
         return seen;
     };
 }
+
+// TEMPORARY (#6125): with the selection workspace on, the layout popover is short and the
+// Transition list is cut to a strip whose scroll chevrons cover Glide, so the click never lands.
+// Remove this pin when compact-mantine opens such a list toward the room.
+withFeatures([]);
 
 describe("the layout form's Transition", () => {
     beforeAll(async () => {

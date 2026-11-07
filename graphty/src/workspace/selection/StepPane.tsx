@@ -72,7 +72,7 @@ const MODAL_HEAD_BOTTOM = 68;
 const REFERENCE_WORDS: Readonly<Partial<Record<string, string>>> = { source: "From", target: "To" };
 
 /** What a step pane asks its editor to do. */
-export interface StepActions {
+interface StepActions {
     readonly onStep: (patch: Partial<UnionStep>) => void;
     readonly onToggle: () => void;
     readonly onMove: (by: -1 | 1) => void;
@@ -297,6 +297,7 @@ function withMissing(rule: RuleTree, include: boolean): RuleTree {
  * @param props.rule - the selection
  * @param props.branch - the step's group
  * @param props.value - the value's name
+ * @param props.host - where the selection is edited
  * @param props.hostPicks - the host's own picker entries
  * @param props.onRule - takes the new value's rule
  * @param props.perAlgorithm - the picker lists one entry per algorithm (a workspace card)
@@ -309,6 +310,7 @@ function ValueField({
     branch,
     value,
     hostPicks,
+    host,
     onRule,
     perAlgorithm = false,
     glyph,
@@ -318,6 +320,7 @@ function ValueField({
     branch: UnionBranch;
     value: string;
     hostPicks: readonly PickSection[];
+    host: Host;
     onRule: (stepRule: RuleTree) => void;
     perAlgorithm?: boolean;
     glyph?: React.ReactNode;
@@ -335,7 +338,7 @@ function ValueField({
             fields={open ? pickerFields(session, sideOf(rule), rule.within, perAlgorithm) : []}
             used={usedPaths(rule, branch)}
             placeholder="Find attributes, results"
-            sections={open ? [...hostPicks, ...pickSections(session, rule, choose, perAlgorithm)] : []}
+            sections={open ? [...hostPicks, ...pickSections(session, rule, choose, host, perAlgorithm)] : []}
             opened={open}
             seed={seed}
             onAdd={(field) => {
@@ -1051,6 +1054,7 @@ export function StepPane({
                                 branch={branch}
                                 value={step.rule.kind === "nonempty" ? WHILE : (algorithmWords ?? value)}
                                 hostPicks={hostPicks}
+                                host={host}
                                 perAlgorithm
                                 glyph={algorithm === undefined ? undefined : <GLYPHS.analyze size={12} aria-hidden />}
                                 onRule={(stepRule) => {
@@ -1221,6 +1225,7 @@ export function StepPane({
                             // "While ... has nodes" stays whole in its field; the reference picker holds the node.
                             value={step.rule.kind === "nonempty" ? WHILE : value}
                             hostPicks={hostPicks}
+                            host={host}
                             onRule={(stepRule) => {
                                 setDraft(null);
                                 toTest.current = true;

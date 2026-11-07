@@ -80,6 +80,8 @@ import {
     ORIGINAL_ID_ATTRIBUTE,
     ORIGINAL_ID_COLUMN,
     PARENT_COLUMN,
+    PORT_KEYS_EXTRA,
+    PORTS_COLUMN,
     RESERVED_EDGE_NAMES,
     RESERVED_NODE_NAMES,
     SOURCE_PORT_COLUMN,
@@ -287,6 +289,8 @@ interface PendingKey {
     readonly attrType: string | null;
     readonly yfilesType: string | null;
     readonly domains: readonly Domain[];
+    /** Declared for `<port>` elements. */
+    readonly port: boolean;
     readonly line: number;
     desc: string;
     defaultText: string | null;
@@ -311,6 +315,8 @@ interface NodeState {
     readonly line: number;
     /** The keys of the `<data>` read so far, for the duplicate check; null before the first. */
     keys: Set<string> | null;
+    /** The yFiles data of its ports, by port, for the ports column; null before the first. */
+    ports: Record<string, unknown>[] | null;
 }
 
 /** The `<edge>` being read. */
@@ -356,6 +362,8 @@ interface ContentState {
     text: string;
     tree: XmlTreeBuilder | null;
     line: number;
+    /** The port whose `<data>` this is (its entry in the node's ports), or null. */
+    port: Record<string, unknown> | null;
 }
 
 /** Where an issue was found. */
@@ -460,6 +468,14 @@ class GraphmlReader implements XmlHandler {
 
     private hyperedge: HyperedgeState | null = null;
 
+    /** The open `<port>` elements' entries, innermost last. */
+    private readonly portEntries: Record<string, unknown>[] = [];
+
+    /** The node ports column, once a port's yFiles data declared it. */
+    private portsColumn: ColumnHandle | null = null;
+    /** The yFiles type (`yfiles.type` or `y:attr.uri`) of each yFiles port key, by its name, for a save. */
+    private readonly portKeyTypes: Record<string, string> = {};
+
     private readonly content: ContentState = {
         key: null,
         pendingKey: null,
@@ -467,6 +483,7 @@ class GraphmlReader implements XmlHandler {
         text: "",
         tree: null,
         line: 0,
+        port: null,
     };
 
     private descTarget: "graph" | "key" | null = null;
@@ -648,9 +665,11 @@ class GraphmlReader implements XmlHandler {
             case Ctx.Capture:
                 this.captureEnd();
                 return;
+            case Ctx.Port:
+                this.portEntries.pop();
+                return;
             case Ctx.Skip:
             case Ctx.Graphml:
-            case Ctx.Port:
             case Ctx.Dropped:
             case undefined:
                 return;
@@ -931,7 +950,7 @@ class GraphmlReader implements XmlHandler {
                 this.report.warnOnce(
                     "unsupported",
                     GRAPHML_ISSUE.PORT_DECLARATION,
-                    "<port> declarations are not kept; sourceport / targetport edge attributes are",
+                    "<port> declarations are not kept as ports; sourceport / targetport edge attributes are, and a port's yFiles data is kept in its node's ports column",
                     { line },
                 );
                 this.beginPort(attrs, line);
@@ -1023,6 +1042,7 @@ class GraphmlReader implements XmlHandler {
         this.reportUnreadAttributes("port", attrs, PORT_ATTRIBUTES, line);
         const node = this.nodes[this.nodes.length - 1];
         const name = attrs.get("name");
+        this.portEntries.push({ name: name ?? null });
         if (node.id !== null && name !== undefined) {
             const id = node.restoredId ?? node.id;
             let names = this.ports.get(id);
@@ -1036,7 +1056,8 @@ class GraphmlReader implements XmlHandler {
     }
 
     /**
-     * A child of `<port>`: a nested port declares a name too; data and desc are skipped.
+     * A child of `<port>`: a nested port declares a name too; the data of a yFiles port key is kept (beginPortData),
+     * other data and desc are skipped.
      * @param name - the element name
      * @param local - its local name
      * @param attrs - its attributes
@@ -1048,12 +1069,64 @@ class GraphmlReader implements XmlHandler {
                 this.beginPort(attrs, line);
                 return;
             case "data":
+                this.beginPortData(attrs, line);
+                return;
             case "desc":
                 this.ctx.push(Ctx.Skip);
                 return;
             default:
                 this.unknownElement(name, line);
         }
+    }
+
+    /**
+     * Open a `<data>` of a `<port>`: a yFiles key's is read as a tree for the node's ports column, any other skipped
+     * (its key was reported as not kept when it was declared).
+     * @param attrs - its attributes
+     * @param line - the line
+     */
+    private beginPortData(attrs: ReadonlyMap<string, string>, line: number): void {
+        const key = this.keys.get(attrs.get("key") ?? "")?.find((entry) => entry.yfiles && !entry.skipped);
+        const port = this.portEntries.at(-1);
+        if (key === undefined || port === undefined) {
+            this.ctx.push(Ctx.Skip);
+            return;
+        }
+        Object.assign(this.content, { key, pendingKey: null, domain: "node", text: "", tree: null, line, port });
+        this.ctx.push(Ctx.Data);
+    }
+
+    /**
+     * Close a port's `<data>`: its tree joins the port's entry, and the node's ports column holds every entry so far.
+     * @param key - the yFiles key
+     * @param port - the port's entry
+     * @param value - the tree
+     */
+    private finishPortData(key: KeyEntry, port: Record<string, unknown>, value: unknown): void {
+        const node = this.nodes.at(-1);
+        if (node === undefined) {
+            return;
+        }
+        port[key.name] = value;
+        node.ports ??= [];
+        if (!node.ports.includes(port)) {
+            node.ports.push(port);
+        }
+        if (this.portsColumn === null) {
+            const decl: ColumnDecl = {
+                name: uniqueColumnName(PORTS_COLUMN, "ports", this.takenIn("node")),
+                dtype: "json",
+                nullable: true,
+                origin: { format: FORMAT, id: null, title: null, type: "port", namespace: "yfiles" },
+                extra: { [PORT_KEYS_EXTRA]: { ...this.portKeyTypes } },
+            };
+            this.portsColumn = this.declareTarget("node", decl, null, "comma").handle;
+        }
+        this.setNodeData(
+            node,
+            this.portsColumn,
+            node.ports.map((entry) => ({ ...entry })),
+        );
     }
 
     /**
@@ -1403,6 +1476,10 @@ class GraphmlReader implements XmlHandler {
             );
         }
         const forText = attrs.get("for") ?? "all";
+        // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
+        const attrType = attrs.get("attr.type") ?? attrs.get("type") ?? null;
+        // yFiles 3 declares its untyped keys with `y:attr.uri` instead of `yfiles.type`: their data is nested XML
+        const yfilesType = attrs.get("yfiles.type") ?? (attrType === null ? attributeUri(attrs) : null);
         let domains: readonly Domain[];
         switch (forText) {
             case "all":
@@ -1417,9 +1494,14 @@ class GraphmlReader implements XmlHandler {
             case "edge":
                 domains = [forText];
                 break;
-            case "hyperedge":
             case "port":
+            case "hyperedge":
             case "endpoint":
+                // a yFiles port key's data is kept in its node's ports column
+                if (forText === "port" && yfilesType !== null) {
+                    domains = [];
+                    break;
+                }
                 this.report.warning(
                     "unsupported",
                     GRAPHML_ISSUE.KEY_DOMAIN_UNSUPPORTED,
@@ -1437,15 +1519,13 @@ class GraphmlReader implements XmlHandler {
                 );
                 domains = [];
         }
-        // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
-        const attrType = attrs.get("attr.type") ?? attrs.get("type") ?? null;
         this.pendingKey = {
             id,
             attrName: attrs.get("attr.name") ?? attrs.get("name") ?? null,
             attrType,
-            // yFiles 3 declares its untyped keys with `y:attr.uri` instead of `yfiles.type`: their data is nested XML
-            yfilesType: attrs.get("yfiles.type") ?? (attrType === null ? attributeUri(attrs) : null),
+            yfilesType,
             domains,
+            port: forText === "port",
             line,
             desc: "",
             defaultText: null,
@@ -1479,6 +1559,9 @@ class GraphmlReader implements XmlHandler {
         const yfiles = key.yfilesType !== null;
         const name = key.attrName !== null && key.attrName.length > 0 ? key.attrName : key.id;
         const skipped = yfiles && this.yfilesMode === "skip";
+        if (key.port && key.yfilesType !== null && !skipped) {
+            this.portKeyTypes[name] = key.yfilesType;
+        }
         if (skipped) {
             this.report.warning(
                 "unsupported",
@@ -1698,6 +1781,7 @@ class GraphmlReader implements XmlHandler {
         content.text = "";
         content.tree = null;
         content.line = line;
+        content.port = null;
         if (keyId === undefined) {
             this.report.error("validation-error", GRAPHML_ISSUE.DATA_MISSING_KEY, "<data> without a key attribute", {
                 line,
@@ -1800,12 +1884,17 @@ class GraphmlReader implements XmlHandler {
     /** Close a `<data>`: parse the value and route it to its element. */
     private finishData(): void {
         const { content } = this;
-        const { key } = content;
+        const { key, port } = content;
         const value: unknown = content.tree === null ? content.text : content.tree.finish();
         content.tree = null;
         content.text = "";
         content.key = null;
+        content.port = null;
         if (key === null || key.skipped) {
+            return;
+        }
+        if (port !== null) {
+            this.finishPortData(key, port, value);
             return;
         }
         const where = { line: content.line, element: key.id };
@@ -2117,6 +2206,7 @@ class GraphmlReader implements XmlHandler {
             failed: false,
             line,
             keys: null,
+            ports: null,
         };
         const idText = attrs.get("id");
         if (idText === undefined || idText.length === 0) {

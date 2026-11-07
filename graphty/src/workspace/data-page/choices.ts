@@ -8,6 +8,7 @@
 import { formatDescriptor } from "@graphty/graphty-element/catalog";
 import {
     type ColumnRole,
+    type DraftColumn,
     type DraftTable,
     LOAD_ROLES,
     type LoadChoices,
@@ -106,6 +107,19 @@ export function elementRole(
         return undefined;
     }
     return table.columns.find((each) => each.name === column)?.suggested ?? "attribute";
+}
+
+/**
+ * Whether a column should say it looks like time: graphty-element found it so, and the reader has
+ * not made it the time column yet.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param column - the column.
+ * @param choices - the page's choices.
+ * @returns true when the mark shows.
+ */
+export function timeMarked(draft: LoadDraft, table: DraftTable, column: DraftColumn, choices: PageChoices): boolean {
+    return column.looksLike === "time" && roleOf(draft, table, column.name, choices) !== "time";
 }
 
 /**
@@ -223,6 +237,29 @@ export function setRowsAre(
 }
 
 /**
+ * The mapping of a table whose roles the file sets: only the time column the reader picked.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param edits - the reader's edits to it.
+ * @param choices - the page's choices.
+ * @returns the mapping, or undefined when the reader picked none.
+ */
+function fixedTableMapping(
+    draft: LoadDraft,
+    table: DraftTable,
+    edits: TableEdits,
+    choices: PageChoices,
+): TableMapping | undefined {
+    const time = table.columns.find(
+        (column) => column.looksLike === "time" && roleOf(draft, table, column.name, choices) === "time",
+    );
+    if (time === undefined) {
+        return undefined;
+    }
+    return { time: time.name, ...(edits.timeUnit === undefined ? {} : { timeUnit: edits.timeUnit }) };
+}
+
+/**
  * One table's mapping from the reader's edits: each role the reader placed, and `null` for a role
  * the element had placed on a column the reader took it from.
  * @param draft - the draft.
@@ -232,8 +269,11 @@ export function setRowsAre(
  */
 function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices): TableMapping | undefined {
     const edits = choices.tables[table.id];
-    if (edits === undefined || table.fixed) {
+    if (edits === undefined) {
         return undefined;
+    }
+    if (table.fixed) {
+        return fixedTableMapping(draft, table, edits, choices);
     }
     const kind = rowsAreOf(draft, table, choices);
     const mapping: Record<string, string | null> = {};

@@ -375,7 +375,22 @@ function testItem(
         signature: (message.split("\n")[0] ?? "").slice(0, 200),
         seenAt,
         ...(bump ? { bump: true } : {}),
+        ...(f.pictures === undefined ? {} : { pictures: picturesOf(f.pictures) }),
     };
+}
+
+const SHA256 = /^[0-9a-f]{64}$/;
+
+/**
+ * An unstable story's two picture hashes (tools/results/post-unstable-stories.mjs), or a refusal.
+ * @param v - the posted `pictures`
+ * @returns the first and second shot's sha256
+ */
+function picturesOf(v: unknown): [string, string] {
+    if (!Array.isArray(v) || v.length !== 2 || !v.every((h) => typeof h === "string" && SHA256.test(h))) {
+        refuse(400, "bad_field", { field: "pictures", type: "two sha256" });
+    }
+    return v as [string, string];
 }
 
 /**

@@ -7,7 +7,7 @@
 
 import "../../src/graphty-element";
 
-import { type AbstractMesh, FreeCamera, Mesh, Vector3 } from "@babylonjs/core";
+import { FreeCamera, Mesh, type TransformNode, Vector3 } from "@babylonjs/core";
 import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import {
@@ -21,7 +21,7 @@ import {
 import type { Graphty } from "../../index.js";
 import { NodeShapes } from "../../src/config";
 import { operationQueueOf } from "../../src/Graph";
-import { pickNodeId, rowScanOf } from "../../src/render/PickService";
+import { pickNodeId, pickWork, rowScanOf } from "../../src/render/PickService";
 import { transitionsOf } from "../../src/transitions/LayoutTransitionRunner";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { click } from "../helpers/real-input";
@@ -145,6 +145,18 @@ function pointsOn(element: Graphty, seed: number): { x: number; y: number }[] {
     });
 }
 
+/**
+ * The node Babylon's own pick lands on, as presses answered before the scan did.
+ * @param element - The element.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @returns The node's id.
+ */
+function babylonNodeId(element: Graphty, x: number, y: number): unknown {
+    const picked = element.graph.scene.pick(x, y, (mesh) => mesh.isPickable && mesh.isVisible && mesh.isEnabled());
+    return (picked.pickedMesh?.metadata as { nodeId?: unknown } | null | undefined)?.nodeId;
+}
+
 /** How many points hit a node, how many the scan itself answered, and what differed. */
 interface Tally {
     hits: number;
@@ -163,11 +175,11 @@ function compare(element: Graphty, seed: number): Tally {
     const scan = rowScanOf(scene);
     assert.isDefined(scan, "the open table has a scan");
     const tally: Tally = { hits: 0, scanned: 0, differ: [] };
-    const idOf = (mesh: AbstractMesh | null | undefined): unknown =>
+    const idOf = (mesh: TransformNode | null | undefined): unknown =>
         (mesh?.metadata as { nodeId?: unknown } | null | undefined)?.nodeId;
     for (const { x, y } of pointsOn(element, seed)) {
         const screen = scan?.pickPoint(x, y);
-        const expected = pickNodeId(scene, x, y);
+        const expected = babylonNodeId(element, x, y);
         tally.hits += expected === undefined ? 0 : 1;
         tally.scanned += scan?.shapeRayHit(x, y) ? 1 : 0;
 
@@ -302,7 +314,8 @@ describe("the row scan on each kind", () => {
         const x = screen.x * scaling;
         const y = screen.y * scaling;
         assert.strictEqual(rowScanOf(graph.scene)?.shapeRayHit(x, y)?.row, NODES - 2);
-        assert.strictEqual(pickNodeId(graph.scene, x, y), `n${String(NODES - 1)}`, "scene.pick follows mesh order");
+        assert.strictEqual(babylonNodeId(element, x, y), `n${String(NODES - 1)}`, "scene.pick follows mesh order");
+        assert.strictEqual(pickNodeId(graph.scene, x, y), lower, "a press follows the scan");
     });
 
     it("skips a hidden row and finds what is behind it", async () => {
@@ -409,29 +422,26 @@ describe("the row scan on each kind", () => {
         const screen = graph.worldToScreen(new Vector3(-2, 5, 0));
         const scaling = graph.scene.getEngine().getHardwareScalingLevel();
         const point = { x: screen.x * scaling, y: screen.y * scaling };
-        const scan = rowScanOf(graph.scene);
-        const before = scan?.shadow.scans ?? 0;
         assert.strictEqual(element.graph.elementAt(point)?.id, "n3");
-        assert.strictEqual(
-            scan?.shadow.scans,
-            before,
-            "a transition pick is the scan's alone, with nothing to compare",
-        );
         await click(element, point);
         assert.deepEqual(element.session.selection.nodes, ["n3"]);
     });
 
-    it("runs in shadow beside every other pick and never differs", async () => {
+    it("answers every press, as Babylon's pick would", async () => {
         const element = await mounted("3d");
         await drawn(element, { "node.shape": "icosphere" }, 4);
         const { scene } = element.graph;
-        const scan = rowScanOf(scene);
+        const before = pickWork.rowScans;
+        const differ: string[] = [];
         for (const { x, y } of pointsOn(element, 21)) {
-            pickNodeId(scene, x, y);
+            const babylon = babylonNodeId(element, x, y);
+            if (pickNodeId(scene, x, y) !== babylon) {
+                differ.push(`${String(x)},${String(y)}`);
+            }
         }
 
-        assert.strictEqual(scan?.shadow.scans, POINTS);
-        assert.strictEqual(scan?.shadow.differ, 0);
+        assert.deepEqual(differ.slice(0, 5), []);
+        assert.strictEqual(pickWork.rowScans - before, POINTS, "the scan answered each press");
     });
 
     it("costs a graph with no open table nothing", async () => {

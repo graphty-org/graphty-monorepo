@@ -48,7 +48,7 @@ export async function runDrill(store: Store, runId: number, nowMs: number): Prom
     };
 }
 
-function kindOf(t: TestItem, s: ShardRunItem | undefined): TestHistoryResponse["events"][number]["kind"] {
+function kindOf(t: TestItem, s: { full?: boolean } | undefined): TestHistoryResponse["events"][number]["kind"] {
     if (t.source === "local") {
         return "local";
     }
@@ -56,8 +56,20 @@ function kindOf(t: TestItem, s: ShardRunItem | undefined): TestHistoryResponse["
 }
 
 /**
- * A file's (or one test's) failed and flaky results in the range, newest first, joined to their shard runs for the
- * pull request, commit and kind; undefined when there are none.
+ * The GitHub job key and shard of a CI invocation id, `<run>.<attempt>.<job>.<shard>[.p<k>][.r<n>].<try>`
+ * (tools/results/run-group.mjs baseId); a local one, or a shorter id, names what it can.
+ * @param t - the test row
+ * @returns the job key and shard, when the id names them
+ */
+function jobOf(t: TestItem): { job?: string; shard?: string } {
+    const parts = t.source === "ci" ? t.invocation.split(".") : [];
+    const shard = parts.length > 4 ? parts.slice(3, -1).join(".") : parts[3];
+    return { ...(parts[2] ? { job: parts[2] } : {}), ...(shard ? { shard } : {}) };
+}
+
+/**
+ * A file's (or one test's) failed and flaky results in the range, newest first, joined to their shard runs (else
+ * their workflow run) for the pull request, commit and kind; an empty list when there are none.
  * @param store - the table
  * @param q - the query
  * @param q.file - test file path
@@ -70,22 +82,20 @@ export async function testHistory(
     store: Store,
     q: { file: string; test?: string; range: "7d" | "28d" },
     nowMs: number,
-): Promise<TestHistoryResponse | undefined> {
+): Promise<TestHistoryResponse> {
     const from = nowMs - (q.range === "28d" ? 28 : 7) * DAY;
     const live = (await store.query(`TESTH#${q.file}`, { from: skTime(from) })).filter((i) => isLive(i, nowMs));
     const tests = (live as unknown as TestItem[])
         .filter((t) => q.test === undefined || t.name === q.test)
         .sort((a, b) => b.seenAt - a.seenAt);
-    if (!tests.length) {
-        return undefined;
-    }
-    const shards = new Map<string, ShardRunItem | undefined>();
+    // A story bin's flaky post and a backfilled annotation have no shard run: the workflow run names the commit.
+    const shards = new Map<string, { sha: string; pr?: number; full?: boolean } | undefined>();
     for (const t of tests) {
         if (!shards.has(t.invocation)) {
-            shards.set(
-                t.invocation,
-                ((await store.query(`R#shard_run#${t.invocation}`)) as unknown as ShardRunItem[]).at(-1),
-            );
+            const shard = ((await store.query(`R#shard_run#${t.invocation}`)) as unknown as ShardRunItem[]).at(-1);
+            const run = /^(\d+)\./.exec(t.invocation)?.[1];
+            const runs = shard || !run ? [] : ((await store.query(`RUN#${run}`)) as unknown as RunItem[]);
+            shards.set(t.invocation, shard ?? runs.find((r) => r.kind === "run"));
         }
     }
     return {
@@ -93,7 +103,7 @@ export async function testHistory(
         range: q.range,
         file: q.file,
         ...(q.test === undefined ? {} : { test: q.test }),
-        family: tests[0].family,
+        family: tests[0]?.family ?? null,
         events: tests.map((t) => {
             const s = shards.get(t.invocation);
             // A CI invocation id starts "<run id>.<run attempt>." (ingest.ts, runPrefix); a local one "local.".
@@ -104,9 +114,11 @@ export async function testHistory(
                 ...(s?.pr === undefined ? {} : { pr: s.pr }),
                 run: Number.isFinite(run) ? run : 0,
                 attempt: Number.isFinite(attempt) ? attempt : t.attempt,
+                ...jobOf(t),
                 sha: s?.sha ?? "",
                 outcome: t.outcome,
                 ...(t.signature ? { signature: t.signature.slice(0, 200) } : {}),
+                ...(t.pictures ? { pictures: t.pictures } : {}),
             };
         }),
     };

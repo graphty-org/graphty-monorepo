@@ -13,13 +13,31 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { type BendPoint, flattenCubic } from "../../styles/canon/bends.js";
 import { num6 } from "../../styles/canon/number.js";
 import type { StyleValue } from "../../styles/types.js";
-import { textWidth } from "./record.js";
+import { fontWidths, textWidth } from "./record.js";
 
 /** Graphviz's `PORT_LABEL_DISTANCE`, in points. */
 const PORT_LABEL_DISTANCE = 10;
 
 /** Graphviz's `PORT_LABEL_ANGLE`, in degrees. */
 const PORT_LABEL_ANGLE = -25;
+
+/** Graphviz's `ARROW_LENGTH`, in points. */
+const ARROW_LENGTH = 10;
+
+/** How long each of Graphviz's arrow shapes is, as a share of `ARROW_LENGTH` (arrows.c `Arrowtypes`). */
+const ARROW_LENGTH_FACTOR: Readonly<Record<string, number>> = {
+    normal: 1,
+    inv: 1,
+    crow: 1,
+    vee: 1,
+    box: 1,
+    curve: 1,
+    icurve: 1,
+    tee: 0.5,
+    diamond: 1.2,
+    dot: 0.8,
+    none: 0,
+};
 
 /** Graphviz's default node size, in inches. */
 const DEFAULT_SIZE = { w: 0.75, h: 0.5 } as const;
@@ -52,8 +70,16 @@ export interface LabelPlaceContext {
  * @param e - the edge
  * @param get - the edge's attributes
  * @param put - receives the values
+ * @param directed - whether the edge is directed, so its default arrow is at its head
  */
-export function readLabelPlaces(snapshot: GraphSnapshot, cx: LabelPlaceContext, e: number, get: Attr, put: Put): void {
+export function readLabelPlaces(
+    snapshot: GraphSnapshot,
+    cx: LabelPlaceContext,
+    e: number,
+    get: Attr,
+    put: Put,
+    directed = false,
+): void {
     const s = snapshot.edgeSource(e);
     const t = snapshot.edgeTarget(e);
     const [source, target] = [cx.center(s), cx.center(t)];
@@ -64,6 +90,9 @@ export function readLabelPlaces(snapshot: GraphSnapshot, cx: LabelPlaceContext, 
         put("labelPosition", "center");
         put("labelShiftX", -0.5);
         put("labelShiftY", -0.5);
+        if (source !== null && target !== null && get("pos") === null) {
+            readExternalLabelMiddle(cx, { s, t, source, target }, get, put, directed);
+        }
     }
     if (route === null || source === null || target === null || s === t) {
         return;
@@ -75,6 +104,68 @@ export function readLabelPlaces(snapshot: GraphSnapshot, cx: LabelPlaceContext, 
     }
     readEndLabel(cx, route, { node: t, at: target, other: source }, "head", get, put);
     readEndLabel(cx, route, { node: s, at: source, other: target }, "tail", get, put);
+}
+
+/** An edge's two nodes and their centers. */
+interface EdgeEnds {
+    readonly s: number;
+    readonly t: number;
+    readonly source: BendPoint;
+    readonly target: BendPoint;
+}
+
+/**
+ * Reads where Graphviz hangs an external edge label from, for an edge it routes itself (no stored `pos`): the middle
+ * of the line it draws (postproc.c `addXLabels`, `edgeMidpoint`), which runs from one node's outline to the other's
+ * and stops short of each arrowhead by the arrow's length (arrows.c `arrow_length`), as an offset from the middle of
+ * the two centers, where graphty hangs a straight edge's label.
+ * ponytail: the line taken as straight, between the nodes' ellipses, as neato draws an edge without `splines`
+ * @param cx - the graph's label place context
+ * @param ends - the edge's nodes and their centers
+ * @param get - the edge's attributes
+ * @param put - receives the values
+ * @param directed - whether the edge is directed, so its default arrow is at its head
+ */
+function readExternalLabelMiddle(cx: LabelPlaceContext, ends: EdgeEnds, get: Attr, put: Put, directed: boolean): void {
+    const { s, t, source, target } = ends;
+    const dir = get("dir")?.trim().toLowerCase() || (directed ? "forward" : "none");
+    const size = finite(get("arrowsize"), 1, 0);
+    const head = dir === "forward" || dir === "both" ? arrowLength(get("arrowhead"), size) : 0;
+    const tail = dir === "back" || dir === "both" ? arrowLength(get("arrowtail"), size) : 0;
+    const from = boundary(cx, s, source, target);
+    const to = boundary(cx, t, target, source);
+    const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    if (length === 0) {
+        return;
+    }
+    // the line's middle moves half of each arrow's length away from that arrow
+    const k = (tail - head) / 2 / length;
+    const mid: BendPoint = [
+        (from[0] + to[0]) / 2 + (to[0] - from[0]) * k,
+        (from[1] + to[1]) / 2 + (to[1] - from[1]) * k,
+    ];
+    const centers: BendPoint = [(source[0] + target[0]) / 2, (source[1] + target[1]) / 2];
+    const [x, y] = [mid[0] - centers[0], centers[1] - mid[1]];
+    if (Math.hypot(x, y) > 1e-6) {
+        put("labelOffsetX", num6(x));
+        put("labelOffsetY", num6(y));
+    }
+}
+
+/**
+ * How long Graphviz draws an arrow, in points: each of its shapes' share of `ARROW_LENGTH`, summed, times the edge's
+ * `arrowsize`.
+ * @param raw - the arrow's name (`arrowhead` or `arrowtail`), or null for the default
+ * @param size - the edge's `arrowsize`
+ * @returns the length
+ */
+function arrowLength(raw: string | null, size: number): number {
+    const shapes = (raw?.trim().toLowerCase() || "normal").match(
+        /(normal|inv|crow|vee|box|icurve|curve|tee|diamond|dot|none)/g,
+    );
+    return (
+        (shapes ?? ["normal"]).reduce((sum, shape) => sum + (ARROW_LENGTH_FACTOR[shape] ?? 1), 0) * ARROW_LENGTH * size
+    );
 }
 
 /** One end of an edge: its node, that node's center and the other end's center. */
@@ -290,7 +381,8 @@ export function leftOutXlabels(
         const size = Number(cx.node(n, "fontsize") ?? Number.NaN);
         const font = Number.isFinite(size) && size > 0 ? size : DEFAULT_FONT_SIZE;
         const lines = (cx.node(n, "xlabel") ?? "").split(/\\[nlr]|\n/);
-        const w = Math.max(...lines.map((l) => textWidth(l, font)));
+        const widths = fontWidths(cx.node(n, "fontname"));
+        const w = Math.max(...lines.map((l) => textWidth(l, font, widths)));
         const label: Box = [x0 - w, y1, x0, y1 + lines.length * LINE_SPACING * font];
         if (boxes.some(([m, b]) => m !== n && b !== null && overlaps(label, b))) {
             out.add(n);

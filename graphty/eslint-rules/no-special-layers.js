@@ -20,7 +20,7 @@
  * and the app's panel parity test exist for those.
  *
  * What exists today is listed, with a count per file, in the `lint` section of
- * `tools/special-layers-baseline.json`; only occurrences past that count are reported. An
+ * `graphty/special-layers-baseline.json`; only occurrences past that count are reported. An
  * `eslint-disable` does not help: `tools/check-special-layers.mjs` runs this rule with an empty
  * baseline and inline comments off, and fails on anything the baseline does not list.
  */
@@ -37,7 +37,7 @@ import { fileURLToPath } from "node:url";
  */
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
-const BASELINE_FILE = fileURLToPath(new URL("../../tools/special-layers-baseline.json", import.meta.url));
+const BASELINE_FILE = fileURLToPath(new URL("../special-layers-baseline.json", import.meta.url));
 
 /** The names the starting rows are given. */
 const LAYER_NAMES = new Set(["Everything", "Hovered", "Selected", "Pinned"]);

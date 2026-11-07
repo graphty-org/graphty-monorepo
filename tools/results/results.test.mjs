@@ -5,6 +5,7 @@
 //   node --test tools/results/results.test.mjs
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
@@ -16,7 +17,9 @@ import { isolateGit } from "../isolated-git-env.mjs";
 import {
     call,
     config,
+    bodySummary,
     EVENT_MS,
+    fetchPlan,
     flushHealth,
     postFailures,
     postBenchmarks,
@@ -50,6 +53,8 @@ import {
     shotsInputs,
     shotsPlan,
     storeList,
+    TEST_STEP_LIMIT_MS,
+    withTestDeadline,
 } from "./run-group.mjs";
 
 isolateGit();
@@ -88,6 +93,19 @@ function serve(answer = true) {
         server.listen(0, "127.0.0.1", () => resolve({ url: `http://127.0.0.1:${server.address().port}`, seen })),
     );
 }
+
+describe("the test job's deadline", () => {
+    it("starts with the job's first shard, holds for the rest of the job, and is the test job's alone", () => {
+        const RUNNER_TEMP = mkdtempSync(join(tmpdir(), "deadline-"));
+        const before = Date.now();
+        const first = withTestDeadline({ GITHUB_JOB: "test", RUNNER_TEMP }).GRAPHTY_TEST_DEADLINE;
+        assert.ok(Number(first) >= before + TEST_STEP_LIMIT_MS);
+        assert.equal(withTestDeadline({ GITHUB_JOB: "test", RUNNER_TEMP }).GRAPHTY_TEST_DEADLINE, first);
+        const env = { GITHUB_JOB: "story-tests", RUNNER_TEMP };
+        assert.equal(withTestDeadline(env), env);
+        rmSync(RUNNER_TEMP, { recursive: true, force: true });
+    });
+});
 
 describe("config", () => {
     it("is off without RESULTS_URL, with GRAPHTY_RESULTS=0, and without a credential", () => {
@@ -200,6 +218,49 @@ describe("client", () => {
         } finally {
             mock.restoreAll();
         }
+    });
+    it("says why a read failed: the HTTP status and body summary, a timeout, or the network error (#6164)", async () => {
+        const cfg = { ...config({ RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [] };
+        try {
+            mock.method(globalThis, "fetch", () =>
+                Promise.resolve(new Response("D1_ERROR: query\n  too expensive", { status: 500 })),
+            );
+            assert.deepEqual(await fetchPlan(cfg, { sha: "a" }), {
+                ok: false,
+                why: "HTTP 500: D1_ERROR: query too expensive",
+            });
+            mock.restoreAll();
+            mock.method(globalThis, "fetch", () =>
+                Promise.reject(
+                    new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED 10.0.0.1:443") }),
+                ),
+            );
+            assert.deepEqual(await fetchPlan(cfg, {}), {
+                ok: false,
+                why: "fetch failed (connect ECONNREFUSED 10.0.0.1:443)",
+            });
+        } finally {
+            mock.restoreAll();
+        }
+        const silent = await serve(false);
+        const r = await call(
+            { ...config({ RESULTS_URL: silent.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [] },
+            "GET",
+            "/v1/plan",
+            undefined,
+            200,
+        );
+        assert.deepEqual(r, { ok: false, why: "no answer in 0.2 s" });
+        const ok = await serve(() => ({ order: ["c"] }));
+        assert.deepEqual(await fetchPlan(config({ RESULTS_URL: ok.url, GRAPHTY_RESULTS_TOKEN: "t" }), {}), {
+            ok: true,
+            data: { order: ["c"] },
+        });
+    });
+    it("summarises a refused body on one short line and never repeats a bearer credential", () => {
+        assert.equal(bodySummary(""), "");
+        assert.equal(bodySummary("bad\n\ttoken: Bearer abc.def.ghi"), "bad token: Bearer ***");
+        assert.equal(bodySummary("x".repeat(500)).length, 200);
     });
     it("fails open with no store configured", async () => {
         assert.deepEqual(await call(null, "GET", "/v1/plan"), { ok: false, why: "results store not configured" });
@@ -711,6 +772,43 @@ describe("planRead", () => {
         };
         assert.deepEqual(durationsOf(plan), { layout: { "a.test.ts": 5, "b.test.ts": 7 } });
         assert.deepEqual(durationsOf(null), {});
+    });
+    /**
+     * planRead() for layout with console.log captured.
+     * @param o planRead()'s options but `root` and `affected`
+     * @returns `{ r, lines }`
+     */
+    async function logged(o) {
+        const lines = [];
+        mock.method(console, "log", (line) => lines.push(line));
+        try {
+            return { r: await planRead({ root: process.cwd(), affected: ["layout"], ...o }), lines };
+        } finally {
+            mock.restoreAll();
+        }
+    }
+    it("writes the store's refusal as the reason and warns on the run page that bins fall back (#6164)", async () => {
+        const out = join(TMP, "plan-refused");
+        mock.method(globalThis, "fetch", () => Promise.resolve(new Response("over the limit", { status: 429 })));
+        const { r, lines } = await logged({ out, env: { RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" } });
+        assert.equal(r.plan, null);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")), {
+            unavailable: "HTTP 429: over the limit",
+        });
+        assert.deepEqual(lines, [
+            "::warning::results store: no plan (HTTP 429: over the limit); test bins are packed without history, one job per file",
+        ]);
+    });
+    it("warns too when CI has no store configured, and never when the plan was read", async () => {
+        const off = await logged({ out: join(TMP, "plan-off-warn"), env: {} });
+        assert.match(off.lines[0], /^::warning::results store: no plan \(results store not configured\)/);
+        const { url } = await serve();
+        const on = await logged({
+            out: join(TMP, "plan-on-quiet"),
+            env: { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        assert.ok(on.r.plan);
+        assert.ok(!on.lines.some((l) => l.includes("::warning::")), on.lines.join("\n"));
     });
     it("fails open: no store writes an unavailable plan and empty durations", async () => {
         const out = join(TMP, "plan-off");
@@ -1591,6 +1689,23 @@ describe("health API fan-out", () => {
             },
         ]);
         assert.deepEqual(unstableStories({ items: [] }, index, []), []);
+
+        // With the capture's directory, each story names its two shots: results.json's capture, then second/<file>.
+        const dir = mkdtempSync(join(TMP, "capture-"));
+        mkdirSync(join(dir, "second"));
+        writeFileSync(join(dir, "second", "gone--story.png"), "second shot");
+        const first = "a".repeat(64);
+        const withPictures = unstableStories(
+            { items: [{ id: "gone--story", file: "gone--story.png", status: "unstable", capture: first }] },
+            index,
+            [],
+            dir,
+        );
+        const second = createHash("sha256").update("second shot").digest("hex");
+        assert.deepEqual(withPictures[0].pictures, [first, second]);
+        // A missing second shot names no pictures.
+        const noSecond = { id: "x", file: "x.png", status: "unstable", capture: first };
+        assert.equal(unstableStories({ items: [noSecond] }, index, [], dir)[0].pictures, undefined);
     });
     it("sends a benchmark job's results to the health API as one post", async () => {
         const h = await serveHealth();

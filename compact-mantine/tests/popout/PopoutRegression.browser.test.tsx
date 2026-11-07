@@ -987,7 +987,7 @@ describe("Popout Regression Tests", () => {
      *
      * Requirement: Popout panels MUST use minWidth for flexible sizing.
      *
-     * PopoutRegression.layout.test.tsx guards the other half of the same
+     * PopoutRegression.layout.browser.test.tsx guards the other half of the same
      * requirement: while the panel is free to grow, its position is measured
      * from the box it renders at. Positioning from the declared width instead let a 280px panel that
      * rendered 337px wide grow 57px over the sidebar it was anchored to and

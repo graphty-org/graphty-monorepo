@@ -1,0 +1,51 @@
+name: Render proof
+
+# The whole of the render-parity and forced-batched test projects of graphty-element
+# (design/rendering/row-renderer.md 7). By dispatch on a branch only: it gates nothing, and neither
+# project joins a pull request or the full run. Stages 11, 13 and 16 cite its run in their Proof.
+
+on:
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
+    # Bounds a failed cache restore's wait to one minute instead of ten (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+
+jobs:
+    proof:
+        name: ${{ matrix.run.name }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 120
+        strategy:
+            fail-fast: false
+            matrix:
+                run:
+                    - { name: render-parity webgl, project: render-parity, renderer: webgl }
+                    - { name: render-parity webgpu, project: render-parity, renderer: webgpu }
+                    - { name: forced-batched, project: forced-batched, renderer: webgl }
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  lfs: false
+            # forced-batched runs oracle-scorecard.test.ts, which decodes these Git LFS pictures.
+            - name: Fetch the style fidelity oracle pictures from Git LFS
+              if: matrix.run.project == 'forced-batched'
+              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
+              with: { node-version: 22.x, cache: pnpm }
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm exec nx run graphty-element:build
+            - uses: ./.github/actions/drop-microsoft-apt-source
+            - run: pnpm exec playwright install --with-deps chromium
+              working-directory: graphty-element
+            - run: pnpm exec vitest run --project=${{ matrix.run.project }}
+              working-directory: graphty-element
+              env:
+                  GRAPHTY_BROWSER_GPU: swiftshader
+                  VITE_PARITY_RENDERER: ${{ matrix.run.renderer }}

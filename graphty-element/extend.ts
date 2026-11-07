@@ -155,6 +155,7 @@ export type {
 export { DataSource } from "./src/data/DataSource";
 export type { DataLoadingError, ErrorSummary } from "./src/data/ErrorAggregator";
 export { ErrorAggregator } from "./src/data/ErrorAggregator";
+export type { TimeField, TimeSource, TimeUnit } from "./src/session/time/TimeApi";
 
 /**
  * A READER FROM A GRAPH-IO IMPORTER. `DataSource.fromImporter(importer, descriptor)` turns a

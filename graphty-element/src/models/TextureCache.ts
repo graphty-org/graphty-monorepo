@@ -14,11 +14,12 @@
 import type { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
 import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
+import type { Observer } from "@babylonjs/core/Misc/observable.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { NetworkApiInternal } from "../session/network";
 import type { CodedFact } from "../session/shared";
-import type { ModelChange, ModelState } from "../session/types";
+import type { ModelChange, ModelState, SessionEventMap } from "../session/types";
 import { decideFetch, type GateSession, layersNaming } from "./fetchGate";
 
 /** A node that draws a picture. */
@@ -26,12 +27,15 @@ export interface TextureUser {
     isDisposed(): boolean;
     /** Draw the node again from its current paint. */
     updateStyle(): void;
+    /** The picture the node draws now, or null. */
+    imageDrawn(): BaseTexture | null;
 }
 
 /** What the cache reads from the session. */
 interface TextureSession extends GateSession {
     readonly network: NetworkApiInternal;
     publishModelChange(change: ModelChange): void;
+    on<K extends keyof SessionEventMap>(event: K, listener: (detail: SessionEventMap[K]) => void): () => void;
 }
 
 /** One picture. */
@@ -47,8 +51,15 @@ interface Entry {
     denied?: string;
     texture: BaseTexture | null;
     readonly users: Set<TextureUser>;
+    /** Model templates built with it ({@link TextureCache.hold}). */
+    holds: number;
+    /** Frames since no layer named it and nothing drew it; -1 while it is in use. */
+    idle: number;
     ready: Promise<BaseTexture | null>;
 }
+
+/** Frames a picture no layer names is kept before it is disposed, as a model template is. */
+const IDLE_FRAMES = 10;
 
 /** The cache of each scene. */
 const caches = new WeakMap<Scene, TextureCache>();
@@ -60,6 +71,16 @@ const caches = new WeakMap<Scene, TextureCache>();
  */
 export function texturesLoading(scene: Scene): boolean {
     return caches.get(scene)?.loading === true;
+}
+
+/**
+ * Whether a scene holds a picture nothing draws and no layer names, which it frees after
+ * {@link IDLE_FRAMES} frames: a graph drawing on demand has to keep drawing until then.
+ * @param scene - The scene.
+ * @returns True while such a picture waits to be freed.
+ */
+export function texturesFreeing(scene: Scene): boolean {
+    return caches.get(scene)?.freeing === true;
 }
 
 /**
@@ -132,6 +153,7 @@ export class TextureCache {
     private readonly published = new Map<string, string>();
     private repaintScheduled = false;
     private readonly dirty = new Set<Entry>();
+    private readonly frames: Observer<Scene>;
 
     /**
      * Use {@link TextureCache.forScene}.
@@ -145,7 +167,18 @@ export class TextureCache {
         const unwatch = session.network.watchAllowed(() => {
             this.retryAllowed();
         });
-        scene.onDisposeObservable.addOnce(unwatch);
+        const unwatchStyles = session.on("style:changed", () => {
+            this.recount();
+        });
+        this.frames = scene.onAfterRenderObservable.add(() => {
+            this.tick();
+        });
+        scene.onDisposeObservable.addOnce(() => {
+            unwatch();
+            unwatchStyles();
+            scene.onAfterRenderObservable.remove(this.frames);
+            caches.delete(scene);
+        });
     }
 
     /**
@@ -157,6 +190,16 @@ export class TextureCache {
     }
 
     /**
+     * Whether a loaded picture counts down to being freed (see {@link tick}).
+     * @returns True while one does.
+     */
+    get freeing(): boolean {
+        return [...this.entries.values()].some(
+            (entry) => entry.idle >= 0 && entry.texture !== null && !this.inUse(entry),
+        );
+    }
+
+    /**
      * The cache of a scene, made on first use.
      * @param scene - The scene.
      * @param session - Its session, or anything without assets (then there is no cache).
@@ -164,7 +207,12 @@ export class TextureCache {
      */
     static forScene(scene: Scene, session: unknown): TextureCache | null {
         const held = session as Partial<TextureSession> | undefined;
-        if (held?.publishModelChange === undefined || held.assets === undefined || held.network === undefined) {
+        if (
+            held?.publishModelChange === undefined ||
+            held.assets === undefined ||
+            held.network === undefined ||
+            held.on === undefined
+        ) {
             return null;
         }
 
@@ -187,6 +235,10 @@ export class TextureCache {
     textureFor(user: TextureUser, ref: string): BaseTexture | null {
         const entry = this.entryOf(ref);
         entry.users.add(user);
+        if (entry.texture !== null) {
+            entry.idle = -1;
+        }
+
         return entry.texture;
     }
 
@@ -197,6 +249,68 @@ export class TextureCache {
      */
     load(ref: string): Promise<BaseTexture | null> {
         return this.entryOf(ref).ready;
+    }
+
+    /**
+     * Count a model template built with a picture, or one disposed: a held picture is never freed.
+     * @param ref - The asset id or URL.
+     * @param by - 1 when a template is built with it, -1 when that template is disposed.
+     */
+    hold(ref: string, by: 1 | -1): void {
+        const entry = this.entries.get(ref);
+        if (entry !== undefined) {
+            entry.holds = Math.max(0, entry.holds + by);
+        }
+    }
+
+    /**
+     * Whether a model template or a node draws an entry's picture now.
+     * @param entry - The entry.
+     * @returns True while one does.
+     */
+    private inUse(entry: Entry): boolean {
+        if (entry.holds > 0) {
+            return true;
+        }
+
+        for (const user of entry.users) {
+            if (user.isDisposed()) {
+                entry.users.delete(user);
+            } else if (user.imageDrawn() === entry.texture) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** After a style change: mark the pictures no layer names any more, which {@link tick} counts down. */
+    private recount(): void {
+        for (const entry of this.entries.values()) {
+            if (layersNaming(this.session.styles, entry.ref, "node.texture").length > 0) {
+                entry.idle = -1;
+            } else if (entry.idle < 0) {
+                entry.idle = 0;
+            }
+        }
+    }
+
+    /** One frame: dispose the pictures nothing has named or drawn for {@link IDLE_FRAMES} frames. */
+    private tick(): void {
+        for (const entry of [...this.entries.values()]) {
+            // Still loading, failed, or named: nothing to free.
+            if (entry.idle < 0 || entry.texture === null || this.inUse(entry)) {
+                continue;
+            }
+
+            entry.idle++;
+            if (entry.idle >= IDLE_FRAMES) {
+                entry.texture.dispose();
+                entry.texture = null;
+                this.entries.delete(entry.ref);
+                this.dirty.delete(entry);
+            }
+        }
     }
 
     /**
@@ -214,6 +328,8 @@ export class TextureCache {
                 fetching: false,
                 texture: null,
                 users,
+                holds: 0,
+                idle: -1,
                 ready: Promise.resolve(null),
             };
             entry = made;

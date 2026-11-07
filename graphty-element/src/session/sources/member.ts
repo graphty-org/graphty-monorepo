@@ -33,7 +33,7 @@ const FORBIDDEN_OPTIONS = ["data", "file", "url", "credential", "write", "signal
  * @param name - The parameter's name.
  * @returns True when it does.
  */
-export function isSecretParam(name: string): boolean {
+function isSecretParam(name: string): boolean {
     const lower = name.toLowerCase();
     return (
         ["key", "auth", "sig", "jwt", "code", "sid", "policy", "key-pair-id"].includes(lower) ||
@@ -80,7 +80,7 @@ const PARTS = ["file", "url", "source", "sample"] as const;
 type ProblemCode = GraphtyErrorCode | GraphtyWarningCode;
 
 /** A problem with the member, as a code and the values it is about. */
-export type SourcesProblem = CodedFact<ProblemCode>;
+type SourcesProblem = CodedFact<ProblemCode>;
 
 /** What the session keeps about one load beside `data.sources()`: what an entry records that a listed load does not. */
 export interface LoadFacts {

@@ -72,7 +72,7 @@ const BUILT_IN_EXTENSIONS: Readonly<Record<string, BuiltInModelFormat>> = {
  * @param filename - The name.
  * @returns The extension, or "" when there is none.
  */
-export function extensionOf(filename: string | undefined): string {
+function extensionOf(filename: string | undefined): string {
     if (filename === undefined) {
         return "";
     }
@@ -89,7 +89,7 @@ export function extensionOf(filename: string | undefined): string {
  * @param offset - Where to look.
  * @returns True on a match.
  */
-export function startsWithAscii(bytes: Uint8Array, text: string, offset = 0): boolean {
+function startsWithAscii(bytes: Uint8Array, text: string, offset = 0): boolean {
     if (bytes.length < offset + text.length) {
         return false;
     }
@@ -350,4 +350,29 @@ export function detectAssetKind(input: ModelDetectionInput): AssetKind | undefin
     }
 
     return !hasHead && IMAGE_EXTENSIONS.has(extensionOf(input.filename)) ? "image" : undefined;
+}
+
+/** The parts a model's files may come with, beyond its pictures: glTF buffers and OBJ materials. */
+const PART_EXTENSIONS = ["bin", "mtl"];
+
+const ASSET_FILE_EXTENSIONS: Readonly<Record<AssetKind, readonly string[]>> = Object.freeze({
+    model: Object.freeze(
+        [...Object.keys(BUILT_IN_EXTENSIONS), ...PART_EXTENSIONS, "zip", ...IMAGE_EXTENSIONS].map((ext) => `.${ext}`),
+    ),
+    image: Object.freeze([...IMAGE_EXTENSIONS].map((ext) => `.${ext}`)),
+});
+
+/**
+ * The file extensions graphty-element reads for a model or a picture, with the dot, for a file
+ * chooser's `accept`: a picture's formats, or a model's with the parts it may come with (glTF
+ * buffers, OBJ materials, its pictures) and a .zip holding them.
+ * @param kind - `"model"` or `"image"`.
+ * @returns The extensions, lower case.
+ * @example
+ * ```ts
+ * input.accept = assetFileExtensions("model").join(",");
+ * ```
+ */
+export function assetFileExtensions(kind: AssetKind): readonly string[] {
+    return ASSET_FILE_EXTENSIONS[kind];
 }

@@ -51,6 +51,10 @@ const realInput: RealInput = {
         await send("Input.dispatchDragEvent", { type: "dragEnter", ...at, data });
         await send("Input.dispatchDragEvent", { type: "dragOver", ...at, data });
     },
+    async wheel(element, deltaY) {
+        const send = (cdp() as unknown as { send: Send }).send.bind(cdp());
+        await send("Input.dispatchMouseEvent", { type: "mouseWheel", ...middleOnPage(element), deltaX: 0, deltaY });
+    },
 };
 
 // Draw on demand: a graph that never set `renderOnDemand` stops drawing once its picture is still,

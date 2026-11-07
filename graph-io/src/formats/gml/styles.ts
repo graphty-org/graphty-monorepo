@@ -28,6 +28,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { yedGradientAngle } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
     YED_OUTSIDE_DISTANCE,
@@ -83,6 +84,7 @@ import {
     valueColumns,
     YED_ARROWS,
     YED_LABEL_BOX_PADDING,
+    YED_LABEL_CHARACTER,
     YED_LABEL_LINE,
     YED_LINES,
     YED_SHAPES,
@@ -735,9 +737,20 @@ function readNodeFill(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         return;
     }
     readColor(g.fill, "fill", "fillOpacity", writer, put, at);
-    if (g.fill2 !== undefined) {
-        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, sampleOf(g.fill2));
+    if (g.fill2 === undefined) {
+        return;
     }
+    // `fill2` is yEd's: a node with a flowchart configuration is its generic node, and a diamond, both run corner to
+    // corner; any other shape runs left to right (gml-specimen-node-fills-borders-p2)
+    const to = canonColor(g.fill2, writer.spelling, at("fillGradient"));
+    if (to === null) {
+        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, sampleOf(g.fill2));
+        return;
+    }
+    const type = typeof g.type === "string" ? g.type.trim().toLowerCase() : "";
+    const corner = typeof g.customconfiguration === "string" || type === "diamond";
+    put("fillGradient", to.color);
+    put("fillGradientAngle", yedGradientAngle(corner ? "corner" : "across", Number(g.w), Number(g.h)));
 }
 
 /**
@@ -1405,9 +1418,6 @@ function readOgdfLabelPlace(
     );
 }
 
-/** A label's words against their font size, for a yEd GML label, which stores no width. */
-const YED_GML_CHARACTER = 0.55;
-
 /**
  * A yEd GML edge label's place: the box `x` and `y` store, its top left corner on the page, else its `model` and
  * `position`, as yEd's GraphML keeps them (`putYedEdgeLabel`). A curved line or a self-loop keeps graphty's place.
@@ -1439,7 +1449,7 @@ function readYedLabelPlace(
     const text = typeof label.text === "string" ? label.text : "";
     const size = Number(label.fontSize) || 12;
     const lines = text.split("\n");
-    const width = Math.max(...lines.map((l) => l.length)) * YED_GML_CHARACTER * size + YED_LABEL_BOX_PADDING;
+    const width = Math.max(...lines.map((l) => l.length)) * YED_LABEL_CHARACTER * size + YED_LABEL_BOX_PADDING;
     const [x, y] = [Number(label.x), Number(label.y)];
     const stored = label.x !== undefined && label.y !== undefined && Number.isFinite(x) && Number.isFinite(y);
     // a slider with no stored box sits somewhere along the line that the file does not say; a free label's box is not

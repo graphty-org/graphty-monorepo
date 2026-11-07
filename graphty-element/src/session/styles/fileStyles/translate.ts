@@ -187,7 +187,7 @@ export interface TranslateInput {
 }
 
 /** One layer the translation made. */
-export interface TranslatedLayer {
+interface TranslatedLayer {
     /** The layer. */
     readonly spec: LayerSpec;
     /**
@@ -502,7 +502,7 @@ function termsOf(where: Predicate): number {
  * @param where - The expression.
  * @returns The count.
  */
-export function expressionTerms(where: string): number {
+function expressionTerms(where: string): number {
     let terms = 0;
     let at = 0;
     while (at < where.length) {
@@ -653,9 +653,10 @@ function channelPlans(
     // ponytail: one ratio for every label size; per element against its own label size if outlines of very different
     // sizes need it
     // A label box's border width is a whole stroke's width, so it is not halved.
+    // label units per file length, as a label's padding and border are drawn
+    const labelScale = onScreen.label || factors.label === null ? 1 : factors.label(14) / 14;
     const labelLength = (channel: Channel, half = true): ChannelPlan => {
-        const px = onScreen.label ? null : factors.label;
-        const ratio = (px === null ? 1 : px(14) / 14) / (half ? 2 : 1);
+        const ratio = labelScale / (half ? 2 : 1);
         return {
             channel,
             convert: (value) => (typeof value === "number" ? round(value * ratio) : null),
@@ -719,6 +720,8 @@ function channelPlans(
                 ],
             ],
             ["shapeLineWidth", [length("node.shapeLineWidth")]],
+            ["shapeLineHaloColor", [id("node.shapeLineHaloColor")]],
+            ["shapeLineHaloWidth", [length("node.shapeLineHaloWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
             [
                 "image",
@@ -1050,6 +1053,17 @@ function channelPlans(
         ["labelOutlineOpacity", [label("labelOutlineOpacity")]],
         ["labelBorderOpacity", [label("labelBorderOpacity")]],
         ["labelPadding", [labelLength("edge.labelPadding", false)]],
+        // its lengths in label units, as its padding is
+        [
+            "labelTable",
+            [
+                {
+                    channel: "edge.labelTable",
+                    convert: (value) => labelTableForElement(value, labelScale, imageBase),
+                    identity: false,
+                },
+            ],
+        ],
         ["labelCornerRadius", [labelLength("edge.labelCornerRadius", false)]],
         ["labelLineHeight", [label("labelLineHeight")]],
         // moved in the scene's units, as a wrap width is

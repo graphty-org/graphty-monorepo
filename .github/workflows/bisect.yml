@@ -97,7 +97,8 @@ jobs:
         runs-on: ubuntu-24.04 # the full run's test runner class
         # GOOGLE_API_KEY is a secret of environment full-run, as for release.yml's llm job
         environment: ${{ inputs.lane == 'llm' && 'full-run' || '' }}
-        # the build and every run; each run of a shard stops at its lane's own limit (bisect-ci.mjs LANES.minutes)
+        # the build and every run; each run of a shard stops at its lane's own limit (bisect-ci.mjs LANES.minutes),
+        # and the runs stop at POINT_DEADLINE below with the runs they finished
         timeout-minutes: 120
         strategy:
             fail-fast: false
@@ -105,6 +106,10 @@ jobs:
             matrix:
                 sha: ${{ fromJSON(needs.plan.outputs.points) }}
         steps:
+            # when the runs must end so the point still writes its result: the job's 120 minutes less 10 for the
+            # result's upload and a last run's --kill-after (bisect-ci.mjs runPoint, #5845)
+            - name: Note when the point's runs must end
+              run: echo "POINT_DEADLINE=$(( $(date +%s) + 110 * 60 ))" >> "$GITHUB_ENV"
             - uses: actions/checkout@v7
               with: { ref: "${{ matrix.sha }}" }
             # the workflow's .github/actions/ only: the point's own tools/ (run-tests.sh, ci-test-matrix.mjs) are what is

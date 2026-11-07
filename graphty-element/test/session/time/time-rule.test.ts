@@ -904,6 +904,34 @@ describe("the work of a move", () => {
         harness.session.dispose();
     });
 
+    it("a jump between overlapping windows hides an edge inside both whose end left", async () => {
+        const harness = makeSession({ directed: true });
+        const fillers = Array.from({ length: 10 }, (_, at) => ({ id: `f${String(at)}`, t: 510 }));
+        const between = (count: number, t: number): { src: string; dst: string; t: number }[] =>
+            Array.from({ length: count }, (_, at) => ({
+                src: `f${String(at % 10)}`,
+                dst: `f${String((at + 1) % 10)}`,
+                t,
+            }));
+        harness.add(
+            [{ id: "a", t: 50 }, { id: "b", t: 30 }, ...fillers],
+            // The edge inside both windows, sixty only in the new one, and seventy in neither.
+            [{ src: "a", dst: "b", t: 50 }, ...between(60, 510), ...between(70, 5000)],
+        );
+        const { time, visibility } = harness.session;
+        await time.setField({ nodes: { start: "t" }, edges: { start: "t" } });
+        await time.window({ from: 0, to: 500, step: 1 });
+        await time.stepBy(1);
+        assert.strictEqual(visibility.summary.visibleEdges, 1, "a to b, both inside");
+
+        const { full, jumps } = slideCounters;
+        await time.seek(40);
+        assert.strictEqual(slideCounters.full, full);
+        assert.strictEqual(slideCounters.jumps, jumps + 1);
+        assert.strictEqual(visibility.summary.visibleEdges, 60, "b left, and its edge with it");
+        harness.session.dispose();
+    });
+
     it("a node-timed hub's move counts its degree against the budget", async () => {
         const harness = makeSession({ directed: true });
         const leaves = Array.from({ length: 200 }, (_, at) => ({ id: `n${String(at)}`, t: 1000 }));

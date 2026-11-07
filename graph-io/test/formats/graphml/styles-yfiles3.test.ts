@@ -8,6 +8,8 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { GRAPHML_LOSS } from "../../../src/formats/graphml/constants.js";
+import { graphmlExporter } from "../../../src/formats/graphml/exporter.js";
 import { createRegistry } from "../../../src/registry.js";
 import { resolveStyles } from "../../../src/styles/internal.js";
 import type { StyleProperty } from "../../../src/styles/types.js";
@@ -130,10 +132,30 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
         expect(node("fillGradientAngle", "bevel-color")).toBe(90);
         expect(node("borderColor", "bevel-color")).toBe("#3366ff");
         expect(node("shapeLineWidth", "bevel")).toBe(1);
+        // over a line of 2 most of the way to white, as yEd Live draws it
+        expect(node("shapeLineHaloWidth", "bevel")).toBe(2);
+        expect(node("shapeLineHaloColor", "bevel")).toBe("#f7f7f7");
+        expect(node("shapeLineHaloColor", "bevel-color")).toBe("#e0e8ff");
         expect(String(node("shapeLines", "bevel")).split(" ")[0]).toBe("-1+3.000,1-10.000");
         expect(String(node("shapeLines", "bevel-inset-8")).split(" ")[0]).toBe("-1+8.000,1-10.000");
         // no corner left to round: one point a corner
         expect(String(node("shapeLines", "bevel-radius-0")).split(" ")).toHaveLength(5);
+    });
+
+    it("draws ShinyPlateNodeStyle's gloss over its upper left as yEd Live does", async () => {
+        const { node } = await sheet("specimen-node-shapes-p2.graphml");
+        const svg = (id: string): string => decodeURIComponent(String(node("image", id)).split(",")[1]);
+        // yEd Live 8.5.16 on this sheet: M 1.25,5 Q 1.25,1.25 5,1.25 L 31.4,1.25 ... for a node of 56 by 36, radius 5
+        expect(svg("shiny-plate")).toContain(
+            'd="M1.25,5Q1.25,1.25 5,1.25L31.4,1.25Q35.15,1.25 35.15,5Q35.15,8.75 21.95,18.15Q8.75,27.55 5,27.55Q1.25,27.55 1.25,23.8Z"',
+        );
+        expect(svg("shiny-plate-radius-0")).toContain(
+            'd="M0,0Q0,0 0,0L36.4,0Q36.4,0 36.4,0Q36.4,0 18.2,14.4Q0,28.8 0,28.8Q0,28.8 0,28.8Z"',
+        );
+        expect(node("imageFit", "shiny-plate")).toBe("fill");
+        // a line of 2 cuts the picture to the middle of it
+        expect(svg("shiny-plate-stroke")).toContain('viewBox="1 1 54 34"');
+        expect(node("image", "bevel")).toBeNull();
     });
 
     it("paints a PanelNodeStyle as a ramp into its color, lined in its color at 0.8", async () => {
@@ -221,6 +243,32 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
     });
 });
 
+describe("yEd Live GraphML: BPMN node styles", () => {
+    it("fills a bpmn: node style with its background and outlines it in its outline color, 1 pixel wide", async () => {
+        const p4 = await sheet("specimen-node-shapes-p4.graphml");
+        // <bpmn:ActivityNodeStyle background="#FFC8C8C8" outline="#FF505050" activityType="TASK"/>
+        expect(p4.node("fill", "bpmn-activity-activity-type-task")).toBe("#c8c8c8");
+        expect(p4.node("borderColor", "bpmn-activity-activity-type-task")).toBe("#505050");
+        expect(p4.node("borderWidth", "bpmn-activity-activity-type-task")).toBe(1);
+        expect(p4.node("borderStyle", "bpmn-activity-activity-type-task")).toBe("solid");
+        // <bpmn:ActivityNodeStyle/>: yFiles' own off-white with a dark blue outline
+        expect(p4.node("fill", "default")).toBe("#fafafa");
+        expect(p4.node("borderColor", "default")).toBe("#00008b");
+        const p5 = await sheet("specimen-node-shapes-p5.graphml");
+        // <bpmn:EventNodeStyle outline="#FF505050" background="#FFFF0000"/>
+        expect(p5.node("fill", "bpmn-event-background")).toBe("#ff0000");
+        expect(p5.node("borderColor", "bpmn-event-background")).toBe("#505050");
+        // <bpmn:GatewayNodeStyle background="#FFC8C8C8" outline="#FFFF0000"/>
+        expect(p5.node("fill", "bpmn-gateway-outline")).toBe("#c8c8c8");
+        expect(p5.node("borderColor", "bpmn-gateway-outline")).toBe("#ff0000");
+        expect(p5.node("fill", "bpmn-conversation-background")).toBe("#ff0000");
+        expect(p5.node("borderColor", "bpmn-data-object-collection")).toBe("#505050");
+        const p6 = await sheet("specimen-node-shapes-p6.graphml");
+        expect(p6.node("fill", "bpmn-choreography-type-task")).toBe("#c8c8c8");
+        expect(p6.node("borderColor", "bpmn-choreography-type-task")).toBe("#505050");
+    });
+});
+
 describe("yEd Live GraphML: label model parameters", () => {
     it("places node labels by the yFiles 3 interior, exterior and stretch models", async () => {
         const { node } = await sheet("specimen-labels-p2.graphml");
@@ -243,18 +291,97 @@ describe("yEd Live GraphML: label model parameters", () => {
     });
 });
 
+/**
+ * Imports two nodes joined by an edge labeled by a nine-position model's CenterAbove, and a self-loop with the same label.
+ * @param from - the source's x, with the target at 100
+ * @returns the resolved edge values
+ */
+async function aboveLabels(from: number) {
+    const label =
+        '<data key="l"><x:List><y:Label Text="Lbl"><y:Label.LayoutParameter>' +
+        '<yx:NinePositionsEdgeLabelModelParameter Position="CenterAbove"/>' +
+        "</y:Label.LayoutParameter></y:Label></x:List></data>";
+    const node = (id: string, x: number): string =>
+        `<node id="${id}"><data key="g"><y:RectD X="${String(x)}" Y="0" Width="10" Height="10"/></data></node>`;
+    const file = `<?xml version="1.0"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/yfiles-common/3.0"
+    xmlns:yx="http://www.yworks.com/xml/yfiles-common/4.0" xmlns:x="http://www.yworks.com/xml/yfiles-common/markup/3.0">
+<key id="g" for="node" attr.name="NodeGeometry" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/NodeGeometry"/>
+<key id="l" for="edge" attr.name="EdgeLabels" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/EdgeLabels"/>
+<graph id="G" edgedefault="directed">${node("a", from)}${node("b", 100)}
+<edge id="line" source="a" target="b">${label}</edge><edge id="loop" source="a" target="a">${label}</edge>
+</graph></graphml>`;
+    const result = await registry.importGraph(new TextEncoder().encode(file), {
+        format: "graphml",
+        styles: { toolDefaults: true },
+    });
+    if (result.styles === null || result.styles === undefined) {
+        throw new Error("no styles");
+    }
+    const { styles, snapshot } = result;
+    return (property: StyleProperty) => resolveStyles(styles, "edge", property, snapshot);
+}
+
 describe("yEd Live GraphML: edge label model parameters", () => {
-    it("places a label above or below the middle of its edge by the path and nine-position models", async () => {
-        const { edges } = await sheet("specimen-edge-labels.graphml");
-        const positions = edges("labelPosition");
-        // CenterAbove twice and AboveEdge three times; CenterBelow and BelowEdge once each
-        expect(positions.filter((p) => p === "top")).toHaveLength(5);
-        expect(positions.filter((p) => p === "bottom")).toHaveLength(2);
+    /** Half a line of 10 px words. */
+    const HALF_LINE = 5.82;
+
+    it("places a nine-position label its model's distance from the line's end and clear of the line", async () => {
+        const { edge } = await sheet("specimen-edge-labels.graphml");
+        expect(edge("labelPosition", "model-nine-center-above")).toBe("center");
+        expect(edge("labelOffsetX", "model-nine-center-above")).toBeNull();
+        expect(edge("labelOffsetY", "model-nine-center-above")).toBeCloseTo(-5 - HALF_LINE);
+        expect(edge("labelOffsetX", "model-nine-source-below")).toBeCloseTo(-19.75);
+        expect(edge("labelOffsetY", "model-nine-source-below")).toBeCloseTo(5 + HALF_LINE);
+        expect(edge("labelOffsetX", "model-nine-target-centered")).toBeCloseTo(19.75);
+        expect(edge("labelOffsetY", "model-nine-target-centered")).toBeNull();
+    });
+
+    it("turns a label by its model's or its parameter's angle", async () => {
+        const { edge } = await sheet("specimen-edge-labels.graphml");
+        expect(edge("labelRotation", "model-nine-angle")).toBeCloseTo(40.107);
+        expect(edge("labelRotation", "model-free-edge-angle")).toBeCloseTo(40.107);
+    });
+
+    it("puts a free label's middle its distance off the line", async () => {
+        const { edge } = await sheet("specimen-edge-labels.graphml");
+        expect(edge("labelOffsetY", "model-free-edge")).toBeCloseTo(-20);
+    });
+
+    it("draws a label with no parameter, or one yEd Live does not read, below the first segment's middle", async () => {
+        const { edge } = await sheet("specimen-edge-labels.graphml");
+        expect(edge("labelOffsetY", "default")).toBeCloseTo(5 + 1.164 * 6);
+        for (const id of ["model-path-on-edge", "model-path-above-edge", "model-smart-distance-minus-12"]) {
+            expect(edge("labelOffsetY", id)).toBeCloseTo(5 + HALF_LINE);
+        }
+        expect(edge("labelRotation", "model-smart-auto-rotation-false")).toBeCloseTo(360 - 38.29, 1);
+        expect(edge("labelRotation", "model-smart-angle")).toBeNull();
+    });
+
+    it("reads a SmartEdgeLabelModel's distance, segment ratio and end", async () => {
+        const { edge } = await sheet("specimen-edge-labels-p2.graphml");
+        expect(edge("labelOffsetY", "v2-smart-distance-0")).toBeNull();
+        expect(edge("labelOffsetY", "v2-smart-distance-12")).toBeCloseTo(12 + HALF_LINE);
+        expect(edge("labelOffsetY", "v2-smart-distance-minus-12")).toBeCloseTo(-12 - HALF_LINE);
+        expect(edge("labelOffsetX", "v2-smart-segment-ratio")).toBeCloseTo(-14.85);
+        expect(edge("labelOffsetX", "v2-smart-from-target")).toBeCloseTo(14.85);
+    });
+
+    it("keeps above on the page on a line running right to left", async () => {
+        for (const from of [0, 200]) {
+            expect((await aboveLabels(from))("labelOffsetY")[0]).toBeLessThan(0);
+        }
+    });
+
+    it("leaves a self-loop's label at its position", async () => {
+        const values = await aboveLabels(0);
+        expect(values("labelPosition")[1]).toBe("top");
+        expect(values("labelOffsetY")[1]).toBeNull();
     });
 });
 
-describe("yEd Live GraphML: a FlowchartNodeStyle gradient", () => {
-    it("is drawn in its first stop and noted", async () => {
+describe("yEd Live GraphML: a LinearGradient fill", () => {
+    it("reads a FlowchartNodeStyle's shared gradient from corner to corner", async () => {
         const result = await registry.importGraph(
             new Uint8Array(
                 readFileSync(
@@ -266,8 +393,33 @@ describe("yEd Live GraphML: a FlowchartNodeStyle gradient", () => {
             ),
             { format: "graphml", styles: { toolDefaults: true }, errorLimit: Infinity },
         );
-        const { styles } = result;
-        expect(styles?.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
+        const { styles, snapshot } = result;
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const n0 = snapshot.ids.requireIndex("n0");
+        expect(resolveStyles(styles, "node", "fill", snapshot)[n0]).toBe("#e8eef7");
+        expect(resolveStyles(styles, "node", "fillGradient", snapshot)[n0]).toBe("#b7c9e3");
+        expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[n0]).toBe(45);
+        expect(styles.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_GRADIENT");
+    });
+
+    it("runs at the angle from its start to its end across the node's box, with every stop", async () => {
+        const { node } = await sheet("specimen-node-fills-borders.graphml");
+        expect(node("fillGradientAngle", "linear-gradient-diagonal")).toBe(45);
+        expect(node("fillGradientAngle", "linear-gradient-horizontal")).toBe(0);
+        expect(node("fillGradientAngle", "linear-gradient-vertical")).toBe(90);
+        expect(node("fillGradient", "linear-gradient-vertical")).toBe("#0000ff");
+        expect(node("fillGradientColors", "linear-gradient-three-stops")).toBe("#ff0000 #ffcc00 #0000ff");
+        expect(node("fillGradientStops", "linear-gradient-three-stops")).toBe("0 0.5 1");
+        expect(node("fillGradientColors", "linear-gradient-diagonal")).toBeNull();
+    });
+
+    it("keeps a ramp inside the box, and a radial gradient, in their first stop", async () => {
+        const { node } = await sheet("specimen-node-fills-borders.graphml");
+        expect(node("fillGradient", "linear-gradient-reflect")).toBeNull();
+        expect(node("fill", "linear-gradient-reflect")).toBe("#ffffff");
+        expect(node("fillGradient", "radial-gradient")).toBeNull();
     });
 });
 
@@ -411,5 +563,20 @@ describe("yEd Live GraphML: a node label with no layout parameter", () => {
         expect((await sheet("specimen-labels-p3.graphml")).node("labelPadding", "v2-insets-8")).toBe(8);
         // a label with no box keeps the default padding
         expect(labels("labelPadding", "cap-background-fill")).toBeNull();
+    });
+});
+
+describe("yEd Live GraphML: ports on a save", () => {
+    it("writes every port of the BPMN sheet back as <port> elements that read back the same", async () => {
+        const read = async (bytes: Uint8Array) =>
+            (await registry.importGraph(bytes, { format: "graphml", errorLimit: Infinity })).snapshot;
+        const first = await read(new Uint8Array(readFileSync(join(SHEETS, "specimen-node-shapes-p6.graphml"))));
+        const ports = first.nodes.require("ports");
+        expect(ports.length - ports.nullCount).toBeGreaterThan(0);
+        expect(graphmlExporter.check(first).map((n) => n.code)).not.toContain(GRAPHML_LOSS.PORTS_DROPPED);
+        const again = await read(new TextEncoder().encode(await graphmlExporter.exportToString(first)));
+        const rows = (snapshot: typeof first): unknown[] =>
+            Array.from({ length: snapshot.nodeCount }, (_, r) => snapshot.nodes.require("ports").value(r));
+        expect(rows(again)).toEqual(rows(first));
     });
 });

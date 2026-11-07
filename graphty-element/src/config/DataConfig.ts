@@ -49,6 +49,10 @@ const GraphKnownFields = z.strictObject({
     // The IANA zone text in the node time column reads in when it carries no offset. Null reads UTC.
     // Not checked here: a saved name stays saved where it is not read. time.setField refuses a bad one.
     nodeTimeParseZone: z.string().or(z.null()).optional(),
+    // The columns saying where each node's time ends, and its list of spells. Read only with the
+    // timeline on; with it off they stay saved.
+    nodeTimeEndPath: z.string().or(z.null()).optional(),
+    nodeTimeSpellsPath: z.string().or(z.null()).optional(),
     // Where each node's location is: one column of whole locations, or a latitude and a longitude
     // column. The location map layout reads them when its own options name none; absent or null,
     // it finds them by name or by their values.
@@ -109,6 +113,8 @@ const GraphKnownFields = z.strictObject({
     edgeTimePath: z.string().or(z.null()).default(null),
     edgeTimeUnit: z.enum(["ms", "s", "year", "ordinal"]).or(z.null()).optional(),
     edgeTimeParseZone: z.string().or(z.null()).optional(),
+    edgeTimeEndPath: z.string().or(z.null()).optional(),
+    edgeTimeSpellsPath: z.string().or(z.null()).optional(),
     // graph-format design 14.4's addNodes row: a record's data.position is written into the
     // importer-seed column SCALED to scene units by this factor. It must be > 0. Zero collapses
     // every file-placed node onto the scene origin, which is indistinguishable from the NaN the

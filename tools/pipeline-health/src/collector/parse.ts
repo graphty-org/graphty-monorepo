@@ -497,8 +497,12 @@ export interface GqlCheck {
     __typename: string;
     id?: string;
     name?: string;
-    /** The failing check run's first failed step, filled in by the collector from STEPS_QUERY. */
-    failedStep?: string;
+    /**
+     * What the failing check run failed on, filled in by the collector (collect.ts failureSignatures): each failed
+     * test as "file > name", and each failure annotation's first line. Empty or absent when nothing says.
+     */
+    signatures?: string[];
+    detailsUrl?: string | null;
     status?: string;
     conclusion?: string | null;
     context?: string;
@@ -775,9 +779,10 @@ function screenshotWaitMs(p: GqlPr, nowMs: number): number {
  * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
  * @param open - the open pull requests
  * @param nowMs - the current epoch ms
+ * @param masterFailing - the checks (families folded) master's newest build failed
  * @returns the counts and the pull requests behind them
  */
-export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
+export function prStocks(open: GqlPr[], nowMs: number, masterFailing?: ReadonlySet<string>): PrStocks {
     const s: PrStocks = {
         open: 0,
         oldestOpenMs: 0,
@@ -812,7 +817,10 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
         s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, screenshotWaitMs(p, nowMs));
     }
     // An aggregator failing alone counts too (4, "Excluded checks"); a stack of pull requests counts once.
-    s.maxFailingSameCheck = Math.max(0, ...[...failureGroups(open, nowMs).values()].map((g) => g.units.size));
+    s.maxFailingSameCheck = Math.max(
+        0,
+        ...[...failureGroups(open, nowMs, masterFailing).values()].map((g) => g.units.size),
+    );
     return s;
 }
 
@@ -957,6 +965,8 @@ export interface ReleaseAttempt {
     failedJob?: string;
     /** Its "Deploy the nightly site" job: passed means it promoted the candidate to nightly. */
     nightly: LaneResult;
+    /** Its "Coverage" job (publishes to Coveralls): skipped when the run's CI did not pass. */
+    coverage: LaneResult;
 }
 
 /**
@@ -1036,7 +1046,37 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
         .filter((j) => BAD.has(j.conclusion ?? ""))
         .sort((a, b) => msOr(a.completed_at) - msOr(b.completed_at))[0];
     const nightly = laneOf(jobs, NIGHTLY_SITE);
-    return { mode, lanes, tested, red, jobs: laneJobs, nightly, ...(failed ? { failedJob: failed.name } : {}) };
+    const coverage = laneOf(jobs, "Coverage");
+    return {
+        mode,
+        lanes,
+        tested,
+        red,
+        jobs: laneJobs,
+        nightly,
+        coverage,
+        ...(failed ? { failedJob: failed.name } : {}),
+    };
+}
+
+/**
+ * When the coverage source was last current (#6119): Coveralls is fed only by a full run whose Coverage job ran,
+ * and that job runs only when the run's CI passed, so a red full run publishes nothing. While no finished attempt
+ * reached Coverage after the newest Coveralls build, that build is all there is to publish, and the source is
+ * current as of the newest finished attempt; the red run itself is already master.full_run_failed's alarm. An
+ * attempt that reached Coverage after the build and published nothing leaves the build's own time, so a broken
+ * publish still goes stale. Attempts read before the Coverage result was kept count as reaching it.
+ * @param builtAt - the newest Coveralls build on master, epoch ms
+ * @param attempts - the finished release attempts the collector has read
+ * @returns epoch ms the coverage source counts as current at
+ */
+export function coverageAsOf(builtAt: number, attempts: { at: number; created?: number; coverage?: string }[]): number {
+    const after = attempts.filter((a) => a.at > builtAt);
+    const reached = (a: { coverage?: string }): boolean => a.coverage !== "skipped" && a.coverage !== "absent";
+    if (after.some((a) => reached(a) && (a.created ?? a.at) > builtAt)) {
+        return builtAt;
+    }
+    return Math.max(builtAt, ...after.map((a) => a.at));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

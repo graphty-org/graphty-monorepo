@@ -55,7 +55,7 @@ import { SceneUniforms } from "./sceneUniforms";
 import { compileProblem, sampleProgram, uniformValueOf } from "./wrap";
 
 /** The longest one frame of a shader may be estimated at before the test frame refuses it. */
-export const FRAME_LIMIT_MS = 250;
+const FRAME_LIMIT_MS = 250;
 
 /** The most times the test frame draws a size that would refuse the shader, keeping the fastest. */
 const TEST_REPEATS = 3;

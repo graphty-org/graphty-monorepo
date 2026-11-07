@@ -38,6 +38,11 @@
  * vertex shader folds a fade by its length on screen into the coverage every fragment already
  * multiplies its alpha by. `EDGE_OPAQUE` (line.blending false) writes every fragment at alpha 1.
  *
+ * FADING BY AGE (`EDGE_AGED`, the timeline's `ageFade`). One more instanced float per piece, in a
+ * buffer of its own: its edge's start normalized over the data's extent. A uniform carries the
+ * window and the opacity at its start, so a step writes the uniform and no slot. It folds into the
+ * same coverage, since a widened batch already uses all 15 varying rows.
+ *
  * THE EDGE-SURFACE HOOK (`EDGE_SHADED`). With it the fragment's color is not the uniform color but
  * `graphty_edgeShade(t, side, lengthPx, widthPx, coverage)`, declared here and defined by the
  * shader runtime after this text (`src/shaders/runtime/edgePrograms.ts`), which fills `EdgeInput`
@@ -98,6 +103,61 @@ export const JOIN_TEMPLATE_INDICES: readonly number[] = [
     1, 2, 7, 1, 7, 6, 0, 1, 3, 0, 2, 4, 5, 6, 8, 5, 7, 9, 0, 3, 10, 0, 4, 11, 5, 8, 12, 5, 9, 13,
 ];
 
+/** Vertices in the join template, which a pulled piece reads by `gl_VertexID`. */
+export const JOIN_TEMPLATE_VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
+
+/**
+ * PULLED EDGES (`EDGE_PULLED`): a piece's six points are not attributes but read at the top of the
+ * vertex stage. `edgeRows` holds two row numbers per piece (a texel holds two pieces), and
+ * `rowPosition` (`render/RowTable.ts`) holds each row's place and its w; so moving a node uploads
+ * its row and no edge byte. The draw is one indexed, non-instanced draw: index `piece * 14 + k`,
+ * so `gl_VertexID` names both the piece and its template vertex. A straight piece between node
+ * centres is all this reads, written as `EdgeLineBatch.place` writes it: its neighbours are its
+ * own ends and its run is zero. A free piece (rows below 0) and a piece with a row of w = 0
+ * (hidden or not placed) get every point at the origin, as a hidden slot does, and draw nothing.
+ * Every line after this is the plain line's, so the two draw the same pixels.
+ */
+const PULLED_EDGE_GLSL = `
+#ifdef EDGE_PULLED
+uniform highp sampler2D rowPosition;
+uniform highp sampler2D edgeRows;
+const vec3 JOIN_TEMPLATE[${String(JOIN_TEMPLATE_VERTICES)}] = vec3[${String(JOIN_TEMPLATE_VERTICES)}](${Array.from(
+    { length: JOIN_TEMPLATE_VERTICES },
+    (_, i) =>
+        `vec3(${JOIN_TEMPLATE_POSITIONS.slice(i * 3, i * 3 + 3)
+            .map((v) => v.toFixed(1))
+            .join(", ")})`,
+).join(", ")});
+
+vec4 pulledRow(int r) {
+    return texelFetch(rowPosition, ivec2(r & 1023, r >> 10), 0);
+}
+
+void pullEdge() {
+    int piece = gl_VertexID / ${String(JOIN_TEMPLATE_VERTICES)};
+    position = JOIN_TEMPLATE[gl_VertexID - piece * ${String(JOIN_TEMPLATE_VERTICES)}];
+    int texel = piece >> 1;
+    vec4 pair = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
+    vec2 rows = (piece & 1) == 0 ? pair.xy : pair.zw;
+    pA = vec3(0.0);
+    pB = vec3(0.0);
+    if (rows.x >= 0.0 && rows.y >= 0.0) {
+        vec4 a = pulledRow(int(rows.x + 0.5));
+        vec4 b = pulledRow(int(rows.y + 0.5));
+        if (a.w * b.w != 0.0) {
+            pA = a.xyz;
+            pB = b.xyz;
+        }
+    }
+    pPrev = pA;
+    pPrev2 = pA;
+    pNext = pB;
+    pNext2 = pB;
+    run = vec2(0.0);
+}
+#endif
+`;
+
 /**
  * The vertex shader. `WORLD_WIDTH` takes `width` in world units (2D lines, and patterned lines in
  * either mode); without it `width` is the 3D solid line's screen width, drawn as it always was.
@@ -105,6 +165,16 @@ export const JOIN_TEMPLATE_INDICES: readonly number[] = [
 export const EDGE_JOIN_VERTEX_SHADER = `
 precision highp float;
 
+#ifdef EDGE_PULLED
+vec3 position;
+vec3 pPrev2;
+vec3 pPrev;
+vec3 pA;
+vec3 pB;
+vec3 pNext;
+vec3 pNext2;
+vec2 run;
+#else
 attribute vec3 position;
 attribute vec3 pPrev2;
 attribute vec3 pPrev;
@@ -113,6 +183,7 @@ attribute vec3 pB;
 attribute vec3 pNext;
 attribute vec3 pNext2;
 attribute vec2 run;
+#endif
 
 uniform mat4 world;
 uniform mat4 viewProjection;
@@ -156,8 +227,15 @@ varying float vEdgeTotal;
 uniform vec3 edgeFade;
 #endif
 
-const float EPS = 1e-4;
+#ifdef EDGE_AGED
+// The piece's edge's start, and the window's start and end and the opacity at its start, all
+// normalized over the data's extent (a float cannot hold an epoch).
+attribute float edgeAge;
+uniform vec3 edgeAgeWindow;
+#endif
 
+const float EPS = 1e-4;
+${PULLED_EDGE_GLSL}
 vec4 clipOf(vec3 p) {
     return viewProjection * (world * vec4(p, 1.0));
 }
@@ -257,6 +335,9 @@ vec2 sideMeet(vec2 q0, float w0, vec2 p, float w, vec2 q1, float w1, vec2 dIn, v
 }
 
 void main() {
+#ifdef EDGE_PULLED
+    pullEdge();
+#endif
     bool atB = position.x > 0.5;
     float side = position.y;
     bool joinVertex = position.z > 0.5;
@@ -436,6 +517,12 @@ void main() {
     float edgePx = worldOwn > EPS ? total * lenOwn / worldOwn : lenOwn;
     float faded = clamp((edgePx - edgeFade.x) / max(edgeFade.y - edgeFade.x, EPS), 0.0, 1.0);
     vWidth.z *= mix(1.0, edgeFade.z, faded);
+#endif
+#ifdef EDGE_AGED
+    // Age: 0 at the window's end, 1 at its start, folded into the coverage as the fade above is.
+    float ageSpan = edgeAgeWindow.y - edgeAgeWindow.x;
+    float age = ageSpan > 0.0 ? clamp((edgeAgeWindow.y - edgeAge) / ageSpan, 0.0, 1.0) : 0.0;
+    vWidth.z *= mix(1.0, edgeAgeWindow.z, age);
 #endif
 }
 `;

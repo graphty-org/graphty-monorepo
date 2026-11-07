@@ -3,7 +3,7 @@ import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import { labelLine } from "../style/commands";
-import { designate, timelineOn } from "../time/timeActions";
+import { designate, panelsInView, timelineOn } from "../time/timeActions";
 import { openFilterDraft } from "./filterCards";
 import { labelRefusalWords } from "./words";
 
@@ -90,7 +90,7 @@ function attributeActions(
             run: () => {
                 const side = column.kind === "edge" ? "edges" : "nodes";
                 designate(session, store, { [side]: source });
-                store.set({ page: "panels", place: "data", fieldsEntry: `${side}:time` });
+                store.set({ page: "panels", place: "data", fieldsEntry: `${side}:time`, ...panelsInView() });
             },
         });
     }

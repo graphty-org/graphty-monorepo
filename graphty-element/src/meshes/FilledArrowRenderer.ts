@@ -334,7 +334,13 @@ void main() {
     // This system is aligned with the line but rotates to face the camera
     vec3 forward = normalize(lineDir);                    // Arrow points along line
     vec3 toCamera = normalize(cameraPosition - worldCenter);
-    vec3 right = normalize(cross(forward, toCamera));     // Perpendicular to line AND camera
+    vec3 right = cross(forward, toCamera);                // Perpendicular to line AND camera
+    // Camera exactly on the line: the cross is zero and normalize() of it is NaN. Any axis across
+    // the line will do there, since the flat cap is edge-on to the camera whichever one it is.
+    if (dot(right, right) < 1e-12) {
+        right = cross(forward, abs(forward.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0));
+    }
+    right = normalize(right);
     vec3 up = cross(right, forward);                      // Completes orthonormal basis, faces camera
 
     // Transform arrow vertex from local space to world space

@@ -26,8 +26,9 @@ export interface PStop {
 }
 
 /**
- * A gradient as drawn: its kind, its stops and, for a linear one, the screen direction it runs in (degrees, clockwise
- * from the +x axis, y down: from its first stop towards its last), or null where the drawing does not say.
+ * A gradient as drawn: its kind, its stops and, for a linear one, the screen direction its color changes along
+ * (degrees, clockwise from the +x axis, y down: from its first stop towards its last; across its lines of one color,
+ * as `rampAngleOnScreen` reads a stretched ramp), or null where the drawing does not say.
  */
 export interface PGradient {
     kind: "linear" | "radial";
@@ -43,6 +44,27 @@ export interface PGradient {
      * node's middle; its stops are then in halves of the node's shorter side from there. Absent, the node's middle.
      */
     center?: readonly [number, number];
+}
+
+/**
+ * The screen direction a linear ramp's color changes along, where the ramp runs along a vector in its own units and a
+ * linear map takes those units to the screen. A map that stretches one way more than the other (a ramp painted across
+ * a unit square, or an SVG gradient in objectBoundingBox units, laid over a box wider than tall) turns the ramp's lines
+ * of one color with it, and the color changes across those lines, not along the stretched vector: a ramp from corner to
+ * corner of a 220 x 94 box runs along 23.1 degrees on screen, and its color changes along 66.9. That direction is the
+ * map's inverse transpose applied to the vector.
+ * @param v - the ramp's vector, in its own units
+ * @param a - the map's matrix `[a, b, c, d]` (x' = a x + c y, y' = b x + d y)
+ * @returns the direction in degrees, or null for a ramp of no length or a map that flattens it
+ */
+export function rampAngleOnScreen(v: Pt, [a, b, c, d]: readonly [number, number, number, number]): number | null {
+    const det = a * d - b * c;
+    if (Math.hypot(v[0], v[1]) < 1e-12 || Math.abs(det) < 1e-12) {
+        return null;
+    }
+    const x = (d * v[0] - b * v[1]) / det;
+    const y = (a * v[1] - c * v[0]) / det;
+    return (Math.atan2(y, x) * 180) / Math.PI;
 }
 
 /** A fill: a flat color, or a gradient (its first stop is also its `color`). */
@@ -261,10 +283,10 @@ export interface PNode {
      */
     pictures?: PBox[];
     /**
-     * The oracle's side only: the boxes of a fill drawn in pieces (a yEd table's header and lanes, Graphviz's stripes),
-     * which graphty draws as pieces over the node's face. Absent for a fill in one piece.
+     * The oracle's side only: the pieces of a fill drawn in pieces (a yEd table's header and lanes, Graphviz's stripes),
+     * which graphty draws as pieces over the node's face, each with its color. Absent for a fill in one piece.
      */
-    faces?: PBox[];
+    faces?: { box: PBox; color: string }[];
     /**
      * The oracle's side only: the parts of the node a clip cuts from a fill of another color than the node's (yEd's
      * entity header), each of which graphty must draw over the face in that color. Absent for none.
@@ -878,9 +900,15 @@ function continuousPattern(outer: readonly Pt[]): DashClass {
     return straightShare(outer) > 0.5 ? "zigzag" : "sinewave";
 }
 
+/** The sine of the widest angle between two sides still read as running alongside one another (10 degrees). */
+const ALONGSIDE = Math.sin((10 * Math.PI) / 180);
+
 /**
- * How far apart two outlines most often are: over one outline's points, the distance to the other's nearest side,
- * and of those the run within a tenth of one another that holds the most, its median.
+ * How far apart two outlines most often are: over one outline's points, the distance to the other's nearest side
+ * running alongside it (within 10 degrees), and of those the run within a tenth of one another that holds the most,
+ * its median. Only a side alongside is the line's other edge: a zigzag drawn thick (Cytoscape desktop's 6 px border,
+ * cx-syn-bypass 2106) brings its next leg's far edge nearer than its own across the turn, which read the band half
+ * its width.
  * @param a - one outline, sampled
  * @param b - the other, closed
  * @returns the distance
@@ -891,10 +919,28 @@ function outlinesApart(a: readonly Pt[], b: readonly Pt[]): number {
         const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / Math.max(dx * dx + dy * dy, 1e-12)));
         return Math.hypot(x - (x0 + t * dx), y - (y0 + t * dy));
     };
+    const alongside = (u: Pt, v: Pt): boolean => {
+        const [lu, lv] = [Math.hypot(u[0], u[1]), Math.hypot(v[0], v[1])];
+        return lu > 1e-9 && lv > 1e-9 && Math.abs(u[0] * v[1] - u[1] * v[0]) <= ALONGSIDE * lu * lv;
+    };
     const step = Math.max(1, Math.floor(a.length / 256));
     const gaps: number[] = [];
     for (let i = 0; i < a.length; i += step) {
-        gaps.push(Math.min(...b.map((p, k) => toSide(a[i], p, b[(k + 1) % b.length]))));
+        const next = a[(i + 1) % a.length];
+        const dir: Pt = [next[0] - a[i][0], next[1] - a[i][1]];
+        let nearest = Number.POSITIVE_INFINITY;
+        for (let k = 0; k < b.length; k++) {
+            const q = b[(k + 1) % b.length];
+            if (alongside(dir, [q[0] - b[k][0], q[1] - b[k][1]])) {
+                nearest = Math.min(nearest, toSide(a[i], b[k], q));
+            }
+        }
+        if (Number.isFinite(nearest)) {
+            gaps.push(nearest);
+        }
+    }
+    if (gaps.length === 0) {
+        return Number.NaN;
     }
     gaps.sort((x, y) => x - y);
     let [best, from] = [0, 0];
@@ -1056,9 +1102,12 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[], nonze
     if (subpaths.length === 2 || !(ringsAHole(subpaths, box) || drawnInTurn(subpaths)) || !closesOnItself(boxes)) {
         return null;
     }
-    // round the ring: along is the angle at the ring's mean radius, its mirror the circle there
+    // round the ring: along is the angle at the ring's mean radius, its mirror the circle there; across and the
+    // tangent are read against the ring's own outline (its pieces' convex hull), so a box's or a diamond's two rows of
+    // a double line lie each at one depth, as a circle's do at one radius (cx2-syn-mappings 201 was read as slashes
+    // against the circle's radius)
     const r0 = median(subpaths.flat().map((p) => frame(p).across));
-    const { dashClass, width } = piecesPattern(subpaths, frame, {
+    const { dashClass, width } = piecesPattern(subpaths, hullFrame(convexHull(subpaths.flat())), {
         length: 2 * Math.PI * r0,
         circular: true,
         along: ([x, y]) => r0 * (Math.atan2(y - my, x - mx) + Math.PI),
@@ -1069,6 +1118,33 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[], nonze
         },
     });
     return patternResult(dashClass, width, box);
+}
+
+/**
+ * A pattern frame against a convex outline: at a point, the direction of the outline's nearest side and how far
+ * inside it the point is.
+ * @param hull - the outline, counter-clockwise
+ * @returns the frame
+ */
+function hullFrame(hull: readonly (readonly [number, number])[]): PatternFrame {
+    return ([x, y]) => {
+        let best = { tangent: [1, 0] as Pt, across: Number.POSITIVE_INFINITY };
+        for (let i = 0; i < hull.length; i++) {
+            const [x0, y0] = hull[i];
+            const [x1, y1] = hull[(i + 1) % hull.length];
+            const [dx, dy] = [x1 - x0, y1 - y0];
+            const len = Math.hypot(dx, dy);
+            if (len <= 1e-9) {
+                continue;
+            }
+            const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / (len * len)));
+            const d = Math.hypot(x - (x0 + t * dx), y - (y0 + t * dy));
+            if (d < best.across) {
+                best = { tangent: [dx / len, dy / len], across: d };
+            }
+        }
+        return best;
+    };
 }
 
 /** How many times as long as it is wide a filled band must be to be read as a line at all. */

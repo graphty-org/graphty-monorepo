@@ -318,6 +318,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shapeTexts": "Shape",
     "node.labelTable": "Label",
     "node.shapeLineWidth": "Shape",
+    "node.shapeLineHaloColor": "Shape",
+    "node.shapeLineHaloWidth": "Shape",
     "node.gradientColors": "Gradient",
     "node.gradientStops": "Gradient",
     "node.gradientKind": "Gradient",
@@ -408,6 +410,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOutlineOpacity": "Label",
     "edge.labelBorderOpacity": "Label",
     "edge.labelPadding": "Label",
+    "edge.labelTable": "Label",
     "edge.labelCornerRadius": "Label",
     "edge.labelLineHeight": "Label",
     "edge.labelOffsetX": "Label",
@@ -466,7 +469,7 @@ export function directionWords(statistics: GraphStatistics): string {
  * @param directedness - the element's direction.
  * @returns the sentence, or null.
  */
-export function arrowheadNote(directedness: GraphStatistics["directedness"]): string | null {
+function arrowheadNote(directedness: GraphStatistics["directedness"]): string | null {
     // An arrowhead on an edge with no direction shows the file's order, not a direction.
     const follows =
         "an arrowhead shows only the file's order: it points from each edge's first-listed node to its second";
@@ -584,7 +587,7 @@ export function selectionWords(nodes: number, edges: number): string {
  * @param session - the session.
  * @returns the words.
  */
-export function selectionNameWords(session: GraphSession): string {
+function selectionNameWords(session: GraphSession): string {
     const { nodes, edges } = session.selection;
     if (nodes.length + edges.length === 1) {
         if (nodes.length === 1) {

@@ -56,6 +56,7 @@ import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/re
 import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -344,7 +345,8 @@ export class Graphty extends LitElement {
      * Save the project (`session.project.save`) and hand it to the reader as a download named
      * `<project name>.graphty.json`. Lives on the element, not the session, because the session
      * also runs in Node, where there is nothing to download to.
-     * @param options - What to leave out, your own extensions, and the file's name.
+     * @param options - What to leave out, your own extensions, how to keep models named by URL,
+     *     the file's name, and `markSaved: false` for a copy that leaves `project.dirty` as it was.
      * @returns What the file holds.
      * @example
      * ```typescript
@@ -352,14 +354,18 @@ export class Graphty extends LitElement {
      * ```
      */
     async downloadProject(
-        options: Omit<ProjectSaveOptions, "markSaved"> & { readonly fileName?: string } = {},
+        options: ProjectSaveOptions & { readonly fileName?: string } = {},
     ): Promise<ProjectSaveReport> {
         // The download is the write, and the caller never sees a SavedProject to mark, so this
-        // save always clears `dirty`.
-        const { text, report } = await this.session.project.save({ ...options, markSaved: true });
+        // save clears `dirty` unless the caller asked for a copy.
+        const { fileName, ...saveOptions } = options;
+        const { text, report } = await this.session.project.save({
+            ...saveOptions,
+            markSaved: options.markSaved !== false,
+        });
         downloadBlob(
             new Blob([text], { type: PROJECT_FILE.mediaType }),
-            options.fileName ?? projectFileName(this.session.project.name),
+            fileName ?? projectFileName(this.session.project.name),
         );
         return report;
     }
@@ -2378,6 +2384,52 @@ export class Graphty extends LitElement {
      */
     set nodeTimePath(value: string | undefined) {
         this.#setTimeField("nodeTimePath", value);
+    }
+
+    /**
+     * The edge column that says when each edge ends, beside `edge-time-path`: the edge then exists
+     * for a span. A missing end is open. A list of spells takes `session.time.setField`.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element features="timeline" edge-time-path="opened" edge-time-end-path="closed"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
+     */
+    @property({ attribute: "edge-time-end-path" })
+    get edgeTimeEndPath(): string | undefined {
+        return this.#timeField("edgeTimeEndPath");
+    }
+    /**
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    set edgeTimeEndPath(value: string | undefined) {
+        this.#setTimeField("edgeTimeEndPath", value);
+    }
+
+    /**
+     * The node column that says when each node ends, beside `node-time-path`: the node then exists
+     * for a span. A missing end is open. A list of spells takes `session.time.setField`.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element features="timeline" node-time-path="hired" node-time-end-path="left"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
+     */
+    @property({ attribute: "node-time-end-path" })
+    get nodeTimeEndPath(): string | undefined {
+        return this.#timeField("nodeTimeEndPath");
+    }
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    set nodeTimeEndPath(value: string | undefined) {
+        this.#setTimeField("nodeTimeEndPath", value);
     }
 
     /**
@@ -5070,6 +5122,24 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether a frame showing the graph's nodes has been drawn.
+     *
+     * True from the first frame that draws the nodes, while the layout may still be moving them,
+     * until the graph is emptied of every node. The `graph-first-frame` event announces the moment
+     * it becomes true, so a page can show its own loading placeholder until then; the element
+     * draws none.
+     * @returns True once the nodes are on screen.
+     * @beta
+     * @example
+     * ```typescript
+     * element.addEventListener("graph-first-frame", () => placeholder.remove(), { once: true });
+     * ```
+     */
+    get isGraphDrawn(): boolean {
+        return this.#graph.isGraphDrawn;
+    }
+
+    /**
      * Make several changes one undoable step.
      *
      * `fn` receives `tx`, the session as seen from inside the step: what it does through `tx` is
@@ -6002,6 +6072,46 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("renderer", oldValue);
+    }
+
+    /**
+     * How nodes are drawn: `"objects"` (the default), a mesh per node, or `"batched"`, every
+     * eligible node of one look in one draw call. A node a batch cannot draw stays an object, with
+     * no change to the picture. It can change at any time.
+     * @returns The path asked for.
+     * @example
+     * ```html
+     * <graphty-element render-path="batched"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "render-path" })
+    get renderPath(): RenderPath {
+        return this.#graph.renderPath;
+    }
+    /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    set renderPath(value: RenderPath) {
+        const oldValue = this.#graph.renderPath;
+
+        try {
+            this.#graph.setRenderPath(value);
+        } catch (error) {
+            console.error(
+                `<graphty-element>: ${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`,
+            );
+            return;
+        }
+
+        this.requestUpdate("renderPath", oldValue);
+    }
+
+    /**
+     * How many nodes and edges each render path is drawing, as of the last frame.
+     * @returns The counts.
+     */
+    get rowCounts(): RowCounts {
+        return this.#graph.rowCounts;
     }
 
     /**

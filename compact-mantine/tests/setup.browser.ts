@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import "@mantine/core/styles.css";
 
 import { configure } from "@testing-library/react";
-import { beforeAll } from "vitest";
+import { beforeAll, beforeEach } from "vitest";
 import { commands } from "vitest/browser";
 
 import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
@@ -23,6 +23,14 @@ ensureCompactStyles();
 // Every file starts with the pointer parked in the far corner.
 beforeAll(async () => {
     await commands.mouseAway();
+});
+
+// A real Tab past a test's last control takes focus out of the test frame, and userEvent.tab()
+// (unlike userEvent.keyboard) does not bring it back, so the next test's first Tab walked the
+// runner's page instead of the test. Every test starts with focus on the test frame's body.
+beforeEach(() => {
+    window.focus();
+    (document.activeElement as HTMLElement | null)?.blur();
 });
 
 // Browser-specific setup file

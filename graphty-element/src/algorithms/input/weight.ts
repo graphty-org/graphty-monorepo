@@ -151,7 +151,7 @@ export function resolveRunWeight(
 }
 
 /** What a layout's warning about its weight says: a code and its parameters, never a sentence. */
-export interface LayoutWeightWarning {
+interface LayoutWeightWarning {
     readonly code: "W_WEIGHT_MEANING_ASSUMED" | "W_WEIGHT_MEANING_MISMATCH";
     readonly params: Readonly<Record<string, unknown>>;
 }

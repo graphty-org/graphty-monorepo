@@ -164,23 +164,17 @@ describe("the Style panel", () => {
         assert.strictEqual((await screen.findByRole("tooltip", {})).textContent, reason);
     });
 
-    it("draws a reason several menu rows share once", async () => {
+    it("offers Everything's menu as any row's: it moves, unpins and deletes", async () => {
         await openScene();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Everything, / }), {
-            button: "right",
-        });
+        const everything = await within(tree).findByRole("treeitem", { name: /^Everything, / });
+        await userEvent.click(everything, { button: "right" });
         const menu = await screen.findByRole("menu");
-        const reason = "Everything holds the base look and stays at the bottom";
-        const drawn = within(menu)
-            .getAllByText(reason)
-            .filter((each) => each.getBoundingClientRect().width > 1);
-        assert.strictEqual(drawn.length, 1, "drawn under one row");
-        // Every row it keeps from running still carries it for a screen reader.
-        assert.isAtLeast(within(menu).getAllByText(reason).length, 2);
-        // Delete says why it cannot run, in words of its own, drawn under it.
-        const kept = within(menu).getByText("Everything holds the base look, so it cannot be deleted");
-        assert.isAbove(kept.getBoundingClientRect().width, 1, "Delete's reason is drawn");
+        for (const name of ["Delete", "Pin to top", "Unpin", "Move to folder"]) {
+            const item = within(menu).getByRole("menuitem", { name: new RegExp(`^${name}`) });
+            assert.notStrictEqual(item.getAttribute("aria-disabled"), "true", `${name} can be used`);
+        }
+        assert.isNull(within(menu).queryByText(/holds the base look/), "no reason keeps it apart");
     });
 
     it("says how many layers several are once, in the header", async () => {

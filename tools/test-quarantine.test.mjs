@@ -11,15 +11,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
+import RunningTests from "./running-tests.mjs";
 import {
     activeList,
     blameChange,
+    DEADLINE_ENV,
     decide,
     failedFirst,
     emptyState,
+    HANG_CODE,
     quarantineEnabled,
     runShard,
     shardOfRun,
+    stillRunning,
 } from "./test-quarantine.mjs";
 import { selectedCommand } from "./test-select.mjs";
 import { WAIT_GUARD_MS } from "./test-wait-guard.mjs";
@@ -366,6 +370,64 @@ describe("runShard", () => {
             result.failing.map((f) => f.name),
             [T1.name],
         );
+    });
+
+    // #5845: `sh` waited for the pipes to close, so a process the command left behind kept the step alive for ever.
+    it("ends when the command has exited, though a process it left behind holds its output", async () => {
+        const c = checkout({ retryFails: false });
+        const first = "setsid sleep 600 & echo $! > survivor.pid; echo ' Test Files  1 passed (1)'; exit 0";
+        const { code } = await run({ ...c, first });
+        process.kill(Number(readFileSync(join(c.root, "survivor.pid"), "utf8")));
+        assert.equal(code, 0);
+    });
+
+    // #5845: a browser run hung until GitHub cancelled the job, which keeps no log, so nothing named the test.
+    it("stops a stuck run at its deadline, names the test still running and does not retry it", async (t) => {
+        const c = checkout({ retryFails: false });
+        const log = t.mock.method(console, "log", () => {});
+        const first = [
+            `printf '+ a.test.ts\\n+ a.test.ts > done\\n- a.test.ts > done\\n+ a.test.ts > stuck\\n' > "$GRAPHTY_RUNNING_TESTS"`,
+            // a stuck child that left the process group and ignores the TERM, holding the output pipes
+            `setsid sh -c 'trap "" TERM; sleep 600' & echo $! > survivor.pid`,
+            "wait",
+        ].join("; ");
+        const { code, result } = await run({ ...c, first }, { [DEADLINE_ENV]: String(Date.now() + 500) });
+        process.kill(Number(readFileSync(join(c.root, "survivor.pid"), "utf8")), "SIGKILL");
+        const printed = log.mock.calls.map((call) => call.arguments[0]).join("\n");
+        assert.equal(code, HANG_CODE);
+        assert.match(printed, /^::error::\[HANG\] .*still running: a\.test\.ts > stuck$/mu);
+        assert.equal(result.retried, false);
+        assert.equal(existsSync(join(c.root, "retry-command")), false, "no retry ran");
+    });
+
+    it("gives the last output of a stuck run with no test running, and starts nothing past the deadline", async (t) => {
+        const c = checkout({ retryFails: false });
+        const log = t.mock.method(console, "log", () => {});
+        const env = { [DEADLINE_ENV]: String(Date.now() + 500) };
+        const stuck = await run({ ...c, first: "echo installing; exec sleep 600" }, env);
+        assert.equal(stuck.code, HANG_CODE);
+        assert.match(log.mock.calls.map((call) => call.arguments[0]).join("\n"), /last output: installing$/mu);
+        const late = await run({ ...c, first: "touch started" }, env);
+        assert.equal(late.code, HANG_CODE);
+        assert.equal(existsSync(join(c.root, "started")), false);
+    });
+
+    it("reads the tests still running, and the files with none, from the running-tests reporter's record", () => {
+        const file = join(fresh(), "record");
+        assert.deepEqual(stillRunning(file), []);
+        const reporter = new RunningTests({ file });
+        const testModule = { relativeModuleId: "src/a.test.ts" };
+        const testCase = { module: testModule, fullName: "suite works" };
+        reporter.onTestModuleQueued(testModule);
+        assert.deepEqual(stillRunning(file), ["src/a.test.ts"]);
+        reporter.onTestCaseReady(testCase);
+        assert.deepEqual(stillRunning(file), ["src/a.test.ts > suite works"]);
+        reporter.onTestModuleQueued({ relativeModuleId: "src/b.test.ts" });
+        assert.deepEqual(stillRunning(file), ["src/a.test.ts > suite works", "src/b.test.ts"]);
+        reporter.onTestModuleEnd({ relativeModuleId: "src/b.test.ts" });
+        reporter.onTestCaseResult(testCase);
+        reporter.onTestModuleEnd(testModule);
+        assert.deepEqual(stillRunning(file), []);
     });
 
     it("fails a run whose output is over the log budget, whatever it exited with, quarantine on or off", async () => {

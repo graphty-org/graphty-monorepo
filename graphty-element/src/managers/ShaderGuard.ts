@@ -56,19 +56,19 @@ export const QUALITY_LEVELS: Readonly<
 });
 
 /** A frame the GPU was behind on and that took longer than this is slow, in milliseconds. */
-export const SLOW_FRAME_MS = 50;
+const SLOW_FRAME_MS = 50;
 
 /** How long the slow frames must last before one step down, in milliseconds. */
-export const STEP_DOWN_AFTER_MS = 1000;
+const STEP_DOWN_AFTER_MS = 1000;
 
 /** One frame this long, the GPU behind and a heavy shader on screen, turns heavy shaders off. */
 export const LONG_FRAME_MS = 250;
 
 /** A frame the GPU kept up with, drawn within this, is fast (a 30 Hz display's frames count). */
-export const FAST_FRAME_MS = 34;
+const FAST_FRAME_MS = 34;
 
 /** How long the fast frames must last before the first step back up, in milliseconds. */
-export const STEP_UP_AFTER_MS = 5000;
+const STEP_UP_AFTER_MS = 5000;
 
 /**
  * The longest the fast run before a step up grows to. Each step down that follows a step up
@@ -78,7 +78,7 @@ export const STEP_UP_AFTER_MS = 5000;
 const STEP_UP_MAX_MS = 80_000;
 
 /** Below this median node size on screen, in pixels, a heavy surface draws its cheap program. */
-export const LOW_DETAIL_BELOW_PX = 12;
+const LOW_DETAIL_BELOW_PX = 12;
 
 /**
  * The guard's ladder, top to bottom. A setting's level is where it starts, and the highest it

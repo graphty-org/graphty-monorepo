@@ -536,6 +536,7 @@ export class EventManager implements Manager {
             case "data-loading-complete":
             case "zoom-to-fit-complete":
             case "graph-frame-stable":
+            case "graph-first-frame":
             case "elements-removed":
             case "selection-changed":
             case "graph-started":

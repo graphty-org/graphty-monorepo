@@ -238,7 +238,7 @@ const PLAYBACK_STEPS = new Set(["auto", "hour", "day", "week", "month", "quarter
 /**
  * Refuse a malformed playback setting.
  * @param playback - The settings, or null.
- * @param timeline - Whether the timeline is on: off, a zone does nothing and stays saved as it came.
+ * @param timeline - Whether the timeline is on: off, a zone or a fade does nothing and stays saved as it came.
  * @throws `E_BAD_COMMAND` naming the setting.
  */
 function assertPlayback(playback: TimePlayback | null, timeline: boolean): void {
@@ -267,6 +267,11 @@ function assertPlayback(playback: TimePlayback | null, timeline: boolean): void 
         !(typeof step === "string" && PLAYBACK_STEPS.has(step))
     ) {
         throw bad("step", step);
+    }
+
+    const { ageFade } = playback;
+    if (timeline && ageFade !== undefined && !(typeof ageFade === "number" && ageFade >= 0 && ageFade <= 1)) {
+        throw bad("ageFade", ageFade);
     }
 
     if (timeline && playback.timeZone !== undefined && !isTimeZone(playback.timeZone)) {

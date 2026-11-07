@@ -293,6 +293,10 @@ export interface NodeStyleValues {
     readonly shapeLines: string;
     /** How wide `shapeLines` are drawn; unset, the border's width. */
     readonly shapeLineWidth: number;
+    /** The color of a wider line drawn under each of `shapeLines`, down the same path: a yFiles bevel's lighter line. */
+    readonly shapeLineHaloColor: StyleColor;
+    /** How wide that line under `shapeLines` is drawn; unset or 0, none. */
+    readonly shapeLineHaloWidth: number;
     /**
      * Further texts drawn on the node in its label's font, size and color, each one line centered on its point: a JSON
      * list of `[x, y, text]`, the point as `shapeParts` writes one (Graphviz's record fields, `[[-0.5, 0, "a"], [0.5,
@@ -956,6 +960,14 @@ export interface EdgeStyleValues {
      * side, in the units of `labelSize`; 0 puts the border against the words. Unset, the drawing program's default.
      */
     readonly labelPadding: number;
+    /**
+     * The label laid out as a table of cells, as JSON in the form the node's `labelTable` takes (lengths in the units
+     * of `labelSize`). The table is then the label's box: `labelBackground` is its fill, `labelBorderColor` and
+     * `labelBorderWidth` its outline (and `labelBorderColor` its cells' outlines), and `labelPadding` the room from
+     * its outline to the words of a table of one cell, for a reader that does not lay the table out. `label` holds
+     * its words.
+     */
+    readonly labelTable: string;
     /** How far the corners of the box behind the label's words are rounded, in the units of `labelSize`. Unset, square. */
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */

@@ -654,8 +654,12 @@ const DEFECTS = {
         });
         return s;
     },
+    // the first node a reader can see: a node drawn under a render pixel across deletes nothing a reader sees, and no
+    // comparison of drawings can tell it gone (xgmml-wp4271-cy3-export's first node, a WikiPathways anchor graphty
+    // draws 0.03 px wide and Cytoscape desktop as a shape of no size, #6176)
     "one node deleted": (s) => {
-        s.nodes.splice(0, 1);
+        const seen = s.nodes.findIndex((n) => Math.max(n.w, n.h) >= 1);
+        s.nodes.splice(Math.max(seen, 0), 1);
         return s;
     },
     "one extra node added": (s) => {

@@ -4,8 +4,9 @@
  *
  * Two answers merge here. Meshes keep Babylon's own picks. Rows answer from {@link RowScan}, a walk
  * over `rowBounds` that needs no per-row mesh, no frame and no GPU. The scan exists once a graph
- * opens its row table: until something draws from rows it runs in shadow beside every press, and
- * answers alone only for a pick during a layout transition and for a world ray.
+ * opens its row table, and from then on answers every press, every pick during a layout transition
+ * and every world ray. Hover on the `"batched"` path reads {@link NodeIdTarget} instead, so a
+ * pointer move walks no node.
  */
 
 // Installs scene.pick, scene.pickWithRay and scene.createPickingRay; see
@@ -28,7 +29,14 @@ import { drawnCurveInWorld } from "../edgeWorldCurve";
 import { isCloseLabel } from "../meshes/labelClose";
 import { ON_TOP_RENDERING_GROUP } from "../meshes/RichTextLabel";
 import type { NodeIdType } from "../Node";
-import { pickAtLayout } from "../transitions/LayoutTransitionRunner";
+import { pickAtLayout, transitionUnderWay } from "../transitions/LayoutTransitionRunner";
+import { ID_NONE, ID_OBJECT, type NodeIdTarget } from "./NodeIdTarget";
+
+/**
+ * Picks that walk every mesh or every row, counted so a test can show a pointer move makes none:
+ * `meshPicks` for Babylon's pick over `scene.meshes`, `rowScans` for a walk over the rows.
+ */
+export const pickWork = { meshPicks: 0, rowScans: 0 };
 
 /** How far from a drawn edge's line, in CSS pixels, a click still lands on the edge. */
 const EDGE_PICK_TOLERANCE_PX = 6;
@@ -45,18 +53,12 @@ const EDGE_PICK_TOLERANCE_PX = 6;
  * @param y - Y in CSS pixels from the canvas's top edge.
  * @returns The mesh, or null when the point lands on nothing.
  */
-export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
+export function pickAsDrawn(scene: Scene, x: number, y: number): TransformNode | null {
     // While a layout transition moves the nodes, a click reads the layout's answer, not the
     // moving picture: what is selected is where the node is going.
-    return pickAtLayout(scene, (moving) => {
+    return pickAtLayout(scene, () => {
         const scan = rowScans.get(scene);
-        if (scan !== undefined && moving) {
-            return scan.pickPoint(x, y);
-        }
-
-        const answer = pickMeshes(scene, x, y, drawnPickable).info.pickedMesh;
-        scan?.compare(x, y, answer);
-        return answer;
+        return scan === undefined ? pickMeshes(scene, x, y, drawnPickable).info.pickedMesh : scan.pickPoint(x, y);
     });
 }
 
@@ -80,7 +82,7 @@ export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | 
  * @param admit - Which meshes may be picked at all.
  * @returns The predicate.
  */
-export function alongRay(
+function alongRay(
     scene: Scene,
     ray: Ray,
     admit: (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean,
@@ -199,7 +201,8 @@ export interface ScannedTable {
 /** What the scan reads of a row's node, for a candidate only. */
 export interface ScannedRow {
     readonly index: number;
-    readonly drawnPickMesh: AbstractMesh;
+    readonly drawnPickMesh: AbstractMesh | null;
+    readonly drawnAnchor: TransformNode;
     readonly drawnSourceMesh: AbstractMesh;
     readonly drawnScaling: Readonly<Vector3>;
     readonly drawnByRowScan: boolean;
@@ -215,7 +218,7 @@ export interface RowHit {
 
 /** A mesh or row a ray landed on. */
 export interface DrawnHit {
-    readonly mesh: AbstractMesh | null;
+    readonly mesh: TransformNode | null;
     readonly point: Vector3 | null;
 }
 
@@ -237,6 +240,7 @@ function pickMeshes(
     y: number,
     admit: (mesh: AbstractMesh) => boolean,
 ): { info: PickingInfo; onTop: boolean } {
+    pickWork.meshPicks++;
     const ray = scene.createPickingRay(x, y, null, null);
     const onTop = scene.pick(
         x,
@@ -260,9 +264,6 @@ function pickMeshes(
  * `scene.meshes` order.
  */
 export class RowScan {
-    /** Presses the scan answered beside `scene.pick`, and how many it answered differently. */
-    readonly shadow = { scans: 0, differ: 0 };
-
     private readonly identity = Matrix.Identity();
     private readonly local = Matrix.Identity();
     private readonly world = Matrix.Identity();
@@ -341,7 +342,7 @@ export class RowScan {
      * @param y - Y in CSS pixels.
      * @returns The mesh, or null.
      */
-    pickPoint(x: number, y: number): AbstractMesh | null {
+    pickPoint(x: number, y: number): TransformNode | null {
         const { info, onTop } = pickMeshes(this.scene, x, y, (mesh) => drawnPickable(mesh) && !this.covers(mesh));
         return onTop ? info.pickedMesh : this.nearer(info, this.shapeRayHit(x, y)).mesh;
     }
@@ -354,19 +355,6 @@ export class RowScan {
     pickRay(ray: Ray): DrawnHit {
         const admit = (mesh: AbstractMesh): boolean => rayPickable(mesh) && !this.covers(mesh);
         return this.nearer(this.scene.pickWithRay(ray, alongRay(this.scene, ray, admit)), this.rowRayHit(ray));
-    }
-
-    /**
-     * Answer a press in shadow, and count a difference from what Babylon said.
-     * @param x - X in CSS pixels.
-     * @param y - Y in CSS pixels.
-     * @param answer - What Babylon picked.
-     */
-    compare(x: number, y: number, answer: AbstractMesh | null): void {
-        this.shadow.scans++;
-        if (this.pickPoint(x, y) !== answer) {
-            this.shadow.differ++;
-        }
     }
 
     /**
@@ -387,7 +375,7 @@ export class RowScan {
      */
     private nearer(info: PickingInfo | null, row: RowHit | null): DrawnHit {
         if (row !== null && (info?.hit !== true || row.distance <= info.distance)) {
-            return { mesh: this.nodeAt(row.row)?.drawnPickMesh ?? null, point: row.point };
+            return { mesh: this.nodeAt(row.row)?.drawnAnchor ?? null, point: row.point };
         }
 
         return { mesh: info?.pickedMesh ?? null, point: info?.pickedPoint ?? null };
@@ -412,6 +400,7 @@ export class RowScan {
      * @returns The nearest row hit, or null.
      */
     private walk(ray: Ray, rayFor: (world: Matrix) => Ray): RowHit | null {
+        pickWork.rowScans++;
         const root = this.root?.computeWorldMatrix() ?? this.identity;
         root.invertToRef(this.inverse);
         const origin = Vector3.TransformCoordinates(ray.origin, this.inverse);
@@ -529,6 +518,64 @@ export function openRowScan(
  */
 export function rowScanOf(scene: Scene): RowScan | undefined {
     return rowScans.get(scene);
+}
+
+/** Each scene's node ID target, while its graph draws on the `"batched"` path. */
+const nodeIdTargets = new WeakMap<Scene, NodeIdReader>();
+
+/** What hover needs besides the target. */
+export interface NodeIdReader {
+    readonly target: NodeIdTarget;
+    /** The id of a row's node. */
+    nodeIdAt(row: number): NodeIdType | undefined;
+    /** Whether some rows draw nothing of their own pickable mesh (a shader surface): the target cannot see them. */
+    hiddenRows(): boolean;
+}
+
+/**
+ * Let hover read a scene's node ID target, or stop.
+ * @param scene - The scene.
+ * @param reader - The target and its graph, or null to stop.
+ */
+export function useNodeIdTarget(scene: Scene, reader: NodeIdReader | null): void {
+    if (reader === null) {
+        nodeIdTargets.delete(scene);
+    } else {
+        nodeIdTargets.set(scene, reader);
+    }
+}
+
+/**
+ * The node a hover at a canvas point is over. On the `"batched"` path it is read from the node ID
+ * target with no walk over nodes, at once on WebGL and once read back on WebGPU; a pixel of a mesh that is not a batched row
+ * (or of nothing, while some row is drawn only by a shader surface), a layout transition, a target not ready yet, or no target, asks {@link pickNodeId} at once.
+ *
+ * A pixel where two rows of the same depth overlap names the one drawn last, which a press,
+ * settled by the scan's lower-row rule, may not (design/rendering/row-renderer.md 4.4).
+ * @param scene - The scene.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @returns The node's id or `undefined`, now or once read.
+ */
+export function hoverNodeId(
+    scene: Scene,
+    x: number,
+    y: number,
+): NodeIdType | undefined | Promise<NodeIdType | undefined> {
+    const ids = nodeIdTargets.get(scene);
+    const read = ids === undefined || transitionUnderWay(scene) ? null : ids.target.read(x, y);
+    if (ids === undefined || read === null) {
+        return pickNodeId(scene, x, y);
+    }
+
+    const answer = (texel: number): NodeIdType | undefined => {
+        if (texel === ID_OBJECT || (texel === ID_NONE && ids.hiddenRows())) {
+            return pickNodeId(scene, x, y);
+        }
+
+        return texel === ID_NONE ? undefined : ids.nodeIdAt(texel);
+    };
+    return typeof read === "number" ? answer(read) : read.then(answer);
 }
 
 /**

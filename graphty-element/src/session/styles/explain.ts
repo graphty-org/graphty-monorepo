@@ -332,7 +332,7 @@ export interface StyleCounts {
 }
 
 /** How many covering layers {@link StyleCounts.covers} lists per channel before counting the rest. */
-export const COVERS_LISTED = 3;
+const COVERS_LISTED = 3;
 
 /**
  * The layers covering one channel of a layer: see {@link StyleCounts.covers}.

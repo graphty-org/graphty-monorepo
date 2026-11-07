@@ -7,7 +7,7 @@
  * picked by name or from a hand list, so a new default layer is covered the day it appears.
  *
  * An operation that fails on a layer must be listed in the `layerOperations` section of
- * `tools/special-layers-baseline.json`, which `tools/check-special-layers.mjs` lets only shrink. A
+ * `graphty/special-layers-baseline.json`, which `tools/check-special-layers.mjs` lets only shrink. A
  * listed one that now works, or whose layer no project holds any more, fails here too, so the list cannot go stale.
  */
 
@@ -23,7 +23,7 @@ import type { Layer } from "../../src/session/styles";
 import type { StyleRow } from "../../src/session/styles/tree";
 
 const BASELINE = JSON.parse(
-    readFileSync(new URL("../../../tools/special-layers-baseline.json", import.meta.url), "utf8"),
+    readFileSync(new URL("../../../graphty/special-layers-baseline.json", import.meta.url), "utf8"),
 ) as { layerOperations: readonly { layer: string; operation: string }[] };
 
 const NODE_IDS = [1, 2, 3, 4];
@@ -108,6 +108,15 @@ const SCENARIOS: readonly { readonly name: string; readonly build: () => Promise
             const saved = (await startingRowsOn()).styles.toDocument();
             const session = await newProject();
             await session.styles.applyTemplate(saved, { templateId: "saved" });
+            return session;
+        },
+    },
+    {
+        name: "a saved project opened again",
+        build: async () => {
+            const { text } = await (await startingRowsOn()).project.save();
+            const session = createGraphSession({ runs: { execute: communities }, features: ["timeline"] });
+            await session.project.open(text);
             return session;
         },
     },
@@ -369,7 +378,7 @@ describe("every layer takes every operation", () => {
         assert.deepEqual(
             [...listed].filter((key) => !failures.has(key)),
             [],
-            "the operation works now: delete this from tools/special-layers-baseline.json",
+            "the operation works now: delete this from graphty/special-layers-baseline.json",
         );
     });
 });

@@ -125,6 +125,15 @@ export class SelectionManager implements Manager {
     }
 
     /**
+     * The nodes this manager has ringed itself, which the session may since have deselected.
+     * @returns The nodes.
+     * @internal
+     */
+    highlightedNodes(): IterableIterator<Node> {
+        return this.selectedNodes.values();
+    }
+
+    /**
      * Get the currently selected node.
      * @returns The first selected node, or null if nothing is selected.
      */

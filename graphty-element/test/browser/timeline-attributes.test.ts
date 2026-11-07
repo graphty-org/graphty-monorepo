@@ -79,6 +79,28 @@ describe("the timeline's attributes", () => {
         assert.lengthOf(logged.mock.calls, 0);
     });
 
+    it("designate an end column with the experiment on", async () => {
+        const made = await element(["timeline"]);
+        made.edgeTimeEndPath = "closed";
+        await vi.waitFor(() => {
+            assert.strictEqual(made.session.time.field?.edges?.end, "closed");
+        });
+        assert.strictEqual(made.edgeTimeEndPath, "closed");
+    });
+
+    it("refuse an end column with the experiment off, once, writing nothing", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => undefined);
+        const made = await element([]);
+
+        made.nodeTimeEndPath = "left";
+
+        assert.deepEqual(made.refusedFeatures.at(-1), {
+            code: "E_FEATURE_OFF",
+            params: { feature: "timeline", key: "nodeTimeEndPath" },
+        });
+        assert.isNull(made.session.config.data.knownFields.nodeTimeEndPath ?? null);
+    });
+
     it("lists no refusal with the experiment on", async () => {
         const made = await element(["timeline"]);
         assert.deepEqual(made.refusedFeatures, []);

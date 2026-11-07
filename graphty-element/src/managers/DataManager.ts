@@ -1,5 +1,11 @@
 import { type AbstractActionManager, AbstractMesh, type Node as SceneNode, type Scene } from "@babylonjs/core";
-import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import {
+    type DerivedGraph,
+    GraphFormatError,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type U32,
+} from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
@@ -455,6 +461,34 @@ export class DataManager implements Manager {
         return this.edgeRows;
     }
 
+    /**
+     * Render objects by their store node index, the nodes' {@link edgesByIndex}: built on the first
+     * read after the node set changed or a freeze renumbered it, so O(n) per data change and never
+     * per step of a time window. Sparse, as that one is.
+     * @returns The nodes by row, read-only.
+     * @internal
+     */
+    get nodesByIndex(): readonly (Node | undefined)[] {
+        if (this.nodeRowsVersion !== this.nodeVersion) {
+            this.nodeRows = [];
+            for (const node of this.nodes.values()) {
+                if (node.index !== INVALID_INDEX) {
+                    this.nodeRows[node.index] = node;
+                }
+            }
+
+            this.nodeRowsVersion = this.nodeVersion;
+        }
+
+        return this.nodeRows;
+    }
+
+    /** What {@link nodesByIndex} answers, as of {@link nodeRowsVersion}. */
+    private nodeRows: (Node | undefined)[] = [];
+
+    /** The {@link nodeVersion} {@link nodeRows} was built at. */
+    private nodeRowsVersion = -1;
+
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
 
@@ -624,7 +658,16 @@ export class DataManager implements Manager {
      * @internal
      */
     nodeAtRow(row: number): Node | undefined {
-        return this.nodes.get(this.store.builder.idOf(row));
+        try {
+            return this.nodes.get(this.store.builder.idOf(row));
+        } catch (error) {
+            // A row past the end or removed holds no node: a hover read of the node ID target can
+            // name one, and a pointer observer that throws stops delivering every later event.
+            if (error instanceof GraphFormatError && error.code === "E_INDEX_RANGE") {
+                return undefined;
+            }
+            throw error;
+        }
     }
 
     /**
@@ -1399,6 +1442,7 @@ export class DataManager implements Manager {
                 }
             },
             progress: (change) => this.dispatcher?.services.progress?.(change),
+            timeline: () => this.dispatcher?.services.timeline?.() === true,
             loadFailed: (format, error, progress) => {
                 if (this.graphContext) {
                     const { loadId } = this;

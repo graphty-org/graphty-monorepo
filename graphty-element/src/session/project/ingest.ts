@@ -16,7 +16,7 @@ import type { FileLayout } from "@graphty/graph-io";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
-import { DataSource, type DataSourceChunk, type DeclaredDirection } from "../../data/DataSource";
+import { DataSource, type DataSourceChunk, type DeclaredDirection, TIMELINE_READERS } from "../../data/DataSource";
 import { decideRepeat, edgeIdOf, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
@@ -297,6 +297,8 @@ export interface IngestHost<K extends KnownEdge> {
     loadFailed(format: string, error: Error, progress: LoadProgress): void;
     /** Where the session's `progress:changed` is fed from: every chunk, and once at the end. */
     progress?(change: ProgressChange): void;
+    /** Whether the timeline experiment is on, so a reader keeps the time data it reads; absent reads off. */
+    timeline?(): boolean;
 }
 
 /**
@@ -1972,6 +1974,9 @@ export class Ingest<K extends KnownEdge> {
         store.openLoad();
         try {
             const source = held === undefined ? DataSource.get(type, opts) : null;
+            if (source !== null && this.host.timeline?.() === true) {
+                TIMELINE_READERS.add(source);
+            }
             const reader: ChunkReader | null = held === undefined ? source : heldReader(held);
             if (!reader) {
                 throw unknownFormat(type);

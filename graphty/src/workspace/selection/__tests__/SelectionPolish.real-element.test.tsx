@@ -569,7 +569,7 @@ describe("polish round 3", () => {
                 ],
             },
         });
-        await userEvent.click(screen.getByRole("button", { name: /^Edit Which / }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which / }));
         const second = await waitFor(() => {
             const found = document.querySelector<HTMLElement>('.sel-ws [data-row="b"]');
             assert.isNotNull(found);

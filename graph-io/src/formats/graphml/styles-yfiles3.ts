@@ -10,7 +10,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { type BendPoint, canonBends, canonNodeOffsets } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
-import { canonNumber } from "../../styles/canon/number.js";
+import { canonNumber, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
@@ -22,21 +22,28 @@ import {
     BPMN_ARTIFACTS,
     configurationOutline,
     isTree,
+    lineLength,
     localOf,
+    pointAlong,
     putBevelLine,
     putBevelPaint,
+    putEdgeLabelAt,
+    putNodeDrawing,
     putPanelPaint,
     type PutValue,
     type SiteOf,
+    towardWhite,
     treeAttr,
     treeChild,
     treeChildren,
     treeText,
     valueColumns,
+    YED_LABEL_CHARACTER,
+    YED_LABEL_LINE,
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
-import { bpmnPicture, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
+import { bpmnPicture, type PortEvent, shinyPlateGloss, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
 
 /** How deep a chain of shared references is followed. */
 const MAX_REFERENCE_DEPTH = 16;
@@ -249,14 +256,14 @@ function prop(st: StyleObject, name: string): unknown {
 
 /**
  * A paint: a color constant or `#AARRGGBB` in the yFiles 3 dialect, a CSS color, the first stop of a gradient
- * (with a note), or `{x:Null}`.
+ * (handed to `gradient`), or `{x:Null}`.
  * @param refs - the references
  * @param v - the property value
- * @param gradient - called when the paint is a gradient
+ * @param gradient - called with the gradient when the paint is one
  * @param depth - the walk's depth
  * @returns the paint
  */
-function paintOf(refs: References, v: unknown, gradient: (() => void) | null, depth = 0): Paint {
+function paintOf(refs: References, v: unknown, gradient: ((g: StyleObject) => void) | null, depth = 0): Paint {
     if (refs.tooDeep(depth)) {
         return null;
     }
@@ -279,16 +286,79 @@ function paintOf(refs: References, v: unknown, gradient: (() => void) | null, de
         return css === undefined ? null : { raw: css, dialect: "css" };
     }
     if (tag.endsWith("Gradient")) {
-        gradient?.();
-        const stop =
-            treeChildren(x.e, "GradientStop")[0] ??
-            treeChildren(treeChild(x.e, `${tag}.GradientStops`), "GradientStop")[0];
+        gradient?.(x);
+        const stop = gradientStops(x)[0];
         return stop === undefined ? null : paintOf(refs, treeAttr(stop, "color"), null, depth + 1);
     }
     if (tag === "Stroke") {
         return paintOf(refs, prop(x, "fill"), gradient, depth + 1);
     }
     return null;
+}
+
+/**
+ * A gradient's GradientStop elements, as written.
+ * @param g - the gradient
+ * @returns its stops
+ */
+function gradientStops(g: StyleObject): unknown[] {
+    const own = treeChildren(g.e, "GradientStop");
+    return own.length > 0 ? own : treeChildren(treeChild(g.e, `${g.tag}.GradientStops`), "GradientStop");
+}
+
+/**
+ * A point of a LinearGradient: `x,y` fractions of the node's box.
+ * @param g - the gradient
+ * @param name - `startPoint` or `endPoint`
+ * @param fallback - its default
+ * @returns the point
+ */
+function gradientPoint(g: StyleObject, name: string, fallback: readonly [number, number]): readonly [number, number] {
+    const [x, y] = (treeAttr(g.e, name) ?? "").split(",").map(Number);
+    return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : fallback;
+}
+
+/**
+ * Reads a node's gradient fill. A yFiles 3 LinearGradient's startPoint and endPoint are fractions of the node's box
+ * (yEd Live draws it as an SVG gradient in objectBoundingBox units), so one whose ramp spans the box -- from side to
+ * side, or from corner to corner -- is `fillGradientAngle` at the angle from start to end in those fractions, with
+ * its stops as written. Any other gradient is noted, and the node is filled in its first stop.
+ * ponytail: a ramp that starts or ends inside the box (a REFLECT or REPEAT one's mirrored bands) and a RadialGradient
+ * are noted, not drawn, and a stop's alpha is dropped; reading those needs the ramp unrolled across the box.
+ * @param refs - the references
+ * @param g - the gradient
+ * @param owner - the style's tag, for the note
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function putGradient(refs: References, g: StyleObject, owner: string, put: PutValue, at: SiteOf): void {
+    const [sx, sy] = gradientPoint(g, "startPoint", [0, 0]);
+    const [ex, ey] = gradientPoint(g, "endPoint", [1, 0]);
+    const [dx, dy] = [ex - sx, ey - sy];
+    const len2 = dx * dx + dy * dy;
+    // where the box's corners sit along the ramp: its farthest ones at 0 and 1 when the ramp spans the box
+    const along = [0, 1].flatMap((x) => [0, 1].map((y) => ((x - sx) * dx + (y - sy) * dy) / len2));
+    const spans = len2 > 0 && Math.abs(Math.min(...along)) < 1e-6 && Math.abs(Math.max(...along) - 1) < 1e-6;
+    const stops = gradientStops(g)
+        .map((st) => {
+            const paint = paintOf(refs, treeAttr(st, "color"), null);
+            const c =
+                paint === null || paint === NULL ? null : canonColor(paint.raw, paint.dialect, at("fillGradient"));
+            return { offset: Number(treeAttr(st, "offset") ?? 0), color: c?.color ?? null };
+        })
+        .sort((a, b) => a.offset - b.offset);
+    const colors = stops.flatMap((st) => (typeof st.color === "string" ? [st.color] : []));
+    if (g.tag !== "LinearGradient" || !spans || colors.length < 2 || colors.length !== stops.length) {
+        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, owner);
+        return;
+    }
+    put("fillGradient", colors.at(-1) ?? null);
+    put("fillGradientAngle", num6(((((Math.atan2(dy, dx) * 180) / Math.PI) % 360) + 360) % 360));
+    const offsets = stops.map((st) => num6(st.offset));
+    if (colors.length > 2 || offsets[0] !== 0 || offsets[1] !== 1) {
+        put("fillGradientColors", colors.join(" "));
+        put("fillGradientStops", offsets.join(" "));
+    }
 }
 
 /** A stroke's color, width and line style. */
@@ -376,6 +446,12 @@ function putPaint(pt: Paint, property: string, opacity: string | null, put: PutV
 /** BevelNodeStyle's corner `radius` and the `inset` of its line with neither written. */
 const BEVEL_RADIUS = 10;
 const BEVEL_INSET = 3;
+/** How far toward white, and how wide, the lighter line under a BevelNodeStyle's line is drawn. */
+const BEVEL_HALO_SHARE = 0.85;
+const BEVEL_HALO_WIDTH = 2;
+
+/** ShinyPlateNodeStyle's corner `radius` with none written. */
+const SHINY_RADIUS = 5;
 
 /** yFiles' black, the documented default color of the 2.6 Bevel, ShinyPlate and Panel styles. */
 const BLACK = "#FF000000";
@@ -462,15 +538,17 @@ interface Size {
  * @param fallback - the style's documented default radius
  * @param put - receives the values
  * @param at - the sites
+ * @returns the radius, or null where it is not a number
  */
-function putRounded(radius: string | undefined, fallback: number, put: PutValue, at: SiteOf): void {
+function putRounded(radius: string | undefined, fallback: number, put: PutValue, at: SiteOf): number | null {
     const r = radius === undefined ? fallback : canonNumber(radius, at("cornerRadius"));
     if (r === 0) {
         put("shape", "rectangle");
-        return;
+        return r;
     }
     put("shape", "round-rectangle");
     put("cornerRadius", r);
+    return r;
 }
 
 /**
@@ -491,6 +569,10 @@ function readBevelStyle(style: StyleObject, color: string | null, put: PutValue,
     const size = (name: string, fallback: number): number =>
         canonNumber(treeAttr(style.e, name) ?? fallback, at("shapeLines")) ?? fallback;
     putBevelLine(size("radius", BEVEL_RADIUS), size("inset", BEVEL_INSET), put);
+    // under it yFiles for HTML draws a line of 2 most of the way to white (#c8c8c8 over #f7f7f7, #3366ff over
+    // #e0e8ff: yed-live-graphml-specimen-node-shapes-p2)
+    put("shapeLineHaloColor", towardWhite(color, BEVEL_HALO_SHARE));
+    put("shapeLineHaloWidth", BEVEL_HALO_WIDTH);
 }
 
 /**
@@ -507,19 +589,41 @@ function readPanelStyle(color: string | null, put: PutValue): void {
 }
 
 /**
+ * Reads the rest of a ShinyPlateNodeStyle past its fill: an outline only where `stroke` is set, its corners, and the
+ * gloss yEd Live draws over its upper left, as the node's picture where its size is known.
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the node's size, where it has one
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readShinyPlateStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): void {
+    const stroke = prop(style, "stroke") === undefined ? NULL : strokeOf(refs, prop(style, "stroke"));
+    putStroke(stroke, put, at);
+    const radius = putRounded(treeAttr(style.e, "radius"), SHINY_RADIUS, put, at) ?? 0;
+    if (size !== null) {
+        const border = stroke === null || stroke === NULL ? 0 : Number(stroke.width) || 0;
+        put("image", shinyPlateGloss(size.width, size.height, radius, border));
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/**
  * Reads the yFiles for HTML 2.6 node styles yEd Live wrote before yFiles 3, and the demos' FlowchartNodeStyle:
  * BevelNodeStyle and PanelNodeStyle (painted from their `color`), ShinyPlateNodeStyle (an outline only where `stroke`
  * is set) and FlowchartNodeStyle (its `type`'s outline, drawn as yEd's flowchart palette draws the same type).
  * @param refs - the references
  * @param style - the style
+ * @param size - the node's size, where it has one
  * @param put - receives the values
  * @param at - the sites
  * @returns true when the style is one of these
  */
-function readStyle26(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
+function readStyle26(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): boolean {
     const fill = (v: unknown): string | null => {
-        const gradient = (): void => {
-            noteAt(at("fill"), STYLE_ISSUE.GRADIENT, style.tag);
+        const gradient = (g: StyleObject): void => {
+            putGradient(refs, g, style.tag, put, at);
         };
         const paint = paintOf(refs, v, gradient);
         putPaint(paint, "fill", "fillOpacity", put, at);
@@ -534,17 +638,10 @@ function readStyle26(refs: References, style: StyleObject, put: PutValue, at: Si
         case "PanelNodeStyle":
             readPanelStyle(fill(prop(style, "color") ?? BLACK), put);
             return true;
-        case "ShinyPlateNodeStyle": {
+        case "ShinyPlateNodeStyle":
             fill(prop(style, "fill") ?? BLACK);
-            const stroke = prop(style, "stroke");
-            if (stroke === undefined) {
-                put("borderWidth", 0);
-            } else {
-                putStroke(strokeOf(refs, stroke), put, at);
-            }
-            putRounded(treeAttr(style.e, "radius"), 5, put, at);
+            readShinyPlateStyle(refs, style, size, put, at);
             return true;
-        }
         case "FlowchartNodeStyle": {
             fill(prop(style, "fill") ?? FLOWCHART_FILL);
             const type = treeAttr(style.e, "type") ?? "";
@@ -633,9 +730,17 @@ const BPMN_LINES: ReadonlyMap<string, { readonly width?: number; readonly line?:
  * @param size - the node's size
  * @param put - receives the values
  * @param at - the sites
+ * @param ports - the node's ports, as the ports column holds them
  * @returns true when the style is one of these
  */
-function readBpmnStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): boolean {
+function readBpmnStyle(
+    refs: References,
+    style: StyleObject,
+    size: Size | null,
+    put: PutValue,
+    at: SiteOf,
+    ports: unknown,
+): boolean {
     const look = BPMN_STYLES.get(style.tag);
     const background = prop(style, "background");
     const outline = prop(style, "outline");
@@ -667,27 +772,93 @@ function readBpmnStyle(refs: References, style: StyleObject, size: Size | null, 
         put("cornerRadius", look.cornerRadius);
     }
     if (size !== null) {
-        putBpmnPicture(refs, style, size, put, at);
+        putBpmnPicture(refs, style, size, put, at, ports);
     }
     return true;
 }
 
 /**
- * Writes the picture of a BPMN node's symbols, in its `iconColor` (black unset), where it has any.
+ * A style's attributes and colors, as a node picture reads them: a color as `#rrggbb`, undefined where it has none.
+ * @param refs - the references
+ * @param style - the style
+ * @param at - the sites
+ * @returns the readers
+ */
+function styleReader(refs: References, style: StyleObject, at: SiteOf): Pick<PortEvent, "attr" | "color"> {
+    return {
+        attr: (name) => treeAttr(style.e, name),
+        color: (name) => {
+            const paint = paintOf(refs, prop(style, name), null);
+            return paint === null || paint === NULL
+                ? undefined
+                : canonColor(paint.raw, paint.dialect, at("image"))?.color;
+        },
+    };
+}
+
+/** The attributes yEd Live 8.5.16 reads on an EventPortStyle: it draws no port whose style has another. */
+const PORT_EVENT_ATTRIBUTES: ReadonlySet<string> = new Set([
+    "type",
+    "characteristic",
+    "background",
+    "outline",
+    "iconColor",
+    "renderSize",
+]);
+
+/**
+ * The BPMN events on a node's ports: each port drawn with an EventPortStyle and placed by a
+ * FreeNodePortLocationModelParameter (its `Ratio` of the node's box, then its `Offset`). yEd Live draws nothing for a
+ * port whose style has an attribute it does not read (`checked` on `yed-live-graphml-specimen-node-shapes-p6`).
+ * ponytail: the free model only, the one yEd Live writes; another location model's port is not drawn.
+ * @param refs - the references
+ * @param ports - the node's ports, as the ports column holds them
+ * @param size - the node's size
+ * @param at - the sites
+ * @returns the events
+ */
+function portEvents(refs: References, ports: unknown, size: Size, at: SiteOf): PortEvent[] {
+    return (Array.isArray(ports) ? ports : []).flatMap((entry: unknown): PortEvent[] => {
+        const style = isTree(entry) ? refs.first(entry.PortStyle) : null;
+        const where = isTree(entry)
+            ? treeChild(entry.PortLocationParameter, "FreeNodePortLocationModelParameter")
+            : null;
+        if (style?.tag !== "EventPortStyle" || !isTree(where) || !isTree(style.e)) {
+            return [];
+        }
+        const unread = Object.keys(style.e).some(
+            (k) => k.startsWith("@_") && !k.includes(":") && !PORT_EVENT_ATTRIBUTES.has(k.slice(2)),
+        );
+        const pair = (name: string, unset: string): number[] => (treeAttr(where, name) ?? unset).split(",").map(Number);
+        const [[rx, ry], [ox, oy]] = [pair("Ratio", "0.5,0.5"), pair("Offset", "0,0")];
+        const x = rx * size.width + ox;
+        const y = ry * size.height + oy;
+        return unread || !Number.isFinite(x) || !Number.isFinite(y) ? [] : [{ x, y, ...styleReader(refs, style, at) }];
+    });
+}
+
+/**
+ * Writes the picture of a BPMN node's symbols, its messages and the events on its ports, where it has any. A picture
+ * reaching past the node (a port's event, a message) is drawn at its own size, as far off the node's middle as it
+ * reaches further on one side than the other.
  * @param refs - the references
  * @param style - the style
  * @param size - the node's size
  * @param put - receives the values
  * @param at - the sites
+ * @param ports - the node's ports, as the ports column holds them
  */
-function putBpmnPicture(refs: References, style: StyleObject, size: Size, put: PutValue, at: SiteOf): void {
-    const paint = paintOf(refs, prop(style, "iconColor") ?? BLACK, null);
-    const color = paint === null || paint === NULL ? null : canonColor(paint.raw, paint.dialect, at("image"));
-    const picture = bpmnPicture(style.tag, (name) => treeAttr(style.e, name), size, color?.color ?? "#000000");
-    if (picture !== null) {
-        put("image", picture);
-        put("imageFit", "fill");
-        put("imageClip", "none");
+function putBpmnPicture(
+    refs: References,
+    style: StyleObject,
+    size: Size,
+    put: PutValue,
+    at: SiteOf,
+    ports: unknown,
+): void {
+    const drawing = bpmnPicture(style.tag, styleReader(refs, style, at), size, portEvents(refs, ports, size, at));
+    if (drawing !== null) {
+        putNodeDrawing(drawing, put);
     }
 }
 
@@ -870,6 +1041,7 @@ function putStyleOutline(style: StyleObject, size: Size | null, put: PutValue, a
  * @param at - the sites
  * @param size - the node's size, for a PILL's half-circle ends
  * @param collapsed - whether a group is collapsed
+ * @param ports - the node's ports, as the ports column holds them
  */
 function readNodeStyle(
     refs: References,
@@ -878,6 +1050,7 @@ function readNodeStyle(
     at: SiteOf,
     size: Size | null,
     collapsed: boolean,
+    ports: unknown,
 ): void {
     const st = unwrapped(refs, refs.first(data));
     if (st === null || typeof st !== "object") {
@@ -887,7 +1060,7 @@ function readNodeStyle(
         return;
     }
     const style = st;
-    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, size, put, at)) {
+    if (readStyle26(refs, style, size, put, at) || readBpmnStyle(refs, style, size, put, at, ports)) {
         return;
     }
     if (style.tag === "UMLNodeStyle") {
@@ -898,8 +1071,8 @@ function readNodeStyle(
         return;
     }
     putPaint(
-        paintOf(refs, prop(style, "fill"), () => {
-            noteAt(at("fill"), STYLE_ISSUE.GRADIENT, style.tag);
+        paintOf(refs, prop(style, "fill"), (g) => {
+            putGradient(refs, g, style.tag, put, at);
         }),
         "fill",
         "fillOpacity",
@@ -909,6 +1082,7 @@ function readNodeStyle(
     putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
     putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
+    putIntrinsicSize(refs, style, shape, size, put);
     if (shape === "round-rectangle") {
         put("cornerRadius", ROUND_RECTANGLE_CORNER);
     } else if (shape === "pill" && size !== null) {
@@ -916,6 +1090,42 @@ function readNodeStyle(
     }
     if (style.tag === "GroupNodeStyle" && size !== null) {
         readGroupPanel(refs, style, size, collapsed, put, at);
+    }
+}
+
+/**
+ * The width over the height of the ShapeNodeStyle shapes that have proportions of their own, which yEd Live keeps
+ * under `keepIntrinsicAspectRatio`: a regular five-pointed star, measured from yEd Live 8.5.16's drawing of
+ * `yed-live-graphml-specimen-node-shapes` (31.54 by 30); yFiles for HTML 2.6 files draw it to the box. ponytail: the star only, the one shape a sheet measures.
+ */
+const INTRINSIC_ASPECTS: ReadonlyMap<string, number> = new Map([
+    ["star5", (2 * Math.sin((2 * Math.PI) / 5)) / (1 + Math.cos(Math.PI / 5))],
+]);
+
+/**
+ * Sizes a ShapeNodeStyle whose shape has proportions of its own and keeps them (`keepIntrinsicAspectRatio`): as large
+ * as fits its box, about its center. A yFiles for HTML 2.6 file's is drawn to the whole box
+ * (yed-live-graphml-specimen-node-shapes-p2).
+ * @param refs - the references
+ * @param style - the style
+ * @param shape - its shape's lookup key
+ * @param size - the node's size
+ * @param put - receives the values
+ */
+function putIntrinsicSize(
+    refs: References,
+    style: StyleObject,
+    shape: string | null,
+    size: Size | null,
+    put: PutValue,
+): void {
+    const aspect = INTRINSIC_ASPECTS.get(shape ?? "");
+    if (aspect === undefined || size === null || refs.yfiles26) {
+        return;
+    }
+    if (treeAttr(style.e, "keepIntrinsicAspectRatio") === "true") {
+        put("width", Math.min(size.width, size.height * aspect));
+        put("height", Math.min(size.height, size.width / aspect));
     }
 }
 
@@ -1248,6 +1458,18 @@ const HOLLOW_ARROWS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
+ * An edge's bends.
+ * @param geometry - the `<data>` content of the EdgeGeometry key
+ * @returns the `y:Bend` locations
+ */
+function edgeBends(geometry: unknown): BendPoint[] {
+    return treeChildren(treeChild(geometry, "List"), "Bend").map((b): BendPoint => {
+        const [x, y] = (treeAttr(b, "Location") ?? "").split(",").map(Number);
+        return [x, y];
+    });
+}
+
+/**
  * Reads an edge's route from its EdgeGeometry: the `y:Bend` locations, relative to its two nodes' centers (a
  * self-loop's to its node's size), and, for a PolylineEdgeStyle with a `smoothingLength` above 0, its rounded bends.
  * @param refs - the references
@@ -1263,10 +1485,7 @@ function readEdgeGeometry(
     ends: readonly [Float64Array, Float64Array, boolean],
     put: PutValue,
 ): void {
-    const points = treeChildren(treeChild(geometry, "List"), "Bend").map((b): BendPoint => {
-        const [x, y] = (treeAttr(b, "Location") ?? "").split(",").map(Number);
-        return [x, y];
-    });
+    const points = edgeBends(geometry);
     const [s, t, loop] = ends;
     const bends = loop
         ? canonNodeOffsets([s[0], s[1]], [s[2], s[3]], points, true)
@@ -1538,6 +1757,255 @@ function edgeLabelPositionOf(refs: References, label: unknown): string | null {
     return raw === undefined ? null : (EDGE_SIDES.get(raw.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase()) ?? null);
 }
 
+/** The boxes an edge runs between and its route through its bends, for placing its label. */
+interface EdgePath {
+    boxes: readonly [readonly number[], readonly number[]];
+    route: readonly BendPoint[];
+}
+
+/** Where a yFiles edge label model puts its label. */
+interface EdgeLabelPlace {
+    /** The segment it is placed on, counted from the end it is placed from; null for the whole line. */
+    segment: number | null;
+    /** How far along, as a part of the room its box has there: 0 against the start, 1 against the end. */
+    ratio: number;
+    /** How far from the line's ends that room stops. */
+    inset: number;
+    /** Whether it is placed from the target, not the source. */
+    fromTarget?: boolean;
+    /** How far off the line, right of its way for a positive one. */
+    offset: number;
+    /** Whether `offset` stops at the side of its box, not at its middle. */
+    clear: boolean;
+    /** Whether above and below are the page's, not the line's way's. */
+    level: boolean;
+    /** The turn it is drawn at, in radians; null when `follow` says. */
+    angle: number | null;
+    /** Whether, with no angle, it turns with its segment. */
+    follow: boolean;
+}
+
+/**
+ * Where yEd Live 8.5.16 draws an edge label with no layout parameter, or with one it does not read: 5 clear of the
+ * middle of the edge's first segment, below it, turned with it. It does not read a `Ratio` on a
+ * SmartEdgeLabelModelParameter, or an EdgePathLabelModelParameter or EdgeSegmentLabelModelParameter whatever it says:
+ * `yed-live-graphml-specimen-edge-labels` draws all of them so, its `OnEdge`, `Distance="12"` and `Angle="0.7"` ones
+ * too. No file yFiles saved in the corpus spells one so.
+ */
+const DEFAULT_EDGE_LABEL_PLACE: EdgeLabelPlace = {
+    segment: 0,
+    ratio: 0.5,
+    inset: 0,
+    offset: 5,
+    clear: true,
+    level: true,
+    angle: null,
+    follow: true,
+};
+
+/** The distance a NinePositionsEdgeLabelModel with none stated keeps: yFiles' default, on no sample here. */
+const NINE_POSITIONS_DISTANCE = 10;
+
+/** The nine-position model's positions: where along the line, and which side of it. */
+const NINE_POSITION = /^(source|center|target)(above|centered|below)$/i;
+
+/** The ratio of each of the nine-position model's places along the line. */
+const NINE_ALONG: Readonly<Record<string, number>> = { source: 0, center: 0.5, target: 1 };
+
+/** The side of each of the nine-position model's rows. */
+const NINE_SIDE: Readonly<Record<string, number>> = { above: -1, centered: 0, below: 1 };
+
+/** The yEd Live label size for a label whose style states none. */
+const YFILES_LABEL_SIZE = 12;
+
+/**
+ * A number a parameter or model states.
+ * @param e - the element
+ * @param name - the attribute
+ * @param fallback - what it is when not stated
+ * @returns the number
+ */
+function numberAttr(e: unknown, name: string, fallback: number): number {
+    const value = Number(treeAttr(e, name) ?? fallback);
+    return Number.isFinite(value) ? value : fallback;
+}
+
+/**
+ * The model an edge label parameter names.
+ * @param refs - the references
+ * @param parameter - the parameter
+ * @returns the model element, or undefined
+ */
+function parameterModel(refs: References, parameter: StyleObject): unknown {
+    const model = refs.deref(treeAttr(parameter.e, "Model"));
+    return model === null || model === NULL || typeof model !== "object" ? undefined : model.e;
+}
+
+/**
+ * A FreeEdgeLabelModel's place: its box's middle `Ratio` along the whole line and `Distance` off it, at its `Angle`.
+ * @param parameter - the parameter
+ * @returns the place
+ */
+function freeEdgeLabelPlace(parameter: StyleObject): EdgeLabelPlace {
+    return {
+        ...DEFAULT_EDGE_LABEL_PLACE,
+        segment: null,
+        ratio: numberAttr(parameter.e, "Ratio", 0.5),
+        offset: numberAttr(parameter.e, "Distance", 0),
+        clear: false,
+        level: false,
+        angle: numberAttr(parameter.e, "Angle", 0),
+    };
+}
+
+/**
+ * A NinePositionsEdgeLabelModel's place: the model's `Distance` in from an end of the line, or its middle, and that far
+ * clear of the line above or below it, at the model's `Angle`.
+ * @param refs - the references
+ * @param parameter - the parameter
+ * @returns the place, or null for a position that is not one of the nine
+ */
+function nineEdgeLabelPlace(refs: References, parameter: StyleObject): EdgeLabelPlace | null {
+    const m = NINE_POSITION.exec((treeAttr(parameter.e, "Position") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH));
+    if (m === null) {
+        return null;
+    }
+    const model = parameterModel(refs, parameter);
+    const distance = numberAttr(model, "Distance", NINE_POSITIONS_DISTANCE);
+    return {
+        ...DEFAULT_EDGE_LABEL_PLACE,
+        segment: null,
+        ratio: NINE_ALONG[m[1].toLowerCase()],
+        inset: distance,
+        offset: NINE_SIDE[m[2].toLowerCase()] * distance,
+        angle: numberAttr(model, "Angle", 0),
+        follow: false,
+    };
+}
+
+/**
+ * A SmartEdgeLabelModel's place: `SegmentRatio` along segment `SegmentIndex`, counted from the source or, by
+ * `Location`, the target, and `Distance` clear of it, right of the line's way when positive.
+ * @param refs - the references
+ * @param parameter - the parameter
+ * @returns the place
+ */
+function smartEdgeLabelPlace(refs: References, parameter: StyleObject): EdgeLabelPlace {
+    const model = parameterModel(refs, parameter);
+    const angle = treeAttr(model, "Angle");
+    return {
+        ...DEFAULT_EDGE_LABEL_PLACE,
+        segment: numberAttr(parameter.e, "SegmentIndex", 0),
+        ratio: numberAttr(parameter.e, "SegmentRatio", 0.5),
+        fromTarget: treeAttr(parameter.e, "Location") === "FromTarget",
+        offset: numberAttr(parameter.e, "Distance", 0),
+        level: false,
+        angle: angle === undefined ? null : numberAttr(model, "Angle", 0),
+        follow: treeAttr(model, "AutoRotation") !== "false",
+    };
+}
+
+/**
+ * Where a label's layout parameter puts it on its edge.
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @returns the place
+ */
+function edgeLabelPlaceOf(refs: References, label: unknown): EdgeLabelPlace {
+    const parameter = layoutParameter(refs, label);
+    switch (parameter?.tag) {
+        case "FreeEdgeLabelModelParameter":
+            return freeEdgeLabelPlace(parameter);
+        case "NinePositionsEdgeLabelModelParameter":
+            return nineEdgeLabelPlace(refs, parameter) ?? DEFAULT_EDGE_LABEL_PLACE;
+        case "SmartEdgeLabelModelParameter":
+            return treeAttr(parameter.e, "Ratio") === undefined
+                ? smartEdgeLabelPlace(refs, parameter)
+                : DEFAULT_EDGE_LABEL_PLACE;
+        default:
+            return DEFAULT_EDGE_LABEL_PLACE;
+    }
+}
+
+/**
+ * A label's font size.
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @returns the size
+ */
+function labelFontSize(refs: References, label: unknown): number {
+    const style = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
+    const font = style === null || style === NULL || typeof style !== "object" ? null : refs.deref(prop(style, "font"));
+    return font === null || font === NULL || typeof font !== "object"
+        ? YFILES_LABEL_SIZE
+        : numberAttr(font.e, "fontSize", YFILES_LABEL_SIZE) || YFILES_LABEL_SIZE;
+}
+
+/**
+ * The turn a place draws its label at: its angle, or its segment's, kept upright.
+ * @param place - the place
+ * @param dir - the way the line runs there
+ * @returns the turn, in radians
+ */
+function edgeLabelTurn(place: EdgeLabelPlace, dir: BendPoint): number {
+    if (place.angle !== null || !place.follow) {
+        return place.angle ?? 0;
+    }
+    const turn = Math.atan2(dir[1], dir[0]);
+    return Math.abs(turn) > Math.PI / 2 ? turn - Math.sign(turn) * Math.PI : turn;
+}
+
+/**
+ * The middle of a label's box on the line drawn between its edge's nodes, and the turn it is drawn at.
+ * @param place - where its model puts it
+ * @param box - its width and height
+ * @param line - the line
+ * @returns the point and the turn, in radians
+ */
+function edgeLabelSpot(
+    place: EdgeLabelPlace,
+    box: readonly [number, number],
+    line: readonly BendPoint[],
+): { center: BendPoint; turn: number } {
+    const [width, height] = box;
+    const way = place.fromTarget === true ? [...line].reverse() : line;
+    const index = Math.max(0, Math.min(place.segment ?? 0, way.length - 2));
+    const run = place.segment === null ? way : way.slice(index, index + 2);
+    const room = lineLength(run) - width - 2 * place.inset;
+    const { at, dir } = pointAlong(run, place.inset + width / 2 + place.ratio * room);
+    const turn = edgeLabelTurn(place, dir);
+    const relative = turn - Math.atan2(dir[1], dir[0]);
+    const half = Math.abs(Math.sin(relative) * width) / 2 + Math.abs(Math.cos(relative) * height) / 2;
+    const off = place.offset + (place.clear ? Math.sign(place.offset) * half : 0);
+    const flip = (place.fromTarget === true) === (place.level && dir[0] < 0) ? 1 : -1;
+    return { center: [at[0] - flip * dir[1] * off, at[1] + flip * dir[0] * off], turn };
+}
+
+/**
+ * Reads where yFiles draws an edge's label from its layout parameter, measured on yEd Live 8.5.16's drawings of
+ * `yed-live-graphml-specimen-edge-labels` and its `-p2`. Its width is estimated, since the file stores none.
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @param words - the label's text
+ * @param path - the edge's boxes and route
+ * @param put - receives the values
+ */
+function readEdgeLabelPlace(refs: References, label: unknown, words: string, path: EdgePath, put: PutValue): void {
+    const place = edgeLabelPlaceOf(refs, label);
+    const fontSize = labelFontSize(refs, label);
+    const lines = words.split("\n");
+    const width = Math.max(...lines.map((l) => l.length)) * YED_LABEL_CHARACTER * fontSize;
+    const box = [width, lines.length * YED_LABEL_LINE * fontSize] as const;
+    let turn = 0;
+    const centerOn = (line: readonly BendPoint[]): BendPoint => {
+        const spot = edgeLabelSpot(place, box, line);
+        ({ turn } = spot);
+        return spot.center;
+    };
+    putEdgeLabelAt(path.boxes, path.route, centerOn, put);
+    put("labelRotation", turn === 0 ? null : ((turn * 180) / Math.PI + 360) % 360);
+}
+
 /**
  * Reads an element's labels: the first one with text; further ones are noted for the element.
  * @param refs - the references
@@ -1545,8 +2013,16 @@ function edgeLabelPositionOf(refs: References, label: unknown): string | null {
  * @param put - receives the values
  * @param at - the sites
  * @param size - a node's size
+ * @param path - an edge's boxes and route; null for a node, a self-loop or an edge with an end of no known place
  */
-function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf, size: Size | null): void {
+function readLabels(
+    refs: References,
+    data: unknown,
+    put: PutValue,
+    at: SiteOf,
+    size: Size | null,
+    path: EdgePath | null,
+): void {
     let label: unknown = undefined;
     let text = "";
     let extra = 0;
@@ -1577,6 +2053,9 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf, 
         inBox = !readLabelPlace(refs, label, position, size, put) && position === "center";
     } else {
         put("labelPosition", edgeLabelPositionOf(refs, label));
+        if (path !== null) {
+            readEdgeLabelPlace(refs, label, text, path, put);
+        }
     }
     const ls = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
     if (ls === null || ls === NULL || typeof ls !== "object" || !ls.tag.endsWith("LabelStyle")) {
@@ -1670,6 +2149,23 @@ interface Yfiles3Context {
 }
 
 /**
+ * An edge's boxes and route, for its label.
+ * @param ctx - the reading's context
+ * @param i - the edge's index
+ * @param geometry - the `<data>` content of the EdgeGeometry key
+ * @returns them, or null for a self-loop or an end with no NodeGeometry
+ */
+function edgePath(ctx: Yfiles3Context, i: number, geometry: unknown): EdgePath | null {
+    const [s, t] = [ctx.snapshot.edgeSource(i), ctx.snapshot.edgeTarget(i)];
+    const box = (k: number): number[] => [...ctx.boxes.subarray(4 * k, 4 * k + 4)];
+    const [from, to] = [box(s), box(t)];
+    if (s === t || ![...from, ...to].every(Number.isFinite)) {
+        return null;
+    }
+    return { boxes: [from, to], route: [[from[0], from[1]], ...edgeBends(geometry), [to[0], to[1]]] };
+}
+
+/**
  * Reads the yFiles 3 styles of every node or every edge.
  * @param ctx - the shared state
  * @param target - nodes or edges
@@ -1690,6 +2186,10 @@ function readYfiles3Target(
     const cell = (name: string | undefined, i: number): unknown =>
         name === undefined ? undefined : plainCell(table.value(name, i));
     const expanded = isNode ? [...table].find((col) => col.meta.name === "Expanded")?.meta.name : undefined;
+    const ports = isNode
+        ? [...table].find((col) => col.meta.origin?.namespace === "yfiles" && col.meta.origin.type === "port")?.meta
+              .name
+        : undefined;
     for (let i = 0; i < n; i++) {
         budget.spend(target, 1);
         const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
@@ -1705,13 +2205,11 @@ function readYfiles3Target(
             size = readNodeGeometry(cell(geometry, i), i, boxes, put, at);
         }
         if (style !== undefined && isNode) {
-            readNodeStyle(refs, cell(style, i), put, at, size, cell(expanded, i) === false);
+            readNodeStyle(refs, cell(style, i), put, at, size, cell(expanded, i) === false, cell(ports, i));
         } else if (style !== undefined) {
             readEdgeStyle(refs, cell(style, i), put, at);
         }
-        if (labels !== undefined) {
-            readLabels(refs, cell(labels, i), put, at, size);
-        }
+        readLabels(refs, cell(labels, i), put, at, size, isNode ? null : edgePath(ctx, i, cell(geometry, i)));
     }
     return out.values;
 }

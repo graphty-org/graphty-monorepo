@@ -21,7 +21,7 @@ import type { ModelLimits, ModelSummary } from "./AssetsApi";
 import { cut, type Findings, findReference, refuse, resolveReference, textureBytesOf } from "./references";
 
 /** The counts a glTF may hold, so a file cannot stall the main thread on shader or hierarchy work. */
-export const GLTF_CAPS = Object.freeze({
+const GLTF_CAPS = Object.freeze({
     nodes: 10_000,
     meshes: 1_000,
     materials: 64,
@@ -143,7 +143,7 @@ function stepStructure(c: string, stack: JsonFrame[]): void {
  * Syntax is left to `JSON.parse`, which runs after.
  * @param text - The JSON text.
  */
-export function checkJsonText(text: string): void {
+function checkJsonText(text: string): void {
     const stack: JsonFrame[] = [];
     let i = 0;
     while (i < text.length) {

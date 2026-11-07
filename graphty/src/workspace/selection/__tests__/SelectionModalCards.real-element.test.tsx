@@ -44,11 +44,13 @@ const LES_MISERABLES: Sample = { type: "gml", name: "les-miserables.gml", data: 
  * style tree.
  * @param graph - the graph to load.
  * @param layerName - the layer's name.
+ * @param where - the layer's selection, or everything.
  * @returns the session and the layer.
  */
 async function openLayer(
     graph: Sample = LES_MISERABLES,
     layerName = "Calm",
+    where?: UnionLeaf,
 ): Promise<{ session: GraphSession; layer: Layer }> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
@@ -66,7 +68,7 @@ async function openLayer(
     const layer = await session.styles.add({
         name: layerName,
         target: "node",
-        selector: { match: "everything" },
+        selector: where === undefined ? { match: "everything" } : { match: "rule", where },
         set: { "node.color": "#d55e00" },
     });
     await session.styles.settled();
@@ -94,7 +96,7 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
  * @returns the modal.
  */
 async function openModal(): Promise<HTMLElement> {
-    await userEvent.click(screen.getByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the modal is open");
@@ -278,6 +280,44 @@ function edgeColor(session: GraphSession, a: string, b: string): string {
 }
 
 describe("the owner's review of the cards (2026-11-04)", () => {
+    it("a matches table that takes the place of No matches fills the strip (#6062)", async () => {
+        // Degree 1000 and up: nothing in Les Miserables, so the strip opens on No matches.
+        const { session, layer } = await openLayer(LES_MISERABLES, "Calm", {
+            kind: "union",
+            side: "nodes",
+            within: "visible",
+            branches: [
+                {
+                    id: "a",
+                    start: "none",
+                    steps: [{ id: "deg", op: "add", rule: { kind: "range", attribute: "graphty.degree", min: 1000 } }],
+                },
+            ],
+        });
+        const modal = await openModal();
+        const strip = await within(modal).findByRole("region", { name: "Matches" });
+        await within(strip).findByText("No matches");
+        const min = await within(cards()[0]).findByRole("textbox", { name: "Degree from, number" });
+        await userEvent.clear(min);
+        await userEvent.type(min, "10{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(
+                (unionOf(session, layer.id)?.branches[0]?.steps[0]?.rule as { min?: number } | undefined)?.min,
+                10,
+            );
+        });
+        // The table is drawn as tall as the strip leaves it, with its rows showing.
+        await waitFor(() => {
+            const box = strip.querySelector<HTMLElement>(".sel-ws-strip-table");
+            assert.isNotNull(box, "the table's box");
+            assert.isAbove(box?.getBoundingClientRect().height ?? 0, 0, "the box has room");
+            assert.isAbove(
+                box?.querySelectorAll("[data-testid='data-table-row']").length ?? 0,
+                0,
+                "the matches are listed",
+            );
+        });
+    });
     it("a new Degree card counts at once, the cards before it fold, and no or is drawn between them", async () => {
         const { session, layer } = await twoCards();
         const degree = unionOf(session, layer.id)?.branches[1]?.steps[0]?.rule as { min?: number; max?: number };

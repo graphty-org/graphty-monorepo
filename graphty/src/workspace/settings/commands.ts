@@ -21,7 +21,7 @@ export function motionCommandId(element: GraphtyElement | null): "view.motion-of
  * reduced motion, where only the reader's explicit "on" makes shaders move.
  * @returns the setting.
  */
-export function motionOnSetting(): "system" | "on" {
+function motionOnSetting(): "system" | "on" {
     const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     return reduce ? "on" : "system";
 }

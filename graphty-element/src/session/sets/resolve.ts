@@ -144,6 +144,10 @@ export interface ResolveContext {
     readonly supplied?: FilterSources["supplied"];
     /** The hovered node, else a lone selected node. Absent refuses a step's `"hovered-or-selected"`. */
     readonly focus?: FilterSources["focus"];
+    /** Whether an element is in a state. Absent refuses a `state` leaf. */
+    readonly inState?: FilterSources["inState"];
+    /** Moves whenever an element's state does, which a `state` leaf's signature reads. */
+    readonly stateRevision?: () => number;
     /** The runs a union step's `measure` leaf reads. Absent refuses `measure`. */
     readonly steps?: FilterSources["steps"];
     /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
@@ -617,6 +621,7 @@ export function filterSourcesIn(context: ResolveContext, seen: readonly SetId[] 
         ...(context.values === undefined ? {} : { values: context.values }),
         ...(context.supplied === undefined ? {} : { supplied: context.supplied }),
         ...(context.focus === undefined ? {} : { focus: context.focus }),
+        ...(context.inState === undefined ? {} : { inState: context.inState }),
         ...(context.steps === undefined ? {} : { steps: context.steps }),
         ...(context.result === undefined ? {} : { result: context.result }),
         ...(context.captured === undefined ? {} : { captured: context.captured }),
@@ -654,7 +659,8 @@ function resolveRule(
     const nodes = ruleNodeMask(halves.node, snapshot.nodeCount, reading !== "listed");
 
     const half: NodeHalf = { nodes, constraint: null, all: false, missingNodes: 0 };
-    // A rule that holds no nodes by its own say (`nodes: "none"`) keeps its passing edges unclipped.
+    // A rule that holds no nodes by its own say (`nodes: "none"`), or reads a state, whose edges are
+    // in it on their own, keeps its passing edges unclipped.
     const noNodes = typeof definition.where !== "string" && holdsNoNodes(definition.where);
     if (reading === "induced" || (reading === "clipped" && halves.edge === null)) {
         return resolutionOf(half, deriveEdges(half, snapshot), context, 0);
@@ -734,10 +740,10 @@ function fillRuleEdges(
 }
 
 /**
- * Whether a rule holds no nodes because it says so: a value leaf with `nodes: "none"`, an `all`
- * holding one, or an `any` whose every member holds none.
+ * Whether a rule's edges pass with no regard to its nodes: a value leaf with `nodes: "none"`, a
+ * `state` leaf, an `all` holding one, or an `any` whose every member is one.
  * @param tree - The rule.
- * @returns True when it holds no nodes by its own say.
+ * @returns True when its edges are not clipped to its nodes.
  */
 function holdsNoNodes(tree: RuleTree): boolean {
     switch (tree.kind) {
@@ -745,6 +751,8 @@ function holdsNoNodes(tree: RuleTree): boolean {
         case "categories":
         case "text":
             return tree.nodes === "none";
+        case "state":
+            return true;
         case "all":
             return tree.of.some(holdsNoNodes);
         case "any":

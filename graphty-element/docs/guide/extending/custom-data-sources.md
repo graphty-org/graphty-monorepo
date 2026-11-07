@@ -269,6 +269,7 @@ What the class does around your importer:
   colors, sizes and shapes are -- a load with `styles: "file"` draws them as style layers, exactly
   as it draws a built-in format's, and the catalog entry says `styles: { read: true }` so an
   application offers the choice for your format too. A descriptor that states `styles` itself wins.
+  Both need the `file-styles` experiment; see [Styles from Files](../file-styles).
 
 Remote and streaming loaders -- a service query, a paged API, a database -- will get a contract of
 their own, separate from file readers. It is not published yet.

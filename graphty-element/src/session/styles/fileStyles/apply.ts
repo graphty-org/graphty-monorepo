@@ -102,7 +102,10 @@ export interface ImportOutcome {
     heldNode(id: NodeId): NodeId | undefined;
 }
 
-/** What a load says about the styles it applied. */
+/**
+ * What a load says about the styles it applied.
+ * @experimental file-styles
+ */
 export interface LoadStyleReport {
     /** The layers the file's styles made, bottom first. */
     readonly layers: readonly LayerId[];
@@ -127,12 +130,27 @@ function choiceOf(command: DataImportCommand): {
     readonly options: FileStyleOptions;
 } {
     const config = command.source.config ?? {};
-    const styles = command.styles ?? (config.styles === "file" ? "file" : "none");
+    const styles = asksFileStyles(command) ? "file" : "none";
     const fromConfig =
         typeof config.styleOptions === "object" && config.styleOptions !== null
             ? (config.styleOptions as FileStyleOptions)
             : {};
     return { styles, options: command.styleOptions ?? fromConfig };
+}
+
+/**
+ * Whether an import asks to draw the file's styles, by its own `styles` or its source's.
+ * @param command - The import, or its parts.
+ * @param command.styles - Its own choice.
+ * @param command.source - Its source, whose options may carry the choice.
+ * @param command.source.config - The source's options.
+ * @returns True when it draws them.
+ */
+export function asksFileStyles(command: {
+    readonly styles?: "file" | "none";
+    readonly source: { readonly config?: Readonly<Record<string, unknown>> };
+}): boolean {
+    return (command.styles ?? (command.source.config?.styles === "file" ? "file" : "none")) === "file";
 }
 
 /**

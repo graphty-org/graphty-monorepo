@@ -22,6 +22,9 @@ import {
     isFileStyleNamespace,
     parseFileStylePath,
 } from "../../../src/session/styles/fileStyles/path";
+import { fileStylesOn } from "../../helpers/file-styles-on";
+
+fileStylesOn();
 
 const MEMBER = fileStylePath("gexf", "node", "member.3");
 

@@ -941,6 +941,7 @@ export const READ_ONLY: readonly string[] = [
     "OperationQueueManager.resume",
     "OperationQueueManager.settled",
     "OperationQueueManager.waitForCompletion",
+    "ProjectApi.assetChoices",
     "ProjectApi.markSaved",
     "ProjectApi.save",
     "QueueableManager.queueOperation",

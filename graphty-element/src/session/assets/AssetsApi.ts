@@ -421,6 +421,19 @@ export interface AssetsApiInternal extends AssetsApi {
      */
     expectedDigest(ref: string): string | undefined;
     /**
+     * Remember how a project keeps a model or picture a layer names by URL: what an opened file
+     * stored, or what the last save was told, so a later save without a choice keeps it the same way.
+     * @param ref - The URL.
+     * @param storage - `"url"` for kept by URL and digest, `"embed"` for files in the project.
+     */
+    rememberStorage(ref: string, storage: "embed" | "url"): void;
+    /**
+     * How a project last kept a URL, if any.
+     * @param ref - The URL.
+     * @returns What {@link AssetsApiInternal.rememberStorage} was last given for it, or undefined.
+     */
+    rememberedStorage(ref: string): "embed" | "url" | undefined;
+    /**
      * Whether an accepted asset's parts came from more than one place (`supply`), so no single URL
      * brings it back.
      * @param id - The id.
@@ -713,6 +726,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
     const states = new Map<string, ModelChange>();
     // The digests a project file recorded for assets it keeps by URL, by href.
     const expectedDigests = new Map<string, string>();
+    const storedAs = new Map<string, "embed" | "url">();
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
 
     /**
@@ -1787,6 +1801,18 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         expectedDigest(ref) {
             const url = parseUrl(ref);
             return url === undefined ? undefined : expectedDigests.get(url.href);
+        },
+
+        rememberStorage(ref, storage) {
+            const url = parseUrl(ref);
+            if (url !== undefined) {
+                storedAs.set(url.href, storage);
+            }
+        },
+
+        rememberedStorage(ref) {
+            const url = parseUrl(ref);
+            return url === undefined ? undefined : storedAs.get(url.href);
         },
 
         bindUrl(ref, id) {

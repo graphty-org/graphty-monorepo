@@ -30,7 +30,16 @@ import {
 import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
-import { ASSETS_MEMBER, assetsMember, restoreAssets, withAcceptedAssetIds } from "./assets/projectMember";
+import type { AssetsApiInternal } from "./assets/AssetsApi";
+import {
+    assetChoices,
+    ASSETS_MEMBER,
+    assetsMember,
+    type AssetStorage,
+    type ProjectAssetChoice,
+    restoreAssets,
+    withAcceptedAssetIds,
+} from "./assets/projectMember";
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import type { SessionData } from "./data";
 import { ISSUES_VALUE, type IssueState } from "./issues";
@@ -133,6 +142,8 @@ const EXTENSION_NAME = /^(?!graphty(\.|$))[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
  */
 export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 
+export type { AssetStorage, ProjectAssetChoice } from "./assets/projectMember";
+
 /** How `project.save` writes the file. */
 export interface ProjectSaveOptions {
     /** Members to leave out of the file. Default: none. */
@@ -154,9 +165,11 @@ export interface ProjectSaveOptions {
      * files into the project (the default), so it opens offline; `"url"` writes only the URL and
      * the file's digest, so the file is fetched again when the project opens (after the reader
      * allows it) and reported with `W_MODEL_CHANGED` when it is no longer the same file.
-     * `session.assets.list()` gives each asset's `url`.
+     * `session.assets.list()` gives each asset's `url`, and `project.assetChoices()` lists the ones
+     * to ask about. A URL with no entry is kept as the project last kept it (as the file it was
+     * opened from, or the last save that had an entry for it), else embedded.
      */
-    readonly assets?: Readonly<Record<string, "embed" | "url">>;
+    readonly assets?: Readonly<Record<string, AssetStorage>>;
 }
 
 /** What the session lends the project file for the loads. */
@@ -324,6 +337,22 @@ export interface ProjectApi {
      *     is not reverse-domain or a value over 64 KB.
      */
     save(options?: ProjectSaveOptions): Promise<SavedProject>;
+    /**
+     * The models and pictures a layer names by URL that a save can either embed or keep by URL,
+     * each with its size, the layers naming it and what a save without a choice for it does:
+     * what to ask the reader before `save({ assets })`. Samples and assets added from files are
+     * not listed; a save always embeds them.
+     * @returns One entry per URL, in the order the layers first name them; empty when there is
+     *     nothing to ask.
+     * @example
+     * ```typescript
+     * const assets = Object.fromEntries(
+     *     session.project.assetChoices().map((choice) => [choice.url, choice.urlRefused ? "embed" : "url"]),
+     * );
+     * await session.project.save({ assets });
+     * ```
+     */
+    assetChoices(): ProjectAssetChoice[];
     /**
      * Record that a file `save({ markSaved: false })` produced has been written. `dirty` clears
      * unless something changed since that save, and undo returns to it as the save point.
@@ -2451,8 +2480,16 @@ export function projectOf(
         rename(name) {
             return session.config.set({ name });
         },
+        assetChoices() {
+            return assetChoices(session);
+        },
         save(options = {}) {
             const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
+            // What this save was told is how the next save without a choice keeps the same URL.
+            for (const [url, storage] of Object.entries(options.assets ?? {})) {
+                (session.assets as AssetsApiInternal).rememberStorage(url, storage);
+            }
+
             const text = JSON.stringify(document);
             const saved: SavedProject = Object.freeze({
                 text,

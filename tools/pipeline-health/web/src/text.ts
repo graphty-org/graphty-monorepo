@@ -539,7 +539,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "master.same_check": {
         name: "Most PRs failing one check",
         short: "most PRs failing one check",
-        def: "The largest number of open PRs failing the same check (or test group) right now; 1 or 0 means no failure is shared. Several PRs failing one check usually means master broke it, not the PRs. On the overview, 'worst' is the highest count reached.",
+        def: "The largest number of open PRs failing the same check (or test group) with the same failure (the same failed test or error line), or failing a check master's newest build fails too, right now; 1 or 0 means no failure is shared. A failure that names no test or error counts as the PR's own. Several PRs failing one check the same way usually means master broke it, not the PRs. On the overview, 'worst' is the highest count reached.",
         red: "3 or more PRs fail the same check: fix it on master first. See the ongoing rows of Shared failures below.",
     },
     "master.full_run_verdict": {
@@ -1279,6 +1279,10 @@ const S: Record<string, (p: P) => string> = {
     "cause.workflow_error": (p) => `workflow error: ${str(p, "detail")}${workflowFix(p)}`,
     "check.family": (p) => `family of ${fmtN(num(p, "bins"))} bins`,
     "check.failed_alone": () => "failed alone",
+    "check.signature": (p) =>
+        `same failure: ${esc(str(p, "signature"))}${num(p, "bins") > 1 ? `; family of ${fmtN(num(p, "bins"))} bins` : ""}`,
+    "check.master_fails": (p) =>
+        `master's newest build fails it too${num(p, "bins") > 1 ? `; family of ${fmtN(num(p, "bins"))} bins` : ""}`,
     suspect: (p) => `${prLink(num(p, "pr"))} ${str(p, "title")}`,
     "fix.merged": (p) => `${prLink(num(p, "pr"))} merged ${at(p, "at")}`,
     "fix.open": (p) => `${prLink(num(p, "pr"))} fix open`,

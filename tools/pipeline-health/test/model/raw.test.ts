@@ -32,6 +32,24 @@ describe("raw writes", () => {
         expect(fa.total).toMatchObject({ n: 1, sum: 1 });
     });
 
+    it("leaves the full run's designed same-commit re-run out of ci.reruns, but counts any other re-run", async () => {
+        const store = new MemoryStore();
+        const full = { workflow: "release.yml", event: "workflow_dispatch", branch: "master", conclusion: "failure" };
+        await putRaw(
+            store,
+            [
+                run(1, full),
+                run(1, { ...full, attempt: 2 }), // release-rerun.yml's one re-run: by design
+                run(1, { ...full, attempt: 3 }), // a further re-run of the full run: counted
+                run(2, { attempt: 2 }), // a pull request re-run: counted
+            ],
+            T0,
+        );
+        await recompute(store, T0);
+        const w = await windowValue(store, "ci.reruns", "1h", T0);
+        expect(w.total).toMatchObject({ n: 3, sum: 2 });
+    });
+
     it("moves an item whose time changed, emptying its old bucket", async () => {
         const store = new MemoryStore();
         await putRaw(store, [run(1, { completedAt: T0 - 40 * MIN })], T0);

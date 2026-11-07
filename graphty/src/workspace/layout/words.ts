@@ -7,3 +7,8 @@ export const TRANSITION_WORDS = {
     defaultSeconds: "Default",
     settings: (name: string): string => `${name} settings`,
 } as const;
+
+/** The layout form's row that lays out only the nodes the filter shows. */
+export const SHOWN_ONLY_WORDS = {
+    shownOnly: "Shown nodes only",
+} as const;

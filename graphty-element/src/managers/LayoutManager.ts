@@ -52,6 +52,7 @@ import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
+import { pendingWorkOf } from "./PendingWork";
 
 /**
  * The largest batch a pre-step chunk submits.
@@ -783,6 +784,13 @@ export class LayoutManager implements Manager {
      */
     private members: ReadonlySet<NodeIdType> | null = null;
 
+    /**
+     * The nodes the filter showed when the running layout started, under `layout.visibleOnly`, or
+     * null when it leaves nothing out: every other node takes no part in it. See
+     * `LayoutEngine.setLeftOut`.
+     */
+    private visibleIds: ReadonlySet<NodeIdType> | null = null;
+
     /** The engine and the rows {@link syncFollowers} last handed it. */
     private followersOf: LayoutEngine | null = null;
     private followersKey = "";
@@ -1179,6 +1187,10 @@ export class LayoutManager implements Manager {
             engine.setHoldMask(...this.holdMaskOf(this.members));
         }
 
+        if (engine !== undefined && this.visibleIds !== null) {
+            this.leaveOut(engine, this.visibleIds);
+        }
+
         if (engine instanceof StaticLayoutEngine) {
             engine.reload(event, this.dataManager.isLoading);
             return;
@@ -1332,6 +1344,7 @@ export class LayoutManager implements Manager {
         // THE MEMBERS ARE FROZEN HERE, when the layout starts, as a run freezes its scope: a later
         // click, filter change or attribute edit does not move what the running layout holds.
         const members = this.captureMembers(scoped, explicitScope);
+        const visible = this.captureVisible();
 
         // The CONSUMER'S options are checked on their own, before the element adds anything: the
         // dimension options below are the element's to add and are not the layout's to declare,
@@ -1370,6 +1383,7 @@ export class LayoutManager implements Manager {
         const previousEngine = this.layoutEngine;
         const previousDimension = this.engineDimension;
         const previousMembers = this.members;
+        const previousVisible = this.visibleIds;
         const previousDriver = this.runningDriver;
         const previousDriverOptions = this.driverOptions;
         // Where the nodes are drawn now, taken before the new engine can place any of them.
@@ -1384,6 +1398,9 @@ export class LayoutManager implements Manager {
             // Add all existing nodes and edges to the new engine
             const nodeArray = [...this.dataManager.nodes.values()];
             const edgeArray = [...this.dataManager.edges.values()];
+            // Before the nodes and edges arrive, so an engine that weighs them as they come knows
+            // which take no part; and again after init(), whose freeze may renumber the rows.
+            this.leaveOut(engine, visible);
             layoutEngineInternals.addNodes(engine, nodeArray);
             layoutEngineInternals.addEdges(engine, edgeArray);
 
@@ -1403,6 +1420,8 @@ export class LayoutManager implements Manager {
 
             // AFTER init(), and before any step runs. See `replayPins`.
             this.replayPins(engine, nodeArray);
+            this.leaveOut(engine, visible);
+            this.visibleIds = visible;
             this.members = members;
             this.membersOwed = members !== null && nodeArray.length === 0;
             if (members !== null) {
@@ -1435,6 +1454,7 @@ export class LayoutManager implements Manager {
             this.engine = previousEngine;
             this.engineDimension = previousDimension;
             this.members = previousMembers;
+            this.visibleIds = previousVisible;
             this.runningDriver = previousDriver;
             this.driverOptions = previousDriverOptions;
             this.dataManager.setLayoutEngine(previousEngine);
@@ -2152,6 +2172,80 @@ export class LayoutManager implements Manager {
             this.logger.debug("The carried layout scope is inactive", { reason: error.message });
             return null;
         }
+    }
+
+    /**
+     * The nodes the filter shows now, when `layout.visibleOnly` is on and it hides any.
+     * @returns The shown nodes, or null when the layout leaves nothing out.
+     */
+    private captureVisible(): ReadonlySet<NodeIdType> | null {
+        const source = this.scopeSource;
+        if (this.styles.config.behavior.layout.visibleOnly !== true || source === null) {
+            return null;
+        }
+
+        const visible = new Set(source.members("visible"));
+        return visible.size >= this.dataManager.nodes.size ? null : visible;
+    }
+
+    /**
+     * Tell an engine which rows take no part: every node outside the shown ones.
+     * @param engine - The engine.
+     * @param visible - The shown nodes, or null to leave nothing out.
+     */
+    private leaveOut(engine: LayoutEngine, visible: ReadonlySet<NodeIdType> | null): void {
+        if (visible === null) {
+            layoutEngineInternals.setLeftOut(engine, null, 0);
+        } else {
+            layoutEngineInternals.setLeftOut(engine, ...this.holdMaskOf(visible));
+        }
+    }
+
+    /**
+     * Lay the graph out again over what the filter shows, when `layout.visibleOnly` asks for it
+     * and the shown nodes are not the ones the running layout left the rest out for: the filter
+     * changed, or the behaviour was switched. Queued behind every build already asked for, as a
+     * driver rebuild is.
+     * @internal
+     */
+    relayoutForVisibility(): void {
+        const engine = this.layoutEngine;
+        if (engine === undefined || this.restoring()) {
+            return;
+        }
+
+        const visible = this.captureVisible();
+        if (sameIds(visible, this.visibleIds)) {
+            return;
+        }
+
+        const generation = this.#generation;
+        this.#building++;
+        const rebuild = this.#applying.then(async () => {
+            const running = this.layoutEngine;
+            if (running === undefined || this.#generation !== generation) {
+                return;
+            }
+
+            await this._setLayoutInternal(running.type, this.driverOptions, {
+                dimension: this.engineDimension ?? 3,
+                restoring: false,
+                live: () => this.#generation === generation,
+                explicitScope: false,
+                transition: true,
+            });
+        });
+        this.#applying = rebuild.catch(() => undefined);
+        // A wait for the graph to settle waits for it: it is going to move the nodes.
+        const scene = this.graphContext?.getScene();
+        const record = scene === undefined ? undefined : pendingWorkOf(scene);
+        const tracked = record?.track("layout", WHAT_RELAYOUT_IS, rebuild, "wait") ?? rebuild;
+        // A failed rebuild has been reported, and the layout that was running is still running.
+        void tracked
+            .finally(() => {
+                this.#building--;
+            })
+            .catch(() => undefined);
     }
 
     /**
@@ -2900,6 +2994,23 @@ export class LayoutManager implements Manager {
 export interface GroupBox {
     readonly center: { readonly x: number; readonly y: number; readonly z: number };
     readonly half: { readonly x: number; readonly y: number; readonly z: number };
+}
+
+/** What a wait names while a layout over what the filter shows is being built. */
+const WHAT_RELAYOUT_IS = "the layout is being run again over what the filter shows";
+
+/**
+ * Whether two captures of the shown nodes hold the same nodes.
+ * @param a - One capture, or null for none.
+ * @param b - The other.
+ * @returns True when they are the same.
+ */
+function sameIds(a: ReadonlySet<NodeIdType> | null, b: ReadonlySet<NodeIdType> | null): boolean {
+    if (a === null || b === null) {
+        return a === b;
+    }
+
+    return a.size === b.size && [...a].every((id) => b.has(id));
 }
 
 /**

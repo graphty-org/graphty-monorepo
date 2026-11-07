@@ -3,17 +3,18 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { LayoutDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { BasemapConfig } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Button, Group, Stack, Text } from "@mantine/core";
+import { Button, Checkbox, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { costLine, optionWords } from "../analyze/words";
 import { selectionWorkspaceOn } from "../features";
 import { OptionRow, OptionsForm } from "../options/OptionsForm";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
 import { engineOf, isDrawn, LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
 import { columnFitWords, layoutErrorWords, locationFieldWords } from "./refusalWords";
 import { TransitionRow } from "./TransitionRow";
+import { SHOWN_ONLY_WORDS } from "./words";
 
 /** The location map's id, whose form names the columns it read and picks the map it draws on. */
 const MAP_LAYOUT = "location-map";
@@ -381,6 +382,31 @@ function MapLocation({
 }
 
 /**
+ * The layout form's "Shown nodes only" row: a layout over only the nodes the filter shows, laid
+ * out again when the filter changes. A view preference, written on the element by the host.
+ * @param props - Component props
+ * @param props.row - Whether the form draws its settings as rows.
+ * @returns The row
+ */
+function ShownOnlyRow({ row }: Readonly<{ row: boolean }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const checked = useWorkspaceState((state) => state.layoutShownOnly);
+    const box = {
+        checked,
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+            store.set({ layoutShownOnly: event.currentTarget.checked });
+        },
+    };
+    return row ? (
+        <OptionRow label={SHOWN_ONLY_WORDS.shownOnly}>
+            <Checkbox size="xs" aria-label={SHOWN_ONLY_WORDS.shownOnly} {...box} />
+        </OptionRow>
+    ) : (
+        <Checkbox size="xs" label={SHOWN_ONLY_WORDS.shownOnly} {...box} />
+    );
+}
+
+/**
  * The form for one layout (the Layout popover's second level, and inline in the graph's
  * inspector): Shape, its key options, the Advanced fold with Seed and Reshuffle, the cost line
  * and Apply. Nothing runs while the reader edits; Apply (or Enter) lays the graph out, as one
@@ -550,6 +576,7 @@ export function LayoutForm({
                     after={seed}
                     choiceNote={(_option, refusal) => columnFitWords(refusal) ?? ""}
                 />
+                <ShownOnlyRow row={row} />
                 <TransitionRow session={session} />
                 {isMap ? (
                     <MapSourceFields value={values.map as BasemapConfig | null | undefined} onChange={pickMap} />

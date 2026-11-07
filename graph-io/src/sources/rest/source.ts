@@ -533,6 +533,13 @@ class Expansion {
     private writeNew(page: Page, entity: string, reached: string[]): void {
         const { state } = this;
         const before = new Set([...state.full, ...state.stubs]);
+        // The page's stubs stop at the expansion's limit and the node cap ("at most this many new
+        // nodes"). A load keeps every stub of its pages instead, so its cursor resumes exactly.
+        // ponytail: a stub left out here is not stubbed again when a capped first hop resumes.
+        state.room = Math.min(
+            (this.request.limit ?? Infinity) - this.added,
+            (this.run.ctx.limits.maxNodes ?? Infinity) - this.run.ctx.report.counts.nodes,
+        );
         const out = toRecords(this.mapping, [{ records: page.records, entity }], state);
         writePage(out, this.sink, this.run.ctx, this.types);
         this.wrote = true;

@@ -530,6 +530,20 @@ describe("the rest source", () => {
         expect([...rest.snapshot.ids].sort()).toEqual(["f"]);
     });
 
+    it("stops a page's stubs at the expansion's limit", async () => {
+        const { snapshot } = await expandFromSource(
+            people,
+            { params: {}, ids: ["a"], limit: 3 },
+            {
+                fetch: replayFetch([
+                    { url: `${API}/people?knownBy=a`, body: { items: [{ id: "c", knows: ["x", "y", "z", "w"] }] } },
+                ]),
+            },
+        );
+        // c, then two of its four references fill the limit of three new nodes.
+        expect(snapshot.nodeCount).toBe(3);
+    });
+
     it("keeps what an expansion fetched when a later page answers 403", async () => {
         const paged: RestMapping = {
             ...PEOPLE,

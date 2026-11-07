@@ -19,6 +19,12 @@ export interface RecordState {
     readonly known: ReadonlySet<string>;
     /** The newest modification time seen, for the validators. */
     modified: string | null;
+    /**
+     * How many more new nodes this page may add before stubs stop (an expansion's limit): a full
+     * record is always written (a page's cursor resumes after it), but past this a target with no
+     * record is left out, with its edge, so one page cannot bring thousands of references.
+     */
+    room: number;
 }
 
 /** The nodes and edges of one page. */
@@ -33,7 +39,7 @@ export interface PageRecords {
  * @returns the state
  */
 export function newState(known: Iterable<string> = []): RecordState {
-    return { full: new Set(), stubs: new Set(), known: new Set(known), modified: null };
+    return { full: new Set(), stubs: new Set(), known: new Set(known), modified: null, room: Infinity };
 }
 
 /**
@@ -139,6 +145,8 @@ class PageWriter {
         if (this.state.stubs.has(id)) {
             // the full record replaces a stub written earlier
             attrs[SOURCE_STUB_ATTR] = false;
+        } else if (!this.state.full.has(id) && !this.state.known.has(id)) {
+            this.state.room--;
         }
         this.state.full.add(id);
         this.out.nodes.push({ id, ...attrs });
@@ -146,21 +154,27 @@ class PageWriter {
 
     /**
      * Make sure an edge end exists: a stub when no record of it was written and the caller does not
-     * hold it.
+     * hold it, while the page has room for one.
      * @param id - the id
      * @param entity - its entity, when known
+     * @returns false when the end is missing and there is no room for a stub: leave the edge out
      */
-    private end(id: string, entity: string | undefined): void {
+    private end(id: string, entity: string | undefined): boolean {
         const { full, stubs, known } = this.state;
         if (full.has(id) || stubs.has(id) || known.has(id)) {
-            return;
+            return true;
         }
+        if (this.state.room <= 0) {
+            return false;
+        }
+        this.state.room--;
         stubs.add(id);
         this.out.nodes.push({
             id,
             [SOURCE_STUB_ATTR]: true,
             ...(entity === undefined ? {} : { [SOURCE_ENTITY_ATTR]: entity }),
         });
+        return true;
     }
 
     /**
@@ -198,9 +212,9 @@ class PageWriter {
             );
             for (let i = 0; i < ids.length; i++) {
                 for (let j = i + 1; j < ids.length; j++) {
-                    this.end(ids[i], entityOf);
-                    this.end(ids[j], entityOf);
-                    this.out.edges.push({ source: ids[i], target: ids[j], type: rule.type });
+                    if (this.end(ids[i], entityOf) && this.end(ids[j], entityOf)) {
+                        this.out.edges.push({ source: ids[i], target: ids[j], type: rule.type });
+                    }
                 }
             }
         }
@@ -230,9 +244,14 @@ class PageWriter {
                 .map((t) => idText(t, targetEntity))
                 .filter((v): v is string => v !== null);
             for (const to of tos) {
-                this.end(from, rule.from === undefined ? entityName : undefined);
-                this.end(to, rule.entity);
-                this.out.edges.push({ ...edgeFields(rule.fields, scope), source: from, target: to, type: rule.type });
+                if (this.end(from, rule.from === undefined ? entityName : undefined) && this.end(to, rule.entity)) {
+                    this.out.edges.push({
+                        ...edgeFields(rule.fields, scope),
+                        source: from,
+                        target: to,
+                        type: rule.type,
+                    });
+                }
             }
         }
     }

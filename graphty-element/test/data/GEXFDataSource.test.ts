@@ -5,6 +5,9 @@ import { assert, describe, test } from "vitest";
 
 import { GEXFDataSource } from "../../src/data/GEXFDataSource.js";
 import { createGraphSession } from "../../src/session";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 describe("GEXFDataSource", () => {
     test("parses basic GEXF", async () => {

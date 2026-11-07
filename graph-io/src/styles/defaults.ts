@@ -126,9 +126,16 @@ export interface ToolDefaults {
      * the program's own drawings of real files. Not its spring length: layouts settle at different multiples of their
      * springs. Not an edge default: it says how the program spaces a layout, so no rule carries it. Absent for a
      * program whose layout of such a file has no fixed spacing (Gephi scatters nodes over a square whatever their
-     * number).
+     * number: see `layoutScatterSide`).
      */
     readonly layoutSpacing?: ToolDefaultValue<number>;
+    /**
+     * The side, in `units`, of the square over which the program scatters the nodes of a file that stores no
+     * positions, each at a uniformly random point. The spacing that leaves depends on how many nodes there are:
+     * the median distance from a node to its nearest neighbor is about `side * sqrt(ln 2 / (pi * nodes))`. Absent
+     * for a program that lays such a file out otherwise (`layoutSpacing`).
+     */
+    readonly layoutScatterSide?: ToolDefaultValue<number>;
 }
 
 /**
@@ -301,6 +308,8 @@ const YED_LIVE_ARROWHEAD: ToolArrowhead = {
     shapes: {
         diamond: { length: 10 / 8, aspect: 6 / 10 },
         circle: { length: 6 / 8, aspect: 1 },
+        // an unfilled circle is as big (yed-live-graphml-specimen-edges-lines-p3.svg: a message flow's, 6 across)
+        "circle-open": { length: 6 / 8, aspect: 1 },
         "other:cross": { length: 10 / 8, aspect: 1 },
         "other:kite": { length: 10 / 8, aspect: 6 / 10 },
         "other:deltoid": { length: 5.2 / 8, aspect: 6 / 5.2 },
@@ -725,6 +734,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "gephi 0.11.4-SNAPSHOT",
                 units: "relative",
                 roundedCornerRadius: cornerCap("gephi", "draws no rounded rectangle (its preview draws discs)"),
+                layoutScatterSide: v(
+                    1000,
+                    `${GEPHI} ImportContainerImpl.java lines 895-900 (a file that places no node: each at ` +
+                        "(0.01 + Math.random()) * 1000 - 500 on x and y)",
+                ),
                 arrowhead: {
                     length: (size, width) => 3.25 * width * size,
                     aspect: 0.9,

@@ -2703,10 +2703,13 @@ Rows still open, each with what stops it:
   one size of each node has been drawn, so how the marks scale is unproven.
 - yEd `y:ImageNode` (`yed-graphml-specimen-images-charts`): graphty draws the PNG yEd draws; draw.io, the stand-in,
   draws an empty box, so this sheet's stand-in raster floors (`raster.nodeBody`, `raster.nodeOutline`) fall until
-  the owner's yEd export replaces the stand-in. yEd's own drawings show it paints neither an image node's fill nor its
-  border (`graphml-stm32-func`: 15 nodes, `graphml-synthetic-nodes`), and this sheet's own yEd drawing (2026-11-07,
-  #5792) shows the same: graphty still paints both under the picture, so `node.fill` and `node.stroke` fail for its
-  image and SVG nodes.
+  the owner's yEd export replaces the stand-in. yEd's own drawings show it paints neither an image or SVG node's fill
+  nor its border (`graphml-stm32-func`: 15 `y:ImageNode`s, each with `<y:Fill color="#CCCCFF">`, drawn as an `<image>`
+  alone, #CCCCFF nowhere in the SVG; `graphml-synthetic-nodes` likewise; this sheet's own yEd drawing, 2026-11-07,
+  #5792, the same), so graph-io reads both realizers as a node of no shape with its picture (#5788): stm32-func
+  node.fill and node.stroke 15 more pass in each view. synthetic-nodes `svg-node` now fails node.stroke: its picture is
+  an SVG ellipse that yEd inlines as paths (read as the node's body) and graphty draws as an image, whose contents the
+  comparator does not read.
 - Layouts of files without positions (`unpositioned-layout-scale`): graphty lays such a file out with its own
   force layout (the vis-network samples now pass) and draws the file's lengths at one scale chosen from the file (median node, else median label,
   else median edge). The program lays it out its own way: vis-network's physics (`springLength` 95 px), Gephi's

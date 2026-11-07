@@ -1559,9 +1559,8 @@ function yedResourceUrl(r: unknown): string | null {
 
 /**
  * The picture an image or SVG node realizer draws (`y:Image refid`, `y:SVGModel/y:SVGContent refid`), stretched over
- * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`. The realizer's own fill and border are kept beneath it,
- * though yEd paints neither (`graphml-stm32-func`): draw.io, the stand-in for `yed-graphml-specimen-images-charts`,
- * paints both, and that sheet waits for a drawing by yEd itself (ISSUES.md).
+ * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`, with neither the realizer's fill nor its border
+ * (`readNode`).
  * @param real - the realizer
  * @param resources - the graph's shared pictures
  * @param put - receives the values
@@ -1935,8 +1934,13 @@ function readShadow(real: Realizer, put: PutValue, at: SiteOf): void {
  */
 function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: ReadonlyMap<string, string>): void {
     const { r } = real;
-    readFill(real, put, at);
-    const border = treeChild(r, "BorderStyle");
+    const pictured = real.type === "ImageNode" || real.type === "SVGNode";
+    // yEd paints an image or SVG node's picture alone, never its y:Fill or y:BorderStyle (its own SVGs of
+    // graphml-stm32-func and graphml-synthetic-nodes draw an <image> and no #CCCCFF box): a node of no shape
+    if (!pictured) {
+        readFill(real, put, at);
+    }
+    const border = pictured ? undefined : treeChild(r, "BorderStyle");
     const painted = new Map<string, unknown>();
     readBorder(
         border,
@@ -1956,7 +1960,9 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     put("width", width);
     put("height", height);
     const outline = realizerOutline(real, width, height);
-    if (outline === null) {
+    if (pictured) {
+        put("shape", "none");
+    } else if (outline === null) {
         put("shape", realizerShape(real, at));
     } else {
         putOutline(outline, width, height, put);

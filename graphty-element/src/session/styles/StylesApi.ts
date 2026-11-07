@@ -1478,6 +1478,8 @@ export interface StylesSources {
     readonly liftDrawn?: () => boolean;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /** Whether the file styles experiment is on, which decides the values a binding spreads over; absent reads on. */
+    readonly fileStyles?: () => boolean;
     /**
      * Where a run is looked up, for the two verbs that take one.
      *
@@ -4745,6 +4747,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             binding: filled,
             column,
             scales,
+            fileStyles: sources.fileStyles?.() !== false,
             asWritten: binding,
             ...(options.bins === undefined ? {} : { bins: options.bins }),
             ...(options.span === undefined ? {} : { span: options.span }),
@@ -5671,6 +5674,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 binding: palette === undefined ? rule : { ...rule, palette },
                 count: options.count,
                 scales,
+                fileStyles: sources.fileStyles?.() !== false,
             });
         },
 

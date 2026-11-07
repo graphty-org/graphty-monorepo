@@ -580,6 +580,27 @@ function readPanelStyle(color: string | null, put: PutValue): void {
 }
 
 /**
+ * Reads the rest of a ShinyPlateNodeStyle past its fill: an outline only where `stroke` is set, its corners, and the
+ * gloss yEd Live draws over its upper left, as the node's picture where its size is known.
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the node's size, where it has one
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readShinyPlateStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): void {
+    const stroke = prop(style, "stroke") === undefined ? NULL : strokeOf(refs, prop(style, "stroke"));
+    putStroke(stroke, put, at);
+    const radius = putRounded(treeAttr(style.e, "radius"), SHINY_RADIUS, put, at) ?? 0;
+    if (size !== null) {
+        const border = stroke === null || stroke === NULL ? 0 : Number(stroke.width) || 0;
+        put("image", shinyPlateGloss(size.width, size.height, radius, border));
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/**
  * Reads the yFiles for HTML 2.6 node styles yEd Live wrote before yFiles 3, and the demos' FlowchartNodeStyle:
  * BevelNodeStyle and PanelNodeStyle (painted from their `color`), ShinyPlateNodeStyle (an outline only where `stroke`
  * is set) and FlowchartNodeStyle (its `type`'s outline, drawn as yEd's flowchart palette draws the same type).
@@ -608,20 +629,10 @@ function readStyle26(refs: References, style: StyleObject, size: Size | null, pu
         case "PanelNodeStyle":
             readPanelStyle(fill(prop(style, "color") ?? BLACK), put);
             return true;
-        case "ShinyPlateNodeStyle": {
+        case "ShinyPlateNodeStyle":
             fill(prop(style, "fill") ?? BLACK);
-            const stroke = prop(style, "stroke") === undefined ? NULL : strokeOf(refs, prop(style, "stroke"));
-            putStroke(stroke, put, at);
-            const radius = putRounded(treeAttr(style.e, "radius"), SHINY_RADIUS, put, at) ?? 0;
-            // the gloss over its upper left, which yEd Live draws over every ShinyPlateNodeStyle
-            if (size !== null) {
-                const border = stroke === null || stroke === NULL ? 0 : Number(stroke.width) || 0;
-                put("image", shinyPlateGloss(size.width, size.height, radius, border));
-                put("imageFit", "fill");
-                put("imageClip", "none");
-            }
+            readShinyPlateStyle(refs, style, size, put, at);
             return true;
-        }
         case "FlowchartNodeStyle": {
             fill(prop(style, "fill") ?? FLOWCHART_FILL);
             const type = treeAttr(style.e, "type") ?? "";

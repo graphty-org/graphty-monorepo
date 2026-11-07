@@ -89,6 +89,7 @@ describe("NodeBehavior Unit Tests", () => {
             pointerY: 0,
             activeCamera: { position: { x: 0, y: 0, z: 10 } },
             createPickingRay: vi.fn(),
+            getEngine: () => ({ getInputElement: () => null }),
         } as unknown as Parameters<typeof NodeBehavior.addDefaultBehaviors>[1];
 
         const mockNode = {
@@ -123,6 +124,7 @@ describe("NodeBehavior Unit Tests", () => {
             pointerY: 0,
             activeCamera: { position: { x: 0, y: 0, z: 10 } },
             createPickingRay: vi.fn(),
+            getEngine: () => ({ getInputElement: () => null }),
         } as unknown as Parameters<typeof NodeBehavior.addDefaultBehaviors>[1];
 
         const mockNode = {
@@ -167,6 +169,7 @@ describe("NodeBehavior Unit Tests", () => {
             pointerY: 0,
             activeCamera: { position: { x: 0, y: 0, z: 10 } },
             createPickingRay: vi.fn(),
+            getEngine: () => ({ getInputElement: () => null }),
         } as unknown as Parameters<typeof NodeBehavior.addDefaultBehaviors>[1];
 
         const mockNode = {
@@ -211,6 +214,7 @@ describe("NodeBehavior Unit Tests", () => {
             pointerY: 0,
             activeCamera: { position: { x: 0, y: 0, z: 10 } },
             createPickingRay: vi.fn(),
+            getEngine: () => ({ getInputElement: () => null }),
         } as unknown as Parameters<typeof NodeBehavior.addDefaultBehaviors>[1];
 
         const mockNode = {

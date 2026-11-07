@@ -11,13 +11,14 @@
 
 import "../../src/graphty-element";
 
-import { Matrix, Mesh, type Scene } from "@babylonjs/core";
-import { afterEach, assert, describe, it } from "vitest";
+import { Matrix, Mesh, type Scene, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
+import { RowTable } from "../../src/render/RowTable";
 import { drag, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 
@@ -163,6 +164,29 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 2);
     });
 
+    it("keep no mesh for a batched row, and give each row its mesh back on the object path", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        const scene = graph.getScene();
+        const nodeMeshes = (): number =>
+            scene.meshes.filter((mesh) => (mesh.metadata as { graphNode?: unknown } | null)?.graphNode !== undefined)
+                .length;
+        await frameOn(graph, "objects");
+        assert.equal(nodeMeshes(), NODES.length);
+
+        await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(nodeMeshes(), 0, "a batched row keeps no mesh, so the scene holds the batches, not the nodes");
+        for (const node of graph.getNodes()) {
+            assert.isNull(node.drawnPickMesh);
+        }
+
+        const objects = await frameOn(graph, "objects");
+        assert.equal(nodeMeshes(), NODES.length);
+        assert.equal(overBar(objects, await frameOn(graph, "batched")), 0);
+    });
+
     it("free a row and take it back without changing a pixel", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
@@ -215,6 +239,25 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
+    it("measure a batched row's radius again after a repaint changes its size", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const node = graph.getNode(1);
+        assert.isDefined(node);
+        assert.isAbove(node?.drawnRadius ?? 0, 0, "the radius is measured once before the repaint");
+        await layer(element, [1], { "node.size": 3 });
+        await element.waitForStableFrame();
+        assert.isNull(node?.drawnPickMesh ?? null, "the row is still batched");
+        const batched = node?.drawnRadius ?? 0;
+        const box = node?.drawnBoundingBox.extendSize.x ?? 0;
+        assert.closeTo(batched, box, 1e-3, "the radius follows the drawn size");
+        graph.setRenderPath("objects");
+        await element.waitForStableFrame();
+        assert.closeTo(node?.drawnRadius ?? 0, batched, 1e-3, "both paths answer the same radius");
+    });
+
     it("send a look to the object path when one of its rows gains a border, and back", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
@@ -254,6 +297,49 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.isAbove(graph.rowCounts.objectNodes, 0);
     });
 
+    it("read a batched row from its table, keep edges on eased rows and walk no batched row at rest", async () => {
+        const element = await mounted(renderer);
+        await element.session.data.addNodes([
+            { id: "a", position: { x: -4, y: -1, z: 2 } },
+            { id: "b", position: { x: 4, y: -1, z: -2 } },
+        ]);
+        await element.session.data.addEdges([{ source: "a", target: "b" }]);
+        await element.graph.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await readFrame(graph);
+        const node = graph.getNode("a");
+        assert.isDefined(node);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        assert.isTrue(node.drawnInBatch, "a batched row answers from its table");
+
+        // A frame at rest asks the table for no batched row: the edge walk is told by the table.
+        const centerOf = vi.spyOn(RowTable.prototype, "centerOf");
+        cleanups.push(() => centerOf.mockRestore());
+        await readFrame(graph);
+        await readFrame(graph);
+        assert.equal(centerOf.mock.calls.length, 0, "no batched row compared on a frame at rest");
+        centerOf.mockRestore();
+
+        // Held halfway through a glide, the rows sit off the lane and the edge still ends on them.
+        const edge = [...graph.getLayoutManager().edges][0];
+        assert.isDefined(edge);
+        const before = node.drawnPosition.clone();
+        const restCentre = edge.drawnCentre.clone();
+        await element.session.config.set({ layoutTransition: { transition: "glide", seconds: 0.4, hold: 0.5 } });
+        await graph.setLayout("circular");
+        await element.waitForStableFrame();
+        assert.isTrue(node.drawnInBatch, "the eased row is still batched");
+        assert.isAbove(Vector3.Distance(before, node.drawnPosition), 0.5, "the row moved");
+        const centre = edge.drawnCentre.clone();
+        assert.isAbove(Vector3.Distance(restCentre, centre), 0.5, "the edge followed");
+        graph.setRenderPath("objects");
+        await readFrame(graph);
+        assert.isAtMost(Vector3.Distance(edge.drawnCentre, centre), 1e-4, "where the object path draws it");
+    });
+
     it("move a dragged row through the table alone", async () => {
         const element = await mounted(renderer);
         await loaded(element, "2d");
@@ -267,6 +353,21 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.notEqual(node.drawnPosition.x, x);
         const batched = await readFrame(graph);
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
+    });
+
+    it("answer a held row's exact place, which the table keeps only to 32 bits", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "2d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const node = graph.getNode(3);
+        assert.isDefined(node);
+        assert.isTrue(node.drawnInBatch);
+        // A transition puts a node part of the way between two layouts: a point no float32 holds.
+        node.setMeshPosition(0.1, 0.2, 0);
+        assert.notEqual(Math.fround(0.1), 0.1);
+        assert.equal(node.drawnPosition.x, 0.1);
+        assert.equal(node.drawnPosition.y, 0.2);
     });
 
     it("draw a row part of the way through a particle shrink", async () => {
@@ -300,7 +401,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await loaded(element, "3d");
         const { graph } = element;
         for (const node of graph.getNodes()) {
-            node.drawnPickMesh.scaling.set(1.5, 0.6, 1);
+            node.drawnAnchor.scaling.set(1.5, 0.6, 1);
         }
 
         const objects = await readFrame(graph);
@@ -320,8 +421,13 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await loaded(element, "3d");
         const { graph } = element;
         await frameOn(graph, "batched");
+        const removed = graph.getNode(5);
+        assert.isDefined(removed);
         await element.session.data.removeNodes([5, 11]);
         await operationQueueOf(graph).waitForCompletion();
+        const meshes = graph.getScene().meshes.length;
+        assert.isTrue(removed.mesh.isDisposed(), "a removed row's mesh reads as disposed");
+        assert.equal(graph.getScene().meshes.length, meshes, "reading it put no mesh in the scene");
         const batched = await readFrame(graph);
 
         assert.equal(graph.rowCounts.batchedNodes, NODES.length - 2);

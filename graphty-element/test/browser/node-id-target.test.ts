@@ -19,6 +19,7 @@ import { ID_NONE, ID_OBJECT, type NodeIdTarget } from "../../src/render/NodeIdTa
 import { pickWork, rowScanOf } from "../../src/render/PickService";
 import { hover, nextFrame } from "../helpers/real-input";
 
+const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
 const NODES = 30;
 const POINTS = 400;
 const WIDTH = 500;
@@ -60,9 +61,13 @@ function seeded(seed: number): () => number {
  * @param shape - The node shape.
  * @returns The element.
  */
-async function batchedGraph(viewMode: "2d" | "3d", shape: string): Promise<Graphty> {
+async function batchedGraph(
+    viewMode: "2d" | "3d",
+    shape: string,
+    renderer: "webgl" | "webgpu" = "webgl",
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
-    element.renderer = "webgl";
+    element.renderer = renderer;
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
     element.style.height = `${String(HEIGHT)}px`;
@@ -208,6 +213,22 @@ describe("the node ID target", () => {
             });
         }
     }
+
+    it.skipIf(ADAPTER === "")("reads the pixel under the point on WebGPU, not its mirror", async () => {
+        const element = await batchedGraph("2d", "sphere", "webgpu");
+        assert.isTrue(element.graph.engine.isWebGPU);
+        const target = await readyTarget(element);
+        const scan = rowScanOf(element.graph.scene);
+        assert.isDefined(scan);
+        const missed: string[] = [];
+        for (const { x, y } of pixelCenters(element, 17)) {
+            if (scan?.shapeRayHit(x, y) !== null && (await target.read(x, y)) === ID_NONE) {
+                missed.push(`${String(x)},${String(y)}`);
+            }
+        }
+
+        assert.deepEqual(missed.slice(0, 5), [], `${String(missed.length)} points over a node read nothing`);
+    });
 
     it("hovers with a real pointer and walks no node on a move", async () => {
         const element = await batchedGraph("2d", "sphere");

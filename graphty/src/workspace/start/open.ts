@@ -60,6 +60,7 @@ export function openProject(
         }),
         ends: null,
         pickedSource: null,
+        dataTab: "loaded",
         timeWindowCard: false,
     }));
 }

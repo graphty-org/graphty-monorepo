@@ -631,6 +631,22 @@ describe("GraphML styles: yEd", () => {
             const nodes = realizer("a", "UMLNoteNode", "", "", '<y:Geometry height="50" width="100" x="0" y="0"/>');
             expect(await values(nodes, "shape")).toEqual(["polygon"]);
             expect(await values(nodes, "shapePoints")).toEqual(["-1,1 0.7,1 0.7,0.4 1,0.4 1,-1 -1,-1"]);
+            expect(await values(nodes, "shapeLines")).toEqual(["0.7,1 0.7,0.4 1,0.4"]);
+        });
+
+        it("strokes the uncovered part of an SBGN multimer's copy 6 down and right of it", async () => {
+            const mcount = '<y:Property class="java.lang.Integer" name="com.yworks.sbgn.style.mcount" value="2"/>';
+            const nodes = generic("a", "sbgn.Macromolecule", mcount) + generic("b", "sbgn.Macromolecule");
+            const [line, none] = await values(nodes, "shapeLines");
+            expect(none).toBeNull();
+            const points = String(line)
+                .split(" ")
+                .map((p) => p.split(",").map(Number));
+            // from its top right corner, past the node's right side and bottom, to its bottom left corner
+            expect(Math.max(...points.map(([x]) => x))).toBeCloseTo(1 + 12 / 56);
+            expect(Math.min(...points.map(([, y]) => y))).toBeCloseTo(-1 - 12 / 36);
+            expect(points[0][1]).toBeGreaterThan(0.5);
+            expect(points.at(-1)?.[0]).toBeLessThan(-0.5);
         });
 
         it("draws an event, a gateway and the round flowchart and SBGN nodes in the largest square of their box", async () => {

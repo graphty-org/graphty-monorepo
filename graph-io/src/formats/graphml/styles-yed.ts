@@ -566,13 +566,68 @@ const BPMN_HEAVY: ReadonlySet<string> = new Set(["event_characteristic_end", "ac
  * @returns its value in lowercase, or undefined
  */
 function bpmnProperty(r: unknown, name: string): string | undefined {
+    return styleProperty(r, `com.yworks.bpmn.${name}`);
+}
+
+/**
+ * A style property of a GenericNode.
+ * @param r - the realizer element
+ * @param name - its full name
+ * @returns its value in lowercase, or undefined
+ */
+function styleProperty(r: unknown, name: string): string | undefined {
     const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
     return treeAttr(
-        props.find((p) => treeAttr(p, "name") === `com.yworks.bpmn.${name}`),
+        props.find((p) => treeAttr(p, "name") === name),
         "value",
     )
         ?.slice(0, MAX_STYLE_VALUE_LENGTH)
         .toLowerCase();
+}
+
+/** How far down and right yEd draws the copy behind an SBGN multimer, and the corner radius of a macromolecule. */
+const MULTIMER_OFFSET = 6;
+const MACROMOLECULE_RADIUS = 12;
+
+/**
+ * The part of an SBGN multimer macromolecule's second outline yEd strokes: a copy of its rounded box
+ * `MULTIMER_OFFSET` down and right, behind it, drawn where the node does not cover it
+ * (`yed-graphml-specimen-node-shapes-p3`, `com.yworks.sbgn.style.mcount` 2).
+ * @param width - the node's width
+ * @param height - its height
+ * @returns the line as neutral `shapeLines`
+ */
+function multimerLine(width: number, height: number): string {
+    const [d, r] = [MULTIMER_OFFSET, Math.min(MACROMOLECULE_RADIUS, width / 2, height / 2)];
+    const [right, bottom] = [width + d, height + d];
+    const corners: [number, number][][] = [
+        [
+            [right - r, d],
+            [right, d],
+            [right, d + r],
+        ],
+        [
+            [right, bottom - r],
+            [right, bottom],
+            [right - r, bottom],
+        ],
+        [
+            [d + r, bottom],
+            [d, bottom],
+            [d, bottom - r],
+        ],
+    ];
+    const covered = (x: number, y: number): boolean => {
+        const [cx, cy] = [Math.min(Math.max(x, r), width - r), Math.min(Math.max(y, r), height - r)];
+        return x >= 0 && x <= width && y >= 0 && y <= height && (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+    };
+    // ponytail: the line stops at the last of curvePoints' samples outside the node, up to an eighth of a corner short
+    return corners
+        .flatMap(([from, control, to]) => curvePoints(from, control, to))
+        .map((point) => point.split(",").map(Number))
+        .filter(([x, y]) => !covered(x, y))
+        .map(([x, y]) => pointText((2 * x) / width - 1, 1 - (2 * y) / height))
+        .join(" ");
 }
 
 /**
@@ -660,7 +715,9 @@ function noteOutline(width: number, height: number): YedOutline {
     const x = 1 - (2 * Math.min(NOTE_FOLD, width)) / width;
     const y = 1 - (2 * Math.min(NOTE_FOLD, height)) / height;
     const points = ["-1,1", pointText(x, 1), pointText(x, y), pointText(1, y), "1,-1", "-1,-1"];
-    return { shape: "polygon", points: points.join(" ") };
+    // the fold's two creases, which yEd strokes over the cut corner
+    const lines = [pointText(x, 1), pointText(x, y), pointText(1, y)];
+    return { shape: "polygon", points: points.join(" "), lines: lines.join(" ") };
 }
 
 /**
@@ -676,7 +733,12 @@ function realizerOutline(real: Realizer, width: number | null, height: number | 
         return typeOutline(treeAttr(shape, "type"), "rectangle");
     }
     if (real.type === "GenericNode") {
-        return genericOutline(real.r);
+        const outline = genericOutline(real.r);
+        const multimer = Number(styleProperty(real.r, "com.yworks.sbgn.style.mcount") ?? 1) > 1;
+        const macromolecule = /^com\.yworks\.sbgn\.macromolecule$/i.test(treeAttr(real.r, "configuration") ?? "");
+        return outline !== null && multimer && macromolecule && width !== null && height !== null
+            ? { ...outline, lines: multimerLine(width, height) }
+            : outline;
     }
     return real.type === "UMLNoteNode" && width !== null && height !== null ? noteOutline(width, height) : null;
 }

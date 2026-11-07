@@ -2771,11 +2771,23 @@ jobs:
                       parts: 2
                       shard: graphty-storybook
                       command: cd graphty && pnpm exec vitest run --project=storybook --shard=2/2
-                    # One job for the whole project: without coverage its story tests do not slow down as
-                    # they run, which is why the coverage shards split it in five.
+                    # Two legs (vitest --shard=N/2), merged by story-tests-merge: one job was about 17 minutes
+                    # (1031 s median, 1256 s p90 of tests over 7 days of full runs) against the 15-minute shard plan.
+                    # With run 41977564678's per-file times (892 s of vitest, 64 files) vitest's split gives about
+                    # 530 and 362 s of tests per leg (#3293). Without coverage its story tests do not slow down as
+                    # they run, which is why only the coverage shards split it in five.
                     - project: graphty-element
+                      name: graphty-element-1
+                      part: 1
+                      parts: 2
                       shard: graphty-element-storybook-1
-                      command: cd graphty-element && pnpm exec vitest run --project=storybook
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=1/2
+                    - project: graphty-element
+                      name: graphty-element-2
+                      part: 2
+                      parts: 2
+                      shard: graphty-element-storybook-1
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=2/2
                     - project: algorithms
                       shard: algorithms-browser
                       command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
@@ -3040,8 +3052,9 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # The parts of a project the story-tests job splits in legs (graph-io-fidelity, graphty), combined into the one capture the
-    # project's single leg would have uploaded (visual-<project>-<attempt>):
+    # The parts of a project the story-tests job splits in legs (graph-io-fidelity, graphty, graphty-element), combined
+    # into the one capture the project's single leg would have uploaded (visual-<project>-<attempt>). The artifact
+    # pattern names a part number after the project, so graphty's merge never takes graphty-element's parts:
     # merge-results checks every part ran once and every story file ran once, else the capture is complete: false.
     # Blocks as story-tests does: a broken or still-unstable story fails it, a changed picture only holds nightly.
     story-tests-merge:
@@ -3053,14 +3066,14 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graph-io-fidelity, graphty]
+                project: [graph-io-fidelity, graphty, graphty-element]
         steps:
             - name: Download the parts
               id: parts
               continue-on-error: true
               uses: actions/download-artifact@v8
               with:
-                  pattern: story-parts-${{ matrix.project }}-*
+                  pattern: story-parts-${{ matrix.project }}-[0-9]*
                   path: ${{ runner.temp }}/parts
 
             # download-artifact@v8 extracts a single matching artifact straight into path, with no <artifact>/ folder

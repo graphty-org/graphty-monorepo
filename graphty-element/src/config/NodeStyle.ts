@@ -24,6 +24,7 @@ export const NodeModelCenters = z.enum(["bounds", "origin"]);
  * How a node grows to hold its label, when `shape.labelFit` is set: "inside" fits the label's
  * padded box inside the node's outline, so an ellipse or a diamond reaches past the box's corners;
  * "bounds" makes the padded box the node's width and height, whatever its shape.
+ * @experimental file-styles
  */
 export const NodeLabelFits = z.enum(["inside", "bounds"]);
 
@@ -183,6 +184,7 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
  * running round the node, short strokes across the ring (leaning either way or straight), a ring of small
  * arrows chasing each other round it, or a bar of arrows joined head to tail (Cytoscape desktop's border line
  * types). @public
+ * @experimental file-styles
  */
 export const NodeBorderStyles = z.enum([
     "solid",
@@ -203,6 +205,7 @@ export const NodeBorderStyles = z.enum([
  * Where a node border sits against the node's size: wholly outside it (the default), centered on
  * it, half in and half out (an SVG or canvas stroke), or wholly inside it, so the node is no larger
  * than its size (Cytoscape desktop). @public
+ * @experimental file-styles
  */
 export const NodeBorderPositions = z.enum(["outside", "center", "inside"]);
 
@@ -457,6 +460,20 @@ export const NodeStyle = z.strictObject({
             width: z.number().nonnegative().optional(),
             lightColor: ColorStyle.optional(),
             darkColor: ColorStyle.optional(),
+        })
+        .optional(),
+    /**
+     * A shadow drawn behind the node (yEd's drop shadow): the node's own shape in `color` at `opacity`, moved
+     * `offsetX` right and `offsetY` down, its edge fading over `blur` on each side; lengths in the units of
+     * `shape.size`. No opacity, or 0, draws none.
+     */
+    shadow: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            opacity: z.number().min(0).max(1).optional(),
+            blur: z.number().nonnegative().optional(),
+            offsetX: z.number().optional(),
+            offsetY: z.number().optional(),
         })
         .optional(),
     /**

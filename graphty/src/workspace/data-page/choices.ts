@@ -48,10 +48,11 @@ export const INITIAL_CHOICES: PageChoices = { tables: {}, unmatched: "leave-out"
 
 /**
  * The choices a new draft starts with: the defaults, with the reader's import-styles preference.
+ * @param fileStyles - whether the element's file styles experiment is on; off, no styles are drawn.
  * @returns the choices.
  */
-export function initialChoices(): PageChoices {
-    return { ...INITIAL_CHOICES, styles: fileStylesChoice() };
+export function initialChoices(fileStyles = false): PageChoices {
+    return { ...INITIAL_CHOICES, styles: fileStyles ? fileStylesChoice() : "none" };
 }
 
 /**
@@ -305,9 +306,15 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
  * @param draft - the draft.
  * @param choices - the page's choices.
  * @param mode - "replace" for a new graph, "merge" to add to the open project.
+ * @param fileStyles - whether the element's file styles experiment is on; off, no styles are asked for.
  * @returns the choices `report` and `load` take.
  */
-export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "replace" | "merge"): LoadChoices {
+export function loadChoices(
+    draft: LoadDraft,
+    choices: PageChoices,
+    mode: "replace" | "merge",
+    fileStyles = false,
+): LoadChoices {
     const tables: Record<string, TableMapping> = {};
     for (const table of draft.tables) {
         const mapping = tableMapping(draft, table, choices);
@@ -319,8 +326,7 @@ export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "repla
         mode,
         unmatched: choices.unmatched,
         directed: choices.directed,
-        styles: choices.styles,
-        styleOptions: FILE_STYLE_OPTIONS,
+        ...(fileStyles ? { styles: choices.styles, styleOptions: FILE_STYLE_OPTIONS } : {}),
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
 }

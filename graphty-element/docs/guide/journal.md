@@ -27,16 +27,16 @@ const ops = session.journal.entries.map((each) => each.command.op); // ["data.ap
 
 ## What an entry holds
 
-| Field         | What it is                                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `id`          | The entry's id, unique within the session                                                                           |
-| `at`          | When the command finished, ISO 8601 UTC with milliseconds                                                           |
-| `kind`        | `data`, `run`, `style`, `filter`, `window`, `layout`, `view`, `selection`, `config`, `note` or `set`; more may come |
-| `command`     | The command as it ran, as plain data that `JSON.stringify` writes whole                                             |
-| `coalesceKey` | Present when the command is part of a continuous gesture, such as dragging a filter slider                          |
-| `durationMs`  | How long the command took                                                                                           |
-| `runId`       | For an algorithm run, the run it finished                                                                           |
-| `engine`      | The graphty-element, algorithms and layout versions that ran it                                                     |
+| Field         | What it is                                                                                                                                                     |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | The entry's id, unique within the session                                                                                                                      |
+| `at`          | When the command finished, ISO 8601 UTC with milliseconds                                                                                                      |
+| `kind`        | `data`, `run`, `style`, `filter`, `window`, `layout`, `view`, `selection`, `config`, `note` or `set`; more may come                                            |
+| `command`     | The command as it ran, as plain data that `JSON.stringify` writes whole; a run started with no scope carries the scope it resolved to (by default `"visible"`) |
+| `coalesceKey` | Present when the command is part of a continuous gesture, such as dragging a filter slider                                                                     |
+| `durationMs`  | How long the command took                                                                                                                                      |
+| `runId`       | For an algorithm run, the run it finished                                                                                                                      |
+| `engine`      | The graphty-element, algorithms and layout versions that ran it                                                                                                |
 
 ## What is recorded
 

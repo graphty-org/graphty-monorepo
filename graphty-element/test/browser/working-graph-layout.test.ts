@@ -204,6 +204,24 @@ describe("a layout over the working graph", () => {
         assert.closeTo(smallestGap(anglesOf(positionsOf(graph), five)), 18, 0.5);
     });
 
+    it("lays out the whole graph under a filter when the layout scope is the whole graph", async () => {
+        await readWorking("visible");
+        const five = ["n0", "n1", "n2", "n3", "n4"];
+        await show(five);
+        await graph.setLayout("circular", { dim: 2 }, { scope: "graph" });
+        await graph.waitForSettled();
+
+        // Five neighbouring nodes of a twenty-slot circle are 18 degrees apart, and the scope reads
+        // back as the whole graph, not as no scope.
+        assert.closeTo(smallestGap(anglesOf(positionsOf(graph), five)), 18, 0.5);
+        assert.strictEqual(graph.getLayoutScope(), "graph");
+
+        // Cleared to what is shown, the five take a circle of their own.
+        await graph.setLayout("circular", { dim: 2 }, { scope: "visible" });
+        await graph.waitForSettled();
+        assert.closeTo(smallestGap(anglesOf(positionsOf(graph), five)), 72, 0.5);
+    });
+
     it("lays the graph out once per filter change, and not at all in the documented mode", async () => {
         await graph.setLayout("circular", { dim: 2 });
         layoutsRun = 0;

@@ -25,6 +25,7 @@ import {
     PROJECT_FILE,
     type ResultShape,
     type RunId,
+    type Scope,
     type SetDefinitionInput,
 } from "../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
@@ -773,7 +774,14 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         version: VERSION,
         id: session.project.id,
         config: configOf(session),
-        layout: { id: layout.id, engine: layout.engine, options: layout.options, dimension: layout.dimension },
+        layout: {
+            id: layout.id,
+            engine: layout.engine,
+            options: layout.options,
+            dimension: layout.dimension,
+            // Written only when a scope was given, so a project without one saves as before.
+            ...(dispatcher.state.layout?.scope === undefined ? {} : { scope: dispatcher.state.layout.scope }),
+        },
         visibility: {
             filter: visibility.filter,
             window: visibility.window,
@@ -895,6 +903,9 @@ export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Rec
     return {
         id,
         derived: sources.isDerived(id),
+        // Written only for a run out of date, which an open restores before the filter so it
+        // stays out of date; a current one is restored after it (see `readRuns`).
+        ...((sources.session.runs.get(id)?.stale ?? null) === null ? {} : { stale: true }),
         ...command,
         shape: result.shape,
         fields: result.fields,
@@ -1762,7 +1773,6 @@ async function readProject(
         JSON.parse(JSON.stringify(value), (key, held: unknown) =>
             key === "set" && typeof held === "string" ? (setIds.get(held) ?? held) : held,
         ) as T;
-    type SavedSet = { id: string; name: string; definition: unknown };
     const createSet = (set: SavedSet): void => {
         setIds.set(set.id, tx.sets.create(remap(set.definition) as SetDefinitionInput, { name: set.name }));
     };
@@ -1777,59 +1787,42 @@ async function readProject(
         }
     });
 
+    // THE FILTER BEFORE THE RUNS THAT READ WHAT IT SHOWS, so a run over what is shown comes back
+    // over what it was computed on. First the runs the filter reads (a filter never reads a run
+    // over what it shows), and the runs saved out of date, which stay out of date; then the
+    // filter; then every other run.
     const results = first("graphty-results");
     const sameData = results.fingerprint === tx.data.fingerprint();
-    for (const run of (results.runs ?? []) as SavedRun[]) {
-        await attempt(
-            opening,
-            "runs",
-            async () => {
-                if (!sameData) {
-                    problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
-                }
-
-                // A file written before caveats carried facts has none to read back.
-                const caveats: Caveats = { facts: [], ...run.caveats };
-                const result = createRunResult({
-                    runId: run.id,
-                    shape: run.shape,
-                    fields: run.fields,
-                    measured: run.measured,
-                    graph: run.graph,
-                    nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
-                    // Edges are keyed by position in the data; data that differs leaves them out.
-                    edges: sameData
-                        ? rowsOf(
-                              edgeIds.map((_, at) => at),
-                              run.edges.columns,
-                              (at) => edgeIds[at],
-                          )
-                        : [],
-                    caveats,
-                    durationMs: run.durationMs,
-                });
-                // The summary too, as a fresh execution hands it over: the run's record (its count,
-                // its groups) is read from it.
-                canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
-                const { algorithm, params, scope, seed, sample, exact } = remap(run);
-                try {
-                    await tx.runs.start(algorithm, params, {
-                        as: run.id,
-                        style: false,
-                        ...(scope === undefined ? {} : { scope }),
-                        ...(seed === undefined ? {} : { seed }),
-                        ...(sample === undefined ? {} : { sample }),
-                        ...(exact === undefined ? {} : { exact }),
-                    });
-                } finally {
-                    canned.delete(run.id);
-                }
-            },
-            run.id,
-        );
+    const visibility = state.visibility as Record<string, unknown> | undefined;
+    const savedRuns = (results.runs ?? []) as SavedRun[];
+    const read = readByFilter(visibility, (state.sets ?? []) as SavedSet[], savedRuns);
+    const restore = (run: SavedRun): Promise<void> =>
+        attempt(opening, "runs", () => restoreRun(opening, run, { nodeIds, edgeIds, sameData, canned, remap }), run.id);
+    const firstRuns = savedRuns.filter((run) => run.stale === true || read.has(run.id));
+    for (const run of firstRuns) {
+        await restore(run);
     }
 
-    for (const set of waiting) {
+    // A set waiting on one of those runs can be made now, before the filter that may name it.
+    const stillWaiting = waiting.filter((set) => {
+        try {
+            createSet(set);
+            opening.restored.add("sets");
+            return false;
+        } catch {
+            return true;
+        }
+    });
+
+    if (visibility !== undefined) {
+        await readVisibility(opening, visibility, remap);
+    }
+
+    for (const run of savedRuns.filter((each) => !firstRuns.includes(each))) {
+        await restore(run);
+    }
+
+    for (const set of stillWaiting) {
         await attempt(
             opening,
             "sets",
@@ -1841,30 +1834,10 @@ async function readProject(
         );
     }
 
-    const visibility = state.visibility as Record<string, unknown> | undefined;
-    if (visibility !== undefined) {
-        await attempt(opening, "visibility", async () => {
-            if (visibility.filter !== null && visibility.filter !== undefined) {
-                await tx.visibility.set(remap(visibility.filter) as never);
-            }
-
-            if (visibility.window !== null && visibility.window !== undefined) {
-                await (tx.visibility as SessionVisibilityApi).restoreWindow(
-                    visibility.window as TimeWindow,
-                    visibility.windowRaw === true,
-                );
-            }
-
-            await readFilterConditions(opening, visibility, remap);
-        });
-        // Read on their own, so a filter that cannot be read never loses them.
-        await attempt(opening, "visibility", async () => {
-            if (typeof visibility.playback === "object" && visibility.playback !== null) {
-                await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
-            }
-
-            tx.visibility.showContext = visibility.showContext === true;
-        });
+    // After the sets and the runs, so a scope naming a set finds it.
+    const layoutScope = (state.layout as { scope?: unknown } | undefined)?.scope;
+    if (layoutScope !== undefined) {
+        await attempt(opening, "layout", () => tx.execute({ op: "layout.scope", scope: remap(layoutScope) as Scope }));
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
@@ -1879,6 +1852,151 @@ async function readProject(
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
     }
+}
+
+/** A kept set as the session member saves it. */
+interface SavedSet {
+    readonly id: string;
+    readonly name: string;
+    readonly definition: unknown;
+}
+
+/**
+ * The saved runs a saved filter reads, through the sets it names too: every run whose id, or a
+ * `results.<id>` path, appears in what the filter holds. Read from the text, so a reference the
+ * reader does not know the shape of still counts.
+ * @param visibility - The member's `visibility`, or undefined.
+ * @param sets - The saved sets.
+ * @param runs - The saved runs.
+ * @returns Their ids.
+ */
+function readByFilter(
+    visibility: Readonly<Record<string, unknown>> | undefined,
+    sets: readonly SavedSet[],
+    runs: readonly SavedRun[],
+): ReadonlySet<string> {
+    const strings: string[] = [];
+    const definitions = new Map(sets.map((set) => [set.id, set.definition]));
+    const entered = new Set<string>();
+    const walk = (value: unknown): void => {
+        if (typeof value === "string") {
+            strings.push(value);
+        } else if (Array.isArray(value)) {
+            value.forEach(walk);
+        } else if (typeof value === "object" && value !== null) {
+            for (const [key, held] of Object.entries(value)) {
+                if (key === "set" && typeof held === "string" && !entered.has(held)) {
+                    entered.add(held);
+                    walk(definitions.get(held));
+                }
+
+                walk(held);
+            }
+        }
+    };
+    walk(visibility);
+    return new Set(
+        runs.map((run) => run.id).filter((id) => strings.some((text) => text === id || text.includes(`results.${id}`))),
+    );
+}
+
+/** What restoring a saved run reads. */
+interface RunRestore {
+    readonly nodeIds: ReadonlySet<NodeId>;
+    readonly edgeIds: readonly (EdgeId | undefined)[];
+    /** Whether the data is the data the runs were computed on, so their edge values line up. */
+    readonly sameData: boolean;
+    readonly canned: CannedOutcomes;
+    readonly remap: <T>(value: T) => T;
+}
+
+/**
+ * Start a saved run again, answered from its saved result.
+ * @param opening - The open.
+ * @param run - The saved run.
+ * @param from - The graph's ids, the waiting results and the set id rewrite.
+ * @returns Settles once the run is back.
+ */
+async function restoreRun(opening: Opening, run: SavedRun, from: RunRestore): Promise<void> {
+    const { tx, problems } = opening;
+    const { nodeIds, edgeIds, sameData, canned, remap } = from;
+    if (!sameData) {
+        problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
+    }
+
+    // A file written before caveats carried facts has none to read back.
+    const caveats: Caveats = { facts: [], ...run.caveats };
+    const result = createRunResult({
+        runId: run.id,
+        shape: run.shape,
+        fields: run.fields,
+        measured: run.measured,
+        graph: run.graph,
+        nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
+        // Edges are keyed by position in the data; data that differs leaves them out.
+        edges: sameData
+            ? rowsOf(
+                  edgeIds.map((_, at) => at),
+                  run.edges.columns,
+                  (at) => edgeIds[at],
+              )
+            : [],
+        caveats,
+        durationMs: run.durationMs,
+    });
+    // The summary too, as a fresh execution hands it over: the run's record (its count, its
+    // groups) is read from it.
+    canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
+    const { algorithm, params, scope, seed, sample, exact } = remap(run);
+    try {
+        await tx.runs.start(algorithm, params, {
+            as: run.id,
+            style: false,
+            ...(scope === undefined ? {} : { scope }),
+            ...(seed === undefined ? {} : { seed }),
+            ...(sample === undefined ? {} : { sample }),
+            ...(exact === undefined ? {} : { exact }),
+        });
+    } finally {
+        canned.delete(run.id);
+    }
+}
+
+/**
+ * Restore the filter, the time window, the filter conditions, playback and context of a
+ * `graphty-session` member's `visibility`.
+ * @param opening - The open.
+ * @param visibility - The member's `visibility`.
+ * @param remap - Rewrites the set ids a rule names to the ones this session gave.
+ */
+async function readVisibility(
+    opening: Opening,
+    visibility: Readonly<Record<string, unknown>>,
+    remap: <T>(value: T) => T,
+): Promise<void> {
+    const { tx } = opening;
+    await attempt(opening, "visibility", async () => {
+        if (visibility.filter !== null && visibility.filter !== undefined) {
+            await tx.visibility.set(remap(visibility.filter) as never);
+        }
+
+        if (visibility.window !== null && visibility.window !== undefined) {
+            await (tx.visibility as SessionVisibilityApi).restoreWindow(
+                visibility.window as TimeWindow,
+                visibility.windowRaw === true,
+            );
+        }
+
+        await readFilterConditions(opening, visibility, remap);
+    });
+    // Read on their own, so a filter that cannot be read never loses them.
+    await attempt(opening, "visibility", async () => {
+        if (typeof visibility.playback === "object" && visibility.playback !== null) {
+            await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
+        }
+
+        tx.visibility.showContext = visibility.showContext === true;
+    });
 }
 
 /**
@@ -2072,6 +2190,8 @@ function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId |
 /** One finished run as a results member keeps it. */
 interface SavedRun {
     readonly id: RunId;
+    /** Present, true, on a run that was out of date when saved. */
+    readonly stale?: boolean;
     readonly algorithm: string;
     readonly params?: Readonly<Record<string, unknown>>;
     readonly scope?: never;

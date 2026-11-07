@@ -12,7 +12,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { RunId } from "../catalog/types";
+import type { RunId, Scope } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { SessionCommand } from "./planning";
 import type { ExecutedCommand } from "./project/Dispatcher";
@@ -34,7 +34,10 @@ export interface JournalEntry {
      */
     readonly kind:
         "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note" | "set";
-    /** The command, exactly as it ran, as plain data. */
+    /**
+     * The command, exactly as it ran, as plain data. An `algo.run` that named no scope carries
+     * the scope it resolved to (the session's default scope), so the entry says what it ran over.
+     */
     readonly command: SessionCommand;
     /**
      * Present on a command that is part of a continuous gesture, such as dragging a filter
@@ -146,12 +149,15 @@ interface SessionJournal extends JournalApi {
  * @param options.engine - The versions.
  * @param options.onAppend - Called with each new entry, after the subscribers.
  * @param options.now - The wall clock, in milliseconds since the epoch.
+ * @param options.scopeOf - The scope a run resolved to, for the entry of a run that named none.
  * @returns The journal.
  */
 export function createJournal(options: {
     readonly engine: EngineVersions;
     readonly onAppend: (entry: JournalEntry) => void;
     readonly now?: () => number;
+    /** The scope a run resolved to, written into the entry of an `algo.run` that named none. */
+    readonly scopeOf?: (run: RunId) => Scope | undefined;
 }): SessionJournal {
     const now = options.now ?? Date.now;
     // Written in place; `entries` hands out a frozen copy, made once per change on first read, so
@@ -206,11 +212,15 @@ export function createJournal(options: {
         },
         append({ command, value, coalesceKey, durationMs }) {
             const op = command.op as SessionCommand["op"];
+            const resolved =
+                op === "algo.run" && typeof value === "string" && (command as { scope?: Scope }).scope === undefined
+                    ? options.scopeOf?.(value)
+                    : undefined;
             const entry: JournalEntry = Object.freeze({
                 id: `journal_${String(next++)}`,
                 at: new Date(now()).toISOString(),
                 kind: KINDS[op],
-                command: command as SessionCommand,
+                command: (resolved === undefined ? command : { ...command, scope: resolved }) as SessionCommand,
                 ...(coalesceKey === null ? {} : { coalesceKey }),
                 durationMs,
                 // `algo.run` resolves with the id of the run it finished.

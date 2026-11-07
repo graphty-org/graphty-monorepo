@@ -3448,6 +3448,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onAppend: (entry) => {
             publish(watchers, "journal:appended", { entry });
         },
+        scopeOf: (id) => runs.get(id)?.scope.spec,
     });
     dispatcher.events.executed = (done) => {
         const entry = journal.append(done);

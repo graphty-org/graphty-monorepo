@@ -317,9 +317,11 @@ was not handed; a ghost or context node is drawn from the shared array.
 **The layout scope with the option on.**
 
 - Unset: the working graph. `"visible"` is the same.
-- `"graph"`: the whole graph, read back as `"graph"` (not `undefined`). Not built yet: the layout
-  slice stores `"graph"` as no scope, so it cannot be told from unset. It needs `"graph"` kept in the
-  slice, which is the saved layout scope field (S9), so it lands there.
+- `"graph"`: the whole graph, read back as `"graph"` (not `undefined`). Built with S9: the layout
+  slice keeps `"graph"` apart from no scope, and the project file saves it. In the `"documented"`
+  mode `getLayoutScope()` still reads `undefined` for it, as it always has, since there the two lay
+  out the same. `setLayoutScope(undefined)` keeps its documented meaning, the whole graph; no
+  scope, under the option, is set with `"visible"`.
 - A set or query scope: its members are captured at start, as today, and intersected with the
   working graph at each settled change. Nodes outside the working graph are not in the engine;
   shown nodes outside the scope are held.
@@ -356,7 +358,7 @@ between its shown ends; the four audit cases; `layoutScope: "graph"` under a fil
 with the option on and no filter asserting zero view derivations and zero full re-layouts. Still to
 add: the GPU scaling case (a real device runs only when a run asks for hardware with
 `GRAPHTY_BROWSER_GPU`; it belongs beside
-`test/browser/webgpu-working-graph.test.ts`) and `layoutScope: "graph"`, with the S9 field.
+`test/browser/webgpu-working-graph.test.ts`). `layoutScope: "graph"` landed with the S9 field.
 
 None of #6117's API ships, and the app's "Shown nodes only" checkbox does not come back: a
 whole-graph layout under a filter is the layout scope `"graph"`. #6117's app test
@@ -385,7 +387,13 @@ whole-graph layout under a filter is the layout scope `"graph"`. #6117's app tes
   `shownNodeCount` and `shownEdgeCount` when something is hidden, the prompt's graph state says so,
   and `findNodes` lists hidden matches in `hiddenNodeIds` with `hiddenTotal`; with the option on it
   leaves them out unless `includeHidden` is true.
-- **Project file and journal (S9)**: the option is not saved; see section 4.
+- **Project file and journal (S9)**: the option is not saved; see section 4. Built: an open (and
+  so an autosave recovery) restores first the runs the saved filter reads (found by their ids in
+  the filter and the sets it names) and the runs saved out of date (`stale: true` on the saved
+  run, so they stay out of date), then the filter, the window and the conditions, then every other
+  run, so a current run over what is shown comes back current. The layout scope is saved as an
+  optional `layout.scope` and restored after the sets and runs, so a `{ set }` scope finds its set.
+  An `algo.run` entry that named no scope journals `command.scope` as the scope it resolved to.
 
 **The selection (S6).** The stored selection keeps its ids. With the option on, its readers
 (`selection.nodes`, counts, Frame selection, "Selected (N)", Save as set) read the members the

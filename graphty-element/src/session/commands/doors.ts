@@ -2201,6 +2201,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             releaseDetachedScope: DERIVED,
             // A run's results changed; a layout clustering by them moves, and rests in its own step.
             clustersChanged: TRANSPORT,
+            // What is shown settled on another set of nodes; the layout over it moves, and rests
+            // in its own step. The timeline's playing holds that until it stops.
+            followWorkingGraph: TRANSPORT,
+            holdFollowing: TRANSPORT,
         },
     },
     {
@@ -3495,6 +3499,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgeRemovalChangesNothing: READ,
             nodeMembers: READ,
             edgeMembers: READ,
+            readNodeMembers: READ,
+            readEdgeMembers: READ,
             remapNodes: SELECTION,
             remapEdges: SELECTION,
         },

@@ -1385,7 +1385,7 @@ export class LayoutManager implements Manager {
         const explicitScope = how.explicitScope === true;
         // `"visible"` while the session reads the working graph chooses the graph the layout runs
         // on and holds nothing, so every layout takes it.
-        if (explicitScope && !scoped && !this.#visibleIsWorking()) {
+        if (explicitScope && !scoped && this.#holdsScope() && !this.#visibleIsWorking()) {
             throw unscopedLayout(type);
         }
 
@@ -1857,7 +1857,7 @@ export class LayoutManager implements Manager {
         this.#building++;
         const previous = this.carriedScope;
         if (scope !== undefined) {
-            this.carriedScope = scope === "graph" ? undefined : this.requireScopeSource().canonical(scope);
+            this.carriedScope = scope === "graph" ? "graph" : this.requireScopeSource().canonical(scope);
         }
 
         try {
@@ -1865,7 +1865,7 @@ export class LayoutManager implements Manager {
                 dimension: twoD ? 2 : 3,
                 restoring: false,
                 live: () => true,
-                explicitScope: scope !== undefined && this.carriedScope !== undefined,
+                explicitScope: scope !== undefined && this.#holdsScope(),
                 transition: this.engine !== undefined,
             });
         } catch (error) {
@@ -2135,7 +2135,7 @@ export class LayoutManager implements Manager {
         | undefined {
         const scope = this.carriedScope;
         const type = this.layoutType;
-        if (this.members === null || scope === undefined || type === undefined) {
+        if (this.members === null || scope === undefined || scope === "graph" || type === undefined) {
             return undefined;
         }
 
@@ -2186,7 +2186,7 @@ export class LayoutManager implements Manager {
     private captureMembers(scoped: boolean, explicit: boolean): ReadonlySet<NodeIdType> | null {
         const scope = this.carriedScope;
         const source = this.scopeSource;
-        if (scope === undefined || source === null || !scoped || this.#visibleIsWorking()) {
+        if (scope === undefined || scope === "graph" || source === null || !scoped || this.#visibleIsWorking()) {
             return null;
         }
 
@@ -2233,7 +2233,17 @@ export class LayoutManager implements Manager {
      * @returns What the layout reads of it, or null.
      */
     #working(): LayoutWorking | null {
-        return this.scopeSource?.working?.() ?? null;
+        // `"graph"` names the whole graph, so it reads no working graph.
+        return this.carriedScope === "graph" ? null : (this.scopeSource?.working?.() ?? null);
+    }
+
+    /**
+     * Whether the carried scope names part of the graph, which the layout holds the rest of
+     * still: neither no scope nor `"graph"`, the whole graph.
+     * @returns True for a scope that holds.
+     */
+    #holdsScope(): boolean {
+        return this.carriedScope !== undefined && this.carriedScope !== "graph";
     }
 
     /**

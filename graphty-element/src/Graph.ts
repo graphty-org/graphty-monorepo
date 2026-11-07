@@ -3566,11 +3566,14 @@ export class Graph implements GraphContext {
 
     /**
      * What layouts run over: the scope the running layout was given, carried to the next one.
-     * @returns The canonical scope, or undefined when layouts run over the whole graph.
+     * @returns The canonical scope, or undefined when none was given. While the session reads the
+     * working graph (`workingGraph: "visible"`), a layout over the whole graph reads `"graph"`, told
+     * from no scope, which lays out what is shown; otherwise the two are the same and read undefined.
      * @since 2.5.0
      */
     getLayoutScope(): Scope | undefined {
-        return dispatcherOf(this.session).state.layout?.scope;
+        const scope = dispatcherOf(this.session).state.layout?.scope;
+        return scope === "graph" && this.session.config.workingGraph !== "visible" ? undefined : scope;
     }
 
     /**

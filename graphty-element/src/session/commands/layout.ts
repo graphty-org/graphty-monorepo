@@ -38,7 +38,8 @@ export interface LayoutSetCommand {
     /** The engine's options. */
     readonly options?: Readonly<Record<string, unknown>>;
     /**
-     * What it runs over, canonical: absent keeps the scope the slice holds, `"graph"` clears it.
+     * What it runs over, canonical: absent keeps the scope the slice holds, `"graph"` names the
+     * whole graph.
      * A scope named here is refused when the engine cannot hold nodes still or nothing is in it.
      */
     readonly scope?: Scope;
@@ -172,9 +173,7 @@ function choiceOf(command: LayoutSetCommand, current: LayoutChoice | null): Layo
 function withScope(choice: Omit<LayoutChoice, "scope">, scope: Scope | undefined): LayoutChoice {
     const { id, engine, options, dimension } = choice;
     return Object.freeze(
-        scope === undefined || scope === "graph"
-            ? { id, engine, options, dimension }
-            : { id, engine, options, dimension, scope },
+        scope === undefined ? { id, engine, options, dimension } : { id, engine, options, dimension, scope },
     );
 }
 
@@ -222,7 +221,9 @@ const layoutScope: UndoableDefinition<LayoutScopeCommand> = {
     },
     execute: (command, ctx) => {
         const current = ctx.state.layout ?? DEFAULT_LAYOUT;
-        const scope = command.scope === "graph" ? undefined : command.scope;
+        // `"graph"` is kept, not cleared: while the session reads the working graph it lays out
+        // the whole graph, where no scope lays out what is shown (design/working-graph, section 7).
+        const { scope } = command;
         if (JSON.stringify(current.scope) === JSON.stringify(scope)) {
             return;
         }

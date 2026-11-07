@@ -269,7 +269,8 @@ refuses the whole file.
 | `"notes"`                                                   | `graphty-notes`       |
 | `"attributes"`, `"valueLabels"`                             | `graphty-session`     |
 
-`config` is the settings, `arrangement` where each node stands, `pins` the pinned nodes,
+`config` is the settings, `layout` the layout, its options, its dimension and what it runs over
+(the layout scope, when one was given), `arrangement` where each node stands, `pins` the pinned nodes,
 `visibility` the filter, the filter conditions and the time window, `sets` the kept sets, `views` the saved camera views,
 `attributes` the declared columns and `valueLabels` the names given to values
 (`data.setValueLabel`).

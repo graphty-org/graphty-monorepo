@@ -898,11 +898,12 @@ function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: Wo
     const words = window === null ? null : windowWords(window, unitOf(session), session.time.timeZone);
     const side = time.field?.edges === undefined ? "nodes" : "edges";
     const extent = time.extent();
-    // The element's own counts: the window's one bin, of every timed element on the field's side.
+    // The element's own counts: the window's one bin, of every timed element on the field's side
+    // (a filter's own condition reads the whole graph).
     const inside =
         window === null || extent === null
             ? undefined
-            : time.bins({ count: 1, from: Number(window.from), to: Number(window.to) })?.[0]?.[side];
+            : time.bins({ count: 1, from: Number(window.from), to: Number(window.to), scope: "graph" })?.[0]?.[side];
     const name = words === null ? TIME_WINDOW : `${TIME_WINDOW} ${words}`;
     const apply = (on: boolean): void => {
         time.pause();

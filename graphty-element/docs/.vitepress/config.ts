@@ -66,6 +66,7 @@ export default defineConfig({
                         { text: "Coloring by a Column", link: "/guide/column-encoding" },
                         { text: "Styles from Files", link: "/guide/file-styles" },
                         { text: "Counting What a Layer Paints", link: "/guide/layer-counts" },
+                        { text: "Reading What Is Shown", link: "/guide/working-graph" },
                         { text: "Listing Readable Values", link: "/guide/readable-values" },
                         { text: "Numbers as Groups & Edge Ends", link: "/guide/values-as-groups-and-colors" },
                         { text: "Folders, Pins & Locks", link: "/guide/style-tree" },

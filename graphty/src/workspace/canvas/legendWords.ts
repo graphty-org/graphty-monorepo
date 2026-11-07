@@ -158,15 +158,14 @@ function effectRows(session: GraphSession, block: LegendBlock): LegendBlock[] {
 }
 
 /**
- * A category block's rows as its layer's own elements hold them, in the order the layer's groups
- * come (`styles.groups`, largest first: the order the Style tab's table lists them). A value none
- * of the layer's elements carries is no row, so a one-node layer bound to a column keys its one
- * value and not every value of the column; and giving one group its own color does not move its
- * row. The Other row stays last. A run's groups keep their rank order, and a block several layers
- * share keeps the element's rows, which already list only what the layers meet.
+ * A category block's rows in the order the layer's groups come (`styles.groups`, largest first:
+ * the order the Style tab's table lists them), so giving one group its own color does not move
+ * its row. The element lists only the values the layer's shown elements carry; the Other row stays
+ * last. A run's groups keep their rank order, and a block several layers share keeps the
+ * element's order.
  * @param session - the session.
  * @param block - the block.
- * @returns the block, its rows those the layer holds.
+ * @returns the block, its rows in the groups' order.
  */
 function heldRows(session: GraphSession, block: LegendBlock): LegendBlock {
     const path = block.field?.path;
@@ -178,17 +177,10 @@ function heldRows(session: GraphSession, block: LegendBlock): LegendBlock {
     ) {
         return block;
     }
-    const held = session.styles.groups(block.layerId, path).filter((group) => group.count > 0);
-    if (held.length === 0) {
-        return block;
-    }
-    // ponytail: the element caps a block at 12 rows before this; a layer holding values past the
-    // twelfth keys fewer rows than it holds. Filter in the element if a layer ever needs them.
-    const place = new Map(held.map((group, at) => [String(group.value), at]));
+    const place = new Map(session.styles.groups(block.layerId, path).map((group, at) => [String(group.value), at]));
     const at = (swatch: LegendSwatch): number =>
-        swatch.role === "other" ? Infinity : (place.get(String(swatch.value)) ?? -1);
-    const swatches = block.swatches.filter((swatch) => at(swatch) !== -1).sort((a, b) => at(a) - at(b));
-    return { ...block, swatches };
+        swatch.role === "other" ? Infinity : (place.get(String(swatch.value)) ?? Number.MAX_SAFE_INTEGER);
+    return { ...block, swatches: [...block.swatches].sort((a, b) => at(a) - at(b)) };
 }
 
 /**
@@ -691,10 +683,10 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
  * The name of the row that paints a block: its run's name, else its layer's. A run whose data
  * changed since it ran is named as the run list names it, "PageRank, out of date", so the key never
  * passes off a stale result as current. A run that only no longer matches its scope (a filter step
- * since) is still right about the nodes it ran on, and the key names them only when the drawing
- * shows another count: "PageRank, full graph" when it ran on every node and a filter hides some,
- * "PageRank on 12 nodes" for a narrower run, and plain "PageRank" when as many are drawn as it ran
- * on.
+ * since) is still right about the nodes it ran on, and the key names them: "PageRank, full graph"
+ * when it ran on every node and a filter hides some, "PageRank on 12 nodes" for a narrower run. When
+ * as many are drawn as it ran on, they are other nodes (the run would not be out of date otherwise),
+ * so it is "PageRank, out of date", as the layer's row marks it.
  * @param session - the session.
  * @param block - the block.
  * @returns the name.
@@ -727,7 +719,7 @@ function rowName(session: GraphSession, block: LegendBlock): string {
     const { ranOn } = run.stale;
     const { visibleNodes, totalNodes } = session.visibility.summary;
     if (ranOn === visibleNodes) {
-        return name;
+        return `${name}, out of date`;
     }
     return ranOn === totalNodes ? `${name}, full graph` : `${name} on ${count(ranOn, "node")}`;
 }

@@ -169,8 +169,11 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
         }
         return [{ run, group, name: groupName(groups.find((g) => g.group === group) ?? { group, size: 0 }) }];
     });
-    // The "connections" count is the neighbor list's total, so the two always agree (#784).
-    const connections = session.data.neighbors(id, { limit: 0 }).total;
+    // The node's degree as graphty-element counts it over what is shown, so a repeated edge counts
+    // twice, as the table's Degree column and the Degree step count it; the list it opens names
+    // each neighbor once. Falls back to the neighbor count for a node it cannot measure.
+    const connections =
+        session.data.structureValue(id, "graphty.degree") ?? session.data.neighbors(id, { limit: 0 }).total;
 
     return (
         <>

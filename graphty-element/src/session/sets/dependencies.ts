@@ -206,6 +206,11 @@ class Collector {
                 this.itemRule(node.item);
                 return;
             case "threshold":
+                if (node.within === "visible") {
+                    this.add({ kind: "visible" });
+                }
+                this.path(node.path);
+                return;
             case "by-size":
                 this.path(node.path);
                 return;

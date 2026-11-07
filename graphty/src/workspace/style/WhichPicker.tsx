@@ -306,6 +306,20 @@ function allOf(cards: readonly Card[]): RuleTree | null {
     return leaves.length === 1 ? leaves[0] : { kind: "all", of: leaves };
 }
 
+/** What the filter and the time window show, as a rule leaf. */
+const SHOWN: RuleTree = { kind: "member", of: "visible" };
+
+/**
+ * How many of what is showing a layer selects: the count its row says, over the same base.
+ * @param session - the element's session.
+ * @param layerId - the layer.
+ * @returns the count.
+ */
+function shownMatched(session: GraphSession, layerId: string): number {
+    const counts = session.styles.counts(layerId);
+    return counts.visible?.matched ?? counts.matched;
+}
+
 /**
  * The rows' total as the Which row and the open cards both say it: "11 of 77 nodes", for one layer
  * as for several (the union), as a folder's count says it; for held cards, what they keep together.
@@ -316,22 +330,20 @@ function allOf(cards: readonly Card[]): RuleTree | null {
  * @returns the words.
  */
 function useHead(session: GraphSession, rows: readonly PickRow[], side: Side, held?: readonly Card[]): string {
-    const stats = session.data.statistics();
     // A layer paints only what is showing, and its row counts over that (4 of 15 under a filter):
-    // said over the same base, never the whole graph's.
-    const { summary } = session.visibility;
-    const showing = side === "node" ? summary.visibleNodes : summary.visibleEdges;
-    const whole = side === "node" ? stats.nodeCount : stats.edgeCount;
-    const total = held === undefined ? showing : whole;
+    // said over the same base, never the whole graph's. Held cards keep the whole graph's.
+    const stats = session.data.statistics(held === undefined ? {} : { scope: "graph" });
+    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const heldRule = held === undefined ? null : allOf(held);
-    const union = held === undefined && rows.length > 1 ? unionRule(rows) : heldRule;
+    const several = held === undefined && rows.length > 1 ? unionRule(rows) : null;
+    // The layers' union counted over what is showing, the base `total` says.
+    const union = several === null ? heldRule : { kind: "all" as const, of: [several, SHOWN] };
     const unionCount = useLeafCount(session, union, side);
     let matched: number | undefined;
     if (held !== undefined) {
         matched = heldRule === null ? total : unionCount;
     } else if (rows.length === 1) {
-        const [{ layer }] = rows;
-        ({ matched } = session.styles.counts(layer.id));
+        matched = shownMatched(session, rows[0].layer.id);
     } else if (rows.some((row) => row.cards.length === 0)) {
         // A layer with no card picks every element, so together they pick them all.
         matched = total;
@@ -539,7 +551,8 @@ function WhichRow({
     regionId: string;
     onOpen: (key?: string) => void;
 }>): React.JSX.Element {
-    const stats = session.data.statistics();
+    // "All N": the whole graph, by name.
+    const stats = session.data.statistics({ scope: "graph" });
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const head = useHead(session, rows, side, held);
     const words = shown.map((each) => chipWords(session, each, rows.length));
@@ -553,10 +566,7 @@ function WhichRow({
     const hint = `All ${many(total, side)}`;
     // A layer whose conditions leave nothing is flagged on its count, or on a chip that leaves none.
     const none =
-        held === undefined &&
-        rows.length === 1 &&
-        shown.length > 0 &&
-        session.styles.counts(rows[0].layer.id).matched === 0;
+        held === undefined && rows.length === 1 && shown.length > 0 && shownMatched(session, rows[0].layer.id) === 0;
     const together = none && !Object.values(counts).includes(0);
     // A heading at the level of the sections around it, holding its disclosure button (the
     // accordion pattern), so a heading walk lands on it as on "Shape" or "Fill".
@@ -973,7 +983,7 @@ function Cards({
         [store, holding],
     );
     const head = useHead(session, rows, side, holder === undefined ? undefined : list.map((each) => each.card));
-    const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
+    const matched = rows.length === 1 ? shownMatched(session, rows[0].layer.id) : undefined;
     let why: string | undefined;
     if (matched === 0 && list.length > 0) {
         why = list.length === 1 ? `${cardName(list[0].card)} leaves none` : "Each condition leaves some; together none";
@@ -2496,11 +2506,13 @@ function NumberCard({
         () =>
             given ??
             (within === undefined
-                ? session.data.valueCounts(path, { kind: side }).missing
+                ? session.data.valueCounts(path, { kind: side, scope: "graph" }).missing
                 : session.scope.histogram(path, { within }).missing),
         [session, path, side, within, given],
     );
-    const stats = session.data.statistics();
+    // A Top-N ranks the whole column (the threshold rule has no within yet), so its bound is the
+    // whole graph's count.
+    const stats = session.data.statistics({ scope: "graph" });
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const parse = useNumberParser();
     const { store } = useWorkspace();
@@ -2907,7 +2919,8 @@ function DateCard({
     const [drafts, setDrafts] = useState<Partial<Record<DateBox, string>>>({});
     const [refused, setRefused] = useState<DateBox | null>(null);
     const messageId = useId();
-    const counts = useMemo(() => session.data.valueCounts(path, { kind: on }), [session, path, on]);
+    // A rule card offers every value the column holds, shown or not: it may select a hidden one.
+    const counts = useMemo(() => session.data.valueCounts(path, { kind: on, scope: "graph" }), [session, path, on]);
     // The column's dates as the table writes them, each once, in time order.
     const dates = useMemo(() => {
         const days = counts.values
@@ -3087,7 +3100,7 @@ function categoryCounts(
     _version: number,
 ): { values: readonly { value: unknown; count: number }[]; missing: number } {
     if (over === undefined) {
-        return session.data.valueCounts(path, { kind: side });
+        return session.data.valueCounts(path, { kind: side, scope: "graph" });
     }
     // Counted over the selection's base (or a narrowing step's input), so a value only elements
     // outside it hold reads 0.
@@ -3432,7 +3445,7 @@ function TextCard({
                 : [
                       ...new Set(
                           session.data
-                              .valueCounts(card.field.path, { kind: card.field.on })
+                              .valueCounts(card.field.path, { kind: card.field.on, scope: "graph" })
                               .values.map((each) => String(each.value)),
                       ),
                   ].sort(NATURAL.compare),

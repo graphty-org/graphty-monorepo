@@ -245,6 +245,49 @@ describe("watchSteps", () => {
         assert.isNull(after.branches[0].steps[0].reason);
     });
 
+    it("says a hops or touching step's reference is outside the base when it reaches nothing for that", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", g: "keep" },
+            { id: "b", g: "keep" },
+            { id: "c", g: "hide" },
+        ]);
+        await session.data.addEdges([
+            { src: "a", dst: "c" },
+            { src: "c", dst: "b" },
+        ]);
+        await session.visibility.set({ kind: "categories", attribute: "data.g", values: ["keep"] });
+        // A walk speaks nodes, a touch edges: both from the hidden c.
+        const leaf = (kind: "hops" | "touching", within: "visible" | "graph"): UnionLeaf => ({
+            kind: "union",
+            side: kind === "hops" ? "nodes" : "edges",
+            within,
+            branches: [
+                {
+                    start: "none",
+                    steps: [
+                        {
+                            op: "add",
+                            rule:
+                                kind === "hops"
+                                    ? { kind, of: { nodes: ["c"] }, max: 1 }
+                                    : { kind, of: { nodes: ["c"] }, ends: "either" },
+                        },
+                    ],
+                },
+            ],
+        });
+        for (const kind of ["hops", "touching"] as const) {
+            const [step] = session.scope.watchSteps(leaf(kind, "visible"), () => undefined).current.branches[0].steps;
+            assert.strictEqual(step.count, 0, kind);
+            assert.deepEqual(step.reason, { code: "reference-outside-base", params: {} }, kind);
+            const [whole] = session.scope.watchSteps(leaf(kind, "graph"), () => undefined).current.branches[0].steps;
+            assert.isNull(whole.reason, kind);
+            assert.isAbove(whole.count, 0, kind);
+        }
+        session.dispose();
+    });
+
     it("converts a tier 4 flat card: an all of leaves is one branch starting with all", async () => {
         const session = await lesMis();
         const flat: RuleTree = { kind: "all", of: [DEGREE_6_TO_10, { kind: "not", of: STAFF }] };

@@ -767,7 +767,7 @@ function assertFilter(filter: RuleTree): void {
 
             return;
         case "union":
-            if ((filter as { within?: unknown }).within === "visible") {
+            if ((filter as { within?: unknown }).within === "visible" || ranksVisible(filter)) {
                 throw malformed(
                     'A filter\'s "union" reads the full graph (within: "graph"): what is visible is what the filter computes.',
                     { reason: "circular-scope", within: "visible" },
@@ -777,8 +777,18 @@ function assertFilter(filter: RuleTree): void {
             assertRuleTree(filter);
 
             return;
-        case "item":
         case "threshold":
+            if (filter.within === "visible") {
+                throw malformed(
+                    'A filter\'s "threshold" ranks the full graph (within: "graph"): what is visible is what the filter computes.',
+                    { reason: "circular-scope", within: "visible" },
+                );
+            }
+
+            assertRuleTree(filter);
+
+            return;
+        case "item":
         case "text":
         case "state":
         case "hops":
@@ -1893,6 +1903,22 @@ function compileItem(context: CompileContext, item: ResultItem): CompiledHalves 
 }
 
 /**
+ * Whether a tree holds a threshold ranking only what is visible, at any depth.
+ * @param tree - Any part of a rule tree.
+ * @returns True when one does.
+ */
+function ranksVisible(tree: unknown): boolean {
+    if (Array.isArray(tree)) {
+        return tree.some(ranksVisible);
+    }
+    if (typeof tree !== "object" || tree === null) {
+        return false;
+    }
+    const node = tree as { readonly kind?: unknown; readonly within?: unknown };
+    return (node.kind === "threshold" && node.within === "visible") || Object.values(tree).some(ranksVisible);
+}
+
+/**
  * The members of one half that pass a threshold's cut, or null when no element of the half
  * carries a finite number for the path (the half is silent). The population is the elements the
  * step's frame names, or every element outside a union.
@@ -1949,6 +1975,47 @@ function thresholdHalf(
 }
 
 /**
+ * The elements a threshold ranks: the step's population inside a union, narrowed to what is
+ * visible when the threshold says `within: "visible"`, and the whole column with `within: "graph"`.
+ * @param context - The compile context.
+ * @param filter - The threshold.
+ * @returns Each half's population, null for every element.
+ */
+function rankedPopulation(
+    context: CompileContext,
+    filter: Extract<RuleTree, { kind: "threshold" }>,
+): { readonly node: Bytes | null; readonly edge: Bytes | null } {
+    const step = context.step?.population ?? { node: null, edge: null };
+    // Named, the whole column outranks a step's own population; absent, the step's is ranked.
+    if (filter.within === "graph") {
+        return { node: null, edge: null };
+    }
+    if (filter.within !== "visible") {
+        return step;
+    }
+
+    const { graph, sources } = context;
+    if (sources.scope === undefined) {
+        throw unsupported("threshold", "a scope resolver");
+    }
+
+    const shown = sources.scope("visible");
+    const both = (half: Bytes | null, test: (index: number) => boolean, count: number): Bytes =>
+        bytesOf((index) => (half === null || half[index] === 1) && test(index), count);
+    const node = both(step.node, (index) => maskTest(shown.nodes, index), graph.nodeCount);
+    const { src, dst } = graph.edgeList();
+    const { edges } = shown;
+    const edge = both(
+        step.edge,
+        edges === null
+            ? (index) => maskTest(shown.nodes, src[index]) && maskTest(shown.nodes, dst[index])
+            : (index) => maskTest(edges, index),
+        graph.edgeCount,
+    );
+    return { node, edge };
+}
+
+/**
  * The elements whose value for a path passes a threshold's cut. Each half whose elements carry
  * the value is ranked on its own and speaks; when none does, the leaf holds nothing.
  * @param context - The compile context.
@@ -1959,7 +2026,7 @@ function compileThreshold(context: CompileContext, filter: Extract<RuleTree, { k
     const { graph } = context;
     const mark = markFor(context, filter.path);
     const { node: readNode, edge: readEdge } = pathReaders(context, filter.path, "threshold");
-    const population = context.step?.population ?? { node: null, edge: null };
+    const population = rankedPopulation(context, filter);
     const nodes = readNode === null ? null : thresholdHalf(graph.nodeCount, readNode, filter, mark, population.node);
     const edges = readEdge === null ? null : thresholdHalf(graph.edgeCount, readEdge, filter, mark, population.edge);
     if (nodes === null && edges === null) {

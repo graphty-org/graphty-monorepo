@@ -175,6 +175,14 @@ export interface RepaintSources {
      * @returns Milliseconds.
      */
     readonly now?: () => number;
+    /**
+     * Which elements the visibility filter and the time window show, one byte per element, for a
+     * binding whose domain is read from what is shown (`domainFrom: "visible"`). Absent reads every
+     * element as shown.
+     * @param target - Nodes or edges.
+     * @returns The bytes.
+     */
+    readonly shown?: (target: SelectorTarget) => ArrayLike<number>;
 }
 
 /**
@@ -1336,6 +1344,33 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         return order;
     };
 
+    /**
+     * The values one path holds over the elements shown now, and how many of those carry none:
+     * what a binding reading its domain from what is shown settles against.
+     * @param store - The layer's target store.
+     * @param path - The path.
+     * @returns The values and the unmeasured count.
+     */
+    const readShownColumn = (store: TargetStore, path: Path): { values: unknown[]; unmeasured: number } => {
+        const shown = sources.shown?.(store.target);
+        if (shown === undefined) {
+            return readWholeColumn(store, path);
+        }
+        const values: unknown[] = [];
+        let unmeasured = 0;
+        for (let index = 0; index < store.count; index++) {
+            if (shown[index] !== 1) {
+                continue;
+            }
+            const value = store.elements.value(index, path);
+            values.push(value);
+            if (value === undefined || value === null) {
+                unmeasured++;
+            }
+        }
+        return { values, unmeasured };
+    };
+
     const readWholeColumn = (store: TargetStore, path: Path): { values: unknown[]; unmeasured: number } => {
         const measured = sources.measured?.(path, store.target);
 
@@ -1398,7 +1433,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             }
 
             const { channel } = descriptor;
-            const column = path === null ? undefined : readWholeColumn(store, path);
+            const shownOnly = "domainFrom" in binding && binding.domainFrom === "visible";
+            const read = shownOnly ? readShownColumn : readWholeColumn;
+            const column = path === null ? undefined : read(store, path);
             const labelField = labelFieldOf(channel);
 
             channels.push({

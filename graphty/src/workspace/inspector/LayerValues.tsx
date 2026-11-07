@@ -493,12 +493,13 @@ function WhereItShows({
     session: GraphSession;
     counted: readonly { layer: Layer; counts: ReturnType<GraphSession["styles"]["counts"]> }[];
 }>): React.JSX.Element | null {
+    // Counted over what is showing, as the layer's row counts.
     const rows = counted.flatMap(({ layer, counts }) =>
         Object.entries(counts.painted).map(([channel, n]) => ({
             layer,
             counts,
             channel: channel as Channel,
-            n: n ?? 0,
+            n: counts.visible?.painted?.[channel as Channel] ?? n ?? 0,
         })),
     );
     if (rows.length === 0) {
@@ -514,7 +515,7 @@ function WhereItShows({
                         <DataRow
                             stat
                             name={`${noun === "node" ? "Node" : "Edge"} ${channelWord(channel).toLowerCase()}`}
-                            value={`on ${formatNumber(n)} of ${count(counts.matched, noun)}`}
+                            value={`on ${formatNumber(n)} of ${count(counts.visible?.matched ?? counts.matched, noun)}`}
                         />
                         {covers?.layers.map((cover) => (
                             <DataRow
@@ -611,7 +612,7 @@ export function LayerValues({
                         key={layer.id}
                         stat
                         name={layer.target === "node" ? "Matched nodes" : "Matched edges"}
-                        value={counts.matched}
+                        value={counts.visible?.matched ?? counts.matched}
                     />
                 ))}
             </ControlSection>

@@ -634,3 +634,43 @@ describe("framing the working graph", () => {
         );
     });
 });
+
+describe("auto-framing follows a re-layout of the working graph", () => {
+    for (const pivot of [false, true]) {
+        it(`frames the shown nodes after a filter lays them out again${pivot ? ", pivoting on a selection with a hidden member" : ""}`, async () => {
+            const { graph, container } = await emptyGraph();
+            if (pivot) {
+                graph.setLayoutBehavior({ camera: { pivotOnSelection: true } });
+            }
+            const session = graph.getSession() as ElementSession;
+            session.config.setWorkingGraph("visible");
+            await session.layout.setDimension("2d");
+            const ring = Array.from({ length: 24 }, (_, index) => `n${String(index)}`);
+            await session.data.addNodes(ring.map((id) => ({ id })));
+            await session.data.addEdges(ring.map((id, index) => ({ src: id, dst: ring[(index + 1) % ring.length] })));
+            await session.layout.set("circular");
+            await graph.waitForSettled();
+            await graph.waitForStableFrame();
+            if (pivot) {
+                await session.selection.apply({ nodes: ["n0", "n12"] });
+                await graph.waitForStableFrame();
+            }
+
+            await session.visibility.set({ kind: "member", of: { nodes: ["n0", "n1", "n2"] } });
+            await graph.waitForSettled();
+            await graph.waitForStableFrame();
+
+            const { width, height } = container.getBoundingClientRect();
+            for (const id of ["n0", "n1", "n2"]) {
+                const at = graph.nodeScreenPosition(id);
+                assert.isDefined(at, id);
+                assert.isTrue(
+                    at !== undefined && at.x >= 0 && at.x <= width && at.y >= 0 && at.y <= height,
+                    `${id} at ${JSON.stringify(at)} is on the ${String(width)} x ${String(height)} canvas`,
+                );
+            }
+            graph.dispose();
+            container.remove();
+        });
+    }
+});

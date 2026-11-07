@@ -41,9 +41,13 @@ const DEGREE_NOTE =
  * A directed graph offers All, In and Out. Transitivity follows when the element measured it.
  * @param props - Component props
  * @param props.statistics - the element's statistics
+ * @param props.showing - whether a filter or a time window hides something, so it reads what is showing
  * @returns The section
  */
-function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>): React.JSX.Element {
+function DegreeSection({
+    statistics,
+    showing,
+}: Readonly<{ statistics: GraphStatistics; showing: boolean }>): React.JSX.Element {
     const [kind, setKind] = useState<DegreeKind>("all");
     const directed = statistics.inDegreeHistogram !== undefined && statistics.outDegreeHistogram !== undefined;
     const histograms: Record<DegreeKind, Histogram | undefined> = {
@@ -61,7 +65,13 @@ function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>
     const name = { all: "Degree", in: "In-degree", out: "Out-degree" }[shown];
     const last = histogram?.bins.at(-1);
     return (
-        <ControlSection label="Degree" collapsible={false} headingLevel={3} info={DEGREE_NOTE}>
+        <ControlSection
+            // Under a filter it reads what is showing, as "Nodes showing" does beside it.
+            label={showing ? "Degree showing" : "Degree"}
+            collapsible={false}
+            headingLevel={3}
+            info={DEGREE_NOTE}
+        >
             {directed && (
                 <SegmentedControl
                     fullWidth
@@ -120,7 +130,8 @@ export function Overview(): React.JSX.Element | null {
     if (session === null) {
         return null;
     }
-    const statistics = session.data.statistics();
+    // The whole graph, by name: under a filter these rows go in "Full graph".
+    const statistics = session.data.statistics({ scope: "graph" });
     // With no time field yet, the column the element reads as time is offered once: a door to its
     // home, Data > Fields, with the Time entry added and that column chosen.
     const found = timelineOn(session) && session.time.field === null ? session.time.candidates().at(0) : undefined;
@@ -159,10 +170,11 @@ export function Overview(): React.JSX.Element | null {
         void session.selection.apply({ scope }, "replace", { cause: "user" });
     };
     const weight = session.data.loadedWeight();
-    // A time window limits what is showing exactly as a filter card does.
-    const filtered =
-        session.visibility.conditions.some((c) => c.on && c.effect !== "select") || session.visibility.window !== null;
+    // Something is hidden when the element shows fewer nodes or edges than the graph holds, by a
+    // filter or the time window alike: the same test the table's Shown / All makes, so a filter
+    // that hides nothing adds no "showing" counts here.
     const showing = session.visibility.summary;
+    const filtered = showing.visibleNodes < showing.totalNodes || showing.visibleEdges < showing.totalEdges;
 
     const whole = (
         <>
@@ -205,7 +217,7 @@ export function Overview(): React.JSX.Element | null {
     const tail = (
         <>
             {/* Over what is showing: its degrees are the legend's. */}
-            <DegreeSection statistics={filtered ? session.data.statistics({ scope: "visible" }) : statistics} />
+            <DegreeSection statistics={session.data.statistics()} showing={filtered} />
             {otherView > 0 && (
                 <Text size="xs" c="dimmed" px="md" data-testid="settings-other-view">
                     {`${count(otherView, "graph setting")} ${otherView === 1 ? "applies" : "apply"} only in another view`}

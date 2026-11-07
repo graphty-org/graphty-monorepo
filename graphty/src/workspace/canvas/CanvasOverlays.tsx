@@ -68,7 +68,7 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
             if (paused) {
                 return;
             }
-            const { nodeCount, edgeCount } = session.data.statistics();
+            const { nodeCount, edgeCount } = session.data.statistics({ scope: "graph" });
             const blocks = keyBlocks(dataBlocks(session));
             setReading({ blocks, nodeCount, edgeCount, load });
             // An effect is listed in a key that shows, and never opens it: a style write of an
@@ -97,7 +97,7 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                     // A load from the Data page is announced by the page, once it has named the
                     // graph and the place is showing again.
                     if (change.phase === "end" && store.get().page !== "data-page") {
-                        const { nodeCount, edgeCount } = session.data.statistics();
+                        const { nodeCount, edgeCount } = session.data.statistics({ scope: "graph" });
                         const name = store.get().project?.name ?? "Graph";
                         store.set({
                             announcement: `${name}: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges`,

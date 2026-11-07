@@ -37,7 +37,7 @@ export function GraphPlace(): React.JSX.Element {
             ? { name: projectName, hasGraph: false }
             : {
                   name: session.data.source()?.name ?? projectName,
-                  hasGraph: session.data.statistics().nodeCount > 0,
+                  hasGraph: session.data.statistics({ scope: "graph" }).nodeCount > 0,
               };
     }, [session, version, projectName]);
 

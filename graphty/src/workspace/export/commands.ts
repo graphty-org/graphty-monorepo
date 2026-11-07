@@ -35,7 +35,12 @@ export const registration = defineRegistration({
                 return element === null ? "The graph is still loading" : null;
             },
             run: ({ workspace }) => {
-                workspace.set({ dialog: "export", exportOn: exportTarget(workspace.get()), exportSource: null });
+                workspace.set({
+                    dialog: "export",
+                    exportOn: exportTarget(workspace.get()),
+                    exportSource: null,
+                    exportShown: false,
+                });
             },
         },
     ],
@@ -45,7 +50,12 @@ export const registration = defineRegistration({
             label: "Export...",
             order: 70,
             run: (ctx, source) => {
-                ctx.workspace.set({ dialog: "export", exportOn: "nodes", exportSource: source.key });
+                ctx.workspace.set({
+                    dialog: "export",
+                    exportOn: "nodes",
+                    exportSource: source.key,
+                    exportShown: false,
+                });
             },
         },
     ],

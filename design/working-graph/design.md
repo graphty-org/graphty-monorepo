@@ -332,10 +332,11 @@ Estimates, refusals (not planar, too large), `optionsFor`, the location map's fr
 and group boxes read that resolved set, so the picker and the estimate measure the set the layout
 runs on. Built so far: group boxes skip members outside the part, the location map and `clusterBy`
 of a one-pass layout read the compact graph, and the force driver's CPU or GPU choice counts the
-working graph. The estimate, the refusals, `optionsFor` and `recommendLayout` still read the whole
-graph, recorded on #6201: they must read the layout's resolved set (its scope intersected with the
-working graph), not the session readers' default, and `recommendLayout` compares the statistics
-with the whole graph's placed-node count, so it names `scope: "graph"` until both move together.
+working graph. The estimate and its refusals (not planar, grouping, a missing start node, the
+size the seconds are modelled on) read the graph the layout lays out (`PlanningContext.layoutGraph`:
+the working graph unless the layout scope is `"graph"`). `optionsFor` and `recommendLayout` still
+read the whole graph, recorded on #6201; `recommendLayout` compares the statistics with the whole
+graph's placed-node count, so it names `scope: "graph"` until both move together.
 
 **When it re-runs.** On `working-graph:changed` with `settled` true, when the shown node or edge
 ids differ from the ones the engine was built over (`LayoutManager.followWorkingGraph`): a filter
@@ -378,13 +379,18 @@ whole-graph layout under a filter is the layout scope `"graph"`. #6117's app tes
   and the row-cap workaround in `heldRows`. Built: `styles.categories` counts by the layer's
   selector in every mode; `styles.groups` gives each group's `visibleCount` in every mode;
   `counts().visible.painted`; with the option on, categories, groups and the legend's category
-  rows count only what is shown. Not built, recorded on #6201: the threshold rule's `within` and
-  the encode `domainFrom` option. A style layer repaints on a style, data, run or state change
-  but not on a visibility change, so a rule ranking what is shown would paint stale until that
-  reactivity exists.
+  rows count only what is shown. Built: the threshold rule's `within` (`"visible"` ranks what is
+  shown; `"graph"` ranks the whole column even inside a union step, which `scope.asUnion` writes
+  when it turns a flat top-N into a step over what is shown, so the step keeps the flat rule's
+  meaning; a filter's own conditions refuse `"visible"`) and the encode `domainFrom: "visible"`. A
+  rule ranking what is shown follows a filter change through its live scope; a `domainFrom:
+"visible"` layer is prepared and repainted again on every visibility change. `styles.counts`
+  walks the stack once for its whole-graph and drawn counts and is kept until the reading token
+  moves, as `agreement` over `"graph"`, `"visible"` and `"selection"` is.
 - **AI tools (S8)**: `queryGraph` gives shown and whole counts; the schema prompt says a filter is
   on and how much it hides. Built in every mode (it is additive): `queryGraph` adds
-  `shownNodeCount` and `shownEdgeCount` when something is hidden, the prompt's graph state says so,
+  `shownNodeCount` and `shownEdgeCount` when something is hidden, the prompt's graph state says so
+  (the assistant's own prompt in `AiController` and `SystemPromptBuilder` alike),
   and `findNodes` lists hidden matches in `hiddenNodeIds` with `hiddenTotal`; with the option on it
   leaves them out unless `includeHidden` is true.
 - **Project file and journal (S9)**: the option is not saved; see section 4. Built: an open (and
@@ -485,25 +491,26 @@ mask. That is acceptable because:
    of methods not yet passing, each with a reason and `Refs #6201`. It may only shrink (compared
    with the merge base) and is empty when this work is done.
 
-   Built. The test walks the session's public API from `GraphSession` through every namespace
-   property in the reports (its methods and plain properties, such as `selection.nodes`), so no
-   hand list of readers exists. A probe runs on the graph with a filter hiding one node and on the
-   same graph without it: `working` and `writer` probes answer the same on both (a scoped one's
-   `scope: "graph"` answer differs), every such probe must also change when the node is shown, so
-   none passes vacuously, and `whole` probes answer the same in both modes and differ from the
-   graph without the node. The baseline holds two lists: `wholeGraph`, each reader that reads the
-   whole graph by name with its reason (probed where a probe is meaningful), and `notYetWorking`,
-   each reader still to fix (its probe must still fail, so a fixed reader cannot stay listed). The
-   ratchet fails when `notYetWorking` gains a row, and when `wholeGraph` gains one that no commit of
-   the branch reviews with a `Whole-Graph-Reader: <Owner.method> -- <why>` trailer. It runs in
-   `check:quick` and the CI Checks job (`pnpm run check:working-graph`). Found by it:
-   `recommendLayout` (already recorded above) is the one `notYetWorking` row; `scope.count` and
-   `scope.resolve` of a base selector (`{ where }`) match over the whole graph, like
-   `scope.histogram`, and are `wholeGraph` rows. `styles.agreement` over a base selector does the
-   same, through the scope it resolves; over `"selection"` it reads what is shown, which its probe
-   checks. The layout run is checked by the browser tests, since a session in Node lays
-   out nothing; the element's own readers outside the session (Fit, `zoomToNodes`) are not
-   enumerated.
+    Built. The test walks the session's public API from `GraphSession` through every namespace
+    property in the reports (its methods and plain properties, such as `selection.nodes`), so no
+    hand list of readers exists. A probe runs on the graph with a filter hiding one node and on the
+    same graph without it: `working` and `writer` probes answer the same on both (a scoped one's
+    `scope: "graph"` answer differs), every such probe must also change when the node is shown, so
+    none passes vacuously, and `whole` probes answer the same in both modes and differ from the
+    graph without the node. The baseline holds two lists: `wholeGraph`, each reader that reads the
+    whole graph by name with its reason (probed where a probe is meaningful), and `notYetWorking`,
+    each reader still to fix (its probe must still fail, so a fixed reader cannot stay listed). The
+    ratchet fails when `notYetWorking` gains a row, and when `wholeGraph` gains one that no commit of
+    the branch reviews with a `Whole-Graph-Reader: <Owner.method> -- <why>` trailer. It runs in
+    `check:quick` and the CI Checks job (`pnpm run check:working-graph`). Found by it:
+    `recommendLayout` (already recorded above) is the one `notYetWorking` row; `scope.count` and
+    `scope.resolve` of a base selector (`{ where }`) match over the whole graph, like
+    `scope.histogram`, and are `wholeGraph` rows. `styles.agreement` over a base selector does the
+    same, through the scope it resolves; over `"selection"` it reads what is shown, which its probe
+    checks. The layout run is checked by the browser tests, since a session in Node lays
+    out nothing; the element's own readers outside the session (Fit, `zoomToNodes`) are not
+    enumerated.
+
 3. **App lint,** `graphty/eslint-rules/no-scope-visible.js`: the app may not pass
    `scope: "visible"`, intersect ids with `visibility.nodes`, or call a scoped reader with no scope
    (an unscoped call would silently change meaning with the mode).
@@ -551,6 +558,30 @@ through `tools/low-priority.sh`; only touched test files run locally.
     `workingGraph="visible"` and the app deletes what the element now does: `heldRows`' filtering,
     explicit `scope: "visible"` and visible-id intersections. Fix the rows marked S11. UI tests drive
     real input against the real element. Then the lint rule.
+    Built: `ElementHost.tsx` sets `workingGraph="visible"`. Named for the whole graph by
+    `scope: "graph"`: the Overview's Full graph rows, the Export dialog's All and its table choice,
+    the project and document export counts, the autosave and load announcements, "No data yet",
+    the join screen's counts, a source row's issue count, the time dock's whole bars, zoom extent
+    and day end, the filter list's time window count, and the style rule cards' value counts,
+    Top-N bounds and "All N". Deleted as made unnecessary: `heldRows`' filtering (it only sorts
+    now), the Overview's `filtered ? "visible"` switch and the Which head's
+    `visibility.summary` count. Kept explicit, because they name a scope other than the default
+    on purpose: the table's `"visible"`/`"graph"`, the path form's `"visible"` (the run's
+    scope), the time dock's shown bars, Select all and the export's Shown. The Degree section is
+    named "Degree showing" under a filter. Not built: a Find box "include hidden" control (the
+    box now finds only what is shown), recorded on #6201. The lint rule is not built.
+    Then: the Graph place's "Add data to start", the inspector's graph header and the data page's
+    load counts name the whole graph; the Which head, a property row's "on N", the inspector's
+    "Where its look shows" and "Matched" and `styles.agreement` read what is shown; the Overview
+    says something is hidden by the same count test as the table; the members chip narrows to
+    what is shown with Shown / All beside it, and the table's Export... opens on Shown while the
+    table lists what is shown; the time dock's bar labels say "N of M"; a hidden note target says
+    "Hidden now"; the reference picker reads its card's base (a filter's card the whole graph); a
+    number card's range is read over its base; the node inspector's Degree is the element's degree
+    over what is shown; the legend calls a run over other nodes out of date; Analyze offers "Run",
+    never "Add X layer", beside a card's whole-graph run. With `camera.pivotOnSelection` an
+    automatic framing is centered on the drawn selected nodes, so the glide after it leaves the
+    graph framed, and a selected node a filter hides is no pivot.
 14. **Close #6117** unmerged with a pointer to this branch; record the major's flips on #6124.
 
 ## 12. What flips in the next major (#6124)

@@ -4,7 +4,7 @@
  */
 
 import type { Graph } from "../../Graph";
-import { shownPart } from "../commands/selectors";
+import { shownPromptLine } from "../commands/selectors";
 import type { GraphCommand } from "../commands/types";
 import { formatSchemaForPrompt } from "../schema/SchemaFormatter";
 import type { SchemaSummary } from "../schema/types";
@@ -151,11 +151,8 @@ You can help users:
         const edgeCount = this.graph.getEdgeCount();
         // A filter or the time window hiding part of the graph changes what the person sees, so the
         // model is told how much is shown.
-        const shown = shownPart(this.graph);
-        const shownLine =
-            shown === null
-                ? ""
-                : `\n- A filter or the time window is on: ${shown.view.nodeCount} nodes and ${shown.view.edgeCount} edges are shown, ${nodeCount - shown.view.nodeCount} nodes are hidden`;
+        const line = shownPromptLine(this.graph);
+        const shownLine = line === "" ? "" : `\n${line}`;
 
         return `## Current Graph State
 - Total nodes: ${nodeCount}

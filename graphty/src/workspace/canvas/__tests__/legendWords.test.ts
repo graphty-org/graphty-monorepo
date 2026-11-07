@@ -313,9 +313,10 @@ describe("the legend card's words", () => {
         // while the drawing shows fewer.
         run.stale = { reason: "scope-changed", ranOn: 20, nowVisible: 15 } as unknown as Run["stale"];
         assert.equal(title(), "Size: PageRank, full graph");
-        // As many drawn as it ran on: nothing to tell apart, so no scope words.
+        // As many drawn as it ran on, and still out of date: they are other nodes, as the layer's
+        // row marks it.
         summary.visibleNodes = 20;
-        assert.equal(title(), "Size: PageRank");
+        assert.equal(title(), "Size: PageRank, out of date");
         // A narrower run than the whole graph, with another count drawn: its own count.
         run.stale = { reason: "scope-changed", ranOn: 12, nowVisible: 15 } as unknown as Run["stale"];
         assert.equal(title(), "Size: PageRank on 12 nodes");

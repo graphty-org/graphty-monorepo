@@ -810,11 +810,11 @@ export class SessionData implements SessionDataApi {
     /** Whether an edge column of a name exists, for the current data revision. */
     private readonly edgeColumns: RevisionCache<boolean>;
     /** The descriptors with their declarations and roles laid over, and what they were laid from. */
-    private attributeOverlay: {
-        readonly described: readonly AttributeDescriptor[];
-        readonly key: string;
-        readonly result: readonly AttributeDescriptor[];
-    } | null = null;
+    /** By the descriptors laid from, so the whole graph's and a scope's are each kept. */
+    private readonly attributeOverlay = new WeakMap<
+        readonly AttributeDescriptor[],
+        { readonly key: string; readonly result: readonly AttributeDescriptor[] }
+    >();
     /** The issues found, and what they were read from. */
     private issuesMemo: {
         readonly state: IssueState;
@@ -3915,7 +3915,8 @@ export class SessionData implements SessionDataApi {
         const declarations = this.writes.declarations();
         const roles = this.columnRoles();
         const uses = this.columnUses(described);
-        const fed = this.columnSources(described);
+        // Keyed by the whole graph's columns: which loads carry a column does not depend on a scope.
+        const fed = this.columnSources(whole);
         const settings = this.columnSettings();
         const hidden = new Set(settings.hidden);
         const joined = this.joinedColumns();
@@ -3938,8 +3939,8 @@ export class SessionData implements SessionDataApi {
             [...joined],
             [...parsed.values()],
         ]);
-        const memo = this.attributeOverlay;
-        if (memo?.described === described && memo.key === key) {
+        const memo = this.attributeOverlay.get(described);
+        if (memo?.key === key) {
             return memo.result;
         }
 
@@ -3965,7 +3966,7 @@ export class SessionData implements SessionDataApi {
             settings === NO_COLUMN_SETTINGS
                 ? described
                 : Object.freeze(described.map((each) => overlaidAttribute(each, overlay)));
-        this.attributeOverlay = { described, key, result };
+        this.attributeOverlay.set(described, { key, result });
         return result;
     }
 

@@ -473,7 +473,7 @@ export function RowStyle({
     const treeRow = below ?? (lowest === undefined ? undefined : (lowest.row ?? lowest.id));
     // A selection's row not written yet paints the selection: read beneath over it.
     const fresher = fresh !== undefined && fresh.selector.match !== "everything";
-    const beneath = beneathOf(session, treeRow, fresher ? "selection" : "graph");
+    const beneath = beneathOf(session, treeRow, fresher ? "selection" : "visible");
     const paintedOver = treeRow === undefined || many !== undefined ? undefined : paintedOverOf(session, treeRow, row);
     const colors = documentColors(session);
     const sectionsOf = (side: Target): React.JSX.Element => {

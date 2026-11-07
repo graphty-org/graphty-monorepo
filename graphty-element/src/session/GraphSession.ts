@@ -2717,6 +2717,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Set once the style stack exists: what a selection change repaints.
     let repaintSelected = (): void => undefined;
     let repaintGhosts = (_moved?: SlideCounts): void => undefined;
+    // Set once the painter exists: repaints the layers whose domain is read from what is shown.
+    let repaintShownReaders = (): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
     // hands a run's derived layer to it. A thunk rather than a captured object for the reason the
@@ -3131,6 +3133,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             notifier.notify({ kind: "visibility" });
             timeline()?.visibilityChanged();
             repaintGhosts();
+            repaintShownReaders();
             publish(watchers, "visibility:changed", change);
             workingChanged(true);
         },
@@ -3611,11 +3614,37 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // With the base look in the Everything row, what no shown layer paints is not drawn.
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),
+            shown: (target) => (target === "node" ? visibility.nodeMask() : visibility.edgeMask()),
         }),
         snapshot,
     );
 
     const teardown = new AbortController();
+    // A binding reading its domain from what is shown settles it again when what is shown changes.
+    repaintShownReaders = (): void => {
+        const compiled = stack?.compiled() ?? [];
+        const readers = compiled.filter((entry) =>
+            Object.values(entry.layer.encode ?? {}).some(
+                (binding) => binding !== undefined && "domainFrom" in binding && binding.domainFrom === "visible",
+            ),
+        );
+        if (readers.length === 0) {
+            return;
+        }
+
+        painter.invalidate();
+        const edits = readers.map((entry) => ({ previous: entry, next: entry }));
+        painter
+            .repaint({ reason: "update", edits, stack: compiled, fromIndex: compiled.indexOf(readers[0]) }, RUNS_PASS)
+            .then(() => {
+                dispatcher.repaintedOutsidePass(["styles"]);
+            })
+            .catch((error: unknown) => {
+                if (!teardown.signal.aborted) {
+                    console.error("[graphty] Could not repaint the layers reading what is shown.", error);
+                }
+            });
+    };
     // A `{match:"state"}` layer reads the selection and the pointer live, which change with no
     // step: each change repaints exactly the elements whose state moved, when a layer reads one.
     const readsState = (): boolean =>
@@ -4123,8 +4152,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         inputTick: () => inputs.tick.value,
         dataRevision,
         snapshot,
-        nodeValues: (path) =>
-            sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
+        nodeValues: (path, graph = snapshot()) =>
+            sessionColumns(session, [], {}, "layout").read(graph, path, "node", String)?.values ?? null,
+        // A layout lays out the working graph unless its scope names the whole graph (design 7).
+        layoutGraph: () =>
+            working.mode === "visible" && dispatcher.state.layout?.scope !== "graph"
+                ? working.input().snapshot
+                : snapshot(),
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
         nodeAttributes: () => data.attributes({ scope: "graph" }).flatMap((a) => (a.kind === "node" ? [a.name] : [])),
         locationDesignation: () => session.config.data.knownFields,

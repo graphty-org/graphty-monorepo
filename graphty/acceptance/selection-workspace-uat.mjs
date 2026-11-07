@@ -14,7 +14,10 @@
  *
  * What a selection should hold is worked out here from the graph and the runs' results, not read from
  * the editor: each step's own set, then the verbs folded in order (Add is a union, Keep an intersection,
- * Except a difference), then the cards unioned. Exit 0 when every scenario passed, 1 when one failed.
+ * Except a difference), then the cards unioned. The graph and the runs are read over the whole graph
+ * by name (`scope: "graph"`): the app reads only what a filter shows by default (`working-graph`), and
+ * a filter being built hides part of the graph while it is checked. Exit 0 when every scenario passed,
+ * 1 when one failed.
  * See README.md beside this file.
  */
 import { mkdirSync } from "node:fs";
@@ -83,11 +86,14 @@ class Visit {
         await this.page.getByRole("button", { name: `Open the ${SAMPLES[this.dataset]} sample` }).click();
         await this.page.getByRole("button", { name: "Add a layer or a folder" }).waitFor();
         await this.page.waitForFunction(
-            () => document.querySelector("graphty-element")?.session?.data.nodes().length > 0,
+            () => document.querySelector("graphty-element")?.session?.data.nodes({ scope: "graph" }).length > 0,
         );
         const graph = await inPage(this.page, () => {
             const s = document.querySelector("graphty-element").session;
-            return { nodes: s.data.nodes().map((r) => ({ ...r })), edges: s.data.edges().map((r) => ({ ...r })) };
+            return {
+                nodes: s.data.nodes({ scope: "graph" }).map((r) => ({ ...r })),
+                edges: s.data.edges({ scope: "graph" }).map((r) => ({ ...r })),
+            };
         });
         this.nodes = graph.nodes;
         this.edges = graph.edges;
@@ -255,7 +261,7 @@ class Visit {
                     return false;
                 }
                 const read = (id) => run.result[side](id)?.[field] ?? null;
-                const records = side === "node" ? s.data.nodes() : s.data.edges();
+                const records = side === "node" ? s.data.nodes({ scope: "graph" }) : s.data.edges({ scope: "graph" });
                 return Object.fromEntries(records.map((r) => [String(r.id), read(r.id)]));
             },
             [algorithm, field, params, this.side],
@@ -388,7 +394,7 @@ class Visit {
             .waitForFunction(
                 ([w, colors]) => {
                     const s = document.querySelector("graphty-element").session;
-                    return s.data.nodes().every((r) => {
+                    return s.data.nodes({ scope: "graph" }).every((r) => {
                         const hex = s.styles.explain({ node: r.id }).merged["node.color"]?.hex?.toUpperCase();
                         const expected = w[String(r.id)];
                         return expected === null ? !colors.includes(hex) : hex === expected;
@@ -1828,7 +1834,7 @@ const groupSwatches = async (page) => {
         const s = document.querySelector("graphty-element").session;
         const run = s.runs.list().findLast((r) => r.algorithm === "louvain" && r.status === "succeeded");
         const byGroup = new Map();
-        for (const node of s.data.nodes()) {
+        for (const node of s.data.nodes({ scope: "graph" })) {
             const group = run.result.node(node.id)?.group;
             byGroup.set(group, [...(byGroup.get(group) ?? []), node.id]);
         }

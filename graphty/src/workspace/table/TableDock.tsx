@@ -7,7 +7,14 @@ import {
     SegmentedControl,
     UiGlyph,
 } from "@graphty/compact-mantine";
-import type { DataIssue, GraphSession, IssueId, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
+import type {
+    DataIssue,
+    GraphSession,
+    IssueId,
+    RuleTree,
+    ScopeInput,
+    SummaryGroup,
+} from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Chip, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -129,6 +136,28 @@ function groupRuns(session: GraphSession): { id: string; label: string; groups: 
         const groups = run.result?.summary().groups;
         return groups === undefined ? [] : [{ id: run.id, label: runName(session, run), groups }];
     });
+}
+
+/**
+ * A rule scope narrowed to what the filter and the time window show.
+ * @param scope - the scope, a rule the element defines.
+ * @returns the rule and what is shown, or the scope as it is when it is no rule.
+ */
+function shownOf(scope: ScopeInput): ScopeInput {
+    if (typeof scope !== "object" || !("define" in scope) || scope.define.kind !== "rule") {
+        return scope;
+    }
+    const { where } = scope.define;
+    const rule: RuleTree = typeof where === "string" ? { kind: "expression", where } : where;
+    // "What is shown" speaks edges too, which an induced reading refuses: clipped keeps the same
+    // nodes and the edges between them that are shown.
+    return {
+        define: {
+            ...scope.define,
+            reading: "clipped",
+            where: { kind: "all", of: [rule, { kind: "member", of: "visible" }] },
+        },
+    };
 }
 
 /**
@@ -309,9 +338,14 @@ function MembersChip({ members, onRemove }: Readonly<{ members: Members; onRemov
  * @param props - Component props
  * @param props.kind - The records showing
  * @param props.store - The workspace store
+ * @param props.shown - Whether the table lists only what is shown, which Export... then writes
  * @returns The menu
  */
-function TableOptions({ kind, store }: Readonly<{ kind: RecordKind; store: WorkspaceStore }>): React.JSX.Element {
+function TableOptions({
+    kind,
+    store,
+    shown,
+}: Readonly<{ kind: RecordKind; store: WorkspaceStore; shown: boolean }>): React.JSX.Element {
     return (
         <Menu position="bottom-end">
             <Menu.Target>
@@ -329,6 +363,7 @@ function TableOptions({ kind, store }: Readonly<{ kind: RecordKind; store: Works
                             dialog: "export",
                             exportOn: kind === "edge" ? "edges" : "nodes",
                             exportSource: null,
+                            exportShown: shown,
                         });
                     }}
                 >
@@ -552,7 +587,9 @@ function dockScope(session: GraphSession, tab: string, { members, all }: Arrange
     const shownCount = kind === "node" ? summary.visibleNodes : summary.visibleEdges;
     const filtered = shownCount < (kind === "node" ? summary.totalNodes : summary.totalEdges);
     const narrowed: ScopeInput = filtered && !all ? "visible" : "graph";
-    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
+    // A group's members narrow as the rest does: Shown lists the members the filter shows.
+    const membersOf = (members: Members): ScopeInput => (filtered && !all ? shownOf(members.scope) : members.scope);
+    const scope = kind === "node" && shownMembers !== null ? membersOf(shownMembers) : narrowed;
     return { groups, hasEdges, active, kind, groupRun, shownMembers, shownCount, filtered, scope };
 }
 
@@ -593,7 +630,7 @@ function StripFilters({
     setView,
     nodesTab,
 }: Readonly<StripFiltersProps>): React.JSX.Element {
-    const { active, kind, groupRun, shownMembers, filtered } = dock;
+    const { active, groupRun, shownMembers, filtered } = dock;
     return (
         <>
             {active === "nodes" && shownMembers !== null ? (
@@ -606,7 +643,7 @@ function StripFilters({
                     }}
                 />
             ) : null}
-            {filtered && groupRun === undefined && (kind === "edge" || shownMembers === null) ? (
+            {filtered && groupRun === undefined ? (
                 <SegmentedControl
                     size="xs"
                     aria-label="Records"
@@ -902,7 +939,7 @@ export function TableDock(): React.JSX.Element {
                         }}
                     />
                 ) : null}
-                <TableOptions kind={kind} store={store} />
+                <TableOptions kind={kind} store={store} shown={scope === "visible"} />
                 <MaximizeButton store={store} maximized={maximized} />
                 {close}
             </div>

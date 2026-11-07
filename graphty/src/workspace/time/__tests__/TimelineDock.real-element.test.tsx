@@ -591,6 +591,25 @@ describe("the timeline dock on the real element", () => {
         within(dock).getByRole("img", { name });
     });
 
+    it("says a bar's shown count of its whole when a filter hides some of it", async () => {
+        const { session, dock } = await openDock();
+        await within(dock).findByRole("img", { name: /^Edges over time/ });
+        const people = session.data.nodes({ scope: "graph" }).map((node) => node.id);
+        await act(async () => {
+            await session.visibility.set({ kind: "member", of: { nodes: people.slice(0, people.length / 2) } });
+        });
+        // A bar draws what is shown; its words say of how many.
+        await waitFor(() => {
+            const bars = within(within(dock).getByTestId("histogram-values"))
+                .getAllByRole("rowheader")
+                .map((header) => header.textContent ?? "");
+            assert.isTrue(
+                bars.some((words) => /: [\d,]+ of [\d,]+ edges?$/.test(words)),
+                bars.join(" | "),
+            );
+        });
+    });
+
     it("says what entered and left on the status line after a step", async () => {
         const { session, dock } = await openDock();
         await act(async () => {

@@ -3030,6 +3030,29 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * One layer's counts over the whole graph and among the drawn elements, in one walk.
+     * @param id - The layer.
+     * @returns The counts, before the group outline cap is told.
+     */
+    const countsOf = (id: LayerId): StyleCounts => {
+        const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+        const drawn = amongDrawn(id);
+        const target = byId().get(id)?.layer.target;
+        const drawnSet = new Set(target === "edge" ? elementsOf(DRAWN).edges : elementsOf(DRAWN).nodes);
+        // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
+        // On how many of the drawn elements the layer is the one the picture shows is read in the
+        // same walk, so a filter does not double the cost.
+        const { paintedWithin, ...whole } = styleCounts(
+            id,
+            elementsOf(WHOLE_GRAPH),
+            countSources(),
+            revision,
+            drawnSet,
+        );
+        return { ...whole, visible: { ...drawn, painted: paintedWithin ?? whole.painted } };
+    };
+
+    /**
      * How many of one layer's elements in a scope carry each value of a path, keyed as a legend
      * spells a category.
      * @param id - The layer.
@@ -5655,9 +5678,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         agreement(scope: Scope, channel?: Channel, options: AgreementOptions = {}): StyleAgreement {
-            // The graph and the selection resolve from what the token covers; any other scope is
-            // read fresh.
-            if (scope !== "graph" && scope !== "selection") {
+            // The graph, what is shown (a mask change moves the input tick) and the selection
+            // resolve from what the token covers; any other scope is read fresh.
+            if (scope !== "graph" && scope !== "visible" && scope !== "selection") {
                 return agreementOf(scope, channel, options);
             }
             const { below, over } = options;
@@ -5790,24 +5813,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         counts(id: LayerId): StyleCounts {
-            const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
-
-            // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
-            const whole = styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision);
-            const drawn = amongDrawn(id);
-            const counts = {
-                ...whole,
-                visible: {
-                    ...drawn,
-                    // On how many of the drawn elements the layer is the one the picture shows. The
-                    // drawn elements are some of the graph's, so matching as many means matching the
-                    // same ones, and the walk is not repeated.
-                    painted:
-                        drawn.matched === whole.matched
-                            ? whole.painted
-                            : styleCounts(id, elementsOf(DRAWN), countSources(), revision).painted,
-                },
-            };
+            const counts = kept(JSON.stringify(["counts", id]), () => countsOf(id));
             // Groups past the outline cap draw nothing; said here, never dropped silently.
             const left = groupOutlinesOf(api)
                 .filter((each) => each.layer === id)

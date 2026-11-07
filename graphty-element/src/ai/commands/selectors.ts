@@ -38,6 +38,18 @@ export function shownPart(graph: Graph): ShownPart | null {
 }
 
 /**
+ * The prompt line that says a filter or the time window hides part of the graph, and how much.
+ * @param graph - The graph.
+ * @returns The line, or an empty string when everything is shown.
+ */
+export function shownPromptLine(graph: Graph): string {
+    const shown = shownPart(graph);
+    return shown === null
+        ? ""
+        : `- A filter or the time window is on: ${shown.view.nodeCount} nodes and ${shown.view.edgeCount} edges are shown, ${shown.allNodes - shown.view.nodeCount} nodes are hidden`;
+}
+
+/**
  * Whether the session's readers read only what is shown (`config.workingGraph` `"visible"`).
  * @param graph - The graph.
  * @returns True when they do.

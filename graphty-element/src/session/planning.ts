@@ -318,8 +318,16 @@ export interface PlanningContext {
     readonly dataRevision?: () => unknown;
     /** The graph as it stands, for the checks a layout's availability needs. */
     readonly snapshot?: () => GraphSnapshot;
-    /** The values a layout's `groupBy` names, by row of the snapshot, or null when no node carries it. */
-    readonly nodeValues?: (path: string) => readonly unknown[] | null;
+    /**
+     * The values a layout's `groupBy` names, by row of the snapshot (or of `graph` when given), or
+     * null when no node carries it.
+     */
+    readonly nodeValues?: (path: string, graph?: GraphSnapshot) => readonly unknown[] | null;
+    /**
+     * The graph a layout set now lays out: the working graph while the session reads it and the
+     * layout scope is not `"graph"`, else the whole graph. Absent reads {@link snapshot}.
+     */
+    readonly layoutGraph?: () => GraphSnapshot;
     /** The run whose result field a `groupBy` path is, or undefined for a data attribute. */
     readonly runOf?: (path: string) => string | undefined;
     /** Every node attribute's name, for a layout that looks for its input among them. */
@@ -861,6 +869,8 @@ function planAlgorithmRun(context: PlanningContext, command: AlgorithmRunCommand
 /** What a layout estimate keeps until the input tick moves: the answers, and the planarity test. */
 interface LayoutEstimates {
     readonly tick: number;
+    /** The graph the layout lays out, which a mode or layout scope switch moves without the tick. */
+    readonly graph: GraphSnapshot | undefined;
     readonly answers: Map<string, CostEstimate>;
     /** Why the graph is not planar, null when it is; absent until a planar estimate asks. */
     notPlanar?: EstimateRefusal | null;
@@ -1214,9 +1224,11 @@ function estimateLayout(context: PlanningContext, command: LayoutSetCommand): Co
     // answer to a tick that is already gone.
     context.snapshot?.();
     const tick = context.inputTick?.();
+    const laid = layoutContext(context);
+    const graph = laid.snapshot?.();
     let cache = tick === undefined ? undefined : layoutEstimates.get(context);
-    if (tick !== undefined && cache?.tick !== tick) {
-        cache = { tick, answers: new Map() };
+    if (tick !== undefined && (cache?.tick !== tick || cache.graph !== graph)) {
+        cache = { tick, graph, answers: new Map() };
         layoutEstimates.set(context, cache);
     }
 
@@ -1232,9 +1244,29 @@ function estimateLayout(context: PlanningContext, command: LayoutSetCommand): Co
         return kept;
     }
 
-    const answer = layoutEstimateNow(context, cache, command);
+    const answer = layoutEstimateNow(laid, cache, command);
     cache?.answers.set(key, answer);
     return answer;
+}
+
+/**
+ * What planning reads, as the layout it estimates sees the graph: its refusals, its groups and its
+ * size read the graph the layout lays out, so a filter that hides what made a layout refuse lets it run.
+ * @param context - What planning reads.
+ * @returns The same context over the layout's graph.
+ */
+function layoutContext(context: PlanningContext): PlanningContext {
+    const { layoutGraph } = context;
+    if (layoutGraph === undefined) {
+        return context;
+    }
+
+    const graph = layoutGraph();
+    return {
+        ...context,
+        snapshot: () => graph,
+        nodeValues: (path) => context.nodeValues?.(path, graph) ?? null,
+    };
 }
 
 /**
@@ -1283,7 +1315,8 @@ function layoutEstimateNow(
         return unavailableLayout(costClass, refusal);
     }
 
-    const { nodeCount: n, edgeCount: e } = context.statistics();
+    const laid = context.layoutGraph?.();
+    const { nodeCount: n, edgeCount: e } = laid ?? context.statistics();
     const rates = context.calibration?.()?.rates ?? DEFAULT_COST_RATES;
     const declared = Number(options.maxIter ?? options.iterations);
     const iterations = Number.isFinite(declared) && declared > 0 ? declared : ASSUMED_ITERATION_BOUND;

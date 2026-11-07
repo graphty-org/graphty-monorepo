@@ -118,7 +118,7 @@ function RenameInput({
 function IssuesChip({ source, name }: Readonly<{ source: LoadedSource; name: string }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const [opened, setOpened] = useState(false);
-    const count = session?.data.issues().filter((issue) => issue.source === source.key).length ?? 0;
+    const count = session?.data.issues({ scope: "graph" }).filter((issue) => issue.source === source.key).length ?? 0;
     if (count === 0 && !opened) {
         return null;
     }

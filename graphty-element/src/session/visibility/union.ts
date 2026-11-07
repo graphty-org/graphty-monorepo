@@ -601,6 +601,10 @@ function noteOf(step: UnionStep, input: Bytes, frame: StepFrame, fold: FoldConte
         if (countOf(nodes) === 0) {
             return { code: "reference-empty", params: {} };
         }
+        // A walk or a touch steps only within the base: from nodes all outside it, it reaches nothing.
+        if ((step.rule.kind === "hops" || step.rule.kind === "touching") && !meets(nodes, fold.halves.node)) {
+            return { code: "reference-outside-base", params: {} };
+        }
     }
 
     if ((step.op !== "add" || step.computedOn === "so-far") && countOf(input) === 0) {
@@ -612,6 +616,21 @@ function noteOf(step: UnionStep, input: Bytes, frame: StepFrame, fold: FoldConte
     }
 
     return null;
+}
+
+/**
+ * Whether two byte arrays share an element.
+ * @param a - One.
+ * @param b - The other.
+ * @returns True when some index is set in both.
+ */
+function meets(a: Bytes, b: Bytes): boolean {
+    for (let at = 0; at < a.length; at++) {
+        if (a[at] !== 0 && b[at] !== 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**

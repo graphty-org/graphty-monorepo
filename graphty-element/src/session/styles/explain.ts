@@ -1354,6 +1354,8 @@ function captionTally(directed: boolean): {
  * @param elements - Every node and edge in the session, as dense indices.
  * @param sources - The stack, the prepared encodings and the element columns.
  * @param revision - What the caller says the counts are a reading of.
+ * @param within - Some of `elements`: when given, `paintedWithin` is the `painted` count among
+ * them, read in the same walk.
  * @returns The counts.
  * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
  */
@@ -1362,10 +1364,12 @@ export function styleCounts(
     elements: AgreementElements,
     sources: ExplainSources,
     revision: string,
-): StyleCounts {
+    within?: ReadonlySet<number>,
+): StyleCounts & { readonly paintedWithin?: Readonly<Partial<Record<Channel, number>>> } {
     const { layer, selector, reads } = requireLayer(layerId, sources);
     const own = sources.encoding(layerId);
     const painted = zeroPerChannel(layer);
+    const paintedWithin = zeroPerChannel(layer);
     const stack = prepareStack(sources);
     const columns = columnsFor(sources.elements, layer.target);
     let matched = 0;
@@ -1394,6 +1398,7 @@ export function styleCounts(
         countAdjustments(own, columns, index, adjusted);
 
         if (layer.enabled) {
+            const before = within?.has(index) === true ? { ...painted } : null;
             countWins(stack, { target: layer.target, index }, columns, layerId, {
                 painted,
                 others,
@@ -1418,6 +1423,12 @@ export function styleCounts(
                     shaders.add(found);
                 },
             });
+            if (before !== null) {
+                for (const channel of Object.keys(painted) as Channel[]) {
+                    paintedWithin[channel] =
+                        (paintedWithin[channel] ?? 0) + (painted[channel] ?? 0) - (before[channel] ?? 0);
+                }
+            }
         }
     }
 
@@ -1443,6 +1454,7 @@ export function styleCounts(
         ...topFacts(layer.selector, columns, indices),
         adjusted: Object.freeze(facts),
         revision,
+        ...(within === undefined ? {} : { paintedWithin: Object.freeze(paintedWithin) }),
     };
 }
 

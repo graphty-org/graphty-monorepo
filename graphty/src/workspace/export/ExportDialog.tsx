@@ -48,6 +48,7 @@ export function ExportDialog(): React.JSX.Element {
     const opened = useWorkspaceState((state) => state.dialog === "export");
     const exportOn = useWorkspaceState((state) => state.exportOn);
     const exportSource = useWorkspaceState((state) => state.exportSource);
+    const exportShown = useWorkspaceState((state) => state.exportShown);
     const [output, setOutput] = useState<OutputId>("image");
     const [image, setImage] = useState<ImageChoices>(DEFAULT_IMAGE);
     const [video, setVideo] = useState<VideoChoices>(DEFAULT_VIDEO);
@@ -59,9 +60,13 @@ export function ExportDialog(): React.JSX.Element {
             return;
         }
         // Every opening writes the whole graph, but a source row's own Export..., which writes
-        // that source's records for this opening only (when there is more than one to tell apart).
+        // that source's records for this opening only (when there is more than one to tell apart),
+        // and the table's Export... while the table lists what is shown, which writes those.
         const several = (session?.data.sources().length ?? 0) > 1;
-        const scope: DataChoices["scope"] = exportSource !== null && several ? `source:${exportSource}` : "all";
+        let scope: DataChoices["scope"] = exportShown ? "shown" : "all";
+        if (exportSource !== null && several) {
+            scope = `source:${exportSource}`;
+        }
         if (exportOn === "image") {
             setOutput("image");
             setData((choices) => ({ ...choices, scope }));
@@ -76,7 +81,7 @@ export function ExportDialog(): React.JSX.Element {
                 scope,
             }));
         }
-    }, [opened, exportOn, exportSource, session]);
+    }, [opened, exportOn, exportSource, exportShown, session]);
 
     const close = (): void => {
         store.set({ dialog: null });

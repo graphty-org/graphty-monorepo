@@ -195,6 +195,10 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             acceleration={readPreference(ACCELERATION)}
             // The site's experiments and the address's ?features=, read when the session is made.
             features={siteConfig().features}
+            // Every reader that names no scope reads what the filter and the time window show: the
+            // counts, the table, the find box, the runs, the layout and the framing agree with the
+            // drawing. A place named for the whole graph ("Full graph", "All") asks for it by name.
+            workingGraph="visible"
             style={{ display: "block", width: "100%", height: "100%" }}
         />
     );

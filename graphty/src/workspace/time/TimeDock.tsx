@@ -35,6 +35,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { runFailureWords } from "../inspector/words";
 import { formatKey } from "../keys/keys";
+import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useBoxSize } from "../useBoxSize";
@@ -149,7 +150,9 @@ function RangeForm({
     const endAfter = (last: number): number | undefined =>
         ordinal
             ? last + 1
-            : session.time.bins({ from: last, to: last + 1, step: "day", maxCount: 1, timeZone: zone })?.at(-1)?.end;
+            : session.time
+                  .bins({ from: last, to: last + 1, step: "day", maxCount: 1, timeZone: zone, scope: "graph" })
+                  ?.at(-1)?.end;
     const submit = (): void => {
         const start = session.time.parse(from, { timeZone: zone });
         const last = session.time.parse(to, { timeZone: zone });
@@ -620,8 +623,9 @@ export function TimeDock(): React.JSX.Element | null {
     const noun = onEdges ? "edge" : "node";
     const window: TimeWindow | null = time.current;
     const { timeZone: zone } = time;
-    const whole = time.bins({ maxCount }) ?? [];
-    const all = time.bins({ ...view, maxCount }) ?? [];
+    // The whole graph's bars, by name, beside the shown ones.
+    const whole = time.bins({ maxCount, scope: "graph" }) ?? [];
+    const all = time.bins({ ...view, maxCount, scope: "graph" }) ?? [];
     const visible = time.bins({ ...view, maxCount, scope: "visible" }) ?? [];
     const first = all.at(0);
     const last = all.at(-1);
@@ -636,7 +640,7 @@ export function TimeDock(): React.JSX.Element | null {
     const profile =
         nodes.length + edges.length === 0
             ? null
-            : time.bins({ ...view, maxCount, of: { nodes, edges, incident: true } });
+            : time.bins({ ...view, maxCount, of: { nodes, edges, incident: true }, scope: "graph" });
     const step = window?.step;
     const readout = readoutWords(drag, window, extent, unit, zone);
     const { visibleEdges, visibleNodes } = session.visibility.summary;
@@ -668,8 +672,15 @@ export function TimeDock(): React.JSX.Element | null {
                 bins={all.map((bin, index) => {
                     const inside = window !== null && overlaps(bin, range);
                     const shown = countOf(visible[index]);
+                    const whole = countOf(bin);
+                    // The bar draws what is shown; its label says so, and of how many when a filter
+                    // hides some: "Jun 3: 4 of 9 nodes".
+                    const counted =
+                        shown === whole
+                            ? countWords(whole, noun)
+                            : `${formatCount(shown)} of ${countWords(whole, noun)}`;
                     return {
-                        label: `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`,
+                        label: `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${counted}`,
                         count: shown,
                         ghost: countOf(bin),
                         from: bin.start,

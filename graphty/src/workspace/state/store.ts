@@ -217,6 +217,8 @@ export interface WorkspaceState {
     readonly exportOn: "image" | "nodes" | "edges";
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
+    /** Whether the table dock's Export... opened Data while the table lists only what is shown. */
+    readonly exportShown: boolean;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
     readonly serverKind: string | null;
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
@@ -316,6 +318,7 @@ const INITIAL: WorkspaceState = {
     outlineWidth: null,
     exportOn: "image",
     exportSource: null,
+    exportShown: false,
     serverKind: null,
     singleKeyShortcuts: true,
     notice: null,

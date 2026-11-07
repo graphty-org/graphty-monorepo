@@ -183,7 +183,7 @@ function graphBefore(
     if (session === null || !replacing) {
         return null;
     }
-    const { nodeCount, edgeCount } = session.data.statistics();
+    const { nodeCount, edgeCount } = session.data.statistics({ scope: "graph" });
     return {
         nodes: nodeCount,
         edges: edgeCount,
@@ -245,7 +245,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         if (session === null || request.intent !== "add") {
             return null;
         }
-        const { nodeCount, edgeCount } = session.data.statistics();
+        const { nodeCount, edgeCount } = session.data.statistics({ scope: "graph" });
         return { name: projectName, nodes: nodeCount, edges: edgeCount };
     });
 
@@ -327,7 +327,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         // The status line, written once the place is showing and the header has its name: the
         // graph as the header names it, its size and the rows the load left out. Nothing reruns
         // by itself after a replace, so that line says how many runs now need it.
-        const { nodeCount, edgeCount } = session.data.statistics();
+        const { nodeCount, edgeCount } = session.data.statistics({ scope: "graph" });
         const now = { nodes: nodeCount, edges: edgeCount };
         const outOfDate = session.runs.list().filter((run) => run.status === "succeeded" && run.stale !== null);
         const leftOut = session.data.sources().at(-1)?.leftOut?.rows ?? 0;

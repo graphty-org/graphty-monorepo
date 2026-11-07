@@ -602,6 +602,43 @@ export function modeOf(card: Card): string | undefined {
 }
 
 /**
+ * A number field with its range read over the selection's base, as its bars are: the element's
+ * readable value gives the whole graph's range, which over what is shown can run past every bar.
+ * @param session - the element's session.
+ * @param field - the field.
+ * @param within - the selection's base.
+ * @returns the field, its range the base's when the base is what is shown.
+ */
+function inBase(session: GraphSession, field: CardField, within?: UnionLeaf["within"]): CardField {
+    if (within !== "visible" || field.kind !== "number" || field.group === "Structure" || field.range === undefined) {
+        return field;
+    }
+    const histogram = session.scope.histogram(field.path, { within });
+    return histogram.kind === "numeric" && histogram.min !== undefined && histogram.max !== undefined
+        ? { ...field, range: { min: histogram.min, max: histogram.max } }
+        : field;
+}
+
+/**
+ * The path a step's test reads, when it reads one value.
+ * @param rule - the step's rule.
+ * @returns the path, or undefined.
+ */
+function readPath(rule: RuleTree): string | undefined {
+    switch (rule.kind) {
+        case "range":
+        case "categories":
+            return rule.attribute;
+        case "threshold":
+            return rule.path;
+        case "text":
+            return rule.reads;
+        default:
+            return undefined;
+    }
+}
+
+/**
  * The card a step's rule draws, before its mode is applied.
  * @param session - the element's session.
  * @param step - the step.
@@ -622,10 +659,11 @@ function testCard(
         ...stepFields(session, side === "node" ? "edge" : "node", within),
     ].map((field) => (within === undefined ? field : { ...field, within }));
     const { rule, links } = step;
+    const reads = readPath(rule);
     // A degree step scoped by its Links counts only the links that pass: its range and bars too.
     const scoped =
         links === undefined
-            ? fields
+            ? fields.map((field) => (field.path === reads ? inBase(session, field, within) : field))
             : fields.map((field) => {
                   if (field.group !== "Structure") {
                       return field;
@@ -656,7 +694,7 @@ function testCard(
     // What the catalog declares a yes-or-no stays one when a run left it nowhere set (no route found).
     const declared = session.catalog.algorithms().find((each) => each.key === rule.algorithm);
     const yesNo = declared?.fields.find((each) => each.name === rule.field)?.type === "boolean";
-    const field = yesNo ? { ...found, kind: "yes-no" as const } : found;
+    const field = yesNo ? { ...found, kind: "yes-no" as const } : inBase(session, found, within);
     const known = yesNo ? fields.map((each) => (each.path === path ? field : each)) : fields;
     const card =
         rule.test === undefined

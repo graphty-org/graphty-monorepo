@@ -85,6 +85,10 @@ const REASONS: Readonly<Record<StepReasonCode, { short: string; long: string }>>
     "waits-for": { short: "Waits", long: "Waits for an earlier step" },
     "input-empty": { short: "Passes none", long: "Nothing comes into this step" },
     "reference-empty": { short: "Passes none", long: "The reference holds no node now" },
+    "reference-outside-base": {
+        short: "Passes none",
+        long: "The reference is hidden now, so this step reaches nothing",
+    },
     "frozen-from": { short: "Frozen", long: "Frozen to the nodes it held when written" },
 };
 

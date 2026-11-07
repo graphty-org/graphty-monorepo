@@ -732,7 +732,8 @@ export function layerWord(session: GraphSession, id: LayerId): string | undefine
 /**
  * graphty-element's answer for what lies beneath a row, read over the row's own elements
  * (`over`): a row that matches nothing (Selected with nothing selected, Hovered) is read over
- * every element through the layers that match every element, its floor.
+ * every element shown through the layers that match every element, its floor. What a filter hides
+ * draws nothing, so it never makes the answer "Mixed".
  * @param session - the element's session.
  * @param row - the tree row, or undefined for the stack as it is.
  * @param channel - one channel, or every channel.
@@ -743,16 +744,16 @@ function agreementBeneath(
     session: GraphSession,
     row: string | undefined,
     channel?: Channel,
-    scope: "graph" | "selection" = "graph",
+    scope: "visible" | "selection" = "visible",
 ): ReturnType<GraphSession["styles"]["agreement"]> {
     if (row === undefined) {
         return session.styles.agreement(scope, channel);
     }
     try {
-        return session.styles.agreement("graph", channel, { below: row, over: row });
+        return session.styles.agreement("visible", channel, { below: row, over: row });
     } catch {
         // A row the element's tree does not hold (a run's own layers) has no "beneath" to read.
-        return session.styles.agreement("graph", channel);
+        return session.styles.agreement("visible", channel);
     }
 }
 
@@ -771,7 +772,7 @@ function agreementBeneath(
 export function beneathOf(
     session: GraphSession,
     row: string | undefined,
-    scope: "graph" | "selection" = "graph",
+    scope: "visible" | "selection" = "visible",
 ): (channel: Channel) => BeneathValue {
     const agreement = agreementBeneath(session, row, undefined, scope);
     return (channel) => {
@@ -813,7 +814,7 @@ export function paintedOverOf(
 ): (channel: Channel) => PaintedOver | undefined {
     let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
     try {
-        agreement = session.styles.agreement("graph", undefined, { over: row });
+        agreement = session.styles.agreement("visible", undefined, { over: row });
     } catch {
         return () => undefined;
     }
@@ -821,10 +822,10 @@ export function paintedOverOf(
         return () => undefined;
     }
     const matchedOf = (kind: Target): number =>
-        rowLayers(session, ids, kind).reduce(
-            (most, layer) => Math.max(most, session.styles.counts(layer.id).matched),
-            0,
-        );
+        rowLayers(session, ids, kind).reduce((most, layer) => {
+            const counts = session.styles.counts(layer.id);
+            return Math.max(most, counts.visible?.matched ?? counts.matched);
+        }, 0);
     return (channel) => {
         const entry = agreement.channels.find((c) => c.channel === channel);
         if (entry === undefined) {

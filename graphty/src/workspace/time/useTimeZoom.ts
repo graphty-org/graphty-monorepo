@@ -49,8 +49,9 @@ function zoomed(
     factor: number,
     maxCount: number,
 ): TimeView | null {
-    const whole = time.bins({ maxCount });
-    const shown = view === null ? whole : time.bins({ ...view, maxCount });
+    // The whole timeline, by name: what the zoom moves over, whatever is shown.
+    const whole = time.bins({ maxCount, scope: "graph" });
+    const shown = view === null ? whole : time.bins({ ...view, maxCount, scope: "graph" });
     const min = whole?.at(0)?.start;
     const max = whole?.at(-1)?.end;
     const first = shown?.at(0)?.start;
@@ -66,7 +67,7 @@ function zoomed(
     const anchor = first + share * (last - first);
     const from = Math.max(min, Math.min(max - width, anchor - (anchor - base.from) * factor));
     const next = { from, to: from + width };
-    return (time.bins({ ...next, maxCount })?.length ?? 0) < MIN_BARS ? view : next;
+    return (time.bins({ ...next, maxCount, scope: "graph" })?.length ?? 0) < MIN_BARS ? view : next;
 }
 
 /**

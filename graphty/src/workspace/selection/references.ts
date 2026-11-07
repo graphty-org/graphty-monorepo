@@ -36,25 +36,40 @@ export interface ReferenceSection {
  * then those that hold it, each the most connected first; and how many hold it in all.
  * @param session - the element's session.
  * @param typed - the text.
+ * @param scope - the nodes searched: the base the card reads, the whole graph for a filter's card.
  * @returns the nodes and the total.
  */
-export function findNodes(session: GraphSession, typed: string): { nodes: readonly NodeRecord[]; total: number } {
+export function findNodes(
+    session: GraphSession,
+    typed: string,
+    scope: "graph" | "visible" = "visible",
+): { nodes: readonly NodeRecord[]; total: number } {
     const sort = { key: "graphty.degree", descending: true } as const;
     // A node whose id or name is exactly the text comes first, however little it is connected.
     const exact = session.data.nodePage({
         matching: { text: typed, mode: "exact", names: true },
         sort,
         limit: SHOWN_REFERENCES,
+        scope,
     }).records;
     const starts = session.data.nodePage({
         matching: { text: typed, mode: "starts-with", names: true },
         sort,
         limit: SHOWN_REFERENCES,
+        scope,
     }).records;
-    const holds = session.data.nodePage({ matching: { text: typed, names: true }, sort, limit: SHOWN_REFERENCES * 2 });
+    const holds = session.data.nodePage({
+        matching: { text: typed, names: true },
+        sort,
+        limit: SHOWN_REFERENCES * 2,
+        scope,
+    });
     // The node whose id is the text, first of all: on a graph with no label column the exact
-    // search reads every column, so a community numbered as typed matches too.
-    const byId = session.data.node(typed);
+    // search reads every column, so a community numbered as typed matches too. A lookup by id
+    // finds hidden nodes too, so one outside the base is left out.
+    const named = session.data.node(typed);
+    const byId =
+        named !== undefined && (scope === "graph" || session.visibility.isVisible(named.id)) ? named : undefined;
     const seen = new Set<string>();
     const nodes = [...(byId === undefined ? [] : [byId]), ...exact, ...starts, ...holds.records].filter((each) => {
         const id = String(each.id);
@@ -119,8 +134,10 @@ export function referenceSections(
         .map((each) => ({ value: `set:${each.id}`, label: each.name }))
         .filter((each) => has(each.label))
         .sort((a, b) => a.label.localeCompare(b.label));
-    const { nodeCount } = session.data.statistics();
-    const found = typed === "" ? null : findNodes(session, typed);
+    // A filter's card reads the whole graph; a selector reads what is shown.
+    const base = host === "filter" ? "graph" : "visible";
+    const { nodeCount } = session.data.statistics({ scope: base });
+    const found = typed === "" ? null : findNodes(session, typed, base);
     const nodes = (found?.nodes ?? []).map((each) => {
         const label = session.data.name(each.id) ?? String(each.id);
         const hint = matchedValue(each, label, lower);

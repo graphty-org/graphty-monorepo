@@ -2226,15 +2226,17 @@ export class UpdateManager implements Manager {
      * @param nodes - The selection.
      */
     private finishGlideTo(nodes: readonly Node[]): void {
+        const drawn = drawnOf(nodes);
         if (
             !this.graphContext.getStyles().config.behavior.camera.pivotOnSelection ||
+            drawn.length === 0 ||
             nodes.some((node) => node.dragging) ||
             this.willZoomToFit()
         ) {
             return;
         }
 
-        if (this.camera.followPoint(selectionCenter(nodes), 1, true)) {
+        if (this.camera.followPoint(selectionCenter(drawn), 1, true)) {
             this.viewMoved();
         }
     }
@@ -2279,9 +2281,30 @@ export class UpdateManager implements Manager {
             return;
         }
 
+        // A selected node a filter hides is not drawn, so there is nothing of it to pivot on.
+        const drawn = drawnOf(nodes);
+        if (drawn.length === 0) {
+            return;
+        }
+
         // A camera still gliding to the selection is a picture that is not final yet.
         const frames = Math.min(MAX_CATCH_UP_ROUNDS, frameMs / NOMINAL_FRAME_MS);
-        this.followingSelection = this.camera.followPoint(selectionCenter(nodes), frames);
+        this.followingSelection = this.camera.followPoint(selectionCenter(drawn), frames);
+    }
+
+    /**
+     * Where the camera will pivot once a framing ends, when it follows the selection: the center
+     * of the drawn selected nodes, unless the reader moved the camera off this selection.
+     * @returns The point, or null when the camera does not follow the selection now.
+     */
+    private pivotAfterFraming(): Vector3 | null {
+        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
+            return null;
+        }
+
+        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        const drawn = drawnOf(nodes);
+        return drawn.length === 0 || selectionKey(nodes) === this.heldSelection ? null : selectionCenter(drawn);
     }
 
     /**
@@ -3548,7 +3571,10 @@ export class UpdateManager implements Manager {
         if (sphere !== null && active instanceof OrbitCameraController) {
             active.zoomToSphere(Vector3.Zero(), sphere * GLOBE_FRAMING);
         } else {
-            this.frameBox(box, frame);
+            // The camera glides to the selection after a framing when it pivots on it, so the
+            // framing is taken about that point: the graph stays framed once the glide lands.
+            const pivot = this.pivotAfterFraming();
+            this.frameBox(pivot === null ? box : mirroredAbout(box, pivot), frame);
         }
 
         this.hasZoomedToFit = true;
@@ -3660,6 +3686,29 @@ export class UpdateManager implements Manager {
     updateConfig(config: Partial<UpdateManagerConfig>): void {
         Object.assign(this.config, config);
     }
+}
+
+/**
+ * The nodes drawn now: a node a filter or the time window hides is left out.
+ * @param nodes - The nodes.
+ * @returns The drawn ones.
+ */
+function drawnOf(nodes: readonly Node[]): readonly Node[] {
+    return nodes.filter((node) => node.getRenderState() === "visible");
+}
+
+/**
+ * A framing box grown to be centered on a point: each spot is kept and mirrored through it.
+ * @param box - The box.
+ * @param center - The point it is centered on.
+ * @returns The grown box.
+ */
+function mirroredAbout(box: FramingBox, center: Vector3): FramingBox {
+    const twice = center.scale(2);
+    const mirrored = box.spots.map((spot) => ({ pos: twice.subtract(spot.pos), half: spot.half }));
+    const min = Vector3.Minimize(box.min, twice.subtract(box.max));
+    const max = Vector3.Maximize(box.max, twice.subtract(box.min));
+    return { min, max, spots: [...box.spots, ...mirrored] };
 }
 
 /**

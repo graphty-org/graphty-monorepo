@@ -299,6 +299,25 @@ describe("AiController", () => {
             assert.isTrue(first[0].content.endsWith("find servers"));
         });
 
+        it("tells the model a filter is on and how much it hides, and nothing of one when all is shown", async () => {
+            const provider = scriptedProvider([]);
+            await new AiController({ provider, commandRegistry: registry, graph: mockGraph }).execute("how many?");
+            assert.notInclude(provider.asks[0][0].content, "A filter or the time window is on");
+
+            const session = mockGraph.getSession() as unknown as Record<string, unknown>;
+            const filtered = {
+                getSession: () => ({ ...session, data: { working: () => ({ nodeCount: 6, edgeCount: 3 }) } }),
+                getNodeCount: () => 10,
+                getEdgeCount: () => 5,
+            } as unknown as CommandContext["graph"];
+            const seen = scriptedProvider([]);
+            await new AiController({ provider: seen, commandRegistry: registry, graph: filtered }).execute("how many?");
+            assert.include(
+                seen.asks[0][0].content,
+                "A filter or the time window is on: 6 nodes and 3 edges are shown, 4 nodes are hidden",
+            );
+        });
+
         it("hands a failed tool's result back, so the model can correct it", async () => {
             registerEcho("broken", false);
             const fixed = registerEcho("fixed");

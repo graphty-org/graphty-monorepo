@@ -60,7 +60,9 @@ export type BranchState = "ready" | "pending" | "off";
  * `one-node-only` (a one-node option bound to several nodes; `params.option`). Pending:
  * `computing`, `run-needed` and `stale` (`params.estimateMs`), `run-paused`, `run-failed`
  * (`params.error`, an error code), `waits-for` (`params.step`, the step waited on). Applied:
- * `input-empty`, `reference-empty`, `frozen-from` (`params.reference`).
+ * `input-empty`, `reference-empty`, `reference-outside-base` (a hops or touching step's reference
+ * holds only nodes outside the base it walks, such as nodes a filter hides, so it reaches none),
+ * `frozen-from` (`params.reference`).
  *
  * OPEN UNION: codes may be added in a minor release; handle unknown codes.
  * Experimental: may change or be removed in a minor release.
@@ -78,6 +80,7 @@ export type StepReasonCode =
     | "waits-for"
     | "input-empty"
     | "reference-empty"
+    | "reference-outside-base"
     | "frozen-from";
 
 /**
@@ -466,6 +469,40 @@ function freezeRule(
  * @returns The leaf, or null.
  */
 function asUnion(
+    rule: RuleTree,
+    options: {
+        readonly side: UnionLeaf["side"];
+        readonly within: UnionLeaf["within"];
+        readonly effect?: "keep" | "exclude";
+    },
+): UnionLeaf | null {
+    const leaf = unionOf(rule, options);
+    // A flat rule's top-N ranks the whole column; a step ranks its base, so over what is shown the
+    // converted step names the whole column to keep meaning the same.
+    if (leaf === null || leaf === rule || options.within !== "visible") {
+        return leaf;
+    }
+    const whole = (tree: RuleTree): RuleTree =>
+        tree.kind === "threshold" && tree.within === undefined ? { ...tree, within: "graph" } : tree;
+    return {
+        ...leaf,
+        branches: leaf.branches.map((branch) => ({
+            ...branch,
+            steps: branch.steps.map((step) => ({ ...step, rule: whole(step.rule) })),
+        })),
+    };
+}
+
+/**
+ * {@link asUnion} before its top-N leaves are told to rank the whole column.
+ * @param rule - The rule.
+ * @param options - The side and base the leaf reads.
+ * @param options.side - The side.
+ * @param options.within - The base.
+ * @param options.effect - `"exclude"` for what the rule leaves, read as what stays.
+ * @returns The leaf, or null.
+ */
+function unionOf(
     rule: RuleTree,
     options: {
         readonly side: UnionLeaf["side"];

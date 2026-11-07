@@ -288,8 +288,9 @@ function reachWords(session: GraphSession, id: unknown, channel: Channel, side: 
     if (typeof id !== "string") {
         return words;
     }
-    const counts = session.styles.counts(id);
-    return `${words}, on ${count(counts.painted[channel] ?? counts.matched, side)}`;
+    // Counted over what is showing, as the layer's row counts.
+    const { visible, painted, matched } = session.styles.counts(id);
+    return `${words}, on ${count(visible?.painted?.[channel] ?? painted[channel] ?? visible?.matched ?? matched, side)}`;
 }
 
 /** What a field's caption says when the element draws nothing for the value it sets, by the element's code. */

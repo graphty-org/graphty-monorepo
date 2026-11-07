@@ -225,6 +225,7 @@ export type Binding = {
     palette?: PaletteId;
     colors?: string[];
     domain?: [number, number] | "auto";
+    domainFrom?: "graph" | "visible";
     clamp?: [number, number];
     range?: [number, number];
     map?: Record<string, string | number>;
@@ -2188,6 +2189,7 @@ export type RuleTree = {
     readonly percentile?: number;
     readonly from?: "high" | "low";
     readonly missing?: MissingValues;
+    readonly within?: "graph" | "visible";
 }
 /**
 * The elements whose text for one value passes a text test: "name contains bob", "id matches

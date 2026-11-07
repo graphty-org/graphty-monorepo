@@ -17,6 +17,12 @@ export function createMessageGraph(): CommandContext["graph"] {
             Promise.resolve().then(() => fn(session, new AbortController().signal)),
         history: { steps: [], position: 0, nextUndo: null },
         on: () => () => undefined,
+        // An empty graph, all of it shown: the prompt says nothing of a filter.
+        data: { working: () => ({ nodeCount: 0, edgeCount: 0 }) },
     };
-    return { getSession: () => session } as unknown as CommandContext["graph"];
+    return {
+        getSession: () => session,
+        getNodeCount: () => 0,
+        getEdgeCount: () => 0,
+    } as unknown as CommandContext["graph"];
 }

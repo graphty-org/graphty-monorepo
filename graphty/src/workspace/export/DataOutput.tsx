@@ -168,7 +168,7 @@ interface ExportColumn {
  */
 function exportColumns(session: GraphSession, kinds: readonly ("node" | "edge")[]): ExportColumn[] {
     const columns = new Map<string, ExportColumn>();
-    for (const attribute of session.data.attributes()) {
+    for (const attribute of session.data.attributes({ scope: "graph" })) {
         if (kinds.includes(attribute.kind) && attribute.origin !== "result" && !columns.has(attribute.name)) {
             columns.set(attribute.name, { name: attribute.name, hidden: attribute.hidden === true });
         }
@@ -201,7 +201,8 @@ interface ScopeOption {
  * @returns the options; All first.
  */
 async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
-    const { nodeCount, edgeCount } = session.data.statistics();
+    // All is the whole graph, by name.
+    const { nodeCount, edgeCount } = session.data.statistics({ scope: "graph" });
     const loads = session.data.sources();
     const [shown, selected, bySource, ...sets] = await Promise.all([
         session.scope.count("visible"),
@@ -342,7 +343,7 @@ function columnsWritten(
  * @returns the options.
  */
 function writableOptions(session: GraphSession, row: Row): readonly OptionDescriptor[] {
-    return session.data.statistics().edgeCount === 0
+    return session.data.statistics({ scope: "graph" }).edgeCount === 0
         ? row.options.filter((option) => option.name !== "table")
         : row.options;
 }

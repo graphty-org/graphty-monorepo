@@ -692,7 +692,8 @@ function fromRun(session: GraphSession, made: Run, open: Doors["open"]): Header[
  */
 function graphHeader(session: GraphSession, doors: Doors): Header {
     const words = sourcesWords(session.data.sources());
-    const { nodeCount, edgeCount } = session.data.statistics();
+    // The graph's own size: a filter hides part of it without making it smaller.
+    const { nodeCount, edgeCount } = session.data.statistics({ scope: "graph" });
     const size = `${count(nodeCount, "node")}, ${count(edgeCount, "edge")}`;
     return {
         name: "Graph",

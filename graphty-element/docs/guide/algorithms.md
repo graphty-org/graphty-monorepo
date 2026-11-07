@@ -480,9 +480,12 @@ console.log(run.record.scope.set); // the set's id, and its revision when the ru
   first and last nodes.
 - **A registered algorithm that does not read scopes** runs over the whole graph, keeps only the
   scope's values, and says so: "Computed on the whole graph; values kept for the scope only."
-  `session.catalog.algorithms()` publishes which is which as `scopeInput`.
+  `session.catalog.algorithms()` publishes which is which as `scopeInput`. With
+  `working-graph="visible"` it is handed only what is shown instead, so a hidden node never
+  reaches it; see [Reading What Is Shown](./working-graph).
 
-With no `scope`, a run is over `"visible"`: the whole graph, or what the visibility filter shows.
+With no `scope`, a run is over `"visible"`: what the visibility filter and the time window leave
+shown, which is the whole graph when neither hides anything.
 
 ### Options for this graph
 

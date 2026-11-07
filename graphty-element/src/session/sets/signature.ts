@@ -302,7 +302,14 @@ function rulePart(
         case "item":
             // Follow or hold, the members move exactly when the run's current execution does.
             return runPart(String(runIdOfRef(where.item.result)), context);
-        case "threshold":
+        case "threshold": {
+            const path = pathPart(where.path, context);
+            if (where.within !== "visible" || path === null) {
+                return path;
+            }
+            const shown = scopePart("visible", context, parts, seen);
+            return shown === null ? null : `${path}(${shown})`;
+        }
         case "by-size":
             return pathPart(where.path, context);
         case "union":

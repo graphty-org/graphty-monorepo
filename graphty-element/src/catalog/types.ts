@@ -1170,6 +1170,15 @@ export type Binding =
            */
           colors?: string[];
           domain?: [number, number] | "auto";
+          /**
+           * The elements an automatic domain, a clamp's percentiles and the cut points of a
+           * grouping by equal counts are read from: the whole column (`"graph"`, the default) or
+           * only what the visibility filter and the time window show (`"visible"`), worked out again
+           * when what is shown changes. A written `domain` is used as written either way.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          domainFrom?: "graph" | "visible";
           clamp?: [number, number];
           range?: [number, number];
           map?: Record<string, string | number>;
@@ -2179,6 +2188,15 @@ export type RuleTree =
            * @beta
            */
           readonly missing?: MissingValues;
+          /**
+           * The elements ranked: the whole column (`"graph"`, the default) or only what the
+           * visibility filter and the time window show (`"visible"`), so "the top 3" means the top 3
+           * of what is shown. A filter's own conditions cannot read `"visible"` (they compute it).
+           * In a union's step, absent ranks the step's base; named, it ranks what it names.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly within?: "graph" | "visible";
       }
     /**
      * The elements whose text for one value passes a text test: "name contains bob", "id matches

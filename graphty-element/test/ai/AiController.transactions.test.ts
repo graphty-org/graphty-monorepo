@@ -163,7 +163,11 @@ describe("an assistant message's transactions", () => {
      * @returns The controller.
      */
     function assistant(model: LlmProvider): AiController {
-        const graph = { getSession: () => session } as unknown as CommandContext["graph"];
+        const graph = {
+            getSession: () => session,
+            getNodeCount: () => session.data.statistics({ scope: "graph" }).nodeCount,
+            getEdgeCount: () => session.data.statistics({ scope: "graph" }).edgeCount,
+        } as unknown as CommandContext["graph"];
         return new AiController({ provider: model, commandRegistry: registry, graph });
     }
 

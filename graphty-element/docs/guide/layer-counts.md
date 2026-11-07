@@ -44,6 +44,19 @@ This prints `Colors 2 of 4 nodes`, then `1 have no score; 1 cannot be placed on 
 
 A layer id the list does not hold throws a `GraphtyError` with code `E_UNKNOWN_LAYER`.
 
+## Counting what is shown
+
+The numbers above count the whole graph, hidden elements included. `visible` counts the elements
+the visibility filter and the time window leave drawn:
+
+- `visible.matched` -- how many drawn elements the layer selects.
+- `visible.of` -- how many elements of the layer's kind are drawn, so "Colors 3 of 10 shown nodes"
+  reads `visible.painted[channel]` and `visible.of`.
+- `visible.painted` -- one entry per channel the layer writes: on how many drawn elements this
+  layer is the one the picture shows.
+
+With no filter on, `visible.matched` equals `matched`. See [Reading What Is Shown](./working-graph).
+
 ## Keeping the numbers current
 
 The counts follow the data, the run results and the layers. Read them again after a

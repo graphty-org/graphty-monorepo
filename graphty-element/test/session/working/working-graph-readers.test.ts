@@ -436,3 +436,219 @@ describe("styling counts read what is shown with the option on", () => {
         session.dispose();
     });
 });
+
+describe("counts follow the filter while kept between calls", () => {
+    it("a second call answers the same, and a filter change moves the drawn count", async () => {
+        const session = await line({ workingGraph: "visible" });
+        const layer = await session.styles.add({
+            name: "All",
+            target: "node",
+            selector: { match: "ids", nodes: Array.from({ length: 10 }, (_, i) => `s${String(i)}`) },
+            set: { "node.color": "#ff0000" },
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(layer.id).visible?.painted?.["node.color"], 10);
+        await session.visibility.set(KIND_A);
+        assert.strictEqual(session.styles.counts(layer.id).visible?.painted?.["node.color"], 6);
+        assert.deepStrictEqual(session.styles.counts(layer.id), session.styles.counts(layer.id));
+        await session.visibility.set(null);
+        assert.strictEqual(session.styles.counts(layer.id).visible?.painted?.["node.color"], 10);
+        session.dispose();
+    });
+});
+
+describe("a layout's estimate reads the graph the layout lays out", () => {
+    /**
+     * A complete graph on five nodes (not planar) beside a path of six nodes.
+     * @param mode - The working-graph mode.
+     * @returns The session, with a filter hiding the complete graph.
+     */
+    async function k5BesidePath(mode: "visible" | "documented"): Promise<GraphSession> {
+        const session = createGraphSession({ workingGraph: mode });
+        const k = Array.from({ length: 5 }, (_, i) => ({ id: `k${String(i)}`, part: "k" }));
+        const p = Array.from({ length: 6 }, (_, i) => ({ id: `p${String(i)}`, part: "p" }));
+        const edges = [
+            ...k.flatMap((a, i) => k.slice(i + 1).map((b) => ({ source: a.id, target: b.id }))),
+            ...p.slice(1).map((b, i) => ({ source: p[i].id, target: b.id })),
+        ];
+        await session.data.import({
+            type: "json",
+            config: { data: JSON.stringify({ nodes: [...k, ...p], edges }) },
+        });
+        await session.visibility.set({ kind: "categories", attribute: "data.part", values: ["p"] });
+        return session;
+    }
+
+    it("lets the planar layout run when the filter hides what made it refuse, and not over the whole graph", async () => {
+        const session = await k5BesidePath("visible");
+        const planar = session.estimate({ op: "layout.set", id: "planar" });
+        assert.isTrue(planar.available, planar.reason);
+        assert.include(planar.basis, "n=6");
+
+        await session.execute({ op: "layout.scope", scope: "graph" });
+        const whole = session.estimate({ op: "layout.set", id: "planar" });
+        assert.isFalse(whole.available);
+        assert.strictEqual(whole.refusal?.code, "layout.not-planar");
+
+        const documented = await k5BesidePath("documented");
+        assert.strictEqual(documented.estimate({ op: "layout.set", id: "planar" }).refusal?.code, "layout.not-planar");
+        session.dispose();
+        documented.dispose();
+    });
+
+    it("groups by the values the shown nodes carry", async () => {
+        const session = await k5BesidePath("visible");
+        const estimate = session.estimate({ op: "layout.set", id: "bipartite", options: { groupBy: "data.part" } });
+        assert.strictEqual(estimate.refusal?.code, "layout.needs-two-groups");
+        assert.strictEqual(estimate.refusal?.params.groups, 1);
+        session.dispose();
+    });
+});
+
+describe("a top-N style rule ranks the whole column, or what is shown by name", () => {
+    const colorLayer = (session: GraphSession, node: string): string | undefined =>
+        session.styles.explain({ node }).channels.find((each) => each.channel === "node.color")?.layerId;
+
+    /**
+     * A layer painting the three nodes of highest `size`, ranked over the whole column or what is shown.
+     * @param session - The session.
+     * @param within - What the rule ranks, or undefined for the default.
+     * @returns The layer's id.
+     */
+    async function top3(session: GraphSession, within?: "graph" | "visible"): Promise<string> {
+        const layer = await session.styles.add({
+            name: "Top 3",
+            target: "node",
+            selector: {
+                match: "rule",
+                where: { kind: "threshold", path: "data.size", top: 3, ...(within === undefined ? {} : { within }) },
+            },
+            set: { "node.color": "#ff0000" },
+        });
+        await session.styles.settled();
+        return layer.id;
+    }
+
+    it("ranks the whole column by default, so a filter hiding the top paints no shown node", async () => {
+        const session = await filtered("visible");
+        const id = await top3(session);
+        assert.strictEqual(session.styles.counts(id).matched, 3);
+        assert.strictEqual(session.styles.counts(id).visible?.matched, 0);
+        session.dispose();
+    });
+
+    it("ranks what is shown with within visible, and ranks again when the filter moves", async () => {
+        const session = await filtered("visible");
+        const id = await top3(session, "visible");
+        // s0..s5 shown: the top three sizes are s3, s4, s5.
+        assert.strictEqual(colorLayer(session, "s5"), id);
+        assert.strictEqual(session.styles.counts(id).visible?.matched, 3);
+        assert.notStrictEqual(colorLayer(session, "s9"), id);
+
+        await session.visibility.set(null);
+        await session.styles.settled();
+        assert.strictEqual(colorLayer(session, "s9"), id);
+        assert.notStrictEqual(colorLayer(session, "s5"), id);
+        session.dispose();
+    });
+
+    it("keeps ranking the whole column when a flat top-N becomes a step over what is shown", async () => {
+        const session = await filtered("visible");
+        const flat = { kind: "threshold", path: "data.size", top: 3 } as const;
+        const converted = session.scope.asUnion(flat, { side: "nodes", within: "visible" });
+        assert.isNotNull(converted);
+        const count = (leaf: Parameters<GraphSession["scope"]["watchSteps"]>[0]): number =>
+            session.scope.watchSteps(leaf, () => undefined).current.total.count;
+        // The layer the flat rule paints shows on none of s0..s5; the step agrees.
+        assert.strictEqual(count(converted ?? flat), 0);
+        // A step written over what is shown ranks what is shown: s3, s4, s5.
+        assert.strictEqual(
+            count({
+                kind: "union",
+                side: "nodes",
+                within: "visible",
+                branches: [{ start: "none", steps: [{ op: "add", rule: flat }] }],
+            }),
+            3,
+        );
+        session.dispose();
+    });
+
+    it("is refused in a filter's own conditions, which compute what is shown", async () => {
+        const session = await line({ workingGraph: "visible" });
+        let refused: unknown = null;
+        try {
+            await session.visibility.set({ kind: "threshold", path: "data.size", top: 3, within: "visible" });
+        } catch (error) {
+            refused = error;
+        }
+        assert.strictEqual((refused as { details?: { reason?: string } } | null)?.details?.reason, "circular-scope");
+        session.dispose();
+    });
+});
+
+describe("an encoded style reads its automatic domain from the whole column, or what is shown by name", () => {
+    /**
+     * A ramp over every node's `size` (0..90), its domain read from the whole column or what is shown.
+     * @param session - The session.
+     * @param domainFrom - Where the domain is read from, or undefined for the default.
+     * @returns The legend's domain.
+     */
+    async function rampDomain(
+        session: GraphSession,
+        domainFrom?: "graph" | "visible",
+    ): Promise<{ readonly id: string; readonly domain: () => unknown }> {
+        const layer = await session.styles.add({
+            name: "Ramp",
+            target: "node",
+            selector: { match: "everything" },
+            encode: {
+                "node.color": {
+                    by: "data.size",
+                    palette: "viridis",
+                    ...(domainFrom === undefined ? {} : { domainFrom }),
+                },
+            },
+        });
+        await session.styles.settled();
+        const domain = (): unknown => {
+            const block = session.styles.legendOf(layer.id)[0];
+            return block?.domain === undefined ? null : [block.domain.min, block.domain.max];
+        };
+        return { id: layer.id, domain };
+    }
+
+    it("keeps the whole column by default under a filter", async () => {
+        const session = await filtered("visible");
+        const { domain } = await rampDomain(session);
+        assert.deepStrictEqual(domain(), [0, 90]);
+        session.dispose();
+    });
+
+    it("reads what is shown with domainFrom visible, and again when the filter moves", async () => {
+        const session = await filtered("visible");
+        const { domain } = await rampDomain(session, "visible");
+        assert.deepStrictEqual(domain(), [0, 50]);
+        await session.visibility.set(null);
+        await session.styles.settled();
+        assert.deepStrictEqual(domain(), [0, 90]);
+        session.dispose();
+    });
+
+    it("refuses a domainFrom it does not know", async () => {
+        const session = await line();
+        let code: unknown = null;
+        try {
+            await session.styles.add({
+                name: "Bad",
+                target: "node",
+                selector: { match: "everything" },
+                encode: { "node.color": { by: "data.size", domainFrom: "shown" as "visible" } },
+            });
+        } catch (error) {
+            ({ code } = error as { code?: string });
+        }
+        assert.strictEqual(code, "E_BAD_LAYER");
+        session.dispose();
+    });
+});

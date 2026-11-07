@@ -9,6 +9,7 @@ import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession, HistoryStepId, TransactionScope } from "../session/types";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
+import { shownPromptLine } from "./commands/selectors";
 import type { CommandContext, CommandResult } from "./commands/types";
 import { MAX_TOOL_TURNS } from "./prompt/SystemPromptBuilder";
 import type { LlmProvider, LlmResponse, Message, ToolCall } from "./providers/types";
@@ -390,12 +391,14 @@ export class AiController {
 
         // Build schema section if available
         const schemaSection = this.buildSchemaSection();
+        // What a filter or the time window hides changes what the person sees and asks about.
+        const shown = shownPromptLine(this.graph);
 
         const systemPrompt = `You are an AI assistant that helps users interact with a graph visualization.
 
 Available commands:
 ${commandDescriptions}
-${schemaSection}
+${schemaSection}${shown === "" ? "" : `\n${shown}\n`}
 When the user asks you to perform an action, use the appropriate tool. If no tool is needed, respond conversationally.`;
 
         // Some providers (WebLLM's Hermes models) refuse a custom system prompt alongside tools:

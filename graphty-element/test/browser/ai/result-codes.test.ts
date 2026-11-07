@@ -124,7 +124,13 @@ describe("AI command result codes", () => {
         return new AiController({
             provider,
             commandRegistry: registry,
-            graph: graph ?? ({ getSession: () => session } as unknown as CommandContext["graph"]),
+            graph:
+                graph ??
+                ({
+                    getSession: () => session,
+                    getNodeCount: () => session.data.statistics({ scope: "graph" }).nodeCount,
+                    getEdgeCount: () => session.data.statistics({ scope: "graph" }).edgeCount,
+                } as unknown as CommandContext["graph"]),
         });
     }
 

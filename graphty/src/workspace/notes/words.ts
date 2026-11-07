@@ -87,14 +87,15 @@ export function aboutWords(session: GraphSession, targets: readonly NoteTargetIn
 }
 
 /**
- * The words beside a chip whose target is not drawn, or null when it is there.
+ * The words beside a chip whose target is not drawn, or null when it is there: a target a filter
+ * or the time window hides is still in the graph, only hidden now.
  * @param state - what the target points at now.
  * @returns the words, or null.
  */
 export function targetStateWords(state: NoteTargetStatus["state"] | undefined): string | null {
     switch (state) {
         case "filtered":
-            return "Not in the current graph";
+            return "Hidden now";
         case "missing":
             return "Not in the data";
         case "earlier-run":

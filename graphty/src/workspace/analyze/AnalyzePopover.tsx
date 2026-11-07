@@ -89,7 +89,11 @@ function runPlan(session: GraphSession, key: string, name: string, params?: Reco
     const noun =
         grouped || (layers !== undefined && layers.present.length + layers.missing.length > 1) ? "layers" : "layer";
     if (unpainted) {
-        return { label: `Add ${name} ${noun}`, restoreLayer: false, current: false, paint: true };
+        // Run reuses it only over the scope Run starts over, what is shown: a card's run over the
+        // whole graph is not that answer, so Run starts its own.
+        return latest.scope.spec === "visible"
+            ? { label: `Add ${name} ${noun}`, restoreLayer: false, current: false, paint: true }
+            : { label: "Run", restoreLayer: false, current: false };
     }
     return gone
         ? { label: `Add ${name} ${noun}`, restoreLayer: true, current: false }

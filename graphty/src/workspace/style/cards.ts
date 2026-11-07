@@ -1036,8 +1036,9 @@ function numberWords(session: GraphSession, card: CardOf<"number">, name: string
         if (card.percent === true) {
             return `${end} ${num(card.top)}% by ${name}`;
         }
-        // A count of every element there is keeps them all, and says so.
-        const stats = session.data.statistics();
+        // A count of every element there is keeps them all, and says so. A Top-N ranks the whole
+        // column, so "every element" is the whole graph's.
+        const stats = session.data.statistics({ scope: "graph" });
         const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
         return card.top >= total ? `${name}: all ${String(total)}` : `${end} ${String(card.top)} by ${name}`;
     }

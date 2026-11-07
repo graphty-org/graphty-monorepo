@@ -166,6 +166,15 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         });
     });
 
+    it("says Which nodes over the nodes the filter leaves drawn, never more than it counts them of", async () => {
+        const { session } = await openScene();
+        await session.visibility.set({ kind: "member", of: { nodes: [2, 3, 4] } });
+        await session.styles.settled();
+        // Key people picks nodes 1 and 2; the filter leaves 2, 3 and 4: 1 of the 3 drawn.
+        await userEvent.click(await row("Key people"));
+        assert.isNotNull(await screen.findByRole("button", { name: /^Which nodes, 1 of 3 nodes(,|$)/ }));
+    });
+
     it("groups the row menu, with an icon on every item, Hide and Lock by their keys, and no Unpin on an unpinned row", async () => {
         const { session, key } = await openScene();
         const menu = await rowMenu("Key people");

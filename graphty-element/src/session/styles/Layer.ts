@@ -1185,6 +1185,15 @@ function checkBindingOptions(
 
     checkOverflow(descriptor, binding.overflow, path, log);
 
+    if (binding.domainFrom !== undefined && binding.domainFrom !== "graph" && binding.domainFrom !== "visible") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${String(binding.domainFrom)}" is not what a domain is read from.`,
+            path: `${path}.domainFrom`,
+            candidates: ["graph", "visible"],
+        });
+    }
+
     if (binding.unmapped !== undefined && binding.unmapped !== "skip") {
         report(log, {
             code: "E_BAD_LAYER",

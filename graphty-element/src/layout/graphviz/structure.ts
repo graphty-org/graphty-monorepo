@@ -150,6 +150,16 @@ function labelSizedAttributes(data: Readonly<Record<string, unknown>>, id: NodeI
 }
 
 /**
+ * Whether a row from `rowOf` names a node: a missing id comes back as -1 from a plain lookup or as
+ * `INVALID_INDEX` (2^32 - 1, not negative) from a graph-format id map, and neither may reach Graphviz.
+ * @param row - the row `rowOf` gave
+ * @returns true when it is a node's row
+ */
+function isRow(row: number): boolean {
+    return row >= 0 && row !== INVALID_INDEX;
+}
+
+/**
  * An attribute's value as Graphviz is handed it.
  * @param name - the attribute
  * @param value - its value as the file gave it
@@ -168,7 +178,7 @@ function attributeText(name: string, value: string): string {
 
 /**
  * The structure to hand Graphviz.
- * @param rowOf - each node id's row, or a negative number for none
+ * @param rowOf - each node id's row, or a negative number or `INVALID_INDEX` for none
  * @param edges - the edges, in the order they arrived
  * @param groups - each group's row with its data
  * @param ranks - the rank subgraphs
@@ -192,8 +202,7 @@ export function graphvizStructure<E extends EdgeLike>(
     for (const edge of edges) {
         const src = rowOf(edge.srcId);
         const dst = rowOf(edge.dstId);
-        // `INVALID_INDEX` (2^32 - 1) is not negative: a test for >= 0 handed Graphviz a node n4294967295.
-        if (src !== INVALID_INDEX && dst !== INVALID_INDEX) {
+        if (isRow(src) && isRow(dst)) {
             dotEdges.push({ src, dst, attributes: edgeAttributes(edge.data, rowOf, groups) });
             edgeOf.push(edge);
         }
@@ -205,7 +214,7 @@ export function graphvizStructure<E extends EdgeLike>(
         groupAttributes: new Map([...groups].map(([row, data]) => [row, attributesOf(data, CLUSTER_ATTRIBUTES)])),
         ranks: ranks.map(({ rank, members }) => ({
             rank,
-            rows: members.map(rowOf).filter((row) => row !== INVALID_INDEX),
+            rows: members.map(rowOf).filter(isRow),
         })),
         ...(nodes === undefined ? {} : { nodeAttributes: nodeAttributes(nodes, sizing) }),
         ...(sizing === undefined ? {} : { labelSized: true }),
@@ -215,7 +224,7 @@ export function graphvizStructure<E extends EdgeLike>(
 /**
  * An edge's attributes for Graphviz: those of {@link EDGE_ATTRIBUTES}, and the cluster it is clipped at, named as the cluster its group is handed over as (`cluster_n<row>`).
  * @param data - the edge's data
- * @param rowOf - each node id's row, or a negative number for none
+ * @param rowOf - each node id's row, or a negative number or `INVALID_INDEX` for none
  * @param groups - each group's row with its data
  * @returns the attributes as Graphviz text
  */

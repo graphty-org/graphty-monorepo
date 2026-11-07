@@ -318,7 +318,17 @@ function isValuePath(path: unknown): boolean {
  * @param walker - The pass.
  */
 function checkThreshold(value: Loose, walker: Walker): void {
-    walker.fields(value, "threshold", ["kind", "path", "top", "above", "ties", "percentile", "from", "missing"]);
+    walker.fields(value, "threshold", [
+        "kind",
+        "path",
+        "top",
+        "above",
+        "ties",
+        "percentile",
+        "from",
+        "missing",
+        "within",
+    ]);
     checkRoot(value.path);
 
     if (!isValuePath(value.path)) {
@@ -356,6 +366,10 @@ function checkThreshold(value: Loose, walker: Walker): void {
 
     if (value.ties !== undefined && value.ties !== "fewer" && value.ties !== "all") {
         throw bad('A "threshold" leaf\'s ties is "fewer" or "all".', { ties: value.ties });
+    }
+
+    if (value.within !== undefined && value.within !== "graph" && value.within !== "visible") {
+        throw bad('A "threshold" leaf\'s within is "graph" or "visible".', { within: value.within });
     }
 }
 

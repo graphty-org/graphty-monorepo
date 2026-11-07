@@ -1,11 +1,12 @@
 /**
  * @file Graphviz record shapes (`record`, `Mrecord`): the field tree a record label describes and where Graphviz lays
  * each field, its dividers and its text lines out inside the node (lib/common/shapes.c `parse_reclbl`,
- * `size_reclbl`, `resize_reclbl`, `pos_reclbl`, `gen_fields`). Text widths are estimated from DejaVu Sans's advance
- * widths, which the specimen sheets pin; another font is measured as if it were DejaVu Sans.
+ * `size_reclbl`, `resize_reclbl`, `pos_reclbl`, `gen_fields`). Text widths are measured from the advance widths of
+ * the face the node's `fontname` is drawn in (`fontWidths`).
  */
 
 import { itemAt } from "../../common/text.js";
+import { graphvizFont } from "./drawing.js";
 
 /** One field of a record: its text lines (a leaf) or its sub-fields, laid left to right (`lr`) or top to bottom. */
 interface Field {
@@ -58,17 +59,103 @@ const DEJAVU_SANS = [
     1300, 1300, 842, 1067, 803, 1298, 1212, 1675, 1212, 1212, 1075, 1303, 690, 1303, 1716,
 ];
 
+/** Liberation Sans (Helvetica's and Arial's metric twin) advance widths, as `DEJAVU_SANS`. */
+// prettier-ignore
+const LIBERATION_SANS = [
+    569, 569, 727, 1139, 1139, 1821, 1366, 391, 682, 682, 797, 1196, 569, 682, 569, 569,
+    1139, 1139, 1139, 1139, 1139, 1139, 1139, 1139, 1139, 1139, 569, 569, 1196, 1196, 1196, 1139,
+    2079, 1366, 1366, 1479, 1479, 1366, 1251, 1593, 1479, 569, 1024, 1366, 1139, 1706, 1479, 1593,
+    1366, 1593, 1479, 1366, 1251, 1479, 1366, 1933, 1366, 1366, 1251, 569, 569, 569, 961, 1139,
+    682, 1139, 1139, 1024, 1139, 1139, 569, 1139, 1139, 455, 455, 1024, 455, 1706, 1139, 1139,
+    1139, 1139, 682, 1024, 569, 1139, 1024, 1479, 1024, 1024, 1024, 684, 532, 684, 1196,
+];
+
+/** Liberation Serif (Times's metric twin) advance widths, as `DEJAVU_SANS`. */
+// prettier-ignore
+const LIBERATION_SERIF = [
+    512, 682, 836, 1024, 1024, 1706, 1593, 369, 682, 682, 1024, 1155, 512, 682, 512, 569,
+    1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 569, 569, 1155, 1155, 1155, 909,
+    1886, 1479, 1366, 1366, 1479, 1251, 1139, 1479, 1479, 682, 797, 1479, 1251, 1821, 1479, 1479,
+    1139, 1479, 1366, 1139, 1251, 1479, 1479, 1933, 1479, 1479, 1251, 682, 569, 682, 961, 1024,
+    682, 909, 1024, 909, 1024, 909, 682, 1024, 1024, 569, 569, 1024, 569, 1593, 1024, 1024,
+    1024, 1024, 682, 797, 569, 1024, 1024, 1479, 1024, 1024, 909, 983, 410, 983, 1108,
+];
+
+/** Inter advance widths, as `DEJAVU_SANS`: the test pages draw Verdana in Inter, and the oracles measure it so. */
+// prettier-ignore
+const INTER = [
+    576, 589, 954, 1297, 1314, 2011, 1319, 614, 747, 747, 1026, 1355, 590, 942, 590, 738,
+    1292, 833, 1249, 1265, 1323, 1245, 1270, 1159, 1267, 1270, 590, 618, 1355, 1355, 1355, 1047,
+    1978, 1413, 1340, 1496, 1478, 1231, 1209, 1528, 1522, 550, 1169, 1376, 1158, 1850, 1543, 1566,
+    1308, 1566, 1318, 1314, 1322, 1524, 1413, 2018, 1397, 1390, 1288, 747, 738, 747, 965, 934,
+    661, 1150, 1254, 1170, 1254, 1194, 758, 1256, 1211, 496, 496, 1124, 496, 1794, 1210, 1228,
+    1254, 1254, 771, 1081, 670, 1211, 1151, 1676, 1118, 1151, 1131, 873, 681, 873, 1355,
+];
+
+/** A monospace face's one advance, in 1/2048 em. */
+const LIBERATION_MONO = [1229];
+const DEJAVU_SANS_MONO = [1233];
+
 /**
- * A text's width in points at a font size, from DejaVu Sans's advances (any other character: 0.6 em).
+ * The face each font family is measured in, by lowercase family name: the pinned fonts, their metric twins and the
+ * generic families, as the browser and the oracles' fontconfig resolve them
+ * (graph-io/test/fidelity/oracles/tools/graphviz-fonts.conf).
+ */
+const FACES: ReadonlyMap<string, readonly number[]> = new Map([
+    ["dejavu sans", DEJAVU_SANS],
+    ["dejavu sans mono", DEJAVU_SANS_MONO],
+    ["monospace", DEJAVU_SANS_MONO],
+    ["liberation sans", LIBERATION_SANS],
+    ["helvetica", LIBERATION_SANS],
+    ["arial", LIBERATION_SANS],
+    ["arimo", LIBERATION_SANS],
+    ["sans-serif", LIBERATION_SANS],
+    ["liberation serif", LIBERATION_SERIF],
+    ["times", LIBERATION_SERIF],
+    ["times new roman", LIBERATION_SERIF],
+    ["tinos", LIBERATION_SERIF],
+    ["serif", LIBERATION_SERIF],
+    ["liberation mono", LIBERATION_MONO],
+    ["courier", LIBERATION_MONO],
+    ["courier new", LIBERATION_MONO],
+    ["cousine", LIBERATION_MONO],
+    ["verdana", INTER],
+]);
+
+/**
+ * The advance widths of the face a DOT `fontname` is drawn in: the first family of the list `graphvizFont` reads it
+ * as that has a face here, else Liberation Serif, the browser's standard font.
+ * @param fontname - the DOT `fontname`, or null for Graphviz's default (Times-Roman)
+ * @returns the advances in 1/2048 em from space (32) to tilde (126), or one entry for a monospace face
+ */
+// ponytail: upright faces only (bold text measures as upright); add bold tables when a sample needs them
+export function fontWidths(fontname: string | null): readonly number[] {
+    for (const family of graphvizFont(fontname ?? "Times-Roman").family.split(",")) {
+        const face = FACES.get(
+            family
+                .trim()
+                .replaceAll(/(^["'])|(["']$)/g, "")
+                .toLowerCase(),
+        );
+        if (face !== undefined) {
+            return face;
+        }
+    }
+    return LIBERATION_SERIF;
+}
+
+/**
+ * A text's width in points at a font size, from a face's advances (any other character: 0.6 em).
  * @param text - the text
  * @param size - the font size
+ * @param widths - the face's advances (`fontWidths`)
  * @returns the width
  */
-export function textWidth(text: string, size: number): number {
+export function textWidth(text: string, size: number, widths: readonly number[]): number {
     let units = 0;
     for (const ch of text) {
         const code = ch.codePointAt(0) ?? 0;
-        units += code >= 32 && code <= 126 ? DEJAVU_SANS[code - 32] : 1229;
+        units += code >= 32 && code <= 126 ? (widths[code - 32] ?? widths[0]) : 1229;
     }
     return (units / 2048) * size;
 }
@@ -216,10 +303,11 @@ function flushField(children: Field[], pending: PendingField, across: boolean): 
  * Each field's natural size (`size_reclbl`): a leaf's text padded, a parent's children side by side along its way.
  * @param f - the field
  * @param size - the font size
+ * @param widths - the face's advances
  */
-function sizeField(f: Field, size: number): void {
+function sizeField(f: Field, size: number, widths: readonly number[]): void {
     if (f.lines !== null) {
-        const w = Math.max(...f.lines.map((l) => textWidth(l.text, size)));
+        const w = Math.max(...f.lines.map((l) => textWidth(l.text, size, widths)));
         const h = f.lines.length * size * LINE_SPACING;
         [f.w, f.h] = w > 0 || h > 0 ? [w + PAD.x, h + PAD.y] : [0, 0];
         return;
@@ -227,7 +315,7 @@ function sizeField(f: Field, size: number): void {
     f.w = 0;
     f.h = 0;
     for (const c of f.children) {
-        sizeField(c, size);
+        sizeField(c, size, widths);
         f.w = f.lr ? f.w + c.w : Math.max(f.w, c.w);
         f.h = f.lr ? Math.max(f.h, c.h) : f.h + c.h;
     }
@@ -275,7 +363,9 @@ function placeField(f: Field, x: number, y: number): void {
  * @param width - the node's width in points
  * @param height - its height in points
  * @param fixed - whether the node keeps its size (`fixedsize`)
- * @param fontSize - the font size in points
+ * @param font - the font
+ * @param font.size - its size in points
+ * @param font.widths - the advances of its face (`fontWidths`)
  * @param text - applies the label escapes to one line
  * @returns the layout
  */
@@ -285,9 +375,10 @@ export function layoutRecord(
     width: number,
     height: number,
     fixed: boolean,
-    fontSize: number,
+    font: { readonly size: number; readonly widths: readonly number[] },
     text: (line: string) => string,
 ): RecordLayout {
+    const { size: fontSize, widths } = font;
     const root = parseRecord(label, lr);
     const leaves = (f: Field): void => {
         if (f.lines !== null) {
@@ -296,7 +387,7 @@ export function layoutRecord(
         f.children.forEach(leaves);
     };
     leaves(root);
-    sizeField(root, fontSize);
+    sizeField(root, fontSize, widths);
     const w = fixed ? width : Math.max(width, root.w);
     const h = fixed ? height : Math.max(height, root.h);
     resizeField(root, w, h);
@@ -323,7 +414,7 @@ export function layoutRecord(
             if (l.text === "") {
                 return;
             }
-            const half = textWidth(l.text, fontSize) / 2;
+            const half = textWidth(l.text, fontSize, widths) / 2;
             let x = f.x + f.w / 2;
             if (l.justify === "l") {
                 x = f.x + PAD.x / 2 + half;

@@ -57,7 +57,7 @@ export function autoLabel(picked: TimeStep | undefined): string {
  * @param step - the step.
  * @returns true for an hour or less.
  */
-export function finerThanDay(step: TimeStep | undefined): boolean {
+function finerThanDay(step: TimeStep | undefined): boolean {
     return step === "hour" || (typeof step === "number" && step < DAY);
 }
 
@@ -150,7 +150,7 @@ const UTC = "UTC";
  * The reader's own zone.
  * @returns its IANA name.
  */
-export function readerZone(): string {
+function readerZone(): string {
     return new Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 

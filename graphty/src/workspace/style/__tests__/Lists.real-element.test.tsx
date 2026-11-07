@@ -16,6 +16,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
@@ -229,6 +230,12 @@ describe("the app's lists", () => {
         });
         assert.closeTo(filter.getBoundingClientRect().top, top, 1, "the filter box stays where it opened");
     });
+});
+
+describe("a filter card's list", () => {
+    // The filter card's own text box; the selection workspace edits a filter card in its modal
+    // instead, as Filters.real-element.test.tsx pins.
+    withFeatures([]);
 
     it("a filter card's text box lists every value that holds the typed text", async () => {
         const names = [

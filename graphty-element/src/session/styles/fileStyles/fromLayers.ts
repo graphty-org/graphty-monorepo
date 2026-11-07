@@ -82,7 +82,7 @@ export interface LayersToStylesInput {
 }
 
 /** One layer whose rule lost its editable form for other programs. */
-export interface FlattenedLayer {
+interface FlattenedLayer {
     /** The layer's name. */
     readonly layer: string;
     /** Nodes or edges. */

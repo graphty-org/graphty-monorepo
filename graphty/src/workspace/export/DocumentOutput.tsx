@@ -9,7 +9,7 @@ import { fileName, saveBlob, slug } from "./choices";
 const PREVIEW_LINES = 14;
 
 /** The outputs that are one document graphty-element writes. */
-export type DocumentKind = "styles" | "recipe" | "project";
+type DocumentKind = "styles" | "recipe" | "project";
 
 const TITLES: Readonly<Record<DocumentKind, string>> = { styles: "Styles", recipe: "Recipe", project: "Project" };
 

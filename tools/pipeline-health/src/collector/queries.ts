@@ -46,9 +46,9 @@ export const ISSUE_QUERY = `query($owner: String!, $name: String!, $cursor: Stri
     number title state createdAt body comments(last: 20) { nodes { body createdAt } } } } }
 }`;
 
-/** The steps of a batch of failing check runs, to name the step that failed (4.1 red on the same check). */
-export const STEPS_QUERY = `query($ids: [ID!]!) {
-  nodes(ids: $ids) { ... on CheckRun { id steps(first: 100) { nodes { name conclusion } } } }
+/** The first annotations of a batch of failing check runs, for their failure signatures (4.1 red on the same check). */
+export const ANNOTATIONS_QUERY = `query($ids: [ID!]!) {
+  nodes(ids: $ids) { ... on CheckRun { id annotations(first: 10) { nodes { message annotationLevel } } } }
 }`;
 
 /** Check runs and their first annotations for a batch of check suites (cancel class, hangs). */

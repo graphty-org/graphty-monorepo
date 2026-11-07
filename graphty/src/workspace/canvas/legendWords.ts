@@ -439,7 +439,7 @@ export const NOTHING_KEYED = "Nothing is styled yet";
  * @param layer - The name of the layer that paints over it.
  * @returns The words.
  */
-export function coveredWords(layer: string): string {
+function coveredWords(layer: string): string {
     return `covered by ${layer}`;
 }
 
@@ -451,7 +451,7 @@ export function coveredWords(layer: string): string {
  * @param covers - The layers above that paint the property on the block's elements, and on how many.
  * @returns The line, or null when nothing covers it.
  */
-export function coveredLine(
+function coveredLine(
     block: LegendBlock,
     covers: readonly { readonly layer: string; readonly count: number }[],
 ): string | null {

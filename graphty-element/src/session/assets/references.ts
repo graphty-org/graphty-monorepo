@@ -12,10 +12,10 @@
 import type { CodedFact, CodedFactParam } from "../shared";
 
 /** The longest string param taken from a file. */
-export const MAX_PARAM_LENGTH = 256;
+const MAX_PARAM_LENGTH = 256;
 
 /** The largest texture side any GPU draws; a larger image is refused before it is decoded. */
-export const MAX_IMAGE_SIDE = 16384;
+const MAX_IMAGE_SIDE = 16384;
 
 /**
  * A string from a file, cut to 256 characters.

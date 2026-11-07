@@ -26,8 +26,9 @@ export interface PStop {
 }
 
 /**
- * A gradient as drawn: its kind, its stops and, for a linear one, the screen direction it runs in (degrees, clockwise
- * from the +x axis, y down: from its first stop towards its last), or null where the drawing does not say.
+ * A gradient as drawn: its kind, its stops and, for a linear one, the screen direction its color changes along
+ * (degrees, clockwise from the +x axis, y down: from its first stop towards its last; across its lines of one color,
+ * as `rampAngleOnScreen` reads a stretched ramp), or null where the drawing does not say.
  */
 export interface PGradient {
     kind: "linear" | "radial";
@@ -43,6 +44,27 @@ export interface PGradient {
      * node's middle; its stops are then in halves of the node's shorter side from there. Absent, the node's middle.
      */
     center?: readonly [number, number];
+}
+
+/**
+ * The screen direction a linear ramp's color changes along, where the ramp runs along a vector in its own units and a
+ * linear map takes those units to the screen. A map that stretches one way more than the other (a ramp painted across
+ * a unit square, or an SVG gradient in objectBoundingBox units, laid over a box wider than tall) turns the ramp's lines
+ * of one color with it, and the color changes across those lines, not along the stretched vector: a ramp from corner to
+ * corner of a 220 x 94 box runs along 23.1 degrees on screen, and its color changes along 66.9. That direction is the
+ * map's inverse transpose applied to the vector.
+ * @param v - the ramp's vector, in its own units
+ * @param a - the map's matrix `[a, b, c, d]` (x' = a x + c y, y' = b x + d y)
+ * @returns the direction in degrees, or null for a ramp of no length or a map that flattens it
+ */
+export function rampAngleOnScreen(v: Pt, [a, b, c, d]: readonly [number, number, number, number]): number | null {
+    const det = a * d - b * c;
+    if (Math.hypot(v[0], v[1]) < 1e-12 || Math.abs(det) < 1e-12) {
+        return null;
+    }
+    const x = (d * v[0] - b * v[1]) / det;
+    const y = (a * v[1] - c * v[0]) / det;
+    return (Math.atan2(y, x) * 180) / Math.PI;
 }
 
 /** A fill: a flat color, or a gradient (its first stop is also its `color`). */

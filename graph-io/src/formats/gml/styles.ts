@@ -28,7 +28,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
-import { yedGradientAngle, yedGradientRamp } from "../../styles/canon/yed-gradient.js";
+import { putYedRamp, yedGradientAngle } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
     YED_OUTSIDE_DISTANCE,
@@ -748,8 +748,6 @@ function readNodeFill(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         },
         at,
     );
-    const from = read.get("fill");
-    const fromAlpha = read.get("fillOpacity");
     if (g.fill2 === undefined) {
         return;
     }
@@ -765,21 +763,14 @@ function readNodeFill(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     put("fillGradient", to.color);
     put("fillGradientAngle", yedGradientAngle(corner ? "corner" : "across", Number(g.w), Number(g.h)));
     // a left-to-right ramp mirrors back over its left third, and fill2's alpha is its stop's (`yedGradientRamp`)
-    const ramp =
-        typeof from === "string"
-            ? yedGradientRamp(
-                  corner ? "corner" : "across",
-                  from,
-                  to.color,
-                  to.alpha,
-                  typeof fromAlpha === "number" ? fromAlpha : 1,
-                  type || "rectangle",
-              )
-            : null;
-    if (ramp !== null) {
-        put("fillGradientColors", ramp.colors);
-        put("fillGradientStops", ramp.stops);
-    }
+    const shape = type === "" ? "rectangle" : type;
+    putYedRamp(
+        put,
+        corner ? "corner" : "across",
+        { color: read.get("fill"), alpha: read.get("fillOpacity") },
+        to,
+        shape,
+    );
 }
 
 /**

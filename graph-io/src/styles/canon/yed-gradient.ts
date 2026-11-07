@@ -5,6 +5,8 @@
  * from their box's top-left corner to its bottom-right one; every other shape node runs left to right.
  */
 
+import type { StyleValue } from "../types.js";
+
 /** How a yEd node runs its gradient: corner to corner, or left to right. */
 type YedGradientRun = "corner" | "across";
 
@@ -48,27 +50,10 @@ interface Ramp {
  * @returns the ramp across the node
  */
 export function spreadRamp(ramp: Ramp, spread: "reflect" | "repeat", start: number, end: number): Ramp {
-    const { stops } = ramp;
     // with an alpha on any color, every color carries one (`ff` where it had none)
-    const withAlpha = ramp.colors.some((c) => c.length === 9);
-    const colors = withAlpha ? ramp.colors.map((c) => (c.length === 9 ? c : `${c}ff`)) : ramp.colors;
-    const channels = withAlpha ? [0, 1, 2, 3] : [0, 1, 2];
-    const ch = (h: string, i: number): number => Number.parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
-    const colorAt = (u: number): string => {
-        const k = stops.findIndex((s) => s >= u);
-        if (k <= 0) {
-            return colors[k < 0 ? colors.length - 1 : 0];
-        }
-        const f = stops[k] > stops[k - 1] ? (u - stops[k - 1]) / (stops[k] - stops[k - 1]) : 0;
-        const [a, b] = [colors[k - 1], colors[k]];
-        return `#${channels
-            .map((i) =>
-                Math.round(ch(a, i) + f * (ch(b, i) - ch(a, i)))
-                    .toString(16)
-                    .padStart(2, "0"),
-            )
-            .join("")}`;
-    };
+    const alpha = ramp.colors.some((c) => c.length === 9);
+    const colors = alpha ? ramp.colors.map((c) => (c.length === 9 ? c : `${c}ff`)) : ramp.colors;
+    const flat = { colors, stops: ramp.stops };
     // where along its stops the ramp is at t; `late` reads a repeat's seam from its left
     const fold = (t: number, late: boolean): number => {
         if (spread === "repeat") {
@@ -78,29 +63,68 @@ export function spreadRamp(ramp: Ramp, spread: "reflect" | "repeat", start: numb
         const u = t - 2 * Math.floor(t / 2);
         return u <= 1 ? u : 2 - u;
     };
-    // ponytail: places are rounded to 1e-9, so a corner a float's width off a stop is that stop
-    const near = (t: number): number => Math.round(t * 1e9) / 1e9;
-    const [t0, t1] = [near(start), near(end)];
-    const at = new Set([t0, t1]);
-    for (let k = Math.floor(t0) - 1; k <= Math.ceil(t1) + 1; k++) {
-        for (const s of stops) {
-            for (const t of [near(k + s), near(k + 1 - s)]) {
-                if (t > t0 && t < t1) {
-                    at.add(t);
-                }
-            }
-        }
-    }
+    const [t0, t1] = [nearPlace(start), nearPlace(end)];
     const out: { color: string; stop: number }[] = [];
-    for (const t of [...at].sort((a, b) => a - b)) {
+    for (const t of rampPlaces(ramp.stops, t0, t1)) {
         const stop = Math.round(((t - t0) / (t1 - t0)) * 1e6) / 1e6;
-        const [late, early] = [colorAt(fold(t, true)), colorAt(fold(t, false))];
+        const [late, early] = [colorAlong(flat, fold(t, true)), colorAlong(flat, fold(t, false))];
         if (t !== t0 && t !== t1 && late !== early) {
             out.push({ color: late, stop });
         }
         out.push({ color: t === t1 ? late : early, stop });
     }
     return { colors: out.map((o) => o.color), stops: out.map((o) => o.stop) };
+}
+
+/**
+ * A place along a ramp rounded to 1e-9, so a corner a float's width off a stop is that stop.
+ * @param t - the place
+ * @returns it rounded
+ */
+const nearPlace = (t: number): number => Math.round(t * 1e9) / 1e9;
+
+/**
+ * Every place from `t0` to `t1` where a ramp's stops, run again past their ends either way, fall, with both ends.
+ * @param stops - the stops, 0 to 1
+ * @param t0 - the first place
+ * @param t1 - the last
+ * @returns the places, rising
+ */
+function rampPlaces(stops: readonly number[], t0: number, t1: number): number[] {
+    const at = new Set([t0, t1]);
+    for (let k = Math.floor(t0) - 1; k <= Math.ceil(t1) + 1; k++) {
+        for (const t of stops.flatMap((s) => [nearPlace(k + s), nearPlace(k + 1 - s)])) {
+            if (t > t0 && t < t1) {
+                at.add(t);
+            }
+        }
+    }
+    return [...at].sort((a, b) => a - b);
+}
+
+/**
+ * A ramp's color at a place along its stops, mixed channel by channel (and its alpha, for `#rrggbbaa` colors).
+ * @param ramp - the ramp, its colors all one length
+ * @param u - the place, 0 to 1
+ * @returns the color
+ */
+function colorAlong(ramp: Ramp, u: number): string {
+    const { colors, stops } = ramp;
+    const k = stops.findIndex((s) => s >= u);
+    if (k <= 0) {
+        return colors[k < 0 ? colors.length - 1 : 0];
+    }
+    const f = stops[k] > stops[k - 1] ? (u - stops[k - 1]) / (stops[k] - stops[k - 1]) : 0;
+    const [a, b] = [colors[k - 1], colors[k]];
+    const ch = (h: string, i: number): number => Number.parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+    const channels = a.length === 9 ? [0, 1, 2, 3] : [0, 1, 2];
+    return `#${channels
+        .map((i) =>
+            Math.round(ch(a, i) + f * (ch(b, i) - ch(a, i)))
+                .toString(16)
+                .padStart(2, "0"),
+        )
+        .join("")}`;
 }
 
 /**
@@ -160,4 +184,35 @@ export function yedGradientRamp(
     const ramp =
         run === "corner" ? ends : spreadRamp(ends, "reflect", (inset - 1 / 3) * 1.5, (1 - inset - 1 / 3) * 1.5);
     return { colors: ramp.colors.join(" "), stops: ramp.stops.join(" ") };
+}
+
+/**
+ * Puts yEd's ramp (`yedGradientRamp`) as `fillGradientColors` and `fillGradientStops`, when it is not just its two
+ * opaque colors; shared by the readers of yEd's GraphML and GML.
+ * @param put - receives the values
+ * @param run - how the node runs its gradient
+ * @param fill - the `fill` and `fillOpacity` read from its `color`
+ * @param fill.color - the `fill`
+ * @param fill.alpha - the `fillOpacity`
+ * @param second - its `color2`, `#rrggbb`, and its alpha
+ * @param second.color - the color
+ * @param second.alpha - its alpha
+ * @param shape - its yEd shape type
+ */
+export function putYedRamp(
+    put: (property: string, value: StyleValue | null) => void,
+    run: YedGradientRun,
+    fill: { color: StyleValue | null | undefined; alpha: StyleValue | null | undefined },
+    second: { color: string; alpha: number },
+    shape: string,
+): void {
+    if (typeof fill.color !== "string") {
+        return;
+    }
+    const alpha = typeof fill.alpha === "number" ? fill.alpha : 1;
+    const ramp = yedGradientRamp(run, fill.color, second.color, second.alpha, alpha, shape);
+    if (ramp !== null) {
+        put("fillGradientColors", ramp.colors);
+        put("fillGradientStops", ramp.stops);
+    }
 }

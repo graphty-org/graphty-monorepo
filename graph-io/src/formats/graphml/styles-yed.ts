@@ -25,7 +25,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
-import { yedGradientAngle, yedGradientRamp } from "../../styles/canon/yed-gradient.js";
+import { putYedRamp, yedGradientAngle, yedGradientRamp } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
     YED_LABEL_PADDING,
@@ -1291,32 +1291,15 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
         },
         at,
     );
-    const first = read.get("fill");
-    const firstAlpha = read.get("fillOpacity");
     const second = yedDefaultPainted(real) ? null : canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
     const angle = second === null ? null : realizerGradientAngle(real);
     if (second !== null && angle !== null) {
         put("fillGradient", second.color);
         put("fillGradientAngle", angle);
         // a shape node's left-to-right ramp mirrors back over its left third, and color2's alpha is its stop's
-        // (`yedGradientRamp`)
         const shape = treeAttr(treeChild(real.r, "Shape"), "type") ?? "rectangle";
-        const across = real.type === "ShapeNode" && shape !== "diamond";
-        const ramp =
-            typeof first === "string"
-                ? yedGradientRamp(
-                      across ? "across" : "corner",
-                      first,
-                      second.color,
-                      second.alpha,
-                      typeof firstAlpha === "number" ? firstAlpha : 1,
-                      shape,
-                  )
-                : null;
-        if (ramp !== null) {
-            put("fillGradientColors", ramp.colors);
-            put("fillGradientStops", ramp.stops);
-        }
+        const run = real.type === "ShapeNode" && shape !== "diamond" ? "across" : "corner";
+        putYedRamp(put, run, { color: read.get("fill"), alpha: read.get("fillOpacity") }, second, shape);
     }
 }
 
@@ -2440,10 +2423,8 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
     const node: Tree = {};
     node["y:Geometry"] = geometryTree(get, at);
     const shape = get("shape");
-    const yedShape =
-        typeof shape === "string"
-            ? yedSpelled(YED_SHAPES, shape, shape === "vee" ? "triangle" : "rectangle", "shape", approximate)
-            : null;
+    const nearest = shape === "vee" ? "triangle" : "rectangle";
+    const yedShape = typeof shape === "string" ? yedSpelled(YED_SHAPES, shape, nearest, "shape", approximate) : null;
     const fill = get("fill");
     const fillOpacity = get("fillOpacity");
     if (typeof fill === "string") {

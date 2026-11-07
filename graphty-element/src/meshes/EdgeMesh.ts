@@ -1,5 +1,6 @@
 import {
     AbstractMesh,
+    type BaseTexture,
     Camera,
     Color3,
     Effect,
@@ -32,6 +33,7 @@ import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
+import { PulledLineBatch } from "./PulledLineBatch";
 import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
@@ -579,6 +581,31 @@ void main() {
     }
 
     /**
+     * The batch a plain straight line between node centres is pulled into: the plain line's own
+     * look (`createStaticLine`), drawn from the row table (`PulledLineBatch`).
+     * @param cache - The cache that keeps one batch per look.
+     * @param options - The line's look.
+     * @param style - The resolved style.
+     * @param scene - The scene.
+     * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
+     * @returns The batch.
+     */
+    static pulledBatch(
+        cache: MeshCache,
+        options: EdgeMeshOptions,
+        style: EdgeStyleConfig,
+        scene: Scene,
+        rowPositions: () => BaseTexture,
+    ): PulledLineBatch {
+        return cache.getPulledBatch(`edge-style-${options.styleId}-pulled`, () => {
+            const mesh = this.createStaticLine(options, style, scene, cache, false, true);
+            // The rows are in graph-root's space, as a line batch's slots are.
+            mesh.parent = scene.getTransformNodeByName("graph-root");
+            return new PulledLineBatch(mesh, scene, rowPositions);
+        });
+    }
+
+    /**
      * Creates an arrow head mesh for edge endpoints.
      *
      * Supports multiple arrow types:
@@ -865,6 +892,7 @@ void main() {
 
         _cache: MeshCache,
         widened = false,
+        pulled = false,
     ): Mesh {
         // Use custom line renderer if flag is enabled
 
@@ -880,6 +908,7 @@ void main() {
                     minScreenWidth: style.line?.minScreenWidth,
                     fade: widened ? this.fadeOf(style) : undefined,
                     opaque: this.drawsOpaque(style),
+                    pulled,
                 },
                 scene,
             );

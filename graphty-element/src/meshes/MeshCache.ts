@@ -7,6 +7,7 @@ import { InstancedMesh, Mesh, type Scene, type TransformNode } from "@babylonjs/
 
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import { NodeBatch } from "./NodeBatch";
+import type { PulledLineBatch } from "./PulledLineBatch";
 
 type MeshCreatorFn = () => Mesh;
 
@@ -28,6 +29,9 @@ export class MeshCache {
      * holding a slot in a mesh that no longer exists.
      */
     batchCacheMap = new Map<string, EdgeLineBatch>();
+
+    /** Pulled line batches by look, cleared with the rest so a 2D switch rebuilds their edges. */
+    pulledBatchMap = new Map<string, PulledLineBatch>();
 
     /** The node batches, by the source mesh they share a material with, which they die with. */
     nodeBatchMap = new Map<Mesh, NodeBatch>();
@@ -111,6 +115,23 @@ export class MeshCache {
     }
 
     /**
+     * Get or create the pulled line batch of one look.
+     * @param name - The look's key, which also names the batch's mesh.
+     * @param creator - Builds the batch the first time.
+     * @returns The batch.
+     */
+    getPulledBatch(name: string, creator: () => PulledLineBatch): PulledLineBatch {
+        let batch = this.pulledBatchMap.get(name);
+        if (batch === undefined) {
+            batch = creator();
+            batch.mesh.name = name;
+            this.pulledBatchMap.set(name, batch);
+        }
+
+        return batch;
+    }
+
+    /**
      * Get or create the batch drawing a source mesh's rows.
      * @param source - The source mesh.
      * @param places - The table that places the rows.
@@ -149,6 +170,12 @@ export class MeshCache {
         }
 
         this.batchCacheMap.clear();
+
+        for (const batch of this.pulledBatchMap.values()) {
+            batch.dispose();
+        }
+
+        this.pulledBatchMap.clear();
         this.reset();
     }
 

@@ -49,7 +49,7 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort-slice-saturated`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort-slice-saturated-designed-rerun`;
 
 /**
  * When a job started on a runner, or undefined when it never did. GitHub gives a job cancelled before any runner
@@ -198,7 +198,11 @@ export const METRICS: MetricDef[] = [
         id: "ci.reruns",
         from: [
             src("run", "completedAt", (r) =>
-                r.status === "completed" && r.conclusion !== "skipped"
+                // release.yml's attempt 2 is release-rerun.yml's designed same-commit re-run of a red full run, done
+                // once by design (.github/workflows/release-rerun.yml), so it is not counted as a re-run at all.
+                r.status === "completed" &&
+                r.conclusion !== "skipped" &&
+                !(r.workflow === "release.yml" && r.attempt === 2)
                     ? { sum: r.attempt > 1 ? 1 : 0, dim: r.workflow }
                     : null,
             ),

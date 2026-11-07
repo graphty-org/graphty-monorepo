@@ -456,7 +456,7 @@ interface DataLabelCommand {
  * entry per load. An empty list removes them all.
  * @experimental file-styles
  */
-export interface DataSetFileStylesCommand {
+interface DataSetFileStylesCommand {
     readonly op: "data.setFileStyles";
     readonly loads: readonly FileStyleLoadValues[];
 }

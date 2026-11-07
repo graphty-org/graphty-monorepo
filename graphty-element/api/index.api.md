@@ -1088,6 +1088,8 @@ export class Edge {
     get index(): number;
     invalidatePositionCache(): void;
     isDisposed(): boolean;
+    // @internal
+    get isPulled(): boolean;
     isRenderVisible(): boolean;
     isSelected(): boolean;
     // (undocumented)
@@ -2558,7 +2560,7 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "file-styles";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles";
 
 // @public
 export interface FindAtLeastRow {
@@ -4823,6 +4825,8 @@ export abstract class LayoutEngine {
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
     // (undocumented)
@@ -7455,6 +7459,8 @@ export class SelectionManager implements Manager {
     dispose(): void;
     getSelectedNode(): Node_2 | null;
     getSelectedNodes(): Node_2[];
+    // @internal
+    highlightedNodes(): IterableIterator<Node_2>;
     hover(id: NodeIdType | null): void;
     init(): Promise<void>;
     isHovered(id: NodeIdType): boolean;

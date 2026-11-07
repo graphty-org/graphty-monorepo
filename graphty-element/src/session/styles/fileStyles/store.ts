@@ -60,7 +60,7 @@ export interface FileStyleLoadValues {
 }
 
 /** One load, held. */
-export interface StoredFileStyleLoad {
+interface StoredFileStyleLoad {
     /** What it was written from, normalised. */
     readonly values: FileStyleLoadValues;
     /** Its columns by `<kind>:<key>`, each by element id. */
@@ -79,7 +79,7 @@ export interface FileStyleStore {
 const MAX_KEY_LENGTH = 256;
 
 /** The store with nothing in it. */
-export const EMPTY_FILE_STYLES: FileStyleStore = Object.freeze({ loads: Object.freeze([]), byNamespace: new Map() });
+const EMPTY_FILE_STYLES: FileStyleStore = Object.freeze({ loads: Object.freeze([]), byNamespace: new Map() });
 
 /**
  * A refusal of a malformed store.

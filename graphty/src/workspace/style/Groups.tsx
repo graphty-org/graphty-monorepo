@@ -14,6 +14,7 @@ import type { GraphSession, Layer, LayerGroup, ValueGroup } from "@graphty/graph
 import { ActionIcon, Box, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { cosmographOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -21,7 +22,7 @@ import { offeredChannel } from "./offered";
 import { type DataBinding, type LayerBinding, sourceName, startingValue } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
-import { channelWord, failureWords, SECTIONS, takesBinding, valueFieldKind, valueWords } from "./words";
+import { channelWord, failureWords, SECTIONS, sectionsFor, takesBinding, valueFieldKind, valueWords } from "./words";
 
 /** How many groups the list shows before "N more" (tier3 decisions, round 6). */
 const GROUPS_SHOWN = 8;
@@ -1403,7 +1404,7 @@ export function GroupDetail({
         );
 
     // Every property the Style tab draws that can vary, by section, for "+ Set another property".
-    const offered = SECTIONS[target].map((section) => ({
+    const offered = sectionsFor(target, cosmographOn(session)).map((section) => ({
         title: section.title,
         items: section.channels.flatMap((channel) => {
             const descriptor = offeredChannel(session, target, channel);

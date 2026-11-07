@@ -372,7 +372,7 @@ const MANY_NAMED = 7;
  * @param card - the card.
  * @returns the words.
  */
-export function shortTest(session: GraphSession, card: Card): string | undefined {
+function shortTest(session: GraphSession, card: Card): string | undefined {
     if (card.type === "number" && card.match === "top") {
         if (card.top === undefined) {
             return "";

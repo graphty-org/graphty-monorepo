@@ -9,7 +9,7 @@
 import { featuresFromUrl, resolveFeatures } from "@graphty/graphty-element/catalog";
 
 /** The sites one build serves; `unknown` when the site said nothing usable. */
-export type SiteName = "canary" | "nightly" | "production" | "unknown";
+type SiteName = "canary" | "nightly" | "production" | "unknown";
 
 /** What the app runs with on this site. */
 export interface SiteConfig {

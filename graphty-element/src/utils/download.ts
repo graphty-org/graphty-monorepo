@@ -3,7 +3,7 @@
  * as `click()` cancels the download on iOS and iPadOS WebKit, which reads the URL after the click
  * returns; 40 seconds is FileSaver.js's figure for the slowest engine to start reading.
  */
-export const DOWNLOAD_URL_LIFETIME_MS = 40_000;
+const DOWNLOAD_URL_LIFETIME_MS = 40_000;
 
 /**
  * Hand a Blob to the reader as a file download: append an anchor, click it, remove it, and

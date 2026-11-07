@@ -241,7 +241,7 @@ function fromComponents(rgba: Rgba): ColorValue {
 // ---------------------------------------------------------------------------------------------
 
 /** What a group's `paddingRatio` is a fraction of. */
-export type GroupPaddingOfValue = NonNullable<NonNullable<NodeStyleConfig["group"]>["paddingOf"]>;
+type GroupPaddingOfValue = NonNullable<NonNullable<NodeStyleConfig["group"]>["paddingOf"]>;
 
 /** A node shape the element can build a mesh for. */
 export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"]>;
@@ -256,32 +256,29 @@ export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["
  */
 export type EdgeLineValue = EdgeLinePattern;
 
-/**
- * A pattern an edge's outline band can be drawn in (`line.outline.type`).
- * @experimental file-styles
- */
-export type EdgeOutlineValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["outline"]>["type"]>;
+/** A pattern an edge's outline band can be drawn in (`line.outline.type`). */
+type EdgeOutlineValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["outline"]>["type"]>;
 
 /** An arrow the edge renderer can draw at either end. */
 export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
 
 /** How heavy a label's letters are, as the `labelWeight` channels take it. */
-export type LabelWeightValue = "normal" | "bold";
+type LabelWeightValue = "normal" | "bold";
 
 /** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
-export type LabelRunAlignValue = "baseline" | "hanging" | "middle";
+type LabelRunAlignValue = "baseline" | "hanging" | "middle";
 
 /**
  * What a label's shifts are fractions of (`labelShiftOf`), or what a label outside its node is placed against it by
  * (`labelGapOf`): its whole box, or its words alone.
  */
-export type LabelShiftOfValue = "box" | "words";
+type LabelShiftOfValue = "box" | "words";
 
 /** What a label's box is sized to (`labelBox`): its words, its words held at a side, or its target's width. */
-export type LabelBoxValue = "words" | "words-at-side" | "target-width";
+type LabelBoxValue = "words" | "words-at-side" | "target-width";
 
 /** How a node's size is read: as a multiplier of the shape's own geometry, or as its largest extent. */
-export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
+type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
 
 /** Every node size mode, in schema order. */
 const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
@@ -290,48 +287,42 @@ const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.option
  * How finely a round node shape is drawn (`node.meshDetail`): "full", "low", or a segment count.
  * @since 3.36.0
  */
-export type NodeMeshDetailValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["detail"]>;
+type NodeMeshDetailValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["detail"]>;
 
-/**
- * How a node grows to hold its label: its padded label box inside its outline, or as its bounds.
- * @experimental file-styles
- */
-export type NodeLabelFitValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["labelFit"]>;
+/** How a node grows to hold its label: its padded label box inside its outline, or as its bounds. */
+type NodeLabelFitValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["labelFit"]>;
 
 /** How an edge's gradient runs (`edge.gradientKind`): along the line, out from its middle, or none. */
 /** How a node's image is sized against the node. */
-export type NodeImageFitValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["fit"]>;
+type NodeImageFitValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["fit"]>;
 /** Whether and which way a node's image is tiled. */
-export type NodeImageRepeatValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["repeat"]>;
+type NodeImageRepeatValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["repeat"]>;
 
 /** How an image drawn at a size of its own fills a side left unset (`node.imageAutoSize`). */
-export type NodeImageAutoSizeValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["autoSize"]>;
+type NodeImageAutoSizeValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["autoSize"]>;
 /** Whether a node's image is kept inside the node's outline. */
-export type NodeImageClipValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["clip"]>;
+type NodeImageClipValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["clip"]>;
 /** Which way a node's stripes follow one another. */
-export type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["stripes"]>["direction"]>;
+type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["stripes"]>["direction"]>;
 /** What a node's chart draws (`node.chartKind`). */
-export type NodeChartKindValue = NonNullable<NonNullable<NodeStyleConfig["chart"]>["kind"]>;
+type NodeChartKindValue = NonNullable<NonNullable<NodeStyleConfig["chart"]>["kind"]>;
 /** How a curved edge is drawn through its bends (`edge.bendCurve`): corners rounded, or through the midpoints. */
-export type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
+type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
 /** What unit an edge's support lengths and forces are in (`edge.supportScale`). */
-export type EdgeSupportScaleValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportScale"]>;
+type EdgeSupportScaleValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportScale"]>;
 /** The force law an edge's support point settles under (`edge.supportModel`). */
-export type EdgeSupportModelValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportModel"]>;
+type EdgeSupportModelValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportModel"]>;
 
 /** A value of `edge.route`: the path a line takes between its nodes. */
-export type EdgeRouteValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["route"]>;
-export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
+type EdgeRouteValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["route"]>;
+type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
 /** How a node's gradient fill runs (`node.gradientKind`): straight across it, or out from its middle. */
-export type NodeGradientKindValue = "linear" | "radial";
+type NodeGradientKindValue = "linear" | "radial";
 /** The axis that points up in a model's file, as `node.modelSourceUp` takes it. */
-export type NodeModelUpValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["modelSourceUp"]>;
+type NodeModelUpValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["modelSourceUp"]>;
 
-/**
- * A line style a node border can be drawn in.
- * @experimental file-styles
- */
-export type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
+/** A line style a node border can be drawn in. */
+type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
 
 /**
  * Where a node border sits against the node's size. @public

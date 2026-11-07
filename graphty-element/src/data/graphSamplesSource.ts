@@ -11,10 +11,10 @@ import { defineSource, registerSource, registry, type SourceDescriptor } from "@
 import { DATASETS, DEFAULT_DATASET_BASE_URL, fetchDataset, toElementData } from "@graphty/graph-samples";
 
 /** The source id. Experimental. */
-export const GRAPH_SAMPLES_SOURCE_ID = "graph-samples";
+const GRAPH_SAMPLES_SOURCE_ID = "graph-samples";
 
 /** What the source takes. Experimental. */
-export interface GraphSamplesParams {
+interface GraphSamplesParams {
     /** The dataset's name, as `DATASET_NAMES` in `@graphty/graph-samples` lists them. */
     readonly dataset: string;
 }
@@ -48,7 +48,7 @@ const DESCRIPTOR: SourceDescriptor = Object.freeze({
  * The source: one dataset, downloaded through the guarded fetch (so a missing dataset is
  * `E_SOURCE_NOT_FOUND` and an unreachable host `E_FETCH`), as records. Experimental.
  */
-export const graphSamplesSource = defineSource<GraphSamplesParams>({
+const graphSamplesSource = defineSource<GraphSamplesParams>({
     id: GRAPH_SAMPLES_SOURCE_ID,
     descriptor: DESCRIPTOR,
     async records(params, ctx) {

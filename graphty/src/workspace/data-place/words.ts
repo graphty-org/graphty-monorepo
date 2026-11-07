@@ -58,9 +58,6 @@ export interface AttributeRow {
     readonly description: string;
 }
 
-/** Find appears past this many attributes (section 2.6). */
-export const FIND_PAST = 15;
-
 /**
  * A count and its noun, singular for one.
  * @param n - the count.

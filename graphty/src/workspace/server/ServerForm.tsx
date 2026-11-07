@@ -3,6 +3,7 @@ import "./server.css";
 import {
     ActionRow,
     FieldRow,
+    PANEL_GRID,
     PanelField,
     PanelLabelsProvider,
     Popout,
@@ -18,6 +19,7 @@ import React, { useRef, useState } from "react";
 import { networkOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
+import { closeProject } from "../project/actions";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     EXPAND_DEFAULTS,
@@ -74,7 +76,7 @@ export function ExpandFields({
 }: Readonly<{ value: ExpandWith; onChange: (next: ExpandWith) => void }>): React.JSX.Element {
     return (
         <>
-            <FieldRow labelPosition="inline">
+            <FieldRow>
                 <PanelField
                     label="Depth"
                     kind="number"
@@ -87,7 +89,7 @@ export function ExpandFields({
                     }}
                 />
             </FieldRow>
-            <Input.Wrapper label="Direction" size="xs">
+            <Input.Wrapper label="Direction" size="xs" w={PANEL_GRID.BODY}>
                 <SegmentedControl
                     size="xs"
                     aria-label="Direction"
@@ -103,7 +105,7 @@ export function ExpandFields({
                     }}
                 />
             </Input.Wrapper>
-            <FieldRow labelPosition="inline">
+            <FieldRow>
                 <PanelField
                     label="Edge types"
                     placeholder="any"
@@ -113,7 +115,7 @@ export function ExpandFields({
                     }}
                 />
             </FieldRow>
-            <FieldRow labelPosition="inline">
+            <FieldRow>
                 <PanelField
                     label="Expand limit"
                     kind="number"
@@ -173,11 +175,12 @@ function ParamRow({
         return (
             <Textarea
                 size="xs"
+                w={PANEL_GRID.BODY}
                 label={label}
                 autosize
                 minRows={2}
                 maxRows={8}
-                ff="monospace"
+                styles={{ input: { fontFamily: "var(--mantine-font-family-monospace)" } }}
                 value={shownText(value)}
                 onChange={(event) => {
                     onChange(event.currentTarget.value);
@@ -227,7 +230,7 @@ function ParamRow({
             />
         );
     }
-    return <FieldRow labelPosition="inline">{field}</FieldRow>;
+    return <FieldRow>{field}</FieldRow>;
 }
 
 /**
@@ -286,6 +289,7 @@ function ApiKeyRow({
     return (
         <PasswordInput
             size="xs"
+            w={PANEL_GRID.BODY}
             label="API key"
             placeholder={authRequired === "optional" ? "optional" : "key"}
             autoComplete="off"
@@ -326,7 +330,7 @@ function SignInRow({
     return (
         <>
             {basic ? (
-                <FieldRow labelPosition="inline">
+                <FieldRow>
                     <PanelField
                         label="User"
                         placeholder="user"
@@ -340,6 +344,7 @@ function SignInRow({
             ) : null}
             <PasswordInput
                 size="xs"
+                w={PANEL_GRID.BODY}
                 label={basic ? "Password" : "Token"}
                 placeholder={basic ? "password" : "token"}
                 autoComplete="off"
@@ -356,8 +361,9 @@ function SignInRow({
  * The network data form (spec section 3.9): Kind, Example, Endpoint, Sign in, Start, the query or
  * the source's own params, Limit and Expand on double-click with what an expansion fetches; Test
  * reads a preview, Load loads. Rows a source cannot use are absent. Built only from compact-mantine
- * rows (FieldRow, PanelField, ToggleRow, ActionRow) and themed Mantine inputs; as a form that is
- * itself a pop-over, it draws every setting flat.
+ * rows (FieldRow, PanelField, ToggleRow, ActionRow) with captions above, and themed Mantine inputs
+ * as wide as a row's field; as a form that is itself a pop-over, it draws every setting flat
+ * (SettingsPopout.tsx).
  * @param props - Component props
  * @param props.onClose - closes the pop-over.
  * @returns the form.
@@ -365,10 +371,10 @@ function SignInRow({
 function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
     const { session, element, store } = useWorkspace();
     const kinds = serverKinds();
-    // Opened on the source the store names, else on Neo4j.
+    // Opened on the source the store names, else on the first listed (NDEx, which needs no sign-in).
     const [form, setForm] = useState<ServerFormState>(() => {
         const asked = store.get().serverKind;
-        const first = kinds.find((each) => each.id === (asked ?? "neo4j")) ?? kinds[0];
+        const first = kinds.find((each) => each.id === asked) ?? kinds[0];
         return freshForm(first);
     });
     const [preview, setPreview] = useState<SourcePreview | null>(null);
@@ -457,7 +463,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
         >
             <PanelLabelsProvider showLabels>
                 <Stack gap={4}>
-                    <FieldRow labelPosition="inline">
+                    <FieldRow>
                         <PanelField
                             label="Kind"
                             kind="select"
@@ -474,7 +480,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                         />
                     </FieldRow>
                     {examples.length === 0 ? null : (
-                        <FieldRow labelPosition="inline">
+                        <FieldRow>
                             <PanelField
                                 label="Example"
                                 kind="select"
@@ -489,7 +495,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                             />
                         </FieldRow>
                     )}
-                    <FieldRow labelPosition="inline">
+                    <FieldRow>
                         <PanelField
                             label="Endpoint"
                             placeholder={descriptor.defaultEndpoint ?? "https://"}
@@ -516,7 +522,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                         }}
                     />
                     {modes.length === 0 ? null : (
-                        <Input.Wrapper label="Start" size="xs">
+                        <Input.Wrapper label="Start" size="xs" w={PANEL_GRID.BODY}>
                             <SegmentedControl
                                 size="xs"
                                 aria-label="Start"
@@ -544,7 +550,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                             }}
                         />
                     ))}
-                    <FieldRow labelPosition="inline">
+                    <FieldRow>
                         <PanelField
                             label="Limit"
                             kind="number"
@@ -683,11 +689,21 @@ function WaitingLoads(): React.JSX.Element | null {
  * @returns the place, or nothing.
  */
 export function ServerPlace(): React.JSX.Element | null {
-    const { store, session } = useWorkspace();
+    const { store, session, element } = useWorkspace();
     const anchor = useRef<HTMLDivElement>(null);
     const opened = useWorkspaceState((state) => state.dialog === SERVER_DIALOG);
     const close = (): void => {
-        store.set((state) => (state.dialog === SERVER_DIALOG ? { dialog: null } : {}));
+        const { dialog, serverFromStart } = store.get();
+        if (dialog !== SERVER_DIALOG) {
+            return;
+        }
+        // The project the start screen's Open network data opened, closed with nothing loaded:
+        // back to the start screen rather than an empty Untitled.
+        if (serverFromStart && (session?.data.sources().length ?? 0) === 0) {
+            closeProject({ session, element, workspace: store });
+            return;
+        }
+        store.set({ dialog: null });
     };
     if (!networkOn(session)) {
         return null;

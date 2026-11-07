@@ -215,11 +215,11 @@ describe("server sources on the real element", () => {
         await page.viewport(1366, 900);
     });
 
-    it("opens Network data... from an open project, on Neo4j", async () => {
+    it("opens Network data... from an open project, on NDEx, the first listed", async () => {
         await openDataPlace();
         const form = await openForm();
         await waitFor(() => {
-            assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).value, "Neo4j");
+            assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).value, "NDEx");
         });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -369,7 +369,7 @@ describe("server sources on the real element", () => {
         });
     });
 
-    it("enables Test and Load only once the endpoint is filled, and keeps the Start an example does not own", async () => {
+    it("enables Test and Load only once the endpoint is filled, and takes an example's Start", async () => {
         await openDataPlace();
         const form = await openForm();
         await pick(form, "Kind", "Neo4j");
@@ -388,7 +388,7 @@ describe("server sources on the real element", () => {
         assert.isNotNull(within(form).getByLabelText("Expand limit"));
         await pick(form, "Example", "Hetionet (end-of-life server)");
         await pick(form, "Example", "Neo4j demo: movies");
-        assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "Query" }).checked);
+        assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "Everything" }).checked);
         assert.equal(within(form).getByRole<HTMLInputElement>("textbox", { name: "Database" }).value, "movies");
         assert.equal(
             within(form).getByRole<HTMLInputElement>("combobox", { name: "Transport" }).value,

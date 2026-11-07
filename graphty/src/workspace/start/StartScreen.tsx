@@ -1,6 +1,6 @@
 import "./start.css";
 
-import { useFileDrop } from "@graphty/compact-mantine";
+import { FileSource, useFileDrop } from "@graphty/compact-mantine";
 import {
     DATASET_DESCRIPTORS,
     type DatasetMeta,
@@ -41,6 +41,7 @@ import {
     openGenerated,
     openModel,
     openSample,
+    openUrl,
     OWN_COPIES,
     pictureOf,
     samplePicture,
@@ -912,6 +913,22 @@ export function StartScreen(): React.JSX.Element {
                                     </Button>
                                     {/* Without network data, New from data... sits beside Samples. */}
                                     {network ? <div className="ws-land-wide">{newButton}</div> : newButton}
+                                    {/* A graph file at a web address opens as a new project. */}
+                                    <div className="ws-land-wide">
+                                        <FileSource
+                                            variant="row"
+                                            url
+                                            multiple
+                                            placeholder="Web address of a graph file"
+                                            openLabel="Open"
+                                            onUrl={(url) => {
+                                                openUrl(workspace.store, url);
+                                            }}
+                                            onFiles={(files) => {
+                                                openFiles(workspace, files);
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                                 {privacy}
                             </Paper>

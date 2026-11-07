@@ -394,9 +394,11 @@ again" is stored on the reader's machine, never in a project file.
 5. **The reader's own autosave restored is not a file opened.** A writer lists in `waiting` the
    ids of the source entries still waiting to be run. Opening a project file ignores `waiting`:
    every network entry waits, because a file cannot approve its own fetches. Restoring the
-   reader's own autosave (the element's Autosaver, never `session.project.open` called by an
-   application) keeps only the entries in `waiting` waiting: a load the reader ran stays live,
-   and one they never approved still waits after any number of autosave round trips.
+   reader's own work (the element's Autosaver, or `session.project.open(text, { ownWork: true })`
+   for a project the application itself kept in storage only it writes) keeps only the entries in
+   `waiting` waiting: a load the reader ran stays live, and one they never approved still waits
+   after any number of round trips. A writer always writes `waiting` (empty when nothing waits);
+   a member without it was written before the list existed, and every entry in it waits.
 6. **With the `network-data` experiment off**, the member is kept exactly as the file held it
    and written back unchanged, nothing waits, and the open reports `E_FEATURE_OFF` with
    `{ feature: "network-data", key: "graphty-sources" }`.

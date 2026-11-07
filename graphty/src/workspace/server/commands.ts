@@ -21,7 +21,7 @@ import { type CommandContext, defineRegistration } from "../commands/registry";
 import { networkOn } from "../features";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
-import { kindName } from "./words";
+import { codeWords, failureOf, kindName } from "./words";
 
 /** The `dialog` value that opens the server form beside the Sources section. */
 export const SERVER_DIALOG = "server";
@@ -144,9 +144,21 @@ export function formReady(entry: SourceCatalogEntry, form: ServerFormState): boo
 }
 
 /**
- * The form filled from one of the source's examples: its endpoint, sign-in and params, with the
- * params the previous example set cleared first and the transport always the example's (a source
- * picks it from the endpoint when the example names none). The reader's Start is kept.
+ * The cap a form holds for an example: its first page when it is too big to load whole, else none,
+ * so the form loads what the example promises.
+ * @param example - the example.
+ * @param example.firstPage - its first page, if it has one.
+ * @returns the form's Limit.
+ */
+function exampleLimit(example: { readonly firstPage?: number | undefined }): number {
+    return example.firstPage ?? 0;
+}
+
+/**
+ * The form filled from one of the source's examples: its endpoint, sign-in, params (its Start
+ * among them) and its own cap, with the params the previous example set cleared first and the
+ * transport always the example's (a source picks it from the endpoint when the example names
+ * none). Load then loads what the example promises, as `session.data.loadExample` does.
  * @param entry - the source.
  * @param form - the form now.
  * @param id - the example's id; null clears the example.
@@ -161,24 +173,12 @@ export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id
     if (example === undefined) {
         return form;
     }
-    const prior = examples.find((each) => each.plainName === form.example);
-    const owned = new Set([...Object.keys(prior?.params ?? {}), "transport"]);
-    const params: Record<string, unknown> = Object.fromEntries(
-        Object.entries(form.params).filter(([name]) => !owned.has(name)),
-    );
-    for (const [name, value] of Object.entries(example.params)) {
-        if (name !== "mode") {
-            params[name] = value;
-        }
-    }
-    if (form.params.mode !== undefined) {
-        params.mode = form.params.mode;
-    }
     return {
         ...form,
         example: example.plainName,
+        limit: exampleLimit(example),
         endpoint: example.endpoint ?? "",
-        params,
+        params: { ...example.params },
         user: example.publicLogin?.username ?? "",
         secret: example.publicLogin?.password ?? "",
     };
@@ -208,16 +208,18 @@ export function withoutExample(entry: SourceCatalogEntry, form: ServerFormState)
     if (filled === undefined) {
         return rest;
     }
-    const fresh = freshForm(entry).params;
-    const params: Record<string, unknown> = { ...form.params };
+    const freshOne = freshForm(entry);
+    const fresh = freshOne.params;
+    const params: Record<string, unknown> = { ...fresh, ...form.params };
     for (const [name, value] of Object.entries(filled.params)) {
-        if (name !== "mode" && untouched(params[name], value)) {
+        if (untouched(params[name], value)) {
             params[name] = fresh[name];
         }
     }
     const login = filled.publicLogin;
     return {
         ...rest,
+        limit: form.limit === exampleLimit(filled) ? freshOne.limit : form.limit,
         endpoint: untouched(form.endpoint, filled.endpoint ?? "") ? "" : form.endpoint,
         params: Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
         user: untouched(form.user, login?.username ?? "") ? "" : form.user,
@@ -315,11 +317,14 @@ export function serverRequest(
     entry: SourceCatalogEntry,
     form: ServerFormState,
 ): { input: SourceInput; options: SourceLoadOptions } {
+    // A param the descriptor does not declare (an example's template values) goes as it is.
+    const declared = new Map(entry.descriptor.params.map((param) => [param.name, param.type]));
     const config: Record<string, unknown> = {};
-    for (const param of entry.descriptor.params) {
-        const value = paramValue(param.type, form.params[param.name]);
+    for (const [name, typed] of Object.entries(form.params)) {
+        const type = declared.get(name);
+        const value = type === undefined ? typed : paramValue(type, typed);
         if (value !== undefined) {
-            config[param.name] = value;
+            config[name] = value;
         }
     }
     const endpoint = form.endpoint.trim();
@@ -357,6 +362,7 @@ export function openServerForm(store: WorkspaceStore, kind: string | null = null
         ...panelsInView(),
         dialog: SERVER_DIALOG,
         serverKind: kind,
+        serverFromStart: state.project === null,
     }));
 }
 
@@ -418,8 +424,8 @@ function selectedNode(ctx: CommandContext): NodeId | undefined {
  * @param id - the node.
  */
 function collapseNode(workspace: WorkspaceStore, session: GraphSession, id: NodeId): void {
-    session.data.collapse(id).catch(() => {
-        workspace.set({ notice: { message: "Not collapsed" } });
+    session.data.collapse(id).catch((error: unknown) => {
+        workspace.set({ notice: { message: `Not collapsed: ${codeWords(failureOf(error))}` } });
     });
 }
 

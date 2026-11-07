@@ -249,6 +249,27 @@ describe("the start screen", () => {
         assert.equal(state.dialog, "server");
     });
 
+    it("opens a graph from a typed web address, and nothing for words that are not one", async () => {
+        const store = renderStart();
+        const field = screen.getByRole("textbox", { name: "Web address of a graph file" });
+        await userEvent.type(field, "trade routes{Enter}");
+        assert.isNull(store.get().project);
+
+        await userEvent.clear(field);
+        await userEvent.type(field, "https://example.com/data/trade%20routes.graphml{Enter}");
+
+        assert.equal(store.get().project?.name, "trade routes");
+        assert.equal(store.get().opening?.name, "trade routes");
+    });
+
+    it("opens a typed web address from the Open button beside the box", async () => {
+        const store = renderStart();
+        const field = screen.getByRole("textbox", { name: "Web address of a graph file" });
+        await userEvent.type(field, "https://example.com/data/sites.csv");
+        await userEvent.click(screen.getByRole("button", { name: "Open" }));
+        assert.equal(store.get().opening?.name, "sites");
+    });
+
     it("draws no Open network data with network data off", () => {
         renderStart();
         assert.isNull(screen.queryByRole("button", { name: "Open network data" }));

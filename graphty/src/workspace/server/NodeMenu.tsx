@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { EXPAND_DEFAULTS, EXPAND_DIALOG, type ServerFormState, splitList } from "./commands";
 import { ExpandFields } from "./ServerForm";
+import { codeWords, failureOf } from "./words";
 
 /** Where the rows are open: the node, and its point in the window. */
 interface Opened {
@@ -87,8 +88,10 @@ export function NodeMenu(): React.JSX.Element | null {
                                             limit: expandWith.limit,
                                             ...(types.length === 0 ? {} : { relationshipTypes: types }),
                                         })
-                                        .catch(() => {
-                                            store.set({ notice: { message: "Not expanded" } });
+                                        .catch((error: unknown) => {
+                                            store.set({
+                                                notice: { message: `Not expanded: ${codeWords(failureOf(error))}` },
+                                            });
                                         });
                                 }}
                             >

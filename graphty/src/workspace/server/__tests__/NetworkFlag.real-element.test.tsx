@@ -67,7 +67,15 @@ describe("network data behind its experiment", () => {
     it("offers Open network data and Network data... with it on", async () => {
         await siteFeatures(["network-data"]);
         onTestFinished(() => siteFeatures([]));
-        render(<Workspace store={createWorkspaceStore()} />);
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+        await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
+        await screen.findByRole("form", { name: "Network data" });
+        // Closed with nothing loaded: back to the start screen, not an empty Untitled project.
+        await userEvent.click(await screen.findByRole("button", { name: "Close Network data" }));
+        await waitFor(() => {
+            assert.isNull(store.get().project);
+        });
         assert.isNotNull(await screen.findByRole("button", { name: "Open network data" }));
     });
 

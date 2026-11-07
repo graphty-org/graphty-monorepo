@@ -945,6 +945,7 @@ export abstract class DataSource {
             // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
             format: format === "json" && dialect !== null ? dialect : format,
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
+            positionsStored: positions?.usable === true,
             ...(fit === undefined || box === null || box === undefined
                 ? {}
                 : {

@@ -82,6 +82,13 @@ import {
     NodeSizeModes,
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
+import {
+    FILE_STYLE_ARROWS,
+    FILE_STYLE_CHANNELS,
+    FILE_STYLE_LINE_PATTERNS,
+    FILE_STYLE_NODE_SHAPES,
+    FILE_STYLE_SIZE_MODES,
+} from "../../features/fileStyles";
 import { isAssetId } from "../assets/assetId";
 
 // ---------------------------------------------------------------------------------------------
@@ -249,7 +256,10 @@ export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["
  */
 export type EdgeLineValue = EdgeLinePattern;
 
-/** A pattern an edge's outline band can be drawn in (`line.outline.type`). */
+/**
+ * A pattern an edge's outline band can be drawn in (`line.outline.type`).
+ * @experimental file-styles
+ */
 type EdgeOutlineValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["outline"]>["type"]>;
 
 /** An arrow the edge renderer can draw at either end. */
@@ -317,7 +327,10 @@ type NodeModelUpValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["model
 /** A line style a node border can be drawn in. */
 type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
 
-/** Where a node border sits against the node's size. @public */
+/**
+ * Where a node border sits against the node's size. @public
+ * @experimental file-styles
+ */
 export type NodeBorderPositionValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["position"]>;
 
 /** Every node shape, in schema order. */
@@ -560,6 +573,8 @@ export interface ChannelValues {
     "edge.patternCount": number;
     "edge.waveAmplitude": number;
     "edge.wavePeriod": number;
+    "edge.dashLength": number;
+    "edge.dashGap": number;
     "edge.curvature": boolean;
     "edge.bends": string;
     "edge.fanSpacing": number;
@@ -911,6 +926,13 @@ export interface ChannelDescriptor {
      * @since 3.36.0
      */
     readonly shaderTarget?: "node" | "edge";
+    /**
+     * The experiment the channel belongs to: `"file-styles"` on a channel added to draw the styles
+     * other programs write into graph files. `session.catalog.channels()` leaves such a channel out
+     * while the experiment is off. Absent on every other channel.
+     * @experimental file-styles
+     */
+    readonly feature?: "file-styles";
 }
 
 /**
@@ -4382,6 +4404,33 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "How far along its path a sinewave or zigzag line runs before it repeats, in the units of " +
             "`edge.width`. Used with `edge.waveAmplitude`; unset or 0, it is four times the amplitude.",
     },
+    "edge.dashLength": {
+        channel: "edge.dashLength",
+        target: "edge",
+        plainName: "Edge Dash Length",
+        shortName: "Dash length",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.dashLength",
+        renderable: true,
+        caveat: "How long each dash of a dashed edge is, in the units of `edge.width`. Unset, 3.",
+    },
+    "edge.dashGap": {
+        channel: "edge.dashGap",
+        target: "edge",
+        plainName: "Edge Dash Gap",
+        shortName: "Dash gap",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.dashGap",
+        renderable: true,
+        caveat:
+            "The clear space between two dashes of a dashed edge or two dots of a dotted one, in the units of " +
+            "`edge.width`, repeating from the edge's start, the last dash cut where the edge ends. Unset, the " +
+            "first and last touch the edge's ends and the rest spread between them.",
+    },
     "edge.curvature": {
         channel: "edge.curvature",
         target: "edge",
@@ -5009,6 +5058,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(value === undefined ? {} : { default: value }),
                 ...(step === undefined ? {} : { step }),
                 ...(modifies === undefined ? {} : { modifies }),
+                // @experimental file-styles
+                ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },
         ];
     }),
@@ -5051,7 +5102,81 @@ export function channelDescriptor(channel: string): ChannelDescriptor | undefine
  * @returns Every channel for that target, in table order.
  */
 export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor[] {
-    return CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel]).filter((descriptor) => descriptor.target === target);
+    return target === "node" ? NODE_CHANNELS : EDGE_CHANNELS;
+}
+
+/**
+ * The channels of one target in table order, built once: the same array on every call, so a
+ * catalog that lists them unchanged hands back the identical object.
+ * @param target - Nodes or edges.
+ * @returns The frozen list.
+ */
+function channelsOf(target: "node" | "edge"): readonly ChannelDescriptor[] {
+    return Object.freeze(
+        CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel]).filter((descriptor) => descriptor.target === target),
+    );
+}
+
+const NODE_CHANNELS = channelsOf("node");
+const EDGE_CHANNELS = channelsOf("edge");
+
+/**
+ * The values the `file-styles` experiment adds, by the value list a channel shares: every channel
+ * that takes a node shape, an arrowhead, a line pattern or a size mode reads one of these lists.
+ */
+const FILE_STYLE_VALUES = new Map<readonly string[], ReadonlySet<string>>([
+    [NODE_SHAPE_VALUES, new Set(FILE_STYLE_NODE_SHAPES)],
+    [ARROW_VALUES, new Set(FILE_STYLE_ARROWS)],
+    [EDGE_LINE_VALUES, new Set(FILE_STYLE_LINE_PATTERNS)],
+    [NODE_SIZE_MODE_VALUES, new Set(FILE_STYLE_SIZE_MODES)],
+]);
+
+/**
+ * A channel as it stands with the `file-styles` experiment off: without the values the experiment
+ * added. The descriptor itself when it carries none of them.
+ * @param descriptor - The channel.
+ * @returns The descriptor, its value list narrowed.
+ */
+export function withoutFileStyleValues(descriptor: ChannelDescriptor): ChannelDescriptor {
+    const gated = descriptor.values === undefined ? undefined : FILE_STYLE_VALUES.get(descriptor.values);
+    return gated === undefined
+        ? descriptor
+        : Object.freeze({
+              ...descriptor,
+              values: Object.freeze(descriptor.values?.filter((value) => !gated.has(value))),
+          });
+}
+
+/**
+ * The channels of one target with the `file-styles` experiment off: none the experiment added, and
+ * none of the values it added. Built once per target.
+ * @param target - Nodes or edges.
+ * @returns The frozen list, in table order.
+ */
+function withoutFileStyles(target: "node" | "edge"): readonly ChannelDescriptor[] {
+    return Object.freeze(
+        channelsFor(target)
+            .filter((descriptor) => descriptor.feature === undefined)
+            .map(withoutFileStyleValues),
+    );
+}
+
+let offLists: { readonly node: readonly ChannelDescriptor[]; readonly edge: readonly ChannelDescriptor[] } | undefined;
+
+/**
+ * The channels one session offers for a target: every channel with the `file-styles` experiment
+ * on, the same array {@link channelsFor} returns; without what the experiment added otherwise.
+ * @param target - Nodes or edges.
+ * @param fileStyles - Whether the session switched the experiment on.
+ * @returns The channels, the same array on every call with the same arguments.
+ */
+export function sessionChannels(target: "node" | "edge", fileStyles: boolean): readonly ChannelDescriptor[] {
+    if (fileStyles) {
+        return channelsFor(target);
+    }
+
+    offLists ??= { node: withoutFileStyles("node"), edge: withoutFileStyles("edge") };
+    return offLists[target];
 }
 
 /**

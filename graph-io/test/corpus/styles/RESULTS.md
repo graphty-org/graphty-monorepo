@@ -19,7 +19,7 @@ Tool values are elements drawn with the writing program's default.
 | cx/fidelity/repro-locked-own-size.cx | ok | 12 | 12 | 5 | 2 | 22 | 82% | 82% | 0 | 372 | 0 |  |
 | cx/fidelity/repro-unplaced-boxes.cx | ok | 24 | 29 | 3 | 3 | 0 | - | - | 0 | 775 | 0 |  |
 | cx/fidelity/syn-bypass.cx | ok | 64 | 90 | 7 | 5 | 257 | 98% | 89% | 0 | 924 | 0 | W_STYLE_NOT_CARRIED |
-| cx/fidelity/syn-mappings.cx | ok | 96 | 140 | 13 | 12 | 1628 | 26% | 26% | 0 | 1416 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED |
+| cx/fidelity/syn-mappings.cx | ok | 96 | 140 | 13 | 12 | 1645 | 26% | 26% | 0 | 1416 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED |
 | cx/generated/graphty-written-block-other-graph.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 1173 | 0 | W_STYLE_BLOCK_IGNORED |
 | cx/generated/graphty-written-block-truncated.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 1173 | 0 | W_STYLE_BLOCK_IGNORED |
 | cx/generated/graphty-written-native-edit.cx | ok | 75 | 108 | 7 | 3 | 103 | 9% | 9% | 0 | 0 | 0 |  |
@@ -32,7 +32,7 @@ Tool values are elements drawn with the writing program's default.
 | cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 4 | 5 | 32 | 0% | 0% | 0 | 427 | 0 |  |
 | cx2/fidelity/signor-aml.cx2 | ok | 147 | 306 | 5 | 8 | 762 | 14% | 13% | 0 | 2718 | 0 |  |
 | cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 7 | 5 | 257 | 98% | 89% | 0 | 924 | 0 | W_STYLE_NOT_CARRIED |
-| cx2/fidelity/syn-mappings.cx2 | ok | 96 | 140 | 14 | 12 | 1700 | 25% | 25% | 0 | 1416 | 0 | W_STYLE_NOT_CARRIED |
+| cx2/fidelity/syn-mappings.cx2 | ok | 96 | 140 | 14 | 12 | 1717 | 25% | 25% | 0 | 1416 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/synthetic-lethal.cx2 | ok | 69 | 152 | 9 | 4 | 365 | 0% | 0% | 13 | 1326 | 0 | W_STYLE_RAMP_ROUNDED |
 | cx2/fidelity/u2os-hierarchy.cx2 | ok | 82 | 84 | 8 | 2 | 134 | 0% | 0% | 16 | 1080 | 0 | W_STYLE_RAMP_ROUNDED |
 | cx2/fidelity/us-returned-students.cx2 | ok | 170 | 491 | 3 | 6 | 36 | 78% | 78% | 0 | 3966 | 0 | W_STYLE_NOT_CARRIED |
@@ -111,7 +111,7 @@ Tool values are elements drawn with the writing program's default.
 | cys/fidelity/import-and-save.cys | ok | 30 | 137 | 4 | 10 | 365 | 5% | 0% | 0 | 865 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/luad-vest-v2.cys | ok | 26 | 25 | 6 | 5 | 13 | 0% | 0% | 0 | 281 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_OTHER_STYLES |
 | cys/fidelity/syn-bypass.cys | ok | 63 | 86 | 7 | 5 | 232 | 99% | 92% | 0 | 808 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/fidelity/syn-mappings.cys | ok | 96 | 140 | 13 | 12 | 1628 | 26% | 26% | 0 | 1276 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/fidelity/syn-mappings.cys | ok | 96 | 140 | 13 | 12 | 1645 | 26% | 26% | 0 | 1276 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/generated/graphty-written-block-other-graph.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 625 | 0 | W_STYLE_BLOCK_IGNORED |
 | cys/generated/graphty-written-block-truncated.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 625 | 0 | W_STYLE_BLOCK_IGNORED |
 | cys/generated/graphty-written-native-edit.cys | ok | 45 | 62 | 5 | 3 | 103 | 1% | 1% | 0 | 0 | 0 |  |
@@ -232,7 +232,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/cytoscape/chatox__networks-science-course__karate.graphml | ok | 34 | 78 | 2 | 1 | 0 | - | - | 0 | 2274 | 0 |  |
 | graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml | ok | 31 | 39 | 2 | 1 | 0 | - | - | 0 | 1431 | 0 |  |
 | graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | 2 | 1 | 0 | - | - | 0 | 441 | 0 |  |
-| graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 7 | 6 | 144 | 59% | 10% | 0 | 385 | 0 | W_STYLE_NO_FILL |
+| graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 7 | 6 | 152 | 61% | 9% | 0 | 385 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 7 | 5 | 118 | 76% | 11% | 0 | 381 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 4 | 152 | 56% | 2% | 0 | 293 | 0 |  |
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 452 | 0 | W_STYLE_NO_FILL |
@@ -258,7 +258,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml | ok | 10 | 4 | 6 | 2 | 20 | 75% | 20% | 0 | 56 | 0 |  |
 | graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | 8 | 3 | 55 | 84% | 24% | 0 | 149 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | graphml/java-graphml-lib/domondi1__KEVGraph__guin-D__Library-Management-System.graphml | ok | 16 | 15 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml | ok | 13 | 4 | 6 | 3 | 39 | 54% | 0% | 0 | 66 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml | ok | 13 | 4 | 6 | 3 | 41 | 56% | 0% | 0 | 66 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-genericnode/CERT-Polska__ursadb__dataset.graphml | ok | 11 | 0 | 4 | 1 | 18 | 44% | 0% | 0 | 33 | 0 |  |
 | graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml | ok | 8 | 3 | 5 | 2 | 18 | 100% | 22% | 0 | 64 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml | ok | 4 | 0 | 3 | 1 | 6 | 100% | 0% | 0 | 17 | 0 |  |
@@ -282,13 +282,13 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | 6 | 3 | 22 | 45% | 36% | 0 | 50 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml | ok | 9 | 6 | 5 | 3 | 23 | 100% | 26% | 0 | 53 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml | ok | 15 | 18 | 3 | 4 | 1 | 0% | 0% | 0 | 117 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 85 | 100% | 0% | 0 | 141 | 0 |  |
-| graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 6 | 3 | 71 | 32% | 4% | 27 | 222 | 0 | W_STYLE_RAMP_ROUNDED |
-| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 7 | 6 | 264 | 96% | 26% | 0 | 1598 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | 4 | 2 | 29 | 48% | 0% | 0 | 90 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml | ok | 30 | 3 | 9 | 3 | 44 | 48% | 11% | 0 | 45 | 0 |  |
+| graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 104 | 100% | 0% | 0 | 117 | 0 |  |
+| graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 6 | 3 | 96 | 50% | 3% | 27 | 222 | 0 | W_STYLE_RAMP_ROUNDED |
+| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 6 | 6 | 288 | 96% | 24% | 0 | 1774 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | 4 | 2 | 29 | 48% | 0% | 0 | 98 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml | ok | 30 | 3 | 9 | 3 | 47 | 51% | 11% | 0 | 75 | 0 |  |
 | graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml | ok | 21 | 22 | 7 | 3 | 17 | 6% | 6% | 0 | 184 | 0 |  |
-| graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 3 | 13 | 100% | 0% | 0 | 69 | 0 |  |
+| graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 3 | 32 | 100% | 0% | 0 | 47 | 0 |  |
 | json/cyjs-colajs (data and stylesheet) | ok | 21 | 593 | 3 | 4 | 965 | 0% | 0% | 0 | 13382 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/cyjs-colajs-data.json | ok | 21 | 593 | 1 | 2 | 0 | - | - | 0 | 15901 | 0 |  |
 | json/cyjs-cose-bilkent-compound.json | ok | 28 | 35 | 3 | 5 | 0 | - | - | 0 | 1533 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
@@ -408,7 +408,7 @@ Tool values are elements drawn with the writing program's default.
 | pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 5 | 22 | 100% | 27% | 0 | 72 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 5 | 27 | 89% | 22% | 0 | 38 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 5 | 24 | 100% | 25% | 0 | 79 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
-| pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 6 | 5 | 342 | 56% | 0% | 0 | 1631 | 0 |  |
+| pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 6 | 5 | 343 | 56% | 0% | 0 | 1631 | 0 |  |
 | pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 4 | 3 | 75 | 76% | 76% | 0 | 6417 | 0 |  |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |
 | roles/by-group-1 | ok | 1 | 0 | 1 | 0 | 0 | - | - | 0 | 0 | 0 |  |
@@ -457,8 +457,8 @@ Tool values are elements drawn with the writing program's default.
 | xgmml/fidelity/pathguide-allpathwaysdb.xgmml | ok | 48 | 75 | 5 | 3 | 27 | 0% | 0% | 0 | 1155 | 0 |  |
 | xgmml/fidelity/repro-name-only-labels.xgmml | ok | 14 | 13 | 6 | 2 | 9 | 0% | 0% | 0 | 296 | 0 |  |
 | xgmml/fidelity/syn-bypass.xgmml.gz | ok | 67 | 110 | 4 | 6 | 267 | 80% | 28% | 0 | 1488 | 0 | W_STYLE_NOT_CARRIED |
-| xgmml/fidelity/syn-mappings.xgmml.gz | ok | 96 | 140 | 6 | 7 | 1628 | 54% | 0% | 6 | 1416 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_RAMP_ROUNDED |
-| xgmml/fidelity/wp4271-cy3-export.xgmml.gz | ok | 158 | 90 | 7 | 7 | 500 | 50% | 10% | 0 | 1488 | 0 | W_STYLE_NOT_CARRIED |
+| xgmml/fidelity/syn-mappings.xgmml.gz | ok | 96 | 140 | 6 | 7 | 1645 | 54% | 0% | 6 | 1416 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_RAMP_ROUNDED |
+| xgmml/fidelity/wp4271-cy3-export.xgmml.gz | ok | 158 | 90 | 7 | 9 | 500 | 50% | 10% | 0 | 1488 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/generated/graphics-mix.xgmml | ok | 80 | 80 | 4 | 3 | 408 | 66% | 0% | 0 | 2200 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
 | xgmml/generated/graphty-written-block-other-graph.xgmml.gz | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 687 | 0 | W_STYLE_BLOCK_IGNORED |
 | xgmml/generated/graphty-written-block-truncated.xgmml.gz | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 687 | 0 | W_STYLE_BLOCK_IGNORED |

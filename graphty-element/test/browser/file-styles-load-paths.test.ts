@@ -10,6 +10,9 @@ import { afterEach, assert, describe, test, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { fileStyleOf } from "../../session";
 import { Graph } from "../../src/Graph.js";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** Twelve nodes in two groups, each group with its own viz color. */
 const GEXF = `<?xml version="1.0" encoding="UTF-8"?>

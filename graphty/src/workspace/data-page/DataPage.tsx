@@ -46,6 +46,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExtern
 
 import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
+import { fileStylesOn } from "../features";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
@@ -429,7 +430,13 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                       }
                       store.set({ page: "panels" });
                       const incoming = { name: file.name, source: sourceInput(source, settings) };
-                      void replaceWith(store, session, sources[0].key, incoming, loadChoices(draft, choices, "merge"))
+                      void replaceWith(
+                          store,
+                          session,
+                          sources[0].key,
+                          incoming,
+                          loadChoices(draft, choices, "merge", fileStylesOn(session)),
+                      )
                           .then(() => {
                               rememberLoad(session, { files: [file], choices });
                           })
@@ -1547,6 +1554,7 @@ function Footer({
     onCancel: () => void;
     onLoad: () => void;
 }): React.JSX.Element {
+    const { session } = useWorkspace();
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
     const replaceButton = useRef<HTMLButtonElement>(null);
@@ -1606,7 +1614,7 @@ function Footer({
                     });
                 }}
             />
-            {draft !== null && offersStyles(draft) ? (
+            {draft !== null && fileStylesOn(session) && offersStyles(draft) ? (
                 <Checkbox
                     label="Import styles from the file"
                     size="xs"

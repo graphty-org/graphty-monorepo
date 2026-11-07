@@ -22,7 +22,7 @@ import people from "./people.json";
 export const PEOPLE_SOURCE_ID = "recorded-people";
 
 /** The address the recordings were made against. */
-export const PEOPLE_ENDPOINT: string = people.endpoint;
+const PEOPLE_ENDPOINT: string = people.endpoint;
 
 /** The recorded responses. */
 export const PEOPLE_RECORDINGS: readonly Recording[] = people.recordings;

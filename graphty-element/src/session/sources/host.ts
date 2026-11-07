@@ -18,7 +18,7 @@ export interface HostEdge {
 }
 
 /** Where a node is drawn, and whether a reader pinned it. */
-export interface HostPlacement {
+interface HostPlacement {
     /** Scene units; null while no layout has placed it. */
     readonly at: { readonly x: number; readonly y: number; readonly z: number } | null;
     readonly pinned: boolean;

@@ -185,7 +185,7 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
 };
 
 /** The Line properties the `cosmograph` experiment adds (issue #3247): the long-edge fade and blending. */
-export const COSMOGRAPH_LINE_CHANNELS: readonly Channel[] = [
+const COSMOGRAPH_LINE_CHANNELS: readonly Channel[] = [
     "edge.fadeEnd",
     "edge.fadeStart",
     "edge.fadeOpacity",
@@ -1285,7 +1285,7 @@ export function madeWords(name: string, nodes: number, edges: number): string {
  * @param edges - how many edges are selected.
  * @returns the words.
  */
-export function selectedWords(nodes: number, edges: number): string {
+function selectedWords(nodes: number, edges: number): string {
     const [first, ...rest] = pickedCount(nodes, edges).split(" and ");
     const [n, word] = first.split(" ");
     const selected = n === "1" ? `selected ${word}` : `${n} selected ${word}`;

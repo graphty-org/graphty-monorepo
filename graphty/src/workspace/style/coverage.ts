@@ -478,7 +478,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
  * Why a property the Style tab draws has no vary glyph. These are decisions, not omissions: the
  * coverage test fails when a drawn property has neither a vary glyph nor a reason here.
  */
-export const VARY_DECISIONS = {
+const VARY_DECISIONS = {
     yesOrNo:
         "A yes-or-no property (wireframe, show, curved) has no vary by: picking which elements are on is what Which elements does, so a layer for those elements sets it",
     look: "A label's look is a set of fields, each set in its settings; its size, text color and background vary through their own properties",

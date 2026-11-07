@@ -10,13 +10,13 @@ import type { HeldRows } from "./commands/data";
 import type { JoinRecord, ReplaceCounts, RowUpdate } from "./types";
 
 /** One of the load's rows as the graph holds it now. */
-export interface HeldRow<Id> {
+interface HeldRow<Id> {
     readonly id: Id;
     readonly data: Readonly<Record<string, unknown>>;
 }
 
 /** One edge as the graph holds it now. */
-export interface HeldEdge extends HeldRow<EdgeId> {
+interface HeldEdge extends HeldRow<EdgeId> {
     readonly source: NodeId;
     readonly target: NodeId;
 }

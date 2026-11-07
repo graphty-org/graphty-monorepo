@@ -19,16 +19,16 @@
 import type { ShaderCost, ShaderDrawing, ShaderInput, ShaderProblem, ShaderProblemCode, ShaderTarget } from "./shaders";
 
 /** The most text a body may hold, in bytes. */
-export const SHADER_BODY_LIMIT = 16_384;
+const SHADER_BODY_LIMIT = 16_384;
 
 /** The most iterations one loop may run. */
-export const SHADER_LOOP_LIMIT = 128;
+const SHADER_LOOP_LIMIT = 128;
 
 /** The most elements an array may hold. */
-export const SHADER_ARRAY_LIMIT = 256;
+const SHADER_ARRAY_LIMIT = 256;
 
 /** How deep brackets and expressions may nest. */
-export const SHADER_NESTING_LIMIT = 64;
+const SHADER_NESTING_LIMIT = 64;
 
 /**
  * The cost budget per drawing: operations per pixel, loops and calls multiplied out. A background
@@ -49,7 +49,7 @@ const COST_BUDGET: Readonly<Record<ShaderDrawing, number>> = {
  * The most iterations along any one path of loops, through calls: two 128-step loops nested
  * through a helper run 16,384 times per pixel whatever their bodies hold.
  */
-export const SHADER_ITERATION_LIMIT = 4_096;
+const SHADER_ITERATION_LIMIT = 4_096;
 
 /** The most a compiler may unroll one function into: iterations times the tokens under them. */
 const UNROLL_BUDGET = 65_536;
@@ -612,7 +612,7 @@ class ConstantReader {
  * @param constants - The global constants known so far.
  * @returns The value, or null when it is not constant.
  */
-export function evaluateConstant(tokens: readonly Token[], constants: ReadonlyMap<string, number>): number | null {
+function evaluateConstant(tokens: readonly Token[], constants: ReadonlyMap<string, number>): number | null {
     return new ConstantReader(tokens, constants).read();
 }
 
@@ -1194,7 +1194,7 @@ function orderedTripCount(span: number, by: number, relation: string, upward: bo
  * @param relation - The test.
  * @returns The trip count, or null when the loop never ends.
  */
-export function tripCount(from: number, to: number, by: number, relation: string): number | null {
+function tripCount(from: number, to: number, by: number, relation: string): number | null {
     const span = to - from;
     const upward = relation === "<" || relation === "<=";
     if (upward || relation === ">" || relation === ">=") {

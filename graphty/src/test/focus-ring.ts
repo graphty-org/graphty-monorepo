@@ -4,7 +4,7 @@
  */
 
 /** Red, green, blue (0-255) and alpha (0-1). */
-export type Rgba = readonly [number, number, number, number];
+type Rgba = readonly [number, number, number, number];
 
 /**
  * Any CSS color as the browser paints it, through a canvas, so light-dark(), color-mix() and
@@ -12,7 +12,7 @@ export type Rgba = readonly [number, number, number, number];
  * @param css - the color.
  * @returns the color.
  */
-export function rgba(css: string): Rgba {
+function rgba(css: string): Rgba {
     const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
     if (ctx === null) {
         throw new Error("no 2d context");
@@ -42,7 +42,7 @@ function luminance([r, g, b]: Rgba): number {
  * @param b - the other.
  * @returns the ratio, 1 to 21.
  */
-export function contrast(a: Rgba, b: Rgba): number {
+function contrast(a: Rgba, b: Rgba): number {
     const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
     return (hi + 0.05) / (lo + 0.05);
 }
@@ -52,7 +52,7 @@ export function contrast(a: Rgba, b: Rgba): number {
  * @param from - the element.
  * @returns the color.
  */
-export function groundOf(from: Element): Rgba {
+function groundOf(from: Element): Rgba {
     for (let at: Element | null = from; at !== null; at = at.parentElement) {
         const bg = rgba(getComputedStyle(at).backgroundColor);
         if (bg[3] > 0.99) {

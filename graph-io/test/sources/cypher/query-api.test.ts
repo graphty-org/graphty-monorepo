@@ -1,6 +1,6 @@
 /**
  * The Cypher source over Neo4j's Query API, against responses recorded from the public Neo4j demo
- * server (`scripts/live-cypher.ts --record`): the movies graph exactly, a user query, a
+ * server (`scripts/record-cypher.ts --record`): the movies graph exactly, a user query, a
  * neighborhood, a query error with its line and column, a scalar result, probe and validate.
  */
 

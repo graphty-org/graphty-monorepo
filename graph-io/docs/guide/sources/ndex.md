@@ -187,17 +187,17 @@ console.log(`${snapshot.nodeCount} nodes`);
 
 A server error's body (NDEx sends a Java stack trace with some) is never read into a report.
 
-## Samples
+## Examples
 
-`listSources()` lists the public networks the source offers as samples, with their counts. PCNet
-2.2 (3.3 million edges, a 690 MB download) is marked `whole: false`: start from a neighborhood.
+`listSources()` lists the public networks the source offers as examples
+(`descriptor.examples`), with their counts. Each loads whole from `https://www.ndexbio.org/` with
+no login.
 
-| Sample                          | UUID                                   | Nodes / edges      |
-| ------------------------------- | -------------------------------------- | ------------------ |
-| WikiPathways WP5483             | `86719f5b-1439-11f0-9806-005056ae3c32` | 57 / 34            |
-| NCI PID cancer signaling        | `640e2cef-795d-11e8-a4bf-0ac135e8bacf` | 2,794 / 25,296     |
-| HuRI human interactome          | `73bc2c06-5fb2-11e9-9f06-0ac135e8bacf` | 8,275 / 52,569     |
-| Signor (signed, directed edges) | `523fff27-afe8-11e9-8bb4-0ac135e8bacf` | 10,339 / 33,381    |
-| DGIdb drugs and target genes    | `7e5e64ff-f6cf-11ea-99da-0ac135e8bacf` | 12,100 / 32,814    |
-| WikiPathways landscape          | `2b3ed6af-5031-11eb-9e72-0ac135e8bacf` | 32,077 / 74,109    |
-| PCNet 2.2                       | `8b4b54fa-e87d-11ee-9621-005056ae23aa` | 18,558 / 3,323,928 |
+| Example                         | UUID                                   | Nodes / edges   |
+| ------------------------------- | -------------------------------------- | --------------- |
+| WikiPathways WP5483             | `86719f5b-1439-11f0-9806-005056ae3c32` | 57 / 34         |
+| NCI PID cancer signaling        | `640e2cef-795d-11e8-a4bf-0ac135e8bacf` | 2,794 / 25,296  |
+| HuRI human interactome          | `73bc2c06-5fb2-11e9-9f06-0ac135e8bacf` | 8,275 / 52,569  |
+| Signor (signed, directed edges) | `523fff27-afe8-11e9-8bb4-0ac135e8bacf` | 10,339 / 33,381 |
+| DGIdb drugs and target genes    | `7e5e64ff-f6cf-11ea-99da-0ac135e8bacf` | 12,100 / 32,814 |
+| WikiPathways landscape          | `2b3ed6af-5031-11eb-9e72-0ac135e8bacf` | 32,077 / 74,109 |

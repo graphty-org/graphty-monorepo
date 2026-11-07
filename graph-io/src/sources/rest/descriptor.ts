@@ -4,8 +4,8 @@
  */
 
 import { type SourceDescriptor } from "../types.js";
-import { DEPS_DEV_MAPPING } from "./samples/deps-dev.js";
-import { STRING_MAPPING } from "./samples/string.js";
+import { DEPS_DEV_MAPPING } from "./examples/deps-dev.js";
+import { STRING_MAPPING } from "./examples/string.js";
 
 /**
  * The descriptor of the generic `rest` source. Experimental.
@@ -20,7 +20,7 @@ export const REST_DESCRIPTOR: SourceDescriptor = Object.freeze({
     // ponytail: a mapping without `expand` or paging cannot do either; per-mapping features when a form needs them
     features: ["expand", "probe", "validate", "page"],
     params: [{ name: "mapping", plainName: "Mapping", type: "text", required: true }],
-    samples: [
+    examples: [
         {
             id: "string-tp53",
             plainName: "STRING: TP53's functional partners",
@@ -71,11 +71,13 @@ export const OPENALEX_DESCRIPTOR: SourceDescriptor = Object.freeze({
         },
         { name: "include", plainName: "Include", type: "string", advanced: true },
     ],
-    samples: [
+    examples: [
         {
             id: "openalex-watts-strogatz",
             plainName: "Watts-Strogatz paper's citations",
             params: { work: "W2112090702" },
+            // its first page, as loaded on 2026-11-07: the citations keep growing
+            counts: { nodes: 16437, edges: 24222 },
             whole: false,
             firstPage: 200,
         },

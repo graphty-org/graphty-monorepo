@@ -177,12 +177,15 @@ credential is bound to it.
 When the mapping names a `modified` selector, the newest value the load read is recorded as
 `validators.modified`, and a newer one now is `changed`.
 
-## Samples
+## Examples
 
-The `rest` source's descriptor lists two samples, each with its mapping in its params
-(`listSources()` shows them):
+The `rest` source's descriptor lists two examples, each with its mapping in its params
+(`descriptor.examples` in `listSources()`). STRING's mapping is pinned to STRING 12.5's
+versioned address, `https://version-12-5.string-db.org`, so its answer does not change with
+STRING's releases. The `openalex` source lists one, the citations of the Watts-Strogatz paper
+(`W2112090702`), which loads its first page of about 200 works.
 
-| Sample             | What it loads                                                              | Nodes / edges |
+| Example            | What it loads                                                              | Nodes / edges |
 | ------------------ | -------------------------------------------------------------------------- | ------------- |
 | `string-tp53`      | STRING: the functional partners of the protein TP53 (`STRING_MAPPING`)     | 21 / 113      |
 | `deps-dev-webpack` | deps.dev: the resolved dependencies of webpack 5.90.0 (`DEPS_DEV_MAPPING`) | 84 / 121      |

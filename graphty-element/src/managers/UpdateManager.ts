@@ -2713,6 +2713,9 @@ export class UpdateManager implements Manager {
     /** Where each node's mesh sat at the last edge walk, as x, y, z per node index. */
     private lastNodePositions = new Float64Array(0);
 
+    /** The row table's `moves` at the last walk of the node positions, or -1. */
+    private lastRowMoves = -1;
+
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
 
@@ -2851,6 +2854,11 @@ export class UpdateManager implements Manager {
         let unseen = false;
         let nodeCount = 0;
         let highest = -1;
+        // A batched row is drawn where its table row says, so while the table moved no row, no
+        // batched row moved and only the object rows are compared.
+        const moves = this.graphContext.getRowTable?.()?.moves ?? -1;
+        const rowsStill = moves !== -1 && moves === this.lastRowMoves;
+        this.lastRowMoves = moves;
 
         for (const node of this.layoutManager.nodes) {
             const { index } = node;
@@ -2872,16 +2880,7 @@ export class UpdateManager implements Manager {
                 continue;
             }
 
-            const position = node.drawnPosition;
-
-            if (
-                this.lastNodePositions[at] !== position.x ||
-                this.lastNodePositions[at + 1] !== position.y ||
-                this.lastNodePositions[at + 2] !== position.z
-            ) {
-                this.lastNodePositions[at] = position.x;
-                this.lastNodePositions[at + 1] = position.y;
-                this.lastNodePositions[at + 2] = position.z;
+            if (!(rowsStill && node.drawnInBatch) && this.noteMoved(node, at)) {
                 moved.push(node);
             }
         }
@@ -2896,6 +2895,25 @@ export class UpdateManager implements Manager {
         }
 
         return moved.length > nodeCount * MOST_MOVED_SHARE ? true : moved;
+    }
+
+    /**
+     * Note where a node is drawn now.
+     * @param node - The node.
+     * @param at - Its first float in the positions noted at the last walk.
+     * @returns True when it sits somewhere other than it did then.
+     */
+    private noteMoved(node: Node, at: number): boolean {
+        const position = node.drawnPosition;
+        const last = this.lastNodePositions;
+        if (last[at] === position.x && last[at + 1] === position.y && last[at + 2] === position.z) {
+            return false;
+        }
+
+        last[at] = position.x;
+        last[at + 1] = position.y;
+        last[at + 2] = position.z;
+        return true;
     }
 
     /**

@@ -28,9 +28,11 @@ import {
     putBevelLine,
     putBevelPaint,
     putEdgeLabelAt,
+    putNodeDrawing,
     putPanelPaint,
     type PutValue,
     type SiteOf,
+    towardWhite,
     treeAttr,
     treeChild,
     treeChildren,
@@ -444,6 +446,9 @@ function putPaint(pt: Paint, property: string, opacity: string | null, put: PutV
 /** BevelNodeStyle's corner `radius` and the `inset` of its line with neither written. */
 const BEVEL_RADIUS = 10;
 const BEVEL_INSET = 3;
+/** How far toward white, and how wide, the lighter line under a BevelNodeStyle's line is drawn. */
+const BEVEL_HALO_SHARE = 0.85;
+const BEVEL_HALO_WIDTH = 2;
 
 /** ShinyPlateNodeStyle's corner `radius` with none written. */
 const SHINY_RADIUS = 5;
@@ -564,6 +569,10 @@ function readBevelStyle(style: StyleObject, color: string | null, put: PutValue,
     const size = (name: string, fallback: number): number =>
         canonNumber(treeAttr(style.e, name) ?? fallback, at("shapeLines")) ?? fallback;
     putBevelLine(size("radius", BEVEL_RADIUS), size("inset", BEVEL_INSET), put);
+    // under it yFiles for HTML draws a line of 2 most of the way to white (#c8c8c8 over #f7f7f7, #3366ff over
+    // #e0e8ff: yed-live-graphml-specimen-node-shapes-p2)
+    put("shapeLineHaloColor", towardWhite(color, BEVEL_HALO_SHARE));
+    put("shapeLineHaloWidth", BEVEL_HALO_WIDTH);
 }
 
 /**
@@ -848,21 +857,9 @@ function putBpmnPicture(
     ports: unknown,
 ): void {
     const drawing = bpmnPicture(style.tag, styleReader(refs, style, at), size, portEvents(refs, ports, size, at));
-    if (drawing === null) {
-        return;
+    if (drawing !== null) {
+        putNodeDrawing(drawing, put);
     }
-    put("image", drawing.picture);
-    put("imageClip", "none");
-    const { left, top, right, bottom } = drawing.reach;
-    if (left + top + right + bottom === 0) {
-        put("imageFit", "fill");
-        return;
-    }
-    put("imageFit", "none");
-    put("imageWidth", drawing.width);
-    put("imageHeight", drawing.height);
-    put("imageOffsetX", (right - left) / 2);
-    put("imageOffsetY", (bottom - top) / 2);
 }
 
 /** How far under the top of a UMLNodeStyle yEd Live writes its class's name, past where `inside-top` puts it. */

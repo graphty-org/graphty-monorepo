@@ -631,6 +631,83 @@ describe("GraphML styles: yEd", () => {
             const nodes = realizer("a", "UMLNoteNode", "", "", '<y:Geometry height="50" width="100" x="0" y="0"/>');
             expect(await values(nodes, "shape")).toEqual(["polygon"]);
             expect(await values(nodes, "shapePoints")).toEqual(["-1,1 0.7,1 0.7,0.4 1,0.4 1,-1 -1,-1"]);
+            const [picture] = await values(nodes, "image");
+            // the fold: a white triangle in the cut corner, outlined, so its two creases show
+            expect(decodeURIComponent(String(picture))).toContain(
+                'stroke="#505050" stroke-width="1" d="M85,0 L85,15 L100,15 Z"',
+            );
+            expect(await values(nodes, "imageFit")).toEqual(["fill"]);
+        });
+
+        it("draws the part of an SBGN multimer's copy 6 down and right of it that shows", async () => {
+            const mcount = '<y:Property class="java.lang.Integer" name="com.yworks.sbgn.style.mcount" value="2"/>';
+            const nodes = generic("a", "sbgn.Macromolecule", mcount) + generic("b", "sbgn.Macromolecule");
+            const [picture, none] = await values(nodes, "image");
+            expect(none).toBeNull();
+            const svg = decodeURIComponent(String(picture));
+            expect(svg).toContain('<path fill="none" stroke="#505050" stroke-width="1" d="M');
+            // from the copy's top right corner, round its bottom right one, to its bottom left one
+            expect(svg).toContain("L62,18");
+            expect(svg).toContain("L50,42");
+            expect(await values(nodes, "imageWidth")).toEqual([61, null]);
+            expect(await values(nodes, "imageOffsetX")).toEqual([3, null]);
+        });
+
+        it("draws the symbols inside BPMN nodes, in the icon colors where the node sets them", async () => {
+            const square = '<y:Geometry height="36" width="36" x="0" y="0"/>';
+            const nodes =
+                generic("a", "bpmn.Event", prop("type", "EVENT_TYPE_MESSAGE"), square) +
+                generic(
+                    "b",
+                    "bpmn.Event",
+                    prop("type", "EVENT_TYPE_MESSAGE") +
+                        prop("icon.fill", "#ff0000") +
+                        prop("icon.line.color", '"/><script/>'),
+                    square,
+                ) +
+                generic("c", "bpmn.Event", prop("type", "EVENT_TYPE_PLAIN"), square) +
+                generic("d", "bpmn.Activity", prop("taskType", "TASK_TYPE_BUSINESS_RULE"));
+            const [message, red, plain, rule] = (await values(nodes, "image")).map((url) =>
+                typeof url === "string" ? decodeURIComponent(url) : null,
+            );
+            // the envelope in the node's fill and line, where yEd draws it on an event 36 across
+            expect(message).toContain('fill="#c8c8c8" stroke="#505050"');
+            expect(message).toContain("translate(8.22 11.48)");
+            // an icon color that is no color is not read
+            expect(red).toContain('fill="#ff0000" stroke="#505050"');
+            expect(red).not.toContain("script");
+            expect(plain).toBeNull();
+            // the header of the rule's table in the darker fill
+            expect(rule).toContain('fill="#8c8c8c"');
+            expect(await values(nodes, "imageFit")).toEqual(["fill", "fill", null, "fill"]);
+        });
+
+        it("draws an activity's markers side by side along its bottom, past its sides where they do not fit", async () => {
+            const marker = (i: number, name: string): string => prop(`marker${String(i)}`, `BPMN_MARKER_${name}`);
+            const nodes =
+                generic("a", "bpmn.Activity", prop("type", "ACTIVITY_TYPE_SUBPROCESS_LOOP")) +
+                generic(
+                    "b",
+                    "bpmn.Activity",
+                    [marker(1, "LOOP"), marker(2, "PARALLEL"), marker(3, "AD_HOC")].join(""),
+                ) +
+                generic(
+                    "c",
+                    "bpmn.Activity",
+                    [marker(1, "LOOP"), marker(2, "PARALLEL"), marker(3, "COMPENSATION"), marker(4, "AD_HOC")].join(""),
+                );
+            const [loop, three, four] = (await values(nodes, "image")).map((url) =>
+                typeof url === "string" ? decodeURIComponent(url) : "",
+            );
+            // a loop, then a subprocess's plus, each 15 across, 5 apart, about the middle, 4 above the bottom
+            expect(loop).toContain("translate(10.5 17) scale(0.15 0.15)");
+            expect(loop).toContain("translate(30.5 17) scale(0.15 0.15)");
+            expect(three).toContain("translate(0.5 17)");
+            // four are 75 across: 9.5 past each side of a node 56 across
+            expect(four).toContain("translate(-9.5 17)");
+            expect(await values(nodes, "imageFit")).toEqual(["fill", "fill", "none"]);
+            expect(await values(nodes, "imageWidth")).toEqual([null, null, 74]);
+            expect(await values(nodes, "imageOffsetX")).toEqual([null, null, 0]);
         });
 
         it("draws an event, a gateway and the round flowchart and SBGN nodes in the largest square of their box", async () => {

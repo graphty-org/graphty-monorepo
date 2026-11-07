@@ -1998,6 +1998,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             trimInput: READ,
             supportEdge: READ,
             isPulled: READ,
+            togglesOwnMeshes: READ,
         },
     },
     {

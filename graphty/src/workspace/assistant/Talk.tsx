@@ -156,7 +156,7 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
     const release = useCallback((): void => {
         const held = pressedAt.current === null ? 0 : performance.now() - pressedAt.current;
         pressedAt.current = null;
-        if (element === null || !element.isAiTalking()) {
+        if (!element?.isAiTalking()) {
             return;
         }
         if (held > HOLD_MS) {

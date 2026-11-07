@@ -91,7 +91,10 @@ function Options({ choice, scope, running, model }: Readonly<OptionsProps>): Rea
                 </Menu.Target>
                 <Menu.Dropdown>
                     <Menu.Label id={aboutId}>{WORDS["assistant.scope.about"]}</Menu.Label>
-                    <div role="group" aria-labelledby={aboutId}>
+                    <div // NOSONAR(S6819): a group of menu items; a fieldset is not allowed inside a menu
+                        role="group"
+                        aria-labelledby={aboutId}
+                    >
                         <MenuCheckItem
                             radio
                             checked={!about}
@@ -126,7 +129,10 @@ function Options({ choice, scope, running, model }: Readonly<OptionsProps>): Rea
                         <>
                             <Menu.Divider />
                             <Menu.Label id={effortId}>{WORDS["assistant.provider.effort"]}</Menu.Label>
-                            <div role="group" aria-labelledby={effortId}>
+                            <div // NOSONAR(S6819): a group of menu items; a fieldset is not allowed inside a menu
+                                role="group"
+                                aria-labelledby={effortId}
+                            >
                                 {effortRows(levels).map((row) => (
                                     <MenuCheckItem
                                         key={row.value}

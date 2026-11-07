@@ -233,7 +233,8 @@ const STEP_CAUSES: Readonly<Record<string, string>> = {
  */
 function failedStepWords(tool: ResultParam, cause: ResultParam): string {
     const reason = STEP_CAUSES[String(cause)];
-    return `${stepName(String(tool))} failed${reason === undefined ? "" : `: ${reason}`}.`;
+    const because = reason === undefined ? "" : `: ${reason}`;
+    return `${stepName(String(tool))} failed${because}.`;
 }
 
 /**

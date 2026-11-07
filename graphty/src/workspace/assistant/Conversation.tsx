@@ -198,6 +198,47 @@ interface EndRowProps {
 }
 
 /**
+ * The words of how a turn ended: the stop glyph, the failure line, or the plain line. Keyed, so a
+ * failure becoming news mounts with its role and is said.
+ * @param words - the words
+ * @param alert - whether a failure is news
+ * @param said - the line and any "Nothing changed."
+ * @returns The line
+ */
+function endLine(words: EndRowProps["words"], alert: boolean, said: React.JSX.Element): React.JSX.Element {
+    if (words.stopped !== undefined) {
+        return (
+            <Group key={String(alert)} gap={4} wrap="nowrap">
+                <GLYPHS.stop
+                    size={10}
+                    role="img"
+                    aria-label={WORDS["assistant.stopped"]}
+                    className="ws-assistant-stopped"
+                />
+                {words.stopped === "" ? null : <Text size="sm">{words.stopped}</Text>}
+            </Group>
+        );
+    }
+    if (words.failed) {
+        return (
+            <Group
+                key={String(alert)}
+                role={alert ? "alert" : "note"}
+                gap={6}
+                wrap="nowrap"
+                align="flex-start"
+                className="ws-assistant-failed"
+                data-billing={words.billing === undefined ? undefined : ""}
+            >
+                <GLYPHS.warning size={14} aria-hidden className="ws-assistant-failed-mark" />
+                <div>{said}</div>
+            </Group>
+        );
+    }
+    return <div key={String(alert)}>{said}</div>;
+}
+
+/**
  * How a turn ended, in words from its code, with its buttons under it, so the words get the
  * panel's width. A new failure is the alert. The buttons stay out of the alert, so the one going
  * away on the next send changes nothing it says, and a space keeps its two lines two sentences when
@@ -213,7 +254,6 @@ interface EndRowProps {
  */
 function EndRow({ words, unchanged, onAgain, alert }: Readonly<EndRowProps>): React.JSX.Element {
     const { run } = useWorkspace();
-    const role = words.failed && alert ? "alert" : undefined;
     const said = (
         <>
             <Text size="sm">{words.line}</Text>{" "}
@@ -222,38 +262,7 @@ function EndRow({ words, unchanged, onAgain, alert }: Readonly<EndRowProps>): Re
             ) : null}
         </>
     );
-    let row: React.JSX.Element;
-    // Keyed, so a failure becoming news mounts with its role and is said.
-    if (words.stopped !== undefined) {
-        row = (
-            <Group key={String(alert)} gap={4} wrap="nowrap">
-                <GLYPHS.stop
-                    size={10}
-                    role="img"
-                    aria-label={WORDS["assistant.stopped"]}
-                    className="ws-assistant-stopped"
-                />
-                {words.stopped === "" ? null : <Text size="sm">{words.stopped}</Text>}
-            </Group>
-        );
-    } else if (words.failed) {
-        row = (
-            <Group
-                key={String(alert)}
-                role={role ?? "note"}
-                gap={6}
-                wrap="nowrap"
-                align="flex-start"
-                className="ws-assistant-failed"
-                data-billing={words.billing === undefined ? undefined : ""}
-            >
-                <GLYPHS.warning size={14} aria-hidden className="ws-assistant-failed-mark" />
-                <div>{said}</div>
-            </Group>
-        );
-    } else {
-        row = <div key={String(alert)}>{said}</div>;
-    }
+    const row = endLine(words, alert, said);
     const buttons = (
         <Group gap={4} wrap="wrap" justify="flex-end">
             {words.billing === undefined ? null : (
@@ -522,7 +531,11 @@ function ReplyRows({
             {running && status !== null && (late || stepsButton !== null) ? (
                 <Group gap={4} wrap="nowrap" className="ws-assistant-working">
                     {/* The dots are named with what they stand for; each step is also announced. */}
-                    <span role="img" aria-label={workingLine(status, provider)} className="ws-assistant-dots">
+                    <span // NOSONAR(S6819): three CSS dots named as one picture; there is no image file for an img
+                        role="img"
+                        aria-label={workingLine(status, provider)}
+                        className="ws-assistant-dots"
+                    >
                         <span />
                         <span />
                         <span />

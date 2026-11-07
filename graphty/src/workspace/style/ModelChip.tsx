@@ -35,6 +35,7 @@ export const ModelChip = React.forwardRef<HTMLButtonElement, ModelChipProps>(fun
     { chip, tone = "error", name, onClick, expanded },
     ref,
 ) {
+    // Mantine's light Badge as it is; its text contrast on red and yellow is tracked in issue #6233.
     const color = tone === "error" ? "red" : "yellow";
     const detail = useId();
     return (

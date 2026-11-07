@@ -37,7 +37,9 @@ interface SettingControlProps {
 
 /**
  * A Model settings row's field: Turn's number in degrees, or a choice. An unset one shows
- * graphty-element's default as its placeholder, and is named by it.
+ * graphty-element's default as its placeholder, and is named by it. An arrow key on an empty Turn
+ * steps from its minimum, not the placeholder, until compact-mantine's number field takes an
+ * origin (issue #6233).
  * @param props - Component props
  * @param props.descriptor - the property
  * @param props.word - the row's word

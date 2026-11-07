@@ -173,6 +173,8 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
     const { model, setModelsOpen, focusField } = state;
     const { line: modelLine } = modelOf(ctx, channel, true);
     const name = fieldName(channel);
+    // Model... is one more row of the list, not a trailing action under a rule line, until
+    // compact-mantine's select has one (issue #6233).
     const extraChoices = [{ value: MODEL_PICK, label: MODEL_TILE, glyph: <GLYPHS.model size={14} aria-hidden /> }];
     const own = lineIn(ctx, channel);
     // A built-in shape picked while the field holds a model: the model and its settings go, in one undo step.

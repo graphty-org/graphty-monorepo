@@ -292,7 +292,8 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
     let name = choiceName(label, mixed, unset ? inForce : undefined, chosen);
     if (model !== undefined) {
         // A model is no built-in shape: the list checks none, and the field shows the model's name
-        // where a value would be (compact-mantine's select shows only its own choices, so it is the placeholder).
+        // where a value would be (compact-mantine's select shows only its own choices, so it is the
+        // placeholder until it can show another value, issue #6233).
         glyph = <ModelGlyph thumbnail={model.thumbnail} />;
         placeholder = model.name;
         name = `${label}, ${model.name}`;

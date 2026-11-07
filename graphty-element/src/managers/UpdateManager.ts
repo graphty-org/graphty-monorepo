@@ -2379,7 +2379,9 @@ export class UpdateManager implements Manager {
         }
 
         // Update layout engine (step the force-directed algorithm)
+        const publishes = this.layoutManager.steppedPublishes;
         this.updateLayout(frameMs);
+        const published = this.layoutManager.steppedPublishes !== publishes;
 
         // ASKED BEFORE THE GRAPH IS MEASURED, because the answer decides how the measurement is
         // taken: reading a node's world position as of THIS instant costs a forced matrix per node
@@ -2388,7 +2390,7 @@ export class UpdateManager implements Manager {
         const framing = this.willZoomToFit();
 
         // Update nodes and edges
-        this.updateNodes();
+        this.updateNodes(published);
         this.updateEdges();
         this.frameTransition();
 
@@ -2630,21 +2632,60 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Update all nodes.
+     * Update all nodes: under `"batched"`, after a step published the layout's answer, only the object rows.
+     * @param published - Whether this frame's step published the engine's answer into the position
+     *     array. Only then does the array hold every row's place: an engine may compute its answer,
+     *     or publish a row, only when a node is read (a static layout, d3), which `Node.update` does.
      */
-    private updateNodes(): void {
+    private updateNodes(published = false): void {
         this.statsManager.nodeUpdate.beginMonitoring();
 
         // Groups following their members are placed on the box their members now make, before
         // anything is drawn.
         this.layoutManager.placeGroups();
 
-        for (const node of this.layoutManager.nodes) {
-            // The mesh position is updated by node.update()
-            node.update();
+        // A transition places every row on its way, so it walks them all.
+        const roster = !published || transitionsOf(this.layoutManager)?.active === true ? null : this.roster();
+        if (roster === null) {
+            for (const node of this.layoutManager.nodes) {
+                // The mesh position is updated by node.update()
+                node.update();
+            }
+        } else {
+            this.updateRoster(roster);
         }
 
         this.statsManager.nodeUpdate.endMonitoring();
+    }
+
+    /**
+     * The nodes a frame's walks visit under `"batched"`: the object rows (see `NodeBatches.roster`).
+     * @returns They, or null when every node is walked: the `"objects"` path, or a node not yet on a path.
+     */
+    private roster(): ReadonlySet<Node> | null {
+        return this.graphContext.getNodeBatches?.()?.roster(this.dataManager.nodes.size) ?? null;
+    }
+
+    /**
+     * Update the object rows and the groups. A batched row is drawn where the coordinate lane puts
+     * it once the row table is brought up to the lane, which is done here rather than before the
+     * frame, so the edges walked next and the box measured for framing read this frame's places.
+     * @param roster - The object rows.
+     */
+    private updateRoster(roster: ReadonlySet<Node>): void {
+        for (const node of roster) {
+            node.update();
+        }
+
+        // A node becomes a group in update(), and a group is an object row from its next paint.
+        for (const { group } of this.dataManager.groups) {
+            const node = this.dataManager.nodes.get(group);
+            if (node !== undefined && !roster.has(node)) {
+                node.update();
+            }
+        }
+
+        this.graphContext.getRowTable?.()?.flush();
     }
 
     /** Set while a layout transition runs with a framing owed: the camera follows the move. */
@@ -2843,13 +2884,9 @@ export class UpdateManager implements Manager {
         let unseen = false;
         let nodeCount = 0;
         let highest = -1;
-        // A batched row is drawn where its table row says, so while the table moved no row, no
-        // batched row moved and only the object rows are compared.
-        const moves = this.graphContext.getRowTable?.()?.moves ?? -1;
-        const rowsStill = moves !== -1 && moves === this.lastRowMoves;
-        this.lastRowMoves = moves;
+        const { walked, rowsStill, total } = this.movedWalk();
 
-        for (const node of this.layoutManager.nodes) {
+        for (const node of walked) {
             const { index } = node;
             nodeCount++;
 
@@ -2858,10 +2895,7 @@ export class UpdateManager implements Manager {
                 continue;
             }
 
-            if (index > highest) {
-                highest = index;
-            }
-
+            highest = Math.max(highest, index);
             const at = index * 3;
 
             if (at + 2 >= this.lastNodePositions.length) {
@@ -2874,6 +2908,7 @@ export class UpdateManager implements Manager {
             }
         }
 
+        nodeCount = total ?? nodeCount;
         if (unseen) {
             this.noteEveryNode(highest);
             return true;
@@ -2884,6 +2919,23 @@ export class UpdateManager implements Manager {
         }
 
         return moved.length > nodeCount * MOST_MOVED_SHARE ? true : moved;
+    }
+
+    /**
+     * The nodes {@link nodesMoved} compares. A batched row is drawn where its table row says, so
+     * while the table moved no row, no batched row moved: under `"batched"` only the roster is
+     * walked then (`NodeBatches.roster`).
+     * @returns The nodes; whether the table moved no row; and the graph's node count when the walk
+     *     is not every node, else undefined.
+     */
+    private movedWalk(): { walked: Iterable<Node>; rowsStill: boolean; total: number | undefined } {
+        const moves = this.graphContext.getRowTable?.()?.moves ?? -1;
+        const rowsStill = moves !== -1 && moves === this.lastRowMoves;
+        this.lastRowMoves = moves;
+        const roster = rowsStill ? this.roster() : null;
+        return roster === null
+            ? { walked: this.layoutManager.nodes, rowsStill, total: undefined }
+            : { walked: roster, rowsStill, total: this.dataManager.nodes.size };
     }
 
     /**
@@ -3344,7 +3396,8 @@ export class UpdateManager implements Manager {
         }
 
         const resized = new Set<Node>();
-        for (const node of this.dataManager.nodes.values()) {
+        // A border keeps a row on the object path, so a batched row has none to resize.
+        for (const node of this.roster() ?? this.dataManager.nodes.values()) {
             if (node.refreshScreenBorder()) {
                 resized.add(node);
             }

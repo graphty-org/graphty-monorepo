@@ -3,7 +3,7 @@
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
 // unset, the element keeps its default. See RUNBOOK.md for the other variables.
 import { execFileSync, execSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { appendFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { loadavg } from "node:os";
 import { dirname, join } from "node:path";
@@ -219,6 +219,18 @@ try {
             timeout: 20000,
         })
         .catch((e) => console.log("screenshot failed", String(e).slice(0, 120)));
+    // BENCH_PROFILE names a file prefix: the moving and still stages are then also CPU-profiled
+    // into <prefix>-orbit.cpuprofile and <prefix>-still.cpuprofile, outside the timed runs.
+    const profile = async (stage, run) => {
+        if (!process.env.BENCH_PROFILE) return;
+        await cdp.send("Profiler.enable");
+        await cdp.send("Profiler.start");
+        await page.evaluate(run);
+        const { profile: p } = await cdp.send("Profiler.stop");
+        writeFileSync(`${process.env.BENCH_PROFILE}-${stage}.cpuprofile`, JSON.stringify(p));
+    };
+    await profile("still", () => B.still(60));
+    await profile("orbit", () => B.orbit(60));
     if (!noMove) log("orbit", await page.evaluate(() => B.orbit(200)));
     if (!noMove) log("drag", await page.evaluate(() => B.drag(60)));
     if (!noMove) await checkBatched("drag");

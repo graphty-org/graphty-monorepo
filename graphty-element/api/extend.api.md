@@ -2295,6 +2295,8 @@ class Node_2 implements ModelUser {
     update(): void;
     updateStyle(): void;
     // @internal
+    get walksEachFrame(): boolean;
+    // @internal
     get wordedLabel(): RichTextLabel | null;
     xlabelLabel?: RichTextLabel;
 }

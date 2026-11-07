@@ -4907,6 +4907,8 @@ export class LayoutManager implements Manager {
     setScopeSource(source: LayoutScopeSource): void;
     step(): void;
     stepBatch(): void;
+    // @internal
+    steppedPublishes: number;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
 }
@@ -5217,6 +5219,8 @@ class Node_2 implements ModelUser {
     unpin(): void;
     update(): void;
     updateStyle(): void;
+    // @internal
+    get walksEachFrame(): boolean;
     // @internal
     get wordedLabel(): RichTextLabel | null;
     xlabelLabel?: RichTextLabel;

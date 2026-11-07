@@ -16,7 +16,7 @@ import { canonText, htmlLabelSpans } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
-import type { StyleDialect, StyleTarget, StyleWorkBudget } from "../../styles/types.js";
+import type { StyleDialect, StyleProperty, StyleTarget, StyleWorkBudget } from "../../styles/types.js";
 import { META_KEY } from "./constants.js";
 import {
     BPMN_ARTIFACTS,
@@ -2234,6 +2234,10 @@ function readLabels(
     }
     readLabelBox(refs, ls, put, at);
     readLabelFont(refs.deref(prop(ls, "font")), put, at);
+    readLabelLayout(ls, put);
+    if (at("label").target === "node") {
+        put("labelRotation", stretchTurn(refs, label));
+    }
     put("labelSize", canonNumber(labelSizeOf(refs, ls), at("labelSize")));
     if (runs !== null) {
         putMarkupRuns(runs, labelFontSize(refs, label), put);
@@ -2416,6 +2420,77 @@ function readLabelFont(f: ReturnType<References["deref"]>, put: PutValue, at: Si
     if (weight !== undefined) {
         put("labelWeight", canonEnum("weight", weight, "yfiles3", at("labelWeight")));
     }
+    // yEd Live 8.5.16 draws ITALIC as font-style="italic" and OBLIQUE as "oblique" (yed-live-graphml-specimen-labels)
+    if (/^(italic|oblique)$/i.test(treeAttr(f.e, "fontStyle") ?? "")) {
+        put("labelItalic", true);
+    }
+}
+
+/** A label style's `horizontalTextAlignment`, as the neutral text alignment. */
+const TEXT_ALIGNS: ReadonlyMap<string, string> = new Map([
+    ["LEFT", "left"],
+    ["CENTER", "center"],
+    ["RIGHT", "right"],
+]);
+
+/**
+ * How a label style's `wrapping` fits its words to its `maximumSize`'s width, as yEd Live 8.5.16 draws them: a 2.6
+ * `CHARACTER` label broken between any letters and a `WORD` label at its spaces (yed-live-graphml-specimen-labels-p3),
+ * and a 3.0 label, whose box is one line tall, cut between letters with an ellipsis for `TRIM_CHARACTER_ELLIPSIS`,
+ * `WRAP_CHARACTER_ELLIPSIS` and `WRAP_WORD_ELLIPSIS` (-p2: "A long la..." for all three).
+ */
+const WRAPPINGS: ReadonlyMap<string, readonly StyleProperty[]> = new Map([
+    ["CHARACTER", ["labelWrapAnywhere"]],
+    ["CHARACTER_ELLIPSIS", ["labelWrapAnywhere"]],
+    ["WORD", []],
+    ["WORD_ELLIPSIS", []],
+    ["TRIM_CHARACTER_ELLIPSIS", ["labelWrapEllipsis"]],
+    ["WRAP_CHARACTER_ELLIPSIS", ["labelWrapEllipsis"]],
+    ["WRAP_WORD_ELLIPSIS", ["labelWrapEllipsis"]],
+]);
+
+/** The corner radius yEd Live 8.5.16 draws a `ROUND_RECTANGLE` label box with: rx="5" at 10 and at 12 px. */
+const LABEL_BOX_CORNER = 5;
+
+/**
+ * Reads how a label style lays its words out: their alignment, its box's rounded corners and its wrapping.
+ * @param ls - the label style
+ * @param put - receives the values
+ */
+function readLabelLayout(ls: StyleObject, put: PutValue): void {
+    put("labelTextAlign", TEXT_ALIGNS.get(treeAttr(ls.e, "horizontalTextAlignment") ?? "") ?? null);
+    if (treeAttr(ls.e, "shape") === "ROUND_RECTANGLE") {
+        put("labelCornerRadius", LABEL_BOX_CORNER);
+    }
+    // ponytail: the lines past the box's height (yEd Live drops them, or ends the last with an ellipsis) are kept
+    const wrap = WRAPPINGS.get(treeAttr(ls.e, "wrapping") ?? "");
+    const width = Number((treeAttr(ls.e, "maximumSize") ?? "").split(",")[0]);
+    if (wrap === undefined || !Number.isFinite(width) || width <= 0) {
+        return;
+    }
+    put("labelWrapWidth", width);
+    for (const property of wrap) {
+        put(property, true);
+    }
+}
+
+/**
+ * How far yEd Live 8.5.16 turns a stretch model's label: up (-90) against the left side or down the vertical middle,
+ * and down (90) against the right (yed-live-graphml-specimen-labels-p2 and -p4).
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @returns the turn in degrees clockwise, or null for none
+ */
+function stretchTurn(refs: References, label: unknown): number | null {
+    const parameter = layoutParameter(refs, label);
+    if (parameter === null || !parameter.tag.includes("Stretch")) {
+        return null;
+    }
+    const position = (treeAttr(parameter.e, "Position") ?? "").toLowerCase();
+    if (position === "left" || position === "west" || position === "centervertical") {
+        return 270;
+    }
+    return position === "right" || position === "east" ? 90 : null;
 }
 
 /** The style, labels and geometry key kinds of nodes and of edges. */

@@ -53,7 +53,10 @@ type Story = StoryObj<typeof meta>;
 const OPEN_PROJECT = { name: "Les Miserables", id: 1 };
 
 /**
- * Waits until the page has read its source: the sample grid, or the problem block.
+ * Waits until the page has read its source and counted it: the sample grid or the problem block,
+ * with the footer no longer "Still counting", and a frame drawn since. The rows and the count
+ * arrive separately, and the count moves focus to Load: a play that acted on the rows alone opened
+ * the role menu before the count, so the shot caught "Still counting" or the menu closing (#6127).
  * @param canvasElement - the story's root.
  */
 async function read(canvasElement: HTMLElement): Promise<void> {
@@ -61,7 +64,12 @@ async function read(canvasElement: HTMLElement): Promise<void> {
         if (canvasElement.querySelector('[role="grid"] [role="gridcell"], [role="alert"]') === null) {
             throw new Error("still reading");
         }
+        const footer = canvasElement.textContent;
+        if (footer.includes("Still reading the file") || footer.includes("Still counting")) {
+            throw new Error("still counting");
+        }
     });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
 }
 
 /**

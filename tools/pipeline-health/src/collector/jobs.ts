@@ -119,7 +119,7 @@ export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] 
  */
 export const shortName = (job: string): string => job.split(" / ").at(-1) ?? job;
 
-/** Run kinds a title may name a workflow's runs by, beside the workflow's own name ("Full run: ..." is release.yml). */
+/** Run kinds a title may name a workflow's runs by, beside the workflow's own name ("Full run: ..." is release.yml); the plural matches too. */
 const RUN_KINDS: Record<string, string[]> = { "release.yml": ["full run"], "ci.yml": ["master"] };
 
 /**
@@ -147,7 +147,8 @@ export function titleOwnsJob(title: string, job: Pick<ChronicJob, "workflow" | "
     }
     const rest = words(title.replace(/^[a-z]+(\([^)]*\))?!?:/, ""));
     const names = [job.workflow.replace(/\.ya?ml$/, ""), ...(RUN_KINDS[job.workflow] ?? [])];
-    return names.some((n) => rest.includes(words(n)));
+    // A title names runs in the plural as often as the singular ("red in 9 of 10 full runs", "fails in releases").
+    return names.some((n) => rest.includes(words(n)) || rest.includes(words(`${n}s`)));
 }
 
 /**

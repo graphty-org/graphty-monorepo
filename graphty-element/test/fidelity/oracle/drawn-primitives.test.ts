@@ -422,6 +422,44 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.deepEqual([alone?.w, alone?.stroke?.color, alone?.ring ?? null], [44, "#999999", null]);
     });
 
+    it("reads a node's linear ramp along the direction its color changes once stretched over the node's box", () => {
+        // NodeMesh paints the ramp across a square texture and stretches it over the box
+        const angleOf = (direction: number, w: number, h: number): number | null | undefined => {
+            const sceneNode = {
+                id: "a",
+                x: 150,
+                y: 60,
+                w,
+                h,
+                shape: "rect",
+                fill: "#ff0000",
+                fillOpacity: 1,
+                border: { color: null, width: 0, style: "solid" },
+                label: null,
+                visible: true,
+                drawn: { subPixel: false, fillCovered: false, fillDrawn: "#ff0000" },
+            };
+            const ramp = { kind: "linear", colors: ["#ff0000", "#0000ff"], direction };
+            const drawnNode = { insetPx: 0, label: null, gradient: true, ramp } as unknown as DrawnNode;
+            const scene = { nodes: [sceneNode], edges: [], groups: [], annotations: [], gaps: [] } as unknown as Scene;
+            const drawn: DrawnGraph = {
+                nodes: new Map([["a", drawnNode]]),
+                edges: new Map(),
+                annotations: [],
+                background: { hex: "#ffffff", alpha: 1 },
+                width: 300,
+                height: 120,
+            };
+            return drawnPrimitives(scene, drawn).nodes[0]?.fill?.gradient?.angle;
+        };
+        // a 45-degree ramp on a 220 x 94 box changes color along 66.9 degrees on screen, as yEd Live's does
+        assert.closeTo(angleOf(45, 220, 94) ?? Number.NaN, (Math.atan2(220, 94) * 180) / Math.PI, 0.01);
+        // a square box, and a ramp along a side, are not turned
+        assert.closeTo(angleOf(45, 94, 94) ?? Number.NaN, 45, 0.01);
+        assert.closeTo(angleOf(90, 220, 94) ?? Number.NaN, 90, 0.01);
+        assert.closeTo(angleOf(180, 220, 94) ?? Number.NaN, 180, 0.01);
+    });
+
     it("ends an edge at the node drawn over its own, where a reader sees it end (json-cyjs-tokyo's stacked stations)", () => {
         const sceneNode = (id: string, x: number, hiddenBy: string | null) => ({
             id,

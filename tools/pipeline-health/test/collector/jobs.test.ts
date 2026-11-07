@@ -169,6 +169,15 @@ describe("chronically failing jobs", () => {
         expect(titleOwnsJob("Autosave (webkit) red since 2026-10-20", mac)).toBe(false);
     });
 
+    it("reads a workflow or run kind in the singular or the plural", () => {
+        const lint = { workflow: "release.yml", job: "CI / Lint" };
+        expect(titleOwnsJob("Full run: CI / Lint red", lint)).toBe(true);
+        expect(titleOwnsJob("CI / Lint failed 9 of 10 full runs", lint)).toBe(true);
+        expect(titleOwnsJob("CI / Lint fails in releases", lint)).toBe(true);
+        expect(titleOwnsJob("CI / Build failed 9 of 10 full runs", lint)).toBe(false);
+        expect(titleOwnsJob("CI / Lint failed 9 of 10 nightly runs", lint)).toBe(false);
+    });
+
     it("is a job that the release lanes still call passed", () => {
         // Run 40423614862: the ci lane passed (its Red early job skipped) while Performance Benchmarks failed.
         const run = { id: 40423614862, conclusion: "success", display_title: "Release (full)" } as unknown as GhRun;

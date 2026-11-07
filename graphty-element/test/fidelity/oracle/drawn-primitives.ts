@@ -26,6 +26,7 @@ import {
     type PShape,
     type Pt,
     type PText,
+    rampAngleOnScreen,
 } from "./primitives";
 import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
 
@@ -373,19 +374,24 @@ function arrowShapeNamed(name: string): ArrowShape {
 
 /**
  * A node's gradient as graphty paints it: its colors at their stops (evenly spaced when it has none), a linear one
- * along its direction.
+ * along the direction its color changes on screen. NodeMesh paints the ramp at its direction across a square texture
+ * and stretches the square over the node's box, so on a box wider than tall its color changes along
+ * atan2(sin(direction) / height, cos(direction) / width) (`rampAngleOnScreen`), not along its direction.
  * @param ramp - the drawn ramp
+ * @param w - the node's width on screen
+ * @param h - the node's height on screen
  * @returns the gradient, or null
  */
-function gradientOf(ramp: DrawnNode["ramp"]): PGradient | null {
+function gradientOf(ramp: DrawnNode["ramp"], w: number, h: number): PGradient | null {
     if (ramp === null) {
         return null;
     }
     const last = Math.max(ramp.colors.length - 1, 1);
+    const rad = ((ramp.direction ?? 0) * Math.PI) / 180;
     return {
         kind: ramp.kind,
         stops: ramp.colors.map((color, i) => ({ offset: ramp.stops?.[i] ?? i / last, color, opacity: 1 })),
-        angle: ramp.kind === "linear" ? (ramp.direction ?? 0) : null,
+        angle: ramp.kind === "linear" ? (rampAngleOnScreen([Math.cos(rad), Math.sin(rad)], [w, 0, 0, h]) ?? 0) : null,
         ...(ramp.center === undefined ? {} : { center: ramp.center }),
     };
 }
@@ -728,7 +734,7 @@ export function drawnPrimitives(
                     : {
                           color: fill,
                           opacity: n.fillOpacity,
-                          gradient: d?.gradient === true ? gradientOf(d.ramp) : null,
+                          gradient: d?.gradient === true ? gradientOf(d.ramp, n.w, n.h) : null,
                       },
             stroke:
                 borderColor !== null && borderWidth > 0

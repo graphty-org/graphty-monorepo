@@ -23,6 +23,7 @@ import {
     type PScene,
     type PStroke,
     type Pt,
+    rampAngleOnScreen,
 } from "./primitives";
 
 const fill = (color: string, gradient: PGradient | null = null): PFill => ({ color, opacity: 1, gradient });
@@ -704,6 +705,32 @@ describe("gradients", () => {
             failing(o, scene("graphty", [], nodes({ ...linear(0, "#ff0000", "#0000ff"), kind: "radial" }))),
             ["node.gradient"],
         );
+    });
+
+    it("judges a stretched ramp by the direction its color changes on screen, and still fails one run the wrong way", () => {
+        // graphml-yfiles-html-stag-flowchart: yEd Live's ramp runs corner to corner of a 220 x 94 box in
+        // objectBoundingBox units, and graphty's at 45 degrees across its square texture stretched over the same box;
+        // both change color along 66.9 degrees on screen, though the oracle's vector runs along 23.1
+        const box: [number, number, number, number] = [220, 0, 0, 94];
+        const ramp = (deg: number): number =>
+            rampAngleOnScreen([Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180)], box) ?? Number.NaN;
+        const yedLive = rampAngleOnScreen([1, 1], box) ?? Number.NaN;
+        assert.closeTo(yedLive, 66.87, 0.01);
+        const nodes = (g: PGradient): PNode[] =>
+            NODES.map(([id, x, y]) => node(id, x, y, { fill: fill("#ff0000", g) }));
+        const o = scene("oracle", [], nodes(linear(yedLive, "#ff0000", "#0000ff")));
+        assert.deepEqual(failing(o, scene("graphty", [], nodes(linear(ramp(45), "#ff0000", "#0000ff")))), []);
+        // the same box's other diagonal, or the ramp left to right, is the wrong way however the box stretches it
+        assert.deepEqual(failing(o, scene("graphty", [], nodes(linear(ramp(135), "#ff0000", "#0000ff")))), [
+            "node.gradient",
+        ]);
+        assert.deepEqual(failing(o, scene("graphty", [], nodes(linear(ramp(0), "#ff0000", "#0000ff")))), [
+            "node.gradient",
+        ]);
+        // and run backwards along the right line it still fails: a program's ramp has a direction, not only a line
+        assert.deepEqual(failing(o, scene("graphty", [], nodes(linear(ramp(225), "#ff0000", "#0000ff")))), [
+            "node.gradient",
+        ]);
     });
 
     it("fails an edge drawn flat where the program draws a gradient along it", () => {

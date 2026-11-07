@@ -207,4 +207,19 @@ describe("what a selected node looks like", () => {
             graph.setSelectionStyle({ scale: 0 });
         });
     });
+
+    // selectNode() rings the node at once; a selection replaced again before any frame drew the
+    // first one (here by an edge) used to leave that ring on a node nothing selects, whenever the
+    // frame took the selection-only pass rather than a walk of every node (issue #6131).
+    it("takes the halo off a node whose selection is replaced before a frame draws it", async () => {
+        await graph.waitForStableFrame();
+        const [edge] = graph.getDataManager().edges.values();
+
+        graph.selectNode("alpha");
+        void graph.select({ nodes: [], edges: [edge.id] });
+        await graph.waitForStableFrame();
+
+        assert.isNull(graph.getSelectedNode(), "the edge replaced the node");
+        assert.isFalse(drawnHalo() !== undefined, "no node is selected, so no node has a halo");
+    });
 });

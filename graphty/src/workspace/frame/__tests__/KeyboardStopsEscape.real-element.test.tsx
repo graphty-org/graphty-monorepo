@@ -15,6 +15,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -65,7 +66,7 @@ function toolbar(): HTMLElement {
 
 describe("Keyboard stops and Escape (real element)", () => {
     it("Tab out of Filter analyses lands after the Analyze tool, with the list closed", async () => {
-        await openGraph();
+        const session = await openGraph();
         // Table puts focus in the grid and makes Table the toolbar's roving stop, so Analyze is
         // no Tab stop of its own when Shift+A opens the list.
         await userEvent.click(within(toolbar()).getByRole("button", { name: "Table" }));
@@ -79,6 +80,19 @@ describe("Keyboard stops and Escape (real element)", () => {
         });
         await userEvent.keyboard("deg");
         await userEvent.keyboard("{Tab}");
+        // The selection workspace's calm Analyze list keeps Run beside its filter (AnalyzePopover.tsx):
+        // Tab goes on to the active entry's Run, and the list stays open.
+        if (selectionWorkspaceOn(session)) {
+            await waitFor(() => {
+                assert.strictEqual(
+                    document.activeElement,
+                    screen.getByRole("button", { name: "Run Degree" }),
+                    focused(),
+                );
+            });
+            assert.isNotNull(screen.queryByRole("combobox", { name: "Filter analyses" }), "the list closed");
+            return;
+        }
         await waitFor(() => {
             assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }), "the list stayed open");
         });

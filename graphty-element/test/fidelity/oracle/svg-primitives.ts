@@ -25,6 +25,7 @@ import {
     type PStroke,
     type Pt,
     type PText,
+    rampAngleOnScreen,
     solidOuter,
 } from "./primitives";
 
@@ -97,7 +98,8 @@ export function straightPathVertices(d: string): Pt[] | null {
     const num = (): number => Number(tokens[i++]);
     while (i < tokens.length) {
         const t = tokens[i];
-        if (/[A-Za-z]/.test(t)) {
+        // a command is one letter: a number's exponent (`3.55e-15`, yEd Live's arrow tip) is no command
+        if (/^[A-Za-z]$/.test(t)) {
             cmd = t;
             i++;
             if (cmd === "Z" || cmd === "z") {
@@ -167,12 +169,16 @@ function gradientAttr(el: Element, name: string, fallback: number): number {
 
 /**
  * The gradient a `url(#id)` paint names, with its stops resolved and, for a linear one, the screen direction it runs
- * in: its vector (x1, y1) to (x2, y2) through its gradientTransform, its element's box (objectBoundingBox units, the
- * default) and the element's matrix to the root's pixels.
+ * in, through its gradientTransform, its element's box (objectBoundingBox units, the default) and the element's matrix
+ * to the root's pixels. A fill's is the direction its color changes along across the area it paints
+ * (`rampAngleOnScreen`: yEd Live's corner-to-corner ramp on a 220 x 94 box changes color along 66.9 degrees, not along
+ * its 23.1-degree vector); a stroke's is its vector (x1, y1) to (x2, y2) on screen, which an edge's is judged against
+ * its line's chord by.
  * @param paint - the computed fill or stroke
  * @param doc - the root
  * @param el - the painted element, or null when its direction is not wanted
  * @param m - the element's matrix to the root's pixels
+ * @param across - read the direction its color changes along (a fill), not its vector (a stroke)
  * @returns the gradient, or null for a flat paint
  */
 function gradientOf(
@@ -180,6 +186,7 @@ function gradientOf(
     doc: Element,
     el: SVGGraphicsElement | null = null,
     m: DOMMatrix | null = null,
+    across = false,
 ): PGradient | null {
     const id = /url\(["']?#([^"')]+)["']?\)/.exec(paint)?.[1];
     if (id === undefined) {
@@ -214,18 +221,26 @@ function gradientOf(
         const transform =
             (g as SVGLinearGradientElement).gradientTransform.baseVal.consolidate()?.matrix ?? new DOMMatrix();
         const b = el.getBBox();
-        const toUser = (u: number, v: number): Pt => {
-            const t = new DOMPoint(u, v).matrixTransform(transform);
-            return userSpace ? [t.x, t.y] : [b.x + t.x * b.width, b.y + t.y * b.height];
-        };
-        const [x1, y1] = toUser(gradientAttr(g, "x1", 0), gradientAttr(g, "y1", 0));
-        const [x2, y2] = toUser(gradientAttr(g, "x2", userSpace ? 0 : 1), gradientAttr(g, "y2", 0));
-        const a = at(m, x1, y1);
-        const z = at(m, x2, y2);
-        angle =
-            Math.hypot(z[0] - a[0], z[1] - a[1]) > 1e-9
-                ? r3((Math.atan2(z[1] - a[1], z[0] - a[0]) * 180) / Math.PI)
-                : null;
+        const [u1, v1] = [gradientAttr(g, "x1", 0), gradientAttr(g, "y1", 0)];
+        const [u2, v2] = [gradientAttr(g, "x2", userSpace ? 0 : 1), gradientAttr(g, "y2", 0)];
+        if (across) {
+            // the gradient's units to the root's pixels: its transform, its element's box, the element's matrix
+            const box = userSpace ? new DOMMatrix() : new DOMMatrix([b.width, 0, 0, b.height, b.x, b.y]);
+            const t = m.multiply(box).multiply(transform);
+            const deg = rampAngleOnScreen([u2 - u1, v2 - v1], [t.a, t.b, t.c, t.d]);
+            angle = deg === null ? null : r3(deg);
+        } else {
+            const toUser = (u: number, v: number): Pt => {
+                const t = new DOMPoint(u, v).matrixTransform(transform);
+                return userSpace ? [t.x, t.y] : [b.x + t.x * b.width, b.y + t.y * b.height];
+            };
+            const a = at(m, ...toUser(u1, v1));
+            const z = at(m, ...toUser(u2, v2));
+            angle =
+                Math.hypot(z[0] - a[0], z[1] - a[1]) > 1e-9
+                    ? r3((Math.atan2(z[1] - a[1], z[0] - a[0]) * 180) / Math.PI)
+                    : null;
+        }
     }
     return { kind, stops, angle };
 }
@@ -241,7 +256,7 @@ function fillOf(
     if (cs.fill === "none" || el.localName === "line") {
         return null;
     }
-    const gradient = gradientOf(cs.fill, doc, el, m);
+    const gradient = gradientOf(cs.fill, doc, el, m, true);
     const flat = parseCssColor(cs.fill);
     const first = gradient?.stops[0];
     const color = flat?.hex ?? first?.color;

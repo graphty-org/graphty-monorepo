@@ -11,6 +11,7 @@ import { ModelChip } from "./ModelChip";
 import { AddressForm, FileInput, SectionHeading } from "./ModelsPopover";
 import { chipLine, modelChip } from "./modelWords";
 import { roveTiles, tileStop } from "./tileRoving";
+import { useStillOpen } from "./useStillOpen";
 
 /** The files the chooser offers; a drop is not filtered, and the element says what arrived. */
 const ACCEPT = assetFileExtensions("image").join(",");
@@ -190,6 +191,7 @@ export function PicturePopover({
         setModel(null);
     }, []);
     const stray = useStray(session, opened, clearModel);
+    const start = useStillOpen(opened);
     if (session === null) {
         return null;
     }
@@ -197,8 +199,16 @@ export function PicturePopover({
         setProblem(fact);
         store.set({ announcement: chipLine(fact) });
     };
-    const settle = async (source: AssetSource, given: string): Promise<void> => {
+    const settle = async (source: AssetSource, given: string, live: () => boolean): Promise<void> => {
         const record = await session.assets.add(source);
+        if (!live()) {
+            // Closed while it loaded: nothing is picked, and a model waiting for parts is let go,
+            // so it never takes files dropped on the canvas later.
+            if (session.assets.waiting().some((w) => w.id === record.id)) {
+                session.assets.remove(record.id);
+            }
+            return;
+        }
         if (record.kind === "model") {
             // graphty-element read a model, accepted or waiting for its parts: the Shape field's.
             const waits = session.assets.waiting().some((w) => w.id === record.id);
@@ -226,9 +236,12 @@ export function PicturePopover({
             session.assets.remove(stray.current);
             stray.current = null;
         }
-        settle(source, given)
+        const live = start();
+        settle(source, given, live)
             .catch((error: unknown) => {
-                refuse({ code: "E_MODEL_PARSE", params: { message: String(error) } });
+                if (live()) {
+                    refuse({ code: "E_MODEL_PARSE", params: { message: String(error) } });
+                }
             })
             .finally(() => {
                 setBusy(false);

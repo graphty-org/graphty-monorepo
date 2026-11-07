@@ -10,6 +10,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { ModelChip } from "./ModelChip";
 import { chipLine, modelChip } from "./modelWords";
 import { roveTiles, tileStop } from "./tileRoving";
+import { useStillOpen } from "./useStillOpen";
 
 /** The files the chooser offers, as graphty-element reads them; the element decides what they are. */
 const MODEL_ACCEPT = assetFileExtensions("model").join(",");
@@ -77,7 +78,8 @@ export function SectionHeading({ children }: Readonly<{ children: string }>): Re
  * A hidden file chooser that a Button clicks. It stays in the page, unlike compact-mantine's
  * `pickFiles`, so its files can be chosen by `userEvent.upload` in a test, and it chooses a folder
  * (`webkitdirectory`), which `pickFiles` does not offer. A folder's files carry
- * their paths in `webkitRelativePath`.
+ * their paths in `webkitRelativePath`. A stand-in until compact-mantine offers a folder and a
+ * testable chooser (issue #6233).
  * @param props - Component props
  * @param props.chooser - set to the input, which a button clicks
  * @param props.accept - the files offered, when not a folder
@@ -161,6 +163,7 @@ export function ModelsPopover({
     const [focused, setFocused] = useState<string | undefined>(undefined);
     const chooser = useRef<HTMLInputElement | null>(null);
     const folder = useRef<HTMLInputElement | null>(null);
+    const start = useStillOpen(opened);
     if (session === null) {
         return null;
     }
@@ -168,13 +171,20 @@ export function ModelsPopover({
         setProblem(fact);
         store.set({ announcement: chipLine(fact) });
     };
-    const settle = async (source: AssetSource, files: readonly File[]): Promise<void> => {
+    const settle = async (source: AssetSource, files: readonly File[], live: () => boolean): Promise<void> => {
         const { supplied, rest } = await offerFirst(session, source, files);
         if (rest === null) {
             store.set({ announcement: supplied.map((s) => `${s.fileName} added`).join(", ") });
             return;
         }
         const record = await session.assets.add(rest);
+        if (!live()) {
+            // Closed while it loaded: the reader did not take it, so it never waits for parts.
+            if (session.assets.waiting().some((w) => w.id === record.id)) {
+                session.assets.remove(record.id);
+            }
+            return;
+        }
         if (record.state === "accepted" && record.kind === "image") {
             const name = fileStem(record.path ?? files[0]?.name ?? "") || "picture";
             setPicture({ id: record.id, name });
@@ -194,9 +204,12 @@ export function ModelsPopover({
         setProblem(null);
         setPicture(null);
         setTried(typeof source === "string" ? source : null);
-        settle(source, files)
+        const live = start();
+        settle(source, files, live)
             .catch((error: unknown) => {
-                refuse({ code: "E_MODEL_PARSE", params: { message: String(error) } });
+                if (live()) {
+                    refuse({ code: "E_MODEL_PARSE", params: { message: String(error) } });
+                }
             })
             .finally(() => {
                 setBusy(false);
@@ -258,6 +271,8 @@ export function ModelsPopover({
                 anchorY={anchor}
                 header={{ variant: "title", title: "Models" }}
                 closeLabel="Close Models"
+                // The back action sits at the header's end: compact-mantine has no leading header
+                // action yet (issue #6233).
                 actions={[
                     {
                         id: "back",

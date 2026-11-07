@@ -10,7 +10,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { siteFeatures } from "../../../test/siteFeatures";
@@ -39,6 +39,10 @@ async function focusOn(name: string): Promise<void> {
         assert.equal(document.activeElement?.getAttribute("aria-label"), name);
     });
 }
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 describe("models in the Shape field, on the real element", () => {
     it("picks Box by the keyboard, draws a chosen .glb, takes a shape back in one undo step, and sets Up", async () => {
@@ -148,6 +152,45 @@ describe("models in the Shape field, on the real element", () => {
             assert.match(String(written(session, "node.texture")), /^asset:/);
         });
         assert.isUndefined(written(session, "node.model"), "nothing names the picture as a model");
+    });
+
+    it("writes nothing for an address that finishes loading after the pop-over closed", async () => {
+        const url = "https://models.example.com/late/panel.glb";
+        const asked: string[] = [];
+        let answer: (response: Response) => void = () => undefined;
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            const to = input instanceof Request ? input.url : String(input);
+            if (to !== url) {
+                return original(input, init);
+            }
+            asked.push(to);
+            return new Promise<Response>((resolve) => {
+                answer = resolve;
+            });
+        });
+        const { session, tab } = await openShapes();
+        let models = await openModels(tab);
+        await userEvent.type(within(models).getByRole("textbox", { name: "Model address" }), url);
+        await userEvent.click(within(models).getByRole("button", { name: "Add model address" }));
+        await waitFor(() => {
+            assert.include(asked, url);
+        });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Models" }));
+        });
+
+        answer(new Response(quadGlb(), { status: 200 }));
+        // Open again: once the add has finished, its button is no longer loading.
+        models = await openModels(tab);
+        await waitFor(() => {
+            assert.isNull(
+                within(models).getByRole("button", { name: "Add model address" }).getAttribute("data-loading"),
+            );
+        });
+        assert.isUndefined(written(session, "node.model"), "the reader closed it before it loaded");
+        assert.isNull(screen.queryByRole("dialog", { name: "Parts" }));
     });
 
     it("draws a .glb dropped on the canvas on the selected nodes only, as one undoable layer", async () => {

@@ -11,7 +11,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { siteFeatures } from "../../../test/siteFeatures";
@@ -68,6 +68,10 @@ async function chooseColormap(
     });
     return written(session, "node.texture");
 }
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 describe("pictures on nodes, on the real element", () => {
     it("puts a chosen picture on a sphere layer from Fill's Picture line", async () => {
@@ -189,5 +193,56 @@ describe("pictures on nodes, on the real element", () => {
         await waitFor(() => {
             assert.lengthOf(session.assets.waiting(), 0, "nothing the reader did not choose waits");
         });
+    });
+
+    it("lets go of a model that finishes loading after the Picture pop-over closed", async () => {
+        const url = "https://models.example.com/car/police.glb";
+        const police = await (await fetch(policeUrl)).arrayBuffer();
+        const asked: string[] = [];
+        let answer: (response: Response) => void = () => undefined;
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            const to = input instanceof Request ? input.url : String(input);
+            if (to === url) {
+                asked.push(to);
+                return new Promise<Response>((resolve) => {
+                    answer = resolve;
+                });
+            }
+            // Its picture is not on the site: the model waits for it.
+            return to.startsWith("https://models.example.com/")
+                ? Promise.resolve(new Response(null, { status: 404 }))
+                : original(input, init);
+        });
+        const { session, tab } = await openShapes(["node-models"], { "node.shape": "sphere" });
+        await chooseColormap(await addPicture(tab), session);
+        const field = await within(tab).findByLabelText("Node picture, colormap");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Picture" }));
+        });
+
+        await userEvent.click(field);
+        let picture = await screen.findByRole("dialog", { name: "Picture" });
+        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), url);
+        await userEvent.click(within(picture).getByRole("button", { name: "Add picture address" }));
+        await waitFor(() => {
+            assert.include(asked, url);
+        });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Picture" }));
+        });
+
+        answer(new Response(police, { status: 200 }));
+        // Open again: once the add has finished, its button is no longer loading.
+        await userEvent.click(field);
+        picture = await screen.findByRole("dialog", { name: "Picture" });
+        await waitFor(() => {
+            assert.isNull(
+                within(picture).getByRole("button", { name: "Add picture address" }).getAttribute("data-loading"),
+            );
+        });
+        assert.lengthOf(session.assets.waiting(), 0, "nothing the reader closed on waits for parts");
+        assert.isNull(within(picture).queryByRole("button", { name: "Use police as model" }));
     });
 });

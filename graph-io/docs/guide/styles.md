@@ -8,6 +8,9 @@ format that can hold them, so a graph keeps its look when it moves between progr
 Styles are opt-in. Without the `styles` option a load returns the graph exactly as it always does,
 and a save writes exactly the same file.
 
+Styles are experimental: the `styles` options and everything `@graphty/graph-io/styles` exports may
+change or be removed in a minor release.
+
 ## Reading a file's styles
 
 Pass `styles: true` to `importGraph()`, `loadFromUrl()` or `loadFromFile()`. The result then has a

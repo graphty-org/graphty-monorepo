@@ -162,6 +162,7 @@ export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOpti
      * that wrote the file. The styles are in `result.styles`; the graph, the report and every export are the same
      * either way.
      * @defaultValue false
+     * @experimental
      */
     readonly styles?: boolean | StyleImportOptions | undefined;
     /** Format-specific options, passed to the importer as they are. */
@@ -203,6 +204,7 @@ export interface ImportGraphResult {
      * The file's styles, when you passed the `styles` option: the rules that reproduce how the program that wrote
      * the file draws each node and edge, read by the importer that read the file. Null when the file has none.
      * Absent without the option.
+     * @experimental
      */
     readonly styles?: ExtractedStyles | null;
 }
@@ -277,6 +279,7 @@ export interface ExportGraphOptions extends CommonExportOptions {
      * the format's own style slots and, where the format can keep them, the rules, so importing the file back
      * rebuilds them. What the format cannot hold is a W_STYLE_ note of checkExport(). Styles read from or built for a
      * different graph fail with E_STYLES_MISMATCH before anything is written.
+     * @experimental
      */
     readonly styles?: ExtractedStyles | null | undefined;
     /** Format-specific options, passed to the exporter as they are. */

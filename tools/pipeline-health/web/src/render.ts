@@ -1067,7 +1067,7 @@ function sectionHead(s: Section): string {
         case "shared":
             return h(
                 "Shared failures",
-                "a check failing the same way in 3 or more pull requests (or failing on master too), or failing alone where every check it summarizes passed; ongoing first",
+                "a check failing the same way in 2 or more pull requests (or failing on master too), or failing alone where every check it summarizes passed; ongoing first",
             );
         case "time":
             return h("Where the time goes", `${timeScope}median minutes per stage; owner waits left out`);

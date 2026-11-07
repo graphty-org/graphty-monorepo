@@ -207,7 +207,14 @@ export function FiltersSection(): React.JSX.Element {
         // What held focus when the card was asked for, not whatever holds it a render later.
         const from = takeDraftOpener();
         if (asked === PLUS) {
-            openRef.current("node", undefined, from);
+            // The toolbar's Filters edits the one filter there is, shows two or more where they are
+            // listed, and starts one only when there is none.
+            const saved = session.visibility.conditions;
+            if (saved.length === 1) {
+                setOpenId(saved[0].id);
+            } else if (saved.length === 0) {
+                openRef.current("node", undefined, from);
+            }
             return;
         }
         const at = asked.indexOf(":");
@@ -266,10 +273,12 @@ export function FiltersSection(): React.JSX.Element {
                       ],
                   },
               ];
-    const cards = [
-        ...conditions.map((condition) => ({ id: condition.id, condition, draft: undefined })),
-        ...waiting.map((each) => ({ id: each.id, condition: undefined, draft: each })),
-    ];
+    const written = conditions.map((condition) => ({ id: condition.id, condition, draft: undefined }));
+    const fresh = waiting.map((each) => ({ id: each.id, condition: undefined, draft: each }));
+    // In the selection workspace the newest filter is on top, a new one's row first, as Figma lists
+    // layers; it stays there once written.
+    const cards =
+        session !== null && selectionWorkspaceOn(session) ? [...fresh, ...written.reverse()] : [...written, ...fresh];
     const empty = cards.length === 0 && !timed;
     // What the cards together leave, on the header: "Passes none" when they empty the picture.
     const { summary } = session?.visibility ?? { summary: null };
@@ -652,7 +661,8 @@ function FilterCard({
                         // Only on arrival: a side switch keeps focus on Nodes | Edges, the picker shut
                         // and nothing said, so the arrows go on switching (WCAG 3.2.2, ws-polish 3).
                         openPicker={draft && stepless && !switched}
-                        openTitle={(draft && switched) || switchIn.current}
+                        // A saved filter opened from its row or its Edit opens the workspace on it at once.
+                        openTitle={(draft && switched) || switchIn.current || (cards && !draft)}
                         switchedSide={draft && switched}
                         hostPicks={timePick(() => {
                             if (draft) {
@@ -723,9 +733,12 @@ function FilterCard({
                                     onOpen(!open);
                                 }}
                             >
-                                <Text size="sm" fw={600} truncate span className="dp-filter-title">
-                                    {title}
-                                </Text>
+                                {/* A long description is cut short in the panel; its tooltip says it whole. */}
+                                <Tooltip label={title} openDelay={500} multiline maw={280}>
+                                    <Text size="sm" fw={600} truncate span className="dp-filter-title">
+                                        {title}
+                                    </Text>
+                                </Tooltip>
                                 <span className="sel-spacer" />
                                 {!editing && total === undefined && (
                                     <CountChips count={count} effect={condition?.effect} />
@@ -748,6 +761,15 @@ function FilterCard({
                                 <Menu.Dropdown>
                                     <SelectionMenuItems
                                         items={[
+                                            {
+                                                id: "edit",
+                                                label: "Edit",
+                                                icon: "filter",
+                                                group: "edit",
+                                                onRun: () => {
+                                                    onOpen(true);
+                                                },
+                                            },
                                             {
                                                 id: "rename",
                                                 label: "Rename",

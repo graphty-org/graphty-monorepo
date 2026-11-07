@@ -121,7 +121,7 @@ interface SelectionEditorProps {
     readonly host: Host;
     /** Takes the next rule, which the host writes. */
     readonly onChange: (next: UnionLeaf) => void;
-    /** Escape on the sidebar's outline: the host may fold it. */
+    /** The workspace closed, or Escape on the sidebar's outline: the host may fold it. */
     readonly onDone?: () => void;
     /** What the selection belongs to, after its name in the workspace's title ("Style layer 1", "Filters"). */
     readonly ownerName?: string;
@@ -206,7 +206,7 @@ function afterPaint(work: () => void): void {
  * @param props.rule - the selection as the host holds it
  * @param props.host - where it is edited
  * @param props.onChange - takes the next rule, which the host writes
- * @param props.onDone - Escape on the sidebar outline: the host may fold it
+ * @param props.onDone - the workspace closed, or Escape on the sidebar outline: the host may fold it
  * @param props.openFirst - opens the workspace on the first step on arrival
  * @param props.hold - the filter condition being edited
  * @param props.title - the title row's name
@@ -506,6 +506,11 @@ export function SelectionEditor({
             return;
         }
         say(how === "done" ? `Done, ${formatNumber(reading.total.count)} of ${formatNumber(of)}` : "Cancelled");
+        // The host folds the selection back to its row (a filter card); its row then takes focus.
+        if (onDone !== undefined) {
+            onDone();
+            return;
+        }
         // A control the reader moved to while the workspace was closing keeps focus and its keys.
         const at = document.activeElement;
         if (at !== null && at !== document.body && at.isConnected && at.closest(".sel-ws") === null) {

@@ -137,7 +137,8 @@ function colorAlong(ramp: Ramp, u: number, above: boolean): string {
     const last = colors.length - 1;
     // the stop at or before the place, read from the side asked; -1 before the first, `last` past the last
     const next = stops.findIndex((s) => s >= u);
-    const k = above ? stops.filter((s) => s <= u).length - 1 : (next < 0 ? colors.length : next) - 1;
+    const below = (next < 0 ? colors.length : next) - 1;
+    const k = above ? stops.filter((s) => s <= u).length - 1 : below;
     if (k < 0 || k >= last) {
         return colors[k < 0 ? 0 : last];
     }

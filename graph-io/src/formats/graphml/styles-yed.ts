@@ -2433,9 +2433,10 @@ export function graphmlGroupBounds(snapshot: GraphSnapshot): Map<number, YedBox>
 }
 
 /**
- * The box a node takes in its group: its `y:Geometry` and its visible labels' boxes (`x` and `y` from the node's
- * corner, `width`, `height`), as yEd grows a group round its members' labels too (`graphml-yed-voctomix`'s group
- * reaches 31.8 left of its leftmost member, to the start of that member's label).
+ * The box a node takes in its group: its `y:Geometry` and its labels' boxes (`x` and `y` from the node's corner,
+ * `width`, `height`), as yEd grows a group round its members' labels too (`graphml-yed-voctomix`'s group reaches 31.8
+ * left of its leftmost member, to the start of that member's label), hidden and empty ones included
+ * (`graphml-galaxy-lcms-workflow`'s group n0::n23 ends at its member's hidden 4 x 4 label, 15.4 right of the member).
  * @param tree - the node's graphics tree
  * @returns the box, or null for a node with no geometry
  */
@@ -2449,10 +2450,8 @@ function memberBox(tree: unknown): YedBox | null {
     if (node === null) {
         return null;
     }
-    const shown = treeChildren(real?.r, "NodeLabel").filter(
-        (label) => treeAttr(label, "visible") !== "false" && (treeText(label)?.trim() ?? "") !== "",
-    );
-    const boxes = [node, ...shown.map((label) => boxOf(label, node[0], node[1]))].filter((b) => b !== null);
+    const labels = treeChildren(real?.r, "NodeLabel");
+    const boxes = [node, ...labels.map((label) => boxOf(label, node[0], node[1]))].filter((b) => b !== null);
     return [
         Math.min(...boxes.map((b) => b[0])),
         Math.min(...boxes.map((b) => b[1])),

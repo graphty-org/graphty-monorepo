@@ -2,7 +2,6 @@ import { type F32, type GraphSnapshot, makeMask, maskSet, maskTest, type NodeMas
 import type { LayoutResult } from "@graphty/layout";
 
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
-import type { ElementPositions } from "../data/positions";
 import { readSeedPosition } from "../data/seedPosition";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
@@ -12,6 +11,7 @@ import {
     type EdgePosition,
     layoutDim,
     LayoutEngine,
+    type LayoutRows,
     type Position,
     simpleLayoutInternals,
     StaticLayoutEngine,
@@ -401,7 +401,8 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         const rows = makeMask(n);
         const fixedAt = new Float32Array(dim * n).fill(Number.NaN);
         for (let row = 0; row < n; row++) {
-            const isHeld = held && this.isHeld(row);
+            // The hold is by row of the element's snapshot; a part's compact row is mapped back.
+            const isHeld = held && this.isHeld(simpleLayoutInternals.originalRow(this, row));
             if (scope !== null && !isHeld) {
                 maskSet(scope, row, true);
             }
@@ -505,7 +506,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      * @param n - the number of rows
      * @returns the coordinates
      */
-    #current(positions: ElementPositions, n: number): F32 {
+    #current(positions: LayoutRows, n: number): F32 {
         const dim = this.dimensions;
         const out = new Float32Array(dim * n).fill(Number.NaN);
         const at = { x: 0, y: 0, z: 0 };

@@ -40,9 +40,9 @@ window change and an undo or redo of either change the key. Drawing options (sho
 labels) never do. `DerivedInputs` is a least-recently-used cache bounded by bytes whose entries are
 kept alive by holders. The view holds the entry of its current state, with one holder per state,
 and lets go when the state moves, so unheld views stay cached until byte pressure and an undo or
-redo finds them again. `LayoutManager` holds the view its engine runs on for the engine's life, as
-runs already hold theirs, and releases it on reload or dispose, so byte pressure never evicts (and
-on the GPU destroys) a snapshot a layout is stepping on. Other readers look up without holding.
+redo finds them again. A layout holds no entry: a one-pass engine reads the compact graph on the
+processor, and a simulation keeps the original's rows (section 7), so nothing a layout steps on is
+ever on the device as a cached view. Readers look up without holding.
 
 **Ghosts and context.** A ghost (outside the time window, drawn faintly while playback says
 `outside: "ghost"`) and a context node (`showContext`) are drawn but not shown, so no run, layout,
@@ -278,23 +278,39 @@ phantom row, edges under an edge filter, third-party static engines, nodes added
 
 With the view, each engine is given the layout's set and nothing else:
 
-- **Incremental engines** (D3, NGraph) get only the set's nodes and edges through `addNode`.
+The engine is handed a `LayoutPart` (`layout/LayoutEngine.ts`, internal): the original snapshot
+it was cut from, a bitmap of the rows it leaves out, a bitmap of the edges it keeps, and the
+working graph's compact snapshot with its row maps. The engine's internal doors (`addNode`,
+`addEdge`, `setNodePosition`, `pin`, and the position reads `Node` and `Edge` draw from) refuse
+anything outside the part, so no engine, the element's or a third party's, ever meets a node it
+was not handed; a ghost or context node is drawn from the shared array.
+
+- **Incremental engines** (D3, NGraph, a third party's `LayoutEngine`) get only the set's nodes
+  and edges through `addNode`, including a node added later: it reaches the engine only if the
+  next settled change finds it shown.
 - **Simulation engines** (ForceAtlas2, Spring, SpringElectrical, and GPU ForceAtlas2;
-  `layout/SimulationLayoutEngine.ts`) read a snapshot and the shared position lane, not `addNode`.
-  The bridge: `load()` and `reload()` take the view's compact snapshot; the simulation gets a
-  compact position array gathered through `originalNodeRow`; `publishPositions` scatters back into
-  the shared lane by original row; pins, the drag hold, follower rows, the hold mask and the GPU
-  upload are compacted through `compactNodeRow`. `reload` runs when the view changes, not only on
-  `snapshot-replaced`. Each filter change re-uploads the graph to the GPU (section 9).
-- **Snapshot and static engines**, third party included, get the compact snapshot; Graphviz's
-  phantom row cannot occur.
+  `layout/SimulationLayoutEngine.ts`) keep the original's rows. A node outside the set is held and
+  inert (`setInert`, which every simulation implements: it weighs nothing, repels nothing, and its
+  edges pull nothing), and the simulation is loaded with `filterEdges` of the original over the
+  shown edges, so an edge an edge filter hides between two shown nodes pulls nothing either. No row
+  map is needed: pins, the drag hold, follower rows, the hold mask, published positions and the GPU
+  upload keep reading original rows. Each part derives one filtered snapshot, so each filter change
+  re-uploads the graph to the GPU (section 9). This replaces an earlier plan for a compact position
+  array gathered and scattered through `originalNodeRow`, which would have touched every row-indexed
+  path of the bridge for the same forces.
+- **Snapshot and static engines**, third party included, read the compact snapshot as their
+  `graph` (`StaticLayoutEngine`), with the shared array and the hold read through its row maps;
+  `defineLayout` places the same compact graph; Graphviz's phantom row cannot occur, and its
+  `INVALID_INDEX` guard is fixed in every mode.
 - A node outside the set exerts nothing and keeps its position in `ElementPositions` (original
   row).
 
 **The layout scope with the option on.**
 
 - Unset: the working graph. `"visible"` is the same.
-- `"graph"`: the whole graph, read back as `"graph"` (not `undefined`).
+- `"graph"`: the whole graph, read back as `"graph"` (not `undefined`). Not built yet: the layout
+  slice stores `"graph"` as no scope, so it cannot be told from unset. It needs `"graph"` kept in the
+  slice, which is the saved layout scope field (S9), so it lands there.
 - A set or query scope: its members are captured at start, as today, and intersected with the
   working graph at each settled change. Nodes outside the working graph are not in the engine;
   shown nodes outside the scope are held.
@@ -303,15 +319,22 @@ With the view, each engine is given the layout's set and nothing else:
 
 Estimates, refusals (not planar, too large), `optionsFor`, the location map's frame, `clusterBy`
 and group boxes read that resolved set, so the picker and the estimate measure the set the layout
-runs on.
+runs on. Built so far: group boxes skip members outside the part, the location map and `clusterBy`
+of a one-pass layout read the compact graph, and the force driver's CPU or GPU choice counts the
+working graph. The estimate, the refusals, `optionsFor` and `recommendLayout` still read the whole
+graph; they move with the session readers.
 
-**When it re-runs.** A filter change, released hold, committed window, playback pausing or ending,
-switching the option: full re-layout. An edit that only grows the set is incremental placement:
-kept rows carry into the new compact numbering through their original rows and the new rows go in
-as "added" (`SnapshotLayoutEngine`) or through `updatePositions`, as a load does today. During
-playback, a node entering the window that has no laid-out place is placed at the mean position of
-its placed shown neighbors (from the slide's entered rows and the masks, no view build), or its
-seed position if it has none; the next settle point lays it out properly. Never per frame.
+**When it re-runs.** On `working-graph:changed` with `settled` true, when the shown node or edge
+ids differ from the ones the engine was built over (`LayoutManager.followWorkingGraph`): a filter
+change, released hold, committed window, an undo or redo of either (after the arrangement lands),
+playback pausing or ending (`time:pause`, `time:end`; a step while `time:play` holds it is not a
+settle point), switching the option, and an edit that adds or removes a shown node: one full
+re-layout, queued behind any build already asked for. With nothing hidden there is no part, and a
+load streams in exactly as it does without the option: no view is derived and nothing is laid out
+again. Not built yet, and recorded on #6201: an edit that only grows a filtered set is laid out in
+full rather than placed incrementally (kept rows carried through their original rows, new rows
+"added"), and a node entering the window during playback keeps its last place (or none) until the
+playback stops rather than being placed at its shown neighbors' mean.
 
 **Tests.** #6117's tests move here, retargeted from `layout.visibleOnly: true` to
 `workingGraph: "visible"`: `test/browser/layout-visible-only.test.ts` (becomes
@@ -319,16 +342,23 @@ seed position if it has none; the next settle point lays it out properly. Never 
 `ShownOnly.real-element.test.tsx`, keeping their assertions. Added: the scaling test on
 ForceAtlas2 CPU and GPU; an edge-filter case where a hidden edge must not shorten the distance
 between its shown ends; the four audit cases; `layoutScope: "graph"` under a filter; a chunked load
-with the option on and no filter asserting zero view derivations and zero full re-layouts.
+with the option on and no filter asserting zero view derivations and zero full re-layouts. Still to
+add: the GPU scaling case (a real device runs only when a run asks for hardware with
+`GRAPHTY_BROWSER_GPU`; it belongs beside
+`test/browser/webgpu-working-graph.test.ts`) and `layoutScope: "graph"`, with the S9 field.
 
 None of #6117's API ships, and the app's "Shown nodes only" checkbox does not come back: a
-whole-graph layout under a filter is the layout scope `"graph"`.
+whole-graph layout under a filter is the layout scope `"graph"`. #6117's app test
+(`ShownOnly.real-element.test.tsx`) moves to S11, when the app turns the option on; its first half
+(a filter lays out only what it shows, hidden nodes stay put) is the app's case then.
 
 ## 8. Framing, styling, selection, AI, project file
 
 - **Framing (S5)**: `boundsToFrame` with no nodes reads the working graph when the option is on.
   Fit, the standard views, `applyCameraView`, the screenshot presets and AI `zoomToNodes` then agree
-  with `zoomToFit`. `applyCameraView(view, { scope: "graph" })` frames everything.
+  with `zoomToFit`. `applyCameraView(view, { scope: "graph" })` frames everything (it already names
+  every node). Frame selection and `scope: "selection"` drop selected nodes the working graph hides;
+  AI `zoomToNodes` drops matches it hides. `zoomToNodes(ids)` frames the ids it is given.
 - **Styling (S7)**: painting matches over the whole graph, because a hidden node draws nothing.
   Rankings and counts read shown. The legend returns only rows the layer holds that are shown, each
   with its count, in no promised order; the app keeps its own sort and deletes only the filtering

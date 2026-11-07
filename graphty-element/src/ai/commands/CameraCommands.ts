@@ -199,8 +199,12 @@ export const zoomToNodes: GraphCommand = {
         };
 
         try {
-            // Find matching nodes
-            const matchingIds = await matchingNodeIds(graph, selector, connectedBy);
+            // Find matching nodes: while the session reads the working graph, only the ones it shows,
+            // which are the ones drawn.
+            const session = graph.getSession();
+            const working = session.config.workingGraph === "visible" ? session.data.working() : null;
+            const matched = await matchingNodeIds(graph, selector, connectedBy);
+            const matchingIds = working === null ? matched : matched.filter((id) => working.has(id));
             const scoped = connectedBy !== undefined || !isMatchAllSelector(selector);
 
             if (matchingIds.length === 0 && scoped) {
@@ -220,7 +224,7 @@ export const zoomToNodes: GraphCommand = {
                 description: `Zooming to fit ${scoped ? "matching nodes" : "all nodes"}`,
             });
 
-            const nodeCount = scoped ? matchingIds.length : graph.getNodeCount();
+            const nodeCount = scoped ? matchingIds.length : (working?.nodeCount ?? graph.getNodeCount());
             const matching = scoped ? ` matching "${selector}"` : "";
             return {
                 success: true,

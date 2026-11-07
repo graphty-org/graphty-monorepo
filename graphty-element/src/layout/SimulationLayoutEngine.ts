@@ -61,7 +61,7 @@ import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
 import type { Node } from "../Node";
 import { readCommunities, sameCommunities } from "./clusterForce";
-import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
+import { type EdgePosition, LayoutEngine, layoutEngineInternals, type LayoutPart, type Position } from "./LayoutEngine";
 
 /**
  * Above this many nodes the automatic `iterationsPerStep` is raised, because a frame that
@@ -1681,7 +1681,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns The graph to load, and the `weight` option, undefined when the model reads none.
      */
     #loadable(snapshot: GraphSnapshot): { graph: GraphSnapshot; weight: boolean | string | undefined } {
-        const graph = this.#dataManager.undirected(snapshot).snapshot;
+        const graph = this.#dataManager.undirected(this.#partEdges(snapshot)).snapshot;
         if ((this.#options.model as { weight?: unknown }).weight !== true) {
             return { graph, weight: undefined };
         }
@@ -1695,6 +1695,33 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const strengths = Float32Array.from(weights, (w) => asStrength(w, "distance"));
         return { graph: graph.withColumns(undefined, { [STRENGTH_COLUMN]: strengths }), weight: STRENGTH_COLUMN };
     }
+
+    /**
+     * The snapshot with only the edges the part keeps (design/working-graph/design.md, section 7).
+     *
+     * THE ROWS STAY THE ELEMENT'S. A simulation holds every row of the shared array, so a part is
+     * given to it without renumbering anything: a node the part leaves out is held and inert (see
+     * `isFollower`), which makes it weigh nothing, and an edge it leaves out -- one an edge filter
+     * hides between two shown nodes -- is taken out here, so it pulls nothing. Pins, the drag, the
+     * hold and the GPU upload all keep reading the rows they always read.
+     * @param snapshot - The element's snapshot.
+     * @returns It, or the copy without the edges the part leaves out, derived once per part.
+     */
+    #partEdges(snapshot: GraphSnapshot): GraphSnapshot {
+        const part = layoutEngineInternals.part(this);
+        if (part?.source !== snapshot) {
+            return snapshot;
+        }
+
+        if (this.#keptEdges?.part !== part) {
+            this.#keptEdges = { part, snapshot: snapshot.filterEdges(part.edges).snapshot };
+        }
+
+        return this.#keptEdges.snapshot;
+    }
+
+    /** The part {@link SimulationLayoutEngine.#partEdges} last derived for, and what it derived. */
+    #keptEdges: { readonly part: LayoutPart; readonly snapshot: GraphSnapshot } | null = null;
 
     /**
      * How many iterations one `step()` submits over the graph this load holds.

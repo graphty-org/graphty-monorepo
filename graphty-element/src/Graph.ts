@@ -271,7 +271,7 @@ import { toColorValue } from "./session/styles/channels";
 import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { CompiledLayer } from "./session/styles/Layer";
-import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope, WorkingGraph } from "./session/types";
 import { attachTransitions, LayoutTransitionRunner, transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 /** The namespace every algorithm this package ships is registered under. */
@@ -1616,6 +1616,32 @@ export class Graph implements GraphContext {
                     return true;
                 }
             },
+            // While the session reads the working graph, a layout runs on it (design/working-graph/design.md, section 7).
+            working: () =>
+                this.session.config.workingGraph === "visible"
+                    ? {
+                          view: this.session.data.working(),
+                          nodeMask: () => this.session.visibility.nodeMask(),
+                          edgeMask: () => this.session.visibility.edgeMask(),
+                      }
+                    : null,
+        });
+        // A settled move of the working graph -- a filter, a committed window, an undo of either, a
+        // switch of the mode, an edit -- lays a layout over it out again, once. The timeline's
+        // playing holds it until playback stops; a slide or a held condition is not settled.
+        this.session.on("working-graph:changed", ({ settled }) => {
+            if (settled) {
+                this.layoutManager.followWorkingGraph();
+            }
+        });
+        this.session.on("time:play", () => {
+            this.layoutManager.holdFollowing(true);
+        });
+        this.session.on("time:pause", () => {
+            this.layoutManager.holdFollowing(false);
+        });
+        this.session.on("time:end", () => {
+            this.layoutManager.holdFollowing(false);
         });
         addSetsUsers(this.session, () => {
             const user = this.layoutManager.scopeUser();
@@ -4546,7 +4572,13 @@ export class Graph implements GraphContext {
         const problems = this.dataManager.sliceProblems(slice);
         const engine = this.layoutManager.layoutEngine;
         if (engine !== undefined && !this.layoutManager.building) {
-            problems.push(...layoutEngineInternals.edgeProblems(engine, this.dataManager.edges));
+            // A layout over the working graph holds only the edges its part keeps.
+            const { edges } = this.dataManager;
+            const held =
+                layoutEngineInternals.part(engine) === null
+                    ? edges
+                    : new Map([...edges].filter(([, edge]) => layoutEngineInternals.holdsEdge(engine, edge)));
+            problems.push(...layoutEngineInternals.edgeProblems(engine, held));
         }
 
         if (problems.length > 0) {
@@ -8047,13 +8079,36 @@ export class Graph implements GraphContext {
             }
         }
 
+        // While the session reads the working graph, a selected node the filter or the window hides
+        // is not framed: it is not drawn.
+        const working = this.#workingFrame();
+        if (working !== null) {
+            for (const id of nodes) {
+                if (!working.has(id)) {
+                    nodes.delete(id);
+                }
+            }
+        }
+
         return nodes;
     }
 
+    /**
+     * The working graph, while the session reads it: what the whole graph means to a camera view
+     * that names no scope (design/working-graph/design.md, section 8).
+     * @returns The working graph, or null in `"documented"` mode.
+     */
+    #workingFrame(): WorkingGraph | null {
+        return this.session.config.workingGraph === "visible" ? this.session.data.working() : null;
+    }
+
     private boundsToFrame(nodeIds?: Iterable<string | number>, extent: CameraViewExtent = "centers"): GraphBounds {
+        // No scope is the whole graph, which is the working graph while the session reads it;
+        // `scope: "graph"` names every node, so it frames them all.
+        const working = nodeIds === undefined ? this.#workingFrame() : null;
         const nodes =
             nodeIds === undefined
-                ? this.getNodes()
+                ? this.getNodes().filter((node) => working === null || working.has(node.id))
                 : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined);
 
         const points = nodes.map((node) => node.getPosition());

@@ -1,6 +1,7 @@
 import {
     type DerivedGraph,
     detHypot,
+    type EdgeMask,
     type F32,
     GraphBuilder,
     type GraphSnapshot,
@@ -9,10 +10,12 @@ import {
     maskSet,
     maskTest,
     type NodeMask,
+    type U32,
 } from "@graphty/graph-format";
 import { fromPositionColumn, type LayoutResult, toPositionColumn } from "@graphty/layout";
 import { z } from "zod";
 
+import type { DerivedInput } from "../algorithms/input/derivedInputs";
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
@@ -301,7 +304,45 @@ export const layoutEngineInternals = {} as {
         rows: ReadonlySet<number> | null,
         members?: ReadonlyMap<number, readonly number[]>,
     ): void;
+    /** Hand the engine the part of the graph it lays out, or null for the whole graph. See {@link LayoutPart}. */
+    setPart(engine: LayoutEngine, part: LayoutPart | null): void;
+    /** The part the engine lays out, or null for the whole graph. */
+    part(engine: LayoutEngine): LayoutPart | null;
+    /** Whether the engine lays this node out: always, unless a part leaves it out. */
+    holdsNode(engine: LayoutEngine, n: Node): boolean;
+    /** Whether the engine lays this edge out: always, unless a part leaves it out. */
+    holdsEdge(engine: LayoutEngine, e: Edge): boolean;
+    /** Where a node is drawn: the engine's answer, or the shared array for a node its part leaves out. */
+    nodePosition(engine: LayoutEngine, n: Node): Position | undefined;
+    /** Where an edge's ends are drawn; see `nodePosition`. */
+    edgePosition(engine: LayoutEngine, e: Edge): EdgePosition | undefined;
 };
+
+/**
+ * The part of the graph a layout runs on when the working graph leaves something out
+ * (design/working-graph/design.md, section 7): the nodes and edges the visibility filter and the
+ * time window show. The engine is handed nothing else: a node outside it is never added, exerts
+ * nothing and keeps its place in the shared array.
+ *
+ * Rows are the rows of `source`, the element's snapshot the part was cut from. An engine that holds
+ * rows (a simulation over the shared array) reads `leftOut` and `edges`; one that arranges a graph
+ * (a one-pass layout) reads `compact()`, the same compact graph every reader of the working graph
+ * shares.
+ * @internal
+ */
+export interface LayoutPart {
+    /** The element's snapshot the part was cut from. */
+    readonly source: GraphSnapshot;
+    /** One bit per row of {@link source} the layout leaves out. */
+    readonly leftOut: NodeMask;
+    /** One bit per edge row of {@link source} the layout keeps. */
+    readonly edges: EdgeMask;
+    /**
+     * The part as a compact graph, as the element stores it (directed or not), with its maps.
+     * @returns The compact graph; `nodeRow` maps a row of `source` to its compact row.
+     */
+    compact(): DerivedInput & { readonly nodeOrigin: U32; readonly nodeRow: U32 };
+}
 
 /**
  * Base class for all layout engines
@@ -357,28 +398,68 @@ export function heldEdgeProblems(held: Iterable<Edge>, drawn: ReadonlyMap<string
 /** The base every layout engine extends: how the element adds, places, steps and removes. */
 export abstract class LayoutEngine {
     static {
+        // A NODE OR EDGE THE PART LEAVES OUT NEVER REACHES THE ENGINE: it is not added, a placement
+        // of it lands in the shared array alone, and a pin of it is the array's byte alone. So an
+        // engine never meets a node it was not handed, whatever reaches these doors.
         layoutEngineInternals.setNodePosition = (engine, n, p) => {
-            engine.setNodePosition(n, p);
+            if (engine.#holds(n)) {
+                engine.setNodePosition(n, p);
+            } else {
+                engine.writeNodePosition(n, p.x, p.y, p.z ?? 0, "placement");
+            }
         };
         layoutEngineInternals.pin = (engine, n) => {
-            engine.pin(n);
+            if (engine.#holds(n)) {
+                engine.pin(n);
+            }
         };
         layoutEngineInternals.unpin = (engine, n) => {
-            engine.unpin(n);
+            if (engine.#holds(n)) {
+                engine.unpin(n);
+            }
+        };
+        layoutEngineInternals.setPart = (engine, part) => {
+            engine.#part = part;
+            // Re-applied, so an engine that fixes held rows in its own state picks up the rows left out.
+            engine.setHoldMask(engine.hold, engine.holdRows);
+        };
+        layoutEngineInternals.part = (engine) => engine.#part;
+        layoutEngineInternals.holdsNode = (engine, n) => engine.#holds(n);
+        layoutEngineInternals.holdsEdge = (engine, e) => engine.#holdsEdge(e);
+        layoutEngineInternals.nodePosition = (engine, n) => {
+            if (engine.#holds(n)) {
+                return engine.getNodePosition(n);
+            }
+
+            const at = { x: 0, y: 0, z: 0 };
+            return engine.readNodePosition(n, at) ? at : undefined;
+        };
+        layoutEngineInternals.edgePosition = (engine, e) => {
+            if (engine.#holdsEdge(e)) {
+                return engine.getEdgePosition(e);
+            }
+
+            const src = layoutEngineInternals.nodePosition(engine, e.srcNode);
+            const dst = layoutEngineInternals.nodePosition(engine, e.dstNode);
+            return src === undefined || dst === undefined ? undefined : { src, dst };
         };
         layoutEngineInternals.positions = (engine) => engine.writablePositions;
         layoutEngineInternals.edgeProblems = (engine, drawn) => engine.edgeProblems(drawn);
         layoutEngineInternals.addNode = (engine, n) => {
-            engine.addNode(n);
+            if (engine.#holds(n)) {
+                engine.addNode(n);
+            }
         };
         layoutEngineInternals.addEdge = (engine, e) => {
-            engine.addEdge(e);
+            if (engine.#holdsEdge(e)) {
+                engine.addEdge(e);
+            }
         };
         layoutEngineInternals.addNodes = (engine, nodes) => {
-            engine.addNodes(nodes);
+            engine.addNodes(engine.#part === null ? nodes : nodes.filter((n) => engine.#holds(n)));
         };
         layoutEngineInternals.addEdges = (engine, edges) => {
-            engine.addEdges(edges);
+            engine.addEdges(engine.#part === null ? edges : edges.filter((e) => engine.#holdsEdge(e)));
         };
         layoutEngineInternals.removeNode = (engine, n) => {
             engine.removeNode(n);
@@ -472,6 +553,54 @@ export abstract class LayoutEngine {
 
     /** Each follower row's member rows. See {@link LayoutEngine.followerGroups}. */
     private followerMembers: ReadonlyMap<number, readonly number[]> = new Map();
+
+    /** The part of the graph this engine lays out, or null for the whole graph. See {@link LayoutPart}. */
+    #part: LayoutPart | null = null;
+
+    /**
+     * Whether a row is outside the part: left out by it, or newer than it (a node added since,
+     * which the next settled change hands over if it is shown).
+     * @param index - The node's row.
+     * @returns True for a row outside; false with no part.
+     */
+    #outside(index: number): boolean {
+        const part = this.#part;
+        return (
+            part !== null &&
+            (!Number.isInteger(index) || index < 0 || index >= part.source.nodeCount || maskTest(part.leftOut, index))
+        );
+    }
+
+    /**
+     * Whether the engine lays this node out.
+     * @param n - The node.
+     * @returns True unless a part leaves it out.
+     */
+    #holds(n: Node): boolean {
+        return !this.#outside(n.index);
+    }
+
+    /**
+     * Whether the engine lays this edge out: both its ends, and the edge itself, in the part.
+     * @param e - The edge.
+     * @returns True unless a part leaves it out.
+     */
+    #holdsEdge(e: Edge): boolean {
+        const part = this.#part;
+        if (part === null) {
+            return true;
+        }
+
+        const { index } = e;
+        return (
+            !this.#outside(e.srcNode.index) &&
+            !this.#outside(e.dstNode.index) &&
+            Number.isInteger(index) &&
+            index >= 0 &&
+            index < part.source.edgeCount &&
+            maskTest(part.edges, index)
+        );
+    }
 
     // basic functionality
     abstract init(): Promise<void>;
@@ -795,7 +924,9 @@ export abstract class LayoutEngine {
      * @returns True for a follower row.
      */
     protected isFollower(index: number): boolean {
-        return this.followers?.has(index) === true;
+        // A row the part leaves out takes no part either: an engine that holds every row (a
+        // simulation over the shared array) holds it still and gives it no force.
+        return this.followers?.has(index) === true || this.#outside(index);
     }
 
     /**
@@ -813,7 +944,7 @@ export abstract class LayoutEngine {
      * @returns True when {@link LayoutEngine.isHeld} can answer true.
      */
     protected get holdsAny(): boolean {
-        return this.hold !== null || this.followers !== null;
+        return this.hold !== null || this.followers !== null || this.#part !== null;
     }
 
     /**
@@ -1281,16 +1412,55 @@ interface GraphSource {
     undirected(snapshot: GraphSnapshot): DerivedGraph;
 }
 
+/** What a one-pass layout reads of the element's array, by row of the graph it arranges. */
+export type LayoutRows = Pick<ElementPositions, "count" | "isPlaced" | "isPinned" | "read" | "view">;
+
 /** The graph one run of a static engine arranges, and how a node finds its row in it. */
 interface LoadedGraph {
     /** The undirected graph the layout reads. */
     readonly snapshot: GraphSnapshot;
     /** The element's snapshot it was derived from, or null for an engine driven without one. */
     readonly source: GraphSnapshot | null;
-    /** The element's array, or null for an engine driven without one. */
-    readonly positions: ElementPositions | null;
+    /** The element's array, read by row of `snapshot`, or null for an engine driven without one. */
+    readonly positions: LayoutRows | null;
     /** A node's row in `snapshot`, or `INVALID_INDEX`. */
     rowOf(n: Node): number;
+    /** A row of `snapshot` as a row of the element's snapshot. */
+    originalRow(row: number): number;
+    /** A row of the element's snapshot as a row of `snapshot`, or `INVALID_INDEX`. */
+    compactRow(row: number): number;
+}
+
+/**
+ * The element's array read through a part's compact rows: row `i` is the original row
+ * `nodeOrigin[i]`. Nothing is written through it.
+ * @param lane - The element's array.
+ * @param nodeOrigin - Compact row -> original row.
+ * @returns The array as the compact graph's rows see it.
+ */
+function compactRows(lane: ElementPositions, nodeOrigin: U32): LayoutRows {
+    return {
+        get count(): number {
+            return nodeOrigin.length;
+        },
+        isPlaced: (row) => row < nodeOrigin.length && lane.isPlaced(nodeOrigin[row]),
+        isPinned: (row) => row < nodeOrigin.length && lane.isPinned(nodeOrigin[row]),
+        read: (row, out) => {
+            lane.read(nodeOrigin[row], out);
+        },
+        view: (nodeCount) => {
+            const out = new Float32Array(3 * nodeCount).fill(Number.NaN);
+            const at = { x: 0, y: 0, z: 0 };
+            for (let row = 0; row < nodeCount && row < nodeOrigin.length; row++) {
+                if (lane.isPlaced(nodeOrigin[row])) {
+                    lane.read(nodeOrigin[row], at);
+                    out.set([at.x, at.y, at.z], 3 * row);
+                }
+            }
+
+            return out;
+        },
+    };
 }
 
 /** The freeze a static engine is told about: the snapshot it replaced, the new one, and the renumbering. */
@@ -1463,7 +1633,7 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
  * @param positions - the element's array, holding the drawn coordinates of the rows in `keep`
  * @param keep - the held rows
  */
-function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): void {
+function alignToHeld(column: F32, positions: LayoutRows, keep: NodeMask): void {
     const rows = column.length / 3;
     const held: Coords[] = [];
     const drawn = { x: 0, y: 0, z: 0 };
@@ -1554,8 +1724,12 @@ export const simpleLayoutInternals = {
     readonly waiting: WeakSet<StaticLayoutEngine>;
     /** The rows the run in progress keeps where they are (an add), or null. */
     kept(engine: StaticLayoutEngine): NodeMask | null;
-    /** The element's array for the run in progress, or null for an engine driven without one. */
-    positions(engine: StaticLayoutEngine): ElementPositions | null;
+    /** The element's array for the run in progress, by row of the graph it arranges, or null for an engine driven without one. */
+    positions(engine: StaticLayoutEngine): LayoutRows | null;
+    /** A row of the graph the run in progress arranges, as a row of the element's snapshot. */
+    originalRow(engine: StaticLayoutEngine, row: number): number;
+    /** A row of the element's snapshot as a row of the graph the run in progress arranges, or `INVALID_INDEX`. */
+    compactRow(engine: StaticLayoutEngine, row: number): number;
     /** How many nodes and edges the engine's lists hold, removed ones not yet swept included, without sweeping them. */
     held(engine: StaticLayoutEngine): { readonly nodes: number; readonly edges: number };
 };
@@ -1584,6 +1758,8 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     static {
         simpleLayoutInternals.kept = (engine) => engine.#keep;
         simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
+        simpleLayoutInternals.originalRow = (engine, row) => (engine.#loaded ?? engine.#load()).originalRow(row);
+        simpleLayoutInternals.compactRow = (engine, row) => (engine.#loaded ?? engine.#load()).compactRow(row);
         simpleLayoutInternals.held = (engine) => ({ nodes: engine.#nodes.length, edges: engine.#edges.length });
     }
 
@@ -2082,12 +2258,31 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         const source = manager as Partial<GraphSource> | undefined;
         if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
             const store = source.getSnapshot();
+            const lane = writableLane(manager) ?? null;
+            // A PART OF THE GRAPH (the working graph) IS ARRANGED AS A GRAPH OF ITS OWN: a node it
+            // leaves out has no row, so it takes no slot, and an edge it leaves out pulls nothing.
+            const part = layoutEngineInternals.part(this);
+            if (part?.source === store) {
+                const { snapshot: compact, nodeOrigin, nodeRow } = part.compact();
+                const { snapshot } = source.undirected(compact);
+                return {
+                    snapshot,
+                    source: compact,
+                    positions: lane === null ? null : compactRows(lane, nodeOrigin),
+                    rowOf: (n) => (n.index >= 0 && n.index < nodeRow.length ? nodeRow[n.index] : INVALID_INDEX),
+                    originalRow: (row) => nodeOrigin[row],
+                    compactRow: (row) => (row >= 0 && row < nodeRow.length ? nodeRow[row] : INVALID_INDEX),
+                };
+            }
+
             const { snapshot } = source.undirected(store);
             return {
                 snapshot,
                 source: store,
-                positions: writableLane(manager) ?? null,
+                positions: lane,
                 rowOf: (n) => (n.index < snapshot.nodeCount ? n.index : INVALID_INDEX),
+                originalRow: (row) => row,
+                compactRow: (row) => row,
             };
         }
 
@@ -2113,6 +2308,8 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             source: null,
             positions: null,
             rowOf: (n) => snapshot.ids.indexOf(n.id),
+            originalRow: (row) => row,
+            compactRow: (row) => row,
         };
         this.#built = { nodes: this._nodes.slice(), edges: this._edges.slice(), loaded };
         return loaded;

@@ -4859,6 +4859,8 @@ export class LayoutManager implements Manager {
     dispose(): void;
     drawArrivedPaint: (() => void) | null;
     get edges(): Iterable<Edge>;
+    // @internal
+    followWorkingGraph(restored?: boolean): boolean;
     getNodePosition(node: Node_2): [number, number, number] | undefined;
     getStats(): {
         layoutType: string | undefined;
@@ -4871,6 +4873,8 @@ export class LayoutManager implements Manager {
     graphWritesWaiting: () => boolean;
     groupBox(id: NodeIdType): GroupBox | undefined;
     hasLayoutEngine(): boolean;
+    // @internal
+    holdFollowing(held: boolean): void;
     init(): Promise<void>;
     isCurrent(choice: LayoutChoice): boolean;
     get isPaused(): boolean;

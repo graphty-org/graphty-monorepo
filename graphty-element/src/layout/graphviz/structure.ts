@@ -8,6 +8,8 @@
  * hands them back to Graphviz as the file gave them.
  */
 
+import { INVALID_INDEX } from "@graphty/graph-format";
+
 import type { RankSet } from "../../data/groups";
 import type { NodeIdType } from "../../Node";
 import type { DotEdge, DotStructure } from "./toDot";
@@ -190,7 +192,8 @@ export function graphvizStructure<E extends EdgeLike>(
     for (const edge of edges) {
         const src = rowOf(edge.srcId);
         const dst = rowOf(edge.dstId);
-        if (src >= 0 && dst >= 0) {
+        // `INVALID_INDEX` (2^32 - 1) is not negative: a test for >= 0 handed Graphviz a node n4294967295.
+        if (src !== INVALID_INDEX && dst !== INVALID_INDEX) {
             dotEdges.push({ src, dst, attributes: edgeAttributes(edge.data, rowOf, groups) });
             edgeOf.push(edge);
         }
@@ -200,7 +203,10 @@ export function graphvizStructure<E extends EdgeLike>(
         edges: dotEdges,
         edgeOf,
         groupAttributes: new Map([...groups].map(([row, data]) => [row, attributesOf(data, CLUSTER_ATTRIBUTES)])),
-        ranks: ranks.map(({ rank, members }) => ({ rank, rows: members.map(rowOf).filter((row) => row >= 0) })),
+        ranks: ranks.map(({ rank, members }) => ({
+            rank,
+            rows: members.map(rowOf).filter((row) => row !== INVALID_INDEX),
+        })),
         ...(nodes === undefined ? {} : { nodeAttributes: nodeAttributes(nodes, sizing) }),
         ...(sizing === undefined ? {} : { labelSized: true }),
     };

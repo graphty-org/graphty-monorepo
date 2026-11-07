@@ -34,7 +34,7 @@ import { mulberry32 } from "@graphty/algorithms";
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
-import { LayoutEngine, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
+import { LayoutEngine, layoutEngineInternals, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import type { Node } from "../Node";
 import {
@@ -421,7 +421,12 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             }
 
             const twoD = graph.getStyles().config.graph.viewMode === "2d";
-            const view = createGraphView(viewSourceOf(session), { id, directed: false, source: "layout" });
+            // A part of the graph (the working graph) is what `place` sees: a node it leaves out is
+            // not in the view, so it takes no slot and is not placed.
+            const part = layoutEngineInternals.part(this);
+            const compact =
+                part !== null && part.source === graph.getDataManager().getSnapshot() ? part.compact() : undefined;
+            const view = createGraphView(viewSourceOf(session, compact), { id, directed: false, source: "layout" });
             checkViewOptions(view, id, plan.options, this.#values, "layout");
 
             const byId = new Map<NodeId, Node>(this._nodes.map((node) => [node.id, node]));

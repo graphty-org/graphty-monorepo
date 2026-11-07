@@ -31,6 +31,7 @@ import { drawnText } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
+import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
@@ -1219,7 +1220,8 @@ export class Node implements ModelUser {
         const layoutManager = this.context.getLayoutManager();
         const { layoutEngine } = layoutManager;
 
-        const pos = layoutEngine?.getNodePosition(this);
+        // Through the door that answers for a node the layout's part leaves out (a ghost) from the array.
+        const pos = layoutEngine === undefined ? undefined : layoutEngineInternals.nodePosition(layoutEngine, this);
         const box = layoutManager.groupBox(this.id);
         // A node becomes, or stops being, a group following its members after it is painted (the
         // groups arrive with the file, the behaviour can turn them off): draw it again as one.
@@ -2634,7 +2636,8 @@ export class Node implements ModelUser {
         // Restore position from layout engine after mesh recreation
         // This ensures the mesh doesn't reset to (0, 0, 0) when style changes
         const layoutManager = this.context.getLayoutManager();
-        const pos = layoutManager.layoutEngine?.getNodePosition(this);
+        const engine = layoutManager.layoutEngine;
+        const pos = engine === undefined ? undefined : layoutEngineInternals.nodePosition(engine, this);
         if (pos) {
             const at = transitionsOf(layoutManager)?.place(this, pos) ?? pos;
             this.setMeshPosition(at.x, at.y, at.z ?? 0);

@@ -1,4 +1,4 @@
-import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, type NodeMask, type U32 } from "@graphty/graph-format";
 import type {
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
@@ -26,6 +26,7 @@ import {
     LayoutEngine,
     layoutEngineInternals,
     type LayoutEngineStatics,
+    type LayoutPart,
     StaticLayoutEngine,
 } from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
@@ -46,12 +47,14 @@ import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
+import type { WorkingGraph } from "../session/types";
 import type { Styles } from "../Styles";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
+import { pendingWorkOf } from "./PendingWork";
 
 /**
  * The largest batch a pre-step chunk submits.
@@ -585,6 +588,33 @@ interface LayoutScopeSource {
      * @returns The values, or null when nothing carries the path.
      */
     nodeValues?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
+    /**
+     * The working graph, while the session's readers read it (`workingGraph: "visible"`).
+     * @returns What a layout reads of it, or null in `"documented"` mode.
+     */
+    working?(): LayoutWorking | null;
+}
+
+/** What a layout reads of the working graph (design/working-graph/design.md, section 7). */
+export interface LayoutWorking {
+    /** The working graph. */
+    readonly view: WorkingGraph;
+    /**
+     * The shown nodes, one byte per row of the element's snapshot.
+     * @returns The bytes.
+     */
+    nodeMask(): Uint8Array;
+    /**
+     * The shown edges, one byte per edge row of the element's snapshot.
+     * @returns The bytes.
+     */
+    edgeMask(): Uint8Array;
+}
+
+/** The nodes and edges a layout was built over, when that was less than the whole graph. */
+interface PartMembers {
+    readonly nodes: readonly NodeIdType[];
+    readonly edges: readonly (string | number)[];
 }
 
 /**
@@ -782,6 +812,19 @@ export class LayoutManager implements Manager {
      * outside it is held, including one that arrives later.
      */
     private members: ReadonlySet<NodeIdType> | null = null;
+
+    /**
+     * What the running engine was built over when the working graph left something out, or null
+     * when it was built over the whole graph. A settled change of the working graph that moves
+     * this lays the graph out again, once. See {@link LayoutManager.followWorkingGraph}.
+     */
+    #builtOver: PartMembers | null = null;
+
+    /** Set while a re-layout over the working graph is queued and not started. */
+    #followQueued = false;
+
+    /** Set while the timeline plays: the working graph moves every step, and the layout waits for it to stop. */
+    #followHeld = false;
 
     /** The engine and the rows {@link syncFollowers} last handed it. */
     private followersOf: LayoutEngine | null = null;
@@ -1179,8 +1222,19 @@ export class LayoutManager implements Manager {
             engine.setHoldMask(...this.holdMaskOf(this.members));
         }
 
+        // THE PART IS CUT AGAIN FROM THE NEW SNAPSHOT, whose rows it indexes. When what it holds
+        // changed (an added node the filter shows, a removed one), the layout is run again over it.
+        let relaying = false;
+        if (engine !== undefined && layoutEngineInternals.part(engine) !== null) {
+            layoutEngineInternals.setPart(engine, this.#partNow(engine instanceof StaticLayoutEngine, event.next));
+            relaying = this.followWorkingGraph();
+        }
+
         if (engine instanceof StaticLayoutEngine) {
-            engine.reload(event, this.dataManager.isLoading);
+            if (!relaying) {
+                engine.reload(event, this.dataManager.isLoading);
+            }
+
             return;
         }
 
@@ -1315,7 +1369,11 @@ export class LayoutManager implements Manager {
         // reports, the `layout-changed` event, a failure message -- names what they asked for, so a
         // swap between the two drivers of one arrangement is not a layout change to anybody
         // outside.
-        const driver = this.forceDriver(type, this.dataManager.nodes.size);
+        // THE PART OF THE GRAPH IT RUNS ON, taken now as the members are: the working graph, while
+        // the session reads it and the filter or the window hides something. The driver is chosen
+        // for the size of what it will run on.
+        const part = this.#partNow((engineClass as { prototype?: unknown }).prototype instanceof StaticLayoutEngine);
+        const driver = this.forceDriver(type, part === null ? this.dataManager.nodes.size : this.#workingCount());
         const driverClass = driver === type ? engineClass : LayoutEngine.getClass(driver);
         if (!driverClass) {
             throw unknownLayout(driver);
@@ -1325,7 +1383,9 @@ export class LayoutManager implements Manager {
         // refused; a carried one is inactive under an engine that cannot hold nodes still.
         const scoped = engineClass.scoped === true;
         const explicitScope = how.explicitScope === true;
-        if (explicitScope && !scoped) {
+        // `"visible"` while the session reads the working graph chooses the graph the layout runs
+        // on and holds nothing, so every layout takes it.
+        if (explicitScope && !scoped && !this.#visibleIsWorking()) {
             throw unscopedLayout(type);
         }
 
@@ -1370,6 +1430,7 @@ export class LayoutManager implements Manager {
         const previousEngine = this.layoutEngine;
         const previousDimension = this.engineDimension;
         const previousMembers = this.members;
+        const previousBuiltOver = this.#builtOver;
         const previousDriver = this.runningDriver;
         const previousDriverOptions = this.driverOptions;
         // Where the nodes are drawn now, taken before the new engine can place any of them.
@@ -1381,8 +1442,14 @@ export class LayoutManager implements Manager {
         this.driverOptions = callerOpts;
 
         try {
-            // Add all existing nodes and edges to the new engine
-            const nodeArray = [...this.dataManager.nodes.values()];
+            // Add all existing nodes and edges to the new engine: every one the part keeps, which
+            // is every one when there is no part. Before they arrive, so a node the part leaves out
+            // never reaches the engine.
+            layoutEngineInternals.setPart(engine, part);
+            this.#builtOver = part === null ? null : this.#workingMembers();
+            const nodeArray = [...this.dataManager.nodes.values()].filter((node) =>
+                layoutEngineInternals.holdsNode(engine, node),
+            );
             const edgeArray = [...this.dataManager.edges.values()];
             layoutEngineInternals.addNodes(engine, nodeArray);
             layoutEngineInternals.addEdges(engine, edgeArray);
@@ -1435,6 +1502,7 @@ export class LayoutManager implements Manager {
             this.engine = previousEngine;
             this.engineDimension = previousDimension;
             this.members = previousMembers;
+            this.#builtOver = previousBuiltOver;
             this.runningDriver = previousDriver;
             this.driverOptions = previousDriverOptions;
             this.dataManager.setLayoutEngine(previousEngine);
@@ -1992,6 +2060,11 @@ export class LayoutManager implements Manager {
 
         engine.loadArrangement();
         this.putOnPlane(engine);
+
+        // An undo or redo of a filter brings back a working graph the layout was not built over.
+        if (restoring) {
+            this.followWorkingGraph(true);
+        }
     }
 
     /**
@@ -2113,7 +2186,7 @@ export class LayoutManager implements Manager {
     private captureMembers(scoped: boolean, explicit: boolean): ReadonlySet<NodeIdType> | null {
         const scope = this.carriedScope;
         const source = this.scopeSource;
-        if (scope === undefined || source === null || !scoped) {
+        if (scope === undefined || source === null || !scoped || this.#visibleIsWorking()) {
             return null;
         }
 
@@ -2151,6 +2224,199 @@ export class LayoutManager implements Manager {
 
             this.logger.debug("The carried layout scope is inactive", { reason: error.message });
             return null;
+        }
+    }
+
+    /**
+     * The working graph, while the session reads it and the layout runs on it: not while the
+     * layout is scoped to a set of its own.
+     * @returns What the layout reads of it, or null.
+     */
+    #working(): LayoutWorking | null {
+        return this.scopeSource?.working?.() ?? null;
+    }
+
+    /**
+     * Whether the carried scope is `"visible"` while the session reads the working graph, which
+     * makes it the working graph itself rather than a set of members to hold.
+     * @returns True when it is.
+     */
+    #visibleIsWorking(): boolean {
+        return this.carriedScope === "visible" && this.#working() !== null;
+    }
+
+    /**
+     * How many nodes the working graph shows.
+     * @returns The count, read from the masks.
+     */
+    #workingCount(): number {
+        return this.#working()?.view.nodeCount ?? this.dataManager.nodes.size;
+    }
+
+    /**
+     * What a layout over the working graph is built over now, or null when it would be built over
+     * the whole graph: the session does not read the working graph, or nothing is hidden.
+     * Read from the masks; nothing is built.
+     * @returns The shown nodes and edges, or null.
+     */
+    #workingMembers(): PartMembers | null {
+        const working = this.#working();
+        if (working === null) {
+            return null;
+        }
+
+        const { view } = working;
+        const graph = this.dataManager.getSnapshot();
+        if (view.nodeCount >= graph.nodeCount && view.edgeCount >= graph.edgeCount) {
+            return null;
+        }
+
+        return { nodes: view.nodeIds(), edges: view.edgeIds() };
+    }
+
+    /**
+     * The part of the graph a layout runs on now: the working graph, when the session reads it
+     * and something is hidden; otherwise null, the whole graph. See `LayoutPart`.
+     * @param onePass - Whether the engine is a one-pass layout, which gets the compact graph at once.
+     * @param source - The element's snapshot; read from the data manager when absent.
+     * @returns The part, or null.
+     */
+    #partNow(onePass: boolean, source: GraphSnapshot = this.dataManager.getSnapshot()): LayoutPart | null {
+        const working = this.#working();
+        if (working === null) {
+            return null;
+        }
+
+        const { view } = working;
+        if (view.nodeCount >= source.nodeCount && view.edgeCount >= source.edgeCount) {
+            return null;
+        }
+
+        const nodeBytes = working.nodeMask();
+        const edgeBytes = working.edgeMask();
+        const leftOut = makeMask(source.nodeCount);
+        for (let row = 0; row < source.nodeCount; row++) {
+            maskSet(leftOut, row, nodeBytes[row] !== 1);
+        }
+
+        const edges = makeMask(source.edgeCount);
+        for (let row = 0; row < source.edgeCount; row++) {
+            maskSet(edges, row, edgeBytes[row] === 1);
+        }
+
+        let compact: ReturnType<LayoutPart["compact"]> | null = null;
+        const part: LayoutPart = {
+            source,
+            leftOut,
+            edges,
+            compact: () => (compact ??= compactPart(view, source)),
+        };
+        // A one-pass layout reads it on its next run, after which the working graph may have moved
+        // on; it is cut now, from the state the masks above were read from.
+        if (onePass) {
+            part.compact();
+        }
+
+        return part;
+    }
+
+    /**
+     * Lay the graph out again over the working graph when what the running layout was built over
+     * is not what the working graph holds now: the filter or the window moved and settled, the
+     * session switched modes, or an edit added or removed a shown node. Once per change, queued
+     * behind every build already asked for, as a driver rebuild is. Nothing while the timeline
+     * plays: the layout follows when it stops.
+     * @param restored - Whether a restore of the arrangement asked, which may run while it lands.
+     * @returns True when a re-layout is on its way.
+     * @internal
+     */
+    followWorkingGraph(restored = false): boolean {
+        if (this.layoutEngine === undefined || this.#followHeld) {
+            return false;
+        }
+
+        const target = this.#workingMembers();
+        const built = this.#builtOver;
+        if (
+            (target === null && built === null) ||
+            (target !== null &&
+                built !== null &&
+                sameIds(target.nodes, built.nodes) &&
+                sameIds(target.edges, built.edges))
+        ) {
+            return false;
+        }
+
+        if (this.#followQueued) {
+            return true;
+        }
+
+        // The restore puts the arrangement back first; the re-layout follows it. See `loadArrangement`.
+        if (this.restoring() && !restored) {
+            return false;
+        }
+
+        this.#followQueued = true;
+        let generation = this.#generation;
+        this.#building++;
+        const rebuild = this.#applying.then(async () => {
+            this.#followQueued = false;
+            for (;;) {
+                const engine = this.layoutEngine;
+                const now = this.#workingMembers();
+                const over = this.#builtOver;
+                if (
+                    engine === undefined ||
+                    (now === null && over === null) ||
+                    (now !== null && over !== null && sameIds(now.nodes, over.nodes) && sameIds(now.edges, over.edges))
+                ) {
+                    return;
+                }
+
+                const attempt = generation;
+                try {
+                    await this._setLayoutInternal(engine.type, this.driverOptions, {
+                        dimension: this.engineDimension ?? 3,
+                        restoring: false,
+                        live: () => this.#generation === attempt,
+                        explicitScope: false,
+                        transition: true,
+                    });
+                    return;
+                } catch (error) {
+                    if (this.#generation === attempt || (error as Error | null)?.name !== "AbortError") {
+                        throw error;
+                    }
+                }
+
+                generation = this.#generation;
+            }
+        });
+        this.#applying = rebuild.catch(() => undefined);
+        // A wait for the graph to settle waits for it: it is going to move the nodes.
+        const scene = this.graphContext?.getScene();
+        const record = scene === undefined ? undefined : pendingWorkOf(scene);
+        const tracked = record?.track("layout", WHAT_RELAYOUT_IS, rebuild, "wait") ?? rebuild;
+        // A failed rebuild has been reported, and the layout that was running is still running.
+        void tracked
+            .finally(() => {
+                this.#building--;
+            })
+            .catch(() => undefined);
+        return true;
+    }
+
+    /**
+     * Hold the layout still over the working graph while the timeline plays, and follow it again
+     * once it stops (design/working-graph/design.md, section 7: playback pausing or ending is a
+     * settle point; a step is not).
+     * @param held - True while the timeline plays.
+     * @internal
+     */
+    holdFollowing(held: boolean): void {
+        this.#followHeld = held;
+        if (!held) {
+            this.followWorkingGraph();
         }
     }
 
@@ -2667,7 +2933,13 @@ export class LayoutManager implements Manager {
     private nodeExtent(id: NodeIdType): GroupBox | null {
         const node = this.dataManager.nodes.get(id);
         const { positions } = this.dataManager;
+        const engine = this.layoutEngine;
         if (node === undefined || !validRow(node.index) || !positions.isPlaced(node.index)) {
+            return null;
+        }
+
+        // A member the working graph hides is not drawn, so its group is drawn round the rest.
+        if (engine !== undefined && !layoutEngineInternals.holdsNode(engine, node)) {
             return null;
         }
 
@@ -2914,6 +3186,46 @@ export class LayoutManager implements Manager {
 export interface GroupBox {
     readonly center: { readonly x: number; readonly y: number; readonly z: number };
     readonly half: { readonly x: number; readonly y: number; readonly z: number };
+}
+
+/** What a wait names while a layout over the working graph is being built again. */
+const WHAT_RELAYOUT_IS = "the layout is being run again over the working graph";
+
+/**
+ * Whether two lists of ids hold the same ids in the same order.
+ * @param a - One list.
+ * @param b - The other.
+ * @returns True when they are the same.
+ */
+function sameIds(a: readonly unknown[], b: readonly unknown[]): boolean {
+    return a === b || (a.length === b.length && a.every((id, i) => id === b[i]));
+}
+
+/**
+ * The working graph as a compact graph with its maps, read through its public rows.
+ * @param view - The working graph.
+ * @param source - The element's snapshot it was cut from.
+ * @returns The compact graph, compact row -> original row, original row -> compact row, and
+ *     original edge row -> compact edge row.
+ */
+function compactPart(
+    view: WorkingGraph,
+    source: GraphSnapshot,
+): { snapshot: GraphSnapshot; nodeOrigin: U32; nodeRow: U32; edgeRemap: U32 } {
+    const snapshot = view.snapshot();
+    const nodeOrigin = new Uint32Array(snapshot.nodeCount);
+    const nodeRow = new Uint32Array(source.nodeCount).fill(INVALID_INDEX);
+    for (let row = 0; row < snapshot.nodeCount; row++) {
+        nodeOrigin[row] = view.originalNodeRow(row);
+        nodeRow[nodeOrigin[row]] = row;
+    }
+
+    const edgeRemap = new Uint32Array(source.edgeCount);
+    for (let row = 0; row < source.edgeCount; row++) {
+        edgeRemap[row] = view.compactEdgeRow(row);
+    }
+
+    return { snapshot, nodeOrigin, nodeRow, edgeRemap };
 }
 
 /**

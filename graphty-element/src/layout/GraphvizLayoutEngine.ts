@@ -1,4 +1,4 @@
-import type { F32 } from "@graphty/graph-format";
+import { type F32, INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema, parseOptions } from "../config";
@@ -30,7 +30,7 @@ import type { GraphvizFailureCode, GraphvizReply } from "./graphviz/protocol";
 import { graphvizStructure } from "./graphviz/structure";
 import { type DotStructure, POINTS_PER_UNIT, toDot } from "./graphviz/toDot";
 import { type GroupMargins, laidGroupMargins } from "./groupMargins";
-import type { EdgePosition } from "./LayoutEngine";
+import { type EdgePosition, simpleLayoutInternals } from "./LayoutEngine";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -266,7 +266,9 @@ async function computeWith(
     // The DOT names nodes by row, so a root given as a node's id is given as its row.
     if (attributes.root !== undefined) {
         const { ids } = input.stored;
-        const row = [attributes.root, Number(attributes.root)].map((id) => ids.indexOf(id)).find((index) => index >= 0);
+        const row = [attributes.root, Number(attributes.root)]
+            .map((id) => ids.indexOf(id))
+            .find((index) => index !== INVALID_INDEX);
         if (row !== undefined) {
             attributes.root = `n${row}`;
         }
@@ -527,23 +529,51 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
             return dimension > 2 ? null : {};
         }
 
+        /**
+         * The groups drawn round their members, by row of the graph being arranged: a group or a
+         * member the working graph leaves out is not in it, so it is not handed over.
+         * @returns Each group's row with its members' rows.
+         */
+        #arrangedFollowers(): ReadonlyMap<number, readonly number[]> {
+            const out = new Map<number, readonly number[]>();
+            for (const [group, members] of this.followerGroups) {
+                const row = simpleLayoutInternals.compactRow(this, group);
+                if (row !== INVALID_INDEX) {
+                    out.set(
+                        row,
+                        members
+                            .map((member) => simpleLayoutInternals.compactRow(this, member))
+                            .filter((member) => member !== INVALID_INDEX),
+                    );
+                }
+            }
+
+            return out;
+        }
+
         protected async compute(input: SnapshotLayoutInput): Promise<F32> {
             // A group drawn round its members is placed by the element, not by Graphviz: it is
-            // handed over as a cluster of its members, not as a node with room of its own.
+            // handed over as a cluster of its members, not as a node with room of its own. The
+            // groups are by row of the element's graph, the input by row of the graph arranged.
+            const followers = this.#arrangedFollowers();
             const structure = layoutStructure(
                 input,
                 this._nodes,
                 this._edges,
-                this.followerGroups,
+                followers,
                 false,
                 this.options.nodeSize === "label",
             );
-            const { positions, bends, ends, labels, xlabels, margins } = await computeWith(
-                engine,
-                input,
-                this.options,
-                this.followerGroups,
-                structure,
+            const {
+                positions,
+                bends,
+                ends,
+                labels,
+                xlabels,
+                margins: arranged,
+            } = await computeWith(engine, input, this.options, followers, structure);
+            const margins = new Map(
+                [...arranged].map(([row, margin]) => [simpleLayoutInternals.originalRow(this, row), margin]),
             );
             // an answer called off for a newer one leaves the newer one's routes and cluster boxes
             if (!input.signal.aborted) {

@@ -17,7 +17,7 @@ import { drawnText } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
-import type { EdgePosition } from "./layout/LayoutEngine";
+import { type EdgePosition, layoutEngineInternals } from "./layout/LayoutEngine";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
@@ -1163,7 +1163,9 @@ export class Edge {
 
         this.context.getStatsManager().startMeasurement("Edge.update");
 
-        const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
+        // Through the door that answers for an edge the layout's part leaves out (a ghost's) from the array.
+        const engine = this.context.getLayoutManager().layoutEngine;
+        const lnk = engine === undefined ? undefined : layoutEngineInternals.edgePosition(engine, this);
         if (!lnk) {
             this.context.getStatsManager().endMeasurement("Edge.update");
             return;

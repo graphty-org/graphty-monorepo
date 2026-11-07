@@ -2423,6 +2423,18 @@ export class UpdateManager implements Manager {
      * @param frameMs - How long the previous frame took; 0 takes one round.
      */
     private updateLayout(frameMs: number): void {
+        // NOT WHILE A SIZE IS STILL TO COME. A layout that spaces nodes by their drawn size takes
+        // each size in at the step it arrives, and a repaint split across frames by the clock
+        // (STYLE_FRAME_BUDGET_MS) made that step depend on how fast the frames were: a seeded
+        // `nodeGap` layout rested elsewhere on a slow load. Held, it takes every size at one step.
+        // A repaint is spread over at most REPAINT_FRAMES frames, so the hold ends.
+        if (
+            this.layoutManager.layoutEngine?.spacesBySize === true &&
+            this.graphContext.getStylePainter?.()?.hasPendingNodes === true
+        ) {
+            return;
+        }
+
         this.statsManager.step();
         this.statsManager.graphStep.beginMonitoring();
 

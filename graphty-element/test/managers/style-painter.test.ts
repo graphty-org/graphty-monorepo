@@ -814,8 +814,8 @@ describe("batchableOf", () => {
         ["an icon", { texture: { icon: "star" } }, false],
         ["a glow", { effect: { glow: { color: "#ff0000", strength: 1 } } }, false],
         ["a shape option no batch draws", { shape: { width: 2 } }, false],
-        ["a label", { label: { enabled: true } }, false],
-        ["a tooltip", { tooltip: { enabled: true } }, false],
+        ["a label, which hangs from the row's anchor", { label: { enabled: true } }, true],
+        ["a tooltip", { tooltip: { enabled: true } }, true],
         ["a style option added later", { laterOption: true }, false],
     ])("%s", (_name, over, batchable) => {
         assert.equal(batchableOf({ style: style(over) }, plain), batchable);

@@ -19,7 +19,7 @@ import { type Graph, operationQueueOf } from "../../src/Graph";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
-import { drag, nextFrame, wheel } from "../helpers/real-input";
+import { drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
@@ -525,6 +525,50 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             assert.isDefined(row, `the scan finds a row at node ${String(node.id)}`);
             assert.strictEqual(await target.read(point.x, point.y), row, `the target names node ${String(node.id)}`);
         }
+    });
+
+    // Stage 31: a labelled row hangs its label from a geometry-free anchor, so it stays on the batch.
+    it("keep labelled and tooltip rows on the batch, their labels where the object path puts them", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "2d");
+        const { graph } = element;
+        const bare = await frameOn(graph, "objects");
+        const ids = NODES.map((node) => node.id);
+        await layer(element, ids, { "node.label": "N", "node.tooltip": "TIP" });
+        await element.waitForStableFrame();
+        const objects = await frameOn(graph, "objects");
+        assert.isAbove(overBar(bare, objects), 100, "the labels are in the picture");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length, "a labelled row stays batched");
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        assert.equal(overBar(objects, batched), 0);
+        for (const node of graph.getNodes()) {
+            assert.isDefined(node.label, `node ${String(node.id)} keeps its label`);
+        }
+
+        // The rows move under a force layout, whose published steps walk only the roster: each
+        // label follows its row as on the object path.
+        await graph.setLayout("circular", { scale: 0.3 });
+        await element.waitForStableFrame();
+        // With no framing, which reads every row, only the frame's walk moves a labelled row's anchor.
+        const canvas = graph.getScene().getEngine().getRenderingCanvas() as HTMLCanvasElement;
+        element.autoFrame = false;
+        await graph.setLayout("ngraph", { seed: 7 });
+        await element.waitForStableFrame();
+        const moved = await readFrame(graph);
+        assert.equal(graph.rowCounts.objectNodes, 0, "a moved labelled row stays batched");
+        assert.equal(overBar(moved, await frameOn(graph, "objects")), 0);
+
+        // A real hover draws the tooltip and keeps the row on the batch.
+        await frameOn(graph, "batched");
+        const node = graph.getNode(0);
+        assert.isDefined(node);
+        const screen = graph.worldToScreen(node.drawnWorldPosition);
+        await hover(canvas, screen);
+        await vi.waitFor(() => {
+            assert.isDefined(node.tooltip, "the hovered row draws its tooltip");
+        });
+        assert.equal(graph.rowCounts.objectNodes, 0, "a hovered tooltip row stays batched");
     });
 
     it("stops drawing a batch when the graph leaves the path", async () => {

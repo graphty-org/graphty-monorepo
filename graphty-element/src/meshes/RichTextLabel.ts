@@ -2493,6 +2493,19 @@ export class RichTextLabel {
     }
 
     /**
+     * Say the label now hangs from another mesh standing at the same place, whose parts were
+     * already moved onto it, so nothing is placed again. A label attached elsewhere is left alone.
+     * @param from - The mesh it was attached to.
+     * @param to - The mesh that replaced it.
+     * @internal
+     */
+    public retarget(from: AbstractMesh | TransformNode, to: AbstractMesh): void {
+        if (this.options.attachTo === from) {
+            this.options.attachTo = to;
+        }
+    }
+
+    /**
      * Attaches the label to a target mesh or position
      * @param target - The mesh or position to attach to
      * @param position - The attachment position relative to the target

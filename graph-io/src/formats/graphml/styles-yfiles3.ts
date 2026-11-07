@@ -12,7 +12,7 @@ import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
-import { canonText } from "../../styles/canon/text.js";
+import { canonText, htmlLabelSpans } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
@@ -42,7 +42,14 @@ import {
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
-import { bpmnPicture, type PortEvent, shinyPlateGloss, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
+import {
+    bpmnPicture,
+    groupIconPicture,
+    type PortEvent,
+    shinyPlateGloss,
+    type UmlClass,
+    umlDrawing,
+} from "./styles-yed-live-drawing.js";
 
 /** How deep a chain of shared references is followed. */
 const MAX_REFERENCE_DEPTH = 16;
@@ -367,13 +374,20 @@ interface Stroke {
     readonly line: string;
 }
 
-/** yFiles 3's dash style names. */
+/**
+ * The `dashStyle` attribute values yFiles writes for its DashStyle constants (`dashStyle="Dash"` in a file yFiles for
+ * HTML 2.4.0.4 saved, graph-io/test/corpus/styles/graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding).
+ * yEd Live 8.5.16 draws the constants' API spellings `DASH`, `DOT`, `DASH_DOT` and `DASH_DOT_DOT` solid, in 2.6 and 3.0
+ * files alike: yed-live-graphml-specimen-edges-lines, -edges-lines-p2 and -node-fills-borders hold 20 such strokes and
+ * their SVGs no dash but the one a `<yjs:DashStyle dashes="3 1">` element draws.
+ * ponytail: DashDot and DashDotDot follow Dash's spelling, unseen in a drawing; check them when a file holds them.
+ */
 const DASHES: ReadonlyMap<string, string> = new Map([
-    ["solid", "solid"],
-    ["dash", "dashed"],
-    ["dot", "dotted"],
-    ["dashdot", "dash-dot"],
-    ["dashdotdot", "dash-dot"],
+    ["Solid", "solid"],
+    ["Dash", "dashed"],
+    ["Dot", "dotted"],
+    ["DashDot", "dash-dot"],
+    ["DashDotDot", "dash-dot"],
 ]);
 
 /**
@@ -393,8 +407,7 @@ function strokeOf(refs: References, v: unknown): Stroke | typeof NULL | null {
     let line = "solid";
     const d = refs.deref(prop(x, "dashStyle"), 1);
     if (typeof d === "string") {
-        const lower = d.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase().replaceAll("_", "");
-        line = DASHES.get(lower) ?? `other:${lower}`;
+        line = DASHES.get(d.trim()) ?? "solid";
     } else if (d !== null && d !== NULL) {
         // a DashStyle object: two numbers dash or dot, four dash-dot
         const dashes = (treeAttr(d.e, "dashes") ?? "")
@@ -819,21 +832,36 @@ const PORT_EVENT_ATTRIBUTES: ReadonlySet<string> = new Set([
 function portEvents(refs: References, ports: unknown, size: Size, at: SiteOf): PortEvent[] {
     return (Array.isArray(ports) ? ports : []).flatMap((entry: unknown): PortEvent[] => {
         const style = isTree(entry) ? refs.first(entry.PortStyle) : null;
-        const where = isTree(entry)
-            ? treeChild(entry.PortLocationParameter, "FreeNodePortLocationModelParameter")
-            : null;
-        if (style?.tag !== "EventPortStyle" || !isTree(where) || !isTree(style.e)) {
+        const point = freePortPoint(refs, entry, size);
+        if (style?.tag !== "EventPortStyle" || point === null || !isTree(style.e)) {
             return [];
         }
         const unread = Object.keys(style.e).some(
             (k) => k.startsWith("@_") && !k.includes(":") && !PORT_EVENT_ATTRIBUTES.has(k.slice(2)),
         );
-        const pair = (name: string, unset: string): number[] => (treeAttr(where, name) ?? unset).split(",").map(Number);
-        const [[rx, ry], [ox, oy]] = [pair("Ratio", "0.5,0.5"), pair("Offset", "0,0")];
-        const x = rx * size.width + ox;
-        const y = ry * size.height + oy;
-        return unread || !Number.isFinite(x) || !Number.isFinite(y) ? [] : [{ x, y, ...styleReader(refs, style, at) }];
+        return unread ? [] : [{ x: point[0], y: point[1], ...styleReader(refs, style, at) }];
     });
+}
+
+/**
+ * Where a port sits on its node, from the top-left corner of the node's box: its FreeNodePortLocationModelParameter's
+ * `Ratio` of the box, then its `Offset`, written in place or as a `<y:GraphMLReference>` to the graph's shared data.
+ * ponytail: the free model only, the one yFiles for HTML and yEd Live write in the corpus; another model reads as null.
+ * @param refs - the references
+ * @param entry - the port's entry in its node's ports column
+ * @param size - the node's size
+ * @returns the point, or null when the port has no free location
+ */
+function freePortPoint(refs: References, entry: unknown, size: Size): BendPoint | null {
+    const where = isTree(entry) ? refs.first(entry.PortLocationParameter) : null;
+    if (where?.tag !== "FreeNodePortLocationModelParameter") {
+        return null;
+    }
+    const pair = (name: string, unset: string): number[] => (treeAttr(where.e, name) ?? unset).split(",").map(Number);
+    const [[rx, ry], [ox, oy]] = [pair("Ratio", "0.5,0.5"), pair("Offset", "0,0")];
+    const x = rx * size.width + ox;
+    const y = ry * size.height + oy;
+    return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : null;
 }
 
 /**
@@ -991,12 +1019,13 @@ function readGroupPanel(
     at: SiteOf,
 ): void {
     const tabFill = paintOf(refs, prop(style, "tabFill") ?? "#FFAAAAAA", null);
+    const position = treeAttr(style.e, "tabPosition") ?? "TOP";
+    putGroupIcon(refs, style, size, collapsed, position, put, at);
     if (collapsed) {
         putPaint(tabFill, "fill", "fillOpacity", put, at);
         return;
     }
     putPaint(paintOf(refs, prop(style, "contentAreaFill") ?? "#FFFFFFFF", null), "fill", "fillOpacity", put, at);
-    const position = treeAttr(style.e, "tabPosition") ?? "TOP";
     if (position === "NONE") {
         return;
     }
@@ -1007,6 +1036,52 @@ function readGroupPanel(
         return Number((depth / (i % 2 === 0 ? size.height : size.width)).toFixed(6));
     });
     put("stripeFrame", insets.join(" "));
+}
+
+/**
+ * Writes the picture of a GroupNodeStyle's icon on its tab (`groupIconPicture`): `groupIcon` (none unset) on an open
+ * group, `folderIcon` (a plus unset) on a collapsed one, over a white round square (`iconBackgroundShape`,
+ * `iconBackgroundFill`) in #AAAAAA (`iconForegroundFill`), 14 across (`iconSize`), as yEd Live 8.5.16 draws
+ * `yed-live-graphml-specimen-groups-p2` to `-p4`.
+ * ponytail: a tab on the top only, the one place the sheets draw an icon; another side's icon is not drawn.
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the group's size
+ * @param collapsed - whether the group is collapsed
+ * @param position - its `tabPosition`
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function putGroupIcon(
+    refs: References,
+    style: StyleObject,
+    size: Size,
+    collapsed: boolean,
+    position: string,
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const { attr, color } = styleReader(refs, style, at);
+    const sign = collapsed ? (attr("folderIcon") ?? "PLUS") : (attr("groupIcon") ?? "NONE");
+    if (position !== "TOP") {
+        return;
+    }
+    const number = (name: string, unset: number): number => canonNumber(attr(name) ?? unset, at("image")) ?? unset;
+    const stroke = strokeOf(refs, prop(style, "stroke"));
+    const picture = groupIconPicture(size, stroke === null || stroke === NULL ? 0 : Number(stroke.width) || 0, {
+        sign,
+        background: attr("iconBackgroundShape") ?? "ROUND_RECTANGLE_SOLID",
+        position: attr("iconPosition") ?? "TRAILING",
+        size: number("iconSize", 14),
+        offset: number("iconOffset", 0),
+        foregroundFill: color("iconForegroundFill") ?? "#aaaaaa",
+        backgroundFill: color("iconBackgroundFill") ?? "#ffffff",
+    });
+    if (picture !== null) {
+        put("image", picture);
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
 }
 
 /**
@@ -1341,6 +1416,10 @@ function readEdgeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
     if (st === null) {
         return;
     }
+    if (st.tag === "BpmnEdgeStyle") {
+        readBpmnEdgeStyle(refs, st, put, at);
+        return;
+    }
     const stroke = strokeOf(refs, prop(st, "stroke"));
     if (stroke === NULL) {
         noteAt(at("color"), STYLE_ISSUE.NO_STROKE, "{x:Null}");
@@ -1353,6 +1432,60 @@ function readEdgeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         readEdgeArrow(refs, refs.deref(prop(st, `${end}Arrow`)), end, put, at);
     }
 }
+
+/**
+ * How yEd Live 8.5.16 draws each `bpmn:BpmnEdgeStyle` type (yed-live-graphml-specimen-edges-lines-p3.svg): its line
+ * pattern (a message flow dashed 2,2, the associations dotted 0.01,2 with round caps) and its arrowheads as yFiles
+ * arrow types (a filled 8 x 6 triangle, a hollow one, a hollow 6 wide circle, a hollow 16 x 8 diamond, two stroked
+ * arms). A default flow's slash across its source end has no arrow shape and is left out. Against the normal head,
+ * 8 long and 6 wide, a conditional flow's diamond is 2 long and 4/3 wide; a message flow's circle is yEd Live's
+ * normal ELLIPSE head, 6 across.
+ */
+const BPMN_EDGE_TYPES: ReadonlyMap<string, { line: string; source: string; target: string }> = new Map([
+    ["SEQUENCE_FLOW", { line: "solid", source: "none", target: "TRIANGLE" }],
+    ["DEFAULT_FLOW", { line: "solid", source: "none", target: "TRIANGLE" }],
+    ["CONDITIONAL_FLOW", { line: "solid", source: "diamond-open", target: "TRIANGLE" }],
+    ["MESSAGE_FLOW", { line: "dashed", source: "circle-open", target: "triangle-open" }],
+    ["ASSOCIATION", { line: "dotted", source: "none", target: "none" }],
+    ["DIRECTED_ASSOCIATION", { line: "dotted", source: "none", target: "OPEN" }],
+    ["BIDIRECTED_ASSOCIATION", { line: "dotted", source: "OPEN", target: "OPEN" }],
+    ["CONVERSATION", { line: "solid", source: "none", target: "none" }],
+]);
+
+/**
+ * Reads a `bpmn:BpmnEdgeStyle`: its `color` (black unset) and its `type` (a sequence flow unset). A conversation is
+ * drawn as a band 3 wide in its color with a line 1 wide in its `innerColor` (white unset) along its middle.
+ * @param refs - the references
+ * @param st - the style
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readBpmnEdgeStyle(refs: References, st: StyleObject, put: PutValue, at: SiteOf): void {
+    const raw = treeAttr(st.e, "type") ?? "SEQUENCE_FLOW";
+    const look = BPMN_EDGE_TYPES.get(raw.toUpperCase());
+    if (look === undefined) {
+        noteAt(at("lineStyle"), STYLE_ISSUE.BAD_VALUE, raw);
+        return;
+    }
+    const color = paintOf(refs, prop(st, "color") ?? "#FF000000", null);
+    if (raw.toUpperCase() === "CONVERSATION") {
+        putPaint(paintOf(refs, prop(st, "innerColor") ?? "#FFFFFFFF", null), "color", "opacity", put, at);
+        putPaint(color, "outlineColor", "outlineOpacity", put, at);
+        put("width", 1);
+        put("outlineWidth", 2);
+    } else {
+        putPaint(color, "color", "opacity", put, at);
+    }
+    put("lineStyle", look.line);
+    put("sourceArrow", canonEnum("arrow", look.source, "yfiles3", at("sourceArrow")));
+    put("targetArrow", canonEnum("arrow", look.target, "yfiles3", at("targetArrow")));
+    const [length, width] = BPMN_SOURCE_SIZES.get(look.source) ?? [null, null];
+    put("sourceArrowLength", length);
+    put("sourceArrowWidth", width);
+}
+
+/** The length and width of a BPMN edge's source heads against the normal head's (yed-live-graphml-specimen-edges-lines-p3.svg). */
+const BPMN_SOURCE_SIZES: ReadonlyMap<string, readonly [number, number]> = new Map([["diamond-open", [16 / 8, 8 / 6]]]);
 
 /**
  * Reads one end's arrow of an edge style: its type, and for an arrow element its color, drawn hollow in its
@@ -1946,10 +2079,29 @@ function edgeLabelPlaceOf(refs: References, label: unknown): EdgeLabelPlace {
  */
 function labelFontSize(refs: References, label: unknown): number {
     const style = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
-    const font = style === null || style === NULL || typeof style !== "object" ? null : refs.deref(prop(style, "font"));
-    return font === null || font === NULL || typeof font !== "object"
-        ? YFILES_LABEL_SIZE
-        : numberAttr(font.e, "fontSize", YFILES_LABEL_SIZE) || YFILES_LABEL_SIZE;
+    const raw = style === null || style === NULL || typeof style !== "object" ? undefined : labelSizeOf(refs, style);
+    const size = Number(raw);
+    return raw !== undefined && Number.isFinite(size) && size > 0 ? size : YFILES_LABEL_SIZE;
+}
+
+/**
+ * The size a label style's words are drawn at, as the file writes it. yEd Live 8.5.16 sizes a yFiles for HTML 2.6
+ * label by its style's `textSize` alone and draws a `Font`'s `fontSize` there at 12 (yed-live-graphml-specimen-labels-p3:
+ * the one label with textSize="16" is drawn at 16px, its twin with Font fontSize="16" alone at 12px, as every 2.6 label
+ * of -labels-p4, -edge-labels-p2, -groups-p4 and -labels-p5); a 3.0 label by its `Font`'s `fontSize`
+ * (yed-live-graphml-specimen-labels draws its 6, 8, 16, 20 and 24).
+ * @param refs - the references
+ * @param ls - the label style
+ * @returns the size as written, or undefined where the style leaves it to the default
+ */
+function labelSizeOf(refs: References, ls: StyleObject): unknown {
+    if (refs.yfiles26) {
+        return prop(ls, "textSize");
+    }
+    const f = refs.deref(prop(ls, "font"));
+    return f === null || f === NULL || typeof f !== "object" || f.tag !== "Font"
+        ? undefined
+        : treeAttr(f.e, "fontSize");
 }
 
 /**
@@ -2055,6 +2207,11 @@ function readLabels(
     if (extra > 0) {
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
+    const ls = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
+    const runs = typeof ls === "object" && ls !== null && ls.tag === "MarkupLabelStyle" ? markupRuns(text, at) : null;
+    if (runs !== null) {
+        text = runs.map((r) => r.text).join("");
+    }
     put("label", canonText(text, at("label")));
     let inBox = false;
     if (at("label").target === "node") {
@@ -2068,7 +2225,6 @@ function readLabels(
             readEdgeLabelPlace(refs, label, text, path, put);
         }
     }
-    const ls = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
     if (ls === null || ls === NULL || typeof ls !== "object" || !ls.tag.endsWith("LabelStyle")) {
         return;
     }
@@ -2078,6 +2234,126 @@ function readLabels(
     }
     readLabelBox(refs, ls, put, at);
     readLabelFont(refs.deref(prop(ls, "font")), put, at);
+    put("labelSize", canonNumber(labelSizeOf(refs, ls), at("labelSize")));
+    if (runs !== null) {
+        putMarkupRuns(runs, labelFontSize(refs, label), put);
+    }
+}
+
+/** A run of a MarkupLabelStyle's words in one font: what differs from the label's own font. */
+interface MarkupRun {
+    text: string;
+    weight?: "bold";
+    italic?: true;
+    /** its size over the label's */
+    scale?: number;
+    color?: string;
+}
+
+/**
+ * The font each markup tag sets, as yEd Live 8.5.16 draws them (yed-live-graphml-specimen-labels-p2 and -p5): `<b>` as
+ * class yfiles-label-strong (bold), `<i>` as yfiles-label-em (italic), `<h2>` at 1.5em in bold, and `<h3>` at 1.17em
+ * not bold and `<h4>` at 1em in bold (graphml-yfiles-html-ss13-tree). `<u>` underlines, which no label property holds, and the words of any other
+ * tag are drawn in the font around them; a `<p>` is a line of its own.
+ */
+const MARKUP_TAGS: ReadonlyMap<string, Omit<MarkupRun, "text">> = new Map<string, Omit<MarkupRun, "text">>([
+    ["b", { weight: "bold" }],
+    ["strong", { weight: "bold" }],
+    ["i", { italic: true }],
+    ["em", { italic: true }],
+    ["h2", { weight: "bold", scale: 1.5 }],
+    ["h3", { scale: 1.17 }],
+    ["h4", { weight: "bold" }],
+]);
+
+/**
+ * A MarkupLabelStyle's words as runs in their fonts: tags dropped, `<br>` a line break, entities decoded, a `<span>`'s
+ * `style` color kept (yEd Live draws `<span style="color:#ff0000">` red).
+ * @param markup - the label's text
+ * @param at - the sites
+ * @returns the runs, neighbors in one font joined, blank ends trimmed
+ */
+function markupRuns(markup: string, at: SiteOf): MarkupRun[] {
+    const open: { name: string; font: Omit<MarkupRun, "text"> }[] = [];
+    const runs: MarkupRun[] = [];
+    const add = (text: string): void => {
+        const font = Object.assign({}, ...open.map((o) => o.font)) as Omit<MarkupRun, "text">;
+        const last = runs.at(-1);
+        // a line break or blank shows no font: it joins the run before it
+        const same =
+            text.trim() === "" || JSON.stringify({ ...last, text: "" }) === JSON.stringify({ text: "", ...font });
+        if (last !== undefined && same) {
+            last.text += text;
+        } else {
+            runs.push({ text, ...font });
+        }
+    };
+    for (const [token] of markup.slice(0, MAX_STYLE_VALUE_LENGTH).matchAll(/<[^>]*>|[^<]+/g)) {
+        const tag = /^<\s*(\/?)\s*([a-z][a-z0-9]*)/i.exec(token);
+        if (tag === null) {
+            add(
+                htmlLabelSpans(token)
+                    .map((s) => s.text)
+                    .join(""),
+            );
+            continue;
+        }
+        const name = tag[2].toLowerCase();
+        if (name === "br") {
+            add("\n");
+        } else if (tag[1] === "/") {
+            if (name === "p") {
+                add("\n");
+            }
+            const i = open.map((o) => o.name).lastIndexOf(name);
+            if (i >= 0) {
+                open.splice(i);
+            }
+        } else if (!token.endsWith("/>")) {
+            const color = /color\s*:\s*([^;"']+)/i.exec(name === "span" ? token : "")?.[1];
+            const css = color === undefined ? null : canonColor(color.trim(), "css", at("labelRuns"));
+            open.push({ name, font: css === null ? (MARKUP_TAGS.get(name) ?? {}) : { color: css.color } });
+        }
+    }
+    while (runs.length > 0 && runs[0].text.trim() === "") {
+        runs.shift();
+    }
+    while (runs.length > 0 && (runs.at(-1)?.text.trim() ?? "") === "") {
+        runs.pop();
+    }
+    if (runs.length > 0) {
+        runs[0].text = runs[0].text.trimStart();
+        runs[runs.length - 1].text = runs[runs.length - 1].text.trimEnd();
+    }
+    return runs;
+}
+
+/**
+ * Writes a markup label's fonts: one run's as the label's own, several as `labelRuns`.
+ * @param runs - the runs
+ * @param size - the label's own font size
+ * @param put - receives the values
+ */
+function putMarkupRuns(runs: readonly MarkupRun[], size: number, put: PutValue): void {
+    const fields = runs.map(({ text, scale, ...font }) => ({
+        text,
+        ...font,
+        ...(scale === undefined ? {} : { size: scale * size }),
+    }));
+    if (fields.length === 1) {
+        for (const [field, property] of [
+            ["weight", "labelWeight"],
+            ["italic", "labelItalic"],
+            ["size", "labelSize"],
+            ["color", "labelColor"],
+        ] as const) {
+            if (fields[0][field] !== undefined) {
+                put(property, fields[0][field]);
+            }
+        }
+    } else if (fields.some((f) => Object.keys(f).length > 1)) {
+        put("labelRuns", JSON.stringify(fields));
+    }
 }
 
 /**
@@ -2118,12 +2394,12 @@ function readLabelBox(refs: References, ls: StyleObject, put: PutValue, at: Site
     }
     const padding = prop(ls, "padding") ?? prop(ls, "insets") ?? (ls.tag === "AnnotationLabelStyle" ? "5" : "0");
     put("labelPadding", canonNumber(padding, at("labelPadding")));
-    // the 3.0 styles' box is the words' own line, 12 tall at 10 px; the 2.6 style's is 14
-    put("labelLineHeight", ls.tag === "DefaultLabelStyle" ? null : 1);
+    // the box is the words' own line: 12 tall at 10 px in 3.0, and 14 at the 12 px yEd Live draws every 2.6 label at
+    put("labelLineHeight", 1);
 }
 
 /**
- * Reads a label style's `Font`: its size, family and weight.
+ * Reads a label style's `Font`: its family and weight (its size is `labelSizeOf`'s).
  * @param f - the dereferenced `font` property
  * @param put - receives the values
  * @param at - the sites
@@ -2132,7 +2408,6 @@ function readLabelFont(f: ReturnType<References["deref"]>, put: PutValue, at: Si
     if (f === null || f === NULL || typeof f !== "object" || f.tag !== "Font") {
         return;
     }
-    put("labelSize", canonNumber(treeAttr(f.e, "fontSize"), at("labelSize")));
     const family = treeAttr(f.e, "fontFamily");
     if (family !== undefined) {
         put("labelFont", canonText(family.replaceAll(/(^['"])|(['"]$)/g, ""), at("labelFont")));
@@ -2157,6 +2432,45 @@ interface Yfiles3Context {
     readonly refs: References;
     /** each node's center x and y, width and height from its NodeGeometry, for its edges' bends; NaN without one */
     readonly boxes: Float64Array;
+    /** the name of the nodes' ports column, if the graph has one */
+    readonly ports: string | undefined;
+}
+
+/**
+ * Where one end of an edge attaches: its `sourceport` / `targetport`'s free location on its node, else the node's
+ * center (yEd Live's oracle drawings start and end every port edge there, e.g. e31 of
+ * graphml-yfiles-html-stag-flowchart at Ratio 0.75,1 of n30 and 0.5,0 of n32).
+ * @param ctx - the reading's context
+ * @param i - the edge's index
+ * @param end - which end
+ * @returns the point, NaN when the node has no NodeGeometry
+ */
+function edgeEnd(ctx: Yfiles3Context, i: number, end: "sourcePort" | "targetPort"): BendPoint {
+    const { snapshot, boxes, ports, refs } = ctx;
+    const k = end === "sourcePort" ? snapshot.edgeSource(i) : snapshot.edgeTarget(i);
+    const [cx, cy, width, height] = boxes.subarray(4 * k, 4 * k + 4);
+    const name = snapshot.edges.byRole(end)?.value(i);
+    const list = ports === undefined || typeof name !== "string" ? null : plainCell(snapshot.nodes.value(ports, k));
+    const entry: unknown = Array.isArray(list) ? list.find((p: unknown) => isTree(p) && p.name === name) : undefined;
+    const point = entry === undefined ? null : freePortPoint(refs, entry, { width, height });
+    return point === null ? [cx, cy] : [cx - width / 2 + point[0], cy - height / 2 + point[1]];
+}
+
+/**
+ * Writes where an edge's ends attach, relative to their nodes' sizes, for an end whose port is off the node's center.
+ * @param ctx - the reading's context
+ * @param i - the edge's index
+ * @param put - receives the values
+ */
+function putEdgePorts(ctx: Yfiles3Context, i: number, put: PutValue): void {
+    for (const end of ["sourcePort", "targetPort"] as const) {
+        const k = end === "sourcePort" ? ctx.snapshot.edgeSource(i) : ctx.snapshot.edgeTarget(i);
+        const [cx, cy, width, height] = ctx.boxes.subarray(4 * k, 4 * k + 4);
+        const point = edgeEnd(ctx, i, end);
+        if (point[0] !== cx || point[1] !== cy) {
+            put(end, canonNodeOffsets([cx, cy], [width, height], [point], true));
+        }
+    }
 }
 
 /**
@@ -2173,7 +2487,10 @@ function edgePath(ctx: Yfiles3Context, i: number, geometry: unknown): EdgePath |
     if (s === t || ![...from, ...to].every(Number.isFinite)) {
         return null;
     }
-    return { boxes: [from, to], route: [[from[0], from[1]], ...edgeBends(geometry), [to[0], to[1]]] };
+    return {
+        boxes: [from, to],
+        route: [edgeEnd(ctx, i, "sourcePort"), ...edgeBends(geometry), edgeEnd(ctx, i, "targetPort")],
+    };
 }
 
 /**
@@ -2188,7 +2505,7 @@ function readYfiles3Target(
     target: StyleTarget,
     kinds: Map<KeyKind, string>,
 ): ReturnType<typeof valueColumns>["values"] {
-    const { snapshot, notes, budget, refs, boxes } = ctx;
+    const { snapshot, notes, budget, refs, boxes, ports } = ctx;
     const isNode = target === "node";
     const table = isNode ? snapshot.nodes : snapshot.edges;
     const n = isNode ? snapshot.nodeCount : snapshot.edgeCount;
@@ -2197,10 +2514,7 @@ function readYfiles3Target(
     const cell = (name: string | undefined, i: number): unknown =>
         name === undefined ? undefined : plainCell(table.value(name, i));
     const expanded = isNode ? [...table].find((col) => col.meta.name === "Expanded")?.meta.name : undefined;
-    const ports = isNode
-        ? [...table].find((col) => col.meta.origin?.namespace === "yfiles" && col.meta.origin.type === "port")?.meta
-              .name
-        : undefined;
+    const viewState = isNode ? [...table].find((col) => col.meta.name === "NodeViewState")?.meta.name : undefined;
     for (let i = 0; i < n; i++) {
         budget.spend(target, 1);
         const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
@@ -2212,8 +2526,12 @@ function readYfiles3Target(
             const box = (k: number): Float64Array => boxes.subarray(4 * k, 4 * k + 4);
             const [s, t] = [snapshot.edgeSource(i), snapshot.edgeTarget(i)];
             readEdgeGeometry(refs, cell(geometry, i), cell(style, i), [box(s), box(t), s === t], put);
+        }
+        if (!isNode) {
+            putEdgePorts(ctx, i, put);
         } else if (geometry !== undefined) {
-            size = readNodeGeometry(cell(geometry, i), i, boxes, put, at);
+            const folder = cell(expanded, i) === false ? folderLayout(cell(viewState, i)) : null;
+            size = readNodeGeometry(folder ?? cell(geometry, i), i, boxes, put, at);
         }
         if (style !== undefined && isNode) {
             readNodeStyle(refs, cell(style, i), put, at, size, cell(expanded, i) === false, cell(ports, i));
@@ -2223,6 +2541,23 @@ function readYfiles3Target(
         readLabels(refs, cell(labels, i), put, at, size, isNode ? null : edgePath(ctx, i, cell(geometry, i)));
     }
     return out.values;
+}
+
+/**
+ * The box a collapsed group is drawn in: its NodeViewState's `<y:FolderNodeState Layout="x,y,w,h"/>`, as a
+ * NodeGeometry `RectD`. yEd Live 8.5.16 draws the collapsed group of `yed-live-graphml-specimen-groups-p4` at that
+ * layout (990,416,60,40), not at its expanded NodeGeometry (945,396,150,80).
+ * @param viewState - the NodeViewState cell
+ * @returns a geometry holding that box, or null when the file stores none
+ */
+function folderLayout(viewState: unknown): unknown {
+    const layout = treeAttr(treeChild(treeChild(viewState, "ViewState"), "FolderNodeState"), "Layout");
+    const parts = typeof layout === "string" ? layout.split(",").map(Number) : [];
+    if (parts.length !== 4 || parts.some((v) => !Number.isFinite(v))) {
+        return null;
+    }
+    const [x, y, w, h] = parts.map(String);
+    return { RectD: { "@_X": x, "@_Y": y, "@_Width": w, "@_Height": h } };
 }
 
 /**
@@ -2270,8 +2605,11 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
         Object.values(meta?.namespaces ?? {}).includes(YFILES_26_XAML),
     );
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
+    const ports = [...snapshot.nodes].find(
+        (col) => col.meta.origin?.namespace === "yfiles" && col.meta.origin.type === "port",
+    )?.meta.name;
     const read = (target: StyleTarget, kinds: Map<KeyKind, string>): ReturnType<typeof valueColumns>["values"] =>
-        readYfiles3Target({ snapshot, notes, budget, refs, boxes }, target, kinds);
+        readYfiles3Target({ snapshot, notes, budget, refs, boxes, ports }, target, kinds);
     const node = read("node", nodeKinds);
     const edge = read("edge", edgeKinds);
     if (refs.cycles > 0) {

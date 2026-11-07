@@ -3244,6 +3244,7 @@ export function associate(
             stroke: p.stroke,
             arrows: [],
             label: null,
+            ...(p.lineOutline === undefined ? {} : { outline: p.lineOutline }),
         };
         withPieces.push(edge);
         drawnAt.set(edge, p.index);

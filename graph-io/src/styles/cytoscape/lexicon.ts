@@ -276,11 +276,20 @@ const CY_LINES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
+ * The edge line types Cytoscape desktop draws in long dashes, `4w,2w` where EQUAL_DASH draws `2w,2w` (graph-io's
+ * ToolDefaults.dashes): LONG_DASH and MARQUEE_DASH, and CX2's `dashed`, which it draws as LONG_DASH
+ * (cx2-specimen-edges-lines: of `dashed`, `equal_dash`, `marquee_dash` and `marquee_equal`, two are drawn
+ * `"12,6"` and two `"6,6"` at width 3, and cx-specimen-edges-lines draws EQUAL_DASH and MARQUEE_EQUAL `"6,6"`).
+ */
+const CY_LONG_DASHES: ReadonlySet<string> = new Set(["long_dash", "marquee_dash"]);
+
+/**
  * A line type read for an edge line or a node border.
  * @param kind - which enumeration the value belongs to
+ * @param cx2 - whether it is CX2's `EDGE_LINE_STYLE`, whose `dashed` is drawn in long dashes
  * @returns the parser
  */
-function lineOf(kind: "lineStyle" | "borderStyle"): CytoscapeValueParser {
+function lineOf(kind: "lineStyle" | "borderStyle", cx2 = false): CytoscapeValueParser {
     return (raw, site) => {
         const s = scalarText(raw, site);
         if (s === null) {
@@ -290,6 +299,9 @@ function lineOf(kind: "lineStyle" | "borderStyle"): CytoscapeValueParser {
         let v: string | null;
         if (/^line_\d{1,3}$/.test(key)) {
             v = "solid";
+        } else if (kind === "lineStyle" && (CY_LONG_DASHES.has(key) || (cx2 && key === "dashed"))) {
+            // a border has no long dash
+            v = "long-dash";
         } else if (/^dashed_\d{1,3}$/.test(key)) {
             v = "dashed";
         } else {
@@ -761,7 +773,7 @@ export const CYTOSCAPE_LEXICON: Readonly<
             "lineStyle",
             [
                 ["EDGE_LINE_TYPE", lineOf("lineStyle")],
-                ["EDGE_LINE_STYLE", lineOf("lineStyle")],
+                ["EDGE_LINE_STYLE", lineOf("lineStyle", true)],
             ],
         ],
         ["sourceArrow", [["EDGE_SOURCE_ARROW_SHAPE", arrow]]],

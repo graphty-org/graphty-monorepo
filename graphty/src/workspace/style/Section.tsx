@@ -8,6 +8,7 @@ import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
+import { shownChannel } from "./offered";
 import { type PasteInit, PasteShaderDialog } from "./PasteShaderDialog";
 import { Field, type RowContext } from "./PropertyRow";
 import { carriedOpacity, lineIn, partlySet, startingAdds, writeIn } from "./row";
@@ -127,9 +128,13 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     // The properties "+" added that the row does not set yet, waiting for a value, so adding one
     // writes nothing until the reader picks one.
     const [waiting, setWaiting] = useState<readonly string[]>([]);
-    const descriptors = spec.channels.flatMap(
-        (channel) => channelsFor(ctx.side).find((d) => d.channel === channel && d.renderable) ?? [],
-    );
+    // What the element offers, and a property the row already sets even when it is not offered,
+    // so the reader can see it and take it out.
+    const descriptors = spec.channels.flatMap((channel) => {
+        const held = channelsFor(ctx.side).find((d) => d.channel === channel && d.renderable);
+        const shown = held === undefined ? undefined : shownChannel(ctx.session, ctx.side, channel, isSet(ctx, held));
+        return shown?.renderable === true ? [shown] : [];
+    });
     const set = descriptors.filter((d) => isSet(ctx, d));
     const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
     const note = sectionNote(ctx, spec, set);

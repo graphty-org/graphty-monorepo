@@ -23,6 +23,8 @@ import { dropOn, fileInput, openModels, openShapes, shapeField, written } from "
 const KIT_FOLDER = "src/workspace/style/__fixtures__/car-kit";
 
 const PART = "Textures/colormap.png";
+/** The part as the reader reads and hears it: its file name (design 13.9). */
+const PART_NAME = "colormap.png";
 
 const CHIP = "police: 1 file missing";
 
@@ -149,7 +151,7 @@ async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement;
     const parts = await screen.findByRole("dialog", { name: "police.glb" });
     assert.isNull(screen.queryByRole("dialog", { name: "Models" }), "one pop-over at a time");
     await waitFor(() => {
-        assert.equal(document.activeElement?.getAttribute("aria-label"), `${PART} address`);
+        assert.equal(document.activeElement?.getAttribute("aria-label"), `${PART_NAME} address`);
     });
     assert.isTrue(parts.contains(document.activeElement));
     await userEvent.keyboard("{Escape}");
@@ -173,7 +175,7 @@ async function openParts(chip: HTMLElement): Promise<HTMLElement> {
     await userEvent.keyboard("{Enter}");
     const parts = await screen.findByRole("dialog", { name: "police.glb" });
     await waitFor(() => {
-        assert.equal(document.activeElement?.getAttribute("aria-label"), `${PART} address`);
+        assert.equal(document.activeElement?.getAttribute("aria-label"), `${PART_NAME} address`);
     });
     return parts;
 }
@@ -221,7 +223,7 @@ describe("a model missing parts, on the real element", () => {
         // The detail is the chip's description, for a screen reader.
         assert.include(document.getElementById(chip.getAttribute("aria-describedby") ?? "")?.textContent, PART);
         const parts = await openParts(chip);
-        const row = within(parts).getByRole("group", { name: PART });
+        const row = within(parts).getByRole("group", { name: PART_NAME });
         assert.isNotNull(within(row).getByText("Texture"));
         dropOn(row, [await colormapFile()]);
         await finished(session, tab);
@@ -237,8 +239,8 @@ describe("a model missing parts, on the real element", () => {
     it("takes colormap.png from the row's Choose button", async () => {
         const { session, tab, chip } = await policeAlone();
         const parts = await openParts(chip);
-        const row = within(parts).getByRole("group", { name: PART });
-        assert.isNotNull(within(row).getByRole("button", { name: `Choose ${PART}` }));
+        const row = within(parts).getByRole("group", { name: PART_NAME });
+        assert.isNotNull(within(row).getByRole("button", { name: `Choose ${PART_NAME}` }));
         await userEvent.upload(fileInput(row), [await colormapFile()]);
         await finished(session, tab);
     });
@@ -246,7 +248,7 @@ describe("a model missing parts, on the real element", () => {
     it("draws without the picture on Load without it, showing 'Without 1'", async () => {
         const { session, tab, chip } = await policeAlone();
         const parts = await openParts(chip);
-        await userEvent.click(within(parts).getByRole("button", { name: `Load without ${PART}` }));
+        await userEvent.click(within(parts).getByRole("button", { name: `Load without ${PART_NAME}` }));
         await finished(session, tab);
         assert.isNotNull(await within(tab).findByText("Without 1"));
     });
@@ -268,7 +270,7 @@ describe("a model missing parts, on the real element", () => {
 
         // Another site: the web-address question comes first, worded for a part the reader supplied.
         await userEvent.type(
-            within(parts).getByRole("textbox", { name: `${PART} address` }),
+            within(parts).getByRole("textbox", { name: `${PART_NAME} address` }),
             "https://assets.example.com/colormap.png{Enter}",
         );
         const question = await screen.findByRole("dialog", { name: "Open a web address?" });
@@ -279,7 +281,7 @@ describe("a model missing parts, on the real element", () => {
 
         // The same site: fetched at once, and drawn.
         parts = screen.queryByRole("dialog", { name: "police.glb" }) ?? (await openParts(still));
-        const field = within(parts).getByRole("textbox", { name: `${PART} address` });
+        const field = within(parts).getByRole("textbox", { name: `${PART_NAME} address` });
         await userEvent.clear(field);
         await userEvent.type(field, `${new URL(colormapUrl, location.href).href}{Enter}`);
         await finished(session, tab);
@@ -297,15 +299,15 @@ describe("a model missing parts, on the real element", () => {
         });
         const { tab, chip } = await policeAlone();
         const parts = await openParts(chip);
-        await userEvent.type(within(parts).getByRole("textbox", { name: `${PART} address` }), `${blob}{Enter}`);
+        await userEvent.type(within(parts).getByRole("textbox", { name: `${PART_NAME} address` }), `${blob}{Enter}`);
 
         // Known as a page by its address: no question, and nothing fetched.
-        const row = within(parts).getByRole("group", { name: PART });
+        const row = within(parts).getByRole("group", { name: PART_NAME });
         assert.isNotNull(await within(row).findByText("Web page"));
         assert.isNull(screen.queryByRole("dialog", { name: "Open a web address?" }));
         assert.notInclude(requested, blob);
         await userEvent.click(within(row).getByRole("button", { name: "Use file address" }));
-        assert.equal(within(row).getByRole<HTMLInputElement>("textbox", { name: `${PART} address` }).value, raw);
+        assert.equal(within(row).getByRole<HTMLInputElement>("textbox", { name: `${PART_NAME} address` }).value, raw);
         assert.isNotNull(within(tab).getByRole("button", { name: CHIP }));
     });
 });

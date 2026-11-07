@@ -143,8 +143,10 @@ interface PartRowProps {
 /** What a part row's controls need. */
 interface PartControlsProps {
     readonly part: CodedFact;
-    /** The part's name, or "Model" for a set of several models. */
+    /** The part's name as the model names it (its path in the set), or "Model" for a set of several models. */
     readonly name: string;
+    /** What the reader calls it: the name's last part, file name alone. */
+    readonly label: string;
     readonly first: boolean;
     readonly url: string;
     readonly setUrl: (url: string) => void;
@@ -156,19 +158,20 @@ interface PartControlsProps {
  * Which file a part, or the model, is, when several could be: a select of the candidates.
  * @param props - Component props
  * @param props.part - the part
- * @param props.name - its name
+ * @param props.name - its name, as the model names it
+ * @param props.label - the name the reader reads and hears
  * @param props.first - takes focus on open
  * @param props.answer - hands the choice over
  * @returns The controls
  */
-function WhichFile({ part, name, first, answer }: Readonly<PartControlsProps>): React.JSX.Element {
+function WhichFile({ part, name, label, first, answer }: Readonly<PartControlsProps>): React.JSX.Element {
     const main = part.code === "E_MODEL_AMBIGUOUS";
     const candidates = (part.params.candidates ?? []) as readonly string[];
     const more = typeof part.params.more === "number" ? part.params.more : 0;
     return (
         <Group gap={4} wrap="nowrap">
             <PanelField
-                label={main ? "Which file is the model" : `Which file is ${name}`}
+                label={main ? "Which file is the model" : `Which file is ${label}`}
                 kind="select"
                 width="fill"
                 value={null}
@@ -189,7 +192,8 @@ function WhichFile({ part, name, first, answer }: Readonly<PartControlsProps>): 
  * left out.
  * @param props - Component props
  * @param props.part - the part
- * @param props.name - its name
+ * @param props.name - its name, as the model names it
+ * @param props.label - the name the reader reads and hears
  * @param props.first - takes focus on open
  * @param props.url - the typed address
  * @param props.setUrl - the typing
@@ -200,6 +204,7 @@ function WhichFile({ part, name, first, answer }: Readonly<PartControlsProps>): 
 function SupplyPart({
     part,
     name,
+    label,
     first,
     url,
     setUrl,
@@ -210,8 +215,8 @@ function SupplyPart({
     return (
         <>
             <AddressForm
-                name={`${name} address`}
-                submitName={`Load ${name} from address`}
+                name={`${label} address`}
+                submitName={`Load ${label} from address`}
                 value={url}
                 busy={false}
                 autofocus={first}
@@ -224,12 +229,12 @@ function SupplyPart({
                 }}
             />
             <Group gap={4}>
-                <Tooltip label={`Choose ${name}`}>
+                <Tooltip label={`Choose ${label}`}>
                     <Button
                         size="compact-xs"
                         variant="default"
                         leftSection={<GLYPHS.upload size={12} aria-hidden />}
-                        aria-label={`Choose ${name}`}
+                        aria-label={`Choose ${label}`}
                         onClick={() => chooser.current?.click()}
                     >
                         Choose
@@ -242,11 +247,11 @@ function SupplyPart({
                     }}
                 />
                 {part.params.optional === true ? (
-                    <Tooltip label={`Load without ${name}`}>
+                    <Tooltip label={`Load without ${label}`}>
                         <Button
                             size="compact-xs"
                             variant="default"
-                            aria-label={`Load without ${name}`}
+                            aria-label={`Load without ${label}`}
                             onClick={() => {
                                 answer({ name, skip: true });
                             }}
@@ -326,6 +331,8 @@ function PartRow({ part, first, supply, onDiscard }: Readonly<PartRowProps>): Re
     const drop = useDropOver();
     const main = part.code === "E_MODEL_AMBIGUOUS";
     const name = main ? "Model" : String(part.params.name);
+    // The full path is the tooltip; every name the reader hears or reads is the file's own.
+    const label = name.split("/").pop() ?? name;
     const answer = (given: PartAnswer): void => {
         setBusy(true);
         setErrors([]);
@@ -339,13 +346,13 @@ function PartRow({ part, first, supply, onDiscard }: Readonly<PartRowProps>): Re
                 setBusy(false);
             });
     };
-    const controls: PartControlsProps = { part, name, first, url, setUrl, answer, onDiscard };
+    const controls: PartControlsProps = { part, name, label, first, url, setUrl, answer, onDiscard };
 
     return (
         <div // NOSONAR(S6819): an ARIA group naming one part's controls; a fieldset would draw its own border and legend
             className="ws-part-row"
             role="group"
-            aria-label={name}
+            aria-label={label}
             aria-busy={busy || undefined}
             data-over={drop.over || undefined}
             onDragOver={(event) => {
@@ -367,12 +374,12 @@ function PartRow({ part, first, supply, onDiscard }: Readonly<PartRowProps>): Re
             <Group gap={4} wrap="nowrap">
                 <RoleGlyph role={main ? "geometry" : part.params.role} />
                 <Text size="xs" fw={600} title={name} className="ws-part-name">
-                    {middleCut(name)}
+                    {middleCut(label)}
                 </Text>
                 <Text size="xs" c="var(--cm-text-secondary)">
                     {main ? "Model" : roleWord(part.params.role)}
                 </Text>
-                {busy ? <Loader size={12} aria-label={`Loading ${name}`} /> : null}
+                {busy ? <Loader size={12} aria-label={`Loading ${label}`} /> : null}
             </Group>
             {main || part.code === "E_MODEL_PART_AMBIGUOUS" ? (
                 <WhichFile {...controls} />

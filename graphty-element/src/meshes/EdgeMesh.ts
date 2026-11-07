@@ -528,6 +528,11 @@ void main() {
         if (lineType === "dash" || lineType === "dot") {
             const is2D = this.is2DMode(scene);
             const width = options.width / 40;
+            const { dashLength, dashGap } = style.line ?? {};
+            // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
+            // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
+            const dotShort = lineType === "dot" ? (dashLength ?? 1) - 1 : 0;
+            const gap = dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort);
             return cache.getBatch(
                 `${key}-joined${is2D ? "-2d" : ""}`,
                 () =>
@@ -545,7 +550,7 @@ void main() {
                                 kind: lineType,
                                 elementLength: lineType === "dash" ? width * (style.line?.dashLength ?? 3) : width,
                                 count: style.line?.patternCount,
-                                gap: style.line?.dashGap === undefined ? undefined : width * style.line.dashGap,
+                                gap,
                             },
                         },
                         scene,

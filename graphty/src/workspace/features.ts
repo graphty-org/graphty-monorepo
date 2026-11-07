@@ -16,3 +16,16 @@ export function selectionWorkspaceOn(session: GraphSession | null | undefined): 
     const features = new Set<string>(session?.features.enabled ?? []);
     return features.has("selection-workspace");
 }
+
+/**
+ * Whether styles from files are on (issue #706): reading a file's styles on a load, writing styles
+ * into an exported file, and the style settings and values added to draw other programs' files.
+ * Off, the app asks for no styles, offers no switch for them, and the Style tab offers only what the
+ * element's catalog offers.
+ * @param session - the element's session, or null before it comes up.
+ * @returns true when the element switched the experiment on.
+ */
+export function fileStylesOn(session: GraphSession | null | undefined): boolean {
+    const features = new Set<string>(session?.features.enabled ?? []);
+    return features.has("file-styles");
+}

@@ -60,7 +60,7 @@ const CODE = /\.[cm]?[jt]sx?$/u;
 export function readersOf(root, affected, packages) {
     const others = [...new Set(packages)].filter((p) => !affected.includes(p));
     if (affected.length === 0 || others.length === 0) return [];
-    const re = `(from |import\\(|import )["'](\\.\\./)+(${affected.join("|")})/`;
+    const re = String.raw`(from |import\(|import )["'](\.\./)+(${affected.join("|")})/`;
     let out;
     try {
         out = execFileSync("git", ["grep", "-l", "-E", re, "--", ...others.map((p) => `${p}/`)], {

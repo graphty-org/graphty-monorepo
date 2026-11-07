@@ -197,8 +197,11 @@ stand-in's metadata) and a trigger drag moves it with no mesh built; `node-batch
 IWER.
 
 As built (stage 12): `NodeBatches.roster` is the set a frame's walks visit under `"batched"`: every member a batch
-does not draw, plus batched rows with a halo or context point enabled (`Node.walksEachFrame`), kept by
-`NodeBatches.rewalk` on every batch change and overlay change. It answers null, and the walks visit every node,
+does not draw, plus batched rows with a halo or context point enabled, plus batched rows the row table holds off
+their layout place (`Node.walksEachFrame`), kept by `NodeBatches.rewalk` on every batch change, overlay change and
+change of the held flag in `Node.setMeshPosition`. A held row has to stay on the roster: only `RowTable.place`
+clears the flag and the repack skips a held row, and a drag writes the mesh before the layout, so a row
+dropped while the layout publishes every frame would stay where it was dropped. It answers null, and the walks visit every node,
 while some node is not yet a member. `Node.update` walks the roster and the group nodes, and the row table is
 flushed in the same pass, so the edge walk and the framing measure read this frame's places; the moved-node
 check on a frame at rest and the screen-width border check walk the roster too. A batched row's anchor

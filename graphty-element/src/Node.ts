@@ -1366,7 +1366,13 @@ export class Node implements ModelUser {
      */
     setMeshPosition(x: number, y: number, z: number): void {
         this.#anchor.position.set(x, y, z);
+        const table = this.batchTable;
+        const held = table?.isHeld(this.row);
         this.rowTable?.place(this.row, x, y, z);
+        // A batched row held off its layout place stays on the roster until it is back on it.
+        if (table !== null && table.isHeld(this.row) !== held) {
+            this.context.getNodeBatches?.()?.rewalk(this);
+        }
         this.shaderDrawing?.moved(this, x, y, z);
         // The overlays follow here, not only in update(): over a settled layout the update loop
         // visits no node, so a dragged node's halo stayed where the drag began until the drop.
@@ -1416,13 +1422,19 @@ export class Node implements ModelUser {
 
     /**
      * Whether a frame's walk still has to visit this node: it is drawn by its own mesh, or carries
-     * an overlay placed from its position. A batched row is drawn from the row table and follows
-     * it only when read ({@link Node.followRow}).
+     * an overlay placed from its position, or its row is held off its layout place (a drag writes
+     * the mesh first), which only its own `update` puts back. A batched row is drawn from the row
+     * table and follows it only when read ({@link Node.followRow}).
      * @returns True when it does.
      * @internal
      */
     get walksEachFrame(): boolean {
-        return this.batchSource === null || this.halo?.isEnabled() === true || this.contextPoint?.isEnabled() === true;
+        return (
+            this.batchSource === null ||
+            this.halo?.isEnabled() === true ||
+            this.contextPoint?.isEnabled() === true ||
+            this.batchTable?.isHeld(this.row) === true
+        );
     }
 
     /** The table's `moves` when a batched row's anchor last followed its row. */

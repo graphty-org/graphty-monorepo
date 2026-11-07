@@ -14,6 +14,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { Node } from "../../src/Node";
+import { nextFrame } from "../helpers/real-input";
 import { readCanvas as readFrame } from "../helpers/whole-canvas";
 
 const cleanups: (() => void)[] = [];
@@ -131,6 +132,36 @@ describe("the object roster", () => {
             assert.closeTo(batched.position?.[axis] ?? 0, objects.position?.[axis] ?? 0, 1e-3, `camera ${axis}`);
             assert.closeTo(batched.target?.[axis] ?? 0, objects.target?.[axis] ?? 0, 1e-3, `target ${axis}`);
         }
+    });
+
+    it("brings a held row back to the layout while the layout runs", async () => {
+        const element = await mounted("batched");
+        const { graph } = element;
+        const layout = graph.getLayoutManager();
+        const node = graph.getNode(20);
+        assert.isDefined(node);
+        assert.isTrue(node.drawnInBatch, "the row is batched");
+        await graph.setLayout("ngraph", { dim: 3, seed: 7 });
+        await operationQueueOf(graph).waitForCompletion();
+        // A drag writes the mesh before the layout (NodeBehavior.onDragUpdate), which holds the row
+        // off its layout place until something places it again; a drop leaves it so.
+        node.setMeshPosition(50, 50, 50);
+        const rows = graph.getRowTable();
+        assert.isTrue(rows?.isHeld(node.index), "the row is held");
+        // Two frames on which a step published, the walk visiting only the roster.
+        const published = layout.steppedPublishes;
+        while (layout.steppedPublishes < published + 2) {
+            await nextFrame();
+        }
+
+        assert.isTrue(layout.running, "the layout still runs");
+        assert.isFalse(rows?.isHeld(node.index), "the row went back to the layout");
+        const at = layout.layoutEngine?.getNodePosition(node);
+        assert.isDefined(at);
+        const drawn = node.drawnPosition;
+        assert.closeTo(drawn.x, at.x, 1e-4, "x");
+        assert.closeTo(drawn.y, at.y, 1e-4, "y");
+        assert.closeTo(drawn.z, at.z ?? 0, 1e-4, "z");
     });
 
     it("walks every node under objects, as before", async () => {

@@ -1551,20 +1551,51 @@ const endOf = (e: PEdge, end: "source" | "target"): Pt =>
     end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]);
 
 /**
- * How far a shape's nearest point is from where a line drawn on under its node leaves the node.
+ * How far a shape comes, at its nearest, to where a line drawn on under its node leaves the node: by its corners, or,
+ * `across`, by its sides and, for a shape lying across the line there, by its front measured along the line. A head
+ * that meets the node with a flat side (vis-network's bar, box and inv_triangle) touches it between two corners; one
+ * whose front spans the line with nothing on it (vis-network's crow, its tines either side and its notch empty)
+ * touches it beside the line.
  * @param p - the shape
  * @param e - the edge
  * @param end - which end
  * @param nodes - the drawn nodes
+ * @param across - whether to measure by its sides and its front rather than its corners
  * @returns the distance
  */
-function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
+function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[], across = false): number {
     const id = end === "source" ? e.source : e.target;
     const q = drawnEnd(e.points, end, nodeById(nodes, id));
     // a picture has no outline points: its tip is wherever its box meets the end (vis-network's image arrows)
-    return p.kind === "image"
-        ? toBox(q, p.box)
-        : Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
+    if (p.kind === "image") {
+        return toBox(q, p.box);
+    }
+    if (!across) {
+        return Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
+    }
+    return Math.min(offPath(q, p.closed ? [...p.points, p.points[0]] : p.points), frontGap(p.points, e, end, q));
+}
+
+/**
+ * How far a shape lying across a line stops short of a point on the line, or runs past it, measured along the line.
+ * @param points - the shape's points
+ * @param e - the edge
+ * @param end - which end
+ * @param q - the point on the line
+ * @returns the distance, or infinity for a shape wholly to one side of the line
+ */
+function frontGap(points: readonly Pt[], e: PEdge, end: "source" | "target", q: Pt): number {
+    const far = end === "source" ? (e.points.at(-1) ?? q) : e.points[0];
+    const len = Math.hypot(far[0] - q[0], far[1] - q[1]);
+    if (len < 1e-9) {
+        return Number.POSITIVE_INFINITY;
+    }
+    const [ux, uy] = [(far[0] - q[0]) / len, (far[1] - q[1]) / len];
+    const side = points.map((v) => (v[1] - q[1]) * ux - (v[0] - q[0]) * uy);
+    if (!(Math.min(...side) < 0 && Math.max(...side) > 0)) {
+        return Number.POSITIVE_INFINITY;
+    }
+    return Math.abs(Math.min(...points.map((v) => (v[0] - q[0]) * ux + (v[1] - q[1]) * uy)));
 }
 
 /**
@@ -1685,8 +1716,12 @@ function oneSided(stroke: readonly Pt[], path: readonly Pt[], end: "source" | "t
  * @param reach - how far back from the end its middle may lie, in lengths of its chord
  * @returns true for a stroke that caps the end
  */
-function capsAcross(stroke: readonly Pt[], e: PEdge, end: ArrowEnd, reach = 1): boolean {
-    const run = end === "source" ? e.points : [...e.points].reverse();
+function capsAcross(stroke: readonly Pt[], e: PEdge, end: ArrowEnd, reach = 1, nodes: readonly PNode[] = []): boolean {
+    const run = end === "source" ? [...e.points] : [...e.points].reverse();
+    // a line drawn on to its node's center is capped where it leaves the node (vis-network's curve and inv_curve)
+    if (end !== "middle") {
+        run[0] = drawnEnd(e.points, end, nodeById(nodes, end === "source" ? e.source : e.target));
+    }
     // a cap part-way along the line (vis-network's middle curve) spans the line at its middle, along the longer of the
     // two runs either side of it
     const [q, back] = end === "middle" ? middleAxis(e.points) : [run[0], run[Math.min(1, run.length - 1)]];
@@ -1862,14 +1897,14 @@ export function arrowheadEdge(
     // edges drawn over one another, a line's two ends) go by the nearest tip
     const mid = (p.closed ? areaCentroid(p.points) : null) ?? c;
     // both searches below measure the same tips and the same distances off each line: each is measured once
-    const tips = new Map<PEdge, { source?: number; target?: number }>();
-    const tipOf = (e: PEdge, end: "source" | "target"): number => {
+    const tips = new Map<PEdge, Partial<Record<string, number>>>();
+    const tipOf = (e: PEdge, end: "source" | "target", across: boolean): number => {
         let byEnd = tips.get(e);
         if (byEnd === undefined) {
             byEnd = {};
             tips.set(e, byEnd);
         }
-        return (byEnd[end] ??= tipGap(p, e, end, nodes));
+        return (byEnd[`${end}${String(across)}`] ??= tipGap(p, e, end, nodes, across));
     };
     const offs = new Map<PEdge, number>();
     const offOf = (e: PEdge): number => {
@@ -1880,25 +1915,32 @@ export function arrowheadEdge(
         }
         return d;
     };
-    const onLine = centerLines
-        ? nearestEnd(edges, (e, end) => (tipOf(e, end) <= 3 ? offOf(e) : Number.POSITIVE_INFINITY), Number.MAX_VALUE, [
-              "source",
-              "target",
-          ])
-        : null;
-    const best =
-        (onLine === null
+    const touching = (across: boolean): { e: PEdge; end: ArrowEnd } | null => {
+        const onLine = nearestEnd(
+            edges,
+            (e, end) => (tipOf(e, end, across) <= 3 ? offOf(e) : Number.POSITIVE_INFINITY),
+            Number.MAX_VALUE,
+            ["source", "target"],
+        );
+        return onLine === null
             ? null
             : nearestEnd(
                   edges,
                   (e, end) => {
-                      const tip = tipOf(e, end);
+                      const tip = tipOf(e, end, across);
                       return tip <= 3 && offOf(e) <= onLine.d + 0.5 ? tip : Number.POSITIVE_INFINITY;
                   },
                   3,
                   ["source", "target"],
-              )) ??
+              );
+    };
+    // by a corner first; only a head no line's end touches at a corner, and no line's middle it points at, is measured
+    // by its sides and its front (a bar, a box, a crow at the node's outline): a neighbor's head at a crowded node lies
+    // with a side by many ends (json-vis-siblings), a middle cap's base across its line by the source
+    const best =
+        (centerLines ? touching(false) : null) ??
         pointed ??
+        (centerLines ? touching(true) : null) ??
         // a cap within reach of an end that does not reach its line's middle is that end's, stood back from it: on a
         // short line yEd's circle or bar in a row sits nearer the middle than the end (gml-specimen-arrows-p2), where a
         // middle cap, however it is set on the middle, covers it
@@ -3308,8 +3350,12 @@ export function associate(
         ) {
             // a small curved open stroke beside one node may be an arrowhead drawn as a stroke (Cytoscape's open
             // half circle; vis-network's curve and inv_curve, a half circle larger than a small node), judged with the
-            // arrowheads below
+            // arrowheads below; one bent but not round is an arm of a head drawn in strokes from one fork (yEd's
+            // concave and convex arrows, two quadratic arms), judged with the stroked heads
             arcs.push({ p, piece: edge });
+            if (!strokedArc(p)) {
+                strokes.set(p, edge);
+            }
         } else if (box === undefined && a === b) {
             strokes.set(p, edge);
         }
@@ -3624,7 +3670,11 @@ export function associate(
             arcs.push({ p, piece: null });
         }
     }
+    const forkedArms = new Set(stroked.flatMap((h) => (h.parts.length >= 2 ? h.parts : [])));
     for (const { p, piece } of arcs) {
+        if (forkedArms.has(p)) {
+            continue;
+        }
         const best = arrowheadEdge(
             p,
             withPieces.filter((e) => e !== piece),
@@ -3635,7 +3685,7 @@ export function associate(
             best !== null &&
             (best.end !== "middle" || piece === null) &&
             best.e.arrows.every((x) => x.end !== best.end) &&
-            capsAcross(p.points, best.e, best.end)
+            capsAcross(p.points, best.e, best.end, 1, nodeList)
         ) {
             if (piece === null) {
                 take(p);

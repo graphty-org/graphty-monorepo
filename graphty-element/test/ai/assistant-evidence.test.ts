@@ -210,7 +210,7 @@ describe("effects", () => {
         const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
         await assistant.say(
             "run it, then take it away",
-            [{ tool: "run_algorithm", args: { action: "run", name: "degree" } }],
+            [{ tool: "run_algorithm", args: { action: "run", name: "degree", style: true } }],
             [{ tool: "results", args: { action: "remove", run: "degree" } }],
         );
 

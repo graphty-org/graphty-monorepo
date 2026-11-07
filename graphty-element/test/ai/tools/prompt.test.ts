@@ -80,4 +80,13 @@ describe("the facts block", () => {
             assert.strictEqual(selected, `Selected: ${first.join(", ")} (${String(30 - cap)} more).`);
         }
     });
+
+    it("lists a selection's nodes by id when the message is about it, up to the cap", async () => {
+        const session = await assistantSession();
+        await session.selection.apply({ ids: ["c", "a"] });
+        const scope = { kind: "selection", nodes: 2, edges: 0, hiddenNodes: 0, hiddenEdges: 0 } as const;
+        const line = factsBlock(session, "standard", undefined, scope).split("\n").at(-1) ?? "";
+        assert.match(line, /^This message is about the reader's selection, 2 nodes/);
+        assert.isTrue(line.endsWith(' Its nodes: "a", "c".') || line.endsWith(' Its nodes: "c", "a".'), line);
+    });
 });

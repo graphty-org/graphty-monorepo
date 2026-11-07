@@ -5,7 +5,9 @@
  */
 
 import type { AiEffect, AiTarget } from "../../catalog/ai";
+import type { NodeId } from "../../catalog/types";
 import type { TransactionScope } from "../../session/types";
+import type { SavedMessage } from "../engine/types";
 import type { Target } from "./fields";
 
 /**
@@ -139,4 +141,96 @@ export function filterEffects(tx: Pick<TransactionScope, "status" | "visibility"
  */
 export function dataEffects(params: Readonly<Record<string, number>>): () => readonly AiEffect[] {
     return () => [{ code: "AI_EFFECT_DATA", params }];
+}
+
+/**
+ * Whether a reply names an id or a label: as a whole word, so "34" is not found in "340" or "3.4".
+ * @param reply - The reply.
+ * @param name - The id or label.
+ * @returns True when it is named.
+ */
+function names(reply: string, name: string): boolean {
+    const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+    return new RegExp(String.raw`(?<![\w.])${escaped}(?![\w]|\.\d)`).test(reply);
+}
+
+/**
+ * Widen a run's leader to the nodes a reply named from the run's ranking. A run's summary hands the
+ * model its top nodes, and a model answers "which three" from them without reading again, so the
+ * leader alone (one node) would leave the reader no chip for the other two. The reply names the
+ * first k of that list when it answers about the top k; the leader becomes those k, by id. Only the
+ * message's last found effect is widened, and only when it is a run's leader: a later read stands.
+ * @param messages - The conversation's messages; the message's own are those after the last
+ *     reader message.
+ * @param reply - The model's reply.
+ */
+export function widenLeader(messages: SavedMessage[], reply: string): void {
+    for (let at = messages.length - 1; at >= 0 && messages[at].role !== "user"; at--) {
+        const { parts } = messages[at];
+        for (let index = parts.length - 1; index >= 0; index--) {
+            const part = parts[index];
+            const found =
+                part.type === "tool-result"
+                    ? [...(part.effects ?? [])].reverse().find((each) => each.code === "AI_EFFECT_FOUND")
+                    : undefined;
+            if (part.type !== "tool-result" || found === undefined) {
+                continue;
+            }
+
+            const top = found.target !== undefined && "top" in found.target ? found.target.top : undefined;
+            if (top?.n === 1 && top.field === undefined) {
+                const ids = namedPrefix(part.content, reply);
+                if (ids.length > 1) {
+                    // By id: a top of k cuts between ties, and the reply named these k.
+                    const widened: AiEffect = {
+                        code: "AI_EFFECT_FOUND",
+                        params: { nodes: ids.length },
+                        target: { ids },
+                    };
+                    const effects = part.effects?.map((each) => (each === found ? widened : each));
+                    messages[at] = {
+                        ...messages[at],
+                        parts: parts.map((each) => (each === part ? { ...part, ...(effects && { effects }) } : each)),
+                    };
+                }
+            }
+
+            return;
+        }
+    }
+}
+
+/**
+ * The run summary's top nodes, from the first, that a reply names by id or label.
+ * @param content - The run's tool result as the model read it.
+ * @param reply - The reply.
+ * @returns Their ids; none when the content holds no ranking.
+ */
+function namedPrefix(content: string, reply: string): NodeId[] {
+    let top: unknown;
+    try {
+        top = (JSON.parse(content) as { data?: { summary?: { top?: unknown } } }).data?.summary?.top;
+    } catch {
+        return [];
+    }
+
+    if (!Array.isArray(top)) {
+        return [];
+    }
+
+    const ids: NodeId[] = [];
+    for (const entry of top as { id?: unknown; label?: unknown }[]) {
+        const { id } = entry;
+        if (typeof id !== "string" && typeof id !== "number") {
+            break;
+        }
+
+        if (!names(reply, String(id)) && !(typeof entry.label === "string" && names(reply, entry.label))) {
+            break;
+        }
+
+        ids.push(id);
+    }
+
+    return ids;
 }

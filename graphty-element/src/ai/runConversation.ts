@@ -48,6 +48,7 @@ import {
     type ToolBatch,
     type ToolCallRequest,
 } from "./ToolExecutor";
+import { widenLeader } from "./tools/effects";
 import { type HostedToolSetting, turnHostedTools } from "./tools/hosted";
 import { MAX_LOADED_TOOLS, PROFILE_TOOLS } from "./tools/install";
 import type { ToolProfile } from "./tools/prompt";
@@ -892,6 +893,29 @@ function appendCalls(
 }
 
 /**
+ * Which failed call kept a batch's other calls from running, as the model is told: a bare "not
+ * run" reads to some models as a hold, and they tell the reader a change waits for approval.
+ * @param batch - The batch.
+ * @returns `{ stoppedBy }` naming the failed call's tool, or nothing.
+ */
+function stopped(batch: BatchOutcome): { stoppedBy?: string } {
+    const tool = batch.failure?.params.tool;
+    return typeof tool === "string" ? { stoppedBy: tool } : {};
+}
+
+/**
+ * A call's view with the failed call that kept it from running, when it did not run.
+ * @param view - The call's view.
+ * @param batch - The batch.
+ * @returns The view.
+ */
+function withStopped<T extends { code: string; params?: unknown }>(view: T, batch: BatchOutcome): T {
+    return view.code === "AI_TOOL_NOT_RUN" && batch.held === undefined
+        ? { ...view, params: { ...(view.params as object), ...stopped(batch) } }
+        : view;
+}
+
+/**
  * Add each call's result to the conversation.
  * @param conversation - The conversation.
  * @param calls - The calls.
@@ -917,8 +941,8 @@ function appendResults(
             const outcome = partOutcome(call, result, batch);
             const view =
                 outcome.code === "AI_TOOL_NOT_RUN" && result?.success === true
-                    ? { code: "AI_TOOL_NOT_RUN", params: { tool: call.name, rolledBack: true } }
-                    : modelView(result, call.name);
+                    ? { code: "AI_TOOL_NOT_RUN", params: { tool: call.name, rolledBack: true, ...stopped(batch) } }
+                    : withStopped(modelView(result, call.name), batch);
             // A call taken back with its batch, or held, did nothing to report.
             const stood = outcome.code !== "AI_TOOL_NOT_RUN" && outcome.code !== "AI_CONFIRMATION_NEEDED";
             const effects = stood ? result?.effects : undefined;
@@ -1647,6 +1671,10 @@ function answered(loop: Loop, said: Said): boolean {
     if (heldResults !== undefined) {
         // Waiting on the reader: the decision answers the held calls, not this placeholder.
         messages.splice(messages.indexOf(heldResults), 1);
+    }
+
+    if (text) {
+        widenLeader(messages, text);
     }
 
     if (text || hosted.length > 0) {

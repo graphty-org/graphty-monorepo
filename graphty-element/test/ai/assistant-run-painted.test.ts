@@ -17,7 +17,7 @@ const EVERYTHING_BLUE = {
     set: { "node.color": "#0000ff" },
 } as const;
 
-const DEGREE = { tool: "run_algorithm", args: { action: "run", name: "degree" } };
+const DEGREE = { tool: "run_algorithm", args: { action: "run", name: "degree", style: true } };
 const UNSTYLED = { tool: "run_algorithm", args: { action: "run", name: "degree", style: false } };
 const APPLY = { tool: "style", args: { action: "apply_suggestion", run: "degree" } };
 

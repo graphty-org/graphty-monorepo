@@ -55,7 +55,9 @@ describe("the generated tools on a rendered graph", () => {
     it("runs a real algorithm, which paints its own result, as one undo step", async () => {
         const session = graph.getSession();
         const steps = session.history.position;
-        const result = await say("degree please", [{ name: "run_algorithm", arguments: { name: "degree" } }]);
+        const result = await say("color by degree please", [
+            { name: "run_algorithm", arguments: { name: "degree", style: true } },
+        ]);
         assert.strictEqual(result.code, "AI_COMPLETED", JSON.stringify(result));
         assert.strictEqual(session.runs.list().at(-1)?.status, "succeeded");
         assert.isTrue(session.styles.list().some((layer) => layer.source.by === "run"));

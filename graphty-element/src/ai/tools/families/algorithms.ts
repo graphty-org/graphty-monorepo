@@ -222,7 +222,8 @@ async function runAlgorithm(
     const run = codedNow(() =>
         tx.runs.start(descriptor.key, params, {
             ...(scope === undefined ? {} : { scope }),
-            ...(args.style === undefined ? {} : { style: args.style as boolean | { size?: boolean } }),
+            // A run answers a question as often as it changes the look: it colors only when asked.
+            style: args.style === true,
             ...(exact ? { exact } : {}),
             ...(typeof args.sample === "number" ? { sample: args.sample } : {}),
         }),
@@ -244,8 +245,7 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
         name: "run_algorithm",
         plainName: "Run an algorithm",
         core: true,
-        description:
-            "Runs an algorithm and summarizes it; colors the graph unless style is false. Options: catalog describe.",
+        description: "Runs an algorithm and summarizes it; style true colors by it. Options: catalog describe.",
         example: { name: "shortest-path", options: { source: "a", target: "b" } },
         actions: [
             {
@@ -261,7 +261,7 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
                         })
                         .optional()
                         .describe("Run on a set or a selector's nodes only."),
-                    style: z.boolean().optional().describe("false: no coloring; to style only part."),
+                    style: z.boolean().optional().describe("Only when asked to see or color it."),
                     exact: z.boolean().optional().describe("Compute exactly even when slow."),
                     sample: z.number().int().min(1).optional().describe("Sample size for an approximate run."),
                 },

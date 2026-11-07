@@ -192,7 +192,7 @@ export const FIRST_LOOK_TASKS = [
         dataset: "karate",
         prompts: ["I'm new to this. Find the groups in this network and color them."],
         tools: ["run_algorithm", "style"],
-        reference: [[[{ tool: "run_algorithm", args: { name: "louvain" } }]]],
+        reference: [[[{ tool: "run_algorithm", args: { name: "louvain", style: true } }]]],
         check: ({ s }) => {
             const run = runOf(s, ...COMMUNITY_ALGORITHMS);
             const colored = s.styles

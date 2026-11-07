@@ -50,7 +50,7 @@ export const COMMUNITY_TASKS = [
         dataset: "karate",
         prompts: ["Detect communities with Louvain."],
         tools: ["run_algorithm"],
-        reference: [[[{ tool: "run_algorithm", args: { name: "louvain" } }]]],
+        reference: [[[{ tool: "run_algorithm", args: { name: "louvain", style: true } }]]],
         check: ({ s }) => {
             const run = runOf(s, "louvain");
             const groups = nodeValues(s, run.id, "group");
@@ -84,7 +84,7 @@ export const COMMUNITY_TASKS = [
         dataset: "karate",
         prompts: ["Run Louvain and color the nodes by community."],
         tools: ["run_algorithm", "style"],
-        reference: [[[{ tool: "run_algorithm", args: { name: "louvain" } }]]],
+        reference: [[[{ tool: "run_algorithm", args: { name: "louvain", style: true } }]]],
         check: ({ s }) => {
             const run = runOf(s, "louvain");
             const groups = nodeValues(s, run.id, "group");
@@ -425,7 +425,7 @@ export const PATH_TASKS = [
         dataset: "knuth-miles",
         prompts: ["Show me the cheapest road network that still connects every city."],
         tools: ["run_algorithm", "style", "results"],
-        reference: [[[{ tool: "run_algorithm", args: { name: "kruskal" } }]]],
+        reference: [[[{ tool: "run_algorithm", args: { name: "kruskal", style: true } }]]],
         check: ({ s }) => {
             const run = runOf(s, "kruskal", "prim");
             assert.strictEqual(run.result?.graph.count, 127, "a spanning tree of 128 cities has 127 roads");

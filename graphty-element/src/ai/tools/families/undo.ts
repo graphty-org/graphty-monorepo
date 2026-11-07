@@ -40,7 +40,8 @@ export const undoTool: ToolDefinition = {
     name: UNDO_TOOL,
     plainName: "Undo",
     core: true,
-    description: "Undoes or redoes your own last change, never the reader's. Call it alone, once per message.",
+    description:
+        "Undoes or redoes your own last change when the reader asks, never the reader's. Call it alone, once per message.",
     example: { action: "undo" },
     actions: [
         {

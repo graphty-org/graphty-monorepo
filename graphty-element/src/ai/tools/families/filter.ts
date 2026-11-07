@@ -43,9 +43,12 @@ async function setFilter(tx: TransactionScope, rule: RuleTree | null, notes: Jso
     await coded(async () => {
         await tx.visibility.set(rule);
     });
-    const { summary } = tx.visibility;
+    const { visibleNodes, visibleEdges } = tx.visibility.summary;
+    const { nodes, edges } = tx.status.counts;
+    // The hidden counts say outright when a rule hid nothing, so a reply cannot claim it did.
+    const hidden = { hiddenNodes: nodes - visibleNodes, hiddenEdges: edges - visibleEdges };
     return {
-        ...ok({ visibleNodes: summary.visibleNodes, visibleEdges: summary.visibleEdges }, notes),
+        ...ok({ visibleNodes, visibleEdges, ...hidden }, notes),
         effects: () => filterEffects(tx),
     };
 }

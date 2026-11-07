@@ -3026,6 +3026,16 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether the node is drawn behind every edge, so it hides no stretch of a line that ends on it: a group region,
+     * or in a 2D view a node below z-index 0 (a group from a file drawn behind its members, `node.zIndex`). A line
+     * ends at such a node's outline, as yEd and Cytoscape.js end one at a compound node's border.
+     * @returns True while it is drawn so.
+     */
+    get isDrawnBehindEdges(): boolean {
+        return this.drawnAsGroup || (this.context.is2D() && (this.drawnStyle?.shape?.zIndex ?? 0) < 0);
+    }
+
+    /**
      * How far the node's drawn surface reaches from its centre along each axis: its bounding
      * box's half-size, in the units its position is laid out in (the node's own space, not the
      * world, for the reason {@link Node.drawnRadius} gives).

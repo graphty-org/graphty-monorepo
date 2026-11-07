@@ -1318,15 +1318,15 @@ export class Edge {
 
     /**
      * Where a line with no cap at an end starts from that end's node: its center, which the opaque
-     * node hides, or, for a group drawn as a region behind its members and edges, the region's
-     * outline, which is where Cytoscape.js and yEd end an edge to a compound node.
+     * node hides, or, for a node drawn behind every edge (a group region, or a 2D node below z-index 0:
+     * `Node.isDrawnBehindEdges`), its outline, which is where Cytoscape.js and yEd end an edge to a compound node.
      * @param node - The end's node.
      * @param centre - Its center.
      * @param toward - The other end's center.
      * @returns The point.
      */
     private groupEnd(node: Node, centre: Vector3, toward: Vector3): Vector3 {
-        if (!node.isDrawnAsGroup) {
+        if (!node.isDrawnBehindEdges) {
             return centre;
         }
 
@@ -4292,12 +4292,12 @@ export class Edge {
             this.pastBorders(srcPoint, dstPoint);
         }
 
-        // A group drawn as a region behind its members is a thin plate a ray meets at once, at its middle: the line
-        // leaves it through its outline across the view instead.
-        if (this.srcNode.isDrawnAsGroup) {
+        // A group drawn as a region behind its members is a thin plate a ray meets at once, at its middle, and no node
+        // drawn behind every edge hides the line under it: the line leaves it through its outline across the view.
+        if (this.srcNode.isDrawnBehindEdges) {
             srcPoint = this.groupEnd(this.srcNode, srcMesh.position, dstMesh.position);
         }
-        if (this.dstNode.isDrawnAsGroup) {
+        if (this.dstNode.isDrawnBehindEdges) {
             dstPoint = this.groupEnd(this.dstNode, dstMesh.position, srcMesh.position);
         }
 
@@ -4369,7 +4369,7 @@ export class Edge {
                 gap,
                 measured: closed ? TRIM_CLOSED : TRIM_NO_HIT,
                 leaves,
-                group: node.isDrawnAsGroup,
+                group: node.isDrawnBehindEdges,
             };
         };
         // a line a unit long loses what the arrow head takes from any line

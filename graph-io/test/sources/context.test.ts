@@ -70,6 +70,26 @@ describe("credential binding", () => {
         expect([seen[1].cache, seen[1].redirect]).toEqual(["default", "follow"]);
     });
 
+    it("sends a User-Agent from Node only: the caller's, else the source's, else graph-io's", async () => {
+        const seen: Request[] = [];
+        const fetch = (input: RequestInfo | URL): Promise<Response> => {
+            seen.push(input as Request);
+            return Promise.resolve(new Response("{}"));
+        };
+        await bareContext({ fetch }, { endpoint: API }).ctx.fetch("/a");
+        await bareContext({ fetch, userAgent: "me/1" }, { endpoint: API }).ctx.fetch("/a", {
+            headers: { "user-agent": "source/1" },
+        });
+        await bareContext({ fetch }, { endpoint: API }).ctx.fetch("/a", { headers: { "user-agent": "source/1" } });
+        await bareContext({ fetch, userAgent: "me/1" }, { endpoint: API, runtime: "browser" }).ctx.fetch("/a");
+        expect(seen.map((r) => r.headers.get("user-agent"))).toEqual([
+            "graphty-graph-io (+https://graphty.app)",
+            "me/1",
+            "source/1",
+            null,
+        ]);
+    });
+
     it("uses redirect error in a browser, where a manual redirect is opaque", async () => {
         const seen: Request[] = [];
         const fetch = (input: RequestInfo | URL): Promise<Response> => {

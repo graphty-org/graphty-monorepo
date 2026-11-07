@@ -550,10 +550,9 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         // label follows its row as on the object path.
         await graph.setLayout("circular", { scale: 0.3 });
         await element.waitForStableFrame();
-        // A reader's zoom ends the framing, which would otherwise read every row while the layout runs.
+        // With no framing, which reads every row, only the frame's walk moves a labelled row's anchor.
         const canvas = graph.getScene().getEngine().getRenderingCanvas() as HTMLCanvasElement;
-        await wheel(canvas, { x: 200, y: 150 }, 100);
-        await element.waitForStableFrame();
+        element.autoFrame = false;
         await graph.setLayout("ngraph", { seed: 7 });
         await element.waitForStableFrame();
         const moved = await readFrame(graph);

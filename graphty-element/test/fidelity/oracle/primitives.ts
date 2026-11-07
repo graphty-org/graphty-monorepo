@@ -1415,10 +1415,37 @@ export function framedBand(vertices: readonly Pt[], samples: number): FramedBand
     if (v.length > 1 && gap(v[0], v[v.length - 1]) <= 1e-3) {
         v.pop();
     }
-    const n = v.length;
-    if (n < 4) {
+    if (v.length < 4) {
         return null;
     }
+    // yEd starts some outlines at the target's arrowhead, one corner past its tip, at its wing, the tip their last
+    // corner (yed-graphml-specimen-edges-lines generic-framed, Arrows target="standard"; graphml-galaxy-lcms-workflow
+    // n0::e12, target="delta"): read from the tip, the end read first is the target
+    const plain = bandOf(v, samples);
+    if (plain !== null) {
+        return plain;
+    }
+    const fromTarget = bandOf([v[v.length - 1], ...v.slice(0, -1)], samples);
+    return fromTarget === null
+        ? null
+        : {
+              route: [...fromTarget.route].reverse(),
+              width: fromTarget.width,
+              heads: fromTarget.heads
+                  .map((h) => ({ ...h, end: h.end === "source" ? ("target" as const) : ("source" as const) }))
+                  .reverse(),
+          };
+}
+
+/**
+ * The band a closed outline draws, read from its first corner (`framedBand`).
+ * @param v - the outline's corners, no two alike in a row, at least 4
+ * @param samples - how many points the route is given
+ * @returns the band, or null when the outline read from that corner is no such band
+ */
+function bandOf(v: readonly Pt[], samples: number): FramedBand | null {
+    const gap = (p: Pt, q: Pt): number => Math.hypot(p[0] - q[0], p[1] - q[1]);
+    const n = v.length;
     const at = (i: number): Pt => v[((i % n) + n) % n];
     const fwd = [0];
     for (let i = 1; i <= n; i++) {

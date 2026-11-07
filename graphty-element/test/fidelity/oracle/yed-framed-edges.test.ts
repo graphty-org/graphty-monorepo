@@ -89,6 +89,29 @@ describe("yEd's framed edges", () => {
         assert.isBelow(offBend, 0.5);
     });
 
+    it("reads an outline yEd starts at an arrowhead's wing, its tip the last corner", () => {
+        // yed-graphml-specimen-edges-lines generic-framed, LineStyle width 6.0, Arrows target="standard": the outline
+        // runs wing, the head's back, the band's far end (x 791), the other side, the other wing and the tip (857)
+        const band = framedBand(
+            outline(
+                "M837.5 518.986 L840.575 524.111 L791 524.111 L791 530.111 L840.575 530.111 L837.5 535.236 L857 527.111 L837.5 518.986 Z",
+            ),
+            16,
+        );
+        assert.isNotNull(band);
+        assert.closeTo(band?.width ?? 0, 6, 0.05);
+        assert.deepEqual(
+            band?.heads.map((h) => h.end),
+            ["target"],
+        );
+        assert.isTrue(
+            band?.heads[0].outline.some((p) => near(p, [857, 527.111])),
+            "the target head holds its tip",
+        );
+        assert.isTrue(near(band?.route[0], [791, 527.111]), String(band?.route[0]));
+        assert.isTrue(near(band?.route.at(-1), [840.575, 527.111]), String(band?.route.at(-1)));
+    });
+
     it("reads no band in a node's outline, or in a closed shape no longer than it is wide", () => {
         assert.isNull(framedBand(outline("M992 691.333 L1048 691.333 L1048 727.333 L992 727.333 Z"), 16));
         assert.isNull(framedBand(outline("M376 600.222 L404 618.222 L376 636.222 L348 618.222 Z"), 16));

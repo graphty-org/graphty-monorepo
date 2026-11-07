@@ -448,6 +448,29 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["vee", "none", "triangle"]);
     });
 
+    it("reads a framed edge as yEd draws it: a band of the line's width outlined 1 wide, filled or hollow", async () => {
+        const framed = (line: string, fill: string): string =>
+            `<edge source="a" target="b"><data key="d10"><y:GenericEdge configuration="com.yworks.edge.framed"><y:LineStyle ${line}/><y:Arrows source="none" target="none"/>${fill}</y:GenericEdge></data></edge>`;
+        const fillOf = (c: string): string =>
+            `<y:StyleProperties><y:Property class="java.awt.Color" name="FramedEdgePainter.fillColor" value="${c}"/></y:StyleProperties>`;
+        const { snapshot, styles } = await load(
+            `${YED_HEAD}<node id="a"/><node id="b"/>
+            ${framed('color="#5F809D" type="line" width="3.0"', fillOf("#ffffff"))}
+            ${framed('color="#00CC99" type="line" width="2.0"', "")}
+            ${framed('color="#000000" type="line" width="1.0"', fillOf("#ffffff"))}
+            </graph></graphml>`,
+        );
+        const get = (p: string): unknown[] => resolveStyles(styles, "edge", p, snapshot);
+        // graphml-galaxy-lcms-workflow: a band 3 wide stroked 1 wide in #5F809D over a fill of #ffffff, so the white
+        // inside is 2 wide and the outline reaches 2 past it; graphml-synthetic-edges: no fill color, the outline alone
+        expect(get("color")).toEqual(["#ffffff", "#00cc99", "#000000"]);
+        expect(get("width")).toEqual([2, 3, 2]);
+        expect(get("outlineColor")).toEqual(["#5f809d", null, null]);
+        expect(get("outlineWidth")).toEqual([2, null, null]);
+        // its arrowheads are outlined in the line's color, not the fill's
+        expect(get("targetArrowColor")).toEqual(["#5f809d", null, null]);
+    });
+
     it("reads a generic node's gradient corner to corner and draws none on a table", async () => {
         const fill = '<y:Fill color="#FF0000" color2="#0000FF" transparent="false"/>';
         const { snapshot, styles } = await load(

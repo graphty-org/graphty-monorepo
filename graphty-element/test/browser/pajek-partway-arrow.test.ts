@@ -8,6 +8,9 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** Two vertices 200 Pajek px apart (0.4 of its 500 px square) on one level, joined by an arc with `ap 0.5`. */
 const NET = "*Vertices 2\n1 a 0.1 0.5\n2 b 0.5 0.5\n*Arcs\n1 2 1 ap 0.5\n";

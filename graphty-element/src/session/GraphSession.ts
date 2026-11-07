@@ -759,6 +759,9 @@ class Session implements ElementSession {
                 publish(this.watchers, "project:status", change);
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
+            restoreDerived: (id) => {
+                this.sessionRuns.restoreDerived(id);
+            },
             projectChanged: () => {
                 this.network.projectChanged();
             },

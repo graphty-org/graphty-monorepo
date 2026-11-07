@@ -4,8 +4,8 @@
  * lists its runs. A row at rest is its value type's icon, its name and, only when they apply, quiet
  * marks: how many styles and how many filters use it, each by its own glyph, and an icon when it ran
  * over something other than what is showing or is out of date. A press opens it in the inspector;
- * its "..." (on hover or focus, or a right click) holds Apply style and Remove; removing a result something uses asks first, naming them,
- * and the selections then wait for Run (design: algo-options cardruns.md, rules 3 to 5).
+ * its "..." (on hover or focus, or a right click) holds Apply style and Remove; removing a result
+ * something uses asks first, naming them, and the selections then wait for Run (design: algo-options cardruns.md, rules 3 to 5).
  */
 
 import { ContextMenu, MenuShortcut, ModalFooter } from "@graphty/compact-mantine";
@@ -26,13 +26,17 @@ import { unitOf } from "../time/timeActions";
 import { namesOnce } from "./words";
 
 /**
- * What a selection that reads a result goes by: its layer's name, or "Filter".
+ * What a selection that reads a result goes by: its layer's name, or its filter's name or "Filter".
  * @param session - the element's session.
  * @param reader - the selection.
  * @returns the name.
  */
 function readerName(session: GraphSession, reader: RunReader): string {
-    return reader.kind === "layer" ? (session.styles.get(reader.id)?.name ?? reader.id) : "Filter";
+    if (reader.kind === "layer") {
+        return session.styles.get(reader.id)?.name ?? reader.id;
+    }
+    // A filter goes by the name the reader gave it, else "Filter".
+    return session.visibility.conditions.find((each) => each.id === reader.id)?.name ?? "Filter";
 }
 
 /**

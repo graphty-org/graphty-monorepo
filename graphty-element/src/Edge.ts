@@ -2828,19 +2828,57 @@ export class Edge {
      * @param drawn - Whether the edge is drawn.
      */
     private setTextsDrawn(drawn: boolean): void {
+        for (const [labelMesh, part] of this.textMeshes()) {
+            labelMesh.setEnabled(drawn && !this.leftOutLabels.includes(part));
+        }
+    }
+
+    /**
+     * The meshes of the edge's texts that exist: its label, external label and end captions.
+     * @returns Each mesh with the part it draws.
+     */
+    private textMeshes(): [AbstractMesh, "label" | "xlabel" | "headLabel" | "tailLabel"][] {
         const texts = [
             [this.label, "label"],
             [this.xlabelLabel, "xlabel"],
             [this.arrowHeadText, "headLabel"],
             [this.arrowTailText, "tailLabel"],
         ] as const;
+        const meshes: [AbstractMesh, "label" | "xlabel" | "headLabel" | "tailLabel"][] = [];
         for (const [text, part] of texts) {
             const labelMesh = text?.labelMesh;
-
             if (labelMesh && !labelMesh.isDisposed()) {
-                labelMesh.setEnabled(drawn && !this.leftOutLabels.includes(part));
+                meshes.push([labelMesh, part]);
             }
         }
+
+        return meshes;
+    }
+
+    /**
+     * Whether showing or hiding this edge enables or disables a mesh of its own -- a line drawn as
+     * a mesh of its own, or a text -- rather than only writing slots of shared batches. A scene
+     * whose list of what is drawn is frozen draws the meshes it listed, so only a change of this
+     * kind needs the list read again; a slot write is drawn from the batch's buffer as it is.
+     * @returns True when {@link Edge.setRenderVisible} reaches a mesh's enabled state.
+     * @internal
+     */
+    togglesOwnMeshes(): boolean {
+        return this.lineIsOwnMesh() || this.textMeshes().length > 0;
+    }
+
+    /**
+     * Whether the line is drawn as a mesh of its own, which hiding disables, rather than from a
+     * batch, a patterned line's caps or the row table.
+     * @returns True for a line mesh of its own.
+     */
+    private lineIsOwnMesh(): boolean {
+        return (
+            this.pulled === null &&
+            this.lineBatch === null &&
+            !(this.mesh instanceof PatternedLineMesh) &&
+            !this.mesh.isDisposed()
+        );
     }
 
     /**
@@ -2879,7 +2917,7 @@ export class Edge {
             }
         } else if (this.mesh instanceof PatternedLineMesh) {
             this.mesh.setDrawn(drawn);
-        } else if (!this.mesh.isDisposed()) {
+        } else if (this.lineIsOwnMesh()) {
             // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
             // isPickable here would lose whatever the edge style asked for on the way back.
             this.mesh.setEnabled(drawn);

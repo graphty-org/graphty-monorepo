@@ -1,7 +1,7 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, ProjectAssetChoice } from "@graphty/graphty-element/session";
 import { Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { modelName, pictureName } from "../canvas/models";
 import { megabytes } from "../start/library";
@@ -31,9 +31,14 @@ function SaveAsDialog(): React.JSX.Element {
     const [name, setName] = useState(current);
     const [saving, setSaving] = useState(false);
 
+    // Whether another dialog took the slot during a save (the question about files from the web,
+    // or Save as pressed again over it): the save then leaves the slot to that dialog.
+    const left = useRef(false);
     useEffect(() => {
         if (opened) {
             setName(current);
+        } else {
+            left.current = true;
         }
     }, [opened, current]);
 
@@ -46,9 +51,12 @@ function SaveAsDialog(): React.JSX.Element {
             return;
         }
         setSaving(true);
+        left.current = false;
         try {
             await saveProjectAs(workspace, trimmed);
-            close();
+            if (!left.current) {
+                close();
+            }
         } finally {
             setSaving(false);
         }
@@ -225,14 +233,20 @@ function KeepAssetsDialog(): React.JSX.Element {
     const [choices, setChoices] = useState<AssetChoices>({});
 
     useEffect(() => {
-        if (opened) {
-            setChoices({});
+        if (!opened) {
+            return undefined;
         }
-    }, [opened]);
+        setChoices({});
+        // Closed without an answer (another dialog took the slot, as Save as pressed while it
+        // asks): the save waiting on it is cancelled, never left waiting.
+        return () => {
+            assetQuestion(store)?.answer(null);
+        };
+    }, [opened, store]);
 
     const finish = (answer: AssetChoices | null): void => {
-        store.set({ dialog: null });
         question?.answer(answer);
+        store.set({ dialog: null });
     };
     const entries = question?.entries ?? [];
 

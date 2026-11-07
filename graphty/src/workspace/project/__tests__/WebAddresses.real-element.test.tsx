@@ -10,7 +10,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
+import { browserProjects, createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -282,5 +282,66 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         assert.equal(store.get().project?.name, "Models");
         assert.isTrue(session.project.dirty);
         assert.lengthOf(await browserProjects.list(), 0);
+    });
+
+    it("Save as pressed while the question asks cancels that save, and the next one asks afresh", async () => {
+        await clearRecent();
+        const { session, tab, store } = await openShapes();
+        await pasteModel(session, tab);
+
+        await userEvent.keyboard("{Control>}s{/Control}");
+        const saveAs = await screen.findByRole("dialog", { name: "Save Models as" });
+        const field = within(saveAs).getByRole("textbox", { name: "Name" });
+        await userEvent.clear(field);
+        await userEvent.type(field, "Renamed");
+        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
+        const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
+        await userEvent.click(within(keep).getByText("Use URL"));
+
+        await userEvent.keyboard("{Control>}{Shift>}s{/Shift}{/Control}");
+        const again = await screen.findByRole("dialog", { name: "Save Models as" });
+        assert.equal(store.get().project?.name, "Models", "the cancelled save's name is taken back");
+        await userEvent.click(within(again).getByRole("button", { name: "Save" }));
+        const asked = await screen.findByRole("dialog", { name: "Save files from the web" });
+        assert.isTrue(
+            within(asked).getByLabelText<HTMLInputElement>("Embed model").checked,
+            "the cancelled question's answer is not carried over",
+        );
+        await userEvent.click(within(asked).getByRole("button", { name: "Save" }));
+        await waitFor(() => {
+            assert.isFalse(session.project.dirty);
+        });
+        const [entry] = await keptEntries();
+        assert.isDefined(entry?.files, "embedded, as the second question was answered");
+    });
+
+    it("asks again for a project opened in the session's place", async () => {
+        await clearRecent();
+        const { session, tab } = await openShapes();
+        await pasteModel(session, tab);
+        await userEvent.keyboard("{Control>}s{/Control}");
+        const saveAs = await screen.findByRole("dialog", { name: "Save Models as" });
+        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
+        const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
+        await userEvent.click(within(keep).getByText("Use URL"));
+        await userEvent.click(within(keep).getByRole("button", { name: "Save" }));
+        await waitFor(() => {
+            assert.isFalse(session.project.dirty);
+        });
+
+        // Another project opens in its place, and a layer in it names the same address.
+        const other = createGraphSession();
+        await other.data.addNodes([{ id: "x" }]);
+        await session.project.open((await other.project.save()).text, { discard: true });
+        await session.styles.add({
+            name: "Again",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.model": MODEL },
+        });
+        await userEvent.keyboard("{Control>}s{/Control}");
+        const asked = await screen.findByRole("dialog", { name: "Save files from the web" });
+        assert.isTrue(within(asked).getByLabelText<HTMLInputElement>("Embed model").checked);
+        await userEvent.click(within(asked).getByRole("button", { name: "Cancel" }));
     });
 });

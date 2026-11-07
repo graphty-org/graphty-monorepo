@@ -47,8 +47,27 @@ export interface AssetQuestion {
 
 const assetQuestions = new WeakMap<WorkspaceStore, AssetQuestion>();
 
-/** The addresses the reader already answered for, per session: a later save does not ask again. */
-const answered = new WeakMap<GraphSession, Set<string>>();
+/**
+ * The addresses the reader already answered for, per session and the project it holds
+ * (`project.id`): a later save of the same project does not ask again, and a project opened in
+ * its place starts with none.
+ */
+const answered = new WeakMap<GraphSession, { readonly projectId: string; readonly urls: Set<string> }>();
+
+/**
+ * The addresses already answered for the project the session holds now.
+ * @param session - the project's session.
+ * @returns the set, empty for a project not saved with an answer yet.
+ */
+function answeredFor(session: GraphSession): Set<string> {
+    const projectId = session.project.id;
+    let held = answered.get(session);
+    if (held?.projectId !== projectId) {
+        held = { projectId, urls: new Set<string>() };
+        answered.set(session, held);
+    }
+    return held.urls;
+}
 
 /**
  * The save waiting on the reader's answer, for the dialog that asks.
@@ -75,13 +94,17 @@ export function askAssetChoices(store: WorkspaceStore, session: GraphSession): P
         return Promise.resolve({});
     }
     const choices = session.project.assetChoices();
-    const known = answered.get(session) ?? new Set<string>();
+    const known = answeredFor(session);
     const kept: AssetChoices = Object.fromEntries(
         choices.filter((entry) => known.has(entry.url)).map((entry) => [entry.url, entry.storage]),
     );
     const entries = choices.filter((entry) => !known.has(entry.url));
     if (entries.length === 0) {
         return Promise.resolve(kept);
+    }
+    if (assetQuestions.has(store)) {
+        // A save pressed while the question is open: the open question stays the one answered.
+        return Promise.resolve(null);
     }
     return new Promise((resolve) => {
         assetQuestions.set(store, {
@@ -93,7 +116,6 @@ export function askAssetChoices(store: WorkspaceStore, session: GraphSession): P
                     return;
                 }
                 entries.forEach((entry) => known.add(entry.url));
-                answered.set(session, known);
                 resolve({ ...kept, ...given });
             },
         });

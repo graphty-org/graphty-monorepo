@@ -14,7 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
  * @param side - nodes or edges.
  * @returns the channels, in the element's order.
  */
-export function offeredChannels(
+function offeredChannels(
     session: Pick<GraphSession, "catalog"> | null | undefined,
     side: "node" | "edge",
 ): readonly ChannelDescriptor[] {

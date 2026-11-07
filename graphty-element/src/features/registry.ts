@@ -10,12 +10,7 @@
 
 /** The id of an experiment, as `features="..."` and `createGraphSession({ features })` take it. */
 export type FeatureId =
-    | "data-management"
-    | "timeline"
-    | "location-map"
-    | "selection-workspace"
-    | "cosmograph"
-    | "file-styles";
+    "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {

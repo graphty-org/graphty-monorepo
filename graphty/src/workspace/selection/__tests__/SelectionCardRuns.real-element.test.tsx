@@ -122,7 +122,10 @@ describe("runs started from a selection card", () => {
             assert.isNotNull(found);
             return found;
         });
-        assert.isNotNull(within(row).getByRole("img", { name: /^Used by .*Calm/ }), "the selection that reads it");
+        assert.isNotNull(
+            within(row).getByRole("img", { name: /^Styles: .*Calm/ }),
+            "the style whose selection reads it",
+        );
 
         // Remove, in the row's "...", asks first, naming the layer whose selection will wait.
         await userEvent.click(within(row).getByRole("button", { name: /^More for / }));

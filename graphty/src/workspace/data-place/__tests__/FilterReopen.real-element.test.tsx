@@ -162,7 +162,7 @@ describe("a saved filter opens with its cards", () => {
         await waitFor(() => {
             assert.isNull(list.querySelector(".sel-rest"), "no expanded summary after Done");
         });
-        await userEvent.click(within(list).getByRole("button", { name: /^More for / }));
+        await userEvent.click(within(list).getByRole("button", { name: "More" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Edit/ }));
         await assertSavedFilter(await ws());
     });

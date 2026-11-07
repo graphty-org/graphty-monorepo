@@ -2883,31 +2883,18 @@ export class UpdateManager implements Manager {
         let unseen = false;
         let nodeCount = 0;
         let highest = -1;
-        // A batched row is drawn where its table row says, so while the table moved no row, no
-        // batched row moved and only the object rows are compared.
-        const moves = this.graphContext.getRowTable?.()?.moves ?? -1;
-        const rowsStill = moves !== -1 && moves === this.lastRowMoves;
-        this.lastRowMoves = moves;
-        // Under "batched" only the object rows are walked then (`NodeBatches.roster`).
-        const roster = rowsStill ? this.roster() : null;
-        const walked = roster ?? this.layoutManager.nodes;
-        if (roster !== null) {
-            nodeCount = this.dataManager.nodes.size;
-        }
+        const { walked, rowsStill, total } = this.movedWalk();
 
         for (const node of walked) {
             const { index } = node;
-            nodeCount += roster === null ? 1 : 0;
+            nodeCount++;
 
             if (index === INVALID_INDEX) {
                 unseen = true;
                 continue;
             }
 
-            if (index > highest) {
-                highest = index;
-            }
-
+            highest = Math.max(highest, index);
             const at = index * 3;
 
             if (at + 2 >= this.lastNodePositions.length) {
@@ -2920,6 +2907,7 @@ export class UpdateManager implements Manager {
             }
         }
 
+        nodeCount = total ?? nodeCount;
         if (unseen) {
             this.noteEveryNode(highest);
             return true;
@@ -2930,6 +2918,23 @@ export class UpdateManager implements Manager {
         }
 
         return moved.length > nodeCount * MOST_MOVED_SHARE ? true : moved;
+    }
+
+    /**
+     * The nodes {@link nodesMoved} compares. A batched row is drawn where its table row says, so
+     * while the table moved no row, no batched row moved: under `"batched"` only the roster is
+     * walked then (`NodeBatches.roster`).
+     * @returns The nodes; whether the table moved no row; and the graph's node count when the walk
+     *     is not every node, else undefined.
+     */
+    private movedWalk(): { walked: Iterable<Node>; rowsStill: boolean; total: number | undefined } {
+        const moves = this.graphContext.getRowTable?.()?.moves ?? -1;
+        const rowsStill = moves !== -1 && moves === this.lastRowMoves;
+        this.lastRowMoves = moves;
+        const roster = rowsStill ? this.roster() : null;
+        return roster === null
+            ? { walked: this.layoutManager.nodes, rowsStill, total: undefined }
+            : { walked: roster, rowsStill, total: this.dataManager.nodes.size };
     }
 
     /**

@@ -99,6 +99,9 @@ If a long run ends with `did not finish`, its later stages are missing. Run the 
 still-frame stage, and `summarize.mjs` pools rows per measure, so a measure reaches three runs. The baseline
 needed `lean-m-tail` three times and `lean-m-dpr2-tail` twice.
 
+To see where a frame's CPU goes, set `BENCH_PROFILE=<path prefix>`: the run also profiles 60 still and 60 moving
+frames, outside the timed stages, into `<prefix>-still.cpuprofile` and `<prefix>-orbit.cpuprofile`.
+
 `./matrix.sh list` prints every key. To see why a browser died, run the configuration once with
 `DEBUG=pw:browser` and without the `grep` of `matrix.sh`:
 

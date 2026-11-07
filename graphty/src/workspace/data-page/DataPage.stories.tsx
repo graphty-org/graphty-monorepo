@@ -53,7 +53,10 @@ type Story = StoryObj<typeof meta>;
 const OPEN_PROJECT = { name: "Les Miserables", id: 1 };
 
 /**
- * Waits until the page has read its source: the sample grid, or the problem block.
+ * Waits until the page has read its source and counted it: the sample grid or the problem block,
+ * with the footer no longer "Still counting", the page's fonts loaded, and a frame drawn since. The rows and the count
+ * arrive separately, and the count moves focus to Load: a play that acted on the rows alone opened
+ * the role menu before the count, so the shot caught "Still counting" or the menu closing (#6127).
  * @param canvasElement - the story's root.
  */
 async function read(canvasElement: HTMLElement): Promise<void> {
@@ -61,7 +64,16 @@ async function read(canvasElement: HTMLElement): Promise<void> {
         if (canvasElement.querySelector('[role="grid"] [role="gridcell"], [role="alert"]') === null) {
             throw new Error("still reading");
         }
+        const footer = canvasElement.textContent;
+        if (footer.includes("Still reading the file") || footer.includes("Still counting")) {
+            throw new Error("still counting");
+        }
     });
+    // The grid sizes its columns from the font; Inter swaps in after the first frame lays the text
+    // out, and the grid measures again when it has, so wait for that load and a frame after it.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
 }
 
 /**

@@ -1106,6 +1106,15 @@ export class UpdateManager implements Manager {
             }
         }
 
+        // `selectNode()` rings its node at once, before any frame draws the mask. A selection
+        // replaced again before this pass (by an edge, through the session) never had that node
+        // in a mask this pass drew, so its ring stayed on a node nothing selects (issue #6131).
+        for (const node of this.graphContext.getSelectionManager?.()?.highlightedNodes() ?? []) {
+            if (!next.has(node)) {
+                node.setSelected(false);
+            }
+        }
+
         for (const node of next) {
             node.setSelected(true);
         }

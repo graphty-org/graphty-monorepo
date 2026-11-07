@@ -22,7 +22,7 @@ The built-in sources are `ndex` (NDEx, the repository of biological networks), `
 `neo4j` and `neptune` presets, `rest` with its `openalex` preset, and `sparql`: see
 [NDEx](./sources/ndex.md), [Cypher](./sources/cypher.md), [REST](./sources/rest.md) and
 [SPARQL](./sources/sparql.md). All of
-them are experimental. `listSources()` lists them with their descriptors and samples. To read from your own service, see
+them are experimental. `listSources()` lists them with their descriptors and examples. To read from your own service, see
 [Writing a source](./writing-a-source.md).
 
 ## Options

@@ -460,7 +460,7 @@ describe("GraphML styles: yEd", () => {
             ${framed('color="#000000" type="line" width="1.0"', fillOf("#ffffff"))}
             </graph></graphml>`,
         );
-        const get = (p: string): unknown[] => resolveStyles(styles, "edge", p, snapshot);
+        const get = (p: StyleProperty): readonly unknown[] => resolveStyles(styles, "edge", p, snapshot);
         // graphml-galaxy-lcms-workflow: a band 3 wide stroked 1 wide in #5F809D over a fill of #ffffff, so the white
         // inside is 2 wide and the outline reaches 2 past it; graphml-synthetic-edges: no fill color, the outline alone
         expect(get("color")).toEqual(["#ffffff", "#00cc99", "#000000"]);

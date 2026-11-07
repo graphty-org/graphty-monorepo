@@ -282,13 +282,13 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | 6 | 3 | 22 | 45% | 36% | 0 | 50 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml | ok | 9 | 6 | 5 | 3 | 23 | 100% | 26% | 0 | 53 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml | ok | 15 | 18 | 3 | 4 | 1 | 0% | 0% | 0 | 117 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 85 | 100% | 0% | 0 | 117 | 0 |  |
-| graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 6 | 3 | 71 | 32% | 4% | 27 | 222 | 0 | W_STYLE_RAMP_ROUNDED |
-| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 6 | 6 | 264 | 96% | 26% | 0 | 1774 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 104 | 100% | 0% | 0 | 117 | 0 |  |
+| graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 6 | 3 | 96 | 50% | 3% | 27 | 222 | 0 | W_STYLE_RAMP_ROUNDED |
+| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 6 | 6 | 288 | 96% | 24% | 0 | 1774 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | 4 | 2 | 29 | 48% | 0% | 0 | 98 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml | ok | 30 | 3 | 9 | 3 | 44 | 48% | 11% | 0 | 75 | 0 |  |
+| graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml | ok | 30 | 3 | 9 | 3 | 47 | 51% | 11% | 0 | 75 | 0 |  |
 | graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml | ok | 21 | 22 | 7 | 3 | 17 | 6% | 6% | 0 | 184 | 0 |  |
-| graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 3 | 25 | 100% | 0% | 0 | 47 | 0 |  |
+| graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 3 | 32 | 100% | 0% | 0 | 47 | 0 |  |
 | json/cyjs-colajs (data and stylesheet) | ok | 21 | 593 | 3 | 4 | 965 | 0% | 0% | 0 | 13382 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/cyjs-colajs-data.json | ok | 21 | 593 | 1 | 2 | 0 | - | - | 0 | 15901 | 0 |  |
 | json/cyjs-cose-bilkent-compound.json | ok | 28 | 35 | 3 | 5 | 0 | - | - | 0 | 1533 | 0 | W_STYLE_SELECTOR_AS_COLUMN |

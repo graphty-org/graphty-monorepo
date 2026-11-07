@@ -896,7 +896,7 @@ function wordsStyleOf(el: SVGTextElement, cs: CSSStyleDeclaration): CSSStyleDecl
         if ((node.textContent ?? "").trim() === "") {
             continue;
         }
-        const parent = node.parentElement;
+        const parent: Element | null = node.parentElement;
         if (parent === null || parent === el) {
             return cs;
         }

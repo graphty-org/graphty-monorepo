@@ -759,7 +759,12 @@ await element.session.styles.add({
 `stops` takes the place of `scale`, `domain`, `range` and `palette` (leave `scale` out or set it to
 `"linear"`); the others are refused beside it, because the points already say what each would. It
 is how a Cytoscape continuous mapping is drawn when a file's styles are loaded (see
-[Styles from Files](./file-styles)).
+[Styles from Files](./file-styles), the `file-styles` experiment).
+
+The channels and values added to draw other programs' files (flat node shapes, borders, widths and
+heights, more arrowheads and line patterns, and the rest) are part of the `file-styles` experiment:
+with it off, `session.catalog.channels(target)` leaves them out, and a layer that writes one is
+still drawn. See [Experiments](./experiments).
 
 A number outside what a channel can draw (a negative size, an opacity above 1) is still clamped,
 and a node color with alpha is still drawn opaque; `styles.counts(id)` reports both per layer, as

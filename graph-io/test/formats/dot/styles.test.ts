@@ -1112,8 +1112,10 @@ function compareWithGraphviz(
         if (g === undefined || visible[i] === false) {
             continue;
         }
-        // a pen width of 0 still draws Graphviz's thinnest line; graphty draws none
+        // a pen width of 0 still draws Graphviz's thinnest line; graphty draws none (an invis node draws no line at all)
+        const invis = /\binvis/.test(String(snapshot.nodes.has("style") ? snapshot.nodes.value("style", i) : ""));
         const thinnest =
+            !invis &&
             borderWidth[i] === 0 &&
             Number(snapshot.nodes.has("penwidth") ? snapshot.nodes.value("penwidth", i) : 1) === 0;
         const ours = {

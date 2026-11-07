@@ -534,7 +534,7 @@ const RUN_PROPERTY: Readonly<Record<string, string>> = {
  * @param site - where a bad color is noted
  * @returns the fields that differ from the label's own font
  */
-function htmlRunFont(
+export function htmlRunFont(
     tags: readonly string[],
     scheme: string | null,
     size: number,
@@ -743,6 +743,15 @@ function inches(raw: string | null, at: CanonSite): number | null {
 }
 
 /**
+ * Whether a style draws nothing: Graphviz takes `invisible` for `invis` too (emit.c `parse_style`).
+ * @param tokens - the style tokens
+ * @returns true for invis
+ */
+function isInvis(tokens: readonly string[]): boolean {
+    return tokens.includes("invis") || tokens.includes("invisible");
+}
+
+/**
  * Reads the attributes every element shares: font, tooltip, visibility.
  * @param get - the element's attributes
  * @param tokens - its style tokens
@@ -759,8 +768,7 @@ function readCommon(
     put: Put,
     at: At,
 ): void {
-    // Graphviz takes `invisible` for `invis` too (emit.c `parse_style`)
-    if (tokens.includes("invis") || tokens.includes("invisible")) {
+    if (isInvis(tokens)) {
         put("visible", false);
     }
     // a part-transparent font color draws its text so (`#377eb880`); an opaque one needs no opacity
@@ -1104,11 +1112,24 @@ function readClusterBox(get: Attr, put: Put): void {
  * Reads one node, or one cluster's container, the way Graphviz draws it.
  * @param get - its attributes
  * @param cx - its name and kind
- * @param put - receives the values
+ * @param drawnPut - receives the values
  * @param at - the sites
+ * @returns whether it is an invis node, which draws nothing
  */
-function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
+function readNode(get: Attr, cx: NodeContext, drawnPut: Put, at: At): boolean {
     const tokens = styleTokens(get("style"), at("visible"));
+    // An invis node draws nothing but is still laid out, and Graphviz draws every edge that ends at it, up to its rim
+    // (dot-real-linux-kernel's `HI -> HI_` to a `shape=point, style=invis` node): it stays visible, keeps its outline's
+    // shape and size, and paints no fill, outline or label. An invis cluster's box is hidden as before.
+    // ponytail: its label is dropped, so a node graphty grows round its label (`labelFit`) keeps its least size
+    const invisible = !cx.cluster && isInvis(tokens);
+    const put: Put = invisible
+        ? (property, value) => {
+              if (INVISIBLE_KEEPS.has(property)) {
+                  drawnPut(property, value);
+              }
+          }
+        : drawnPut;
     const shapeRaw = nonEmpty(get("shape"));
     const shape = (shapeRaw ?? "").toLowerCase();
     const n: NodeRead = {
@@ -1137,7 +1158,16 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     readNodeShape(n);
     readNodeLabelAndSize(n, names);
     readNodeImage(n);
+    if (invisible) {
+        drawnPut("fillOpacity", 0);
+        drawnPut("borderWidth", 0);
+        drawnPut("label", "");
+    }
+    return invisible;
 }
+
+/** What an invis node keeps of what it reads: where its edges end, its outline's shape and size. */
+const INVISIBLE_KEEPS: ReadonlySet<string> = new Set(["shape", "shapePoints", "shapePointsStretch", "width", "height"]);
 
 /** Where `imagepos` puts a node's image, 0 to 1 across and down, by its first and second letter. */
 const IMAGE_POS: Readonly<Record<string, number>> = { t: 0, m: 0.5, b: 1, l: 0, c: 0.5, r: 1 };
@@ -2770,8 +2800,8 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         const put: Put = (p, v) => {
             node.put(i, p, v);
         };
-        readNode(get, ncx, put, at);
-        readNodeXlabel(get, ncx, places.center(i), put, at, leftOut.has(i));
+        const invisible = readNode(get, ncx, put, at);
+        readNodeXlabel(get, ncx, places.center(i), put, at, invisible || leftOut.has(i));
         const shown = defaultLabel(ncx, (get("shape") ?? "").toLowerCase(), notes);
         if (shown !== null) {
             nameColumn[i] = shown;

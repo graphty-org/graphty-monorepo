@@ -26,7 +26,7 @@ function recordOf(snapshot: GraphSnapshot, name: string, row: number): Rec | nul
 
 /**
  * The frame of a yEd GML group: yEd's default insets, and the height of its labels anchored inside its top
- * (`LabelGraphics` `anchor` `t`, `tl` or `tr`).
+ * (`LabelGraphics` `anchor` `t`, `tl` or `tr`) and its bottom (`b`, `bl`, `br`).
  * @param snapshot - the graph
  * @param row - the node
  * @returns the frame, or null for a node that is not a group
@@ -40,11 +40,15 @@ function gmlGroupFrame(snapshot: GraphSnapshot, row: number): YedGroupFrame | nu
     const labels = (Array.isArray(raw) ? raw : [raw]).filter(
         (l): l is Rec => typeof l === "object" && l !== null && !Array.isArray(l),
     );
-    const heights = labels
-        .filter((l) => ["t", "tl", "tr"].includes(String(l.anchor)) && typeof l.text === "string" && l.text !== "")
-        .map((l) => yedLabelHeight(String(l.text), Number(l.fontSize ?? 12) || 12));
+    const label = (anchors: readonly string[]): number =>
+        Math.max(
+            0,
+            ...labels
+                .filter((l) => anchors.includes(String(l.anchor)) && typeof l.text === "string" && l.text !== "")
+                .map((l) => yedLabelHeight(String(l.text), Number(l.fontSize ?? 12) || 12)),
+        );
     const inset = YED_GROUP_INSETS;
-    return { insets: [inset, inset, inset, inset], label: Math.max(0, ...heights) };
+    return { insets: [inset, inset, inset, inset], top: label(["t", "tl", "tr"]), bottom: label(["b", "bl", "br"]) };
 }
 
 /**

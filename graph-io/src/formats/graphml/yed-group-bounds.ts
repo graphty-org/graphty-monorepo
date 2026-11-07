@@ -1,8 +1,8 @@
 /**
  * The box yEd draws an open group in. yEd keeps an open group's bounds round its members (a GraphML
- * `y:ProxyAutoBoundsNode`, a GML `isGroup` node): the members' box grown by the group's insets, and on top by the
- * height of its label inside the top, whatever box the file stores. yEd 3.25 draws `yed-graphml-specimen-groups`'
- * open group, stored at 105,83.5 150 x 90 with members over x 138..222, y 126.5..150.5, insets 15 and a 10 pt top
+ * `y:ProxyAutoBoundsNode`, a GML `isGroup` node): the members' box grown by the group's insets, and by the height of
+ * its labels inside its top and its bottom, whatever box the file stores. yEd 3.25 draws
+ * `yed-graphml-specimen-groups`' open group, stored at 105,83.5 150 x 90 with members over x 138..222, y 126.5..150.5, insets 15 and a 10 pt top
  * label, at 123,95.8594 114 x 69.6406, and `gml-specimen-groups`' nested group round its inner group's own box.
  */
 
@@ -11,11 +11,13 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 /** A box: left, top, right and bottom, y growing downward. */
 export type YedBox = readonly [number, number, number, number];
 
-/** What grows an open group's box round its members: its insets (top, left, bottom, right) and its top label. */
+/** What grows an open group's box round its members: its insets (top, left, bottom, right) and its labels. */
 export interface YedGroupFrame {
     readonly insets: readonly [number, number, number, number];
     /** The height of the group's labels inside its top; 0 without one. */
-    readonly label: number;
+    readonly top: number;
+    /** The height of the group's labels inside its bottom; 0 without one. */
+    readonly bottom: number;
 }
 
 /** yEd's insets of a group that stores none (GroupNodeRealizer's default). */
@@ -59,9 +61,9 @@ export function yedGroupBounds(
         const [top, left, bottom, right] = frame.insets;
         const box: YedBox = [
             Math.min(...inside.map((b) => b[0])) - left,
-            Math.min(...inside.map((b) => b[1])) - top - frame.label,
+            Math.min(...inside.map((b) => b[1])) - top - frame.top,
             Math.max(...inside.map((b) => b[2])) + right,
-            Math.max(...inside.map((b) => b[3])) + bottom,
+            Math.max(...inside.map((b) => b[3])) + bottom + frame.bottom,
         ];
         out.set(row, box);
         return box;

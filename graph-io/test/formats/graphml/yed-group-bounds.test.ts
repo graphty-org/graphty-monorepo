@@ -40,16 +40,24 @@ async function drawnBoxes(format: "graphml" | "gml", file: string, ids: readonly
 }
 
 describe("yEd open groups", () => {
-    it("draws a GraphML group round its members, its insets and its top label", async () => {
+    it("draws a GraphML group round its members, its insets and its labels, nested groups first", async () => {
         const boxes = await drawnBoxes("graphml", "yed-graphml/specimen-groups.graphml", [
             "group-open",
             "group-closed",
+            "group-label-bottom",
+            "group-insets-30",
+            "group-nested",
         ]);
         // yed-graphml-specimen-groups.svg: <rect x="123" y="95.8594" width="114" height="69.6406"/>; a closed group
-        // keeps its stored box
+        // keeps its stored box; the label at the bottom grows it down (<rect x="683" y="316.5" width="114"
+        // height="69.6406"/>); <rect x="948" y="285.8594" width="144" height="99.6406"/>; the outer nested group
+        // round the inner one's own box, <rect x="108" y="475.2188" width="144" height="115.2812"/>
         expect(boxes).toEqual([
             [123, 95.86, 114, 69.64],
             [420, 103.5, 80, 50],
+            [683, 316.5, 114, 69.64],
+            [948, 285.86, 144, 99.64],
+            [108, 475.22, 144, 115.28],
         ]);
     });
 

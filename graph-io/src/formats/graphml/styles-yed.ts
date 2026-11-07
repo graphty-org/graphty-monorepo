@@ -2372,8 +2372,10 @@ export function yedLabelHeight(text: string, fontSize: number): number {
 
 /**
  * The frame of an open yEd GraphML group (a `y:ProxyAutoBoundsNode` whose active realizer is not closed): its
- * `y:Insets`, and the height yEd measures for its visible labels inside its top (`internal` at `t`, `tl` or `tr`), not
- * the height the file stores (17 for a 10 pt label yEd draws 15.6406 high in `yed-graphml-specimen-groups`).
+ * `y:Insets` plus its `y:BorderInsets` (`graphml-magiclantern-architecture`'s outer group stores left 9.1 and right 91
+ * of them, and yEd draws it at its stored width), and the height yEd measures for its visible labels inside its top
+ * (`internal` at `t`, `tl` or `tr`) and its bottom (`b`, `bl`, `br`), not the height the file stores (17 for a 10 pt
+ * label yEd draws 15.6406 high in `yed-graphml-specimen-groups`, where the group with its label at `b` grows down).
  * @param tree - the node's graphics tree
  * @returns the frame, or null for a node that is not an open group
  */
@@ -2383,23 +2385,31 @@ function graphmlGroupFrame(tree: unknown): YedGroupFrame | null {
     if (real === null || treeAttr(treeChild(real.r, "State"), "closed") === "true") {
         return null;
     }
-    const insets = treeChild(real.r, "Insets");
-    const inset = (side: string): number => {
-        const v = Number(treeAttr(insets, `${side}F`) ?? treeAttr(insets, side));
-        return insets !== undefined && Number.isFinite(v) ? v : YED_GROUP_INSETS;
+    const side = (element: unknown, name: string, unset: number): number => {
+        const v = Number(treeAttr(element, `${name}F`) ?? treeAttr(element, name));
+        return element !== undefined && Number.isFinite(v) ? v : unset;
     };
-    const tops = treeChildren(real.r, "NodeLabel").filter(
+    const [insets, border] = [treeChild(real.r, "Insets"), treeChild(real.r, "BorderInsets")];
+    // the border insets are how far a reader has dragged the group's sides out past its insets
+    const inset = (name: string): number => side(insets, name, YED_GROUP_INSETS) + side(border, name, 0);
+    const shown = treeChildren(real.r, "NodeLabel").filter(
         (l) =>
             treeAttr(l, "visible") !== "false" &&
             (treeAttr(l, "modelName") ?? "internal") === "internal" &&
-            ["t", "tl", "tr"].includes(treeAttr(l, "modelPosition") ?? "c") &&
             (treeText(l)?.trim() ?? "") !== "",
     );
-    const label = Math.max(
-        0,
-        ...tops.map((l) => yedLabelHeight(treeText(l)?.trim() ?? "", Number(treeAttr(l, "fontSize") ?? 12) || 12)),
-    );
-    return { insets: [inset("top"), inset("left"), inset("bottom"), inset("right")], label };
+    const label = (positions: readonly string[]): number =>
+        Math.max(
+            0,
+            ...shown
+                .filter((l) => positions.includes(treeAttr(l, "modelPosition") ?? "c"))
+                .map((l) => yedLabelHeight(treeText(l)?.trim() ?? "", Number(treeAttr(l, "fontSize") ?? 12) || 12)),
+        );
+    return {
+        insets: [inset("top"), inset("left"), inset("bottom"), inset("right")],
+        top: label(["t", "tl", "tr"]),
+        bottom: label(["b", "bl", "br"]),
+    };
 }
 
 /**
@@ -2417,14 +2427,38 @@ export function graphmlGroupBounds(snapshot: GraphSnapshot): Map<number, YedBox>
     }
     return yedGroupBounds(
         snapshot,
-        (row) => {
-            const real = realizerOf(treeOf(row), NODE_REALIZERS);
-            const geometry = treeChild(real?.r, "Geometry");
-            const [x, y, w, h] = ["x", "y", "width", "height"].map((a) => Number(treeAttr(geometry, a)));
-            return [x, y, w, h].every(Number.isFinite) ? [x, y, x + w, y + h] : null;
-        },
+        (row) => memberBox(treeOf(row)),
         (row) => graphmlGroupFrame(treeOf(row)),
     );
+}
+
+/**
+ * The box a node takes in its group: its `y:Geometry` and its visible labels' boxes (`x` and `y` from the node's
+ * corner, `width`, `height`), as yEd grows a group round its members' labels too (`graphml-yed-voctomix`'s group
+ * reaches 31.8 left of its leftmost member, to the start of that member's label).
+ * @param tree - the node's graphics tree
+ * @returns the box, or null for a node with no geometry
+ */
+function memberBox(tree: unknown): YedBox | null {
+    const real = realizerOf(tree, NODE_REALIZERS);
+    const boxOf = (element: unknown, x0: number, y0: number): YedBox | null => {
+        const [x, y, w, h] = ["x", "y", "width", "height"].map((a) => Number(treeAttr(element, a)));
+        return [x, y, w, h].every(Number.isFinite) ? [x0 + x, y0 + y, x0 + x + w, y0 + y + h] : null;
+    };
+    const node = boxOf(treeChild(real?.r, "Geometry"), 0, 0);
+    if (node === null) {
+        return null;
+    }
+    const shown = treeChildren(real?.r, "NodeLabel").filter(
+        (label) => treeAttr(label, "visible") !== "false" && (treeText(label)?.trim() ?? "") !== "",
+    );
+    const boxes = [node, ...shown.map((label) => boxOf(label, node[0], node[1]))].filter((b) => b !== null);
+    return [
+        Math.min(...boxes.map((b) => b[0])),
+        Math.min(...boxes.map((b) => b[1])),
+        Math.max(...boxes.map((b) => b[2])),
+        Math.max(...boxes.map((b) => b[3])),
+    ];
 }
 
 /**

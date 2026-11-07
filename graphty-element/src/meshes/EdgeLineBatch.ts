@@ -460,6 +460,51 @@ export class EdgeLineBatch {
     }
 
     /**
+     * Take a slot drawn exactly as a slot of another batch is drawn: its placement copied, not
+     * placed again. What an edge whose colour or opacity changed takes, because those are its
+     * batch's and nothing about where it is drawn moved.
+     * @param from - The batch the edge is drawn in now.
+     * @param index - Its slot there, which the caller releases afterwards.
+     * @param owner - The edge it draws; see {@link EdgeLineBatch.acquire}.
+     * @returns The new slot, and whether its placement was copied: false when the two batches lay
+     *     their slots out differently, and the slot is left for the next placement.
+     */
+    adopt(from: EdgeLineBatch, index: number, owner?: SlotOwner): { slot: number; copied: boolean } {
+        const slot = this.acquire(owner);
+        const copied =
+            !this.gone &&
+            !from.gone &&
+            from.stride === this.stride &&
+            (from.matrices === null) === (this.matrices === null) &&
+            (from.statics === null) === (this.statics === null);
+        if (!copied) {
+            return { slot, copied };
+        }
+
+        // A slot the visibility mask parked stays parked, holding the placement it will be shown at.
+        const { stride } = this;
+        const parked = from.parking.isParked(index);
+        this.slots.set(from.parking.placementOf(from.slots, index), slot * stride);
+        if (this.statics !== null && from.statics !== null) {
+            this.writeStatic(slot, from.statics.subarray(index * EDGE_STATIC_FLOATS, (index + 1) * EDGE_STATIC_FLOATS));
+        }
+
+        if (parked) {
+            this.park(slot);
+            return { slot, copied };
+        }
+
+        if (this.matrices !== null && from.matrices !== null) {
+            const at = index * FLOATS_PER_MATRIX;
+            this.matrices.set(from.matrices.subarray(at, at + FLOATS_PER_MATRIX), slot * FLOATS_PER_MATRIX);
+        }
+
+        this.slotRuns.mark(slot, this.uploads.on, this.highWater);
+
+        return { slot, copied };
+    }
+
+    /**
      * Hand a slot back, and stop drawing it.
      *
      * ponytail: the free list never shrinks and the slots are never compacted, so a graph that

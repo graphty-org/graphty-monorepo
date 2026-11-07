@@ -350,6 +350,39 @@ export class ArrowCapBatch {
     }
 
     /**
+     * Draw one slot where a slot of another batch is drawn: its matrix, and its direction, length
+     * and cut, copied rather than placed again. Its colour stays its own.
+     * @param index - The slot.
+     * @param from - The batch the other slot is in.
+     * @param fromIndex - The other slot.
+     * @returns False, copying nothing, when the two batches draw their caps differently.
+     */
+    copyPlacement(index: number, from: ArrowCapBatch, fromIndex: number): boolean {
+        if (this.gone || from.gone || from.billboarded !== this.billboarded || from.is2D !== this.is2D) {
+            return false;
+        }
+
+        // A slot the visibility mask parked stays parked, holding the placement it will be shown at.
+        this.matrices.set(from.parking.placementOf(from.matrices, fromIndex), index * FLOATS_PER_MATRIX);
+        this.written("matrix", index);
+        if (from.parking.isParked(fromIndex)) {
+            this.park(index);
+        }
+        if (this.billboard !== null && from.billboard !== null) {
+            for (const kind of ["arrowDirection", "arrowSize", "arrowClip"] as const) {
+                const stride = BILLBOARD_BUFFERS[kind];
+                this.billboard[kind].set(
+                    from.billboard[kind].subarray(fromIndex * stride, (fromIndex + 1) * stride),
+                    index * stride,
+                );
+                this.written(kind, index);
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Cut one slot's shape off past a point along its own X axis, or stop cutting it. A no-op on a
      * batch whose shapes hold nothing per instance.
      * @param index - The slot.
@@ -860,6 +893,22 @@ export class ArrowCap {
         // "Turn into the plane first, then along the line" composes as alongLine * intoPlane.
         scratchRotation.multiplyInPlace(INTO_XY_PLANE);
         this.batch?.placeOriented(this.slot, position, scratchRotation, this.size * this.scale);
+    }
+
+    /**
+     * Stand where another cap of the same shape and size stands, drawn as it is drawn but in this
+     * cap's own colour: what an edge whose colour or opacity changed does instead of placing its
+     * new cap again.
+     * @param other - The cap this one replaces.
+     * @returns False when the two cannot be drawn alike, and this cap waits for its next placement.
+     */
+    takePlaceOf(other: ArrowCap): boolean {
+        if (this.batch === null || other.batch === null || other.size !== this.size) {
+            return false;
+        }
+
+        this.scale = other.scale;
+        return this.batch.copyPlacement(this.slot, other.batch, other.slot);
     }
 
     /**

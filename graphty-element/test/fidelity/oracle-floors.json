@@ -33601,10 +33601,10 @@
             "background": 1,
             "raster.arrowhead": 0.92,
             "raster.canvas": 0.97,
-            "raster.edge": 0.87,
+            "raster.edge": 0.9,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.88,
+            "raster.nodeOutline": 0.89,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
         },
@@ -56189,6 +56189,22 @@
                 "to": 0.992,
                 "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
+            }
+        },
+        "cx2-signor-aml": {
+            "edge.route": {
+                "floor": 0.933,
+                "to": 0.923,
+                "reason": "A route ending on a Cytoscape compound node is judged whole again, no longer cut at the group's box: Cytoscape desktop runs these lines past the compound's border into it (107->55 ends 14 px inside its box), where graphty stops at the border",
+                "date": "2026-11-07"
+            }
+        },
+        "cx2-signor-aml@matched": {
+            "edge.route": {
+                "floor": 0.933,
+                "to": 0.923,
+                "reason": "A route ending on a Cytoscape compound node is judged whole again, no longer cut at the group's box: Cytoscape desktop runs these lines past the compound's border into it (107->55 ends 14 px inside its box), where graphty stops at the border",
+                "date": "2026-11-07"
             }
         },
         "cx2-syn-mappings": {

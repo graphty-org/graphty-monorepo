@@ -5,6 +5,9 @@
 import { assert, test } from "vitest";
 
 import { createGraphSession } from "../../src/session";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const doc = JSON.stringify({
     options: { type: "directed" },

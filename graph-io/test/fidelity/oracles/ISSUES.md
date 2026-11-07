@@ -961,8 +961,9 @@ copy a draw.io mistake into graph-io):
       the event, gateway, task, artifact and data object symbols; it draws nothing for three event characteristics
       (`START_EVENT_SUB_PROCESS_NON_INTERRUPTING`, `INTERMEDIATE_BOUNDARY_NON_INTERRUPTING`, `INTERMEDIATE_THROWING`,
       whose spelling is inferred: `bpmnStyleProperties` in `yed-vocabulary.json`) nor for an `Event` with no
-      properties. graph-io reads only the configuration's outline (`bpmn.event` an ellipse, `bpmn.gateway` a
-      diamond), so every symbol, marker and icon color is a gap: graphty-element has no BPMN symbol to draw yet.
+      properties. graph-io reads the configuration's outline (`bpmn.event` an ellipse, `bpmn.gateway` a diamond)
+      and draws the symbols, markers and icon colors as yEd's own drawings of these sheets show them, as a picture
+      over the node.
     - Older yEd versions write the Modern Nodes ids without their `com.yjava.` prefix (`BevelNode`, `BevelNode2`,
       `BevelNode3`, `BevelNodeWithShadow`: `generic-legacy-*`), and `DemoGroup` (a GenericGroupNode with a
       `headerBackground` property). draw.io draws them as plain boxes.
@@ -2691,9 +2692,15 @@ Rows still open, each with what stops it:
   oracle draws a picture, vis-network draws nothing; oracle limit, to recheck in a browser.
 - yEd (`yed-graphml-specimen-node-shapes-p2` .. `-p6`): the BPMN artifacts, the SBGN nucleic acid feature and perturbing
   agent, the UML class and 3D rectangle's size, the UML note and the shapes that keep their proportions in a box of
-  another shape are read as yEd's own drawings show them (#5788). The lines some shapes draw inside (predefined
-  process, internal storage, direct data's rim, the big entity's header), the strips of a raised border (#5839) and a
-  BPMN intermediate event's and transaction's double line are not drawn.
+  another shape are read as yEd's own drawings show them (#5788). The lines some shapes draw inside (direct data's
+  rim, the big entity's header), the strips of a raised border (#5839) and a BPMN intermediate event's and
+  transaction's double line are not drawn. What yEd draws inside a GenericNode beside its outline -- the BPMN
+  gateway markers, event symbols, task icons, activity markers, a data object's fold and arrow in the icon colors, the
+  lines inside a predefined process and an internal storage -- and a UML note's fold are drawn as a picture over the
+  node, measured from these sheets (`graph-io` `styles-yed-drawing.ts`): `stray.present` -p2 22 to 20, -p3 16 to 15,
+  -p4 30 to 0, -p5 31 to 0, -p6 24 to 0 in each view, `graphml-libcitygml-mapping` 11 to 1, `graphml-synthetic-nodes`
+  12 to 11. Left: an activity's markers past its sides (four markers on a node 56 wide) are cut at the node, and only
+  one size of each node has been drawn, so how the marks scale is unproven.
 - yEd `y:ImageNode` (`yed-graphml-specimen-images-charts`): graphty draws the PNG yEd draws; draw.io, the stand-in,
   draws an empty box, so this sheet's stand-in raster floors (`raster.nodeBody`, `raster.nodeOutline`) fall until
   the owner's yEd export replaces the stand-in. yEd's own drawings show it paints neither an image node's fill nor its

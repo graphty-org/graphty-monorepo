@@ -16,6 +16,7 @@
  * own vocabulary keeps, such as Pajek's `other:cross`). A shape the table leaves out
  * is not drawn from the file, and the load notes it. A shape drawn as the element shape of the same
  * name is drawn exactly; any other is noted as drawn as the nearest.
+ * @experimental file-styles
  */
 export type FileStyleShapeTable = Readonly<Record<string, string>>;
 
@@ -27,6 +28,7 @@ export type FileStyleShapeTable = Readonly<Record<string, string>>;
  * rectangles rounded on one side only (`other:top-round-rectangle`, `other:bottom-round-rectangle`) and
  * vis-network's database (`other:database`) as the element's shapes of those names, and Graphviz's cylinder
  * (`other:cylinder`) as the database it is drawn as.
+ * @experimental file-styles
  */
 export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     ellipse: "ellipse",

@@ -237,6 +237,8 @@ export function SettingsDialog(): React.JSX.Element {
             close();
         }
     };
+    // Mantine's modal sees Escape before anything inside it: a pop-out on a page closes alone.
+    const [popoutOpen, setPopoutOpen] = useState(false);
     // Saving a provider sends focus to the composer, not back to what opened Settings.
     const [toComposer, setToComposer] = useState(false);
     useEffect(() => {
@@ -260,6 +262,7 @@ export function SettingsDialog(): React.JSX.Element {
         <Modal
             opened={opened}
             onClose={close}
+            closeOnEscape={!popoutOpen}
             title="Settings"
             size="lg"
             returnFocus={!toComposer}
@@ -291,6 +294,7 @@ export function SettingsDialog(): React.JSX.Element {
                                 setToComposer(true);
                             }}
                             commit={commit}
+                            onPopoutOpen={setPopoutOpen}
                         />
                     ) : null}
                 </section>

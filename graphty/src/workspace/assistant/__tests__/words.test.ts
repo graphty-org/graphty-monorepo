@@ -43,7 +43,7 @@ const ROWS: readonly (readonly [string, Record<string, string | number>, string 
         "AI_PROVIDER_ERROR",
         { status: 429, cause: "quota" },
         "Google has no credit left on this key. Add credit with Google, or choose another provider.",
-        { action: "again-or-provider", failed: true },
+        { action: "again-or-provider", failed: true, billing: "https://aistudio.google.com/billing" },
     ],
     [
         "AI_PROVIDER_ERROR",

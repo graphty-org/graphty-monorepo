@@ -39,15 +39,17 @@ export type PageCommit = React.RefObject<(() => Promise<boolean>) | null>;
  * @param props - Component props
  * @param props.onSaved - called as Save closes Settings, with focus bound for the composer
  * @param props.commit - set by the section to what Done runs
+ * @param props.onPopoutOpen - called as a pop-out on the page opens or closes, so Esc closes it alone
  * @returns The section
  */
 export function AiProviderPage({
     onSaved,
     commit,
-}: Readonly<{ onSaved: () => void; commit: PageCommit }>): React.JSX.Element {
+    onPopoutOpen,
+}: Readonly<{ onSaved: () => void; commit: PageCommit; onPopoutOpen?: (open: boolean) => void }>): React.JSX.Element {
     return (
         <Suspense fallback={null}>
-            <AiProviderSection onSaved={onSaved} commit={commit} />
+            <AiProviderSection onSaved={onSaved} commit={commit} onPopoutOpen={onPopoutOpen} />
         </Suspense>
     );
 }

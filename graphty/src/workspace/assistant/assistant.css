@@ -91,6 +91,12 @@
     padding-left: 8px;
 }
 
+/* The key field's help: numbered steps, numbers inside the popover's edge. */
+.ws-assistant-key-steps {
+    margin: 0;
+    padding-left: 18px;
+}
+
 .ws-assistant-step {
     display: flex;
     justify-content: space-between;

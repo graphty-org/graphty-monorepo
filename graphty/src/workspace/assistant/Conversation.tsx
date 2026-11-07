@@ -1,6 +1,6 @@
 import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
-import { Button, Collapse, Group, Stack, Text } from "@mantine/core";
+import { Alert, Button, Collapse, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { AssistantChoice } from "../assistant-door/provider";
@@ -185,7 +185,7 @@ interface EndRowProps {
  * How a turn ended, in words from its code, with its buttons under it, so the words get the
  * panel's width. A new failure is the alert. The buttons stay out of the alert, so the one going
  * away on the next send changes nothing it says, and a space keeps its two lines two sentences when
- * read as one.
+ * read as one. A provider out of credit is a warning, with Add credit opening its billing page.
  * @param props - Component props
  * @param props.words - the words
  * @param props.unchanged - whether nothing changed
@@ -195,16 +195,46 @@ interface EndRowProps {
  */
 function EndRow({ words, unchanged, onAgain, alert }: Readonly<EndRowProps>): React.JSX.Element {
     const { run } = useWorkspace();
+    const role = words.failed && alert ? "alert" : undefined;
+    const said = (
+        <>
+            <Text size="sm">{words.line}</Text>{" "}
+            {words.failed && words.action !== null && unchanged ? (
+                <Text size="sm">{WORDS["assistant.nothing-changed"]}</Text>
+            ) : null}
+        </>
+    );
     return (
         <Stack gap={4} align="flex-start">
             {/* Keyed, so a failure becoming news mounts with its role and is said. */}
-            <div key={String(alert)} role={words.failed && alert ? "alert" : undefined}>
-                <Text size="sm">{words.line}</Text>{" "}
-                {words.failed && words.action !== null && unchanged ? (
-                    <Text size="sm">{WORDS["assistant.nothing-changed"]}</Text>
-                ) : null}
-            </div>
-            <Group gap={4} wrap="nowrap">
+            {words.billing === undefined ? (
+                <div key={String(alert)} role={role}>
+                    {said}
+                </div>
+            ) : (
+                <Alert
+                    key={String(alert)}
+                    role={role ?? "note"}
+                    color="yellow"
+                    p="xs"
+                    icon={<GLYPHS.warning size={14} aria-hidden />}
+                >
+                    {said}
+                </Alert>
+            )}
+            <Group gap={4} wrap="wrap">
+                {words.billing === undefined ? null : (
+                    <Button
+                        component="a"
+                        href={words.billing}
+                        target="_blank"
+                        rel="noreferrer"
+                        variant="default"
+                        size="compact-xs"
+                    >
+                        {WORDS["assistant.add-credit"]}
+                    </Button>
+                )}
                 {(words.action === "again" || words.action === "again-or-provider") && onAgain !== null ? (
                     <Button variant="default" size="compact-xs" onClick={onAgain}>
                         {WORDS["assistant.again"]}

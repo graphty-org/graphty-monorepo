@@ -23,6 +23,7 @@ import { wordsFor } from "../analyze/words";
 import { type EffortLevel, providerDisclosure } from "../assistant-door/provider";
 import { formatNumber } from "../settings/numberFormat";
 import { attributeName, channelWord } from "../style/words";
+import { PROVIDER_PAGES } from "./providerPages";
 
 export const WORDS = {
     "assistant.name": "Assistant",
@@ -70,6 +71,8 @@ export const WORDS = {
     "assistant.turn.assistant": "Assistant",
     "assistant.step.unnamed": "A step",
     "assistant.again": "Send again",
+    "assistant.add-credit": "Add credit",
+    "assistant.key-help.open": "Open the key page",
     "assistant.nothing-changed": "Nothing changed.",
     "assistant.list.name": "Chats",
     "assistant.list.delete": "Delete",
@@ -127,7 +130,6 @@ export function chatMenuName(title: string): string {
     return `${title} menu`;
 }
 
-/** The pages a reader makes a key on, by provider id; the app's, not catalog data. */
 /**
  * An effort Select's rows.
  * @param levels - the levels the model takes.
@@ -135,12 +137,6 @@ export function chatMenuName(title: string): string {
  */
 export const effortRows = (levels: readonly EffortLevel[]): { value: EffortLevel; label: string }[] =>
     levels.map((level) => ({ value: level, label: WORDS[`assistant.effort.${level}`] }));
-
-export const KEY_PAGES: Readonly<Record<string, string>> = {
-    google: "https://aistudio.google.com/apikey",
-    openai: "https://platform.openai.com/api-keys",
-    anthropic: "https://console.anthropic.com/settings/keys",
-};
 
 /**
  * What a run's model is told, written by the app for the model and never shown (design 5.4).
@@ -160,6 +156,8 @@ export interface EndWords {
     readonly action: "again" | "provider" | "again-or-provider" | null;
     /** Whether the row is a failure, spoken at once. */
     readonly failed: boolean;
+    /** Where the reader adds credit, for a provider out of it: the row is a warning with this link. */
+    readonly billing?: string;
 }
 
 /**
@@ -305,11 +303,13 @@ export function endWords(code: string, params: AiResultParams, provider: string,
             return note(`${name} cannot use this tool, so the assistant worked without it.`);
         case "AI_PROVIDER_ERROR": {
             if (params.cause === "quota") {
+                const billing = PROVIDER_PAGES[String(id)]?.billing;
                 return {
                     ...setup(
                         `${name} has no credit left on this key. Add credit with ${name}, or choose another provider.`,
                     ),
                     action: "again-or-provider",
+                    ...(billing === undefined ? {} : { billing }),
                 };
             }
             if (params.cause === "rate-limit") {
@@ -421,6 +421,43 @@ export const providerWords = (provider: string): { readonly disclosure: string; 
     disclosure: providerDisclosure(provider),
     link: `Get a key from ${provider}`,
 });
+
+/** Where each provider's key page sends a reader, and what it calls the button that makes a key. */
+const KEY_SITES: Readonly<
+    Partial<Record<string, { readonly site: string; readonly button: string; readonly paid: boolean }>>
+> = {
+    google: { site: "Google AI Studio", button: "Create API key", paid: false },
+    openai: { site: "the OpenAI platform", button: "Create new secret key", paid: true },
+    anthropic: { site: "the Claude Console", button: "Create Key", paid: true },
+};
+
+/**
+ * The key field's help: how to make a key with a provider, step by step, and what its button is called.
+ * @param id - the provider's id.
+ * @param provider - the provider's name.
+ * @returns the help, or null for a provider with no key page.
+ */
+export function keyHelpWords(
+    id: string,
+    provider: string,
+): { readonly name: string; readonly steps: readonly string[]; readonly note: string } | null {
+    const site = KEY_SITES[id];
+    if (site === undefined) {
+        return null;
+    }
+    return {
+        name: `How to get a key from ${provider}`,
+        steps: [
+            `Open the key page and sign in to ${site.site}.`,
+            `Choose ${site.button}.`,
+            "Copy the key. It may be shown only once.",
+            "Paste it into API key here, then Save.",
+        ],
+        note: site.paid
+            ? `${provider} needs credit on the account before a key answers.`
+            : `${provider} has a free tier. Heavier use needs billing set up.`,
+    };
+}
 
 /**
  * The one line under the key field.

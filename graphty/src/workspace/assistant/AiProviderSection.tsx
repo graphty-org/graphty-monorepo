@@ -1,11 +1,26 @@
+import "./assistant.css";
+
+import { Popout, PopoutManager } from "@graphty/compact-mantine";
 import {
     AI_PROVIDER_DESCRIPTORS,
     type AiProviderDescriptor,
     type AiProviderId,
     checkApiKeyShape,
 } from "@graphty/graphty-element/catalog";
-import { Anchor, Button, Checkbox, Group, PasswordInput, Select, Stack, Text } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import {
+    ActionIcon,
+    Alert,
+    Anchor,
+    Button,
+    Checkbox,
+    Group,
+    Input,
+    PasswordInput,
+    Select,
+    Stack,
+    Text,
+} from "@mantine/core";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import type { PageCommit } from "../assistant-door/AssistantPlace";
 import { goToComposer } from "../assistant-door/commands";
@@ -18,9 +33,11 @@ import {
     useAssistantChoice,
     writeAssistantChoice,
 } from "../assistant-door/provider";
+import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { link, linked, unlink } from "./connection";
-import { effortRows, endWords, KEY_PAGES, keyShapeWords, providerWords, WORDS } from "./words";
+import { PROVIDER_PAGES } from "./providerPages";
+import { effortRows, endWords, keyHelpWords, keyShapeWords, providerWords, WORDS } from "./words";
 
 /** What a reader can pick: the test stand-in and the in-browser model, not drawn until it works, stay out. */
 const PROVIDERS = AI_PROVIDER_DESCRIPTORS.filter((entry) => !entry.testOnly && entry.id !== "webllm");
@@ -53,16 +70,89 @@ function modelRows(provider: AiProviderDescriptor): readonly { value: string; la
 }
 
 /**
+ * The key field's (?) button: a click popover with the steps to make a key and the key page's link.
+ * A click, not a hover, so touch and the keyboard open it; Escape closes it.
+ * @param props - Component props
+ * @param props.id - the provider's id
+ * @param props.provider - the provider's name
+ * @param props.page - its key page
+ * @param props.onOpenChange - called as it opens or closes
+ * @returns The button, or nothing for a provider with no help
+ */
+function KeyHelp({
+    id,
+    provider,
+    page,
+    onOpenChange,
+}: Readonly<{
+    id: string;
+    provider: string;
+    page: string;
+    onOpenChange?: (open: boolean) => void;
+}>): React.JSX.Element | null {
+    const help = keyHelpWords(id, provider);
+    // Gone while open (another provider picked), it no longer holds Esc for itself.
+    useEffect(
+        () => () => {
+            onOpenChange?.(false);
+        },
+        [onOpenChange],
+    );
+    if (help === null) {
+        return null;
+    }
+    return (
+        // Its own floating layer, as each pop-out place in the app has.
+        <PopoutManager>
+            <Popout onOpenChange={onOpenChange}>
+                <Popout.Trigger>
+                    <ActionIcon variant="subtle" color="gray" size="xs" aria-label={help.name}>
+                        <GLYPHS.unknown size={12} aria-hidden />
+                    </ActionIcon>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={260}
+                    placement="bottom"
+                    alignment="start"
+                    header={{ variant: "title", title: help.name }}
+                    closeLabel={WORDS["assistant.close"]}
+                >
+                    <Popout.Content>
+                        <Stack gap={6}>
+                            <ol className="ws-assistant-key-steps">
+                                {help.steps.map((step) => (
+                                    <li key={step}>
+                                        <Text size="xs">{step}</Text>
+                                    </li>
+                                ))}
+                            </ol>
+                            <Text size="xs" c="dimmed">
+                                {help.note}
+                            </Text>
+                            <Anchor href={page} target="_blank" rel="noreferrer" size="xs">
+                                {WORDS["assistant.key-help.open"]}
+                            </Anchor>
+                        </Stack>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        </PopoutManager>
+    );
+}
+
+/**
  * Settings' AI provider section (design 4.2): the capability's one home. The element keeps the key.
  * @param props - Component props
  * @param props.onSaved - called as Save closes Settings
  * @param props.commit - set to what Settings' Done runs: Save, when the page holds something unsaved
+ * @param props.onPopoutOpen - called as the key help opens or closes
  * @returns The section
  */
 export default function AiProviderSection({
     onSaved,
     commit,
-}: Readonly<{ onSaved: () => void; commit?: PageCommit }>): React.JSX.Element {
+    onPopoutOpen,
+}: Readonly<{ onSaved: () => void; commit?: PageCommit; onPopoutOpen?: (open: boolean) => void }>): React.JSX.Element {
     const { store, element } = useWorkspace();
     const links = useWorkspaceState((state) => state.assistantLinks);
     const saved = useAssistantChoice();
@@ -84,6 +174,9 @@ export default function AiProviderSection({
     const [confirming, setConfirming] = useState(false);
     const [keySaved, setKeySaved] = useState(false);
     const keyField = useRef<HTMLInputElement>(null);
+    const keyFieldId = useId();
+    // A run that ended out of credit on this provider warns here too, until the next run or a new key clears it.
+    const ended = useWorkspaceState((state) => state.assistantEnded);
     const saveButton = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         if (element !== null && saved !== null) {
@@ -94,7 +187,11 @@ export default function AiProviderSection({
         setKeySaved(element?.getApiKeyManager()?.hasKey(provider) === true);
     }, [element, provider, links, saved]);
     const words = providerWords(descriptor.plainName);
-    const keyPage = KEY_PAGES[provider];
+    const keyPage = PROVIDER_PAGES[provider]?.key;
+    const outOfCredit =
+        ended?.code === "AI_PROVIDER_ERROR" && (ended.params.provider ?? saved?.provider) === provider
+            ? endWords(ended.code, ended.params, provider, false)
+            : null;
     const checkKey = (typed: string): string | null =>
         keyShapeWords(checkApiKeyShape(provider, typed), descriptor.plainName);
 
@@ -220,11 +317,35 @@ export default function AiProviderSection({
                     }}
                 />
             ) : null}
+            {outOfCredit?.billing === undefined ? null : (
+                <Alert color="yellow" role="note" p="xs" icon={<GLYPHS.warning size={14} aria-hidden />}>
+                    <Stack gap={4} align="flex-start">
+                        <Text size="xs">{outOfCredit.line}</Text>
+                        <Anchor href={outOfCredit.billing} target="_blank" rel="noreferrer" size="xs">
+                            {WORDS["assistant.add-credit"]}
+                        </Anchor>
+                    </Stack>
+                </Alert>
+            )}
             <Stack gap={4}>
+                {/* The label sits beside the (?) button, not around it, so the field's name stays "API key". */}
+                <Group gap={2} wrap="nowrap">
+                    <Input.Label htmlFor={keyFieldId} size="xs">
+                        {WORDS["assistant.provider.key"]}
+                    </Input.Label>
+                    {keyPage === undefined || !descriptor.requiresKey ? null : (
+                        <KeyHelp
+                            id={provider}
+                            provider={descriptor.plainName}
+                            page={keyPage}
+                            onOpenChange={onPopoutOpen}
+                        />
+                    )}
+                </Group>
                 <PasswordInput
                     ref={keyField}
+                    id={keyFieldId}
                     visibilityToggleButtonProps={{ tabIndex: 0 }}
-                    label={WORDS["assistant.provider.key"]}
                     size="xs"
                     autoComplete="off"
                     placeholder={keySaved ? WORDS["assistant.provider.key-saved"] : undefined}

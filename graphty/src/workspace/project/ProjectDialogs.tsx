@@ -1,5 +1,5 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ProjectAssetChoice } from "@graphty/graphty-element/session";
+import type { GraphSession, ProjectAssetChoice } from "@graphty/graphty-element/session";
 import { Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
@@ -142,7 +142,22 @@ function fileSize(bytes: number): string {
  * @returns the short address.
  */
 function shortAddress(url: string): string {
-    return middleCut(url.replace(/^[a-z]+:\/\//i, "").replace(/[?#].*$/, ""), 40);
+    // graphty-element lists only addresses it fetched, so each one parses.
+    const { host, pathname } = new URL(url);
+    return middleCut(`${host}${pathname}`, 40);
+}
+
+/**
+ * A model's or a picture's name for the reader, from the address a layer names it by.
+ * @param session - the element's session, or null before it comes up.
+ * @param entry - what graphty-element said of it.
+ * @returns the name.
+ */
+function assetName(session: GraphSession | null, entry: ProjectAssetChoice): string {
+    if (session === null) {
+        return entry.url;
+    }
+    return entry.kind === "image" ? pictureName(session, entry.url) : modelName(session, entry.url);
 }
 
 /**
@@ -234,11 +249,7 @@ function KeepAssetsDialog(): React.JSX.Element {
                     <KeepAssetRow
                         key={entry.url}
                         entry={entry}
-                        name={
-                            session === null
-                                ? entry.url
-                                : (entry.kind === "image" ? pictureName : modelName)(session, entry.url)
-                        }
+                        name={assetName(session, entry)}
                         value={choices[entry.url] ?? entry.storage}
                         onChange={(value) => {
                             setChoices((now) => ({ ...now, [entry.url]: value }));

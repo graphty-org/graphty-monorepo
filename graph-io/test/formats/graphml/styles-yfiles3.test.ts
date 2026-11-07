@@ -675,6 +675,41 @@ describe("yEd Live GraphML: spellings yEd Live 8.5.16 reads, and the ones it ign
         expect((await sheet("specimen-labels-p2.graphml")).node("label", "markup-bold")).toBe("Bold");
     });
 
+    it("reads a label style's font style, text alignment, round corners, wrapping and a stretch label's turn", async () => {
+        // yed-live-graphml-specimen-labels.svg draws fontStyle ITALIC as font-style="italic" and OBLIQUE as
+        // "oblique", horizontalTextAlignment LEFT as text-anchor="start" and RIGHT as "end", and a ROUND_RECTANGLE
+        // box with rx="5" (rx="5" at 12px in -p3 too)
+        const { node } = await sheet("specimen-labels.graphml");
+        expect(node("labelItalic", "font-style-italic")).toBe(true);
+        expect(node("labelItalic", "font-style-oblique")).toBe(true);
+        expect(node("labelItalic", "font-style-normal")).toBe(null);
+        expect(node("labelTextAlign", "h-align-left")).toBe("left");
+        expect(node("labelTextAlign", "h-align-right")).toBe("right");
+        expect(node("labelCornerRadius", "label-shape-round-rectangle")).toBe(5);
+        expect(node("labelCornerRadius", "label-shape-rectangle")).toBe(null);
+        const p3 = (await sheet("specimen-labels-p3.graphml")).node;
+        expect(p3("labelItalic", "v2-font-style-italic")).toBe(true);
+        expect(p3("labelTextAlign", "v2-horizontal-right")).toBe("right");
+        // -p3 draws a 2.6 CHARACTER label broken between letters at its maximumSize's width ("Wrap th" / "is text")
+        expect(p3("labelWrapWidth", "v2-wrapping-character")).toBe(50);
+        expect(p3("labelWrapAnywhere", "v2-wrapping-character")).toBe(true);
+        expect(p3("labelWrapWidth", "v2-wrapping-word")).toBe(50);
+        expect(p3("labelWrapAnywhere", "v2-wrapping-word")).toBe(null);
+        // -p2 draws a 3.0 *_ELLIPSIS label on one line cut between letters with an ellipsis ("A long la...")
+        const p2 = (await sheet("specimen-labels-p2.graphml")).node;
+        expect(p2("labelWrapWidth", "wrapping-trim-character-ellipsis")).toBe(56);
+        expect(p2("labelWrapEllipsis", "wrapping-trim-character-ellipsis")).toBe(true);
+        expect(p2("labelWrapEllipsis", "wrapping-wrap-word-ellipsis")).toBe(true);
+        // -p2 and -p4 turn a stretch label on the left or the vertical middle up (-90) and on the right down (90)
+        expect(p2("labelRotation", "model-stretch-left")).toBe(270);
+        expect(p2("labelRotation", "model-stretch-center-vertical")).toBe(270);
+        expect(p2("labelRotation", "model-stretch-right")).toBe(90);
+        expect(p2("labelRotation", "model-stretch-top")).toBe(null);
+        const p4 = (await sheet("specimen-labels-p4.graphml")).node;
+        expect(p4("labelRotation", "v2-model-stretch-west")).toBe(270);
+        expect(p4("labelRotation", "v2-model-stretch-east")).toBe(90);
+    });
+
     it("draws a BpmnEdgeStyle's color, line and arrows by its type", async () => {
         // yed-live-graphml-specimen-edges-lines-p3.svg
         const { edge } = await sheet("specimen-edges-lines-p3.graphml");

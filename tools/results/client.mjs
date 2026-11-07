@@ -238,8 +238,8 @@ export async function call(cfg, method, path, body = undefined, ms = RECORD_MS) 
  */
 export function bodySummary(text) {
     return text
-        .replace(/bearer\s+\S+/gi, "Bearer ***")
-        .replace(/\s+/g, " ")
+        .replaceAll(/bearer\s+\S+/gi, "Bearer ***")
+        .replaceAll(/\s+/g, " ")
         .trim()
         .slice(0, 200);
 }
@@ -269,8 +269,8 @@ async function attempt(cfg, method, path, body, ms) {
     } catch (e) {
         // fetch() says only "fetch failed"; the cause names the network error (ECONNREFUSED, ENOTFOUND, ...)
         const cause = e.cause?.message ?? e.cause?.code;
-        const why =
-            e.name === "TimeoutError" ? `no answer in ${ms / 1000} s` : cause ? `${e.message} (${cause})` : e.message;
+        let why = cause ? `${e.message} (${cause})` : e.message;
+        if (e.name === "TimeoutError") why = `no answer in ${ms / 1000} s`;
         return { answered: res !== undefined, result: { ok: false, why } };
     }
 }

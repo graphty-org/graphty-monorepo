@@ -273,6 +273,33 @@ describe("Cytoscape charts", () => {
             expect(line[0][0]).toBeCloseTo(-21.36, 1);
         });
 
+        it("takes a heat map's domain label, its columns' names turned down, off the top of its plot", () => {
+            const HEAT =
+                'org.cytoscape.HeatMapChart:{"cy_range":[0.0,10.0],"cy_colors":["#2166AC","#F7F7F7","#B2182B"],"cy_dataColumns":["a","b","c"]';
+            // xgmml-specimen-images-charts-p7 heat-map-item-labels-column: the plot from 25.55 left of the node's
+            // middle to 25.55 right and from 0.78 down to 25.55 down (the oracle's 1.5621 at half its chart scale)
+            const v = axes(
+                ',"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_itemLabelsColumn":"chartLabels"',
+                HEAT,
+            );
+            expect(v.chartWidth as number).toBeCloseTo(51.1 / 60, 3);
+            expect(v.chartHeight as number).toBeCloseTo((25.55 - 0.78) / 60, 3);
+            expect(v.chartOffsetX as number).toBeCloseTo(0, 2);
+            expect(v.chartOffsetY as number).toBeCloseTo((25.55 + 0.78) / 2, 1);
+            // one label, "a,b,c", reading down from 26.05 above the middle (the oracle's text origin), its line
+            // centered across the plot, 10 tall
+            const [label, ...rest] = texts(v);
+            expect(rest).toEqual([]);
+            expect(label[2]).toBe("a,b,c");
+            expect(label[4]).toBe(90);
+            expect(label[3]).toBeCloseTo(10, 3);
+            expect(label[0]).toBeCloseTo(0, 1);
+            expect(label[1] - (10 * 2.434) / 2).toBeCloseTo(-26.05, 1);
+            // images-charts-p5 heat-map-axes, at the default size 1: the plot's top 4.43 below where it would be
+            const small = axes(',"cy_showDomainAxis":true', HEAT);
+            expect((small.chartOffsetY as number) - (small.chartHeight as number) * 30).toBeCloseTo(-25.55 + 4.43, 1);
+        });
+
         it("leaves a chart without axes as it was, and the default label size at 1", () => {
             const plain = axes("");
             expect(plain.chartWidth).toBeUndefined();

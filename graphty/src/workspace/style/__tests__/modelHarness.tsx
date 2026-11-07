@@ -34,6 +34,9 @@ export async function canvasElement(): Promise<HTMLElementTagNameMap["graphty-el
     });
 }
 
+/** What the "Shapes" layer sets unless a test says otherwise. */
+const CYLINDERS: Readonly<Record<string, unknown>> = Object.freeze({ "node.shape": "cylinder" });
+
 /** What `openShapes` hands a test. */
 export interface Shapes {
     readonly session: GraphSession;
@@ -50,9 +53,7 @@ export interface Shapes {
  */
 export async function openShapes(
     features: readonly string[] = ["node-models"],
-    set: Record<string, unknown> | ((session: GraphSession) => Promise<Record<string, unknown>>) = {
-        "node.shape": "cylinder",
-    },
+    set: Record<string, unknown> | ((session: GraphSession) => Promise<Record<string, unknown>>) = CYLINDERS,
 ): Promise<Shapes> {
     await page.viewport(1440, 900);
     await siteFeatures(features);

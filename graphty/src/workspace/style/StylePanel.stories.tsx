@@ -708,10 +708,19 @@ export const FootballConference: Story = {
         await userEvent.keyboard("{Control>}a{/Control}Conference{Enter}");
         const tab: HTMLElement = await page().findByTestId("style-tab", {});
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
+        const colorLine = (): HTMLElement | null =>
+            (page().getByTestId("style-tab") as HTMLElement).querySelector('.ws-row[data-line="node.color"]');
+        // Fill's "+" adds Color at once, or offers it in a menu when the node models experiment adds Picture.
+        const color = await waitFor(() => {
+            const item = page().queryByRole("menuitem", { name: "Color" });
+            expect(item !== null || colorLine() !== null).toBe(true);
+            return item;
+        });
+        if (color !== null) {
+            await userEvent.click(color);
+        }
         const box: HTMLElement = await waitFor(() => {
-            const found: HTMLElement | null = (page().getByTestId("style-tab") as HTMLElement).querySelector(
-                '.ws-row[data-line="node.color"]',
-            );
+            const found = colorLine();
             expect(found).not.toBeNull();
             return found as HTMLElement;
         });

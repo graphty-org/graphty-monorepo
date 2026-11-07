@@ -22,7 +22,7 @@ const EXCLUDED = new Set([
  * Excluded checks that summarize others: one failing while every check it summarizes passed is shared (4). Queue
  * Checks Pass belonged to the retired Mergify queue and is not counted at all.
  */
-const AGGREGATORS = new Set(["All Checks Pass"]);
+export const AGGREGATORS = new Set(["All Checks Pass"]);
 /** A pull request whose newest check started longer ago than this is left out: its checks say nothing about now. */
 export const STALE_CHECKS_MS = 2 * DAY;
 const FAILED = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE"]);

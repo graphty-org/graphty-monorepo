@@ -601,6 +601,25 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "imageFit", snapshot)).toEqual(["fill", "fill", null]);
     });
 
+    it("paints neither the fill nor the border of yEd's image and SVG nodes, only their pictures", async () => {
+        // yEd's own SVG of graphml-stm32-func draws its 15 ImageNodes, each with <y:Fill color="#CCCCFF"> and a black
+        // <y:BorderStyle>, as an <image> alone: #CCCCFF appears nowhere in it (graphml-synthetic-nodes likewise).
+        const paint = '<y:Fill color="#CCCCFF" transparent="false"/><y:BorderStyle color="#000000" width="1.0"/>';
+        const geometry = '<y:Geometry height="30" width="50" x="0" y="0"/>';
+        const doc = [
+            YED_HEAD,
+            `<node id="a"><data key="d6"><y:ImageNode>${geometry}${paint}<y:Image refid="2"/></y:ImageNode></data></node>`,
+            `<node id="b"><data key="d6"><y:SVGNode>${geometry}${paint}<y:SVGModel svgBoundsPolicy="0"><y:SVGContent refid="1"/></y:SVGModel></y:SVGNode></data></node>`,
+            `<node id="c"><data key="d6"><y:ImageNode>${geometry}</y:ImageNode></data></node>`,
+            `<node id="d"><data key="d6"><y:ShapeNode>${geometry}${paint}</y:ShapeNode></data></node>`,
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["none", "none", "none", null]);
+        expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual([null, null, null, "#ccccff"]);
+        expect(resolveStyles(styles, "node", "borderWidth", snapshot)).toEqual([null, null, null, 1]);
+    });
+
     describe("as yEd's own drawings show them", () => {
         const values = async (nodes: string, property: StyleProperty): Promise<readonly unknown[]> => {
             const { snapshot, styles } = await load(`${YED_HEAD}${nodes}</graph></graphml>`, false);

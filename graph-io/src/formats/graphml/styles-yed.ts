@@ -42,7 +42,7 @@ import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { yedNodePicture } from "./styles-yed-drawing.js";
+import { YED_UML_STEREOTYPE_DROP, yedNodePicture, yedUmlClassPicture } from "./styles-yed-drawing.js";
 import { svgPicture } from "./styles-yed-live-drawing.js";
 import { YED_GROUP_INSETS, type YedBox, yedGroupBounds, type YedGroupFrame } from "./yed-group-bounds.js";
 
@@ -648,6 +648,40 @@ interface NodePaint {
     readonly width: number;
 }
 
+/** The most of a UML class's attributes or methods drawn: a class's rows, not a block of text. */
+const MAX_UML_WORDS = 16 * MAX_STYLE_VALUE_LENGTH;
+
+/**
+ * What yEd draws in a UMLClassNode beside its name (`yedUmlClassPicture`), from its `y:UML` and its first label.
+ * @param r - the UMLClassNode realizer element
+ * @param width - the node's width
+ * @param height - its height
+ * @param paint - its border as the file gives it: a raised class draws none, but its rules take the border's color
+ * @returns the picture URL, or null
+ */
+function umlClassPicture(r: unknown, width: number, height: number, paint: NodePaint): string | null {
+    const uml = treeChild(r, "UML");
+    if (uml === undefined) {
+        return null;
+    }
+    const label = treeChildren(r, "NodeLabel")[0];
+    const size = Number(treeAttr(label, "fontSize") ?? 12);
+    const words = (name: string): string => (treeText(treeChild(uml, name)) ?? "").trim();
+    return yedUmlClassPicture({
+        width,
+        height,
+        border: treeAttr(uml, "use3DEffect") === "true" ? 0 : paint.width,
+        line: paint.line === "none" ? "#000000" : paint.line,
+        family: javaFamily(treeAttr(label, "fontFamily") ?? "Dialog"),
+        nameSize: Number.isFinite(size) && size > 0 ? size : 12,
+        stereotype: (treeAttr(uml, "stereotype") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH),
+        constraint: (treeAttr(uml, "constraint") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH),
+        attributes: words("AttributeLabel").slice(0, MAX_UML_WORDS),
+        methods: words("MethodLabel").slice(0, MAX_UML_WORDS),
+        omitDetails: treeAttr(uml, "omitDetails") === "true",
+    });
+}
+
 /**
  * What yEd strokes over a node beside its outline, as a picture over the node: the fold of a UMLNoteNode (a white
  * triangle in the cut corner, outlined: its two creases), and the part of an SBGN multimer macromolecule's copy that
@@ -671,6 +705,10 @@ function realizerOverlay(
         const d = `M${pointText(x, 0)} L${pointText(x, y)} L${pointText(width, y)} Z`;
         const body = `<path fill="white" d="${d}"/><path fill="none" ${stroke} d="${d}"/>`;
         return { picture: svgPicture(width, height, paint.width, body), reach: 0 };
+    }
+    if (real.type === "UMLClassNode") {
+        const picture = umlClassPicture(real.r, width, height, paint);
+        return picture === null ? null : { picture, reach: 0 };
     }
     const multimer = Number(styleProperty(real.r, "com.yworks.sbgn.style.mcount") ?? 1) > 1;
     const conf = treeAttr(real.r, "configuration") ?? "";
@@ -1978,12 +2016,27 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     readShadow(real, put, at);
     readFace(real, width, height, painted, put, at, resources);
     const header = readEntityHeader(real, height, put, at);
+    const drop = umlNameDrop(r);
     const labelPut: PutValue = (property, value) => {
         if (header === null || property !== "labelBackground") {
-            put(property, value);
+            put(property, property === "labelOffsetY" && typeof value === "number" ? value + drop : value);
         }
     };
     readLabels(treeChildren(r, "NodeLabel"), true, labelPut, at, geometry, treeChild(r, "UML") !== undefined);
+}
+
+/**
+ * How far yEd draws a UML class's name below where its `internal` label model puts it: under the stereotype, when it
+ * has one (`yed-graphml-specimen-node-shapes-p3` uml-stereotype, `graphml-synthetic-nodes` uml-class). A label of
+ * another model is stored where it is drawn (`graphml-libcitygml-mapping`).
+ * @param r - the node realizer element
+ * @returns the drop, 0 for any other node
+ */
+function umlNameDrop(r: unknown): number {
+    const label = treeChildren(r, "NodeLabel")[0];
+    const stereotype = treeAttr(treeChild(r, "UML"), "stereotype") ?? "";
+    const internalTop = treeAttr(label, "modelName") === "internal" && treeAttr(label, "modelPosition") === "t";
+    return stereotype !== "" && internalTop ? Math.round(YED_UML_STEREOTYPE_DROP * 1000) / 1000 : 0;
 }
 
 /**

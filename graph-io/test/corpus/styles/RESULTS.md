@@ -233,12 +233,12 @@ Tool values are elements drawn with the writing program's default.
 | graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml | ok | 31 | 39 | 2 | 1 | 0 | - | - | 0 | 1431 | 0 |  |
 | graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | 2 | 1 | 0 | - | - | 0 | 441 | 0 |  |
 | graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 7 | 6 | 152 | 61% | 9% | 0 | 385 | 0 | W_STYLE_NO_FILL |
-| graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 7 | 5 | 118 | 76% | 11% | 0 | 381 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 7 | 5 | 119 | 76% | 11% | 0 | 381 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 4 | 152 | 56% | 2% | 0 | 293 | 0 |  |
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 452 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 4 | 6 | 69 | 46% | 0% | 0 | 311 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 357 | 100% | 0% | 0 | 526 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 2 | 360 | 100% | 0% | 0 | 328 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 2 | 361 | 100% | 0% | 0 | 328 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 141 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
 | graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 200 | 0 |  |
 | graphml/generated/labels-multi.graphml | ok | 6 | 0 | 3 | 1 | 0 | - | - | 0 | 43 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_EXTRA_LABELS |

@@ -55,7 +55,7 @@ interface NodeDrawing {
  * @param text - the text
  * @returns it escaped
  */
-function escapeSvg(text: string): string {
+export function escapeSvg(text: string): string {
     return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 

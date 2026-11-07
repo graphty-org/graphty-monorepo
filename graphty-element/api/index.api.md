@@ -6690,7 +6690,9 @@ export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072
 
 // @public
 export interface OperationCancelledEvent {
+    code: "queue-cleared" | "cancelled";
     id: string;
+    // @deprecated
     reason: string;
     // (undocumented)
     type: "operation-cancelled";

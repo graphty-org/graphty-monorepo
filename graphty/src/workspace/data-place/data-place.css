@@ -224,32 +224,26 @@
     flex: none;
 }
 
-/* The Runs section (the selection-workspace experiment): one row per run, its name and remove
-   button, then chips for the selections that read it and its style layers, or Show. */
-/* One line a run, and a list that scrolls: the Filters under it stay in reach. */
-.dp-run {
+/* The Calculated tab (the selection-workspace experiment): one row a result, its name taking the
+   room, then its quiet marks (what uses it, an unusual scope or out of date), then "..." on hover
+   or focus, in a slot that keeps its width so the marks never move. */
+.dp-run-head {
     display: flex;
     align-items: center;
     gap: 6px;
     min-width: 0;
+    min-height: 28px;
+    padding-inline: 8px 4px;
+    border-radius: 4px;
 }
 
-.dp-run > .dp-run-head {
-    flex: 1 1 0;
-    min-width: 0;
-}
-
-.dp-run > .dp-run-facts {
-    flex: none;
-    padding-inline-start: 0;
+.dp-run-head:hover {
+    background: var(--mantine-color-default-hover);
 }
 
 .dp-runs {
-    max-height: 168px;
-    overflow-y: auto;
-
     margin: 0;
-    padding: 0;
+    padding: 4px 8px;
     list-style: none;
 }
 
@@ -258,6 +252,45 @@
     min-width: 0;
 }
 
-.dp-run-facts {
-    padding-inline-start: 20px;
+/* What uses it, and an unusual state: secondary ink, no fill, never wrapping. */
+.dp-run-uses,
+.dp-run-mark {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+    color: var(--mantine-color-dimmed);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dp-run-more {
+    flex: none;
+    opacity: 0;
+}
+
+.dp-run-head:is(:hover, :has(:focus-visible), :has([data-expanded])) .dp-run-more {
+    opacity: 1;
+}
+
+.dp-results-empty {
+    padding: 8px 16px;
+}
+
+/* With tabs, Filters stay put over them and only the chosen tab's body scrolls. */
+.dp[data-tabs] {
+    overflow: hidden;
+}
+
+.dp-tabs {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.dp-tab-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }

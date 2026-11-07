@@ -201,6 +201,97 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
         expect(bodies[1].statement).toContain("WHERE key > $after");
     });
 
+    it("pages a capped expansion keyed by a numeric id property through neighbors keyed by server id, each once", async () => {
+        // A seed with five neighbors: three carry a numeric `num`, two do not and are keyed by their
+        // element id. A fake server evaluates the generated page the way Cypher does: `>` between a
+        // number and a string is null (the row is dropped), and ORDER BY puts strings before numbers.
+        const neighbors = [
+            { id: "4:db:2", num: 30 },
+            { id: "4:db:3" },
+            { id: "4:db:4", num: 10 },
+            { id: "4:db:5" },
+            { id: "4:db:6", num: 20 },
+        ];
+        const node = (id: string, num?: number): unknown => ({
+            $type: "Node",
+            _value: {
+                _element_id: id,
+                _labels: ["N"],
+                _properties: num === undefined ? {} : { num: { $type: "Integer", _value: String(num) } },
+            },
+        });
+        const seed = node("4:db:1", 1);
+        const rank = (v: string | number): number => (typeof v === "string" ? 0 : 1);
+        const order = (a: string | number, b: string | number): number =>
+            rank(a) - rank(b) || Number(a > b) - Number(a < b);
+        const greater = (a: string | number, b: unknown): boolean => typeof a === typeof b && a > (b as typeof a);
+        const fetch: typeof globalThis.fetch = async (input, init) => {
+            const { statement, parameters } = JSON.parse(await new Request(input, init).text()) as {
+                statement: string;
+                parameters: { after?: string | number; afterByServer?: boolean };
+            };
+            const limit = Number(/LIMIT (\d+)/.exec(statement)?.[1]);
+            const paired = statement.includes("ORDER BY byServer, key");
+            const rows = neighbors
+                .map((n) => ({ n, key: n.num ?? n.id, byServer: n.num === undefined }))
+                .filter(({ key, byServer }) => {
+                    if (parameters.after === undefined) {
+                        return true;
+                    }
+                    if (!paired) {
+                        return greater(key, parameters.after);
+                    }
+                    return byServer === parameters.afterByServer
+                        ? greater(key, parameters.after)
+                        : byServer && parameters.afterByServer === false;
+                })
+                .sort((a, b) => (paired ? Number(a.byServer) - Number(b.byServer) : 0) || order(a.key, b.key))
+                .slice(0, limit);
+            const typed = (v: string | number): unknown =>
+                typeof v === "string" ? { $type: "String", _value: v } : { $type: "Integer", _value: String(v) };
+            const values = rows.map(({ n, key, byServer }) => [
+                seed,
+                {
+                    $type: "Path",
+                    _value: [
+                        seed,
+                        {
+                            $type: "Relationship",
+                            _value: {
+                                _element_id: `5:db:${n.id}`,
+                                _start_node_element_id: "4:db:1",
+                                _end_node_element_id: n.id,
+                                _type: "R",
+                                _properties: {},
+                            },
+                        },
+                        node(n.id, n.num),
+                    ],
+                },
+                { $type: "Boolean", _value: byServer },
+                typed(key),
+            ]);
+            const body = { data: { fields: ["s", "p", "byServer", "key"], values } };
+            return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
+        };
+        const request = { params: { idProperty: "num" }, ids: [1], limit: 2 };
+        const seen: string[] = [];
+        let cursor: SourceCursor | undefined;
+        for (;;) {
+            const page = await expandFromSource(neo4jSource, request, {
+                endpoint: DEMO,
+                fetch,
+                ...(cursor === undefined ? {} : { cursor }),
+            });
+            seen.push(...[...page.snapshot.ids].map(String).filter((id) => id !== "1"));
+            cursor = page.report.source?.next ?? undefined;
+            if (cursor === undefined) {
+                break;
+            }
+        }
+        expect(seen.sort()).toEqual(["10", "20", "30", "4:db:3", "4:db:5"]);
+    });
+
     it("sends a node cap on a user query to the server, and a full result continues with more rows", async () => {
         const query = "MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p";
         const capped = (rows: number): string => `CALL {\n${query}\n}\nRETURN * LIMIT ${String(rows)}`;

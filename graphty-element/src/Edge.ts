@@ -3231,9 +3231,10 @@ export class Edge {
      * @returns The distance.
      */
     private static boxReachOf(node: Node, direction: Vector3): number {
-        return node.surfaceIsBox || node.drawnInBatch
+        const mesh = node.drawnPickMesh;
+        return node.surfaceIsBox || mesh === null
             ? surfaceReach(direction, node.drawnHalfExtents, null)
-            : boxReach(node.drawnPickMesh, direction);
+            : boxReach(mesh, direction);
     }
 
     /**
@@ -4310,12 +4311,11 @@ export class Edge {
      * @returns Intersection points for source, destination, and adjusted endpoint
      */
     getInterceptPoints(): InterceptPoint {
-        if (this.srcNode.drawnInBatch || this.dstNode.drawnInBatch) {
-            return this.interceptPointsFromRows();
-        }
-
         const srcMesh = this.srcNode.drawnPickMesh;
         const dstMesh = this.dstNode.drawnPickMesh;
+        if (this.srcNode.drawnInBatch || this.dstNode.drawnInBatch || srcMesh === null || dstMesh === null) {
+            return this.interceptPointsFromRows();
+        }
 
         let srcPoint: Vector3 | null = null;
         let dstPoint: Vector3 | null = null;
@@ -4395,7 +4395,7 @@ export class Edge {
                 }
 
                 return node.shapeType === "none" || node.surfaceIsBox
-                    ? this.leaveNode(node, node.drawnPickMesh.position, toward.drawnPickMesh.position)
+                    ? this.leaveNode(node, node.drawnPosition, toward.drawnPosition)
                     : null;
             };
 

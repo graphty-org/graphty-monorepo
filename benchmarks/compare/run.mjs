@@ -102,6 +102,7 @@ const ctx = await chromium.launchPersistentContext(UDD, {
 });
 let saved = false;
 const save = () => {
+    out.loadavgAfter = loadavg()[0];
     if (!saved) appendFileSync(RESULTS, JSON.stringify(out) + "\n");
     saved = true;
 };

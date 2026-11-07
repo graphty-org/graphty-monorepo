@@ -308,7 +308,7 @@ export const RelativeExtentsIn3D: Story = {
         await assertViewMode(scene, "3d");
         await assertGraphLoaded(scene, { nodes: STRETCH_NODES.length, edges: 0 });
 
-        const deep = scene.graph.getNode("box deep")?.drawnPickMesh.getBoundingInfo().boundingBox.extendSize;
+        const deep = scene.graph.getNode("box deep")?.drawnBoundingInfo.boundingBox.extendSize;
         await holds(
             deep !== undefined && deep.z > 2.5 * deep.x,
             "Styles/Node RelativeExtentsIn3D: the deep box is three times as deep as it is wide",
@@ -368,8 +368,7 @@ export const LabelFit: Story = {
 
         await assertGraphLoaded(scene, { nodes: LABEL_FIT_NODES.length, edges: 0 });
 
-        const width = (id: string): number =>
-            scene.graph.getNode(id)?.drawnPickMesh.getBoundingInfo().boundingBox.extendSize.x ?? 0;
+        const width = (id: string): number => scene.graph.getNode(id)?.drawnBoundingInfo.boundingBox.extendSize.x ?? 0;
         const rows = LABEL_FIT_NODES.filter((_node, index) => index % 3 === 0);
         const narrow = rows.filter((row, index) => {
             const longer = LABEL_FIT_NODES[index * 3 + 2];

@@ -71,6 +71,36 @@ function fieldValue(record: unknown, selector: string, index: number): unknown {
     return selector.includes("[]") ? select(record, selector) : selectOne(record, selector);
 }
 
+/**
+ * A record's attributes: the entity's fields, or without fields every top-level scalar.
+ * @param record - the record
+ * @param index - its position, for `#`
+ * @param entity - its entity
+ * @returns the attributes
+ */
+function nodeFields(record: unknown, index: number, entity: RestEntity): Record<string, unknown> {
+    const attrs: Record<string, unknown> = {};
+    if (entity.fields === undefined) {
+        for (const [k, v] of Object.entries(record as Record<string, unknown>)) {
+            if (
+                k !== "id" &&
+                k !== "labels" &&
+                (typeof v === "string" || typeof v === "number" || typeof v === "boolean")
+            ) {
+                attrs[k] = v;
+            }
+        }
+        return attrs;
+    }
+    for (const [name, selector] of Object.entries(entity.fields)) {
+        const v = fieldValue(record, selector, index);
+        if (v !== undefined) {
+            attrs[name] = v;
+        }
+    }
+    return attrs;
+}
+
 /** Converts the records of one page. */
 class PageWriter {
     readonly out: PageRecords = { nodes: [], edges: [] };
@@ -122,26 +152,10 @@ class PageWriter {
      * @param entity - the entity
      */
     private addNode(record: unknown, index: number, id: string, entityName: string, entity: RestEntity): void {
-        const attrs: Record<string, unknown> = { labels: [entity.label ?? entityName] };
-        if (entity.fields === undefined) {
-            // without fields every top-level scalar is kept
-            for (const [k, v] of Object.entries(record as Record<string, unknown>)) {
-                if (
-                    k !== "id" &&
-                    k !== "labels" &&
-                    (typeof v === "string" || typeof v === "number" || typeof v === "boolean")
-                ) {
-                    attrs[k] = v;
-                }
-            }
-        } else {
-            for (const [name, selector] of Object.entries(entity.fields)) {
-                const v = fieldValue(record, selector, index);
-                if (v !== undefined) {
-                    attrs[name] = v;
-                }
-            }
-        }
+        const attrs: Record<string, unknown> = {
+            labels: [entity.label ?? entityName],
+            ...nodeFields(record, index, entity),
+        };
         if (this.state.stubs.has(id)) {
             // the full record replaces a stub written earlier
             attrs[SOURCE_STUB_ATTR] = false;

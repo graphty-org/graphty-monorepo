@@ -133,7 +133,11 @@ function watchRemovals(scene: Scene): {
  * @returns The list.
  */
 function actionManagers(scene: Scene): AbstractActionManager[] {
-    return (scene as { actionManagers: AbstractActionManager[] }).actionManagers;
+    // The nodes' shared manager is the scene's and goes with it (NodeBehavior.nodeActionManagerOf).
+    // On the batched path it is made with the first node mesh, after the baseline is read.
+    return (scene as { actionManagers: AbstractActionManager[] }).actionManagers.filter(
+        (manager) => manager.disposeWhenUnowned,
+    );
 }
 
 describe("tearing many elements down at once", () => {

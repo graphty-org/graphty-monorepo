@@ -39966,7 +39966,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0.5,
+            "stray.present": 0.531,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -40007,7 +40007,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0.485,
+            "stray.present": 0.545,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -40030,14 +40030,15 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.97,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "stray.extra": 1
         },
         "yed-graphml-specimen-node-shapes-p4@matched": {
             "node.present": 1,
@@ -40055,11 +40056,12 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.extra": 1
         },
         "yed-graphml-specimen-node-shapes-p5": {
             "node.present": 1,
@@ -40077,14 +40079,15 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.96,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "stray.extra": 1
         },
         "yed-graphml-specimen-node-shapes-p5@matched": {
             "node.present": 1,
@@ -40102,11 +40105,12 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.extra": 1
         },
         "yed-graphml-specimen-node-shapes-p6": {
             "node.present": 1,
@@ -40124,14 +40128,15 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "stray.extra": 1
         },
         "yed-graphml-specimen-node-shapes-p6@matched": {
             "node.present": 1,
@@ -40149,11 +40154,12 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.extra": 1
         },
         "yed-graphml-specimen-node-shapes@matched": {
             "node.present": 1,
@@ -56550,8 +56556,8 @@
             },
             "stray.present": {
                 "floor": 1,
-                "to": 0.176,
-                "reason": "yEd's own drawing replaced draw.io's stand-in (#5792): yEd draws an unset ImageNode as nothing, an SVGNode at its SVG's own bounds, a label's text beside its icon, and the icons and images where graphty does not; these are graphty's real differences from yEd, first judged now",
+                "to": 0.158,
+                "reason": "first measurement of this sheet against yEd's real drawing under the #6187 comparator (every differently colored piece of a node's fill is checked); graphty does not draw yEd's chart squares yet; owner decision on #6184 2026-11-07",
                 "date": "2026-11-07"
             }
         },
@@ -56588,8 +56594,8 @@
             },
             "stray.present": {
                 "floor": 1,
-                "to": 0.176,
-                "reason": "yEd's own drawing replaced draw.io's stand-in (#5792): yEd draws an unset ImageNode as nothing, an SVGNode at its SVG's own bounds, a label's text beside its icon, and the icons and images where graphty does not; these are graphty's real differences from yEd, first judged now",
+                "to": 0.158,
+                "reason": "first measurement of this sheet against yEd's real drawing under the #6187 comparator (every differently colored piece of a node's fill is checked); graphty does not draw yEd's chart squares yet; owner decision on #6184 2026-11-07",
                 "date": "2026-11-07"
             }
         }

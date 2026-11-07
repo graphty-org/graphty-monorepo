@@ -27,6 +27,9 @@ import { shadersControllerOf } from "../../src/session/shaders";
 import { VULKAN_GLSL_NAMES } from "../../src/shaders/runtime/wrap";
 import { defineShader } from "../../src/simple/defineShader";
 import { drawnFrames } from "../helpers/drawn-frames";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";

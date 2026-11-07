@@ -12,7 +12,7 @@ import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
-import { canonText } from "../../styles/canon/text.js";
+import { canonText, htmlLabelSpans } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
@@ -366,13 +366,20 @@ interface Stroke {
     readonly line: string;
 }
 
-/** yFiles 3's dash style names. */
+/**
+ * The `dashStyle` attribute values yFiles writes for its DashStyle constants (`dashStyle="Dash"` in a file yFiles for
+ * HTML 2.4.0.4 saved, graph-io/test/corpus/styles/graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding).
+ * yEd Live 8.5.16 draws the constants' API spellings `DASH`, `DOT`, `DASH_DOT` and `DASH_DOT_DOT` solid, in 2.6 and 3.0
+ * files alike: yed-live-graphml-specimen-edges-lines, -edges-lines-p2 and -node-fills-borders hold 20 such strokes and
+ * their SVGs no dash but the one a `<yjs:DashStyle dashes="3 1">` element draws.
+ * ponytail: DashDot and DashDotDot follow Dash's spelling, unseen in a drawing; check them when a file holds them.
+ */
 const DASHES: ReadonlyMap<string, string> = new Map([
-    ["solid", "solid"],
-    ["dash", "dashed"],
-    ["dot", "dotted"],
-    ["dashdot", "dash-dot"],
-    ["dashdotdot", "dash-dot"],
+    ["Solid", "solid"],
+    ["Dash", "dashed"],
+    ["Dot", "dotted"],
+    ["DashDot", "dash-dot"],
+    ["DashDotDot", "dash-dot"],
 ]);
 
 /**
@@ -392,8 +399,7 @@ function strokeOf(refs: References, v: unknown): Stroke | typeof NULL | null {
     let line = "solid";
     const d = refs.deref(prop(x, "dashStyle"), 1);
     if (typeof d === "string") {
-        const lower = d.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase().replaceAll("_", "");
-        line = DASHES.get(lower) ?? `other:${lower}`;
+        line = DASHES.get(d.trim()) ?? "solid";
     } else if (d !== null && d !== NULL) {
         // a DashStyle object: two numbers dash or dot, four dash-dot
         const dashes = (treeAttr(d.e, "dashes") ?? "")
@@ -1333,6 +1339,10 @@ function readEdgeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
     if (st === null) {
         return;
     }
+    if (st.tag === "BpmnEdgeStyle") {
+        readBpmnEdgeStyle(refs, st, put, at);
+        return;
+    }
     const stroke = strokeOf(refs, prop(st, "stroke"));
     if (stroke === NULL) {
         noteAt(at("color"), STYLE_ISSUE.NO_STROKE, "{x:Null}");
@@ -1345,6 +1355,60 @@ function readEdgeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         readEdgeArrow(refs, refs.deref(prop(st, `${end}Arrow`)), end, put, at);
     }
 }
+
+/**
+ * How yEd Live 8.5.16 draws each `bpmn:BpmnEdgeStyle` type (yed-live-graphml-specimen-edges-lines-p3.svg): its line
+ * pattern (a message flow dashed 2,2, the associations dotted 0.01,2 with round caps) and its arrowheads as yFiles
+ * arrow types (a filled 8 x 6 triangle, a hollow one, a hollow 6 wide circle, a hollow 16 x 8 diamond, two stroked
+ * arms). A default flow's slash across its source end has no arrow shape and is left out. Against the normal head,
+ * 8 long and 6 wide, a conditional flow's diamond is 2 long and 4/3 wide; a message flow's circle is yEd Live's
+ * normal ELLIPSE head, 6 across.
+ */
+const BPMN_EDGE_TYPES: ReadonlyMap<string, { line: string; source: string; target: string }> = new Map([
+    ["SEQUENCE_FLOW", { line: "solid", source: "none", target: "TRIANGLE" }],
+    ["DEFAULT_FLOW", { line: "solid", source: "none", target: "TRIANGLE" }],
+    ["CONDITIONAL_FLOW", { line: "solid", source: "diamond-open", target: "TRIANGLE" }],
+    ["MESSAGE_FLOW", { line: "dashed", source: "circle-open", target: "triangle-open" }],
+    ["ASSOCIATION", { line: "dotted", source: "none", target: "none" }],
+    ["DIRECTED_ASSOCIATION", { line: "dotted", source: "none", target: "OPEN" }],
+    ["BIDIRECTED_ASSOCIATION", { line: "dotted", source: "OPEN", target: "OPEN" }],
+    ["CONVERSATION", { line: "solid", source: "none", target: "none" }],
+]);
+
+/**
+ * Reads a `bpmn:BpmnEdgeStyle`: its `color` (black unset) and its `type` (a sequence flow unset). A conversation is
+ * drawn as a band 3 wide in its color with a line 1 wide in its `innerColor` (white unset) along its middle.
+ * @param refs - the references
+ * @param st - the style
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readBpmnEdgeStyle(refs: References, st: StyleObject, put: PutValue, at: SiteOf): void {
+    const raw = treeAttr(st.e, "type") ?? "SEQUENCE_FLOW";
+    const look = BPMN_EDGE_TYPES.get(raw.toUpperCase());
+    if (look === undefined) {
+        noteAt(at("lineStyle"), STYLE_ISSUE.BAD_VALUE, raw);
+        return;
+    }
+    const color = paintOf(refs, prop(st, "color") ?? "#FF000000", null);
+    if (raw.toUpperCase() === "CONVERSATION") {
+        putPaint(paintOf(refs, prop(st, "innerColor") ?? "#FFFFFFFF", null), "color", "opacity", put, at);
+        putPaint(color, "outlineColor", "outlineOpacity", put, at);
+        put("width", 1);
+        put("outlineWidth", 2);
+    } else {
+        putPaint(color, "color", "opacity", put, at);
+    }
+    put("lineStyle", look.line);
+    put("sourceArrow", canonEnum("arrow", look.source, "yfiles3", at("sourceArrow")));
+    put("targetArrow", canonEnum("arrow", look.target, "yfiles3", at("targetArrow")));
+    const [length, width] = BPMN_SOURCE_SIZES.get(look.source) ?? [null, null];
+    put("sourceArrowLength", length);
+    put("sourceArrowWidth", width);
+}
+
+/** The length and width of a BPMN edge's source heads against the normal head's (yed-live-graphml-specimen-edges-lines-p3.svg). */
+const BPMN_SOURCE_SIZES: ReadonlyMap<string, readonly [number, number]> = new Map([["diamond-open", [16 / 8, 8 / 6]]]);
 
 /**
  * Reads one end's arrow of an edge style: its type, and for an arrow element its color, drawn hollow in its
@@ -1938,10 +2002,29 @@ function edgeLabelPlaceOf(refs: References, label: unknown): EdgeLabelPlace {
  */
 function labelFontSize(refs: References, label: unknown): number {
     const style = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
-    const font = style === null || style === NULL || typeof style !== "object" ? null : refs.deref(prop(style, "font"));
-    return font === null || font === NULL || typeof font !== "object"
-        ? YFILES_LABEL_SIZE
-        : numberAttr(font.e, "fontSize", YFILES_LABEL_SIZE) || YFILES_LABEL_SIZE;
+    const raw = style === null || style === NULL || typeof style !== "object" ? undefined : labelSizeOf(refs, style);
+    const size = Number(raw);
+    return raw !== undefined && Number.isFinite(size) && size > 0 ? size : YFILES_LABEL_SIZE;
+}
+
+/**
+ * The size a label style's words are drawn at, as the file writes it. yEd Live 8.5.16 sizes a yFiles for HTML 2.6
+ * label by its style's `textSize` alone and draws a `Font`'s `fontSize` there at 12 (yed-live-graphml-specimen-labels-p3:
+ * the one label with textSize="16" is drawn at 16px, its twin with Font fontSize="16" alone at 12px, as every 2.6 label
+ * of -labels-p4, -edge-labels-p2, -groups-p4 and -labels-p5); a 3.0 label by its `Font`'s `fontSize`
+ * (yed-live-graphml-specimen-labels draws its 6, 8, 16, 20 and 24).
+ * @param refs - the references
+ * @param ls - the label style
+ * @returns the size as written, or undefined where the style leaves it to the default
+ */
+function labelSizeOf(refs: References, ls: StyleObject): unknown {
+    if (refs.yfiles26) {
+        return prop(ls, "textSize");
+    }
+    const f = refs.deref(prop(ls, "font"));
+    return f === null || f === NULL || typeof f !== "object" || f.tag !== "Font"
+        ? undefined
+        : treeAttr(f.e, "fontSize");
 }
 
 /**
@@ -2047,6 +2130,11 @@ function readLabels(
     if (extra > 0) {
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
+    const ls = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
+    const runs = typeof ls === "object" && ls !== null && ls.tag === "MarkupLabelStyle" ? markupRuns(text, at) : null;
+    if (runs !== null) {
+        text = runs.map((r) => r.text).join("");
+    }
     put("label", canonText(text, at("label")));
     let inBox = false;
     if (at("label").target === "node") {
@@ -2060,7 +2148,6 @@ function readLabels(
             readEdgeLabelPlace(refs, label, text, path, put);
         }
     }
-    const ls = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
     if (ls === null || ls === NULL || typeof ls !== "object" || !ls.tag.endsWith("LabelStyle")) {
         return;
     }
@@ -2070,6 +2157,126 @@ function readLabels(
     }
     readLabelBox(refs, ls, put, at);
     readLabelFont(refs.deref(prop(ls, "font")), put, at);
+    put("labelSize", canonNumber(labelSizeOf(refs, ls), at("labelSize")));
+    if (runs !== null) {
+        putMarkupRuns(runs, labelFontSize(refs, label), put);
+    }
+}
+
+/** A run of a MarkupLabelStyle's words in one font: what differs from the label's own font. */
+interface MarkupRun {
+    text: string;
+    weight?: "bold";
+    italic?: true;
+    /** its size over the label's */
+    scale?: number;
+    color?: string;
+}
+
+/**
+ * The font each markup tag sets, as yEd Live 8.5.16 draws them (yed-live-graphml-specimen-labels-p2 and -p5): `<b>` as
+ * class yfiles-label-strong (bold), `<i>` as yfiles-label-em (italic), `<h2>` at 1.5em in bold, and `<h3>` at 1.17em
+ * not bold and `<h4>` at 1em in bold (graphml-yfiles-html-ss13-tree). `<u>` underlines, which no label property holds, and the words of any other
+ * tag are drawn in the font around them; a `<p>` is a line of its own.
+ */
+const MARKUP_TAGS: ReadonlyMap<string, Omit<MarkupRun, "text">> = new Map<string, Omit<MarkupRun, "text">>([
+    ["b", { weight: "bold" }],
+    ["strong", { weight: "bold" }],
+    ["i", { italic: true }],
+    ["em", { italic: true }],
+    ["h2", { weight: "bold", scale: 1.5 }],
+    ["h3", { scale: 1.17 }],
+    ["h4", { weight: "bold" }],
+]);
+
+/**
+ * A MarkupLabelStyle's words as runs in their fonts: tags dropped, `<br>` a line break, entities decoded, a `<span>`'s
+ * `style` color kept (yEd Live draws `<span style="color:#ff0000">` red).
+ * @param markup - the label's text
+ * @param at - the sites
+ * @returns the runs, neighbors in one font joined, blank ends trimmed
+ */
+function markupRuns(markup: string, at: SiteOf): MarkupRun[] {
+    const open: { name: string; font: Omit<MarkupRun, "text"> }[] = [];
+    const runs: MarkupRun[] = [];
+    const add = (text: string): void => {
+        const font = Object.assign({}, ...open.map((o) => o.font)) as Omit<MarkupRun, "text">;
+        const last = runs.at(-1);
+        // a line break or blank shows no font: it joins the run before it
+        const same =
+            text.trim() === "" || JSON.stringify({ ...last, text: "" }) === JSON.stringify({ text: "", ...font });
+        if (last !== undefined && same) {
+            last.text += text;
+        } else {
+            runs.push({ text, ...font });
+        }
+    };
+    for (const [token] of markup.slice(0, MAX_STYLE_VALUE_LENGTH).matchAll(/<[^>]*>|[^<]+/g)) {
+        const tag = /^<\s*(\/?)\s*([a-z][a-z0-9]*)/i.exec(token);
+        if (tag === null) {
+            add(
+                htmlLabelSpans(token)
+                    .map((s) => s.text)
+                    .join(""),
+            );
+            continue;
+        }
+        const name = tag[2].toLowerCase();
+        if (name === "br") {
+            add("\n");
+        } else if (tag[1] === "/") {
+            if (name === "p") {
+                add("\n");
+            }
+            const i = open.map((o) => o.name).lastIndexOf(name);
+            if (i >= 0) {
+                open.splice(i);
+            }
+        } else if (!token.endsWith("/>")) {
+            const color = /color\s*:\s*([^;"']+)/i.exec(name === "span" ? token : "")?.[1];
+            const css = color === undefined ? null : canonColor(color.trim(), "css", at("labelRuns"));
+            open.push({ name, font: css === null ? (MARKUP_TAGS.get(name) ?? {}) : { color: css.color } });
+        }
+    }
+    while (runs.length > 0 && runs[0].text.trim() === "") {
+        runs.shift();
+    }
+    while (runs.length > 0 && (runs.at(-1)?.text.trim() ?? "") === "") {
+        runs.pop();
+    }
+    if (runs.length > 0) {
+        runs[0].text = runs[0].text.trimStart();
+        runs[runs.length - 1].text = runs[runs.length - 1].text.trimEnd();
+    }
+    return runs;
+}
+
+/**
+ * Writes a markup label's fonts: one run's as the label's own, several as `labelRuns`.
+ * @param runs - the runs
+ * @param size - the label's own font size
+ * @param put - receives the values
+ */
+function putMarkupRuns(runs: readonly MarkupRun[], size: number, put: PutValue): void {
+    const fields = runs.map(({ text, scale, ...font }) => ({
+        text,
+        ...font,
+        ...(scale === undefined ? {} : { size: scale * size }),
+    }));
+    if (fields.length === 1) {
+        for (const [field, property] of [
+            ["weight", "labelWeight"],
+            ["italic", "labelItalic"],
+            ["size", "labelSize"],
+            ["color", "labelColor"],
+        ] as const) {
+            if (fields[0][field] !== undefined) {
+                put(property, fields[0][field]);
+            }
+        }
+    } else if (fields.some((f) => Object.keys(f).length > 1)) {
+        put("labelRuns", JSON.stringify(fields));
+    }
 }
 
 /**
@@ -2110,12 +2317,12 @@ function readLabelBox(refs: References, ls: StyleObject, put: PutValue, at: Site
     }
     const padding = prop(ls, "padding") ?? prop(ls, "insets") ?? (ls.tag === "AnnotationLabelStyle" ? "5" : "0");
     put("labelPadding", canonNumber(padding, at("labelPadding")));
-    // the 3.0 styles' box is the words' own line, 12 tall at 10 px; the 2.6 style's is 14
-    put("labelLineHeight", ls.tag === "DefaultLabelStyle" ? null : 1);
+    // the box is the words' own line: 12 tall at 10 px in 3.0, and 14 at the 12 px yEd Live draws every 2.6 label at
+    put("labelLineHeight", 1);
 }
 
 /**
- * Reads a label style's `Font`: its size, family and weight.
+ * Reads a label style's `Font`: its family and weight (its size is `labelSizeOf`'s).
  * @param f - the dereferenced `font` property
  * @param put - receives the values
  * @param at - the sites
@@ -2124,7 +2331,6 @@ function readLabelFont(f: ReturnType<References["deref"]>, put: PutValue, at: Si
     if (f === null || f === NULL || typeof f !== "object" || f.tag !== "Font") {
         return;
     }
-    put("labelSize", canonNumber(treeAttr(f.e, "fontSize"), at("labelSize")));
     const family = treeAttr(f.e, "fontFamily");
     if (family !== undefined) {
         put("labelFont", canonText(family.replaceAll(/(^['"])|(['"]$)/g, ""), at("labelFont")));

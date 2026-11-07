@@ -70,6 +70,7 @@ export type ImportOptions = Omit<ImportGraphOptions, "format"> & {
     /**
      * With `styles`, graphtyImport also appends the file's stylesheet to the core's own and gives each element the
      * per-element overrides that make it exact. Default false: the stylesheet is only returned.
+     * @experimental
      */
     readonly applyStyles?: boolean | undefined;
     /**
@@ -96,6 +97,7 @@ export interface ExportOptions extends CommonExportOptions {
      * keeps as much of them as it can, so importing the file with `styles: true` draws the same; `onLoss` hears
      * about the rest (W_STYLE_ codes). Default false: without it `onLoss` hears W_STYLES_NOT_EXPORTED when the core
      * has a stylesheet of its own.
+     * @experimental
      */
     readonly styles?: boolean | undefined;
     /** Format-specific options, passed to graph-io as they are. */
@@ -123,6 +125,7 @@ export interface ImportedElements {
      * With `styles`, the file's styles as a Cytoscape.js stylesheet scoped to this import; append it to the core's
      * rule by rule (`cy.style().selector(r.selector).style(r.style)` for each, then `cy.style().update()`). Absent
      * without `styles`.
+     * @experimental
      */
     readonly stylesheet?: CytoscapeStylesheetRule[];
     /**

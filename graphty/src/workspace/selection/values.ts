@@ -62,14 +62,6 @@ export const STATE_WORDS: Readonly<Record<ElementState, string>> = {
     ghosted: "Outside the time window",
 };
 
-/** What a state condition is called. */
-export const STATE_WORDS: Readonly<Record<ElementState, string>> = {
-    selected: "Selected",
-    hovered: "Hovered",
-    pinned: "Pinned",
-    ghosted: "Outside the time window",
-};
-
 /** The hosts a selection is edited in: a style layer's selector, or an import filter card. */
 export type Host = "selector" | "filter";
 

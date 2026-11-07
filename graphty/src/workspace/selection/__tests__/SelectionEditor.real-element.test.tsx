@@ -104,7 +104,7 @@ async function openLayer(session: GraphSession, name: string, selector: Selector
  * @returns the workspace.
  */
 async function openWs(): Promise<HTMLElement> {
-    await userEvent.click(screen.getByRole("button", { name: /^Edit Which / }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which / }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the workspace is open");

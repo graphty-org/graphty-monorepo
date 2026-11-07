@@ -534,6 +534,16 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Whether this engine keeps nodes apart by their drawn size (`nodeGap`), so it must not step while a size is still
+     * to come: see `UpdateManager.updateLayout`.
+     * @returns True when the engine reads node sizes.
+     * @internal
+     */
+    get spacesBySize(): boolean {
+        return false;
+    }
+
+    /**
      * Add multiple nodes to the layout engine
      * @param nodes - Array of nodes to add
      */

@@ -4825,6 +4825,8 @@ export abstract class LayoutEngine {
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
     // (undocumented)

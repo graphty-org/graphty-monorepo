@@ -1,8 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { CompactColorInput } from "../../src/components/CompactColorInput";
 import { InfoCircle } from "../../src/components/InfoCircle";

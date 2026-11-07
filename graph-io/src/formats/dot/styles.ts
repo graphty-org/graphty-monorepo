@@ -534,7 +534,7 @@ const RUN_PROPERTY: Readonly<Record<string, string>> = {
  * @param site - where a bad color is noted
  * @returns the fields that differ from the label's own font
  */
-function htmlRunFont(
+export function htmlRunFont(
     tags: readonly string[],
     scheme: string | null,
     size: number,

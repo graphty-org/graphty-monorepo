@@ -938,9 +938,11 @@ export abstract class DataSource {
         const pxPerUnit = positions?.pxPerUnit;
         const fit = positions?.viewerFit;
         const box = positions?.bounds;
+        const annotations = imported.importer.annotations?.(imported.snapshot) ?? [];
         return {
             extracted,
             snapshot: imported.snapshot,
+            ...(annotations.length === 0 ? {} : { annotations }),
             path: (kind, column) => held.path(kind, column),
             // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
             format: format === "json" && dialect !== null ? dialect : format,

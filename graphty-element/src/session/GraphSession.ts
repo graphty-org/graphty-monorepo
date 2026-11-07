@@ -55,6 +55,7 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
+import type { FeatureId } from "../features/registry";
 import { type EnabledFeatures, featureOff, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
@@ -2596,22 +2597,22 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Asked without settling, as an element's attributes may still be arriving, and on every
     // timeline move: resolved again only when the ids asked for are a new array.
     let askedFor: readonly string[] | null = null;
-    let askedOn = false;
-    const timelineOn = (): boolean => {
+    let askedEnabled: readonly FeatureId[] = [];
+    const featureOn = (id: FeatureId): boolean => {
         if (settledFeatures !== undefined) {
-            return settledFeatures.enabled.includes("timeline");
+            return settledFeatures.enabled.includes(id);
         }
 
         const asked = requested() ?? pageDefaultFeatures();
         if (asked !== askedFor) {
             askedFor = asked;
-            askedOn = resolveFeatures(asked).enabled.includes("timeline");
+            askedEnabled = resolveFeatures(asked).enabled;
         }
 
-        return askedOn;
+        return askedEnabled.includes(id);
     };
-    const fileStylesOn = (): boolean =>
-        (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
+    const timelineOn = (): boolean => featureOn("timeline");
+    const fileStylesOn = (): boolean => featureOn("file-styles");
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is

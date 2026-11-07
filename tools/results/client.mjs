@@ -156,6 +156,7 @@ export function postFlaky(env, shard, family, flaky) {
         file: f.file,
         name: f.name,
         message: (f.text ?? f.message ?? "").slice(0, 2000),
+        ...(f.pictures ? { pictures: f.pictures } : {}),
     }));
     sendHealth({ oidc: env, health: env.HEALTH_API_URL.replace(/\/$/, "") }, "/v1/failures", {
         invocation: `${id}.1`,

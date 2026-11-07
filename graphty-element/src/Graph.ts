@@ -200,6 +200,7 @@ import { sceneLighting } from "./meshes/NodeLighting";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
 import { NodeIdTarget } from "./render/NodeIdTarget";
@@ -4625,17 +4626,27 @@ export class Graph implements GraphContext {
      */
     get rowCounts(): RowCounts {
         const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
+        let pulledEdges = 0;
+        for (const edge of this.dataManager.edges.values()) {
+            pulledEdges += edge.isPulled ? 1 : 0;
+        }
+
         return {
             batchedNodes,
             objectNodes: this.dataManager.nodes.size - batchedNodes,
-            pulledEdges: 0,
-            objectEdges: this.dataManager.edges.size,
+            pulledEdges,
+            objectEdges: this.dataManager.edges.size - pulledEdges,
         };
     }
 
     /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
     #applyRenderPath(): void {
         const batched = this.#renderPath === "batched" && !(this.engine instanceof NullEngine);
+        // Pulled edges read node places from the row table (`PulledLineBatch`).
+        if (pulledEdgesDefault.value && !(this.engine instanceof NullEngine)) {
+            this.openRowTable();
+        }
+
         if (batched && this.#nodeBatches === null) {
             const places = this.openRowTable();
             this.#nodeBatches = new NodeBatches(

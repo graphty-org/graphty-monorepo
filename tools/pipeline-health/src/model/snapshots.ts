@@ -61,6 +61,8 @@ export interface ReleaseSeen {
     nightly?: string;
     /** The run's conclusion ("success", "failure", "cancelled", ...). */
     conclusion?: string;
+    /** Its "Coverage" job's result ("skipped": nothing was published); absent on attempts read before it was kept. */
+    coverage?: string;
 }
 
 /** The release attempts a channel's tile shows, newest last (the design's 14 dots). */

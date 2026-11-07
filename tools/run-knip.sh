@@ -15,6 +15,16 @@
 # A main checkout still on an older .gitignore (unanchored `.worktrees/`) breaks
 # a worktree run, so that one case keeps the old `--no-gitignore` behaviour.
 # ponytail: delete the fallback once every main checkout has the anchored rule.
+#
+# --tsConfig names a file no workspace has, so knip reads no tsconfig.json and builds ONE
+# TypeScript program for the whole repository. Reading them, it built one program per tsconfig.json
+# that declares `paths` (six), and each program parsed every file it reached again: graphty-element's
+# source three times. The run peaked at 4.3 GB and ran out of CI's 4 GB heap (issue #6142); with one
+# program it peaks at about 3.3 GB. Module resolution is unchanged: knip's resolver still reads the
+# nearest tsconfig.json's `paths` for every import. What knip took from those files besides that --
+# the declaration files they include and the dist/ to src/ mapping of package.json entries -- is
+# listed as entries in knip.config.ts.
+NO_TSCONFIG=(--tsConfig tsconfig.knip-reads-none.json)
 
 set -euo pipefail
 
@@ -26,8 +36,8 @@ if [ -f .git ]; then
     if grep -qx '\.worktrees/' "$MAIN_CHECKOUT/.gitignore" 2>/dev/null; then
         echo "run-knip: $MAIN_CHECKOUT/.gitignore has an unanchored .worktrees/;" \
             "passing --no-gitignore (update that checkout to drop this fallback)" >&2
-        exec npx knip --no-gitignore "$@"
+        exec npx knip --no-gitignore "${NO_TSCONFIG[@]}" "$@"
     fi
 fi
 
-exec npx knip "$@"
+exec npx knip "${NO_TSCONFIG[@]}" "$@"

@@ -957,6 +957,8 @@ export interface ReleaseAttempt {
     failedJob?: string;
     /** Its "Deploy the nightly site" job: passed means it promoted the candidate to nightly. */
     nightly: LaneResult;
+    /** Its "Coverage" job (publishes to Coveralls): skipped when the run's CI did not pass. */
+    coverage: LaneResult;
 }
 
 /**
@@ -1036,7 +1038,37 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
         .filter((j) => BAD.has(j.conclusion ?? ""))
         .sort((a, b) => msOr(a.completed_at) - msOr(b.completed_at))[0];
     const nightly = laneOf(jobs, NIGHTLY_SITE);
-    return { mode, lanes, tested, red, jobs: laneJobs, nightly, ...(failed ? { failedJob: failed.name } : {}) };
+    const coverage = laneOf(jobs, "Coverage");
+    return {
+        mode,
+        lanes,
+        tested,
+        red,
+        jobs: laneJobs,
+        nightly,
+        coverage,
+        ...(failed ? { failedJob: failed.name } : {}),
+    };
+}
+
+/**
+ * When the coverage source was last current (#6119): Coveralls is fed only by a full run whose Coverage job ran,
+ * and that job runs only when the run's CI passed, so a red full run publishes nothing. While no finished attempt
+ * reached Coverage after the newest Coveralls build, that build is all there is to publish, and the source is
+ * current as of the newest finished attempt; the red run itself is already master.full_run_failed's alarm. An
+ * attempt that reached Coverage after the build and published nothing leaves the build's own time, so a broken
+ * publish still goes stale. Attempts read before the Coverage result was kept count as reaching it.
+ * @param builtAt - the newest Coveralls build on master, epoch ms
+ * @param attempts - the finished release attempts the collector has read
+ * @returns epoch ms the coverage source counts as current at
+ */
+export function coverageAsOf(builtAt: number, attempts: { at: number; created?: number; coverage?: string }[]): number {
+    const after = attempts.filter((a) => a.at > builtAt);
+    const reached = (a: { coverage?: string }): boolean => a.coverage !== "skipped" && a.coverage !== "absent";
+    if (after.some((a) => reached(a) && (a.created ?? a.at) > builtAt)) {
+        return builtAt;
+    }
+    return Math.max(builtAt, ...after.map((a) => a.at));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

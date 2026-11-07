@@ -1664,7 +1664,7 @@ export function testView(h: TestHistoryResponse): string {
             ],
             h.generated,
             true,
-        )}<p class="pstate"><span>${esc(h.file)}, in the ${esc(h.family.split("|")[0])} test group. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a pull request, a full run or locally.</span></p>` +
+        )}<p class="pstate"><span>${esc(h.file)}, in the ${esc((h.family ?? "").split("|")[0])} test group. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a pull request, a full run or locally.</span></p>` +
         `<p class="note">${issueNote(h)}</p>` +
         `<div class="tbl t-hist" role="table"><div class="thead"><span>when</span><span>where</span><span>commit</span><span>result</span><span>message</span><span>run</span></div>${rows}</div>`
     );

@@ -477,7 +477,7 @@ with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, 
 | Hangs                        | jobs ended at their own timeout, or past 2x budget                | 1 h             | --       | 0        | >= 2 (1 is yellow)     |
 | PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | 1 h, 6 h agrees | 5 runs   | <= 1x    | > 2x                   |
 | Pull request bins over 8 min | share of bins past the 8 min packing target                       | 1 h, 6 h agrees | 10 bins  | <= 10%   | > 25%                  |
-| Reruns                       | run attempts above 1 / runs finished                              | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                  |
+| Reruns                       | run attempts above 1 / runs finished, less release.yml attempt 2  | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                  |
 | Full-run shards over budget  | shards whose median passes their own budget (section 6)           | slow, 7 d       | 5 runs   | 0        | >= 3                   |
 | Runner-minutes per merge     | job minutes of every run kind / pull requests merged into master  | slow, 7 d       | 10       | <= 400   | > 600                  |
 | Superseded runs running      | see below; informational until it has fired on real data          | now             | --       | --       | --                     |
@@ -488,6 +488,9 @@ Saturated time was "1 h in 24 h"; over one hour a quarter of it saturated is red
 24 h"; over one hour one hang is yellow and two are red, and an earlier hang stays in the episode
 list. Full-run shard medians move only when a full run lands (at most four a day), so they are a slow
 measure; a shard that times out on a run is a hang, judged at once.
+
+Reruns leaves out release.yml's second attempt: `release-rerun.yml` re-runs a red full run once on the
+same commit by design, so that attempt is not a re-run in this sense (#6120).
 
 **Runner use is counted in jobs**, from the jobs API (`filter=latest`) of every unfinished run,
 never from run status: a run reports `queued` while some of its jobs run (run 40240348348 had 9 jobs

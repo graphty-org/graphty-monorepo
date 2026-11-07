@@ -15,7 +15,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
-import { ID_NONE, type NodeIdTarget } from "../../src/render/NodeIdTarget";
+import { ID_NONE, ID_OBJECT, type NodeIdTarget } from "../../src/render/NodeIdTarget";
 import { pickWork, rowScanOf } from "../../src/render/PickService";
 import { hover, nextFrame } from "../helpers/real-input";
 
@@ -291,6 +291,49 @@ describe("the node ID target", () => {
             "the scan names it",
         );
         assert.strictEqual(target.read(point.x, point.y), node?.index, "the target names it");
+    });
+
+    it("holds no node glow when a read redraws it outside a frame (#6121)", async () => {
+        const element = await batchedGraph("2d", "sphere");
+        const target = await readyTarget(element);
+        const { graph } = element;
+        // A glowing node is drawn by its own mesh, ringed by the glow layer of the main pass.
+        await element.session.styles.add({
+            name: "glow",
+            target: "node",
+            selector: { match: "ids", nodes: ["n0"] },
+            set: { "node.glow": "#999999" },
+        });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        // Two frames with no read leave the target stale, so the next read draws it itself.
+        graph.scene.render();
+        graph.scene.render();
+        const { draws } = target.counts;
+        const node = graph.getNode("n0");
+        assert.isDefined(node);
+        const scaling = graph.scene.getEngine().getHardwareScalingLevel();
+        const center = graph.worldToScreen(node?.drawnWorldPosition ?? Vector3.Zero());
+        const radius = Math.max(4, graph.nodeScreenPosition("n0")?.radius ?? 0);
+        // The node and its halo, a pixel apart: every pixel names a row, the object or nothing.
+        const strays: string[] = [];
+        for (let dy = -2 * radius; dy <= 2 * radius; dy++) {
+            for (let dx = -2 * radius; dx <= 2 * radius; dx++) {
+                const x = (Math.floor(center.x + dx) + 0.5) * scaling;
+                const y = (Math.floor(center.y + dy) + 0.5) * scaling;
+                const read = target.read(x, y);
+                if (typeof read !== "number") {
+                    assert.fail("WebGL answers at once");
+                }
+
+                if (read >= NODES || read < ID_OBJECT) {
+                    strays.push(`${String(x)},${String(y)}: ${String(read)}`);
+                }
+            }
+        }
+
+        assert.strictEqual(target.counts.draws - draws, 1, "the read drew the stale target");
+        assert.deepEqual(strays.slice(0, 5), [], `${String(strays.length)} pixels name no row`);
     });
 
     it("redraws a target older than the picture before it answers", async () => {

@@ -3,7 +3,7 @@ import { type AbstractMesh, Camera, type Scene, TransformNode, Vector3 } from "@
 import { FrameRoster } from "./FrameRoster";
 
 /** The labels drawn in front of their node, each kept on the line from its node to the eye; see {@link keepOnEyeLine}. */
-export const eyeLineFrames = new FrameRoster();
+const eyeLineFrames = new FrameRoster();
 
 /** The shifts {@link keepOnEyeLine} moves; see {@link withoutEyeLine}. */
 const shifts = new WeakSet<TransformNode>();

@@ -599,7 +599,7 @@ function hopWords(hops: number): string {
  * @param run - the path run.
  * @returns the words, or undefined.
  */
-export function pathLengthWords(run: Pick<Run, "result" | "caveats">): string | undefined {
+function pathLengthWords(run: Pick<Run, "result" | "caveats">): string | undefined {
     const { hops, cost } = run.result?.graph ?? {};
     const { weight } = run.caveats;
     if (weight?.meaning === "distance" && typeof cost === "number") {

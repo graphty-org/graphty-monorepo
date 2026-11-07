@@ -270,7 +270,7 @@ const LABELS: Readonly<Record<string, Label>> = {
  * The codes a built-in writer reports that change nothing a reader would notice -- the values
  * read back the same, with another storage, precision or byte layout -- so they get no row.
  */
-export const NOT_SHOWN: ReadonlySet<string> = new Set([
+const NOT_SHOWN: ReadonlySet<string> = new Set([
     "W_STORAGE_CLASS_CHANGED",
     "W_INTEGRAL_F64_AS_I32",
     "W_OPTIONS_GAINED",

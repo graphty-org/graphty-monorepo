@@ -53,7 +53,7 @@ export interface SpecimenSheet {
 }
 
 /** A category the format has no setting for, and the documentation that shows it. */
-export interface AbsentCategory {
+interface AbsentCategory {
     /** One sentence, for the placeholder story: what the format lacks. */
     reason: string;
     /** The documentation URL that lists the format's vocabulary. */

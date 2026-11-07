@@ -29,7 +29,7 @@ export type Selector = Layer["selector"];
 export type Side = "node" | "edge";
 
 /** The heading a field is listed under in the add menu. */
-export type FieldGroup = "Data" | "Results" | "Structure";
+type FieldGroup = "Data" | "Results" | "Structure";
 
 /** One value a card can test: an entry of `session.data.readableValues()`, named for a reader. */
 export interface CardField {
@@ -149,11 +149,6 @@ export type Card =
           readonly selector?: Selector;
           readonly words: string;
       };
-
-/** A side's cards, and the edge reading the Ends card writes. */
-export interface SideCards {
-    readonly cards: readonly Card[];
-}
 
 /** The Data source field's path: not a column, the load an element came from (a `source` leaf). */
 export const SOURCE_PATH = "@source";
@@ -575,7 +570,7 @@ export const isPicked = (card: Card): boolean =>
  * @param edges - how many edges it lists.
  * @returns the words.
  */
-export function pickedWords(nodes: number, edges: number): string {
+function pickedWords(nodes: number, edges: number): string {
     const part = (n: number, one: string): string[] =>
         n === 0 && one === "edge" ? [] : [`${String(n)} ${one}${n === 1 ? "" : "s"}`];
     const parts = edges > 0 && nodes === 0 ? part(edges, "edge") : [...part(nodes, "node"), ...part(edges, "edge")];

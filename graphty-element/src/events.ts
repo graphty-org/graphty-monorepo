@@ -95,7 +95,7 @@ export type GraphEvent =
     | InputShortcutEvent;
 
 /** A graph event type that stays inside the element: see {@link INTERNAL_EVENT_TYPES}. */
-export type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
+type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
 
 /**
  * The unprefixed events `<graphty-element>` forwards to the DOM, by name: every graph and AI event

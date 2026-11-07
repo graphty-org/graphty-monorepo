@@ -14,6 +14,17 @@ source (#6212), a file-host source (#6213), more REST presets (#6214), and Memgr
 (#3408). Tracking issue: #2907. Each built-in source's examples are loaded live every week
 (section 12.5, "Live check").
 
+Samples and network data are separate (section 12.5): a sample is a graph-samples dataset, shown
+as a thumbnail on the graphty app's start page and loaded with `session.data.loadDataset`; it is
+not a network source and never creates a load that waits for approval. Network data is reached
+only through the Network data form, whose Example row lists each source's public `examples`.
+Reopening: a project opened with `session.project.open(file, { ownWork: true })` (the reader's
+own autosave or a project kept in this browser) keeps its loads live, and only the loads its
+`graphty-sources` member lists as `waiting` wait for approval; any other project file waits for
+every load. With the `network-data` experiment off, every source verb rejects with
+`E_FEATURE_OFF` (`{ feature, key }`), `pendingSourceLoads()` is empty, a project's
+`graphty-sources` member is kept unchanged, and the graphty app shows no network entry point.
+
 The rest of this document is the design as written on 2026-10-17, kept for its reasoning. Browser
 and Node behavior was measured then (section 7 says how), the Cypher path was run against a live
 Memgraph 2.22.1 (section 12.3), OpenAlex was checked live (section 13.3) and every example source
@@ -1737,7 +1748,13 @@ dependencies for graph-io are fine"). These still publish contracts that are har
 
 ---
 
-## Appendix A. Sub-issues (drafted, not filed)
+## Appendix A. Sub-issues (drafted, not filed; built)
+
+Status (2026-11-07): A.1 to A.9 are built under the `network-data` experiment (#6211) and were
+never filed as separate issues. What remains is filed: the Gremlin source (#6212), a file-host
+source (#6213), more REST presets (#6214), Cypher neighborhoods without `idProperty` (#6215),
+`neo4j+s://` endpoints (#6216), a default User-Agent in Node (#6217), graduating the experiment
+(#6211) and local Memgraph (#3408). The drafts below are kept for their scope.
 
 One framework issue, one per initial source, one per further source. All carry `enhancement`, a
 priority and an effort, and say `Refs #2907`.

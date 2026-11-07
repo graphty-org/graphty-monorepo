@@ -323,6 +323,11 @@ interface PageSources {
      */
     timeline?(): boolean;
     /**
+     * Whether the network-data experiment is on; absent reads on.
+     * @returns true when it is
+     */
+    network?(): boolean;
+    /**
      * The visible masks, for statistics over the visible graph.
      * @returns The node and edge masks, 1 for visible.
      */
@@ -939,6 +944,10 @@ export class SessionData implements SessionDataApi {
      */
     async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
+        if (source.source !== undefined) {
+            this.requireNetwork("import");
+        }
+
         // A network source's read honours the signal, so its wait for its turn does too.
         const turn = this.loadLine.join(source.source === undefined ? undefined : options.signal);
         try {
@@ -1233,6 +1242,11 @@ export class SessionData implements SessionDataApi {
      */
     testSource(source: SourceInput, options: SourceLoadOptions = {}): Promise<SourceProbe> {
         this.requireLive("testSource");
+        const off = this.networkOff("testSource");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.testSource(host, source, options));
     }
@@ -1250,6 +1264,11 @@ export class SessionData implements SessionDataApi {
         options: SourceLoadOptions = {},
     ): Promise<SourceListing> {
         this.requireLive("listSource");
+        const off = this.networkOff("listSource");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.listSource(host, source, query, options));
     }
@@ -1262,6 +1281,11 @@ export class SessionData implements SessionDataApi {
      */
     expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<SourceExpandResult> {
         this.requireLive("expand");
+        const off = this.networkOff("expand");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         // In line, as a load: its rows are dispatched after every load asked for before it, and a
         // load asked for after it waits for all of them, so it never adds to the graph that load
         // replaced (issue #3382).
@@ -1308,6 +1332,11 @@ export class SessionData implements SessionDataApi {
      */
     collapse(id: NodeId): Promise<CollapseResult> {
         this.requireLive("collapse");
+        const off = this.networkOff("collapse");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         // In line, as an edit: it removes what the graph holds once the loads ahead of it landed.
         // A clear asked for while it waits cancels it: it removes nothing, and the clear removes all.
         return this.inLine(
@@ -1329,6 +1358,11 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceMoreOptions = {}): Promise<void> {
         this.requireLive("more");
+        const off = this.networkOff("more");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         return this.inLine(options.signal, (host) =>
             import("./sources/load").then((module) => module.more(host, options)),
         );
@@ -1342,6 +1376,11 @@ export class SessionData implements SessionDataApi {
      */
     previewSource(source: SourceInput, options: SourcePreviewOptions = {}): Promise<SourcePreview> {
         this.requireLive("previewSource");
+        const off = this.networkOff("previewSource");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.previewSource(host, source, options));
     }
@@ -1354,6 +1393,11 @@ export class SessionData implements SessionDataApi {
      */
     checkSource(load: string, options: SourceLoadOptions = {}): Promise<SourceCheck> {
         this.requireLive("checkSource");
+        const off = this.networkOff("checkSource");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.checkSource(host, load, options));
     }
@@ -1366,21 +1410,28 @@ export class SessionData implements SessionDataApi {
      */
     refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
+        const off = this.networkOff("refresh");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.refreshSource(host, load, options));
     }
 
     /**
-     * Load a public sample a registered source lists, as one undoable step.
-     * @param id - The sample's id.
+     * Load one of a source's examples (its descriptor's `examples`), as one undoable step.
+     * @param source - The source id.
+     * @param example - The example's id within that source.
      * @param options - Anything `import` takes.
-     * @returns Settles once the sample is in the graph.
+     * @returns Settles once the example is in the graph.
      */
-    async loadSample(id: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
-        this.requireLive("loadSample");
+    async loadExample(source: string, example: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
+        this.requireLive("loadExample");
+        this.requireNetwork("loadExample");
         const turn = this.loadLine.join(options.signal);
         try {
-            await (await import("./sources/load")).loadSample(this.hostInTurn(turn), id, options);
+            await (await import("./sources/load")).loadExample(this.hostInTurn(turn), source, example, options);
         } finally {
             turn.leave();
         }
@@ -1417,7 +1468,7 @@ export class SessionData implements SessionDataApi {
      * @returns One entry per waiting load.
      */
     pendingSourceLoads(): readonly PendingSourceLoad[] {
-        return pendingSourceLoads(this.sourceHost());
+        return this.networkOn ? pendingSourceLoads(this.sourceHost()) : [];
     }
 
     /**
@@ -1428,6 +1479,11 @@ export class SessionData implements SessionDataApi {
      */
     runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("runPendingSourceLoad");
+        const off = this.networkOff("runPendingSourceLoad");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         return this.inLine(options.signal, (host) =>
             import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options)),
         );
@@ -1440,7 +1496,12 @@ export class SessionData implements SessionDataApi {
      * @returns the member and its ids
      */
     sourceFile(): SourcesWrite {
-        const write = writeSourcesMember({ sources: this.sources(), loads: this.loads(), facts: this.loadFacts });
+        const write = writeSourcesMember({
+            sources: this.sources(),
+            loads: this.loads(),
+            facts: this.loadFacts,
+            waiting: [...this.pendingLoads],
+        });
         const skipped = this.skippedMember;
         // A member the file held and this release skipped goes back in place while the loads are
         // the ones the file opened with.
@@ -1453,11 +1514,14 @@ export class SessionData implements SessionDataApi {
 
     /**
      * Take what an opened project's `graphty-sources` member held: its network loads are recorded
-     * and wait, fetching nothing, until `runPendingSourceLoad`. Internal: the project file calls it
-     * once the project's graph is in.
+     * and wait, fetching nothing, until `runPendingSourceLoad`. A project file cannot approve its
+     * own fetches, so every load of an opened file waits. The reader's own autosave restored is
+     * their work coming back: only the loads still waiting when it was written wait again.
+     * Internal: the project file calls it once the project's graph is in.
      * @param read - what the member held, or undefined when the file holds none
+     * @param autosave - whether the open is an autosave restore
      */
-    restoreSourceMember(read: SourcesRead | undefined): void {
+    restoreSourceMember(read: SourcesRead | undefined, autosave = false): void {
         this.pendingLoads.clear();
         this.loadFacts.clear();
         this.skippedMember =
@@ -1469,8 +1533,11 @@ export class SessionData implements SessionDataApi {
             this.loadFacts.set(key, facts);
         }
 
+        const waiting = new Set(read?.waiting ?? []);
         for (const record of this.ledger.loads()) {
-            this.pendingLoads.add(record.key);
+            if (!autosave || waiting.has(record.key)) {
+                this.pendingLoads.add(record.key);
+            }
         }
     }
 
@@ -3707,6 +3774,34 @@ export class SessionData implements SessionDataApi {
      */
     private get timelineOn(): boolean {
         return this.pages.timeline?.() !== false;
+    }
+
+    /**
+     * Whether the network-data experiment is on; a session built without the switch reads on.
+     * @returns True when it is on.
+     */
+    private get networkOn(): boolean {
+        return this.pages.network?.() !== false;
+    }
+
+    /**
+     * The refusal of a network-source verb while the network-data experiment is off.
+     * @param verb - The verb.
+     * @returns `E_FEATURE_OFF` with `{ feature: "network-data", key: "data.<verb>" }`, or null when it is on.
+     */
+    private networkOff(verb: string): GraphtyError | null {
+        return this.networkOn ? null : featureOff("network-data", `data.${verb}`);
+    }
+
+    /**
+     * Throw the refusal of a network-source verb while the network-data experiment is off.
+     * @param verb - The verb.
+     */
+    private requireNetwork(verb: string): void {
+        const off = this.networkOff(verb);
+        if (off !== null) {
+            throw off;
+        }
     }
 
     /**

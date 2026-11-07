@@ -11,10 +11,14 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import type { SourceExpanded } from "../../src/session/sources/types";
 import { loadRecordedSeed, PEOPLE_SEED } from "../../stories/fixtures/expand/source";
 import { doubleClick } from "../helpers/real-input";
+
+// Network sources sit behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 /** How far a channel may move before a pixel counts as another colour: rounding, not a tint. */
 const CHANNEL_TOLERANCE = 3;

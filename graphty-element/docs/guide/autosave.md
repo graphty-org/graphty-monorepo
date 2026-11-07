@@ -88,7 +88,7 @@ Data calls (`addNodes`, `loadFromUrl`, `loadFromFile` and the rest) also wait fo
 then run as ordinary changes.
 
 A graph the page asks the session for while the entry is still being read (`session.data.import`,
-`loadSample`, `addNodes` and the other session data calls) is never replaced by the restore: the
+`loadExample`, `addNodes` and the other session data calls) is never replaced by the restore: the
 work is not reopened over it, stays listed, and fires `graphty-autosave-available` with reason
 `"page-data-changed"`, so the page can offer it.
 

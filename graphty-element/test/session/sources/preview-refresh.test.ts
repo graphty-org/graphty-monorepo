@@ -77,7 +77,7 @@ registerSource(
     }),
 );
 
-// The pages again, behind a login its one sample publishes for everyone.
+// The pages again, behind a login its one example publishes for everyone.
 registerSource(
     defineSource({
         id: "people-public",
@@ -88,9 +88,9 @@ registerSource(
             authRequired: "required",
             auth: ["basic"],
             defaultEndpoint: "https://people.example.com",
-            samples: [
+            examples: [
                 {
-                    id: "people-public-sample",
+                    id: "people-public-example",
                     plainName: "People",
                     params: {},
                     publicLogin: { username: "u", password: "p" },
@@ -165,7 +165,7 @@ function cappedMovies(rows: number): Parameters<typeof replayFetch>[0][number] {
  * @returns settles when it is done
  */
 async function withSession(body: (session: GraphSession) => Promise<void>): Promise<void> {
-    const session = createGraphSession();
+    const session = createGraphSession({ features: ["network-data"] });
     try {
         await body(session);
     } finally {
@@ -308,9 +308,11 @@ describe("data.more({ load })", () => {
         });
     });
 
-    it("pages a sample with the login it publishes, with nothing remembered", async () => {
+    it("pages an example with the login it publishes, with nothing remembered", async () => {
         await withSession(async (session) => {
-            await session.data.loadSample("people-public-sample", { limits: { maxNodes: 1, onLimit: "stop" } });
+            await session.data.loadExample("people-public", "people-public-example", {
+                limits: { maxNodes: 1, onLimit: "stop" },
+            });
             assert.strictEqual(session.data.nodes().length, 1);
             await session.data.more({ load: session.data.loads()[0].key });
             assert.strictEqual(session.data.nodes().length, 2);

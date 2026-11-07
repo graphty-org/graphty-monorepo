@@ -59,7 +59,7 @@ afterEach(() => {
  * @returns the session
  */
 function fresh(): GraphSession {
-    const session = createGraphSession();
+    const session = createGraphSession({ features: ["network-data"] });
     sessions.push(session);
     return session;
 }

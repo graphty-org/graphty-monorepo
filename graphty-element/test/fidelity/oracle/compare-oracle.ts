@@ -2282,67 +2282,7 @@ export function compareOracle(
     // Each route is judged between its own nodes' outlines, cut there by one rule on both sides: one program starts
     // its line at the node's center under the node and another at its border, and a reader sees the same line. Each
     // side's own nodes cut its own route, so a route is cut where its own drawing's node ends.
-    // A line may start or end on a group, which is no node: it is cut at the group's box as at a node's outline (yEd
-    // ends one at the group's border: graphml-galaxy-lcms-workflow n0::n22 -> n0::n27, a band from the group's left
-    // side at x -662.4 to n22's top). The oracle's reading names a group by a box id of its own, so graphty's group of
-    // that id is found there as the groups are paired below: the oracle's box that overlaps graphty's most, at least by
-    // the overlap that pairs groups (cx2-signor-aml complex 55: graphty's round 125 and 3, the oracle's round 3 alone;
-    // json-cyjs-perf n108 and n330 both round n148 and n407, each drawn on a box of its own), else by its members.
-    const groupNode = (g: PGroup): PNode => ({
-        id: g.id,
-        cx: (g.box.x0 + g.box.x1) / 2,
-        cy: (g.box.y0 + g.box.y1) / 2,
-        w: g.box.x1 - g.box.x0,
-        h: g.box.y1 - g.box.y0,
-        shape: "rect",
-        fill: g.fill,
-        stroke: g.stroke,
-        label: null,
-    });
-    const gGroupById = new Map(graphty.groups.map((g) => [g.id, g]));
-    const membersOf = (g: PGroup): string => [...g.members].sort(cmp).join("\n");
-    // groups nested with the same members, smallest first: the n-th smallest on one side is the n-th on the other
-    // (cx2-wp1449-tlr 136940 inside 136953, both round 137026 and 137044)
-    const sameMembers = (groups: readonly PGroup[], g: PGroup): PGroup[] =>
-        groups
-            .filter((o) => membersOf(o) === membersOf(g))
-            .sort((a, b) => boxW(a.box) * boxH(a.box) - boxW(b.box) * boxH(b.box));
-    const overlapping = (named: PGroup | undefined): PGroup | undefined => {
-        if (named === undefined) {
-            return undefined;
-        }
-        const [a, b] = [toOracle([named.box.x0, named.box.y0]), toOracle([named.box.x1, named.box.y1])];
-        const box = toBox({
-            x0: Math.min(a[0], b[0]),
-            y0: Math.min(a[1], b[1]),
-            x1: Math.max(a[0], b[0]),
-            y1: Math.max(a[1], b[1]),
-        });
-        const [best] = oracle.groups
-            .map((o) => ({ o, v: iou(box, toBox(o.box)) }))
-            .filter(({ v }) => v >= T.strayIoU)
-            .sort((p, q) => q.v - p.v);
-        return best?.o;
-    };
-    const oEndNode = (id: string): PNode | undefined => {
-        const n = oById.get(id);
-        if (n !== undefined) {
-            return n;
-        }
-        const named = gGroupById.get(id);
-        const byMembers = (): PGroup | undefined =>
-            named === undefined || named.members.length === 0
-                ? undefined
-                : sameMembers(oracle.groups, named)[sameMembers(graphty.groups, named).indexOf(named)];
-        const g = oracle.groups.find((o) => o.id === id) ?? overlapping(named) ?? byMembers();
-        return g === undefined ? undefined : groupNode(g);
-    };
-    // a node the oracle draws as a node is no group of graphty's, though its box holds another node graphty laid over
-    // it (dot-real-softmaint 375499, an ellipse round odfpr1_0_3t_21, read as a group box): it cuts no line as one
-    const gById = new Map<string, PNode>([
-        ...graphty.groups.flatMap((g): [string, PNode][] => (oById.has(g.id) ? [] : [[g.id, groupNode(g)]])),
-        ...graphty.nodes.map((n): [string, PNode] => [n.id, n]),
-    ]);
+    const gById = new Map(graphty.nodes.map((n) => [n.id, n]));
     const oOuter = (n: PNode | undefined): PNode | undefined => {
         if (n === undefined) {
             return undefined;
@@ -2401,8 +2341,8 @@ export function compareOracle(
     /** Each route's part between its own nodes, or null where none of it shows (`shownPart`). */
     const shownParts = (o: PEdge, g: PEdge): [Pt[] | null, Pt[] | null] => {
         const [gs, gt] = flips(o, g) ? [g.target, g.source] : [g.source, g.target];
-        const [os, gsAt] = cutAt(oOuter(oEndNode(o.source)), gOuter(gs), o.points[0]);
-        const [ot, gtAt] = cutAt(oOuter(oEndNode(o.target)), gOuter(gt), o.points.at(-1));
+        const [os, gsAt] = cutAt(oOuter(oById.get(o.source)), gOuter(gs), o.points[0]);
+        const [ot, gtAt] = cutAt(oOuter(oById.get(o.target)), gOuter(gt), o.points.at(-1));
         return [shownPart(o.points, os, ot), shownPart(routeOf(o, g), gsAt, gtAt)];
     };
     /** How far graphty's route's shape is from the oracle's (`routeShape`), and the least gap that fails. */
@@ -2418,14 +2358,14 @@ export function compareOracle(
         // house 23: 3.5 px beside them, on both sides): a line run to its middle says where the figure sits
         const sitsAt = (n: PNode, end: Pt | undefined): Pt => (runsToMiddle(n, end) ? end : [n.cx, n.cy]);
         const shiftOf = (gId: string, oId: string, gEnd: Pt | undefined, oEnd: Pt | undefined): Pt => {
-            const [at, on] = [gOuter(gId), oEndNode(oId)];
+            const [at, on] = [gOuter(gId), oById.get(oId)];
             if (at === undefined || on === undefined) {
                 return [0, 0];
             }
             const [[gx, gy], [ox, oy]] = [sitsAt(at, gEnd), sitsAt(on, oEnd)];
             return [gx - ox, gy - oy];
         };
-        const ends = [oEndNode(o.source), oEndNode(o.target)].flatMap((n) =>
+        const ends = [oById.get(o.source), oById.get(o.target)].flatMap((n) =>
             n === undefined ? [] : [Math.min(n.w, n.h)],
         );
         // a line between nodes wider than the room between them shows a sliver between their outlines, whose own

@@ -16,6 +16,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectionWorkspaceOn } from "../../features";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -94,7 +95,12 @@ describe("counts that say only what a layer paints", () => {
         // A row that matches nothing selects nothing, says so, and keeps the selection.
         await userEvent.click(within(tree()).getByRole("treeitem", { name: /^Nobody, / }));
         await userEvent.click(await screen.findByRole("button", { name: "Select what it paints" }));
-        await screen.findAllByText("Nobody paints nothing, so nothing was selected");
+        // The selection workspace words the notice shorter (graph-place/commands.ts).
+        await screen.findAllByText(
+            selectionWorkspaceOn(session)
+                ? "Nobody: nothing painted"
+                : "Nobody paints nothing, so nothing was selected",
+        );
         assert.lengthOf(session.selection.nodes, 4);
     });
 

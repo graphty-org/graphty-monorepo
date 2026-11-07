@@ -568,6 +568,26 @@ function labelCells(
 }
 
 /**
+ * The closed lines graphty draws over node faces that are no node's outline (a yEd bevel's line 8 in from its edge,
+ * `faceLine`), as free shapes: the oracle's side leaves such a line a stray, so each is judged against graphty's by its
+ * box (stray.present, stray.extra), and a line graphty leaves out or draws elsewhere still fails.
+ * @param scene - the scene
+ * @param drawn - `readDrawn` of the same frame
+ * @returns the lines, as strays without their index
+ */
+function faceLines(
+    scene: Scene,
+    drawn: DrawnGraph,
+): { tag: string; kind: "shape"; box: PBox; fill: null; stroke: null; text: null }[] {
+    return scene.nodes.flatMap((n) => {
+        const d = drawn.nodes.get(n.id);
+        return d?.visible === true && d.faceLine !== undefined
+            ? [{ tag: "face-line", kind: "shape" as const, box: d.faceLine, fill: null, stroke: null, text: null }]
+            : [];
+    });
+}
+
+/**
  * The arrowheads graphty draws on edges it draws no line for (Gephi's swallowed curved edge keeps its arrowhead,
  * `gexf-sigma-ediaspora`), as free shapes: no line carries them on either side, so the oracle's are strays, and each
  * is judged against graphty's by its box (stray.present, stray.extra). One wholly inside an opaque node is drawn under
@@ -909,6 +929,7 @@ export function drawnPrimitives(
             ]),
             ...linelessCaps(scene, drawn),
             ...labelCells(scene, drawn),
+            ...faceLines(scene, drawn),
             ...parts.shapes,
         ].map((s, index) => ({ index, ...s })),
     };

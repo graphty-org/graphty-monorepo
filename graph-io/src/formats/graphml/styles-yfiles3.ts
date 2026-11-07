@@ -31,6 +31,7 @@ import {
     putPanelPaint,
     type PutValue,
     type SiteOf,
+    towardWhite,
     treeAttr,
     treeChild,
     treeChildren,
@@ -444,6 +445,9 @@ function putPaint(pt: Paint, property: string, opacity: string | null, put: PutV
 /** BevelNodeStyle's corner `radius` and the `inset` of its line with neither written. */
 const BEVEL_RADIUS = 10;
 const BEVEL_INSET = 3;
+/** How far toward white, and how wide, the lighter line under a BevelNodeStyle's line is drawn. */
+const BEVEL_HALO_SHARE = 0.85;
+const BEVEL_HALO_WIDTH = 2;
 
 /** ShinyPlateNodeStyle's corner `radius` with none written. */
 const SHINY_RADIUS = 5;
@@ -564,6 +568,10 @@ function readBevelStyle(style: StyleObject, color: string | null, put: PutValue,
     const size = (name: string, fallback: number): number =>
         canonNumber(treeAttr(style.e, name) ?? fallback, at("shapeLines")) ?? fallback;
     putBevelLine(size("radius", BEVEL_RADIUS), size("inset", BEVEL_INSET), put);
+    // under it yFiles for HTML draws a line of 2 most of the way to white (#c8c8c8 over #f7f7f7, #3366ff over
+    // #e0e8ff: yed-live-graphml-specimen-node-shapes-p2)
+    put("shapeLineHaloColor", towardWhite(color, BEVEL_HALO_SHARE));
+    put("shapeLineHaloWidth", BEVEL_HALO_WIDTH);
 }
 
 /**

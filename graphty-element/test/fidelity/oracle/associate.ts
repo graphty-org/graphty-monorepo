@@ -2167,6 +2167,9 @@ function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Simi
  */
 const OWN_HEAD_REACH = 8;
 
+/** How many times longer than it is wide an arrowhead drawn alone, with no line, may be. */
+const HEAD_MOST_LONG = 4;
+
 /** The most of the sheet's longer side an arrowhead spans. */
 const HEAD_MOST = 0.5;
 
@@ -3340,6 +3343,130 @@ export function associate(
     for (const band of bandsAlongLines(edges, drawnAt, guide)) {
         edges.splice(edges.indexOf(band), 1);
         withPieces.splice(withPieces.indexOf(band), 1);
+    }
+    // An edge drawn as its heads alone: Cytoscape desktop stops a line at its heads' bases, so between two nodes nearer
+    // than its heads' lengths it draws no line, only the heads, one after the other (cx-radiation-bibliography: a blue
+    // edge's two circles between boxes 3.7 px apart at 148,727; a green edge's triangle between overlapping boxes at
+    // 184,239). A run of one or two filled shapes no line took, touching both nodes of a pair graphty draws that no line
+    // of the drawing has taken, is that edge: its route from one end of the run to the other, its line unpainted.
+    const lineless = heads.filter(
+        (q) => q.fill !== null && q.closed && !ownCaps.has(q) && !used.has(q.index) && !painted.has(q),
+    );
+    const linelessSet = new Set(lineless);
+    for (let i = 0; i < lineless.length; i++) {
+        const first = lineless[i];
+        const next = byIndex.get(first.index + 1);
+        const paired =
+            next !== undefined &&
+            linelessSet.has(next) &&
+            next.fill?.color === first.fill?.color &&
+            boxGap(first.box, next.box) <= Math.min(bw(first.box), bh(first.box), bw(next.box), bh(next.box));
+        const run = paired ? [first, next] : [first];
+        const mids = run.map((q): Pt => areaCentroid(q.points) ?? [cx(q.box), cy(q.box)]);
+        const farFrom = (q: Prim, from: Pt): Pt =>
+            q.points.reduce((best, p) =>
+                Math.hypot(p[0] - from[0], p[1] - from[1]) > Math.hypot(best[0] - from[0], best[1] - from[1])
+                    ? p
+                    : best,
+            );
+        // one head points at its node from its middle; two run from the far side of one to the far side of the other
+        const tip = farFrom(first, mids[0]);
+        const probe: Pt[] = paired
+            ? [farFrom(first, mids[1]), farFrom(next, mids[0])]
+            : [[mids[0][0] + (mids[0][0] - tip[0]) / 2, mids[0][1] + (mids[0][1] - tip[1]) / 2], tip];
+        const ends = endsOf(probe, first.fill?.color ?? "");
+        const union = run
+            .map((q) => q.box)
+            .reduce((u, b) => ({
+                x0: Math.min(u.x0, b.x0),
+                y0: Math.min(u.y0, b.y0),
+                x1: Math.max(u.x1, b.x1),
+                y1: Math.max(u.y1, b.y1),
+            }));
+        if (
+            ends === null ||
+            ends[0] === ends[1] ||
+            (guidePairs.get(pairOf(ends[0].id, ends[1].id)) ?? 0) <= 0 ||
+            // an edge the markup names is found already (gexf-graphology-rio ncs92->ncs93)
+            edges.filter((x) => pairOf(x.source, x.target) === pairOf(ends[0].id, ends[1].id)).length >=
+                guide.edges.filter((x) => pairOf(x.source, x.target) === pairOf(ends[0].id, ends[1].id)).length ||
+            ends.some((n) => boxGap(union, nodeBox(n)) > STUB_TOUCH) ||
+            // a head is a few times longer than it is wide at most; a long thin fill is a line drawn as one (Graphviz's
+            // tapered style, dot-specimen-edges-lines)
+            run.some((q, j) => {
+                const far = farFrom(q, mids[j]);
+                const len = Math.hypot(far[0] - mids[j][0], far[1] - mids[j][1]);
+                const u: Pt = len > 1e-9 ? [(far[0] - mids[j][0]) / len, (far[1] - mids[j][1]) / len] : [1, 0];
+                const along = q.points.map(([x, y]) => x * u[0] + y * u[1]);
+                const across = q.points.map(([x, y]) => -x * u[1] + y * u[0]);
+                return (
+                    Math.max(...along) - Math.min(...along) >
+                    HEAD_MOST_LONG * (Math.max(...across) - Math.min(...across))
+                );
+            })
+        ) {
+            continue;
+        }
+        // which end is the source is the file's: the way graphty runs the edge, where it runs it one way only; else a
+        // lone head's node is the target, and two heads keep the order they were read in
+        const way = (x: PNode, y: PNode): boolean => guideWays.has(`${x.id}\u0000${y.id}`);
+        const oneWay = way(ends[0], ends[1]) !== way(ends[1], ends[0]);
+        // A lone head's tip is on the outline of the node it caps, a border's half width out, even where it points
+        // back into the other: Cytoscape desktop aims it from the source's outline to the target's, which cross over
+        // between nodes nearer than the head is long (cx-radiation-bibliography 283->279: its tip 0.9 px outside 279's
+        // ellipse, pointing on into 283, 2.9 px inside its box). Where the tip lies about as near both outlines (552->612:
+        // 1.2 px off 552's box, 2.9 px off 612's ellipse), the drawing does not say, and the end graphty caps decides.
+        const onTip = nodesOn(tip, Infinity);
+        const tipGap = (n: PNode): number => onTip.find((x) => x.n === n)?.d ?? Infinity;
+        const [g0, g1] = [tipGap(ends[0]), tipGap(ends[1])];
+        const [from, to] = way(ends[0], ends[1]) ? ends : [ends[1], ends[0]];
+        const guideEnds = new Set(
+            guide.edges.find((x) => x.source === from.id && x.target === to.id)?.arrows.map((x) => x.end) ?? [],
+        );
+        const capsOne = oneWay && guideEnds.has("source") !== guideEnds.has("target");
+        const byGuide = guideEnds.has("target") ? to : from;
+        const nearer = g0 <= g1 ? ends[0] : ends[1];
+        const capped1 = Math.abs(g0 - g1) <= END_TIE && capsOne ? byGuide : nearer;
+        let [a, b]: [PNode, PNode] = paired ? ends : [capped1 === ends[0] ? ends[1] : ends[0], capped1];
+        if (oneWay && !way(a, b)) {
+            [a, b] = [b, a];
+        }
+        // a lone head's route runs along its axis, from its back to its tip or the other way; two heads' across them
+        // from a's side to b's
+        const dir: Pt = [b.cx - a.cx, b.cy - a.cy];
+        const along = (q: Pt): number => q[0] * dir[0] + q[1] * dir[1];
+        const all = run.flatMap((q) => q.points);
+        const across: Pt[] = [
+            all.reduce((m, q) => (along(q) < along(m) ? q : m)),
+            all.reduce((m, q) => (along(q) > along(m) ? q : m)),
+        ];
+        const lone = capped1 === b ? probe : reversedOf(probe);
+        const path = paired ? across : lone;
+        guidePairs.set(pairOf(a.id, b.id), (guidePairs.get(pairOf(a.id, b.id)) ?? 0) - 1);
+        const key = `${a.id}->${b.id}`;
+        const k = geoEdges.get(key) ?? 0;
+        geoEdges.set(key, k + 1);
+        const e: PEdge = {
+            id: `${key}#g${String(k)}`,
+            source: a.id,
+            target: b.id,
+            points: path,
+            stroke: null,
+            arrows: [],
+            label: null,
+        };
+        withPieces.push(e);
+        drawnAt.set(e, first.index);
+        edges.push(e);
+        // a lone head caps the node it points into; of two, the first is the source's (Cytoscape desktop draws an
+        // edge's source head, then its target's)
+        if (paired) {
+            ownCaps.set(first, { e, end: "source" });
+            ownCaps.set(next, { e, end: "target" });
+            i++;
+        } else {
+            ownCaps.set(first, { e, end: capped1 === b ? "target" : "source" });
+        }
     }
     // a drawing whose lines mostly run on to the nodes' centers draws its arrowheads at the nodes' outlines
     const atCenter = (e: PEdge, end: "source" | "target"): boolean => {

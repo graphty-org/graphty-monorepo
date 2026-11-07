@@ -236,6 +236,19 @@ equal a placed slot's. A row of w = 0, or a freed piece (rows -1), puts every po
 from the placed line at rest, after every row moves (0 edge bytes uploaded), and with a row at w = 0 and a piece freed. Found building it: the
 batch must not dispose its mesh with its textures, since `rowPosition` belongs to the row table.
 
+As built (stage 15, second pull request): `Edge.createLine` pulls a line when the internal switch `pulledEdgesDefault` is on, the graph
+keeps a row table (the switch opens it) and `Edge.pullsLine` passes: 3D, two different nodes, neither drawn as a group, `route`
+straight, no head or tail cap or caption, no label words, no band color, and no style or line key beyond `line`, `label`, `arrowHead`,
+`arrowTail`, `band`, `visible` and `type` (solid), `animationSpeed` (0), `width`, `color`, `opacity`, `minScreenWidth`. The test is made
+when the line is built. One batch a look lives in `MeshCache.pulledBatchMap`, so a 2D switch clears it and rebuilds its edges as flat
+lines. A pulled edge holds no slot: hiding writes rows -1, `update` rewrites its rows only when a renumbering moved them,
+`drawnLine` answers from the two nodes' places, and `rowCounts.pulledEdges` counts it. `test/browser/pulled-edges-on-graph.test.ts`
+holds a graph with the switch on to the placed picture, 0 pixels, at rest, after a mouse drag (0 edge bytes) and with an edge hidden,
+on WebGL and WebGPU, and holds 2D to no pulled edge. `render-parity` with `VITE_PARITY_PULLED=1` compares the object loads with a
+switched-on third: on WebGL 325 stories pass, but only 4 of them draw a pulled edge (309 edges), since a directed graph caps every
+edge. Found building it: a pulled line follows the row table, which takes the layout's places, so a place written to the layout
+engine and not yet to the node's mesh moves the line before the node; the update loop writes both in one frame.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

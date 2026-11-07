@@ -386,7 +386,7 @@ describe("server sources on the real element", () => {
         assert.isNull(within(form).queryByRole("button", { name: /Advanced/ }));
         assert.isNull(within(form).queryByRole("button", { name: "Expand settings" }));
         assert.isNotNull(within(form).getByLabelText("Expand limit"));
-        await pick(form, "Example", "Hetionet");
+        await pick(form, "Example", "Hetionet (end-of-life server)");
         await pick(form, "Example", "Neo4j demo: movies");
         assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "Query" }).checked);
         assert.equal(within(form).getByRole<HTMLInputElement>("textbox", { name: "Database" }).value, "movies");

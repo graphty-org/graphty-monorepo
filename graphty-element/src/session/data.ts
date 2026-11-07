@@ -3787,7 +3787,7 @@ export class SessionData implements SessionDataApi {
     /**
      * The refusal of a network-source verb while the network-data experiment is off.
      * @param verb - The verb.
-     * @returns `E_FEATURE_OFF` with `{ feature: "network-data", key: "data.<verb>" }`, or null when it is on.
+     * @returns `E_FEATURE_OFF` naming the network-data experiment and `data.<verb>`, or null when it is on.
      */
     private networkOff(verb: string): GraphtyError | null {
         return this.networkOn ? null : featureOff("network-data", `data.${verb}`);

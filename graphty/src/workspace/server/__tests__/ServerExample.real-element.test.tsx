@@ -95,7 +95,7 @@ describe("the server form's Example", () => {
 
     it("loads the endpoint, login and database the reader typed over an example, not the example's", async () => {
         const form = await openForm();
-        await pick(form, "Example", "Hetionet");
+        await pick(form, "Example", "Hetionet (end-of-life server)");
         await pick(form, "Example", "Neo4j demo: movies");
         await retype(form, "Endpoint", OWN);
         await retype(form, "User", "reader");

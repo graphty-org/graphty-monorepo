@@ -463,7 +463,9 @@ export class OrbitCameraController {
      * @returns The unit vector.
      */
     #forward(): Vector3 {
-        return Vector3.TransformNormal(Vector3.Forward(), this.pivot.computeWorldMatrix(true)).normalize();
+        // Not forced: a forced rebuild stamps the pivot's matrix as new, the camera's view matrix
+        // follows it, and a scene asked every frame never reads as still, so it never freezes.
+        return Vector3.TransformNormal(Vector3.Forward(), this.pivot.computeWorldMatrix()).normalize();
     }
 
     /**
@@ -473,8 +475,12 @@ export class OrbitCameraController {
      * @returns The distance, signed; 0 with no plane, or edge on.
      */
     #alongToPlane(point: Vector3): number {
+        if (this.surfacePlane === null) {
+            return 0;
+        }
+
         const facing = this.#forward().z;
-        return this.surfacePlane === null || Math.abs(facing) < MIN_PLANE_FACING ? 0 : -point.z / facing;
+        return Math.abs(facing) < MIN_PLANE_FACING ? 0 : -point.z / facing;
     }
 
     /**

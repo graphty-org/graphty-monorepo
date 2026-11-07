@@ -238,6 +238,7 @@ import {
     startingRows,
 } from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
+import { selectorStates } from "./selector";
 import {
     arrange,
     documentRows,
@@ -2655,14 +2656,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const suspended = new WeakMap<CompiledLayer, CompiledLayer>();
 
     /**
-     * Whether a layer draws the selection ring or the hover mark: a layer of the state
-     * `"selected"` or `"hovered"` (the Selected and Hovered rows, or a reader's own).
+     * Whether a layer draws the selection ring or the hover mark: a layer reading the state
+     * `"selected"` or `"hovered"`, whoever made it.
      * @param entry - A layer in the stack.
      * @returns True for one.
      */
     const isStateMark = (entry: CompiledLayer): boolean => {
-        const { selector } = entry.layer;
-        return selector.match === "state" && (selector.state === "selected" || selector.state === "hovered");
+        return selectorStates(entry.layer.selector).some((state) => state === "selected" || state === "hovered");
     };
 
     /**

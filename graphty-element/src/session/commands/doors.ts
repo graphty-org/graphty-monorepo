@@ -1524,6 +1524,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForStableFrame: READ,
             waitForPainted: READ,
             isFrameStable: READ,
+            isGraphDrawn: READ,
             cameraPlaced: READ,
             batchOperations: BATCH,
             on: LISTEN,
@@ -1789,6 +1790,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForSettled: READ,
             framing: READ,
             isFrameStable: READ,
+            isGraphDrawn: READ,
             waitForStableFrame: READ,
             waitForPainted: READ,
             captureScreenshot: CAPTURE,
@@ -2013,6 +2015,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SESSION,
             paint: READ,
+            edgeAges: READ,
             publishModelChange: EVENTS,
             emptyClick: EVENTS,
             elementClick: EVENTS,

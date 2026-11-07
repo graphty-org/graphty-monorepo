@@ -112,6 +112,7 @@ import type {
 } from "./sources/types";
 import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
+import type { EdgeAgeFade } from "./time/ageFade";
 import type { TimeUnit } from "./time/parse";
 import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
 import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
@@ -3011,7 +3012,8 @@ export interface SessionEventMap {
      */
     "time:end": { readonly window: TimeWindow | null };
     /**
-     * The designated time field changed through `session.time.setField`.
+     * The designated time field changed through `session.time.setField`, or a load designated the
+     * time field its file declares (a dynamic GEXF graph, an XGMML graph with `start` and `end`).
      * @experimental timeline
      * @beta
      */
@@ -4307,6 +4309,11 @@ export interface ElementSession extends GraphSession {
      * @param target - The outline's layer, shader and group.
      */
     groupOutlineClick(target: GroupOutlineClick): void;
+    /**
+     * What the renderer fades edges by age with (`time.settings.ageFade`): each edge's start and
+     * the window, normalized over the data's extent. Null while the setting draws no fade.
+     */
+    readonly edgeAges: () => EdgeAgeFade | null;
 }
 
 /**

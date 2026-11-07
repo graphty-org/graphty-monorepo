@@ -46,6 +46,7 @@ const LAYOUT_SETTINGS = [
     "beautify",
     "center",
     "forcelabels",
+    "compound",
 ] as const;
 
 /** Each `rankdir` and the way its ranks run. */

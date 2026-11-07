@@ -413,8 +413,8 @@ export class NodeIdTarget {
             return now ? ID_NONE : Promise.resolve(ID_NONE);
         }
 
-        // The target's first row is the bottom of the picture on both engines: Babylon draws a WebGPU
-        // render target upside down so its textures read as WebGL's do.
+        // A render target's first row is the bottom of the picture on either engine: Babylon draws
+        // into a target upside down on WebGPU (its invertY uniform) so that one samples as on WebGL.
         const py = height - 1 - row;
         this.counts.reads++;
         if (now) {

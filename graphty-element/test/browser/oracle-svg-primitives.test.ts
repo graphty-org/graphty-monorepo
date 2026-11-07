@@ -332,6 +332,30 @@ describe("the oracle SVG reader", () => {
         assert.closeTo(prims[2].stroke?.gradient?.angle ?? Number.NaN, 45, 0.01);
     });
 
+    it("reads a fill's linear gradient along the direction its color changes, not its stretched vector", () => {
+        // yEd Live's corner-to-corner ramp (graphml-yfiles-html-stag-flowchart) on a 220 x 94 box: its vector runs
+        // along 23.1 degrees on screen, its lines of one color are stretched with it, and its color changes along 66.9
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">
+            <defs>
+                <linearGradient id="corner" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/>
+                </linearGradient>
+                <linearGradient id="user" gradientUnits="userSpaceOnUse" x1="10" y1="150" x2="230" y2="244">
+                    <stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/>
+                </linearGradient>
+            </defs>
+            <rect x="10" y="10" width="220" height="94" fill="url(#corner)"/>
+            <rect x="10" y="150" width="220" height="94" fill="url(#user)"/>
+            <path d="M 10 280 L 230 290" stroke="url(#corner)" stroke-width="4" fill="none"/>
+        </svg>`;
+        const { prims } = readSvgPrimitives(svg);
+        assert.closeTo(prims[0].fill?.gradient?.angle ?? Number.NaN, 66.87, 0.01);
+        // in user space a vector is drawn as it is: its color changes along it
+        assert.closeTo(prims[1].fill?.gradient?.angle ?? Number.NaN, 23.13, 0.01);
+        // a stroke's is its vector on screen, which an edge's chord judges
+        assert.closeTo(prims[2].stroke?.gradient?.angle ?? Number.NaN, 2.6, 0.01);
+    });
+
     it("reads a dash array under a round cap, and samples an open path densely enough for its route", () => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
             <path d="M 10 10 L 190 10" stroke="#000" stroke-width="2" stroke-dasharray="0 6" stroke-linecap="round" fill="none"/>

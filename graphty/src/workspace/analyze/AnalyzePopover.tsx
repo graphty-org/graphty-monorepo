@@ -697,9 +697,19 @@ function RunBar({
     const words = wordsFor(descriptor);
     const { plan, available, ready, footnote } = runState(session, descriptor, values);
     const button = useRef<HTMLButtonElement>(null);
+    // Only a Run that runs takes focus: one dimmed because the layer is up to date, or refused, would
+    // be a dead stop, so focus stays where the row was chosen from. Only as the row is chosen: Run
+    // becoming ready later, as a setting changes, leaves focus in the setting.
+    const chosenFor = useRef<string | undefined>(undefined);
     useEffect(() => {
-        button.current?.focus();
-    }, [descriptor.key]);
+        if (chosenFor.current === descriptor.key) {
+            return;
+        }
+        chosenFor.current = descriptor.key;
+        if (ready) {
+            button.current?.focus();
+        }
+    }, [descriptor.key, ready]);
     return (
         <Group justify="space-between" wrap="nowrap" className="ws-analyze-run">
             <Text size="xs" c="dimmed">

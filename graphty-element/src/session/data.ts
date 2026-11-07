@@ -1646,7 +1646,12 @@ export class SessionData implements SessionDataApi {
     ): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
-        const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
+        const read = await readWithProgress(
+            source,
+            options.signal,
+            (change) => this.writes.progress?.(change),
+            this.pages.timeline?.() === true,
+        );
         const styles = await draftStyles(read, options.signal);
         const draft = new Draft(
             read,
@@ -3146,7 +3151,7 @@ export class SessionData implements SessionDataApi {
      */
     async matchesSource(source: DataSourceInput): Promise<SourceKey | null> {
         this.requireLive("matchesSource");
-        const read = await readWithProgress(source, undefined, () => undefined);
+        const read = await readWithProgress(source, undefined, () => undefined, this.pages.timeline?.() === true);
         if (read.tables.every((held) => held.table.fixed)) {
             return null;
         }
@@ -5387,6 +5392,7 @@ export function headlessDataService(
         loadComplete: () => undefined,
         loadFailed: () => undefined,
         progress: (change) => dispatcher.services.progress?.(change),
+        timeline: () => dispatcher.services.timeline?.() === true,
     });
 
     return {
@@ -5471,6 +5477,7 @@ function fileOf(
  * @param source - What `prepare` takes.
  * @param signal - Abandons the read.
  * @param publish - Where the progress goes.
+ * @param timeline - Whether the timeline experiment is on, so the reader keeps the time data it reads.
  * @returns What was read.
  * @throws What reading throws, after the end is published.
  */
@@ -5478,6 +5485,7 @@ async function readWithProgress(
     source: DataSourceInput,
     signal: AbortSignal | undefined,
     publish: (change: ProgressChange) => void,
+    timeline = false,
 ): Promise<Awaited<ReturnType<typeof readSource>>> {
     const named = progressSource(source.config, source.name);
     let completed = 0;
@@ -5506,6 +5514,7 @@ async function readWithProgress(
                 fraction = share ?? null;
                 change("progress");
             },
+            timeline,
         );
         change("end", { outcome: "succeeded" });
         return read;

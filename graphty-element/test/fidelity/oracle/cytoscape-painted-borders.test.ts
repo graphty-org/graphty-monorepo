@@ -51,6 +51,20 @@ const SMALL_ZIGZAG_BORDER =
     "736.02 L 144.96 732.86 L 143.84 732.7 L 144.13 731.61 L 150.23 709.27 L 151.19 709.54 L 152.09 709.98 L " +
     "142.09 729.98 L 141.19 731.77 L 140.3 729.98 L 130.3 709.98 L 131.19 709.54 L 132.09 709.98 L 127.09 " +
     "719.98 z";
+/** A zigzag drawn 6 wide (cx-syn-bypass's 2106, drawn at 0.83): across a turn its next leg's far edge is nearer than its own. */
+const WIDE_ZIGZAG_BORDER =
+    "M 765.25 26.95 L 765.25 26.95 L 774.06 33.83 L 782.31 40.27 L 771.9 39.18 L 751.08 36.99 L 751.4 " +
+    "34.01 L 754.39 34.22 L 752.88 56.02 L 751.73 72.64 L 747.01 56.66 L 741.08 36.58 L 743.95 35.73 L " +
+    "744.9 38.57 L 724.13 45.46 L 708.39 50.68 L 721.3 40.28 L 737.7 27.06 L 739.59 29.4 L 737.31 31.35 L " +
+    "723.06 14.77 L 712.24 2.16 L 726.79 10.18 L 745.31 20.4 L 743.86 23.03 L 741.19 21.68 L 750.99 2.23 " +
+    "L 758.5 -12.67 L 756.65 3.91 L 754.3 24.98 L 751.32 24.64 L 751.54 21.65 L 773.19 23.22 L 788.53 " +
+    "24.33 L 773.9 29.07 L 764.33 32.17 L 763.4 29.31 L 765.25 26.95 M 761.56 31.68 L 757.1 28.2 L 762.48 " +
+    "26.46 L 772.05 23.36 L 772.98 26.21 L 772.76 29.21 L 751.1 27.64 L 747.99 27.41 L 748.34 24.31 L " +
+    "750.69 3.24 L 753.67 3.58 L 756.35 4.93 L 746.54 24.38 L 745.14 27.16 L 742.42 25.65 L 723.89 15.44 " +
+    "L 725.34 12.81 L 727.62 10.86 L 741.86 27.45 L 743.88 29.79 L 741.47 31.74 L 725.07 44.95 L 723.18 " +
+    "42.61 L 722.24 39.77 L 743.01 32.88 L 745.95 31.9 L 746.83 34.88 L 752.76 54.96 L 749.89 55.81 L " +
+    "746.89 55.6 L 748.4 33.8 L 748.62 30.7 L 751.71 31.03 L 772.53 33.21 L 772.21 36.19 L 770.37 38.56 L " +
+    "761.56 31.68 z";
 const ARROW_BORDER =
     "M 365.41 532.40 L 365.16 537.40 L 359.42 532.10 L 359.32 534.10 L 365.06 539.39 L 364.81 544.39 L " +
     "368.80 544.59 L 369.05 539.59 L 375.30 534.90 L 375.40 532.91 L 369.15 537.60 L 369.41 532.60 L " +
@@ -141,6 +155,12 @@ describe("Cytoscape desktop's patterned node borders, painted as fills", () => {
         const read = outlinePaintedAsFill(sampled(SMALL_ZIGZAG_BORDER));
         assert.strictEqual(read?.dashClass, "zigzag");
         assert.closeTo(read?.width ?? 0, 2, 0.2);
+    });
+
+    it("reads a zigzag drawn wider than its legs are apart as a zigzag of the stroke's width, not half of it", () => {
+        const read = outlinePaintedAsFill(sampled(WIDE_ZIGZAG_BORDER));
+        assert.strictEqual(read?.dashClass, "zigzag");
+        assert.closeTo(read?.width ?? 0, 6, 0.2);
     });
 
     it("reads a chain of chevrons round the node as arrows", () => {

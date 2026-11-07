@@ -6,10 +6,18 @@ import {
     failureCause,
     nextHolders,
     nextShared,
+    SNAPSHOT,
     stacks,
     supersededRuns,
     testSignatures,
 } from "../../src/collector/snapshots.js";
+import { setCursor } from "../../src/model/raw.js";
+import { recompute } from "../../src/model/rollup.js";
+import { MemoryStore } from "../../src/model/store.js";
+import { SLAS } from "../../src/sla/config.js";
+import { evaluate } from "../../src/sla/engine.js";
+import { Reads } from "../../src/views/members.js";
+import { shared } from "../../src/views/sections.js";
 import { HOUR, MIN, T0 } from "../model/helpers.js";
 
 const at = (ms: number) => new Date(ms).toISOString();
@@ -155,6 +163,35 @@ describe("snapshots", () => {
         expect(prStocks(open, T0).maxFailingSameCheck).toBe(2);
     });
 
+    it("reads master.same_check and the shared section from one grouping, so they never disagree (#6177)", async () => {
+        const twoAlike = [...issue6177, checksAt(6160, "Unused exports (1): offeredChannels", "a6160")];
+        const cases: [GqlPr[], ReadonlySet<string> | undefined][] = [
+            [issue6177, undefined],
+            [issue5405, undefined],
+            [twoAlike, undefined],
+            [[...issue6177, gqlPr(6161, ["Checks"])], new Set(["Checks"])],
+        ];
+        for (const [open, master] of cases) {
+            const member = prStocks(open, T0, master).maxFailingSameCheck;
+            const { rows } = nextShared(undefined, open, [], T0, master);
+            const ongoing = rows.filter((r) => r.end === undefined && !r.alone);
+            // The member is over its target (<= 1) exactly when the section has a row, and the row names as many.
+            expect(member > 1).toBe(ongoing.length > 0);
+            expect(Math.max(1, ...ongoing.map((r) => r.prs.length))).toBe(Math.max(1, member));
+        }
+        // Three pull requests failing Checks with different signatures: member 1 (ok), section "no shared failure".
+        expect(prStocks(issue6177, T0).maxFailingSameCheck).toBe(1);
+        const store = new MemoryStore();
+        await setCursor(store, SNAPSHOT.shared, JSON.stringify(nextShared(undefined, issue6177, [], T0)), T0);
+        await recompute(store, T0);
+        const view = await shared(new Reads(store, T0, await evaluate(store, T0), SLAS));
+        expect(view).toMatchObject({ kind: "empty", fact: { code: "master.no_shared" } });
+        // Two pull requests failing it the same way: member 2 (warn), and the section shows them.
+        expect(nextShared(undefined, twoAlike, [], T0).rows).toMatchObject([
+            { check: "Checks", signature: "Unused exports (1): offeredChannels", prs: [6160, 6157] },
+        ]);
+    });
+
     it("shares every pull request failing a job master's newest build fails too, whatever their signatures", () => {
         const master = new Set(["Checks"]);
         const open = [...issue6177, gqlPr(6161, ["Checks"])];
@@ -221,7 +258,7 @@ describe("snapshots", () => {
             alone: false,
         });
         expect(first.rows[0].suspects.map((m) => m.pr)).toEqual([9]);
-        const later = nextShared(first, failing.slice(0, 2), [], T0 + 10 * MIN);
+        const later = nextShared(first, failing.slice(0, 1), [], T0 + 10 * MIN);
         expect(later.rows[0]).toMatchObject({ check: "Lint", since: T0 - 30 * MIN, end: T0 + 10 * MIN });
         expect(nextShared(later, [], [], T0 + 2 * DAY_MS).rows).toEqual([]);
     });

@@ -431,6 +431,33 @@ The file then records the address and a fingerprint of the file. When the projec
 address is fetched (after the reader agrees), and if the site now serves a different file it is
 drawn and reported with `W_MODEL_CHANGED`.
 
+A save with no choice for an address embeds it. With the `node-models` experiment switched on
+(`features="node-models"`), a project keeps each address the way it was last kept instead: a file
+opened with an address kept that way saves it that way again, and so does a later save after a
+written one that was told (a `markSaved: false` copy counts once it is marked saved). Opening
+another project starts over. Autosave always embeds.
+
+### Asking before a save
+
+`session.project.assetChoices()` lists what there is to ask about: each model or picture a layer
+names by address, with its `kind`, its size in `byteLength`, the `layerIds` naming it and the
+`storage` a save without a choice would use. `urlRefused` is set when it cannot be kept by
+address (its parts came from several places), and a save embeds it whatever you pass:
+
+```ts
+const { project } = element.session;
+const assets: Record<string, "embed" | "url"> = {};
+for (const choice of project.assetChoices()) {
+    const mb = (choice.byteLength / 1e6).toFixed(1);
+    const byAddress = !choice.urlRefused && confirm(`Keep ${choice.url} by address, not ${mb} MB?`);
+    assets[choice.url] = byAddress ? "url" : "embed";
+}
+await element.downloadProject({ assets });
+```
+
+An empty list means there is nothing to ask. `element.downloadProject({ assets, markSaved: false })`
+downloads a copy and leaves `project.dirty` as it was.
+
 A project file holds at most 64 MB of model files. When it opens, each model is checked against
 the fingerprint the file recorded for it, then by every check a dropped file gets; a model that
 fails is left out (its nodes keep their ordinary shape), and the open's `problems` name it with its

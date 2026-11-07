@@ -188,10 +188,89 @@ export function withAcceptedAssetIds<T extends { readonly layers: readonly unkno
 /** How to keep a model or picture a layer names by URL: its bytes in the file, or only its URL and digest. */
 export type AssetStorage = "embed" | "url";
 
+/**
+ * One model or picture a layer names by URL that a save can keep either way, as
+ * `project.assetChoices()` lists it: the question to ask before `project.save({ assets })`.
+ */
+export interface ProjectAssetChoice {
+    /** The URL the layers name it by: the key for `ProjectSaveOptions.assets`. */
+    readonly url: string;
+    /** The accepted asset it resolves to. */
+    readonly id: AssetId;
+    /** A 3D model, or a picture. */
+    readonly kind: "model" | "image";
+    /** The bytes embedding it adds to the project. */
+    readonly byteLength: number;
+    /** The node layers naming it. */
+    readonly layerIds: readonly LayerId[];
+    /**
+     * What a save with no entry for this URL does: `"embed"`; with the `node-models` experiment on,
+     * what the opened project or the last save kept it as, else `"embed"`.
+     */
+    readonly storage: AssetStorage;
+    /** `W_MODEL_NOT_KEPT_BY_URL` when `"url"` cannot be honored, and the asset is embedded anyway. */
+    readonly urlRefused?: CodedFact<"W_MODEL_NOT_KEPT_BY_URL">;
+}
+
+/**
+ * The fact a model pieced together from several places gives when asked to be kept by URL.
+ * @param url - The URL a layer names it by.
+ * @returns `W_MODEL_NOT_KEPT_BY_URL` with the URL's origin and path.
+ */
+function notKeptByUrl(url: string): CodedFact<"W_MODEL_NOT_KEPT_BY_URL"> {
+    return { code: "W_MODEL_NOT_KEPT_BY_URL", params: { url: url.split(/[?#]/)[0].slice(0, 256), reason: "parts" } };
+}
+
+/**
+ * How the project last kept a URL, when that carries to a save without a choice: only with the
+ * `node-models` experiment on. With it off, such a save embeds, as before the experiment.
+ * @param session - The session.
+ * @param ref - The URL.
+ * @returns The remembered storage, or undefined.
+ */
+function rememberedOf(session: GraphSession, ref: string): AssetStorage | undefined {
+    return session.features.enabled.includes("node-models") ? assetsOf(session).rememberedStorage(ref) : undefined;
+}
+
+/**
+ * Every model and picture a layer names by URL that the session holds accepted, with how a save
+ * would keep it: the entries a host asks about before `project.save({ assets })`. Samples and
+ * assets added from files are not listed; a save always embeds those.
+ * @param session - The session.
+ * @returns One choice per URL, in the order the layers first name them.
+ */
+export function assetChoices(session: GraphSession): ProjectAssetChoice[] {
+    const assets = assetsOf(session);
+    const choices: ProjectAssetChoice[] = [];
+    for (const [ref, layerIds] of modelRefs(session)) {
+        const record = isAssetId(ref) ? undefined : assets.urlRecord(ref);
+        if (record === undefined) {
+            continue;
+        }
+
+        const pieced = assets.assembled(record.id);
+        const remembered = rememberedOf(session, ref);
+        choices.push(
+            Object.freeze({
+                url: ref,
+                id: record.id,
+                kind: record.kind,
+                byteLength: record.byteLength,
+                layerIds: Object.freeze([...layerIds]),
+                storage: !pieced && remembered === "url" ? "url" : "embed",
+                ...(pieced ? { urlRefused: notKeptByUrl(ref) } : {}),
+            }),
+        );
+    }
+
+    return choices;
+}
+
 /** The member as it is built: where entries and problems go, and what is already written. */
 interface MemberBuild {
     readonly assets: AssetsApiInternal;
-    readonly storage: Readonly<Record<string, AssetStorage>>;
+    /** How to keep a URL: the save's own choice, else what the session remembers, else embed. */
+    readonly storage: (ref: string) => AssetStorage;
     readonly leftOut: Problem[];
     readonly entries: Record<string, unknown>[];
     /** Record id and URL of every entry written. */
@@ -285,13 +364,10 @@ function addRef(build: MemberBuild, ref: string, layerIds: LayerId[]): void {
     }
 
     // A model whose parts came from several places has no one URL that brings it back.
-    const byUrl = url && build.storage[ref] === "url";
+    const byUrl = url && build.storage(ref) === "url";
     const pieced = byUrl && build.assets.assembled(record.id);
     if (pieced) {
-        build.leftOut.push({
-            code: "W_MODEL_NOT_KEPT_BY_URL",
-            params: { url: ref.split(/[?#]/)[0].slice(0, 256), reason: "parts" },
-        });
+        build.leftOut.push(notKeptByUrl(ref));
     }
 
     if (byUrl && !pieced) {
@@ -313,21 +389,25 @@ function addRef(build: MemberBuild, ref: string, layerIds: LayerId[]): void {
 /**
  * The `graphty-assets` member: every model and picture a layer names that the session holds,
  * files as given; one a layer names by URL is kept by its URL and digest alone when `storage`
- * says `"url"` for it.
+ * says `"url"` for it, or, with no entry for it and the `node-models` experiment on, when the
+ * session remembers it kept that way.
  * @param session - The session.
- * @param storage - By the URL a layer names: `"url"` keeps it by URL. Default: embed.
+ * @param storage - By the URL a layer names: `"url"` keeps it by URL, `"embed"` embeds it; or
+ *     `"embed-all"` to embed everything whatever the session remembers (autosave). Default: none.
  * @returns The member, or null when no layer names a held asset; and what could not be embedded.
  */
 export function assetsMember(
     session: GraphSession,
-    storage: Readonly<Record<string, AssetStorage>> = {},
+    storage: Readonly<Record<string, AssetStorage>> | "embed-all" = {},
 ): {
     member: Record<string, unknown> | null;
     leftOut: Problem[];
 } {
+    const assets = assetsOf(session);
     const build: MemberBuild = {
-        assets: assetsOf(session),
-        storage,
+        assets,
+        storage:
+            storage === "embed-all" ? () => "embed" : (ref) => storage[ref] ?? rememberedOf(session, ref) ?? "embed",
         leftOut: [],
         entries: [],
         written: new Set<string>(),
@@ -600,6 +680,7 @@ async function restoreEntry(
     if (entry.stored === "url") {
         // Kept by URL: it loads from there, as the reader allows, and is checked against this.
         assets.expectDigest(entry.source as string, entry.sha256);
+        assets.rememberStorage(entry.source as string, "url");
         return undefined;
     }
 
@@ -640,6 +721,7 @@ async function restoreEntry(
     decoded.set(entry.sha256, given);
     if (entry.source !== undefined) {
         assets.bindUrl(entry.source, record.id);
+        assets.rememberStorage(entry.source, "embed");
     }
 
     return undefined;

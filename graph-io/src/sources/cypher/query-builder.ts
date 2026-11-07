@@ -123,18 +123,35 @@ function idExpression(v: string, profile: CypherProfile, filters: QueryFilters, 
 }
 
 /**
+ * The id of a node a neighborhood returns: its id property, else the server's id, as the flattener
+ * keys it, so a neighbor without the property is kept rather than dropped.
+ * ponytail: with numeric property values the keys mix numbers and server-id strings, and a capped
+ * expansion's `key > $after` cannot step from one type to the other; page on a string key if that matters.
+ * @param v - the node variable
+ * @param profile - the server's profile
+ * @param filters - the id property
+ * @returns the expression
+ */
+function neighborKey(v: string, profile: CypherProfile, filters: QueryFilters): string {
+    const server = idExpression(v, profile, filters, false);
+    return filters.idProperty === null ? server : `coalesce(${v}.${filters.idProperty}, ${server})`;
+}
+
+/**
  * The node predicate of the label and id property filters, or null.
  * @param v - the node variable
  * @param filters - the filters
+ * @param requireId - whether a node must have the id property (mode "all"; a neighborhood keeps
+ *   a node without it, keyed by the server's id)
  * @returns the predicate
  */
-function nodePredicate(v: string, filters: QueryFilters): string | null {
+function nodePredicate(v: string, filters: QueryFilters, requireId = true): string | null {
     const parts: string[] = [];
     if (filters.labels.length > 0) {
         const prefix = `${v}:`;
         parts.push(`(${filters.labels.map((l) => prefix + l).join(" OR ")})`);
     }
-    if (filters.idProperty !== null) {
+    if (requireId && filters.idProperty !== null) {
         parts.push(`${v}.${filters.idProperty} IS NOT NULL`);
     }
     return parts.length === 0 ? null : parts.join(" AND ");
@@ -267,9 +284,9 @@ export function neighborhood(
     const rel = `[${typesPattern(filters)}*1..${shape.depth}]`;
     const [left, right] = ARROWS[shape.direction];
     const pattern = `${left}${rel}${right}`;
-    const x = nodePredicate("x", filters);
+    const x = nodePredicate("x", filters, false);
     const degrees = degree
-        ? `, [m IN CASE WHEN p IS NULL THEN [s] ELSE nodes(p) END | [${idExpression("m", profile, filters)}, ${degreeOf("m")}]] AS degrees`
+        ? `, [m IN CASE WHEN p IS NULL THEN [s] ELSE nodes(p) END | [${neighborKey("m", profile, filters)}, ${degreeOf("m")}]] AS degrees`
         : "";
     // A capped expansion is ordered by the neighbor's key, so its next page starts after the last
     // key it returned. ponytail: a page boundary falling between two paths to the same neighbor
@@ -283,7 +300,7 @@ export function neighborhood(
     }
     return [
         ...head,
-        `WITH s, p, ${idExpression("x", profile, filters)} AS key`,
+        `WITH s, p, ${neighborKey("x", profile, filters)} AS key`,
         shape.after === true ? "WHERE key > $after" : null,
         `WITH s, p, key ORDER BY key LIMIT ${shape.limit}`,
         `RETURN s, p, key${degrees}`,

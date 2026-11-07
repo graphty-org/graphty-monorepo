@@ -351,7 +351,7 @@ Pass` belonged to the retired Mergify queue and never counts.
   review is owner wait, not a failure. A capture error is a failure.
 - **Failure cause**, in order: infrastructure (startup failure, lost runner, outside 5xx, a timeout
   in 3 or more pull requests); conflict; flaky (below); shared (an aggregator failing alone, or a
-  check or family failing without passing on rerun in 3 or more pull requests within 24 h, or on the
+  check or family failing without passing on rerun in 2 or more pull requests within 24 h, or on the
   next full run); change (the rest). Reclassified as evidence arrives. A "flaky" test that fails in 3
   or more pull requests at once is raised as shared: it may be a real break.
 - **Flaky**: a test that failed and passed on the same inputs key -- in the shard's own retry, a job

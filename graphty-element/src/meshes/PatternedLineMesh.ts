@@ -392,6 +392,26 @@ export class PatternedLineMesh {
         }
     }
 
+    /** Stop drawing the line because the visibility mask hid its edge, keeping each element's place. */
+    park(): void {
+        for (const element of this.elements) {
+            element.park();
+        }
+    }
+
+    /**
+     * Draw the line again as it was when it was parked.
+     * @returns True when every element was put back.
+     */
+    unpark(): boolean {
+        let back = true;
+        for (const element of this.elements) {
+            back = element.unpark() && back;
+        }
+
+        return back;
+    }
+
     /**
      * Clip the last segment to fit exactly to line end
      * Uses shader-based clipping instead of mesh scaling (only in 3D mode)

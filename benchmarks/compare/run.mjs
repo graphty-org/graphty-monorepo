@@ -196,6 +196,16 @@ try {
             throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
     };
     await checkBatched("load");
+    // What a labelled run really built: with sampling on, only the cells' winners.
+    if (labels && lib === "graphty")
+        log(
+            "labelCounts",
+            await page.evaluate(async () => {
+                const el = document.querySelector("graphty-element");
+                await el.graph?.waitForStableFrame?.();
+                return el.nodeLabelCounts;
+            }),
+        );
     if (process.env.ONLY_ORBIT) {
         console.log("orbit-debug", JSON.stringify(await page.evaluate(() => B.orbitDebug(20))));
         throw new Error("debug stop");

@@ -371,14 +371,14 @@ void main() {
     // meets the head's node, the centre its offset behind the tip, both along the trimmed line.
     scale = 0.0;
     if (capRows.x >= 0.0 && capRows.y >= 0.0) {
-        int from = int(capRows.x + 0.5);
+        int fromRow = int(capRows.x + 0.5);
         int to = int(capRows.y + 0.5);
-        vec4 a = capTexel(rowPosition, from);
+        vec4 a = capTexel(rowPosition, fromRow);
         vec4 b = capTexel(rowPosition, to);
         if (a.w * b.w != 0.0) {
             float fromScale;
             float toScale;
-            EdgeTrimEnd source = capEnd(from, a.w, capPlace.x, fromScale);
+            EdgeTrimEnd source = capEnd(fromRow, a.w, capPlace.x, fromScale);
             EdgeTrimEnd target = capEnd(to, b.w, capPlace.y, toScale);
             EdgeTrimmed ends = edgeTrimEnds(a.xyz, b.xyz, source, target, 0.0);
             toScale = toScale > 0.0 ? toScale : 1.0;

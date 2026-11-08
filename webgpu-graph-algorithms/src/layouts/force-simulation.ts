@@ -52,7 +52,7 @@ import {
 } from "../types/options.js";
 import { ClusterStage } from "./clusters.js";
 import { CollisionStage, type CollisionUpdate } from "./collision.js";
-import { DrawnStage } from "./drawn.js";
+import { type DrawnRecord, DrawnStage } from "./drawn.js";
 import { type ResolvedWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
 
@@ -552,8 +552,8 @@ interface PendingBatch {
     profile: ReadbackRequest | null;
     /** Whether this batch carried the collision's settling sweeps. */
     sweptCollision: boolean;
-    /** The drawn ring slot this batch wrote, or null. */
-    drawn: GPUBuffer | null;
+    /** The drawn ring slot this batch wrote and the transform it drew with, or null. */
+    drawn: DrawnRecord | null;
 }
 
 /**
@@ -771,6 +771,7 @@ export class ForceSimulation<
     private drawnTransform: DrawnTransform | null = null;
     private drawnSkip: Uint32Array | null = null;
     private landedDrawnValue: GPUBuffer | null = null;
+    private landedDrawnTransformValue: DrawnTransform | null = null;
     private collisionDirty = false;
     private collisionRadiiDirty = false;
     /** The run is over and its settling sweeps are owed, so it does not read settled yet. */
@@ -1064,6 +1065,7 @@ export class ForceSimulation<
         // ---- every check passed: mutate
         this.generationValue++;
         this.landedDrawnValue = null;
+        this.landedDrawnTransformValue = null;
         this.discardPending();
         const resized = this.buffers === null || n !== this.n || snapshot.serial !== this.serial;
         this.snapshot = snapshot;
@@ -1544,6 +1546,15 @@ export class ForceSimulation<
     }
 
     /**
+     * The transform the batch of {@link landedDrawn} drew with, or null with it: what the owner publishes
+     * that landing with, so its own copy holds the same rows.
+     * @returns the transform, or null
+     */
+    get landedDrawnTransform(): DrawnTransform | null {
+        return this.landedDrawnTransformValue;
+    }
+
+    /**
      * Makes every batch also write the renderer's drawn positions into a ring of `slots` device buffers (see
      * {@link landedDrawn}). `rows` is the owner's stride-4 copy (x, y, z, w per node): it seeds every slot, and
      * the w lane and the rows set by {@link setDrawnSkip} are only ever what the owner wrote. Null stops it.
@@ -1707,7 +1718,9 @@ export class ForceSimulation<
         }
         batch.endPass();
         const drawn = this.drawnStage;
-        record.drawn = drawn === null ? null : drawn.record(batch.pass(`${this.label}/drawn`));
+        const drawnRows = this.drawnRows?.rows ?? null;
+        record.drawn =
+            drawn === null || drawnRows === null ? null : drawn.record(batch.pass(`${this.label}/drawn`), drawnRows);
         batch.endPass();
         const scene = batch.readback(buffers.scene, 0, 12 * this.n);
         const state = batch.readback(buffers.state, 0, STATE_HEADER_BYTES + k * this.traceBytes);
@@ -1756,7 +1769,8 @@ export class ForceSimulation<
                 return;
             }
             this.copyScene(owner, bytes, record);
-            this.landedDrawnValue = record.drawn;
+            this.landedDrawnValue = record.drawn?.buffer ?? null;
+            this.landedDrawnTransformValue = record.drawn?.transform ?? null;
             const header = new DataView(bytes, record.stateOffset, STATE_HEADER_BYTES);
             const trace = new DataView(bytes, record.stateOffset + STATE_HEADER_BYTES, k * this.traceBytes);
             this.writer.absorb(header);
@@ -2562,6 +2576,7 @@ export class ForceSimulation<
     private dropDrawnStage(): void {
         const stage = this.drawnStage;
         this.landedDrawnValue = null;
+        this.landedDrawnTransformValue = null;
         if (stage !== null) {
             this.drawnStage = null;
             this.afterInFlight(() => {

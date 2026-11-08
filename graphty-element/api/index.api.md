@@ -2792,6 +2792,8 @@ export class Graph implements GraphContext {
     getCameraTransitionDuration(): number | undefined;
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
+    // @internal
+    getDrawnTarget(): DrawnTarget | null;
     getEdgeCount(): number;
     // @internal
     getEdgeIdTarget(): EdgeIdTarget | null;
@@ -3069,6 +3071,8 @@ export interface GraphContext {
     getAcceleration?(): AccelerationController;
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
+    // @internal
+    getDrawnTarget?(): DrawnTarget | null;
     getEventManager?(): EventManager | undefined;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;

@@ -1520,6 +1520,7 @@ export class LayoutManager implements Manager {
                     dataManager: this.dataManager,
                     fromSeed: how.fromSeed,
                     weightMeaning: this.weightMeaningFor(type),
+                    drawnTarget: () => this.graphContext?.getDrawnTarget?.() ?? null,
                 };
                 engine = new SimulationLayoutEngine(init);
             }

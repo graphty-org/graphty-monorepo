@@ -1,6 +1,6 @@
 /**
  * @file `PULLED_CURVE_GLSL` puts a curve's path points where its mirror, `curvePathPoint`, puts them
- * (design/rendering/row-renderer.md, stage 21): every point of 200 cut curves, lone, fanned and center arcs, read back through
+ * (design/rendering/row-renderer.md, stage 21): every point of 200 cut curves, lone, fanned, center and raised arcs, read back through
  * transform feedback on WebGL2, within 1e-4 of the mirror, edges moved to the origin as the trim test
  * moves them, since a float's spacing grows with the coordinate.
  */
@@ -94,7 +94,7 @@ function shaderPoints(asks: Ask[]): Float32Array {
 
 /**
  * Every point of 200 cut curves between spheres, the source at the origin: lone curves, fanned arcs, center arcs,
- * and lone curves stopped short of their nodes by a gap, often wide enough that the curve is drawn uncut.
+ * raised arcs, and lone curves stopped short of their nodes by a gap, often wide enough that the curve is drawn uncut.
  */
 function asks(): Ask[] {
     let s = 3251;
@@ -114,12 +114,14 @@ function asks(): Ask[] {
             const d = Math.hypot(x - c.x, y - c.y, z - c.z);
             return d > 0 && d > r;
         };
-        // a lone curve, a fanned arc, a center arc (`line.arcRadius`) and a gapped lone curve in turn
-        const kind = Math.floor(random() * 4);
+        // a lone curve, a fanned arc, a center arc (`line.arcRadius`), a gapped lone curve and a raised arc
+        // (`line.route` "arc") in turn
+        const kind = Math.floor(random() * 5);
         const bow = kind === 1 ? (random() - 0.5) * 2 * scale : null;
         // a half circle (radius 0.5) among them, whose way round is a float's noise
         const arc = kind === 2 ? Math.max(0.5, random() * 3.5 - 0.5) : null;
         const [rSrc, rDst] = [random() * scale * 0.3, random() * scale * 0.3];
+        const height = kind === 4 ? random() * 1.5 : null;
         const [gSrc, gDst] = kind === 3 ? [random() * scale * 0.4, random() * scale * 0.4] : [0, 0];
         const length = Math.hypot(dst.x, dst.y, dst.z);
         const bare = (from: Xyz, to: Xyz, reach: number): Xyz => {
@@ -135,8 +137,7 @@ function asks(): Ask[] {
             dst,
             radius(src, rSrc + gSrc),
             radius(dst, rDst + gDst),
-            bow,
-            arc,
+            { bow, radius: arc, height },
             kind === 3 ? () => [bare(src, dst, rSrc + gSrc), bare(dst, src, rDst + gDst)] : null,
         );
         for (let j = 0; span !== null && j <= span.pieces; j++) {

@@ -135,6 +135,8 @@ const PULLED_LINE_KEYS = new Set([
     "fanned",
     "fanSpacing",
     "arcRadius",
+    "route",
+    "arcHeight",
     "nodeGap",
     "sourceNodeGap",
     "targetNodeGap",
@@ -2510,7 +2512,8 @@ export class Edge {
      * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
      * too, with no `supportModel`, and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centres' and, for one that fans out of a
      * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
-     * radius (`arcRadius`), which each placement writes
+     * radius (`arcRadius`), or for one raised off the map (`line.route` "arc", which wins over both), its height
+     * (`arcHeight`; a route the layout picks keeps it an object edge), which each placement writes
      * (`meshes/pulledCurve.ts`, {@link Edge.pullCurve}). Read when the line is built.
      * @param style - The resolved style.
      * @returns True when it is pulled.
@@ -2532,7 +2535,7 @@ export class Edge {
             noCap(style.arrowHead) &&
             noCap(style.arrowTail) &&
             style.band?.color === undefined &&
-            this.route === "straight" &&
+            (this.route === "straight" || (line.route === "arc" && line.bezier === true)) &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
     }
@@ -2591,7 +2594,8 @@ export class Edge {
 
     /**
      * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there -- a lone
-     * curve, the arc it fans out of its bundle on ({@link Edge.fanOf}), or its circle (`line.arcRadius`) -- taking pieces while the cut
+     * curve, the arc it fans out of its bundle on ({@link Edge.fanOf}), its circle (`line.arcRadius`), or its raised arc (`line.route`
+     * "arc") -- taking pieces while the cut
      * needs more than it holds, each node grown by its gap (`line.nodeGap`). A curve no point of which clears both nodes is drawn as the lone
      * curve between its bare ends ({@link Edge.bareEnd}), uncut, as the object path draws it (`placeCurve`); one it would draw another way
      * (`curveSpan` null: a centre outside its own node, or bare ends that meet) draws nothing.
@@ -2606,7 +2610,11 @@ export class Edge {
 
         const { pulled } = this;
         const { batch, look } = pulled;
-        const fan = this.fanOf(src, dst);
+        // a raised arc the style asks for wins over a fan and a circle, as `bundleRoute` draws it; one the layout
+        // asks for keeps the line an object edge (`pullsLine`)
+        const raised = this.drawnStyle?.line?.route === "arc";
+        const height = raised ? (this.drawnStyle?.line?.arcHeight ?? DEFAULT_ARC_HEIGHT.arc) : null;
+        const fan = raised ? null : this.fanOf(src, dst);
         // `fanArc` bows to the left of the bundle's first edge; the span's bow is to the left of this one
         let bow: number | null = null;
         if (fan !== null) {
@@ -2619,8 +2627,7 @@ export class Edge {
             dst,
             Edge.outside(this.srcNode, src, this.gapAt("source")),
             Edge.outside(this.dstNode, dst, this.gapAt("target")),
-            bow,
-            radius,
+            { bow, radius, height },
             () => [this.bareEnd("source", src, dst), this.bareEnd("target", dst, src)],
         );
         while (run.length + 1 < (span?.pieces ?? 0)) {

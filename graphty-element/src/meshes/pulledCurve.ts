@@ -55,6 +55,11 @@ export interface CurveSpan {
      */
     readonly turn: number | null;
     /**
+     * For a raised arc (`line.route` "arc", `edgeRoute.raisedArc`), how high it rises toward -z at its middle as a
+     * share of the chord in the x-y plane (`line.arcHeight`); null otherwise.
+     */
+    readonly height: number | null;
+    /**
      * For the lone curve drawn uncut in place of a route no sample of which clears both nodes, how far along the
      * chord from source to target it starts and stops, when a gap (`line.nodeGap`) moves those ends off the centers
      * (`Edge.bareEnd`); null otherwise. The curve is then the lone curve between those two points of the chord.
@@ -177,8 +182,24 @@ function circleSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, radius: 
     return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z: src.z + (dst.z - src.z) * t };
 }
 
-/** Which path a span samples: a lone curve, a fanned arc (`bow`) or a center arc (`radius`). */
-type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "ends">;
+/**
+ * One sample of a raised arc, as `raisedArc` computes it: the chord, lifted toward -z by a parabola.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param i - The sample, 0 to `samples`.
+ * @param samples - The pieces the arc is sampled with.
+ * @param height - Its peak, a share of the chord in the x-y plane.
+ * @returns The point.
+ */
+function raisedSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, height: number): Xyz {
+    const peak = height * Math.hypot(dst.x - src.x, dst.y - src.y);
+    const t = i / samples;
+    const lift = 4 * peak * t * (1 - t);
+    return { x: src.x + (dst.x - src.x) * t, y: src.y + (dst.y - src.y) * t, z: src.z + (dst.z - src.z) * t - lift };
+}
+
+/** Which path a span samples: a lone curve, a fanned arc (`bow`), a center arc (`radius`) or a raised arc (`height`). */
+type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "ends">;
 
 /**
  * One sample of the path a span's shape names.
@@ -193,6 +214,10 @@ function pathSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, shape: Sha
     const { ends } = shape;
     if (ends !== null) {
         return sampleAt(along(src, dst, ends[0]), along(src, dst, ends[1]), i, samples);
+    }
+
+    if (shape.height !== null) {
+        return raisedSampleAt(src, dst, i, samples, shape.height);
     }
 
     if (shape.radius !== null) {
@@ -215,8 +240,8 @@ function along(src: Xyz, dst: Xyz, t: number): Xyz {
 
 /**
  * The span's shape as the shader's three numbers: (bow, turn or where an uncut curve starts; 0 for a lone curve,
- * 1 for a fanned arc, 2 for a center arc, 3 for a lone curve between two points of the chord; where that curve
- * stops), the last three of a curve piece's fourth texel.
+ * 1 for a fanned arc, 2 for a center arc, 3 for a lone curve between two points of the chord, 4 for a raised arc
+ * (its height first); where that curve stops), the last three of a curve piece's fourth texel.
  * @param span - The span, or null.
  * @returns The three numbers.
  */
@@ -224,6 +249,11 @@ export function curveShape(span: Shape | null): [number, number, number] {
     const ends = span?.ends ?? null;
     if (ends !== null) {
         return [ends[0], 3, ends[1]];
+    }
+
+    const height = span?.height ?? null;
+    if (height !== null) {
+        return [height, 4, 0];
     }
 
     const turn = span?.turn ?? null;
@@ -287,8 +317,12 @@ function crossingAlong(inside: Xyz, outside: Xyz, isOutside: (x: number, y: numb
  * @param dst - The target center.
  * @param outsideSrc - Whether a point is outside the source node.
  * @param outsideDst - Whether a point is outside the target node.
- * @param bow - A fanned arc's bow ({@link CurveSpan.bow}), or null for a lone curve.
- * @param radius - A center arc's radius ({@link CurveSpan.radius}), or null; it wins over `bow`.
+ * @param path - The path, a lone curve when empty: a fanned arc's bow ({@link CurveSpan.bow}), a center arc's radius
+ *     ({@link CurveSpan.radius}), which wins over a bow, or a raised arc's height ({@link CurveSpan.height}), which wins
+ *     over both.
+ * @param path.bow - The bow.
+ * @param path.radius - The radius.
+ * @param path.height - The height.
  * @param bareEnds - Where the line starts and stops when it is not cut (`Edge.bareEnd`: the centers, or with a gap,
  *     off the nodes along the chord), asked only when no sample is outside both nodes; unset, the centers.
  * @returns The span; the lone curve between the bare ends, uncut, when no sample is outside both nodes, as
@@ -301,18 +335,24 @@ export function curveSpan(
     dst: Xyz,
     outsideSrc: (x: number, y: number, z: number) => boolean,
     outsideDst: (x: number, y: number, z: number) => boolean,
-    bow: number | null = null,
-    radius: number | null = null,
+    path: { bow?: number | null; radius?: number | null; height?: number | null } = {},
     bareEnds: (() => readonly [Xyz, Xyz]) | null = null,
 ): CurveSpan | null {
-    const circle = radius === null ? null : centerCircle(src, dst, radius);
-    let shape: Shape = { bow, radius: null, turn: null, ends: null };
-    if (radius !== null) {
-        shape = { bow: null, radius, turn: circle?.turn ?? 0, ends: null };
+    const { bow = null, radius = null, height = null } = path;
+    const circle = radius === null || height !== null ? null : centerCircle(src, dst, radius);
+    let shape: Shape = { bow, radius: null, turn: null, height: null, ends: null };
+    if (height !== null) {
+        shape = { bow: null, radius: null, turn: null, height, ends: null };
+    } else if (radius !== null) {
+        shape = { bow: null, radius, turn: circle?.turn ?? 0, height: null, ends: null };
     }
 
     let samples = curvePieces(src, dst);
-    if (radius !== null) {
+    if (height !== null) {
+        // `raisedArc`: a flat route is its two ends
+        const chord = Math.hypot(dst.x - src.x, dst.y - src.y);
+        samples = height * chord > 0 ? fanArcPieces(chord, height * chord) : 1;
+    } else if (radius !== null) {
         samples = circle?.pieces ?? 1;
     } else if (shape.bow !== null) {
         samples = fanArcPieces(Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z), shape.bow);
@@ -375,6 +415,7 @@ function uncutSpan(src: Xyz, dst: Xyz, bareEnds: readonly [Xyz, Xyz] | null): Cu
         bow: null,
         radius: null,
         turn: null,
+        height: null,
         ends: moved ? ends : null,
     };
 }
@@ -465,7 +506,17 @@ vec3 pulledCircleSample(vec3 src, vec3 dst, float i, float samples, float turn) 
     return vec3(p, mix(src.z, dst.z, t));
 }
 
+vec3 pulledRaisedSample(vec3 src, vec3 dst, float i, float samples, float height) {
+    float t = i / samples;
+    vec3 p = src + (dst - src) * t;
+    p.z -= 4.0 * height * length(dst.xy - src.xy) * t * (1.0 - t);
+    return p;
+}
+
 vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut) {
+    if (cut.w > 3.5) {
+        return pulledRaisedSample(src, dst, i, samples, cut.z);
+    }
     if (cut.w > 1.5) {
         return pulledCircleSample(src, dst, i, samples, cut.z);
     }
@@ -473,7 +524,7 @@ vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut) {
 }
 
 vec3 pulledCurvePoint(vec3 src, vec3 dst, vec4 span, vec4 cut, int j) {
-    if (cut.w > 2.5) {
+    if (abs(cut.w - 3.0) < 0.5) {
         // the lone curve between two points of the chord, where a gap moves an uncut curve's ends
         vec3 start = mix(src, dst, cut.z);
         dst = mix(src, dst, span.w);

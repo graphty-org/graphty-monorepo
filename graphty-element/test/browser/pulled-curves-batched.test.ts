@@ -6,7 +6,8 @@
  * A bundle spread by `line.fanSpacing` is pulled too, and follows a new spacing, and a curve drawn as an arc of a
  * circle (`line.arcRadius`) follows a new radius. A curve stopped short of its nodes by a gap (`line.nodeGap`,
  * `sourceNodeGap`, `targetNodeGap`) is pulled too, and follows a new gap, one wide enough that a curve clears
- * neither gapped node and is drawn uncut between its bare ends.
+ * neither gapped node and is drawn uncut between its bare ends. A curve raised off the map (`line.route` "arc") is
+ * pulled too, and follows a new height (`line.arcHeight`).
  * Stage 21 of design/rendering/row-renderer.md; the bar is its section 7.
  */
 
@@ -335,5 +336,44 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.equal(overBar(before.narrow, after.narrow), 0, "a gap of 0.15");
         assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
         assert.equal(overBar(before.wide, after.wide), 0, "wide source gaps");
+    });
+    it("pull curves raised in arcs, and follow a new height, drawing the objects path's picture", async () => {
+        /**
+         * Raise every curve, drag a node, then raise them higher.
+         * @param element - The element.
+         * @returns The pictures.
+         */
+        async function raised(element: Graphty): Promise<{ low: Frame; dragged: Frame; high: Frame }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            await element.session.styles.add({
+                name: "raised",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.route": "arc" },
+            } as never);
+            await settled(element);
+            const low = await readCanvas(element.graph);
+            const dragged = await moved(element);
+            await element.session.styles.add({
+                name: "higher",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.arcHeight": 0.6 },
+            } as never);
+            await settled(element);
+            return { low, dragged, high: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await raised(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await raised(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.low, before.high), 0, "the new height moves the arcs");
+        assert.equal(overBar(before.low, after.low), 0, "the default height");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.high, after.high), 0, "height 0.6");
     });
 });

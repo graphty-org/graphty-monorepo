@@ -386,6 +386,11 @@ head, which waits for stage 17. One `lean-m` run each under `"batched"`, RTX, in
 load average 5.4) moving 87.6 ms (p99 90.6), layout frame 942 ms; after (`benchmarks/results/stage-16`, 4.2) moving 86.9 ms (p99 89.5),
 layout frame 997 ms, `rowCounts.pulledEdges` 0 in both. The 2D targets need a pulled 2D line, which no stage yet builds.
 
+Also fixed in stage 16 (a `"batched"`-only defect already on master): a node source mesh whose batch group lost its last member
+stayed in `MeshCache.batchedSources` until the next flush, but the cache prunes right after the repaint, before that flush, so a
+toggled node size left one mesh and one material behind per look (`session-style-paint.test.ts` under the `forced-batched`
+project). `NodeBatches.leave` now drops an emptied group's source from `batchedSources` at once.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

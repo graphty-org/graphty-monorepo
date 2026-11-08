@@ -564,6 +564,12 @@ export class NodeBatches {
             group.family?.batch?.free(node.index);
         }
 
+        // The cache prunes right after a repaint, before the next flush settles this group: a source
+        // with no members left draws nothing, so let that prune dispose it.
+        if (group.members.size === 0) {
+            this.host.cache.batchedSources.delete(group.source);
+        }
+
         this.dirty.add(group);
     }
 

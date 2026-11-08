@@ -792,7 +792,7 @@ describe("fillDefaults", () => {
 });
 
 describe("batchableOf", () => {
-    const plain = { scaled: false, flatOutline: false };
+    const plain = { flatOutline: false };
     const style = (over: object): NodeStyleConfig =>
         defaultsDeep({}, over, NodeStyle.parse(defaultNodeStyle)) as NodeStyleConfig;
 
@@ -827,10 +827,7 @@ describe("batchableOf", () => {
         assert.equal(batchableOf({ style: style(over) }, plain), batchable);
     });
 
-    it.each([
-        ["a size that follows the view", { scaled: true, flatOutline: false }],
-        ["a flat outline", { scaled: false, flatOutline: true }],
-    ])("%s keeps every row an object", (_name, view) => {
-        assert.isFalse(batchableOf({ style: style({}) }, view));
+    it("a flat outline keeps every row an object", () => {
+        assert.isFalse(batchableOf({ style: style({}) }, { flatOutline: true }));
     });
 });

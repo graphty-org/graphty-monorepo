@@ -59,8 +59,8 @@ master. **No breaking change is needed.** Two changes are optional and held for 
 ## 3. Rows and options
 
 A row is an object row for one of two reasons. _Paint or view_: `batchableOf(paint, view)`, one pure function in
-`managers/StylePainter.ts` with a test table, says the batch cannot draw it. `view` is the scene state paint does not hold: lighting,
-`depthIndependentSize`, a map's `nodeScale`. The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
+`managers/StylePainter.ts` with a test table, says the batch cannot draw it. `view` is the scene state paint does not hold: lighting
+(until stage 14 also `depthIndependentSize` and a map's `nodeScale`, which a batched row now carries in its matrix). The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
 re-batch pass. _Mesh read_: someone holds its mesh; this is permanent. An _object edge_ is the same idea for edges; the fast form is a
 _pulled edge_.
 
@@ -275,9 +275,18 @@ material. A gradient row paints no instance color (`paint.color` is null), so th
 leaves the ramp as the object row draws it. Nothing else changed: `batchLook` already carries the
 gradient inside `texture`.
 
+As built (stage 14, seventh pull request: screen-scale size): `batchableOf` no longer turns every row into
+an object under `depthIndependentSize` or a map's `nodeScale: "screen"`; `BatchView` keeps only the flat
+outline. The update loop still scales each node every frame through `Node.drawnScale`, which scales the
+anchor and re-measures the row as before, and now also keeps `Node.wholeScale`, the view's scale without a
+particle shrink (the shrink is the row table's w). When it changes, `NodeBatches.rescale` writes the
+batched row's matrix as its family factor times that scale. The `Edge.capScale` mirror needed no code:
+`drawnScale` of a batched row reads `RowTable.extentOf`, measured from the scaled anchor, so arrowheads,
+edge trims and the row scan's picks follow the same scale. With the matrix left at the family factor, the
+orbit case of `node-batch.test.ts` is 17,594 pixels off and the map zoom cases about 380.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
-shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
-for `Edge.capScale`.
+shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widened the batch (see its row and the notes above).
 
 ### 4.3 Edges (#3251)
 

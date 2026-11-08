@@ -113,6 +113,7 @@ import type {
     ElementAtResult,
     FormatId,
     GroupOutlineAtResult,
+    NodeId,
     Scope,
     ScopeInput,
 } from "./catalog/types";
@@ -148,6 +149,7 @@ import {
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
+import { attachRegionGesture } from "./input/RegionSelectGesture";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import {
     type AddEdgesOptions,
@@ -213,13 +215,17 @@ import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./No
 import { EdgeIdTarget } from "./render/EdgeIdTarget";
 import { NodeIdTarget } from "./render/NodeIdTarget";
 import {
+    type CanvasPoint,
     hoverEdgeAt,
+    insidePolygon,
     openRowScan,
     pickAsDrawn,
     pickCloseLabel,
     pickEdgeId,
     pickNodeId,
     pickWorldPoint,
+    regionWork,
+    rowScanOf,
     screenProjector,
     useEdgeIdTarget,
     useNodeIdTarget,
@@ -1050,6 +1056,7 @@ export class Graph implements GraphContext {
             {
                 acceleration: this.acceleration,
                 xr: this.xrAvailability,
+                region: (polygon) => this.nodesInRegion(polygon),
                 store: laneStoreOf(this.dataManager),
                 features: () => requestedFeatures.get(this)?.(),
                 runs: {
@@ -4945,6 +4952,52 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The drawn nodes whose centers lie inside a polygon on the canvas: the `{ region }` selection
+     * target. With a row table open it is one typed walk over `rowBounds`; otherwise each node is
+     * placed as `nodeScreenPosition` places it.
+     * @param polygon - The polygon, in CSS pixels from the canvas's top-left corner.
+     * @returns The nodes' ids.
+     */
+    private nodesInRegion(polygon: readonly CanvasPoint[]): NodeId[] {
+        const ids: NodeId[] = [];
+        const scan = rowScanOf(this.scene);
+        if (scan !== undefined) {
+            for (const row of scan.rowsInRegion(polygon)) {
+                const node = this.dataManager.nodeAtRow(row);
+                if (node !== undefined) {
+                    ids.push(node.id);
+                }
+            }
+
+            return ids;
+        }
+
+        const camera = this.scene.activeCamera;
+        if (!camera) {
+            return ids;
+        }
+
+        const project = screenProjector(this.scene);
+        const view = this.scene.getViewMatrix().m;
+        for (const node of this.dataManager.nodes.values()) {
+            regionWork.nodes++;
+            if (node.getRenderState() !== "visible") {
+                continue;
+            }
+
+            node.drawnWorldMatrix(true);
+            const centre = node.drawnWorldPosition;
+            const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
+            const { x, y } = project(centre);
+            if (depth >= camera.minZ && insidePolygon(polygon, x, y)) {
+                ids.push(node.id);
+            }
+        }
+
+        return ids;
+    }
+
+    /**
      * Set up a scene pointer observer to handle background clicks for deselection.
      * When the user clicks on an area with no node, the current selection is cleared.
      */
@@ -4982,6 +5035,23 @@ export class Graph implements GraphContext {
                     this.handleBackgroundClick(pointerInfo.event);
                 }
             }
+        });
+
+        // Shift and a drag on empty canvas, when `selection.region` turns it on.
+        attachRegionGesture({
+            scene: this.scene,
+            shape: () => this.styles.config.behavior.selection.region,
+            onNode: (x, y) => pickNodeId(this.scene, x, y) !== undefined,
+            holdCamera: (held) => {
+                if (held) {
+                    this.camera.temporarilyDisableInput();
+                } else {
+                    this.camera.temporarilyEnableInput();
+                }
+            },
+            select: (polygon) => {
+                this.session.selection.applyNow({ region: { polygon } }, "add", "user");
+            },
         });
 
         // The nodes' shared observer goes in right after this one, where the first node's own

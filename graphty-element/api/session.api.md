@@ -5266,6 +5266,23 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
 */
 | {
     readonly layer: LayerId;
+}
+/**
+* Every drawn node whose center lies inside a polygon on the canvas: what a rectangle or a
+* lasso drawn over the graph covers. The points are in CSS pixels from the canvas's top-left
+* corner, the pixels `worldToScreen` returns and a pointer's `offsetX` / `offsetY` use; a
+* rectangle is its four corners. A node that is hidden, filtered out or not placed is not
+* selected; a node drawn behind another is. It names nodes and no edges, as a neighborhood
+* does. A session that draws nothing refuses it with `E_UNSUPPORTED`.
+* @since 3.48.0
+*/
+| {
+    readonly region: {
+        readonly polygon: readonly {
+            readonly x: number;
+            readonly y: number;
+        }[];
+    };
 };
 
 // @public

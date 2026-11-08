@@ -357,6 +357,61 @@ export class RowScan {
     }
 
     /**
+     * The drawn rows whose centers lie inside a polygon on the canvas, in one typed walk: a row
+     * that is hidden or not placed has a bound of 0 and is skipped, a row behind the camera is
+     * skipped, and a row drawn behind another is kept.
+     * @param polygon - The polygon, in CSS pixels from the canvas's top-left corner.
+     * @returns The rows, in row order.
+     */
+    rowsInRegion(polygon: readonly CanvasPoint[]): number[] {
+        const camera = this.scene.activeCamera;
+        const found: number[] = [];
+        if (!camera) {
+            return found;
+        }
+
+        regionWork.rows += this.table.rows;
+        const root = this.rootMatrix();
+        // Root, then view (for the depth) and view and projection (for the screen), as
+        // `screenProjector` and `pickEdgeAt` take them.
+        const view = root.multiply(this.scene.getViewMatrix()).m;
+        const clip = root.multiply(this.scene.getViewMatrix().multiply(this.scene.getProjectionMatrix())).m;
+        const engine = this.scene.getEngine();
+        const css = engine.getHardwareScalingLevel();
+        const halfWidth = 0.5 * engine.getRenderWidth() * css;
+        const halfHeight = 0.5 * engine.getRenderHeight() * css;
+        const box = polygonBox(polygon);
+        const { rowBounds: bounds, rows } = this.table;
+        for (let row = 0, at = 0; row < rows; row++, at += 4) {
+            if ((bounds[at + 3] ?? 0) <= 0) {
+                continue;
+            }
+
+            const x = bounds[at] ?? 0;
+            const y = bounds[at + 1] ?? 0;
+            const z = bounds[at + 2] ?? 0;
+            if (x * view[2] + y * view[6] + z * view[10] + view[14] < camera.minZ) {
+                continue;
+            }
+
+            const w = x * clip[3] + y * clip[7] + z * clip[11] + clip[15];
+            const sx = ((x * clip[0] + y * clip[4] + z * clip[8] + clip[12]) / w + 1) * halfWidth;
+            const sy = (1 - (x * clip[1] + y * clip[5] + z * clip[9] + clip[13]) / w) * halfHeight;
+            if (
+                sx >= box.minX &&
+                sx <= box.maxX &&
+                sy >= box.minY &&
+                sy <= box.maxY &&
+                insidePolygon(polygon, sx, sy)
+            ) {
+                found.push(row);
+            }
+        }
+
+        return found;
+    }
+
+    /**
      * What places every row in the world.
      * @returns The root's world matrix, or identity when rows are in the world.
      */
@@ -518,6 +573,58 @@ export class RowScan {
         this.local.multiplyToRef(root, this.world);
         return node.drawnSourceMesh.intersects(rayFor(this.world), false, undefined, false, this.world, false);
     }
+}
+
+/** A point on the canvas, in CSS pixels from its top-left corner. */
+export interface CanvasPoint {
+    readonly x: number;
+    readonly y: number;
+}
+
+/** What region walks read: rows from a row table, and nodes one at a time off it. */
+export const regionWork = { rows: 0, nodes: 0 };
+
+/**
+ * A polygon's bounding box.
+ * @param polygon - The polygon.
+ * @returns Its least and greatest x and y.
+ */
+function polygonBox(polygon: readonly CanvasPoint[]): {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+} {
+    const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    for (const { x, y } of polygon) {
+        box.minX = Math.min(box.minX, x);
+        box.minY = Math.min(box.minY, y);
+        box.maxX = Math.max(box.maxX, x);
+        box.maxY = Math.max(box.maxY, y);
+    }
+
+    return box;
+}
+
+/**
+ * Whether a point lies inside a polygon, by the even-odd rule, so a lasso that crosses itself
+ * leaves out what it wound around twice.
+ * @param polygon - The polygon; its last point joins its first.
+ * @param x - The point's x.
+ * @param y - The point's y.
+ * @returns True inside.
+ */
+export function insidePolygon(polygon: readonly CanvasPoint[], x: number, y: number): boolean {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const a = polygon[i];
+        const b = polygon[j];
+        if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) {
+            inside = !inside;
+        }
+    }
+
+    return inside;
 }
 
 /** Each scene's scan, once its graph opened a row table. */

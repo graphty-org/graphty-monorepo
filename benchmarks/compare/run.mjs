@@ -277,6 +277,7 @@ try {
     }
     await page.mouse.move(1260, 980);
     log("hover", { targets: targets.length, latMs: lats });
+    if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
     if (!skip) {
         log("layoutFps", await page.evaluate(() => B.layoutFps(200, 30000)));
         log("layoutSteps", await page.evaluate(() => B.layoutSteps()));

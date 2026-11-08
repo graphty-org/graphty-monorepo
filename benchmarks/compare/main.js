@@ -141,6 +141,31 @@ const B = {
         return { cam, t, stamps: stamps.length, after: lib.el?.graph.getCameraState() };
     },
     hoverTargets: (k) => lib.hoverTargets(k),
+    // A lasso over the middle half of the canvas, through the `{ region }` selection target
+    // (row-renderer.md stage 23): each call's time, the nodes it selected and whether the cap cut it.
+    // cosmos.gl's region select is not measured here.
+    async lasso(times = 20) {
+        const el = lib.el;
+        if (!el?.session?.selection) return null;
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        const polygon = [
+            { x: w / 4, y: h / 4 },
+            { x: (3 * w) / 4, y: h / 4 },
+            { x: (3 * w) / 4, y: (3 * h) / 4 },
+            { x: w / 4, y: (3 * h) / 4 },
+        ];
+        const ms = [];
+        let delta = null;
+        for (let i = 0; i < times; i++) {
+            await el.session.selection.clear();
+            const a = now();
+            delta = await el.session.selection.apply({ region: { polygon } });
+            ms.push(+(now() - a).toFixed(2));
+        }
+        await el.session.selection.clear();
+        return { ms: stats(ms), nodes: delta.nodes, truncated: delta.truncated };
+    },
     armHover() {
         B._hover = { ev: null, hit: null, f0: stamps.length, tArm: now() };
         return true;

@@ -51,17 +51,10 @@ const SOURCES: Readonly<Record<string, string>> = Object.fromEntries(
 /** A branch on a color: `accepts === "color"`, `accepts !== "color"` or `isColor`. */
 const COLOR_BRANCH = /accepts [!=]== "color"|\bisColor\b/g;
 
-/** Every section of the Style tab, the experiments' included. */
-const ALL_SECTIONS = [
-    ...sectionsFor("node", { cosmograph: true, nodeModels: true }),
-    ...sectionsFor("edge", { cosmograph: true, nodeModels: true }),
-];
-
-/** Every channel a section of the Style tab draws as a line, the experiments' included. */
-const DRAWN = new Set<string>(ALL_SECTIONS.flatMap((section) => section.channels));
-
-/** Every channel the Style tab sets: its lines, and what a line sets from inside (Model settings). */
-const PLACED = new Set<string>([...DRAWN, ...ALL_SECTIONS.flatMap((section) => section.inner ?? [])]);
+/** Every channel a section of the Style tab draws, the experiments' included. */
+const DRAWN = new Set<string>(
+    [...sectionsFor("node", true), ...sectionsFor("edge", true)].flatMap((section) => section.channels),
+);
 
 describe("every style has a home", () => {
     it("gives every channel graphty-element publishes a control or a reason", () => {
@@ -84,23 +77,8 @@ describe("every style has a home", () => {
 
     it("places exactly the channels the Style tab draws, and gives the rest a reason", () => {
         for (const channel of CHANNELS) {
-            assert.strictEqual("place" in CHANNEL_HOMES[channel], PLACED.has(channel), channel);
+            assert.strictEqual("place" in CHANNEL_HOMES[channel], DRAWN.has(channel), channel);
         }
-    });
-
-    it("places every model channel: none is left without a row", () => {
-        const models = CHANNELS.filter((channel) => channel.startsWith("node.model") || channel === "node.texture");
-        assert.isAbove(models.length, 0);
-        assert.deepEqual(
-            models.filter((channel) => !("place" in CHANNEL_HOMES[channel])),
-            [],
-        );
-    });
-
-    it("draws today's sections with the node-models experiment off", () => {
-        const off = sectionsFor("node", { cosmograph: true, nodeModels: false });
-        assert.isFalse(off.some((section) => section.channels.includes("node.texture")));
-        assert.isFalse(off.some((section) => section.inner !== undefined));
     });
 
     it("offers every style the design places in the panel: none of them is 'not offered'", () => {

@@ -1897,6 +1897,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPinned: READ,
             roundRadius: READ,
             drawnFill: READ,
+            drawnOpacity: READ,
             drawnRadius: READ,
             layoutRadius: READ,
             spacingRadius: READ,
@@ -1914,6 +1915,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             shapeTextLabels: RENDER,
             xlabelLabel: RENDER,
             syncXlabelPlace: RENDER,
+            resampleLabel: RENDER,
             isDrawnAsGroup: READ,
             groupDrawnForAnotherCamera: READ,
             drawnPosition: READ,
@@ -3250,7 +3252,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 call: { kind: "call", args: ["Fixture project"] },
                 expect: [{ op: "config.set", values: { name: "Fixture project" } }],
             },
-            assetChoices: READ,
             save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
             markSaved: exempt("Moves the save point that dirty is measured from; it changes nothing a project saves."),
             open: exempt(
@@ -3817,6 +3818,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     {
         name: "LabelDeclutter",
         file: "src/managers/LabelDeclutter.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "LabelSampler",
+        file: "src/managers/LabelSampler.ts",
         half: "renderer",
         whole: RENDER,
     },

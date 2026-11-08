@@ -230,6 +230,27 @@ instance and no batch of its own; when the first source is disposed, its family 
 again at the same flush. Nothing changes under `"objects"`: `NodeBatches` exists only under `"batched"`, and the prune
 guard's set is empty without it.
 
+As built (stage 14, second pull request): `PajekShapesAndMidLineArrows` failed only on `"batched"` because its play read
+the shape-`none` node's source through `drawnPickMesh`, which is null for a batched row since stage 11; it reads
+`Node.paintedSourceMesh` now, and both paths pass. A fact for the opacity pull request, from the code: a node's opacity
+is its source mesh's `visibility` (`NodeMesh`, beside `material.alpha`), which a batched source gives up for 0, so a
+translucent batch must carry its look's rest visibility. With that, translucent rows batched per look match in 2D, but
+3D differs by about 600 pixels even with one opacity, and one batch per source breaks 2D as well: the batch's place in
+Babylon's back-to-front order of translucent meshes is what differs, and it has to be settled before opacity batches.
+
+As built (stage 14, third pull request: per-instance opacity): `batchableOf` takes a solid color at any opacity.
+An opacity is in its source's mesh key, so each opacity is a source and a look of its own, and a translucent
+source keeps a family of its own (no sharing across sizes): objects draw a translucent source's rows together,
+and one batch across sizes would draw them in row order. The batch takes its source's rest visibility.
+Correction to the second pull request's note, from the code: the order Babylon draws translucent meshes in
+is not decided by distance here. Every source sits at y = -10000 and every batch at the root's origin, so the
+back-to-front sort ties all of them and keeps the order they reach it in: a source's at its first instance
+in `scene.meshes`, a batch's at its own place there. Batches were made in row order, sources in paint order,
+which was the whole 563 and 654 pixel difference. `NodeBatches.orderTranslucent` puts a new translucent batch
+before every translucent batch whose source was made later, so batches tie in their sources' creation order.
+That stands in for the objects path's instance order, which repaint history can reorder; `render-parity`
+decides. A batched row's opacity reads as `Node.drawnOpacity` (its mesh's visibility, or the batch's).
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.
@@ -500,8 +521,20 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
       `RichTextLabel`, per label.
     - Full atlas (a 4096 square holds about 2,500 tiles): no second page, no eviction; a label with a glyph that does not fit falls back to
       `RichTextLabel`, per label.
-- **Sampling**, off by default with its cell size a setting. When the view settles, every labelled row draws as one point into a target of
-  one texel per screen cell, depth from a priority column. A read of a few KB gives the winners; only they get built.
+    - Correction from stage 33 (`meshes/GlyphAtlas.ts`): no regular expression can see a ligature font, and widths cannot either (a
+      font keeps a ligature as wide as its parts: DejaVu Serif "fi" is 29.32 px at 48 px, "f" plus "i" the same). A ligature font is found
+      by its ink: each of a few probes ("fi", "fl", "ff", "ffi", "ffl", "->", "=>", "!=", "==", "<=", ">=", "www") is drawn as one run and
+      glyph by glyph at the placed x; any difference over 0.5% of the ink is a ligature, and that font's labels fall back. In Chromium a
+      font without ligatures draws identically both ways (0.000); DejaVu Sans and Serif "fi" differ by 0.065 and 0.112. Combining marks (`\p{M}`) fall back too, since only the font's positioning table places
+      them; "Indic" covers the other Brahmic scripts (Thai, Lao, Tibetan, Myanmar, Khmer). Tiles are 80 texels (56 px glyphs, a 12-texel
+      reach): 2,601 to the page. A label falls back whole when its glyphs do not all fit.
+- **Sampling**, off by default with its cell size a setting (`layoutBehavior.labels.sampleCell`, CSS pixels; unset is off). When the view
+  settles, one label per screen cell is picked (selected, then degree, then id); only the winners get built, and
+  `nodeLabelCounts.hiddenBySampling` (present only while it is on) counts the rest.
+  Correction from stage 32: built on the CPU (`managers/LabelSampler.ts`), not as a GPU point draw with a readback. The pass runs once per
+  settled view, not per frame, and projects each labelled row's CPU position (`drawnPosition`, which every path keeps) through one matrix:
+  a few milliseconds at 100,000 rows, with no render target, no readback stall and no WebGL/WebGPU split. A settled frame costs
+  one comparison of the camera, the canvas size, the position lane's generation and the edge version.
 
 ### 4.8 The small issues
 

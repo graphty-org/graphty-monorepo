@@ -807,7 +807,7 @@ describe("batchableOf", () => {
         [
             "a solid color with transparency",
             { texture: { color: { colorType: "solid", value: "#f00", opacity: 0.5 } } },
-            false,
+            true,
         ],
         ["a gradient", { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } }, false],
         ["an image", { texture: { image: "a.png" } }, false],

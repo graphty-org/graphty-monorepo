@@ -503,6 +503,7 @@ export class Node implements ModelUser {
 
     /** The shared mesh a batch draws this node from, or null while it has its own. */
     private batchSource: AbstractMesh | null = null;
+    private batchOpacity = 1;
     label?: RichTextLabel;
 
     /** The further texts on screen (`shape.texts`), one label each. */
@@ -1504,9 +1505,11 @@ export class Node implements ModelUser {
     /**
      * Say a batch draws this node, or that it no longer does. Call it again when the row's source changes.
      * @param source - The shared mesh the batch draws from, or null.
+     * @param opacity - The opacity the batch draws it at (its source's own, which a batched source gives up).
      * @internal
      */
-    drawInBatch(source: AbstractMesh | null): void {
+    drawInBatch(source: AbstractMesh | null, opacity = 1): void {
+        this.batchOpacity = opacity;
         // Leaving the batch, the row takes its anchor's place with it: bring it to the table first.
         if (source === null) {
             this.followRow();
@@ -1530,12 +1533,14 @@ export class Node implements ModelUser {
             this.#mesh.dispose();
             this.#anchor = anchor;
             this.#mesh = null;
+            this.forgetMeasuredMesh();
         } else if (source === null && this.#mesh === null && !this.disposed) {
             const anchor = this.#anchor;
             this.build(this.#fit.meshKey, this.#fit.style);
             Node.moveOnto(anchor, this.#anchor);
             this.retargetLabels(anchor, this.#anchor);
             anchor.dispose();
+            this.forgetMeasuredMesh();
             if (this.#actions !== null) {
                 this.makeDrawnPickable(this.#actions);
             }
@@ -1545,6 +1550,16 @@ export class Node implements ModelUser {
             this.applyInstancePaint(this.drawnStyle ?? this.#fit.style, this.drawnColor);
             this.applyRenderState();
         }
+    }
+
+    /**
+     * Drop the memos keyed on a mesh or anchor the batch handover just disposed: they would keep
+     * it, and through it its scene data, alive (issue #3247). The next read measures again.
+     */
+    private forgetMeasuredMesh(): void {
+        this.roundRadiusMesh = null;
+        this.halfExtentsMesh = null;
+        this.halfExtentsValue.x = 0;
     }
 
     /**
@@ -1733,6 +1748,15 @@ export class Node implements ModelUser {
      */
     get drawnPickMesh(): AbstractMesh | null {
         return this.#mesh;
+    }
+
+    /**
+     * The opacity the node is drawn at: its mesh's visibility, or for a row a batch draws, the batch's.
+     * @returns The opacity.
+     * @internal
+     */
+    get drawnOpacity(): number {
+        return this.#mesh?.visibility ?? this.batchOpacity;
     }
 
     /**
@@ -3723,16 +3747,38 @@ export class Node implements ModelUser {
         // the further texts first: the label's own early return must not skip them
         this.syncShapeTexts(o, rebuild);
         this.syncXlabel(o, rebuild);
+        this.syncOwnLabel(o, rebuild);
+    }
+
+    /**
+     * Build or drop this node's label again because label sampling (`labels.sampleCell`) picked
+     * it for its screen cell, dropped it, or was switched off. Called by the scene's label pass.
+     * @internal
+     */
+    resampleLabel(): void {
+        if (this.drawnStyle !== null) {
+            this.syncOwnLabel(this.drawnStyle, true);
+        }
+    }
+
+    /**
+     * The label itself, apart from the further texts: see {@link Node.syncLabel}.
+     * @param o - The resolved style.
+     * @param rebuild - True to build it again even when it asks for what is drawn.
+     */
+    private syncOwnLabel(o: NodeStyleConfig, rebuild: boolean): void {
         // a table label draws its words in its cells
         const wanted = this.tableTexts === null ? drawnText(o.label) : undefined;
         const text = wanted === undefined ? undefined : this.extractLabelText(wanted);
+        // Label sampling may hold the label back until its screen cell picks this node.
+        const withheld = LabelDeclutter.withholds(this.#anchor.getScene(), this.context, this, wanted !== undefined);
 
         if (!rebuild && text === this.drawnLabelText && isEqual(wanted, this.drawnLabelStyle)) {
             return;
         }
 
         this.label?.dispose();
-        this.label = wanted === undefined ? undefined : this.createLabel(o);
+        this.label = wanted === undefined || withheld ? undefined : this.createLabel(o);
         this.drawnLabelText = text;
 
         // CLONED rather than held. The block belongs to a `NodePaint` that

@@ -116,6 +116,29 @@ element.layoutBehavior = { labels: { declutter: true, avoidNodesAndEdges: true }
   about 5 ms a pass at 1,000 nodes and 60 to 80 ms at 10,000, on a workstation. A pass runs only on
   a frame where something above changed.
 
+## A label on every node of a large graph
+
+Building a label costs far more than drawing a node, so a graph with a label on every one of
+100,000 nodes is slow to draw even though only a few hundred of them can be read at once. Set
+`layoutBehavior.labels.sampleCell` to a size in CSS pixels and the element divides the canvas into
+square cells of that size and builds the label of one node per cell: a selected node first, then
+the node with more edges. The other labels are not built at all.
+
+```typescript
+element.layoutBehavior = { labels: { sampleCell: 96 } }; // unset by default: every label is built
+element.layoutBehavior = { labels: { sampleCell: undefined } }; // back to every label
+```
+
+- The cells are chosen again once the view settles: when the camera, the canvas size and the node
+  positions have held still for a frame. Nothing is built during a gesture or while a layout moves
+  nodes, so zooming in shows more labels when the zoom stops.
+- `nodeLabelCounts` gains `hiddenBySampling` while it is on: labels not built because another
+  node's label was kept in their cell, or because their node is outside the view. A hidden node's
+  label is counted in `nodeHidden` as before. Unset, the counts have no `hiddenBySampling` field.
+- `declutter` and `avoidNodesAndEdges` work on the labels sampling built.
+- `labelOf(id)` returns undefined for a node whose label was not built.
+- A preference of the view, like `declutter`: not an undo step, and a saved project does not keep it.
+
 ## Label markup
 
 A label's words may carry markup tags, each closed by its own end tag: `<bold>`, `<italic>`,

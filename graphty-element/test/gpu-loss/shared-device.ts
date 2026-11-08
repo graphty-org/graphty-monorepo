@@ -158,3 +158,42 @@ export function errorsOf(graph: Graph): Error[] {
     });
     return errors;
 }
+
+/**
+ * Opens a graph on the given path with a running layout.
+ * @param path - The render path.
+ * @returns The graph.
+ */
+export async function running(path: "objects" | "batched"): Promise<Graph> {
+    adapterSays("test-hardware");
+    const graph = await open();
+    graph.setRenderPath(path);
+    await startLayout(graph);
+    assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
+    return graph;
+}
+
+/**
+ * The worst relative difference between the `rowPosition` texture and the CPU copy, read with no frame
+ * between them. The frame's publish reaches the CPU copy at the next frame's repack, so that repack is
+ * run here.
+ * @param graph - The graph.
+ * @returns The worst difference over every lane, and over the w lanes alone.
+ */
+export async function textureDiff(graph: Graph): Promise<{ worst: number; wWorst: number }> {
+    const table = graph.getRowTable();
+    assert.isNotNull(table);
+    graph.engine.stopRenderLoop();
+    table.flush();
+    const cpu = table.rowPosition.slice(0, 4 * table.rows);
+    const gpu = (await table.positionTexture.readPixels()) as Float32Array;
+    let worst = 0;
+    let wWorst = 0;
+    for (let i = 0; i < cpu.length; i++) {
+        const d = Math.abs((gpu[i] ?? Number.NaN) - (cpu[i] ?? 0)) / Math.max(1, Math.abs(cpu[i] ?? 0));
+        worst = Math.max(worst, d);
+        wWorst = i % 4 === 3 ? Math.max(wWorst, d) : wWorst;
+    }
+
+    return { worst, wWorst };
+}

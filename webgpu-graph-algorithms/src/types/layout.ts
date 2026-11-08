@@ -109,6 +109,39 @@ export interface GpuLayoutSimulation<Options, Stats extends LayoutStatsBase> ext
     setParams(patch: Partial<Options>): void;
     run(options?: RunOptions): Promise<Stats>;
     inspect?(name: string): Promise<Float32Array | Uint32Array>;
+    /** The drawn ring slot of the last batch that landed, or null (design/rendering/row-renderer.md 4.5). */
+    readonly landedDrawn?: GPUBuffer | null;
+    /** Makes every batch also write the renderer's drawn positions into a ring of `slots` buffers; null stops it. */
+    setDrawn?(output: DrawnOutput | null): void;
+    /** The transform the next batches draw with. */
+    setDrawnTransform?(transform: DrawnTransform): void;
+    /** The rows the next batches leave as the owner wrote them. */
+    setDrawnSkip?(mask: NodeMask): void;
+    /** Writes one node's drawn row into every slot of the ring. */
+    writeDrawn?(index: number, x: number, y: number, z: number, w: number): void;
+}
+
+/**
+ * What {@link GpuLayoutSimulation.setDrawn} asks for: how many ring slots, and the owner's stride-4 rows (x, y, z, w
+ * per node) that seed them.
+ * @public
+ */
+export interface DrawnOutput {
+    readonly slots: number;
+    readonly rows: Float32Array;
+}
+
+/**
+ * The transform the drawn ring applies to scene positions: drawn = (scene - center) * scale + target, z = 0 in 2D.
+ * @public
+ */
+export interface DrawnTransform {
+    /** The scene point drawn at `target`. */
+    readonly center: readonly [number, number, number];
+    /** Drawn units per scene unit. */
+    readonly scale: number;
+    /** Where `center` is drawn. */
+    readonly target: readonly [number, number, number];
 }
 
 /**

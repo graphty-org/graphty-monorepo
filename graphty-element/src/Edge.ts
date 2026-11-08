@@ -1485,15 +1485,15 @@ export class Edge {
 
     /**
      * Where a line with no cap at an end starts from that end's node: its center, which the opaque
-     * node hides, or, for a group drawn as a region behind its members and edges, the region's
-     * outline, which is where Cytoscape.js and yEd end an edge to a compound node.
+     * node hides, or, for a node drawn behind every edge (a group region, or a 2D node below z-index 0:
+     * `Node.isDrawnBehindEdges`), its outline, which is where Cytoscape.js and yEd end an edge to a compound node.
      * @param node - The end's node.
      * @param centre - Its center.
      * @param toward - The other end's center.
      * @returns The point.
      */
     private groupEnd(node: Node, centre: Vector3, toward: Vector3): Vector3 {
-        if (!node.isDrawnAsGroup) {
+        if (!node.isDrawnBehindEdges) {
             return centre;
         }
 
@@ -3922,8 +3922,26 @@ export class Edge {
             out: typeof outSrc,
             gap: number,
         ): Vector3 => (i >= 0 && i < route.length / 3 ? cross(i, to, out) : this.leaveNode(node, centre, to, gap));
-        const start = ports.src ? a : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
-        const end = ports.dst ? b : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
+        // A port inside a node drawn behind every edge, which hides no stretch of the line, only aims it: the line is
+        // cut where it leaves the node's outline toward its next point, as yEd cuts one at a group's border
+        // (graphml-galaxy-lcms-workflow's bands from its "3 tabulars" group, ports at its middle).
+        const aimed = (node: Node, port: Vector3, to: Vector3, out: typeof outSrc): Vector3 => {
+            if (!node.isDrawnBehindEdges || out(port.x, port.y, port.z) || !out(to.x, to.y, to.z)) {
+                return port;
+            }
+            const c = crossingOf(port, to, out);
+            return new Vector3(c.x, c.y, c.z);
+        };
+        // the point a port's line runs on to: the route's next, else the other end
+        const one = span.first === span.last;
+        const afterA = one ? dst : Vector3.FromArray(route, 3 * span.first + 3);
+        const start = ports.src
+            ? aimed(this.srcNode, a, afterA, outSrc)
+            : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
+        const beforeB = one ? start : Vector3.FromArray(route, 3 * span.last - 3);
+        const end = ports.dst
+            ? aimed(this.dstNode, b, beforeB, outDst)
+            : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
         const mid = clearOfCaps(
             route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1))),
             start,
@@ -4856,12 +4874,12 @@ export class Edge {
             this.pastBorders(srcPoint, dstPoint);
         }
 
-        // A group drawn as a region behind its members is a thin plate a ray meets at once, at its middle: the line
-        // leaves it through its outline across the view instead.
-        if (this.srcNode.isDrawnAsGroup) {
+        // A group drawn as a region behind its members is a thin plate a ray meets at once, at its middle, and no node
+        // drawn behind every edge hides the line under it: the line leaves it through its outline across the view.
+        if (this.srcNode.isDrawnBehindEdges) {
             srcPoint = this.groupEnd(this.srcNode, srcMesh.position, dstMesh.position);
         }
-        if (this.dstNode.isDrawnAsGroup) {
+        if (this.dstNode.isDrawnBehindEdges) {
             dstPoint = this.groupEnd(this.dstNode, dstMesh.position, srcMesh.position);
         }
 
@@ -4940,7 +4958,7 @@ export class Edge {
                 gap,
                 measured: closed ? TRIM_CLOSED : TRIM_NO_HIT,
                 leaves,
-                group: node.isDrawnAsGroup,
+                group: node.isDrawnBehindEdges,
             };
         };
         // a line a unit long loses what the arrow head takes from any line

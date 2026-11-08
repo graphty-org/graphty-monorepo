@@ -410,7 +410,8 @@ void main() {
      * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
      * slot in a line batch: every patterned type, laid along whatever route the edge takes
      * (issue #3102), except a dashed or dotted curve, or one through bends or round a self-loop,
-     * which is a joined line in a batch that measures its dashes along the whole route.
+     * which is a joined line in a batch that measures its dashes along the whole route. So is a dashed or dotted line
+     * with a dash length or gap of its own (`line.dashLength`, `line.dashGap`): a pattern element's shape is fixed.
      * @param style - The resolved style.
      * @param loop - Whether the edge is a self-loop, which is never a straight line.
      * @returns True for pattern elements.
@@ -426,7 +427,8 @@ void main() {
             loop ||
             line?.bezier === true ||
             [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
-        return !(routed && (lineType === "dash" || lineType === "dot"));
+        const ownDashes = line?.dashLength !== undefined || line?.dashGap !== undefined;
+        return !((routed || ownDashes) && (lineType === "dash" || lineType === "dot"));
     }
 
     /**
@@ -521,8 +523,11 @@ void main() {
         const lineType = style.line?.type ?? "solid";
         const styleKey = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
         const shared = byShape && !widened;
+        // a program's own dash length and gap (`line.dashLength`, `line.dashGap`) are the batch's pattern, so they
+        // part batches as the line type does
+        const dashes = `${String(style.line?.dashLength ?? "")}|${String(style.line?.dashGap ?? "")}`;
         const key = shared
-            ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}`
+            ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}|${dashes}`
             : styleKey;
         // A batch shared by shape holds edges of many opacities, so its first edge's opacity is not
         // its mesh's visibility: at 0 Babylon would draw none of them. Its translucent slots put it
@@ -556,6 +561,11 @@ void main() {
         if (lineType === "dash" || lineType === "dot") {
             const is2D = this.is2DMode(scene);
             const width = options.width / 40;
+            const { dashLength, dashGap } = style.line ?? {};
+            // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
+            // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
+            const dotShort = lineType === "dot" ? (dashLength ?? 1) - 1 : 0;
+            const gap = dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort);
             return cache.getBatch(
                 `${key}-joined${is2D ? "-2d" : ""}`,
                 made(() =>
@@ -571,8 +581,9 @@ void main() {
                             opaque,
                             pattern: {
                                 kind: lineType,
-                                elementLength: lineType === "dash" ? width * 3 : width,
+                                elementLength: lineType === "dash" ? width * (style.line?.dashLength ?? 3) : width,
                                 count: style.line?.patternCount,
+                                gap,
                             },
                         },
                         scene,

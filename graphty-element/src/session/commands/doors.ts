@@ -1920,6 +1920,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             syncXlabelPlace: RENDER,
             resampleLabel: RENDER,
             isDrawnAsGroup: READ,
+            isDrawnBehindEdges: READ,
             groupDrawnForAnotherCamera: READ,
             drawnPosition: READ,
             drawnWorldPosition: READ,

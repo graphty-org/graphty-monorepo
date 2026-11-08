@@ -224,6 +224,23 @@ describe("Pajek arcs between the same two vertices", () => {
 });
 
 describe("Pajek arrowhead places", () => {
+    it("places the tip on the line between the outlines, where graphty measures arrowPosition", async () => {
+        // pajek-graphstream-b arc 73 2 `ap 0.5`: Pajek draws the head about the middle of the line between the centers
+        // (translate(304.70 384.38), the tip at 5), 8.15 from the target's center: 2.15 past where the line leaves
+        // the target's box (6.00 out), 0.150 of the 14.29 between the two boxes. Arc 28 17 runs from a diamond, which
+        // the line leaves 3.73 out, to an ellipse, 5 out: the tip 5.48 from the center, 0.039 of the 12.22 between
+        const result = await registry.importGraph(
+            "*Vertices 4\n1 a 0.5875 0.7542 box x_fact 0.5 y_fact 0.5\n2 b 0.6313 0.7833 box x_fact 0.5 y_fact 0.5\n" +
+                "3 c 0.5292 0.6688 diamond x_fact 0.5 y_fact 0.5\n4 d 0.5479 0.7063 ellipse x_fact 0.5 y_fact 0.5\n" +
+                "*Arcs\n1 2 1 ap 0.5\n3 4 1 ap 0.5\n",
+            { format: "pajek", styles: true },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.150031, 0.0389469]);
+    });
+
     it("moves only the arrowhead of the line that sets ap, not the lines after it", async () => {
         // pajek-synth-lines: arc 11 12 after `10 11 ... ap 0.5` has its arrowhead at its target
         const result = await registry.importGraph(
@@ -233,8 +250,13 @@ describe("Pajek arrowhead places", () => {
         if (result.styles === null || result.styles === undefined) {
             throw new Error("no styles");
         }
-        // Pajek draws the tip 5 px past the point ap names: (100 - 5) / 200 and (0.25 * 282.84 - 5) / 282.84
-        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.475, null, 0.232322]);
+        // Pajek draws the tip 5 px past the point ap names, measured here between the outlines 10 px from each center:
+        // (100 - 5 - 10) / 180 and (0.25 * 282.84 - 5 - 10) / 262.84
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([
+            0.472222,
+            null,
+            0.211954,
+        ]);
     });
 
     it("places the tip 5 s px past the point ap names, as Pajek 6.02 draws it, at the node when that is past it", async () => {
@@ -247,12 +269,12 @@ describe("Pajek arrowhead places", () => {
             throw new Error("no styles");
         }
         // the second line is 5 px long: its tip would be past the target's center, so it is drawn at the node, part-way
-        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.45, 1e-6]);
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.444444, 1e-6]);
     });
 
     it("reads ap above 1 as a distance from the target's center, a share of a placed line", async () => {
         // pajek-synth-lines arc 3 4 ap 20: the point 20 px from the target's center, the tip 5 px nearer; here on a line 200 px
-        // long (0.4 of Pajek's 500 px square)
+        // long (0.4 of Pajek's 500 px square), 180 between the outlines: (15 - 10) / 180
         const result = await registry.importGraph("*Vertices 2\n1 a 0.1 0.1\n2 b 0.5 0.1\n*Arcs\n1 2 1 ap 20\n", {
             format: "pajek",
             styles: true,
@@ -260,7 +282,24 @@ describe("Pajek arrowhead places", () => {
         if (result.styles === null || result.styles === undefined) {
             throw new Error("no styles");
         }
-        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.075]);
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.0277778]);
+    });
+
+    it("measures ap on the line between the outlines under Lines finished at Vertex Border", async () => {
+        // pajek-specimen-arrows-p3: `ap 10` puts the tip 5 from the target's outline (x 795 against 800), `ap 0.5` the
+        // point at the middle of the line between the outlines; here 180 between them: 5 / 180 and (45 - 5) / 180
+        const result = await registry.importGraph(
+            "*Vertices 4\n1 a 0.1 0.1\n2 b 0.5 0.1\n3 c 0.1 0.5\n4 d 0.5 0.5\n*Arcs\n1 2 1 ap 10\n3 4 1 ap 0.25\n",
+            {
+                format: "pajek",
+                styles: true,
+                pajekDraw: { width: 500, height: 500, ini: { "Form10.LinesFinishedatBorder": "" } },
+            },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.0277778, 0.222222]);
     });
 });
 

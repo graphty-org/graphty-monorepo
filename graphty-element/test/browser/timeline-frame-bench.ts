@@ -6,13 +6,14 @@
  *
  * Two graphs of 1,000,000 edges with uniform instants over five years: on 100,000 nodes, and on
  * 10,000 nodes, because a frame of 100,000 node instances costs about a second on its own
- * (`session/limits.ts`) and that cost may not be edges at all. For each, five cases:
+ * (`session/limits.ts`) and that cost may not be edges at all. For each, these cases:
  *
  * - `all`: no window, nothing moves.
  * - `still`: a window 2% of the span wide, standing still.
  * - `step`: that window sliding a day a frame, as smooth play does (`seek` with `commit: false`).
  * - `jump`: that window jumping to a seeded place each frame, as a brush drag or a scrub does.
  * - `ghost`: the sliding window under `outside: "ghost"`.
+ * - `step-edges-only`: the step with `nodes: "all"`, so only edges are shown and hidden.
  *
  * The render loop is stopped and each frame is pumped by hand -- the move, `styles.settled()` (the
  * repaint a Ghost move starts), `graph.update()`, `scene.render()`, then the read back -- so a frame
@@ -25,13 +26,15 @@
  * Known costs over a 16 ms frame, tracked as issues: a jump under the cap spends tens of
  * milliseconds per 10,000 changed rows showing and hiding edges, and its scattered rows still send
  * about two thirds of each buffer in 4,096 runs (#6025); a Ghost step costs about twice a Hide step,
- * because every edge that crosses the window is restyled into another batch (#6026); every move
- * re-evaluates every active mesh, 35 to 62 ms on 100,000 nodes against 6 ms on 10,000 (#6027).
+ * because every edge that crosses the window is restyled into another batch (#6026); a move that
+ * shows or hides nodes re-evaluates every active mesh, about 50 ms on 100,000 nodes against 17 ms on
+ * 10,000, because each node is a mesh instance of its own (#6027). The `step-edges-only` case draws
+ * every node, so its moves show and hide only edges and evaluate nothing.
  *
  * Numbers go to the console as `[timeline-frame]` lines; nothing about speed is asserted. What is
  * asserted, at the end of the jumps, of a Hide slide and of a Ghost slide: every edge, one by one, is drawn or not
  * (and ghosted or not) as a brute-force test of its `t` against the window says, and the slots read
- * back from the GPU buffers are empty exactly for the edges that are not drawn. The suites run only
+ * back from the GPU buffers draw nothing (empty, or flagged hidden) exactly for the edges that are not drawn. The suites run only
  * when `GRAPHTY_BROWSER_GPU` is set: on the software renderer the numbers mean nothing and one frame
  * of 100,000 nodes takes about a second. Run it with the extracted libEGL tree when the machine has
  * no system one:
@@ -214,42 +217,66 @@ interface EdgeSlots {
     lineBatch: EdgeLineBatch | null;
     lineSlots: number[];
 }
+interface GpuBuffer {
+    getBuffer(): { underlyingResource: unknown } | null;
+}
 interface BatchStore {
-    buffer: { getBuffer(): { underlyingResource: unknown } | null } | null;
+    buffer: GpuBuffer | null;
+    hiddenBuffer: GpuBuffer | null;
     expanded: unknown;
     stride: number;
     highWater: number;
 }
 
-/**
- * Read a batch's slots back from the GPU, as the draw call reads them.
- * @param gl - The context.
- * @param batch - The batch.
- * @returns The slots, stride floats each.
- */
-function readBack(gl: WebGL2RenderingContext, batch: EdgeLineBatch): { floats: Float32Array; stride: number } {
-    const store = batch as unknown as BatchStore;
-    assert.isNull(store.expanded, "the real GPU draws instanced lines, not expanded ones");
-    const resource = store.buffer?.getBuffer()?.underlyingResource;
-    assert.instanceOf(resource, WebGLBuffer, "the batch has a GPU buffer");
-    const floats = new Float32Array(store.highWater * store.stride);
-    gl.bindBuffer(gl.ARRAY_BUFFER, resource);
-    gl.getBufferSubData(gl.ARRAY_BUFFER, 0, floats);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-    return { floats, stride: store.stride };
+/** A batch's slots and hidden flags read back from the GPU. */
+interface ReadBack {
+    floats: Float32Array;
+    hidden: Float32Array;
+    stride: number;
 }
 
 /**
- * Whether a slot read back holds a line: a hidden slot is all zeros.
+ * Read one GPU buffer's first floats.
+ * @param gl - The context.
+ * @param buffer - The buffer.
+ * @param count - How many floats.
+ * @returns The floats.
+ */
+function readFloats(gl: WebGL2RenderingContext, buffer: GpuBuffer | null, count: number): Float32Array {
+    const resource = buffer?.getBuffer()?.underlyingResource;
+    assert.instanceOf(resource, WebGLBuffer, "the batch has a GPU buffer");
+    const floats = new Float32Array(count);
+    gl.bindBuffer(gl.ARRAY_BUFFER, resource);
+    gl.getBufferSubData(gl.ARRAY_BUFFER, 0, floats);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    return floats;
+}
+
+/**
+ * Read a batch's slots and hidden flags back from the GPU, as the draw call reads them.
+ * @param gl - The context.
+ * @param batch - The batch.
+ * @returns The slots, stride floats each, and a hidden flag per slot.
+ */
+function readBack(gl: WebGL2RenderingContext, batch: EdgeLineBatch): ReadBack {
+    const store = batch as unknown as BatchStore;
+    assert.isNull(store.expanded, "the real GPU draws instanced lines, not expanded ones");
+    return {
+        floats: readFloats(gl, store.buffer, store.highWater * store.stride),
+        hidden: readFloats(gl, store.hiddenBuffer, store.highWater),
+        stride: store.stride,
+    };
+}
+
+/**
+ * Whether a slot read back draws a line: one that holds a placement and is not flagged hidden.
  * @param read - The batch read back.
- * @param read.floats - Its slots.
- * @param read.stride - Floats per slot.
  * @param slot - The slot.
  * @returns True when the GPU would draw it.
  */
-function slotDrawn(read: { floats: Float32Array; stride: number }, slot: number): boolean {
+function slotDrawn(read: ReadBack, slot: number): boolean {
     const from = slot * read.stride;
-    return read.floats.subarray(from, from + read.stride).some((value) => value !== 0);
+    return read.hidden[slot] === 0 && read.floats.subarray(from, from + read.stride).some((value) => value !== 0);
 }
 
 /**
@@ -270,7 +297,7 @@ function assertEdgesMatchWindow(
     // The element's session is the full one; its public type leaves out the ghost read.
     const ghosts = (visibility as SessionVisibilityApi).ghosts()?.edge ?? null;
     assert.strictEqual(ghosts !== null, ghosting, "ghosts exist exactly while ghosting");
-    const reads = new Map<EdgeLineBatch, { floats: Float32Array; stride: number }>();
+    const reads = new Map<EdgeLineBatch, ReadBack>();
     const wrong: string[] = [];
     let inside = 0;
     let checkedSlots = 0;
@@ -317,7 +344,7 @@ function assertEdgesMatchWindow(
 }
 
 /**
- * The five cases on one graph of 1,000,000 edges.
+ * The cases on one graph of 1,000,000 edges.
  * @param nodes - How many nodes the edges join.
  */
 export function describeFrames(nodes: number): void {
@@ -494,6 +521,14 @@ export function describeFrames(nodes: number): void {
             await check(slideOnce, true);
             await time().setSettings({ outside: "hide" });
             await run("step-after-ghost", slide);
+            await check(slideOnce, false);
+        });
+
+        it("a 2% window stepping with every node drawn", async () => {
+            // Nodes follow their edges by default; with every node drawn a step shows and hides
+            // only edges, which write batch slots and leave the frozen list of what is drawn alone.
+            await time().window({ from: OPENING, to: OPENING + WIDTH, step: DAY, nodes: "all" });
+            await run("step-edges-only", slide);
             await check(slideOnce, false);
         });
     });

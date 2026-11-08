@@ -122,7 +122,10 @@ describe("pointer on rows", () => {
                     // Through `drawnPickMesh`: a read of `mesh` would make the seed an object row.
                     const seed = element.graph.getNode(PEOPLE_SEED.id);
                     assert.isDefined(seed);
-                    seed.drawnPickMesh.actionManager = null;
+                    const own = seed.drawnPickMesh;
+                    if (own !== null) {
+                        own.actionManager = null;
+                    }
                 }
 
                 element.layoutBehavior = { expand: { trigger: "click" } };

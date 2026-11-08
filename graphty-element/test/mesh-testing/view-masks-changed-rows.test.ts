@@ -79,6 +79,11 @@ class CountingEdge {
         return this.bowed && this.visible ? {} : null;
     }
 
+    /** Drawn from shared batches, as the edges a time window moves are: no mesh of its own to toggle. */
+    togglesOwnMeshes(): boolean {
+        return false;
+    }
+
     update(): void {
         this.updates += 1;
         this.placed = true;

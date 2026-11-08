@@ -38,7 +38,7 @@ import type { PickSection } from "./values";
  * @param props.titleExtra - a new card's Nodes | Edges
  * @param props.onEmptyCancel - the value picker closed with nothing chosen on a card with no step
  * @param props.onDraft - takes a new card's selection while it has no step yet, so the host keeps it
- * @param props.onDone - Escape with no row selected
+ * @param props.onDone - the workspace closed, or Escape with no row selected
  * @param props.onTitleToggle - Space on the title row: switches the card's on box
  * @param props.titleOff - the card's on box is off
  * @param props.name - the name the reader gave the card, written with it

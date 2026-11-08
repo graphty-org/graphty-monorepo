@@ -726,6 +726,8 @@ function channelPlans(
                 ],
             ],
             ["shapeLineWidth", [length("node.shapeLineWidth")]],
+            ["shapeLineHaloColor", [id("node.shapeLineHaloColor")]],
+            ["shapeLineHaloWidth", [length("node.shapeLineHaloWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
             [
                 "image",

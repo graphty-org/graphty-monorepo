@@ -130,10 +130,14 @@ export const PARENT_COLUMN = "parent";
 
 /**
  * The json node column that keeps the yFiles data of a node's `<port>` elements: one entry per port, its `name` and
- * each of its yFiles values by its key's name (yEd Live's `PortLocationParameter` and `PortStyle`).
+ * each of its yFiles values by its key's name (yEd Live's `PortLocationParameter` and `PortStyle`). Its `extra.portKeys`
+ * holds each key's yFiles type (its `yfiles.type` or `y:attr.uri`) by that name, so a save writes the ports back.
  * @category Plugin helpers
  */
 export const PORTS_COLUMN = "ports";
+
+/** The ports column's `extra` entry holding each port key's yFiles type by its name. */
+export const PORT_KEYS_EXTRA = "portKeys";
 
 /**
  * The bool node column marking the hub nodes synthesized for hyperedges under `hyperedges: "star"`.
@@ -384,7 +388,10 @@ export const GRAPHML_LOSS = Object.freeze({
     EDGE_ID_TEXT: "W_GRAPHML_EDGE_ID_TEXT",
     /** A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. */
     YFILES_GRAPHICS_STALE: "W_GRAPHML_YFILES_GRAPHICS_STALE",
-    /** The yFiles data of a node's ports (its `ports` column), which a save does not write back as `<port>` elements. */
+    /**
+     * Port values of a node's `ports` column a save cannot write back as `<port>` data: a value under a name with no
+     * yFiles key type in the column's `extra.portKeys`, a value that is not an XML tree, or an entry with no name.
+     */
     PORTS_DROPPED: "W_GRAPHML_PORTS_DROPPED",
     /** A yEd graphics value that is not valid XML; the save fails with E_COLUMN_TYPE. */
     YFILES_TREE: "E_GRAPHML_YFILES_TREE",

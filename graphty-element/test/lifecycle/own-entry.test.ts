@@ -10,7 +10,7 @@ import { rmSync } from "node:fs";
 import type { BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, assert, beforeAll, describe, it, onTestFailed } from "vitest";
 
-import { ENGINES, launch, profile } from "./engines";
+import { duplicateTab, ENGINES, launch, profile } from "./engines";
 import { type Fixture, type LogEvent, type PageCheck, startFixture } from "./fixture";
 
 /** One entry as the fixture's `listed` reports it. */
@@ -66,8 +66,16 @@ describe.each(ENGINES)("%s", (engine) => {
         const dir = profile(engine);
         const context = await launch(engine, dir);
         open.push({ context, dir });
+        // Which page or browser went away, and how, for a failure that reports a closed target.
+        const gone: string[] = [];
+        context.on("close", () => gone.push("context closed"));
+        context.on("page", (page) => {
+            page.on("crash", () => gone.push(`crashed: ${page.url()}`));
+            page.on("close", () => gone.push(`closed: ${page.url()}`));
+        });
         onTestFailed(() => {
             console.log(`last reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(key)).slice(-25))}`);
+            console.log(`pages gone: ${JSON.stringify(gone)}`);
         });
         const check = (page: Page): Promise<PageCheck> => page.evaluate<PageCheck>("fixture.check()");
         const listed = (page: Page): Promise<Listed[]> => page.evaluate<Listed[]>("fixture.listed()");
@@ -97,9 +105,7 @@ describe.each(ENGINES)("%s", (engine) => {
 
         // Duplicate the tab (window.open copies session storage): the original keeps the entry.
         const beforeDup = fx.log.length;
-        const opened = context.waitForEvent("page");
-        await a.evaluate(`window.open(${JSON.stringify(fx.url({ key, tab: tab("dup"), list: 1 }))})`);
-        const dup = await opened;
+        const dup = await duplicateTab(context, a, fx.url({ key, tab: tab("dup"), list: 1 }));
         const dupListed = await listedAt(tab("dup"), beforeDup);
         assert.strictEqual(dupListed.item, entryA, "the duplicate inherited the session storage item");
         assert.deepEqual(owned(dupListed.entries), [], "the duplicate owns nothing at load");

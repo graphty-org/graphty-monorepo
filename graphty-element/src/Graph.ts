@@ -88,6 +88,12 @@ function hasEntryPoint(code: string | Uint32Array): boolean {
  */
 const ZOOM_STEP_FACTOR = 1.25;
 
+/**
+ * How near the camera comes to a map, as a share of its size: about 640 m above the earth on a
+ * globe. Single-precision positions are good to about a pixel there, whatever the map's size.
+ */
+const MAP_CLEARANCE = 1e-4;
+
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
@@ -5026,7 +5032,7 @@ export class Graph implements GraphContext {
      */
     private handledOnCloseLabel(x: number, y: number): boolean {
         const picked = pickAsDrawn(this.scene, x, y);
-        if (!picked || !isCloseLabel(picked)) {
+        if (!(picked instanceof AbstractMesh) || !isCloseLabel(picked)) {
             return false;
         }
 
@@ -5391,8 +5397,8 @@ export class Graph implements GraphContext {
 
     /**
      * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera
-     * never zooms inside it (its distance from the globe's center stays at least 1.02 radii) and
-     * its near clip plane comes in as it nears the surface, so the surface is never cut away.
+     * never zooms inside it, and its near clip plane comes in as it nears the surface, so the
+     * surface is never cut away. On a flat map the pivot stays on the map.
      * @param frame - The frame now active, or null.
      */
     #followFrame(frame: LocationMapFrame | null): void {
@@ -5400,7 +5406,8 @@ export class Graph implements GraphContext {
         this.#lookOfFrame(frame);
         const orbit = this.camera.getActiveController();
         if (orbit instanceof OrbitCameraController) {
-            orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * 1.02 } : null;
+            orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * (1 + MAP_CLEARANCE) } : null;
+            orbit.surfacePlane = frame?.surface === "flat" ? { floor: frame.size * MAP_CLEARANCE } : null;
             orbit.grabSphere = frame?.surface === "globe" ? { radius: frame.radius } : null;
             orbit.farReach = frame?.surface === "flat" ? { radius: flatMapReach(frame.mapFrame) } : null;
             // The clip planes follow the globe or the flat map (or their going).

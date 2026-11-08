@@ -265,6 +265,22 @@ describe("label checks", () => {
         assert.strictEqual(lineAlign(text("a\nwide\nb", 110, 180, { lines: [centered, wide, b] })), "middle");
     });
 
+    it("reads lines on rows of their own, set close under each other, as one column (#6176)", () => {
+        // dot-synth-nodes n_ljust: Graphviz's "left line\lright line\rcenter", no two lines overlapping across
+        const left = { x0: 7.9, y0: 402.4, x1: 33.5, y1: 411.4 };
+        const right = { x0: 86.1, y0: 411.8, x1: 116.5, y1: 420.8 };
+        const center = { x0: 50.9, y0: 421.2, x1: 73.2, y1: 430.2 };
+        const ljust = (lines: PBox[]): PText => text("left line\nright line\ncenter", 60, 416, { lines }, 110, 7.9);
+        assert.strictEqual(lineAlign(ljust([left, right, center])), "start");
+        assert.deepEqual(labelPair({ align: "end" }, { content: "a\nb\nc", lines: [left, right, center] }), {
+            "label.align": ["a"],
+        });
+        // a node's xlabel, set off under its label by most of a line, is another text, not a further line (n_xlabel)
+        const label = { x0: 161.3, y0: 411.8, x1: 197.1, y1: 420.8 };
+        const xlabel = { x0: 100.9, y0: 428.4, x1: 149.4, y1: 437.4 };
+        assert.isNull(lineAlign(text("has xlabel\noutside xlabel", 150, 424, { lines: [label, xlabel] }, 96, 7.9)));
+    });
+
     it("takes no alignment from a table cell spanning two cells side by side", () => {
         // dot-synth-nodes n_html3: A | B over a wide cell, whose edges fall a pixel either way of the narrow cells'
         const a = { x0: 147.5, y0: 403.9, x1: 153.5, y1: 412.9 };

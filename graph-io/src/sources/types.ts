@@ -800,7 +800,10 @@ export interface LoadFromSourceOptions extends CommonImportOptions {
     readonly allowInsecure?: boolean | undefined;
     /** The fetch to use instead of the global one (tests, recorded responses, Node agents). */
     readonly fetch?: typeof fetch | undefined;
-    /** Sent as User-Agent in Node. No default string. */
+    /**
+     * Sent as User-Agent in Node, where every request carries one; browsers do not allow setting it.
+     * @defaultValue "graphty-graph-io (+https://graphty.app)" in Node
+     */
     readonly userAgent?: string | undefined;
     /** Settings for the builder (loadFromSource and expandFromSource). */
     readonly builder?: BuilderSeed | undefined;

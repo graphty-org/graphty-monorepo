@@ -497,8 +497,12 @@ export interface GqlCheck {
     __typename: string;
     id?: string;
     name?: string;
-    /** The failing check run's first failed step, filled in by the collector from STEPS_QUERY. */
-    failedStep?: string;
+    /**
+     * What the failing check run failed on, filled in by the collector (collect.ts failureSignatures): each failed
+     * test as "file > name", and each failure annotation's first line. Empty or absent when nothing says.
+     */
+    signatures?: string[];
+    detailsUrl?: string | null;
     status?: string;
     conclusion?: string | null;
     context?: string;
@@ -775,9 +779,10 @@ function screenshotWaitMs(p: GqlPr, nowMs: number): number {
  * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
  * @param open - the open pull requests
  * @param nowMs - the current epoch ms
+ * @param masterFailing - the checks (families folded) master's newest build failed
  * @returns the counts and the pull requests behind them
  */
-export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
+export function prStocks(open: GqlPr[], nowMs: number, masterFailing?: ReadonlySet<string>): PrStocks {
     const s: PrStocks = {
         open: 0,
         oldestOpenMs: 0,
@@ -812,7 +817,10 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
         s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, screenshotWaitMs(p, nowMs));
     }
     // An aggregator failing alone counts too (4, "Excluded checks"); a stack of pull requests counts once.
-    s.maxFailingSameCheck = Math.max(0, ...[...failureGroups(open, nowMs).values()].map((g) => g.units.size));
+    s.maxFailingSameCheck = Math.max(
+        0,
+        ...[...failureGroups(open, nowMs, masterFailing).values()].map((g) => g.units.size),
+    );
     return s;
 }
 

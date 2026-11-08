@@ -318,6 +318,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shapeTexts": "Shape",
     "node.labelTable": "Label",
     "node.shapeLineWidth": "Shape",
+    "node.shapeLineHaloColor": "Shape",
+    "node.shapeLineHaloWidth": "Shape",
     "node.gradientColors": "Gradient",
     "node.gradientStops": "Gradient",
     "node.gradientKind": "Gradient",

@@ -631,7 +631,7 @@ class Session implements ElementSession {
             },
             () => this.project.id,
         );
-        this.assets = createAssetsApi(this.network);
+        this.assets = createAssetsApi(this.network, () => this.styles);
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
@@ -762,6 +762,9 @@ class Session implements ElementSession {
                 publish(this.watchers, "project:status", change);
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
+            restoreDerived: (id) => {
+                this.sessionRuns.restoreDerived(id);
+            },
             projectChanged: () => {
                 this.network.projectChanged();
             },
@@ -2579,8 +2582,23 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let settledFeatures: EnabledFeatures | undefined;
     const requested = options.features ?? ((): undefined => undefined);
     const settleFeatures = (): EnabledFeatures => (settledFeatures ??= resolveFeatures(requested()));
-    // Asked without settling: an element's attributes may still be arriving.
-    const timelineOn = (): boolean => (settledFeatures ?? resolveFeatures(requested())).enabled.includes("timeline");
+    // Asked without settling, as an element's attributes may still be arriving, and on every
+    // timeline move: resolved again only when the ids asked for are a new array.
+    let askedFor: readonly string[] | null = null;
+    let askedOn = false;
+    const timelineOn = (): boolean => {
+        if (settledFeatures !== undefined) {
+            return settledFeatures.enabled.includes("timeline");
+        }
+
+        const asked = requested() ?? pageDefaultFeatures();
+        if (asked !== askedFor) {
+            askedFor = asked;
+            askedOn = resolveFeatures(asked).enabled.includes("timeline");
+        }
+
+        return askedOn;
+    };
     const fileStylesOn = (): boolean =>
         (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
     const runsOptions = options.runs ?? {};

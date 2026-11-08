@@ -6,6 +6,7 @@ import { BoundingBox, Color3, Matrix, type Mesh, Quaternion, type Scene, Vector3
 
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
 import { batchUploadFrames, type RangedUploads } from "./FrameRoster";
+import { ParkedSlots } from "./ParkedSlots";
 
 /** Floats in one 4x4 world matrix, which is what every slot holds. */
 const FLOATS_PER_MATRIX = 16;
@@ -20,8 +21,9 @@ const INITIAL_SLOTS = 32;
  * every cap needed a material of its own. As thin-instance buffers they are rows in shared
  * arrays, so a red cap and a blue cap at two different sizes are one draw call. The fourth, the
  * clip, is only ever set on a pattern segment (see `PatternedLineMesh`); a cap is never clipped.
+ * The fifth, the hidden flag, is 1 while the visibility mask hides the cap (`ArrowCapBatch.park`).
  */
-const BILLBOARD_BUFFERS = { arrowDirection: 3, arrowSize: 1, arrowColor: 3, arrowClip: 1 } as const;
+const BILLBOARD_BUFFERS = { arrowDirection: 3, arrowSize: 1, arrowColor: 3, arrowClip: 1, arrowHidden: 1 } as const;
 
 /** One of the {@link BILLBOARD_BUFFERS}. */
 type BillboardBuffer = keyof typeof BILLBOARD_BUFFERS;
@@ -101,6 +103,13 @@ export class ArrowCapBatch {
     private matrices: Float32Array;
 
     /**
+     * What the caps the visibility mask hid held, so showing one puts it back (see {@link ParkedSlots}):
+     * only for a batch drawn with a StandardMaterial. A billboarded batch hides a cap with its
+     * `arrowHidden` flag instead and keeps its matrix where it is (issue #6025).
+     */
+    private readonly parking: ParkedSlots | null;
+
+    /**
      * The billboard shader's per-instance values, or null for the batches drawn with a
      * StandardMaterial (2D caps and the 3D sphere-dot), which hold colour on the material.
      */
@@ -122,6 +131,7 @@ export class ArrowCapBatch {
         arrowSize: new DirtyRuns(),
         arrowColor: new DirtyRuns(),
         arrowClip: new DirtyRuns(),
+        arrowHidden: new DirtyRuns(),
     };
 
     /** The scene's switch for uploading only what was written; see {@link batchUploadFrames}. */
@@ -148,6 +158,7 @@ export class ArrowCapBatch {
         this.shape = mesh.name;
         this.is2D = key.startsWith("2d|");
         this.billboarded = billboard;
+        this.parking = billboard ? null : new ParkedSlots(FLOATS_PER_MATRIX);
         this.uploads = batchUploadFrames.rangedUploads(scene);
         this.matrices = new Float32Array(INITIAL_SLOTS * FLOATS_PER_MATRIX);
 
@@ -200,6 +211,7 @@ export class ArrowCapBatch {
                 arrowSize: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowSize),
                 arrowColor: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowColor),
                 arrowClip: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowClip),
+                arrowHidden: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowHidden),
             };
 
             for (const [kind, stride] of Object.entries(BILLBOARD_BUFFERS)) {
@@ -265,6 +277,7 @@ export class ArrowCapBatch {
         // A cap that only ever carries a translation -- every 3D cap, because the billboard
         // shader reads the camera rather than the slot's rotation -- gets its rotation and scale
         // from here once, and `placeAt` then writes three floats a frame.
+        this.forget(index);
         IDENTITY.copyToArray(this.matrices, index * FLOATS_PER_MATRIX);
         this.written("matrix", index);
 
@@ -345,6 +358,39 @@ export class ArrowCapBatch {
     }
 
     /**
+     * Draw one slot where a slot of another batch is drawn: its matrix, and its direction, length
+     * and cut, copied rather than placed again. Its colour stays its own.
+     * @param index - The slot.
+     * @param from - The batch the other slot is in.
+     * @param fromIndex - The other slot.
+     * @returns False, copying nothing, when the two batches draw their caps differently.
+     */
+    copyPlacement(index: number, from: ArrowCapBatch, fromIndex: number): boolean {
+        if (this.gone || from.gone || from.billboarded !== this.billboarded || from.is2D !== this.is2D) {
+            return false;
+        }
+
+        // A slot the visibility mask parked stays parked, holding the placement it will be shown at.
+        this.matrices.set(from.placementOf(fromIndex), index * FLOATS_PER_MATRIX);
+        this.written("matrix", index);
+        if (from.isParked(fromIndex)) {
+            this.park(index);
+        }
+        if (this.billboard !== null && from.billboard !== null) {
+            for (const kind of ["arrowDirection", "arrowSize", "arrowClip"] as const) {
+                const stride = BILLBOARD_BUFFERS[kind];
+                this.billboard[kind].set(
+                    from.billboard[kind].subarray(fromIndex * stride, (fromIndex + 1) * stride),
+                    index * stride,
+                );
+                this.written(kind, index);
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Cut one slot's shape off past a point along its own X axis, or stop cutting it. A no-op on a
      * batch whose shapes hold nothing per instance.
      * @param index - The slot.
@@ -379,6 +425,7 @@ export class ArrowCapBatch {
         // a zero in the bottom right would drop the batch mesh's own translation out of
         // `world * slotMatrix` -- so placing a cap again has to restore the whole row, not only
         // the three numbers that moved.
+        this.forget(index);
         const at = index * FLOATS_PER_MATRIX;
         IDENTITY.copyToArray(this.matrices, at);
         this.matrices[at + 12] = position.x;
@@ -408,6 +455,7 @@ export class ArrowCapBatch {
             return;
         }
 
+        this.forget(index);
         scratchScaling.setAll(scale);
         Matrix.ComposeToRef(scratchScaling, rotation ?? NO_ROTATION, position, scratchMatrix);
         scratchMatrix.copyToArray(this.matrices, index * FLOATS_PER_MATRIX);
@@ -423,6 +471,10 @@ export class ArrowCapBatch {
      * @returns The cap's centre, as a fresh vector the caller may keep.
      */
     positionOf(index: number): Vector3 {
+        if (this.hiddenInPlace(index)) {
+            return Vector3.Zero();
+        }
+
         const at = index * FLOATS_PER_MATRIX;
 
         return new Vector3(this.matrices[at + 12], this.matrices[at + 13], this.matrices[at + 14]);
@@ -493,6 +545,10 @@ export class ArrowCapBatch {
      * @returns The slot's matrix, as a fresh matrix the caller may keep.
      */
     matrixOf(index: number): Matrix {
+        if (this.hiddenInPlace(index)) {
+            return Matrix.FromArray(new Float32Array(FLOATS_PER_MATRIX));
+        }
+
         return Matrix.FromArray(this.matrices, index * FLOATS_PER_MATRIX);
     }
 
@@ -502,14 +558,107 @@ export class ArrowCapBatch {
      * Only the hiding half does anything. A zero matrix collapses the cap to a point and the
      * shader draws no fragments for it -- the billboard shader reads the zero in the matrix's
      * bottom right as "hidden", because it builds a cap from its centre and its size rather than
-     * from the matrix, and would otherwise draw it full size at the origin; showing it again is left to the next placement, which
-     * the visibility mask always asks for by invalidating the edge's cached endpoints.
+     * from the matrix, and would otherwise draw it full size at the origin; showing it again is left to the next placement. The
+     * visibility mask hides with {@link ArrowCapBatch.park} instead, which can put the slot back.
      * @param index - The slot.
      * @param drawn - Whether the cap is on screen.
      */
     setDrawn(index: number, drawn: boolean): void {
         if (!drawn) {
             this.hide(index);
+        }
+    }
+
+    /**
+     * Stop drawing one slot because the visibility mask hid its edge, keeping its matrix so
+     * {@link ArrowCapBatch.unpark} can put it back. See {@link ParkedSlots}.
+     * @param index - The slot.
+     */
+    park(index: number): void {
+        if (this.gone) {
+            return;
+        }
+
+        if (this.parking !== null) {
+            this.parking.park(this.matrices, index);
+            this.collapse(index);
+        } else if (this.billboard !== null && this.billboard.arrowHidden[index] !== 1) {
+            this.billboard.arrowHidden[index] = 1;
+            this.written("arrowHidden", index);
+        }
+    }
+
+    /**
+     * Draw a parked slot again as it was when it was parked.
+     * @param index - The slot.
+     * @returns True when it was put back; false when it was not parked (or was written since).
+     */
+    unpark(index: number): boolean {
+        if (this.gone) {
+            return false;
+        }
+
+        if (this.parking === null) {
+            if (this.billboard?.arrowHidden[index] !== 1) {
+                return false;
+            }
+
+            this.billboard.arrowHidden[index] = 0;
+            this.written("arrowHidden", index);
+            return true;
+        }
+
+        if (!this.parking.unpark(this.matrices, index)) {
+            return false;
+        }
+
+        this.written("matrix", index);
+        return true;
+    }
+
+    /**
+     * Whether the visibility mask hides a slot, its placement kept for {@link ArrowCapBatch.unpark}.
+     * @param index - The slot.
+     * @returns True while it is parked.
+     */
+    isParked(index: number): boolean {
+        return this.parking === null ? this.hiddenInPlace(index) : this.parking.isParked(index);
+    }
+
+    /**
+     * What a slot's matrix is when it is shown: its placement, parked or not.
+     * @param index - The slot.
+     * @returns A view of its floats; copy it before the batch is written.
+     */
+    private placementOf(index: number): Float32Array {
+        if (this.parking !== null) {
+            return this.parking.placementOf(this.matrices, index);
+        }
+
+        const at = index * FLOATS_PER_MATRIX;
+        return this.matrices.subarray(at, at + FLOATS_PER_MATRIX);
+    }
+
+    /**
+     * Whether a slot keeps its matrix while the shader draws nothing for it, so a read of where it
+     * is drawn reads a zero matrix, as it does for a collapsed slot.
+     * @param index - The slot.
+     * @returns True for a parked billboarded cap.
+     */
+    private hiddenInPlace(index: number): boolean {
+        return this.billboard?.arrowHidden[index] === 1;
+    }
+
+    /**
+     * Forget that a slot is parked: something else wrote it.
+     * @param index - The slot.
+     */
+    private forget(index: number): void {
+        if (this.parking !== null) {
+            this.parking.forget(index);
+        } else if (this.billboard !== null && this.billboard.arrowHidden[index] !== 0) {
+            this.billboard.arrowHidden[index] = 0;
+            this.written("arrowHidden", index);
         }
     }
 
@@ -597,6 +746,15 @@ export class ArrowCapBatch {
             return;
         }
 
+        this.forget(index);
+        this.collapse(index);
+    }
+
+    /**
+     * Zero one slot's matrix and note it for upload, parked or not.
+     * @param index - The slot.
+     */
+    private collapse(index: number): void {
         this.matrices.fill(0, index * FLOATS_PER_MATRIX, (index + 1) * FLOATS_PER_MATRIX);
         this.written("matrix", index);
     }
@@ -819,6 +977,22 @@ export class ArrowCap {
     }
 
     /**
+     * Stand where another cap of the same shape and size stands, drawn as it is drawn but in this
+     * cap's own colour: what an edge whose colour or opacity changed does instead of placing its
+     * new cap again.
+     * @param other - The cap this one replaces.
+     * @returns False when the two cannot be drawn alike, and this cap waits for its next placement.
+     */
+    takePlaceOf(other: ArrowCap): boolean {
+        if (this.batch === null || other.batch === null || other.size !== this.size) {
+            return false;
+        }
+
+        this.scale = other.scale;
+        return this.batch.copyPlacement(this.slot, other.batch, other.slot);
+    }
+
+    /**
      * Give this cap the size and colour the billboard shader draws it at.
      * @param size - Its length in world units.
      * @param colour - Its colour, as a hex string.
@@ -834,6 +1008,21 @@ export class ArrowCap {
      */
     setDrawn(drawn: boolean): void {
         this.batch?.setDrawn(this.slot, drawn);
+    }
+
+    /**
+     * Stop drawing this cap because the visibility mask hid its edge; see {@link ArrowCapBatch.park}.
+     */
+    park(): void {
+        this.batch?.park(this.slot);
+    }
+
+    /**
+     * Draw this cap again as it was when it was parked.
+     * @returns True when it was put back.
+     */
+    unpark(): boolean {
+        return this.batch?.unpark(this.slot) ?? false;
     }
 
     /**

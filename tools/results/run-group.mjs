@@ -48,7 +48,7 @@ import {
     quarantined,
     runShard,
 } from "../test-quarantine.mjs";
-import { call, config, flushHealth, postInvocation, readPlan, sendHealth } from "./client.mjs";
+import { call, config, fetchPlan, flushHealth, postInvocation, sendHealth } from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 
 /**
@@ -238,10 +238,14 @@ export async function refreshPlan(plan, { cfg, sha, family, variant }) {
     if (!cfg || !plan?.base) return plan;
     const variants = [...new Set([`${family}|flags=off|whole`, `${family}|flags=off|selected`, variant])];
     try {
-        const fresh = await readPlan(cfg, { sha, base: plan.base, variants, inputs: variants.map(() => "-") });
-        if (!fresh) return plan;
-        return { ...plan, quarantine: fresh.quarantine ?? [], failingOnBase: fresh.failingOnBase ?? [] };
-    } catch {
+        const r = await fetchPlan(cfg, { sha, base: plan.base, variants, inputs: variants.map(() => "-") });
+        if (!r.ok || !r.data) {
+            console.log(`run-group: plan not read again (${r.why ?? "no plan"}): the first attempt's plan stands`);
+            return plan;
+        }
+        return { ...plan, quarantine: r.data.quarantine ?? [], failingOnBase: r.data.failingOnBase ?? [] };
+    } catch (e) {
+        console.log(`run-group: plan not read again (${e.message.split("\n")[0]}): the first attempt's plan stands`);
         return plan;
     }
 }
@@ -265,10 +269,18 @@ export async function shotsPlan({ cfg, sha, base, family, variant }) {
         // the shard's own family too, as plan-read.mjs asks: judgeRules() carries its quarantine over to `-shots`
         const own = family.replace(/-shots$/, "");
         const variants = [`${own}|flags=off|whole`, `${own}|flags=off|selected`, variant];
-        const fresh = await readPlan(cfg, { sha, base: base ?? undefined, variants, inputs: variants.map(() => "-") });
-        if (!fresh || fresh.unavailable) return null;
+        const r = await fetchPlan(cfg, { sha, base: base ?? undefined, variants, inputs: variants.map(() => "-") });
+        const fresh = r.ok ? r.data : null;
+        if (!fresh || fresh.unavailable) {
+            const why = r.why ?? fresh?.unavailable ?? "no plan";
+            console.log(`run-group: no screenshot plan (${why}): the committed quarantine list stands`);
+            return null;
+        }
         return { ...fresh, ...(base ? { base } : {}), families: [family] };
-    } catch {
+    } catch (e) {
+        console.log(
+            `run-group: no screenshot plan (${e.message.split("\n")[0]}): the committed quarantine list stands`,
+        );
         return null;
     }
 }

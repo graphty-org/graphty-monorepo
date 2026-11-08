@@ -1,7 +1,7 @@
-import { AdvancedButton, SearchInput } from "@graphty/compact-mantine";
+import { PopoutManager, SearchInput } from "@graphty/compact-mantine";
 import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
-import { Button, Collapse, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { Button, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { selectionWorkspaceOn } from "../features";
@@ -9,6 +9,7 @@ import { tabStops } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
+import { SettingsPopout } from "../options/SettingsPopout";
 import { groupPalettes } from "../style/row";
 import { PATH_ALGORITHM, PathForm } from "./PathForm";
 import { costLine, groupAlgorithms, type Heading, HEADINGS, optionWords, runRefusalWords, wordsFor } from "./words";
@@ -275,7 +276,8 @@ export function AnalyzePopover({
     });
 
     const onKeyDown = (event: React.KeyboardEvent): void => {
-        if (!isPanelEscape(event)) {
+        // Escape in the settings popover closes only that popover (its manager takes it).
+        if (!isPanelEscape(event) || (event.target instanceof Element && event.target.closest("[data-popout-id]"))) {
             return;
         }
         event.preventDefault();
@@ -509,83 +511,86 @@ export function AnalyzePopover({
     };
 
     return (
-        <Stack gap={4} className="ws-analyze" onKeyDown={onKeyDown}>
-            <SearchInput
-                aria-label="Filter analyses"
-                placeholder="Filter analyses"
-                role="combobox"
-                aria-expanded
-                aria-controls={listId}
-                aria-autocomplete="list"
-                aria-activedescendant={active >= 0 ? optionId(active) : undefined}
-                value={filter}
-                onChange={(text) => {
-                    setFilter(text);
-                    setMoved(null);
-                }}
-                onKeyDown={onFilterKeyDown}
-                // Back from an entry's short form, focus returns here, so a second Esc closes.
-                autoFocus
-            />
-            <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
-                className="ws-analyze-list"
-                id={listId}
-                ref={listRef}
-                role="listbox"
-                aria-label="Analyses"
-            >
-                {recent.length > 0 ? (
-                    <div // NOSONAR(S6819): an option group inside an ARIA listbox; optgroup needs a native select
-                        role="group"
-                        aria-label="Recent"
-                    >
-                        <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
-                            Recent
-                        </Text>
-                        {recent.map((descriptor) => entry(descriptor, true))}
-                    </div>
-                ) : null}
-                {groups.map(({ heading, entries }) => (
-                    <div // NOSONAR(S6819): an option group inside an ARIA listbox; optgroup needs a native select
-                        role="group"
-                        key={heading.id}
-                        aria-label={heading.title}
-                    >
-                        <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
-                            {heading.title}
-                        </Text>
-                        {entries.map((descriptor) => entry(descriptor))}
-                    </div>
-                ))}
-                {groups.length === 0 ? (
-                    <Text size="xs" c="dimmed" p="xs">
-                        No analysis matches "{filter}"
-                    </Text>
-                ) : null}
-            </div>
-            {calm && chosen !== undefined && (
-                <RunBar
-                    session={session}
-                    descriptor={chosen}
-                    values={values}
-                    onRun={() => {
-                        runIt(chosen);
+        // The settings popover's panels are drawn inside Analyze, so a press in one is not outside it.
+        <PopoutManager>
+            <Stack gap={4} className="ws-analyze" onKeyDown={onKeyDown}>
+                <SearchInput
+                    aria-label="Filter analyses"
+                    placeholder="Filter analyses"
+                    role="combobox"
+                    aria-expanded
+                    aria-controls={listId}
+                    aria-autocomplete="list"
+                    aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+                    value={filter}
+                    onChange={(text) => {
+                        setFilter(text);
+                        setMoved(null);
                     }}
+                    onKeyDown={onFilterKeyDown}
+                    // Back from an entry's short form, focus returns here, so a second Esc closes.
+                    autoFocus
                 />
-            )}
-        </Stack>
+                <div // NOSONAR(S6819): the popup of an ARIA combobox on a text box; a native select cannot be one
+                    className="ws-analyze-list"
+                    id={listId}
+                    ref={listRef}
+                    role="listbox"
+                    aria-label="Analyses"
+                >
+                    {recent.length > 0 ? (
+                        <div // NOSONAR(S6819): an option group inside an ARIA listbox; optgroup needs a native select
+                            role="group"
+                            aria-label="Recent"
+                        >
+                            <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
+                                Recent
+                            </Text>
+                            {recent.map((descriptor) => entry(descriptor, true))}
+                        </div>
+                    ) : null}
+                    {groups.map(({ heading, entries }) => (
+                        <div // NOSONAR(S6819): an option group inside an ARIA listbox; optgroup needs a native select
+                            role="group"
+                            key={heading.id}
+                            aria-label={heading.title}
+                        >
+                            <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
+                                {heading.title}
+                            </Text>
+                            {entries.map((descriptor) => entry(descriptor))}
+                        </div>
+                    ))}
+                    {groups.length === 0 ? (
+                        <Text size="xs" c="dimmed" p="xs">
+                            No analysis matches "{filter}"
+                        </Text>
+                    ) : null}
+                </div>
+                {calm && chosen !== undefined && (
+                    <RunBar
+                        session={session}
+                        descriptor={chosen}
+                        values={values}
+                        onRun={() => {
+                            runIt(chosen);
+                        }}
+                    />
+                )}
+            </Stack>
+        </PopoutManager>
     );
 }
 
 /**
- * The chosen row's settings: the 24px settings button at the row's end, which opens the form under
- * the row, in the list itself. Analyze is a popover already, so nothing floats over it.
+ * The chosen row's settings: the 24px settings button at the row's end, which opens them in the one
+ * settings popover beside Analyze, as on a card. Run stays at the list's foot.
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.descriptor - The algorithm
  * @param props.values - The values set
  * @param props.onValues - Called with the new values
- * @returns The button and the form, or nothing for an algorithm with no settings
+ * @returns The button and its popover, or nothing for an algorithm with no settings
  */
 function AnalyzeSettings({
     session,
@@ -598,35 +603,23 @@ function AnalyzeSettings({
     values: Record<string, unknown>;
     onValues: (values: Record<string, unknown>) => void;
 }>): React.JSX.Element | null {
-    const [opened, setOpened] = useState(false);
-    const form = useRef<HTMLDivElement>(null);
-    // A row at the list's end opens its form below the fold: it comes into view.
-    useEffect(() => {
-        if (opened) {
-            form.current?.scrollIntoView?.({ block: "nearest" });
-        }
-    }, [opened]);
     const words = wordsFor(descriptor);
     const options = descriptor.options.filter((o) => o.internal !== true && o.type !== "node-id");
     if (options.length === 0) {
         return null;
     }
     return (
-        <>
-            <Tooltip label="Settings">
-                <AdvancedButton
-                    className="ws-analyze-gear"
-                    label={`Settings for ${words.name}`}
-                    changed={Object.keys(values).length > 0}
-                    aria-expanded={opened}
-                    icon={<GLYPHS.settings size={14} aria-hidden />}
-                    onClick={() => {
-                        setOpened(!opened);
-                    }}
-                />
-            </Tooltip>
-            <Collapse in={opened} transitionDuration={0}>
-                <div ref={form} className="ws-options-rows ws-analyze-settings" data-settings={descriptor.key}>
+        // Analyze sits at the window's middle, so the panel opens on the right, clear of the list.
+        <span className="ws-analyze-gear">
+            <SettingsPopout
+                label={`Settings for ${words.name}`}
+                title={words.name}
+                tip="Settings"
+                changed={Object.keys(values).length > 0}
+                width={280}
+                placement="right"
+            >
+                <div className="ws-options-rows ws-analyze-settings" data-settings={descriptor.key}>
                     <OptionsForm
                         session={session}
                         options={options}
@@ -639,8 +632,8 @@ function AnalyzeSettings({
                         }}
                     />
                 </div>
-            </Collapse>
-        </>
+            </SettingsPopout>
+        </span>
     );
 }
 

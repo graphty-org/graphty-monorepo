@@ -493,14 +493,15 @@ function linePieces(
 
 /**
  * The lines a flat node draws over itself (`shape.lines`), in its border's color, `shape.lineWidth` wide (else its
- * border's width), each list of points relative to the node's center as fractions of its half width and half height,
- * plus any lengths in the units of the style's lengths.
+ * border's width), each over a wider line down the same path in `shape.lineHaloColor`, `shape.lineHaloWidth` wide,
+ * where those are set; each list of points relative to the node's center as fractions of its half width and half
+ * height, plus any lengths in the units of the style's lengths.
  * @param shape - The node's shape block.
  * @param border - The node's border.
  * @param width - The face's width.
  * @param height - Its height.
  * @param scale - World units per unit of the style's lengths.
- * @returns The pieces.
+ * @returns The pieces, each halo before the line drawn over it.
  */
 export function shapeLinePieces(
     shape: NodeStyleConfig["shape"],
@@ -509,18 +510,14 @@ export function shapeLinePieces(
     height: number,
     scale = 1,
 ): ColorPiece[] {
-    const color = paint(border?.color, border?.opacity);
-    const line = (shape?.lineWidth ?? border?.width ?? 0) * scale;
-    if (color === null || !isPositive(line)) {
-        return [];
-    }
-    return pointLists(shape?.lines).flatMap((list) =>
-        linePieces(
-            list.map((p) => placePoint(p, width / 2, height / 2, scale)),
-            line,
-            color,
-        ),
-    );
+    const strokes = [
+        { color: paint(shape?.lineHaloColor), line: (shape?.lineHaloWidth ?? 0) * scale },
+        { color: paint(border?.color, border?.opacity), line: (shape?.lineWidth ?? border?.width ?? 0) * scale },
+    ].filter((s) => s.color !== null && isPositive(s.line));
+    return pointLists(shape?.lines).flatMap((list) => {
+        const points = list.map((p) => placePoint(p, width / 2, height / 2, scale));
+        return strokes.flatMap(({ color, line }) => (color === null ? [] : linePieces(points, line, color)));
+    });
 }
 
 /**

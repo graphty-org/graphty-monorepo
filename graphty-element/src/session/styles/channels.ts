@@ -459,6 +459,8 @@ export interface ChannelValues {
     "node.shapeTexts": string;
     "node.labelTable": string;
     "node.shapeLineWidth": number;
+    "node.shapeLineHaloColor": ColorValue;
+    "node.shapeLineHaloWidth": number;
     "node.labelFit": NodeLabelFitValue;
     "node.labelPaddingX": number;
     "node.labelPaddingY": number;
@@ -740,6 +742,7 @@ export type ColorChannel =
     | "node.overlayColor"
     | "node.glyphColor"
     | "node.chartBorderColor"
+    | "node.shapeLineHaloColor"
     | "node.labelOutline"
     | "node.labelBorder"
     | "edge.color"
@@ -3787,6 +3790,33 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "How wide `node.shapeLines` are drawn, in the units of `node.borderWidth`. Unset, the border's " +
             "width, so a node with no border draws no lines unless this is set.",
+    },
+    "node.shapeLineHaloColor": {
+        channel: "node.shapeLineHaloColor",
+        target: "node",
+        plainName: "Node Shape Line Halo Color",
+        shortName: "Line halo color",
+        group: "shape",
+        accepts: "color",
+        stylePath: "shape.lineHaloColor",
+        renderable: true,
+        caveat:
+            "The color of a wider line drawn under each of `node.shapeLines`, down the same path, " +
+            "`node.shapeLineHaloWidth` wide: a line of 1 over a lighter one of 2 is a yFiles bevel's line.",
+    },
+    "node.shapeLineHaloWidth": {
+        channel: "node.shapeLineHaloWidth",
+        target: "node",
+        plainName: "Node Shape Line Halo Width",
+        shortName: "Line halo width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.lineHaloWidth",
+        renderable: true,
+        caveat:
+            "How wide the line under each of `node.shapeLines` is drawn, in the units of `node.borderWidth`, " +
+            "in `node.shapeLineHaloColor`. Unset or 0, none is drawn.",
     },
     "node.labelFit": {
         channel: "node.labelFit",

@@ -265,6 +265,8 @@ A channel is one visual property with one name. These are all of them:
 | `node.shapeParts`             | further pieces of the node's body: polygons as `node.shapePoints` writes them, separated by `;`, filled and outlined as the node is              |
 | `node.shapeLines`             | lines over the node in its border's color: polylines as `node.shapeParts` writes polygons; one that ends where it starts is closed               |
 | `node.shapeLineWidth`         | 0 or more: how wide `node.shapeLines` are, in the units of `node.borderWidth`; unset, the border's width                                         |
+| `node.shapeLineHaloColor`     | a color: of a wider line drawn under each of `node.shapeLines`, down the same path                                                               |
+| `node.shapeLineHaloWidth`     | 0 or more: how wide that line under `node.shapeLines` is, in the units of `node.borderWidth`; unset or 0, none                                   |
 | `node.label`                  | the words to draw                                                                                                                                |
 | `node.labelStyle`             | `{font, sizePx, weight, color, background, outline, padding, ...}`                                                                               |
 | `node.labelColor`             | any CSS colour: the label's colour                                                                                                               |

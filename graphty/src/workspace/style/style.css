@@ -509,3 +509,50 @@
 .ws-row-add {
     flex: none;
 }
+
+/* A checklist value's color as the graph draws it (the selection workspace's Styled view). */
+.ws-value-swatch {
+    flex: 0 0 auto;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px var(--cm-border);
+}
+
+/* The node-models experiment (issue #3396). */
+
+/* Model settings' rows: a short name column, the field, and the minus, across the pop-over's width. */
+.ws-model-settings .ws-field {
+    grid-template-columns: 48px minmax(0, 1fr) 24px;
+}
+
+/* The Shape field's model chips (node-models design 13.4): a line under the field, in its column. */
+.ws-model-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-inline-start: var(--ws-label, 80px);
+    padding-bottom: 2px;
+}
+
+.ws-chip-button {
+    cursor: pointer;
+}
+
+/* The project's models or pictures in their pop-over: one per line. */
+.ws-model-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* A part the model waits for: its name line, then its controls. */
+.ws-part-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ws-part-name {
+    white-space: nowrap;
+}

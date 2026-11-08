@@ -1,8 +1,10 @@
 import "./data-place.css";
 
 import type { SourceKey } from "@graphty/graphty-element/session";
+import { Tabs } from "@mantine/core";
 import React from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { SOURCE_GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
 import { ServerPlace } from "../server/ServerForm";
@@ -10,7 +12,7 @@ import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { Fields } from "./Fields";
 import { FiltersSection } from "./Filters";
-import { RunsSection } from "./Runs";
+import { ResultsList } from "./Runs";
 import { Sources } from "./Sources";
 import type { SourceKind } from "./words";
 
@@ -27,7 +29,11 @@ export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX
 
 /**
  * The Data place, the left sidebar's data (data prototype spec sections 3.2 to 3.4): the graph's
- * name, then Sources, the selected source's Fields, and Filters (tier2-design.md section 1). Every
+ * name, then Sources, the selected source's Fields, and Filters (tier2-design.md section 1). In the
+ * `selection-workspace` experiment the panel's first row is two tabs, Loaded (Sources, the server
+ * form, Fields) and Calculated (the results), as Figma's panel tabs are; Filters sit under the tab
+ * row in both tabs and stay put, since a filter tests loaded and calculated columns alike, and only
+ * the chosen tab's body scrolls. The tab is the reader's, kept per project. Every
  * fact is the element's (`data.sources()`, `data.attributes()`, `visibility.steps`); this only
  * arranges them. The selected source is the reader's pick, kept in the workspace store so a visit to
  * another place keeps it, and the newest load until they pick one; picking one also opens it in the
@@ -52,14 +58,50 @@ export function DataPlace(): React.JSX.Element {
         }
     };
 
-    return (
-        <section className="dp" aria-label="Data place">
-            <h2 className="dp-title">{graphName}</h2>
+    const tab = useWorkspaceState((state) => state.dataTab);
+    const loaded = (
+        <>
             <Sources sources={sources} selected={selected?.key} onSelect={select} />
             <ServerPlace />
             <Fields sources={sources} selected={selected} />
-            <RunsSection />
-            <FiltersSection />
+        </>
+    );
+    if (session === null || !selectionWorkspaceOn(session)) {
+        return (
+            <section className="dp" aria-label="Data place">
+                <h2 className="dp-title">{graphName}</h2>
+                {loaded}
+                <FiltersSection />
+            </section>
+        );
+    }
+    return (
+        <section className="dp" data-tabs="" aria-label="Data place">
+            <h2 className="dp-title">{graphName}</h2>
+            <Tabs
+                variant="default"
+                keepMounted={false}
+                className="dp-tabs"
+                value={tab}
+                onChange={(next) => {
+                    if (next === "loaded" || next === "calculated") {
+                        store.set({ dataTab: next });
+                    }
+                }}
+            >
+                <Tabs.List aria-label="Data">
+                    <Tabs.Tab value="loaded">Loaded</Tabs.Tab>
+                    <Tabs.Tab value="calculated">Calculated</Tabs.Tab>
+                </Tabs.List>
+                {/* Under the tab row, so the tabs never move, and drawn for both tabs. */}
+                <FiltersSection />
+                <Tabs.Panel value="loaded" className="dp-tab-body">
+                    {loaded}
+                </Tabs.Panel>
+                <Tabs.Panel value="calculated" className="dp-tab-body">
+                    <ResultsList />
+                </Tabs.Panel>
+            </Tabs>
         </section>
     );
 }

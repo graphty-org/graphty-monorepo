@@ -186,6 +186,29 @@ describe("the sparql source against a local endpoint", () => {
         expect(ids.size).toBe(7);
     });
 
+    it("sends a default User-Agent from Node, which a caller's userAgent replaces (#6217)", async () => {
+        const agents: (string | null)[] = [];
+        const fetch: typeof globalThis.fetch = (input, init) => {
+            const request = new Request(input, init);
+            agents.push(request.headers.get("user-agent"));
+            return globalThis.fetch(request);
+        };
+        const { snapshot } = await loadFromSource(
+            sparqlSource,
+            { query: ADVISORS },
+            { endpoint: fixture.endpoint, fetch },
+        );
+        expect(snapshot.nodeCount).toBe(7);
+        expect(new Set(agents)).toEqual(new Set(["graphty-graph-io (+https://graphty.app)"]));
+        agents.length = 0;
+        await loadFromSource(
+            sparqlSource,
+            { query: ADVISORS },
+            { endpoint: fixture.endpoint, fetch, userAgent: "me/1" },
+        );
+        expect(new Set(agents)).toEqual(new Set(["me/1"]));
+    });
+
     it("sends a caller's own LIMIT as written, once", async () => {
         const sent = fixture.queries.length;
         const { snapshot, report } = await loadFromSource(

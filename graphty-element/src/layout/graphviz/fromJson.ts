@@ -169,6 +169,69 @@ export function edgeLabelPlaces(
 }
 
 /**
+ * A point as `along` of the way from `source` to `target` and `across` that length to the left of the line, as an
+ * edge's bends and label places are given.
+ * @param source - the source node's center
+ * @param target - the target node's center
+ * @param p - the point
+ * @returns the pair, or null for ends at one place
+ */
+function alongAcross(source: Point, target: Point, p: Point): readonly [along: number, across: number] | null {
+    const dx = target[0] - source[0];
+    const dy = target[1] - source[1];
+    const length2 = dx * dx + dy * dy;
+    const vx = p[0] - source[0];
+    const vy = p[1] - source[1];
+    return length2 > 0 ? [(vx * dx + vy * dy) / length2, (vy * dx - vx * dy) / length2] : null;
+}
+
+/**
+ * Read where Graphviz starts and ends each edge's line out of its json output: from its `pos`, the tail arrow's tip
+ * (`s,x,y`) or else the first spline's first point, and the head arrow's tip (`e,x,y`) or else the last spline's last
+ * point -- on the node's outline, on the outer ring of a node of several peripheries, at a record's field port, or on
+ * the border of the cluster an `lhead` or `ltail` names. Given as `along` and `across` the two nodes' centers, as
+ * {@link edgeLabelPlaces} gives a label's place.
+ * @param json - the `-Tjson` text
+ * @param edges - the edges handed over, each with its end rows
+ * @returns each edge's two ends, by place in the list handed over; absent for a self-loop or an edge not laid
+ */
+export function edgeLineEnds(
+    json: string,
+    edges: readonly { readonly src: number; readonly dst: number }[],
+): Map<number, NonNullable<EdgePosition["lineEnds"]>> {
+    const parsed = JSON.parse(json) as JsonGraph;
+    const centers = nodeCenters(parsed);
+    const out = new Map<number, NonNullable<EdgePosition["lineEnds"]>>();
+    for (const { id, pos } of parsed.edges ?? []) {
+        const k = typeof id === "string" && /^e\d+$/.test(id) ? Number(id.slice(1)) : -1;
+        const edge = k >= 0 ? edges[k] : undefined;
+        const source = edge && centers.get(`n${edge.src}`);
+        const target = edge && centers.get(`n${edge.dst}`);
+        if (source === undefined || target === undefined || typeof pos !== "string") {
+            continue;
+        }
+
+        const splines = pos.split(";");
+        // the arrow's tip at that end, or else the spline's own end point
+        const endOf = (spline: string | undefined, flag: "s" | "e"): Point | null => {
+            const tokens = (spline ?? "").trim().split(/\s+/);
+            const tip = tokens.find((t) => t.startsWith(`${flag},`));
+            const controls = tokens.filter((t) => !/^[es],/.test(t));
+            return pointOf(tip?.slice(2) ?? (flag === "s" ? controls[0] : controls.at(-1)));
+        };
+        const start = endOf(splines[0], "s");
+        const end = endOf(splines.at(-1), "e");
+        const from = start && alongAcross(source, target, start);
+        const to = end && alongAcross(source, target, end);
+        if (from && to) {
+            out.set(k, { source: from, target: to });
+        }
+    }
+
+    return out;
+}
+
+/**
  * The text an xdot drawing writes, each at its baseline's anchor point.
  * @param ops - the drawing, `-Tjson`'s list of operations
  * @returns the points its text operations write at

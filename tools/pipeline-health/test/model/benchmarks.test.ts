@@ -37,6 +37,27 @@ describe("benchmark regressions", () => {
         );
     });
 
+    it("never flags a rise inside the scatter the series shows with no code change", () => {
+        // algorithms MCL n=10 as the dashboard held it on 2026-11-07 (ms, #6220): the same code moved between 0.085
+        // and 0.148, and its newest 3 read 1.33x the earlier median, a rise under 3 median absolute deviations.
+        const mcl10 = [0.094, 0.111, 0.09, 0.085, 0.127, 0.119, 0.125, 0.099, 0.086, 0.134];
+        const subMs = trend(pts([...mcl10, 0.148, 0.13, 0.14]));
+        expect(subMs.ratio).toBeCloseTo(1.33, 2);
+        expect(subMs.regressed).toBe(false);
+        // a step clear of that scatter still counts
+        expect(trend(pts([...mcl10, 0.2, 0.21, 0.19])).regressed).toBe(true);
+        // and so does a 1.22x step of a steady sub-millisecond series: algorithms MCL n=15 on the same day, when its
+        // benchmark graph changed from a random one to a fixed seeded one
+        const mcl15 = [0.195, 0.189, 0.178, 0.196, 0.192, 0.186, 0.223, 0.204, 0.182, 0.23, 0.244, 0.221, 0.237];
+        expect(trend(pts(mcl15)).regressed).toBe(true);
+    });
+
+    it("still flags a real 1.3x slowdown of a large benchmark", () => {
+        // Leiden n=500 near 25 ms, scattering a few percent, then 1.3x slower
+        const steady = [25.1, 24.6, 25.4, 24.9, 25.8, 24.4, 25.2, 25.0, 24.7, 25.5];
+        expect(trend(pts([...steady, 32.6, 32.9, 32.3]))).toMatchObject({ regressed: true });
+    });
+
     it("compares results only with results of the newest one's machine", () => {
         // Min-Cut n=50 as GitHub's hosted runners measured it (ms): EPYC 9V45 and 9V74 near 0.17, EPYC 7763 and
         // Xeon 8370C near 0.37, with nothing in the code changed. Across machines it reads as a 2.2x regression.
@@ -65,6 +86,14 @@ describe("benchmark regressions", () => {
             ratio: 52 / 41,
             regressed: true,
         });
+    });
+
+    it("compares results only with results of the newest one's input", () => {
+        // Leiden n=20 on the dashboard (issue #6220): random graphs near 0.40 ms until the benchmark graph was seeded,
+        // then the fixed seed-1 graph, a heavier graph near 0.50 ms, with no code change. A new input is a new series.
+        const all = pts([0.4, 0.39, 0.41, 0.38, 0.42, 0.4, 0.37, 0.41, 0.39, 0.4, 0.5, 0.49, 0.51]);
+        expect(trend(all).regressed).toBe(true);
+        expect(trend(all.map((p, i) => (i < 10 ? p : { ...p, input: "seed1" }))).regressed).toBe(false);
     });
 
     it("keeps the newest results of each machine", () => {

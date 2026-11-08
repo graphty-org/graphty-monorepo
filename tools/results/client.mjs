@@ -174,7 +174,7 @@ export function postFlaky(env, shard, family, flaky) {
  * land on CPUs about 2x apart, and the dashboard compares a result only with results of the same machine.
  * @param env the environment
  * @param source what measured them ("algorithms", "webgpu-graph-algorithms")
- * @param rows the results `{ name, value }`, milliseconds
+ * @param rows the results `{ name, value, input? }`, milliseconds
  * @returns whether it was sent
  */
 export function postBenchmarks(env, source, rows) {
@@ -230,6 +230,20 @@ export async function call(cfg, method, path, body = undefined, ms = RECORD_MS) 
     }
 }
 
+/**
+ * A refused answer's body as one short line for a log: whitespace collapsed, 200 characters at most, and anything
+ * shaped like a bearer credential masked, in case a store error ever echoes a request header.
+ * @param text the response body
+ * @returns the summary, or "" for an empty body
+ */
+export function bodySummary(text) {
+    return text
+        .replaceAll(/bearer\s+\S+/gi, "Bearer ***")
+        .replaceAll(/\s+/g, " ")
+        .trim()
+        .slice(0, 200);
+}
+
 async function attempt(cfg, method, path, body, ms) {
     const deadline = AbortSignal.timeout(ms);
     let res;
@@ -245,11 +259,18 @@ async function attempt(cfg, method, path, body, ms) {
             body: body === undefined ? undefined : JSON.stringify(body),
             signal: deadline,
         });
-        if (!res.ok) return { answered: res.status < 500, result: { ok: false, why: `HTTP ${res.status}` } };
+        if (!res.ok) {
+            const summary = bodySummary(await res.text().catch(() => ""));
+            const why = summary ? `HTTP ${res.status}: ${summary}` : `HTTP ${res.status}`;
+            return { answered: res.status < 500, result: { ok: false, why } };
+        }
         const text = await res.text();
         return { answered: true, result: { ok: true, data: text ? JSON.parse(text) : null } };
     } catch (e) {
-        const why = e.name === "TimeoutError" ? `no answer in ${ms / 1000} s` : e.message;
+        // fetch() says only "fetch failed"; the cause names the network error (ECONNREFUSED, ENOTFOUND, ...)
+        const cause = e.cause?.message ?? e.cause?.code;
+        let why = cause ? `${e.message} (${cause})` : e.message;
+        if (e.name === "TimeoutError") why = `no answer in ${ms / 1000} s`;
         return { answered: res !== undefined, result: { ok: false, why } };
     }
 }
@@ -284,14 +305,24 @@ export function postFailures(cfg, invocation, failures) {
 }
 
 /**
+ * The run's plan (results-service.md 5.3) as call() answers it, so a caller can log why there is none.
+ * @param cfg config()
+ * @param query `{ sha, base, variants, inputs, files }`; arrays are joined with commas
+ * @returns `{ ok: true, data }` or `{ ok: false, why }` (an HTTP status and body summary, a timeout or a network error)
+ */
+export function fetchPlan(cfg, query) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(query)) if (v !== undefined) q.set(k, Array.isArray(v) ? v.join(",") : v);
+    return call(cfg, "GET", `/v1/plan?${q}`, undefined, PLAN_MS);
+}
+
+/**
  * The run's plan (results-service.md 5.3), or null: no plan means no reuse, no quarantine, no excuse.
  * @param cfg config()
  * @param query `{ sha, base, variants, inputs, files }`; arrays are joined with commas
  * @returns the plan or null
  */
 export async function readPlan(cfg, query) {
-    const q = new URLSearchParams();
-    for (const [k, v] of Object.entries(query)) if (v !== undefined) q.set(k, Array.isArray(v) ? v.join(",") : v);
-    const r = await call(cfg, "GET", `/v1/plan?${q}`, undefined, PLAN_MS);
+    const r = await fetchPlan(cfg, query);
     return r.ok ? r.data : null;
 }

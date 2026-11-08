@@ -26,7 +26,7 @@ import {
     type ReleaseSeen,
     type WorkflowState,
 } from "../model/snapshots.js";
-import type { Store } from "../model/store.js";
+import { isLive, type Item, type Store } from "../model/store.js";
 import type { DeployBuilds } from "./aws.js";
 import { flakyMembers } from "./flaky.js";
 import { type Fetch, type GitHub, HttpError, runJobs } from "./github.js";
@@ -37,6 +37,7 @@ import {
     codeownerPatterns,
     type CompareCommit,
     coverageAsOf,
+    family,
     fixedCosts,
     type GhJob,
     type GhRun,
@@ -88,13 +89,13 @@ import {
 } from "./parse.js";
 import { markPrCaused } from "./pr-caused.js";
 import {
+    ANNOTATIONS_QUERY,
     CHANNEL_REFS_QUERY,
     ISSUE_QUERY,
     OPEN_PAGE,
     ownerFilesQuery,
     PR_QUERY,
     REPO_FILES_QUERY,
-    STEPS_QUERY,
     SUITE_QUERY,
     TAG_QUERY,
 } from "./queries.js";
@@ -118,6 +119,7 @@ import {
     type SharedSnapshot,
     SNAPSHOT,
     supersededRuns,
+    testSignatures,
 } from "./snapshots.js";
 
 const WEEK = 7 * DAY;
@@ -213,6 +215,8 @@ class Cycle {
     /** This cycle's runner use (runners part) and master's newest green build (github part), for the slices. */
     runnerSample?: RunnerSample;
     newestGreen?: { sha: string };
+    /** Master's newest finished ci.yml push build (github part), for the checks it failed (pull requests part). */
+    newestMasterRun?: GhRun;
     /** Merge times of screenshot approval pull requests (visual/approve-*) seen this cycle, for the review lag. */
     approvalMerges: number[] = [];
     slice?: SliceDecision & { dispatched: boolean };
@@ -816,28 +820,71 @@ async function master(
     c.o("master.building_ms", s.buildingSince === undefined ? 0 : c.now - s.buildingSince);
 }
 
+/** The failure annotation GitHub adds to every failed job: it says nothing about why. */
+const GENERIC_ANNOTATION = /^Process completed with exit code \d+\.?$/;
+const RUN_OF = /\/actions\/runs\/(\d+)\//;
+
 /**
- * Names the failed step of each failing check run on the open pull requests' heads, from one query per 50 runs, so
- * the shared failures group by step (an unreturned run keeps no step and groups by its check alone).
+ * Fills in each failing check run's signatures on the open pull requests' heads (#6177): its failure annotations'
+ * first lines (one query per 50 runs) and, for a shard check ("Test (layout-2)"), the tests the results store
+ * recorded failing in that shard of the run's newest attempt, as "file > name" (one store query per run).
+ * @param c - the cycle
  * @param gh - the GitHub client
  * @param open - the open pull requests with their checks
  */
-async function failedSteps(gh: GitHub, open: GqlPr[]): Promise<void> {
+async function failureSignatures(c: Cycle, gh: GitHub, open: GqlPr[]): Promise<void> {
     const runs = open
         .flatMap((p) => p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? [])
         .filter((ch) => ch.id && ["FAILURE", "TIMED_OUT"].includes(ch.conclusion ?? ""));
     for (let i = 0; i < runs.length; i += 50) {
         const chunk = runs.slice(i, i + 50);
-        type Node = { id: string; steps?: { nodes: { name: string; conclusion: string | null }[] } } | null;
-        const data = await gh.graphql<{ nodes: Node[] }>(STEPS_QUERY, { ids: chunk.map((ch) => ch.id) });
+        type Node = { id: string; annotations?: { nodes: { message: string; annotationLevel: string }[] } } | null;
+        const data = await gh.graphql<{ nodes: Node[] }>(ANNOTATIONS_QUERY, { ids: chunk.map((ch) => ch.id) });
         chunk.forEach((ch, k) => {
-            const step = data.nodes[k]?.steps?.nodes.find((st) => st.conclusion === "FAILURE")?.name;
-            if (step) {
-                ch.failedStep = step;
-            }
+            const lines = (data.nodes[k]?.annotations?.nodes ?? [])
+                .filter((a) => a.annotationLevel === "FAILURE")
+                .map((a) => (a.message.split("\n")[0] ?? "").trim().slice(0, 200))
+                .filter((m) => m && !GENERIC_ANNOTATION.test(m));
+            ch.signatures = [...new Set(lines)];
         });
     }
+    const tests = new Map<string, Promise<Item[]>>();
+    for (const ch of runs) {
+        const run = RUN_OF.exec(ch.detailsUrl ?? "")?.[1];
+        if (!run || !(ch.name ?? "").endsWith(")")) {
+            continue;
+        }
+        if (!tests.has(run)) {
+            tests.set(
+                run,
+                c.d.store.query(`RUNTESTS#${run}`).then((rows) => rows.filter((r) => isLive(r, c.now))),
+            );
+        }
+        const rows = await (tests.get(run) as Promise<Item[]>);
+        ch.signatures = [...new Set([...(ch.signatures ?? []), ...testSignatures(rows, ch.name ?? "")])];
+    }
 }
+
+/**
+ * The checks (families folded) master's newest finished ci.yml push build failed, from its stored jobs; empty until
+ * the cycle after it finished, when its jobs are in the store.
+ * @param c - the cycle
+ * @returns the failed checks
+ */
+async function masterFailingChecks(c: Cycle): Promise<Set<string>> {
+    const run = c.newestMasterRun;
+    if (!run) {
+        return new Set();
+    }
+    const rows = await c.d.store.query(`RUN#${run.id}`, { from: "job#", to: "job#~" });
+    return new Set(
+        rows
+            .filter((r) => isLive(r, c.now) && r.attempt === run.run_attempt && FAILED_JOB.has(String(r.conclusion)))
+            .map((r) => family(String(r.name)) ?? String(r.name)),
+    );
+}
+
+const FAILED_JOB = new Set(["failure", "timed_out"]);
 
 /**
  * Pull requests (4.2): the open ones and those updated since the cursor, their items, stocks and owner waits, the
@@ -870,7 +917,7 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
         }
         cursor = recent.pageInfo.endCursor;
     }
-    await failedSteps(gh, open);
+    await failureSignatures(c, gh, open);
     await pendingPrRuns(c, gh, [...open, ...recentSeen]);
     for (const p of recentSeen) {
         c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
@@ -883,7 +930,8 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
     }
     c.openPrs = open;
     await ownerWaits(c, gh, open);
-    const s = prStocks(open, c.now);
+    const masterFailing = await masterFailingChecks(c);
+    const s = prStocks(open, c.now, masterFailing);
     c.o("pr.open", s.open);
     c.o("pr.oldest_open_ms", s.oldestOpenMs);
     c.o("pr.automerge_green_stuck", s.autoMergeGreenStuck);
@@ -892,7 +940,7 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
     c.o("pr.max_failing_same_check", s.maxFailingSameCheck);
     await c.setJson("pr-stocks", s.prs);
     const prevShared = await c.json<SharedSnapshot | undefined>(SNAPSHOT.shared, undefined);
-    await c.setJson(SNAPSHOT.shared, nextShared(prevShared, open, recentSeen, c.now));
+    await c.setJson(SNAPSHOT.shared, nextShared(prevShared, open, recentSeen, c.now, masterFailing));
     if (c.openRuns) {
         const sup = supersededRuns(c.openRuns, open, c.now);
         await c.setJson(SNAPSHOT.superseded, sup);
@@ -1619,6 +1667,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         collected = xs;
         c.openRuns = xs.filter((x) => x.run.status !== "completed").map((x) => x.run);
         await master(c, masterList, cancels, elapsed);
+        c.newestMasterRun = masterList.find((x) => x.run.status === "completed")?.run;
         const green = newestGreen(masterList.map((x) => x.run));
         if (green) {
             c.newestGreen = green;

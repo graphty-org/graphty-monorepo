@@ -304,6 +304,10 @@ export const NodeStyle = z.strictObject({
             // wide (unset, the border's width): a Graphviz `promoter`'s baseline, a `box3d`'s edges.
             lines: z.string().optional(),
             lineWidth: z.number().nonnegative().optional(),
+            // A wider line drawn under each of `lines`, down the same path, in its own color: `lineHaloWidth` wide
+            // (unset or 0, none), as yFiles draws a bevel's line of 1 over a lighter one of 2.
+            lineHaloColor: ColorStyle.optional(),
+            lineHaloWidth: z.number().nonnegative().optional(),
             // Further texts drawn over a flat node in its label's font, size and color, each one line centered on its
             // point: a JSON list of `[x, y, text]`, the point relative to the node's center as fractions of its half
             // width and half height, y up, as `parts` places its corners (Graphviz's record fields:

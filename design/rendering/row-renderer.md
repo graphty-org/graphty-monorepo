@@ -160,6 +160,84 @@ helper sets the flag and turns a batched render-parity or forced-batched run int
 `test/browser` and `test/interactions` still read `Node.mesh` (365 reads in 109 files when this was written); each such test
 runs those nodes on the objects path even in the forced-batched project.
 
+As built (stage 11, third pull request, first commit): `NodeBatches` now calls `Node.drawInBatch` -- with the source when it
+settles a group onto the batch or syncs a row into a batched group whose row the table holds, with null on leave, forget,
+and at the start of every sync (so a repaint that moves a node to another source is read from its mesh, not the batch).
+So a batched row's `drawn*` reads, edge ends and ray hits come from the row tables while the proxies still exist.
+`RowTable.moves` counts every write that can move a row (a repack from the lane, `place`, a freeze, a clear), and
+`nodesMoved` skips batched rows while it is unchanged since the last walk: a frame at rest calls `centerOf` for no
+batched row. This is a correction to the row: `lane.changes` alone is not enough, since an eased or dragged row is
+`place`d off its lane row without the lane changing; `node-batch.test.ts` holds a glide at its midpoint and checks the
+edge is drawn where the objects path draws it. The node loop itself still visits every node. Batched rows still hold
+their mesh: removing it is the stage's remaining work.
+
+As built (stage 11, third pull request, later commits): `Node.drawInBatch(source)` swaps a batched row's instance for a plain
+`TransformNode` anchor (position, scaling, rotation, parent, metadata, enabled state and children move across) and disposes
+the instance; `drawInBatch(null)` rebuilds the instance from the last mesh key and style and moves everything back. So
+`NodeBatches.sync` no longer calls `drawInBatch(null)` first: it reads `Node.paintedSourceMesh`, the source recorded when
+the mesh was built, and releases the row only when it is not batched. Reading `Node.mesh` gives a batched row its mesh
+back at once. `drawnPickMesh` is null for a batched row; a row pick answers with `drawnAnchor`, which carries the
+metadata, so `pickAsDrawn` and `DrawnHit.mesh` return a `TransformNode`. Bounds of a meshless row come from the source's
+local box at the anchor's world matrix (`drawnBoundingInfo`). A meshless row is still batchable (`batchableIn` accepts a
+null mesh), and `RowTable.hide` leaves a shrinking row's W alone when it was and stays drawn, so rebuilding a row's
+instance mid-shrink does not draw it whole.
+
+As built (stage 11, third pull request, XR laser): `src/xr/laserOnRows.ts`, started and stopped with each XR session.
+Babylon's laser (`WebXRControllerPointerSelection`) picks with `scene.pickWithRay`, which sees no meshless row. At the
+head of `onXRFrameObservable` each controller's ray goes through `pickRayAsDrawn`'s scan; when it lands on a meshless
+row, an instance of the row's source, named and labeled as the row's mesh was, is parented to the row's anchor with an
+identity local transform (an instance starts at its source's place, which a batched source keeps far below the scene).
+An observer at the tail of the same observable takes it off again, so it exists only while Babylon's laser picks:
+it is never drawn (its visibility is the batched source's 0, and it is disabled before the frame renders) and no
+other pick sees it. Three corrections to section 4.4's text: there is one stand-in per controller, not one, since
+each controller casts its own ray in the same frame; it is admitted by Babylon's default predicates
+(`enablePointerMoveEvents` set), not through `raySelectionPredicate`; and `XRInputHandler` needed no change, as it
+already picks through `pickRayAsDrawn`. A trigger tap selects a meshless row (Babylon's tap names it from the
+stand-in's metadata) and a trigger drag moves it with no mesh built; `node-batch-xr.test.ts` drives both through
+IWER.
+
+As built (stage 12): `NodeBatches.roster` is the set a frame's walks visit under `"batched"`: every member a batch
+does not draw, plus batched rows with a halo or context point enabled, plus batched rows the row table holds off
+their layout place (`Node.walksEachFrame`), kept by `NodeBatches.rewalk` on every batch change, overlay change and
+change of the held flag in `Node.setMeshPosition`. A held row has to stay on the roster: only `RowTable.place`
+clears the flag and the repack skips a held row, and a drag writes the mesh before the layout, so a row
+dropped while the layout publishes every frame would stay where it was dropped. It answers null, and the walks visit every node,
+while some node is not yet a member. `Node.update` walks the roster and the group nodes, and the row table is
+flushed in the same pass, so the edge walk and the framing measure read this frame's places; the moved-node
+check on a frame at rest and the screen-width border check walk the roster too. A batched row's anchor
+follows its table row only when read (`getPosition`, `drawnAnchor`, framing, bounds, the world matrix,
+leaving the batch), stamped by `RowTable.moves`, with its world matrix recomputed, since stories read
+`absolutePosition`. Correction to the row: the roster walk applies only on a frame whose layout step
+published (`LayoutManager.steppedPublishes`). The position array is not always the engine's answer
+otherwise: a static or snapshot layout computes its answer in `getNodePosition` (Graphviz placed every node
+at the origin without that read), and d3 publishes a row when it is read. Frames that walk for a transition,
+a zoom to fit or a redrawn arrangement still visit every node. Measured at 100,000 nodes (`benchmarks/results/stage-12`):
+the moved-node and border walks, 3 and 4.5 ms of CPU a frame before, are gone from the profile; the moving
+frame is 88 ms against 95 before at similar load, the still frame 87 against 90, both bound by the GPU.
+The 10,000-node still frame stays 26 ms, all of it the card drawing 100,000 edges, so its 8 ms target
+waits for the edge stages.
+
+As built (stage 14, first pull request: per-instance size): a source mesh is still built per size, and its rows still
+read their bounds, radius, edge ends and picks from it; what changed is which batch draws them. `NodeBatches` puts each
+source's group in a family keyed by its look without the size (`Node.batchLook`: shape type, detail, texture, effect)
+and its geometry's vertex and index counts, and the family's one batch is built from its first source. Every other
+source joins only if `scaleAgainst` finds one factor that maps every vertex of the first source onto its own (normals
+and indices equal), so a creator whose geometry does not follow its size gets a family of its own and draws as before;
+that factor goes into the row's `matrix` (uniform, so the normal rewrite above keeps it at 0 pixels). A change to which
+groups a family draws rebuilds its batch in row order at that flush. A size ramp of one shape is now one draw.
+`MeshCache.batchedSources` keeps a prune from taking a source whose rows a batch draws, since such a source has no
+instance and no batch of its own; when the first source is disposed, its family dissolves and its groups find a family
+again at the same flush. Nothing changes under `"objects"`: `NodeBatches` exists only under `"batched"`, and the prune
+guard's set is empty without it.
+
+As built (stage 14, second pull request): `PajekShapesAndMidLineArrows` failed only on `"batched"` because its play read
+the shape-`none` node's source through `drawnPickMesh`, which is null for a batched row since stage 11; it reads
+`Node.paintedSourceMesh` now, and both paths pass. A fact for the opacity pull request, from the code: a node's opacity
+is its source mesh's `visibility` (`NodeMesh`, beside `material.alpha`), which a batched source gives up for 0, so a
+translucent batch must carry its look's rest visibility. With that, translucent rows batched per look match in 2D, but
+3D differs by about 600 pixels even with one opacity, and one batch per source breaks 2D as well: the batch's place in
+Babylon's back-to-front order of translucent meshes is what differs, and it has to be settled before opacity batches.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.
@@ -430,8 +508,20 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
       `RichTextLabel`, per label.
     - Full atlas (a 4096 square holds about 2,500 tiles): no second page, no eviction; a label with a glyph that does not fit falls back to
       `RichTextLabel`, per label.
-- **Sampling**, off by default with its cell size a setting. When the view settles, every labelled row draws as one point into a target of
-  one texel per screen cell, depth from a priority column. A read of a few KB gives the winners; only they get built.
+    - Correction from stage 33 (`meshes/GlyphAtlas.ts`): no regular expression can see a ligature font, and widths cannot either (a
+      font keeps a ligature as wide as its parts: DejaVu Serif "fi" is 29.32 px at 48 px, "f" plus "i" the same). A ligature font is found
+      by its ink: each of a few probes ("fi", "fl", "ff", "ffi", "ffl", "->", "=>", "!=", "==", "<=", ">=", "www") is drawn as one run and
+      glyph by glyph at the placed x; any difference over 0.5% of the ink is a ligature, and that font's labels fall back. In Chromium a
+      font without ligatures draws identically both ways (0.000); DejaVu Sans and Serif "fi" differ by 0.065 and 0.112. Combining marks (`\p{M}`) fall back too, since only the font's positioning table places
+      them; "Indic" covers the other Brahmic scripts (Thai, Lao, Tibetan, Myanmar, Khmer). Tiles are 80 texels (56 px glyphs, a 12-texel
+      reach): 2,601 to the page. A label falls back whole when its glyphs do not all fit.
+- **Sampling**, off by default with its cell size a setting (`layoutBehavior.labels.sampleCell`, CSS pixels; unset is off). When the view
+  settles, one label per screen cell is picked (selected, then degree, then id); only the winners get built, and
+  `nodeLabelCounts.hiddenBySampling` (present only while it is on) counts the rest.
+  Correction from stage 32: built on the CPU (`managers/LabelSampler.ts`), not as a GPU point draw with a readback. The pass runs once per
+  settled view, not per frame, and projects each labelled row's CPU position (`drawnPosition`, which every path keeps) through one matrix:
+  a few milliseconds at 100,000 rows, with no render target, no readback stall and no WebGL/WebGPU split. A settled frame costs
+  one comparison of the camera, the canvas size, the position lane's generation and the edge version.
 
 ### 4.8 The small issues
 

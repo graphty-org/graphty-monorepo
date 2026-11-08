@@ -16,6 +16,7 @@ import {
     ArrowUp,
     ArrowUpToLine,
     Blend,
+    Box,
     Boxes,
     Calendar,
     CaseSensitive,
@@ -56,6 +57,7 @@ import {
     Highlighter,
     History,
     Hourglass,
+    Image,
     KeyRound,
     Layers,
     LayoutGrid,
@@ -94,6 +96,7 @@ import {
     Redo2,
     RefreshCw,
     Route,
+    Scan,
     Search,
     Server,
     Settings,
@@ -163,6 +166,8 @@ export const GLYPHS = {
     paintedOver: Blend,
     unlock: LockKeyholeOpen,
     everything: Layers,
+    // What a result ran over, when it is not what is showing: a frame round the part it read.
+    ranOver: Scan,
     // The effects a layer adds to nodes (outline, glow, halo) and to edges (band, motion).
     outline: Disc,
     glow: Sparkles,
@@ -269,6 +274,9 @@ export const GLYPHS = {
     listView: List,
     generated: Shuffle,
     noPicture: Waypoints,
+    // A node drawn as a 3D model, and a picture drawn on a node (the node-models experiment).
+    model: Box,
+    picture: Image,
     gpu: Zap,
     developer: Code,
     webAddress: Link,

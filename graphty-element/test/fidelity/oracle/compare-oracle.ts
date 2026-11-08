@@ -389,6 +389,26 @@ function annotationOver<T extends { box: PBox }>(box: PBox, shapes: readonly T[]
     return best;
 }
 
+/** The most of the smaller of two pieces of a node's face the other may cover while the two lie side by side. */
+const SIDE_BY_SIDE_OVERLAP = 0.5;
+
+/**
+ * The pieces of a node's face, where they lie side by side (stripes, wedges, a pie's slices); none where any piece
+ * covers most of another (a drop shadow and the face over it, an overlay, a table's cells over its background).
+ * @param faces - the pieces, each with its box
+ * @returns the pieces, or none
+ */
+function sideBySide<F extends { box: PBox }>(faces: readonly F[]): readonly F[] {
+    const area = (b: PBox): number => Math.max(0, boxW(b)) * Math.max(0, boxH(b));
+    const shared = (a: PBox, b: PBox): number =>
+        Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) *
+        Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+    const layered = faces.some((a, i) =>
+        faces.some((b, k) => k > i && shared(a.box, b.box) > SIDE_BY_SIDE_OVERLAP * Math.min(area(a.box), area(b.box))),
+    );
+    return layered ? [] : faces;
+}
+
 /**
  * Whether graphty draws these words there: in a text of its own holding them, whose box holds
  * the oracle text's center, give or take the text's height (a line of a label the program wrapped
@@ -3134,6 +3154,18 @@ export function compareOracle(
         ...oracle.nodes.flatMap((n) =>
             (n.pictures ?? []).map((box) => ({ tag: "picture", box, fill: null, stroke: null, text: null })),
         ),
+        // so is each piece of a fill the program draws side by side in pieces, in another color than the node's fill
+        // (Graphviz's stripes and wedges), which graphty draws as pieces over the node's face: only graphty's pieces
+        // over a program's were judged (no extra), so a stripe graphty left out passed (dot-synth-nodes n_striped,
+        // #6176). A piece in the node's own fill is that fill, judged as the node's; pieces drawn over one another (a
+        // shadow under the face, an overlay or a table's cells over it) are no fill in pieces, and a piece a clip cuts
+        // (`bands`, below) is judged there.
+        ...oracle.nodes.flatMap((n) =>
+            sideBySide(n.faces ?? [])
+                .filter((f) => n.fill === null || deltaE(f.color, n.fill.color) > T.colorDeltaE)
+                .filter((f) => !(n.bands ?? []).some((b) => shapeId("", b.box) === shapeId("", f.box)))
+                .map((f) => ({ tag: "face", box: f.box, fill: f.color, stroke: null, text: null })),
+        ),
         // the band of a yFiles group's frame round its panel: drawn, and not the group's fill
         ...oracle.groups.flatMap((g) =>
             g.panel === undefined || g.panel.color === g.fill?.color
@@ -3172,7 +3204,7 @@ export function compareOracle(
     // a picture or a stripe graphty draws over a node's face is drawn where the program draws one as part of a node
     const oBoxes = [
         ...oracle.strays.map((s) => s.box),
-        ...oracle.nodes.flatMap((n) => [...(n.pictures ?? []), ...(n.faces ?? [])]),
+        ...oracle.nodes.flatMap((n) => [...(n.pictures ?? []), ...(n.faces ?? []).map((f) => f.box)]),
         ...oracle.texts.map((t) => t.box),
         ...oracle.groups.map((g) => g.box),
     ];
@@ -3522,8 +3554,21 @@ export function lineAlign(t: PText): "start" | "middle" | "end" | null {
         lines.some(
             (a) => under(wide, a) && lines.some((b) => b !== a && under(wide, b) && sameRow(a, b) && !under(a, b)),
         );
+    const kept = lines.filter((l) => !spans(l));
+    // Cells side by side share a row. Lines each on a row of its own, set close under the one above, are one column
+    // however little they overlap across (Graphviz's `\l` and `\r` lines, dot-synth-nodes n_ljust): read as cells, no
+    // cell held two lines and the label's alignment went unjudged (#6176). A line set off by more than half a font size
+    // is another text (a node's xlabel), not a further line.
+    const rows = [...kept].sort((p, q) => p.y0 - q.y0);
+    const column =
+        rows.length >= 2 &&
+        rows.every((a, i) => rows.every((b, k) => k <= i || !sameRow(a, b))) &&
+        rows.every((b, i) => i === 0 || b.y0 - rows[i - 1].y1 <= ORACLE_TOLERANCES.lineAlignOfSize * t.sizePx);
+    if (column) {
+        return alignOfLines(rows, t.sizePx);
+    }
     const cells: PBox[][] = [];
-    for (const b of lines.filter((l) => !spans(l)).sort((p, q) => p.x0 - q.x0)) {
+    for (const b of kept.sort((p, q) => p.x0 - q.x0)) {
         const last = cells.at(-1);
         if (last !== undefined && b.x0 < Math.max(...last.map((l) => l.x1))) {
             last.push(b);

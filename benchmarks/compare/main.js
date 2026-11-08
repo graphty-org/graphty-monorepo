@@ -384,7 +384,7 @@ function changedRows(before, after, rows) {
     return changed;
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, renderer }) {
+async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, renderPath, renderer }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
     const el = document.createElement("graphty-element");
@@ -428,6 +428,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
             set: { "edge.arrowHead": "none" },
         });
     }
+    if (labels && sampled) el.layoutBehavior = { labels: { sampleCell: 96 } };
     if (labels)
         await el.session.styles.add({
             name: "labels",
@@ -523,7 +524,8 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
         moveNode(i) {
             moved ??= graph.getNode(0) ?? null;
             if (moved) {
-                const p = moved.drawnPosition;
+                // A build from before `drawnPosition` (the reference run) moves its mesh instead.
+                const p = moved.drawnPosition ?? moved.mesh.position;
                 moved.setMeshPosition(p.x + 0.05 * Math.sin(i / 5 + 1), p.y, p.z);
             }
         },

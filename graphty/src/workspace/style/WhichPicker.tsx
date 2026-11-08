@@ -25,7 +25,7 @@ import {
     useCombobox,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { sourceName } from "../data-place/words";
@@ -68,6 +68,7 @@ import {
     TEXT_WORDS,
     type TextMode,
 } from "./cards";
+import { DrawnSwatches } from "./drawnSwatches";
 import { keystrokeTarget } from "./useFocusLine";
 import { useStepWriter } from "./useStepWriter";
 import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, NATURAL, prefixFirst, valueName } from "./words";
@@ -1785,7 +1786,7 @@ function ValueBrush({
         return null;
     }
     const shown = moving ?? value;
-    // One-value bins drawn as bars belong to the full-screen workspace (the `selection-workspace` experiment).
+    // The last bar lit with both thumbs on it belongs to the full-screen workspace (the `selection-workspace` experiment).
     const wide = selectionWorkspaceOn(session);
     const heights = barHeights(
         spread.bins.map((bin) => bin.count),
@@ -1801,10 +1802,9 @@ function ValueBrush({
                     // Skewed counts are drawn at log heights and a bin holding anything is never flat,
                     // so a long tail of small bins still shows; the label keeps the count.
                     count: heights[at] ?? 0,
-                    // A bin of one value (an integer's) spans half a step either side, so it is drawn
-                    // as a bar, never a hairline.
-                    from: bin.to > bin.from || !wide ? bin.from : Math.max(low, bin.from - step / 2),
-                    to: bin.to > bin.from || !wide ? bin.to : Math.min(high, bin.to + step / 2),
+                    // A bin of one value (from = to) is drawn a step wide and whole, ends included.
+                    from: bin.from,
+                    to: bin.to,
                     // No bound set is the whole range, every bar lit: what the step passes.
                     // A one-value bin at the low bound (from = to = min) is in range too, and so is
                     // the last bin, which holds its upper end, when both thumbs sit on it.
@@ -3031,6 +3031,7 @@ function DateCard({
  * @param label - the value's name.
  * @param count - how many carry it.
  * @param side - nodes or edges.
+ * @param swatch - the color the graph draws the value in, if it shows one.
  * @returns the checkbox's label props.
  */
 function valueRow(
@@ -3038,6 +3039,7 @@ function valueRow(
     label: string,
     count: number,
     side: Side,
+    swatch?: string,
 ): Pick<React.ComponentProps<typeof Checkbox>, "label" | "aria-label" | "styles"> {
     const words = `${label}, ${many(count, side)}`;
     if (variant === undefined) {
@@ -3049,7 +3051,15 @@ function valueRow(
         label: (
             // A step's checklist rows are the pane's 11/16 type; a filter card's keep its own.
             <Group gap={4} wrap="nowrap" justify="space-between">
-                <Text size={variant === "step" ? "sm" : "xs"} truncate span>
+                {swatch !== undefined && (
+                    <span className="ws-value-swatch" data-swatch={swatch} style={{ background: swatch }} />
+                )}
+                <Text
+                    size={variant === "step" ? "sm" : "xs"}
+                    truncate
+                    span
+                    style={swatch === undefined ? undefined : { flex: 1, minWidth: 0 }}
+                >
                     {label}
                 </Text>
                 <Text size={variant === "step" ? "sm" : "xs"} c="dimmed" span>
@@ -3090,6 +3100,38 @@ function categoryCounts(
 
 /** No value pinned to a checklist's top. */
 const NO_VALUES: ReadonlySet<string> = new Set();
+
+/**
+ * The color the graph draws a value's elements in now, from graphty-element's style agreement over
+ * them: one color when every one of them is drawn in it, else none, so a swatch is never a color the
+ * graph does not show.
+ * @param session - the element's session
+ * @param path - the field
+ * @param side - nodes or edges
+ * @param value - the value, as the card spells it
+ * @param _painted - a count of what the graph draws changing: a new one reads the color again
+ * @returns the color, or undefined
+ */
+function drawnColor(
+    session: GraphSession,
+    path: string,
+    side: Side,
+    value: string,
+    _painted: number,
+): string | undefined {
+    const where: RuleTree = { kind: "categories", attribute: path, values: [value] };
+    const [color] = session.styles.agreement(
+        { define: { kind: "rule", where, reading: "listed" } },
+        `${side}.color`,
+    ).channels;
+    if (color?.state !== "agree" || color.unpainted > 0) {
+        return undefined;
+    }
+    // A color reads as its hex, or as { r, g, b, a, hex }.
+    const drawn: unknown = color.value;
+    const hex = typeof drawn === "object" && drawn !== null && "hex" in drawn ? drawn.hex : drawn;
+    return typeof hex === "string" ? hex : undefined;
+}
 
 /**
  * A category card: a counted checklist of the values, ticked ones being alternatives, drawing at
@@ -3136,6 +3178,24 @@ function CategoryCard({
         () => listed ?? categoryCounts(session, path, side, counted ?? within, version),
         [session, path, side, within, counted, version, listed],
     );
+    // Each value's drawn color, read again when a layer or a run changes what the graph paints.
+    const swatches = useContext(DrawnSwatches) && variant === "step";
+    const [painted, setPainted] = useState(0);
+    useEffect(() => {
+        if (!swatches) {
+            return undefined;
+        }
+        const offs = (["project:changed", "run:changed"] as const).map((event) =>
+            session.on(event, () => {
+                setPainted((v) => v + 1);
+            }),
+        );
+        return () => {
+            offs.forEach((off) => {
+                off();
+            });
+        };
+    }, [session, swatches]);
     const [search, setSearch] = useState("");
     const typed = search.trim().toLowerCase();
     const named = useMemo(
@@ -3161,6 +3221,18 @@ function CategoryCard({
     // saved card reads as it did. Pinning is for the list cut to 8 rows, where a tick could be cut.
     const whole = variant === "step" && selectionWorkspaceOn(session) && named.length <= SHOWN_VALUES;
     const { rows } = checklistRows(named, whole ? NO_VALUES : ordered.current.checked, typed);
+    const shownValues = rows.map((each) => each.value).join("\n");
+    const drawn = useMemo(
+        () =>
+            new Map(
+                swatches
+                    ? shownValues
+                          .split("\n")
+                          .map((value) => [value, drawnColor(session, path, side, value, painted)] as const)
+                    : [],
+            ),
+        [swatches, session, path, side, shownValues, painted],
+    );
     const { moreChecked, matches, unchecked } = checklistRows(named, checked, typed);
     const toggle = (value: string, on: boolean): void => {
         const values = on ? [...card.values, value] : card.values.filter((v) => v !== value);
@@ -3220,7 +3292,7 @@ function CategoryCard({
                             <Checkbox
                                 key={each.value}
                                 size="xs"
-                                {...valueRow(variant, each.label, each.count, side)}
+                                {...valueRow(variant, each.label, each.count, side, drawn.get(each.value))}
                                 data-enter-done
                                 onKeyDown={tickOnEnter}
                                 checked={checked.has(each.value)}

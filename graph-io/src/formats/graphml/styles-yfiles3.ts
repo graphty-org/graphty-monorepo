@@ -13,6 +13,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { spreadRamp } from "../../styles/canon/yed-gradient.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
@@ -28,9 +29,11 @@ import {
     putBevelLine,
     putBevelPaint,
     putEdgeLabelAt,
+    putNodeDrawing,
     putPanelPaint,
     type PutValue,
     type SiteOf,
+    towardWhite,
     treeAttr,
     treeChild,
     treeChildren,
@@ -41,7 +44,7 @@ import {
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
-import { bpmnPicture, type PortEvent, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
+import { bpmnPicture, type PortEvent, shinyPlateGloss, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
 
 /** How deep a chain of shared references is followed. */
 const MAX_REFERENCE_DEPTH = 16;
@@ -317,12 +320,18 @@ function gradientPoint(g: StyleObject, name: string, fallback: readonly [number,
 }
 
 /**
+ * The most stops a REFLECT or REPEAT ramp is unrolled into across its node, counted as two for each of its stops on
+ * each run across the box and the runs past its sides: a file asking for more is noted.
+ */
+const MAX_UNROLLED_STOPS = 512;
+
+/**
  * Reads a node's gradient fill. A yFiles 3 LinearGradient's startPoint and endPoint are fractions of the node's box
  * (yEd Live draws it as an SVG gradient in objectBoundingBox units), so one whose ramp spans the box -- from side to
  * side, or from corner to corner -- is `fillGradientAngle` at the angle from start to end in those fractions, with
  * its stops as written. Any other gradient is noted, and the node is filled in its first stop.
- * ponytail: a ramp that starts or ends inside the box (a REFLECT or REPEAT one's mirrored bands) and a RadialGradient
- * are noted, not drawn, and a stop's alpha is dropped; reading those needs the ramp unrolled across the box.
+ * A REFLECT or REPEAT ramp that starts or ends inside the box is unrolled across it (`spreadRamp`).
+ * ponytail: a padded ramp inside the box and a RadialGradient are noted, not drawn, and a stop's alpha is dropped.
  * @param refs - the references
  * @param g - the gradient
  * @param owner - the style's tag, for the note
@@ -345,14 +354,27 @@ function putGradient(refs: References, g: StyleObject, owner: string, put: PutVa
             return { offset: Number(treeAttr(st, "offset") ?? 0), color: c?.color ?? null };
         })
         .sort((a, b) => a.offset - b.offset);
-    const colors = stops.flatMap((st) => (typeof st.color === "string" ? [st.color] : []));
-    if (g.tag !== "LinearGradient" || !spans || colors.length < 2 || colors.length !== stops.length) {
+    let colors: string[] = stops.flatMap((st) => (typeof st.color === "string" ? [st.color] : []));
+    let offsets = stops.map((st) => num6(st.offset));
+    // a REFLECT or REPEAT ramp inside the box paints its stops back and forth across it: unrolled from the box's
+    // nearest corner along the ramp to its farthest (yed-live-graphml-specimen-node-fills-borders
+    // linear-gradient-reflect, 0.4 to 0.6 across, is white and blue five times over)
+    const spread = (treeAttr(g.e, "spreadMethod") ?? "").toLowerCase();
+    // a ramp unrolled into more than MAX_UNROLLED_STOPS stops across the box (a hostile file's tiny ramp, or one of
+    // thousands of stops) is noted instead
+    const repeats = Math.max(...along) - Math.min(...along);
+    const small = (repeats + 3) * 2 * stops.length <= MAX_UNROLLED_STOPS;
+    const unrolls = !spans && len2 > 0 && small && (spread === "reflect" || spread === "repeat");
+    if (g.tag !== "LinearGradient" || !(spans || unrolls) || colors.length < 2 || colors.length !== stops.length) {
         noteAt(at("fill"), STYLE_ISSUE.GRADIENT, owner);
         return;
     }
+    if (unrolls) {
+        const ramp = spreadRamp({ colors, stops: offsets }, spread, Math.min(...along), Math.max(...along));
+        [colors, offsets] = [[...ramp.colors], [...ramp.stops]];
+    }
     put("fillGradient", colors.at(-1) ?? null);
     put("fillGradientAngle", num6(((((Math.atan2(dy, dx) * 180) / Math.PI) % 360) + 360) % 360));
-    const offsets = stops.map((st) => num6(st.offset));
     if (colors.length > 2 || offsets[0] !== 0 || offsets[1] !== 1) {
         put("fillGradientColors", colors.join(" "));
         put("fillGradientStops", offsets.join(" "));
@@ -444,6 +466,12 @@ function putPaint(pt: Paint, property: string, opacity: string | null, put: PutV
 /** BevelNodeStyle's corner `radius` and the `inset` of its line with neither written. */
 const BEVEL_RADIUS = 10;
 const BEVEL_INSET = 3;
+/** How far toward white, and how wide, the lighter line under a BevelNodeStyle's line is drawn. */
+const BEVEL_HALO_SHARE = 0.85;
+const BEVEL_HALO_WIDTH = 2;
+
+/** ShinyPlateNodeStyle's corner `radius` with none written. */
+const SHINY_RADIUS = 5;
 
 /** yFiles' black, the documented default color of the 2.6 Bevel, ShinyPlate and Panel styles. */
 const BLACK = "#FF000000";
@@ -530,15 +558,17 @@ interface Size {
  * @param fallback - the style's documented default radius
  * @param put - receives the values
  * @param at - the sites
+ * @returns the radius, or null where it is not a number
  */
-function putRounded(radius: string | undefined, fallback: number, put: PutValue, at: SiteOf): void {
+function putRounded(radius: string | undefined, fallback: number, put: PutValue, at: SiteOf): number | null {
     const r = radius === undefined ? fallback : canonNumber(radius, at("cornerRadius"));
     if (r === 0) {
         put("shape", "rectangle");
-        return;
+        return r;
     }
     put("shape", "round-rectangle");
     put("cornerRadius", r);
+    return r;
 }
 
 /**
@@ -559,6 +589,10 @@ function readBevelStyle(style: StyleObject, color: string | null, put: PutValue,
     const size = (name: string, fallback: number): number =>
         canonNumber(treeAttr(style.e, name) ?? fallback, at("shapeLines")) ?? fallback;
     putBevelLine(size("radius", BEVEL_RADIUS), size("inset", BEVEL_INSET), put);
+    // under it yFiles for HTML draws a line of 2 most of the way to white (#c8c8c8 over #f7f7f7, #3366ff over
+    // #e0e8ff: yed-live-graphml-specimen-node-shapes-p2)
+    put("shapeLineHaloColor", towardWhite(color, BEVEL_HALO_SHARE));
+    put("shapeLineHaloWidth", BEVEL_HALO_WIDTH);
 }
 
 /**
@@ -575,16 +609,38 @@ function readPanelStyle(color: string | null, put: PutValue): void {
 }
 
 /**
+ * Reads the rest of a ShinyPlateNodeStyle past its fill: an outline only where `stroke` is set, its corners, and the
+ * gloss yEd Live draws over its upper left, as the node's picture where its size is known.
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the node's size, where it has one
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readShinyPlateStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): void {
+    const stroke = prop(style, "stroke") === undefined ? NULL : strokeOf(refs, prop(style, "stroke"));
+    putStroke(stroke, put, at);
+    const radius = putRounded(treeAttr(style.e, "radius"), SHINY_RADIUS, put, at) ?? 0;
+    if (size !== null) {
+        const border = stroke === null || stroke === NULL ? 0 : Number(stroke.width) || 0;
+        put("image", shinyPlateGloss(size.width, size.height, radius, border));
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/**
  * Reads the yFiles for HTML 2.6 node styles yEd Live wrote before yFiles 3, and the demos' FlowchartNodeStyle:
  * BevelNodeStyle and PanelNodeStyle (painted from their `color`), ShinyPlateNodeStyle (an outline only where `stroke`
  * is set) and FlowchartNodeStyle (its `type`'s outline, drawn as yEd's flowchart palette draws the same type).
  * @param refs - the references
  * @param style - the style
+ * @param size - the node's size, where it has one
  * @param put - receives the values
  * @param at - the sites
  * @returns true when the style is one of these
  */
-function readStyle26(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
+function readStyle26(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): boolean {
     const fill = (v: unknown): string | null => {
         const gradient = (g: StyleObject): void => {
             putGradient(refs, g, style.tag, put, at);
@@ -602,17 +658,10 @@ function readStyle26(refs: References, style: StyleObject, put: PutValue, at: Si
         case "PanelNodeStyle":
             readPanelStyle(fill(prop(style, "color") ?? BLACK), put);
             return true;
-        case "ShinyPlateNodeStyle": {
+        case "ShinyPlateNodeStyle":
             fill(prop(style, "fill") ?? BLACK);
-            const stroke = prop(style, "stroke");
-            if (stroke === undefined) {
-                put("borderWidth", 0);
-            } else {
-                putStroke(strokeOf(refs, stroke), put, at);
-            }
-            putRounded(treeAttr(style.e, "radius"), 5, put, at);
+            readShinyPlateStyle(refs, style, size, put, at);
             return true;
-        }
         case "FlowchartNodeStyle": {
             fill(prop(style, "fill") ?? FLOWCHART_FILL);
             const type = treeAttr(style.e, "type") ?? "";
@@ -828,21 +877,9 @@ function putBpmnPicture(
     ports: unknown,
 ): void {
     const drawing = bpmnPicture(style.tag, styleReader(refs, style, at), size, portEvents(refs, ports, size, at));
-    if (drawing === null) {
-        return;
+    if (drawing !== null) {
+        putNodeDrawing(drawing, put);
     }
-    put("image", drawing.picture);
-    put("imageClip", "none");
-    const { left, top, right, bottom } = drawing.reach;
-    if (left + top + right + bottom === 0) {
-        put("imageFit", "fill");
-        return;
-    }
-    put("imageFit", "none");
-    put("imageWidth", drawing.width);
-    put("imageHeight", drawing.height);
-    put("imageOffsetX", (right - left) / 2);
-    put("imageOffsetY", (bottom - top) / 2);
 }
 
 /** How far under the top of a UMLNodeStyle yEd Live writes its class's name, past where `inside-top` puts it. */
@@ -1043,7 +1080,7 @@ function readNodeStyle(
         return;
     }
     const style = st;
-    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, size, put, at, ports)) {
+    if (readStyle26(refs, style, size, put, at) || readBpmnStyle(refs, style, size, put, at, ports)) {
         return;
     }
     if (style.tag === "UMLNodeStyle") {

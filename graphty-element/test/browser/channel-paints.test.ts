@@ -127,6 +127,18 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "node.shapeParts": { "node.shape": "polygon", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
     "node.shapeLines": { "node.shape": "rectangle", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
     "node.shapeLineWidth": { "node.shape": "rectangle", "node.borderColor": "#000000", "node.shapeLines": "-1,0 1,0" },
+    "node.shapeLineHaloColor": {
+        "node.shape": "rectangle",
+        "node.borderColor": "#000000",
+        "node.shapeLines": "-1,0 1,0",
+        "node.shapeLineHaloWidth": 0.2,
+    },
+    "node.shapeLineHaloWidth": {
+        "node.shape": "rectangle",
+        "node.borderColor": "#000000",
+        "node.shapeLines": "-1,0 1,0",
+        "node.shapeLineHaloColor": "#ff0000",
+    },
     // An external label's place and look change only an external label there is: its words switch it on.
     "node.xlabelStyle": { "node.xlabel": "OUT" },
     "node.xlabelLocation": { "node.xlabel": "OUT" },

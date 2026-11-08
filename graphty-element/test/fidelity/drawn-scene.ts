@@ -753,6 +753,8 @@ export interface DrawnNode {
     picture?: ScreenBox;
     /** A picture graph-io drew for what a program draws piece by piece over a node: its box and its URL. */
     svgPicture?: { box: ScreenBox; src: string };
+    /** The closed line it draws over its face that is no outline of its own (`readInnerLine`), its box; absent for none. */
+    faceLine?: ScreenBox;
     label: DrawnLabel | null;
     /**
      * The label of a node that draws it as a table (`shape.labelTable`), read off the table's cells, or null for
@@ -819,14 +821,16 @@ function readTableOutline(node: Node, p: Projector): DrawnBorder | null {
 }
 
 /**
- * The closed line a node with no border draws over its face (`shape.lines`, a bevel's), which is the outline a program's
- * drawing of it shows, in the border's color. One that boxes under half of the node, as an outline of the node's own
- * must not (`PART_OF_BODY`), is a mark on its face: the oracle's reading leaves such a line a stray.
+ * The closed line a node with no border draws over its face (`shape.lines`, a bevel's), in the border's color, and
+ * where it runs on screen. One that boxes half of the node or more is the outline a program's drawing of it shows; one
+ * that boxes less, as an outline of the node's own must not (`PART_OF_BODY`), is a mark on its face, which the oracle's
+ * reading leaves a stray.
  * @param node - the node
  * @param p - the projector
- * @returns the line, or null when the node draws no such line
+ * @returns the line, its box (its points' box on screen) and whether it is the node's outline, or null when the node
+ * draws no such line
  */
-function readInnerLine(node: Node, p: Projector): DrawnBorder | null {
+function readInnerLine(node: Node, p: Projector): { border: DrawnBorder; box: ScreenBox; outline: boolean } | null {
     const { drawnStyle } = node as unknown as NodeInternals;
     const shape = drawnStyle?.shape;
     const lists = pointLists(shape?.lines);
@@ -840,20 +844,22 @@ function readInnerLine(node: Node, p: Projector): DrawnBorder | null {
     const unitPx = NodeMesh.extentPerSize(shape) * p.pxPerWorld(node.mesh.getAbsolutePosition());
     const box = p.box(node.mesh);
     const [w, h] = [box.x1 - box.x0, box.y1 - box.y0];
-    const span = (at: number[]): number => Math.max(...at) - Math.min(...at);
-    const lineW = span(lists[0].map((q) => (q[0] * w) / 2 + q[1] * unitPx));
-    const lineH = span(lists[0].map((q) => (q[2] * h) / 2 + q[3] * unitPx));
-    if (lineW * lineH < 0.5 * w * h) {
-        return null;
-    }
+    const xs = lists[0].map((q) => (box.x0 + box.x1) / 2 + (q[0] * w) / 2 + q[1] * unitPx);
+    // a point's y runs up, the screen's down
+    const ys = lists[0].map((q) => (box.y0 + box.y1) / 2 - (q[2] * h) / 2 - q[3] * unitPx);
+    const at = { ...box, x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
     const css = cssColor(color);
     return {
-        color: css.hex,
-        widthPx: width * unitPx,
-        lineWidthPx: null,
-        style: "solid",
-        screen: false,
-        opacity: css.alpha * (drawnStyle?.border?.opacity ?? 1),
+        border: {
+            color: css.hex,
+            widthPx: width * unitPx,
+            lineWidthPx: null,
+            style: "solid",
+            screen: false,
+            opacity: css.alpha * (drawnStyle?.border?.opacity ?? 1),
+        },
+        box: at,
+        outline: (at.x1 - at.x0) * (at.y1 - at.y0) >= 0.5 * w * h,
     };
 }
 
@@ -1347,7 +1353,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     // a node with an outer border (Cytoscape.js's outline) shows that ring as its outline: the node is drawn out to
     // its inner edge, past the border and the gap, and the ring is its stroke
     const own = readBorder(node, p);
-    const border = outer?.border ?? own ?? readInnerLine(node, p);
+    const inner = readInnerLine(node, p);
+    const border = outer?.border ?? own ?? (inner?.outline === true ? inner.border : null);
     const grow = outer?.gapPx ?? 0;
     // A node whose fill is transparent (Graphviz's default, unfilled shape) still draws its outline.
     const ownFace = (mesh.isVisible && source.visibility > 0) || border !== null;
@@ -1358,11 +1365,12 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         ownFace || (node as unknown as NodeInternals).tableTexts === null
             ? []
             : pieces.filter((piece) => piece.kind === "body" && piece.fill !== undefined);
-    const shown = ownFace || tableBody.length > 0;
+    const imagePiece = pieces.find((piece) => piece.kind === "image");
+    // a node drawn as its picture alone, with no fill and no border (yEd's image and SVG nodes), is drawn all the same
+    const shown = ownFace || tableBody.length > 0 || imagePiece !== undefined;
     // a node with no body draws nothing of its own but what is over its face: drawn as its image (vis-network's
     // image nodes)
-    const picture = faces ? undefined : pieces.find((piece) => piece.kind === "image");
-    const imagePiece = pieces.find((piece) => piece.kind === "image");
+    const picture = faces ? undefined : imagePiece;
     const imageSrc = drawnStyle?.image?.src ?? "";
     // the further pieces of its body (`shape.parts`) are the node, as a program draws a glyph of several pieces
     const body = pieces.filter((piece) => piece.kind === "body").map((piece) => piece.box);
@@ -1425,6 +1433,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
             ? { svgPicture: { box: imagePiece.box, src: imageSrc } }
             : {}),
         ...(figure === undefined ? {} : { figure }),
+        ...(inner === null || inner.outline || own !== null || outer !== null ? {} : { faceLine: inner.box }),
         pieces: pieces
             .filter((piece) => piece !== picture && piece.kind !== "body")
             .map((piece) => ({

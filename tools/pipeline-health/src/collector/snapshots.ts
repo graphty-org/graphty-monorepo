@@ -22,7 +22,7 @@ const EXCLUDED = new Set([
  * Excluded checks that summarize others: one failing while every check it summarizes passed is shared (4). Queue
  * Checks Pass belonged to the retired Mergify queue and is not counted at all.
  */
-const AGGREGATORS = new Set(["All Checks Pass"]);
+export const AGGREGATORS = new Set(["All Checks Pass"]);
 /** A pull request whose newest check started longer ago than this is left out: its checks say nothing about now. */
 export const STALE_CHECKS_MS = 2 * DAY;
 const FAILED = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE"]);
@@ -31,8 +31,8 @@ export interface FailingCheck {
     /** The family for a binned test check, else the check's name. */
     check: string;
     name: string;
-    /** The step that failed, when the collector read the check run's steps. */
-    step?: string;
+    /** What it failed on (GqlCheck.signatures): failed tests and failure annotations; empty when nothing says. */
+    signatures: string[];
     /** An aggregator failing while every check it summarizes passed. */
     alone: boolean;
     startedAt?: number;
@@ -71,7 +71,7 @@ export function failingChecks(p: GqlPr, now?: number): FailingCheck[] {
         return {
             check: family(name) ?? name,
             name,
-            ...(c.failedStep ? { step: c.failedStep } : {}),
+            signatures: c.signatures ?? [],
             alone: !own.length,
             ...(at === undefined ? {} : { startedAt: at }),
         };
@@ -79,7 +79,14 @@ export function failingChecks(p: GqlPr, now?: number): FailingCheck[] {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Shared failures (4.1): a check or family failing in 3 or more open pull requests, or an aggregator failing alone.
+// Shared failures (4.1): a check or family failing in 2 or more open pull requests with the same signature (or with
+// master's newest build failing it too), or an aggregator failing alone.
+
+/**
+ * The stacks one cause must reach to be shared. It is the first count over master.red_same_check's target (<= 1), so
+ * the member (the largest group, prStocks) breaches exactly when the shared section has an ongoing row (#6177).
+ */
+export const SHARED_MIN = 2;
 
 export interface Merge {
     pr: number;
@@ -89,6 +96,10 @@ export interface Merge {
 
 export interface SharedRow {
     check: string;
+    /** The failure signature its pull requests share; absent when master fails the check too, or it failed alone. */
+    signature?: string;
+    /** Master's newest build fails this check too. */
+    master?: true;
     /** Distinct check names folded into it (the bins of a family). */
     bins: number;
     alone: boolean;
@@ -108,13 +119,29 @@ export interface SharedSnapshot {
 }
 
 /**
- * The cause a failure is grouped by: the check (or its family) and the step that failed, when known, so two
- * different steps of one big job ("Checks") are two causes.
- * @param check - the check or family name
- * @param step - the failed step's name, if known
- * @returns the cause key
+ * The tests a shard check ("Test (layout-2)") failed in its run's newest attempt, as "file > name", from the run's
+ * RUNTESTS rows (items.ts indexKeys); a test that passed on its shard's retry was rewritten flaky and is left out.
+ * @param rows - the run's RUNTESTS rows
+ * @param checkName - the check run's name
+ * @returns the failed tests' signatures; none for a check that is no shard
  */
-export const causeKey = (check: string, step?: string): string => (step ? `${check}: ${step}` : check);
+export function testSignatures(rows: { sk: string; [k: string]: unknown }[], checkName: string): string[] {
+    const open = checkName.lastIndexOf("(");
+    if (open < 0 || !checkName.endsWith(")")) {
+        return [];
+    }
+    const shard = checkName.slice(open + 1, -1);
+    const attempt = Math.max(0, ...rows.map((r) => Number(r.sk.split("#")[0])));
+    // A CI invocation is "<run>.<attempt>.<kind>.<shard>.<try>" (ingest.ts ownId).
+    return rows
+        .filter(
+            (r) =>
+                Number(r.sk.split("#")[0]) === attempt &&
+                r.outcome === "failed" &&
+                String(r.invocation).split(".").slice(3, -1).join(".") === shard,
+        )
+        .map((r) => `${String(r.file)} > ${String(r.name)}`);
+}
 
 /**
  * Each open pull request's stack: the base-most open pull request whose head is among its commits, itself when none.
@@ -136,6 +163,9 @@ export function stacks(open: GqlPr[]): Map<number, number> {
 }
 
 export interface FailureGroup {
+    check: string;
+    signature?: string;
+    master?: true;
     /** Distinct check names folded into it (the bins of a family). */
     names: Set<string>;
     alone: boolean;
@@ -146,25 +176,65 @@ export interface FailureGroup {
 }
 
 /**
- * The open, ready pull requests' failures grouped by cause (causeKey), each with its pull requests and stacks.
+ * The causes one failing check counts under: an aggregator failing alone under its name; a check master's newest
+ * build fails too under the check; else each of its signatures. A failure with no signature cannot be told apart
+ * from the pull request's own defect, so it counts alone, under its stack (#6177).
+ * @param f - the failing check
+ * @param unit - the pull request's stack
+ * @param masterFailing - the checks (families folded) master's newest build failed
+ * @returns the cause key with what the group records
+ */
+function causes(
+    f: FailingCheck,
+    unit: number,
+    masterFailing: ReadonlySet<string>,
+): [string, Pick<FailureGroup, "signature" | "master">][] {
+    if (f.alone) {
+        return [[f.check, {}]];
+    }
+    if (masterFailing.has(f.check)) {
+        return [[`${f.check}\u0000master`, { master: true }]];
+    }
+    if (!f.signatures.length) {
+        return [[`${f.check}\u0000own#${unit}`, {}]];
+    }
+    return f.signatures.map((sig) => [`${f.check}\u0000${sig}`, { signature: sig }]);
+}
+
+/**
+ * The open, ready pull requests' failures grouped by cause (see causes), each with its pull requests and stacks.
  * @param open - the open pull requests with their checks
  * @param now - the current time, in ms; omitted, stale checks are kept
+ * @param masterFailing - the checks (families folded) master's newest build failed
  * @returns the groups by cause
  */
-export function failureGroups(open: GqlPr[], now?: number): Map<string, FailureGroup> {
+export function failureGroups(
+    open: GqlPr[],
+    now?: number,
+    masterFailing: ReadonlySet<string> = new Set(),
+): Map<string, FailureGroup> {
     const ready = open.filter((p) => p.state === "OPEN" && !p.isDraft);
     const stack = stacks(ready);
     const by = new Map<string, FailureGroup>();
     for (const p of ready) {
+        const unit = stack.get(p.number) ?? p.number;
         for (const f of failingChecks(p, now)) {
-            const key = causeKey(f.check, f.step);
-            const g = by.get(key) ?? { names: new Set<string>(), alone: f.alone, prs: new Set(), units: new Set() };
-            by.set(key, g);
-            g.names.add(f.name);
-            g.prs.add(p.number);
-            g.units.add(stack.get(p.number) ?? p.number);
-            if (f.startedAt !== undefined) {
-                g.startedAt = Math.min(g.startedAt ?? Infinity, f.startedAt);
+            for (const [key, tie] of causes(f, unit, masterFailing)) {
+                const g = by.get(key) ?? {
+                    check: f.check,
+                    ...tie,
+                    names: new Set<string>(),
+                    alone: f.alone,
+                    prs: new Set(),
+                    units: new Set(),
+                };
+                by.set(key, g);
+                g.names.add(f.name);
+                g.prs.add(p.number);
+                g.units.add(unit);
+                if (f.startedAt !== undefined) {
+                    g.startedAt = Math.min(g.startedAt ?? Infinity, f.startedAt);
+                }
             }
         }
     }
@@ -172,26 +242,38 @@ export function failureGroups(open: GqlPr[], now?: number): Map<string, FailureG
 }
 
 /**
- * The causes failing in 3 or more open, ready pull requests (a stack counts once), or failing alone, with the pull
- * requests and start.
+ * The causes failing in SHARED_MIN or more open, ready pull requests (a stack counts once), or failing alone, with
+ * the pull requests and start.
  * @param open - the open pull requests with their checks
  * @param now - the current time, in ms; omitted, stale checks are kept
+ * @param masterFailing - the checks (families folded) master's newest build failed
  * @returns the shared checks
  */
 export function sharedChecks(
     open: GqlPr[],
     now?: number,
-): { check: string; bins: number; alone: boolean; prs: number[]; startedAt?: number }[] {
-    return [...failureGroups(open, now)]
-        .filter(([, g]) => g.units.size >= 3 || g.alone)
-        .map(([check, g]) => ({
-            check,
+    masterFailing?: ReadonlySet<string>,
+): (Pick<SharedRow, "check" | "signature" | "master" | "bins" | "alone" | "prs"> & { startedAt?: number })[] {
+    return [...failureGroups(open, now, masterFailing).values()]
+        .filter((g) => g.units.size >= SHARED_MIN || g.alone)
+        .map((g) => ({
+            check: g.check,
+            ...(g.signature === undefined ? {} : { signature: g.signature }),
+            ...(g.master ? { master: g.master } : {}),
             bins: g.names.size,
             alone: g.alone,
             prs: [...g.prs].sort((a, b) => b - a),
             ...(g.startedAt === undefined ? {} : { startedAt: g.startedAt }),
         }));
 }
+
+/**
+ * A shared row's identity across snapshots: its check and what ties its pull requests together.
+ * @param r - the row
+ * @returns its key
+ */
+const rowKey = (r: Pick<SharedRow, "check" | "signature" | "master">): string =>
+    `${r.check}\u0000${r.master ? "master" : (r.signature ?? "")}`;
 
 const SUSPECT_MS = 3 * HOUR;
 
@@ -203,6 +285,7 @@ const SUSPECT_MS = 3 * HOUR;
  * @param open - the open pull requests with their checks
  * @param recent - recently updated pull requests, for their merges
  * @param now - the current time, in ms
+ * @param masterFailing - the checks (families folded) master's newest build failed
  * @returns the new snapshot
  */
 export function nextShared(
@@ -210,6 +293,7 @@ export function nextShared(
     open: GqlPr[],
     recent: GqlPr[],
     now: number,
+    masterFailing?: ReadonlySet<string>,
 ): SharedSnapshot {
     const merges = new Map<number, Merge>((prev?.merges ?? []).map((m) => [m.pr, m]));
     for (const p of recent) {
@@ -218,17 +302,14 @@ export function nextShared(
         }
     }
     const mergeList = [...merges.values()].filter((m) => now - m.at <= 2 * DAY).sort((a, b) => b.at - a.at);
-    const active = new Map((prev?.rows ?? []).filter((r) => r.end === undefined).map((r) => [r.check, r]));
+    const active = new Map((prev?.rows ?? []).filter((r) => r.end === undefined).map((r) => [rowKey(r), r]));
     const rows: SharedRow[] = [];
-    for (const c of sharedChecks(open, now)) {
-        const old = active.get(c.check);
-        active.delete(c.check);
-        const since = old?.since ?? Math.min(c.startedAt ?? now, now);
+    for (const { startedAt, ...c } of sharedChecks(open, now, masterFailing)) {
+        const old = active.get(rowKey(c));
+        active.delete(rowKey(c));
+        const since = old?.since ?? Math.min(startedAt ?? now, now);
         rows.push({
-            check: c.check,
-            bins: c.bins,
-            alone: c.alone,
-            prs: c.prs,
+            ...c,
             since,
             suspects: old?.suspects ?? mergeList.filter((m) => m.at <= since && since - m.at <= SUSPECT_MS),
         });
@@ -257,7 +338,7 @@ const RED = new Set(["failure", "timed_out", "startup_failure"]);
  * @param run - the completed run
  * @param jobs - the run's jobs
  * @param hung - names of jobs that hung
- * @param shared - the causes (causeKey) in the shared set
+ * @param shared - the checks (families folded) in the shared set
  * @returns the cause, or undefined when the run is not a red first attempt of a pull request
  */
 export function failureCause(run: GhRun, jobs: GhJob[], hung: Set<string>, shared: Set<string>): Cause | undefined {
@@ -275,8 +356,9 @@ export function failureCause(run: GhRun, jobs: GhJob[], hung: Set<string>, share
     if (!own.length && failed.some((j) => AGGREGATORS.has(j.name))) {
         return "shared_aggregator";
     }
-    const failedStep = (j: GhJob): string | undefined => j.steps?.find((st) => RED.has(st.conclusion ?? ""))?.name;
-    if (own.some((j) => shared.has(causeKey(family(j.name) ?? j.name, failedStep(j))))) {
+    // ponytail: by check alone, since a job carries no signature; a run failing a shared check for its own reason
+    // reads shared too. Read the run's annotations if the cause chart needs that split.
+    if (own.some((j) => shared.has(family(j.name) ?? j.name))) {
         return "shared_check";
     }
     return "change";

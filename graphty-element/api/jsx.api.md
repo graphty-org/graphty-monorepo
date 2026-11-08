@@ -8,6 +8,7 @@ import { AbstractMesh } from '@babylonjs/core';
 import { ActionManager } from '@babylonjs/core';
 import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
+import { BoundingInfo } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { ColumnHandle } from '@graphty/graph-format';

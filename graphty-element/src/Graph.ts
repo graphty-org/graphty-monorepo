@@ -187,6 +187,7 @@ import { layoutManagerInternals } from "./managers/LayoutManager";
 import type { PendingWork } from "./managers/PendingWork";
 import { RecoveringWebGPUEngine } from "./managers/RecoveringWebGPUEngine";
 import {
+    type LayoutDevice,
     openWebGPUEngine,
     type PixelRatio,
     RENDERER_REQUESTS,
@@ -216,9 +217,10 @@ import {
     openRowScan,
     pickAsDrawn,
     pickCloseLabel,
-    pickEdgeAt,
+    pickEdgeId,
     pickNodeId,
     pickWorldPoint,
+    screenProjector,
     useEdgeIdTarget,
     useNodeIdTarget,
 } from "./render/PickService";
@@ -2082,6 +2084,7 @@ export class Graph implements GraphContext {
                 active: "webgl",
                 reason: null,
                 drawing: !(this.engine instanceof NullEngine),
+                layoutDevice: this.layoutDeviceFor(false),
             };
             return;
         }
@@ -2134,6 +2137,7 @@ export class Graph implements GraphContext {
                 active: "webgl",
                 reason: opened,
                 drawing: !(this.engine instanceof NullEngine),
+                layoutDevice: this.layoutDeviceFor(false),
             };
             return;
         }
@@ -2197,7 +2201,26 @@ export class Graph implements GraphContext {
         );
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
-        this.#rendererStatus = { requested, active: "webgpu", reason: null, drawing: true };
+        this.#rendererStatus = {
+            requested,
+            active: "webgpu",
+            reason: null,
+            drawing: true,
+            layoutDevice: this.layoutDeviceFor(opened.sharesDevice),
+        };
+    }
+
+    /**
+     * Where an accelerated layout will run, as the renderer opens.
+     * @param shared - Whether the renderer opened its device for the accelerator too.
+     * @returns The device, or null when no accelerator is offered.
+     */
+    private layoutDeviceFor(shared: boolean): LayoutDevice | null {
+        if (!this.acceleration.offersAccelerator) {
+            return null;
+        }
+
+        return shared ? "shared" : "separate";
     }
 
     /**
@@ -6089,29 +6112,11 @@ export class Graph implements GraphContext {
      * @returns Screen coordinates {x, y}
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
-        const engine = this.scene.getEngine();
-        const viewport = this.scene.activeCamera?.viewport;
-        const view = this.scene.getViewMatrix();
-        const projection = this.scene.getProjectionMatrix();
-
-        if (!viewport) {
+        if (!this.scene.activeCamera?.viewport) {
             return { x: 0, y: 0 };
         }
 
-        // Create transformation matrix manually
-        const viewProjection = view.multiply(projection);
-        const worldVec = new Vector3(worldPos.x, worldPos.y, worldPos.z);
-
-        // Transform to clip space
-        const clipSpace = Vector3.TransformCoordinates(worldVec, viewProjection);
-
-        // Convert to screen space, in CSS pixels: the canvas may be drawn at a higher pixel ratio
-        // (`pixelRatio`), which the hardware scaling level undoes.
-        const css = engine.getHardwareScalingLevel();
-        const screenX = (clipSpace.x + 1) * 0.5 * engine.getRenderWidth() * css;
-        const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight() * css;
-
-        return { x: screenX, y: screenY };
+        return screenProjector(this.scene)(worldPos);
     }
 
     /**
@@ -6251,7 +6256,7 @@ export class Graph implements GraphContext {
      * @returns The edge's id, or `undefined` when no drawn edge is that close.
      */
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
-        return pickEdgeAt(this.scene, this.dataManager.edges.values(), x, y, (point) => this.worldToScreen(point));
+        return pickEdgeId(this.scene, this.dataManager.edges.values(), x, y, (point) => this.worldToScreen(point));
     }
 
     /**

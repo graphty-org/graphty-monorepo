@@ -9,8 +9,8 @@
 import { assert, describe, it, type TestContext } from "vitest";
 
 // What query.wikidata.org answered on 2026-10-20 (graph-io's scripts/record-sparql.ts)
+import { WIKIDATA_ADVISORS, WIKIDATA_ENDPOINT } from "../../../../graph-io/test/sources/sparql/advisors";
 import wikidataRecordings from "../../../../graph-io/test/sources/sparql/recordings/wikidata-advisors.json";
-import { sourceDescriptors } from "../../../catalog";
 import { createGraphSession, credentials, type GraphtyError, replayFetch } from "../../../session";
 import ndexRecordings from "../../../stories/fixtures/sources/ndex-wp5483.json";
 import neo4jRecordings from "../../../stories/fixtures/sources/neo4j-movies.json";
@@ -30,7 +30,7 @@ async function loadUndoRedo(
     options: Record<string, unknown>,
     recordings: Parameters<typeof replayFetch>[0],
 ): Promise<{ nodes: number; edges: number; calls: number }> {
-    const session = createGraphSession();
+    const session = createGraphSession({ features: ["network-data"] });
     try {
         const fetch = replayFetch(recordings);
         const error = await session.data.import(input, { ...options, fetch }).then(
@@ -87,14 +87,12 @@ describe("built-in sources from recorded responses", () => {
     });
 
     it("loads a Wikidata CONSTRUCT through sparql: Load more adds a page, expanding a node adds its triples", async () => {
-        const sample = sourceDescriptors().find((info) => info.id === "sparql")?.descriptor.samples?.[0];
-        assert.isDefined(sample);
-        const session = createGraphSession();
+        const session = createGraphSession({ features: ["network-data"] });
         try {
             const fetch = replayFetch(wikidataRecordings);
             await session.data.import(
-                { source: "sparql", config: sample.params },
-                { endpoint: sample.endpoint, fetch, limits: { maxNodes: 150 } },
+                { source: "sparql", config: WIKIDATA_ADVISORS },
+                { endpoint: WIKIDATA_ENDPOINT, fetch, limits: { maxNodes: 150 } },
             );
             const first = session.data.nodes().length;
             assert.strictEqual(first, 281);
@@ -114,8 +112,8 @@ describe("built-in sources from recorded responses", () => {
         }
     });
 
-    it("loads the OpenAlex sample's first page, and its source entry offers Load more", async () => {
-        const session = createGraphSession();
+    it("loads the OpenAlex example's first page, and its source entry offers Load more", async () => {
+        const session = createGraphSession({ features: ["network-data"] });
         try {
             // The recorded citing page, with the cursor a live answer carries to its next page.
             const paged = openalexRecordings.map((r, at) =>
@@ -130,8 +128,8 @@ describe("built-in sources from recorded responses", () => {
                     : r,
             );
             const fetch = replayFetch(paged);
-            await session.data.loadSample("openalex-watts-strogatz", { fetch });
-            assert.isNotNull(session.data.loads()[0].next, "the sample stops after its first page");
+            await session.data.loadExample("openalex", "openalex-watts-strogatz", { fetch });
+            assert.isNotNull(session.data.loads()[0].next, "the example stops after its first page");
             const [entry] = session.data.sources();
             assert.deepEqual(entry.features, { expand: true, more: true, refresh: true });
             assert.strictEqual(fetch.calls.length, 2);

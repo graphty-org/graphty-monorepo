@@ -1061,6 +1061,24 @@ params that load a known graph from it, listed on its source's descriptor (`exam
 first page) and offered only as tiles on the start page, never in the network form. Example ids
 are unique within their source.
 
+**Where the graphty app shows them.** With the `network-data` experiment on, the start page has a
+"Load network data" section immediately before "Generate a graph", with one tile for each kind of
+network: NDEx (`ndex-wp5483`), Neo4j (`neo4j-movies`), SPARQL endpoint (`uniprot-tp53`) and Web API
+(`deps-dev-webpack`). Which example fills a tile is the app's choice and lives in
+`graphty/src/workspace/start/network-samples.json`. Neptune has no tile because it has no public
+server, and OpenAlex has none because it is one service reached through the REST source, not a kind
+of network. A tile calls `session.data.readExample` on a session with no canvas while the tile shows
+as busy, so a failure leaves the reader on the start page with a notice and no project. A successful
+read opens a new project on the graph, with the Style panel open on the row that paints the whole
+graph.
+
+The form behaves the same way before a project exists. Open network data shows the same `ServerForm`
+component the app shows on its Data place, beside the button, with no project and no example or
+sample in it. Test and Preview run on a session with no canvas, and Load calls
+`session.data.readSource`. A refused read keeps the form and its error and opens nothing, closing
+the form during a read aborts it, and a successful read goes to `data.import` on the new project
+with no second fetch.
+
 **The dependable set (2026-11-07).** Every one loaded live that day with the counts shown, from
 Node (`scripts/live-examples.ts`) and from the graphty app in Chromium through
 `session.data.loadExample` (another origin, so CORS was exercised; the Bolt examples over

@@ -309,7 +309,8 @@ the prior design (`structure-b-refined.md` section 12.1):
 ### 3.9 Server sources
 
 `+` > Server... opens a pop-over form in the left sidebar (not a modal), Figma-style rows. The start
-page's Open network data opens the same form beside its button, and only Load opens a project:
+page's Open network data opens the same form beside its button, and only Load opens a project. The
+form never lists an example or a sample:
 
 ```
 Kind      [Neo4j / Cypher v]     (Cypher, SPARQL, NDEx, OpenAlex, REST mapping)
@@ -340,6 +341,14 @@ Expand    [x] on double-click   (pop-over: depth 1, direction both, edge types a
   (row menu) sets the changed dot without loading, for sources whose check is cheap.
 - What a source cannot do is absent: no Load more for NDEx and STRING; no Expand for a REST
   mapping without `expand`.
+- **From the start page:** Test and Load work before any project exists. A successful Load opens a
+  new project on the graph with the Style panel open. A refused Load keeps the form and its error
+  and opens nothing, and closing the form during a Load stops it.
+- **Network samples** are not in the form. The start page's "Load network data" section, immediately
+  before "Generate a graph", has one tile for each kind of network (NDEx, Neo4j, SPARQL endpoint,
+  Web API), with a thumbnail of its graph. A tile reads its graph first, shows as busy while it
+  does, and then lands where a form Load lands. With the `network-data` experiment off, neither the
+  button nor the section appears.
 
 ### 3.10 Timeline
 

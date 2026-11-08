@@ -33,7 +33,7 @@ it on; the default flips in the next major (#6124).
 
 **Reading the whole graph by name.** Every reader of nodes or edges takes a scope and keeps its
 existing whole-graph word: `"graph"` (`data.nodePage`, `find`, `neighbors`, union leaves) or
-`"all"` (`data.statistics`, `time.bins`). A reader with no scope today gains
+`"all"` (`data.statistics`). A reader with no scope today gains
 `scope?: "graph" | "visible"`: `data.structureValue`, `selection.statistics`, `data.attributes`,
 `valueCounts`, `histogram`, `issues`, `styles.groups`, `styles.categories`, `styles.counts`,
 `styles.agreement`, `styles.preview`, the `neighborsOf`, `layer` and `invert` targets, and
@@ -43,10 +43,14 @@ existing whole-graph word: `"graph"` (`data.nodePage`, `find`, `neighbors`, unio
 threshold leaf (Top-N, percentile), on a color binding's automatic domain, and on the legend's
 counts (painted count, category cap). The graphty app sets `"visible"` on all three.
 
-**The filter draft.** `visibility.draft(condition)` (or `draft(id)` for an existing condition)
-returns a `FilterDraft` with `update(rule)`, `counts()`, `commit()` and `cancel()`. While it is
-open the element draws its preview; `commit()` writes it as one history step; `cancel()` writes
-nothing.
+**The time window's own readers.** `time.bins` is the window's own condition, so with no
+scope it reads the whole graph in every mode, and its `"visible"` scope keeps today's meaning,
+the filter without the window: the dock's track and extent never shrink to the window
+(decision 41).
+
+**The filter draft.** `visibility.draft(condition)`, or `draft(id)` on an existing condition
+(decision 42), returns a `FilterDraft` with `update(rule)`, `counts()`, `commit()` and `cancel()`;
+`commit()` is one history step, `cancel()` writes nothing.
 
 **`waitForSettled()`** resolves after the re-layout that a filter or time-window change starts.
 
@@ -78,17 +82,17 @@ The advanced path needs no new accessor: `defineAlgorithm`'s `input()` hands it 
 **The rule: never draw two layouts on one canvas.** The filter changes once, at Done.
 
 - **While editing, nothing moves.** `FilterSelection.tsx` opens a `FilterDraft` and calls
-  `update` on each edit; it holds no draft rule and stops writing the condition per tick. The
-  element draws the preview in the current layout: draft members in their card colors, shown
-  nodes the draft would remove faint, nodes it would bring back not drawn.
-- **The counts** come from `draft.counts()` over the full graph ("49 of 115"), as a filter's own
-  conditions.
+  `update` per edit; it holds no draft rule. The element draws the preview in the current layout:
+  draft members in their card colors, shown nodes the draft would remove faint, returning nodes
+  not drawn (decision 43).
+- **The counts** come from `draft.counts()` over the full graph, time window ignored ("49 of
+  115"), as a filter's own conditions (decision 44).
 - **Done is `commit()`**, one history step: the masks move, the view is rebuilt, the layout runs
   once over it with the animated transition, and the existing auto-framing frames what is shown.
   **Cancel is `cancel()`** and writes nothing.
 
 Turning a filter off is a filter change (decision 37). The `hold` and `base: "full"` docs gain
-one line: with `workingGraph` on, a hidden node sits where the last layout that held it left it.
+one line: a hidden node sits where the last layout that held it left it.
 
 ## 4. Every reader from the audit
 
@@ -114,11 +118,12 @@ original and is one of the agreement's named cases: a filter's own conditions, "
   automatic color domain, the legend's painted count and category cap.
 - **Data views, View:** matches strip Degree; find box rows and counts; node inspector Degree and
   neighbors; multi-select summary; attribute inspector; table header hover, issue warnings and
-  members chip; time dock bar labels; layer Values histogram; card Top-N bound and dates; "Nothing
+  members chip; layer Values histogram; a selection card's Top-N bound and dates; "Nothing
   is drawn"; filter chip and time readout; table rows on Shown; source rows; load notices
   (counts); expand and collapse (neighbor lookups).
 - **Data views, Whole:** the Overview's "Full graph" section; table rows on All and Export All; data
-  filter cards; a selection card on the full graph; find hits when hidden items are allowed.
+  filter cards, their Top-N bounds and dates; a selection card on the full graph; find hits when
+  hidden items are allowed; the time dock's track, extent and bins (`time.bins`).
 - **Selection and sets, View:** Select all; Neighborhood (G); "Select what it paints"; Covered by;
   "Select N" on filter cards, source rows, style groups and bindings; invert; the reference picker
   and "Selected (N)"; hops or touching from a hidden reference (decision 29); number card ranges
@@ -127,8 +132,8 @@ original and is one of the agreement's named cases: a filter's own conditions, "
 - **Selection and sets, Whole:** filters built on filters; the base labeled "Full graph".
 - **AI, export and API, View:** AI queryGraph counts, schema prompt facts and findNodes; the
   defaults of `data.statistics`, `data.nodes`, `valueCounts`, `histogram`, `nodePage`, `find`,
-  `neighbors`, `recommendLayout`, `selection.apply` (where or text), `time.bins`; export with no
-  scope (decision 26).
+  `neighbors`, `recommendLayout`, `selection.apply` (where or text) (decision 45); export with
+  no scope (decision 26).
 - **Project file and export, Whole:** the project file, autosave write and recovery, the recipe;
   export All.
 - **On open**, visibility is restored before any run computes, in every mode (a bug fix). With the
@@ -156,7 +161,7 @@ Each applies only with the option on; with it off, today's behavior holds.
   keeps it until it ends. Every class computes over it, `defineAlgorithm` and legacy plugins (a
   legacy graph built from the view) included. Results map back to original ids; hidden nodes get
   no value. A run is out of date once its view is not current (today's scope-digest staleness).
-- **GPU** runs and the GPU force driver get the view's compact snapshot (tested by node count).
+- **GPU** runs and the GPU force driver get the view's compact snapshot.
 
 ## 7. Layouts (agreed point 7)
 
@@ -190,7 +195,7 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
   the shown nodes their count of slots; an algorithm gives it no value. A reader it cannot classify
   fails, and so does any reader that fails the view: there is no list of failing readers.
 - **`graphty-element/working-graph-whole-readers.json`** lists the readers that read the whole graph
-  with no scope named, each naming its agreed case (section 4's Whole rows); `within` defaults and
+  with no scope named, each naming its agreed case (section 4's Whole rows, `time.bins` included); `within` defaults and
   the `"graph"` layout scope are named, not listed. The test fails on a stale row.
   **`tools/check-working-graph.mjs`** (in `check:quick` and CI's Checks job) fails when the list
   gains a row against the merge base or a row is malformed. The list only shrinks.
@@ -199,22 +204,18 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
 
 1. **The view**: node-safe `session/working/view.ts`, built from the store snapshot and the masks
    with `ScopedInput`'s `intermediateOf`, pinned per state, counting its builds. Plumb the option.
-   Tests, each failing first: one build per state, under cache pressure too; one shared object;
-   rebuilds on each state change, none on drawing options.
+   Tests (each failing first): one build per state, shared, none on drawing options.
 2. **Measure** a rebuild at 50,000 nodes in a `bench*` project; decide the pause rule (section 8).
-3. **Runs**: `"visible"` runs take the view; all classes over it; legacy graph from the view; the
-   GPU test; restore visibility before runs on open (every mode); journal `"visible"` (option on).
+3. **Runs** as section 6; restore visibility before runs on open; journal `"visible"`.
 4. **Layouts**: `LayoutManager` as section 7; test every catalog layout; `waitForSettled()`.
-5. **Framing and selection** (A and B), real-input tests (keys F and Fit, a filter hiding a
-   selected node, its undo, the same with the option off changing nothing).
+5. **Framing and selection** (A, B): real-input tests, and the option off changes nothing.
 6. **Session readers**: view defaults, the `scope` options, `within`, `visibility.draft`, export's
    view default. `npm run api:report`; cost-coverage classification; counted-work tests for draft.
 7. **The honesty check**: the test, the whole-readers list, the script, the `check:quick` entry.
    It lands with no failing reader.
 8. **App**: set `working-graph`; the filter editor on `FilterDraft` (section 3); `within:
-"visible"`; the whole-graph word on readers labeled "Full graph" or "All".
-9. **The owner's path** (decision 38): nothing moves while ticking; Done moves only shown nodes;
-   Circle and Grid place 49; reopening draws no hidden node; clearing ends in one layout.
+"visible"`; the whole-graph word on readers labeled "Full graph" or "All"; the dock unchanged.
+9. **The owner's path** (decision 38): nothing moves while editing; Circle and Grid place 49.
 10. **Docs**: a guide page with the canonical example; the hold lines; the flip on #6124.
 
 ## 11. Decisions the owner has not seen
@@ -232,60 +233,63 @@ Each is the simplest choice consistent with the agreement and the main session's
    `styles.showBranches` with `hold` for it.
 6. **Nodes the draft would bring back are counted, not drawn**, until commit.
 7. **`hold` and `base: "full"` keep their meaning** with a doc line; the app stops using them.
-8. **The layout re-runs on a filter or window change** (and undo or redo of one), never on a data
-   edit; filter changes and undo animate with the existing transition.
+8. **The layout re-runs on a filter or window change** or its undo, never on a data edit; filter
+   changes animate.
 9. **Framing after a filter re-layout** is today's auto-framing.
-10. **Simulations drop hidden nodes** rather than holding them inert in the original rows.
+10. **Simulations drop hidden nodes**, not hold them inert.
 11. **Layout scope `"graph"` lays out the whole graph even with the option on**; other named scopes
     are intersected with the view. A saved `"graph"` scope therefore moves hidden nodes; the app
     names none.
 12. **Context nodes (`showContext`) are not in the view**; drawn, they sit faint at old positions
-    beside a new layout.
-13. **The pause rule** applies only if a 50,000-node rebuild exceeds 16 ms; a pause is 200 ms
-    without movement; playback steps rebuild as they land.
-14. **During a drag, counts read the view** (no mask-based count path); under the pause rule they
-    update on the pause.
+    beside a new layout: two layouts on one canvas, the picture the owner called a mess. The
+    app leaves `showContext` off; the owner should see this.
+13. **The pause rule** (section 8); playback steps rebuild as they land.
+14. **During a drag, counts read the view**, updating on the pause under the pause rule.
 15. **Every algorithm class computes over the view**, including today's mask-back classes; legacy
     plugins get a legacy graph built from the view.
 16. **A run keeps the view it started on** until it ends.
-17. **Undo of a filter step restores the selection ids it dropped** (undo reverses the whole
-    step); clearing or turning off the filter does not. The drop happens only with the option on;
-    Frame selection and `zoomToNodes(ids)` frame the given nodes in the view.
-18. **`within` (`"graph" | "visible"`, default `"graph"`) covers Top-N and percentile, the
-    automatic color domain and the legend's painted count and category cap**; the app sets
-    `"visible"`, so its colors follow the filter. `styles.preview` bins read the view.
-19. **A search allowed to find hidden items** is `find({ scope: "graph" })`, whose existing
-    `excludedBy` flag marks the hidden hits.
-20. **The honesty check's shape** (section 9).
-21. **The view is pinned outside the derived-input cache** (section 1), is the store's snapshot
-    when nothing is hidden, and is rebuilt on undo or redo of a change.
-22. **`filterEdges` runs only when an edge filter hides more than the hidden nodes' edges.**
+17. **Undo of a filter step restores the dropped selection ids**; clearing or turning off the
+    filter does not. Frame selection and `zoomToNodes(ids)` frame the given nodes in the view.
+18. **`within` covers Top-N, percentile, the color domain and the legend's counts**; the app
+    sets `"visible"`. `styles.preview` bins read the view.
+19. **A search allowed to find hidden items** is `find({ scope: "graph" })`; `excludedBy` marks
+    hidden hits.
+20. **The honesty check's shape** (section 9). 31, 32: section 7's inputs, section 2's example.
+21. **The view is pinned outside the cache** and is the store's snapshot when nothing is hidden.
+22. **`filterEdges` runs only when needed** (section 1).
 23. **The cache key is the store snapshot plus the mask versions.**
-24. **Undo, redo and loading a sample are writers on the original**, not whole-graph readers; load
-    notices (counts) and expand and collapse (neighbor lookups) read the view.
-25. **A re-run (Inspector Rerun, "Update X layer", timeline rerun) reads the current view**, not the
-    view of the first run.
+24. **Undo, redo and loading a sample are writers**; load notices and expand and collapse read
+    the view.
+25. **A re-run reads the current view**, not the first run's.
 26. **Export with no scope reads the view** under the option; export All reads the whole graph.
-27. **On open, visibility is restored before any run computes, in every mode** (a bug fix: today a
-    run can compute before the filter returns); journaling `"visible"` applies only with the
-    option on.
+27. **On open, visibility is restored before runs, in every mode** (a bug fix); runs journal
+    `"visible"` only with the option on.
 28. **Pins replay, source rows, "Largest component" and Save as set read the view.**
 29. **Hops or touching from a hidden reference return 0 with a reason code.**
 30. **A filter card's own measure uses `within: "graph"`, and Results fields offered to a filter read
     the whole graph**, as a filter's own conditions.
-31. **Snapshot layouts get the view's compact snapshot**, inputs in view rows (section 7).
-32. **The canonical example's API shapes** (section 2).
-33. **The draft's counts and picture use different bases**: `counts()` reads the full graph, the
-    preview draws over what is shown, so returning nodes are counted but never drawn.
-34. **Not readers**: XR picking, captureScreenshot, cytoscape-extensions, suggested styles, layers
+31. **The draft counts over the full graph but draws over what is shown.**
+32. **Not readers**: XR picking, captureScreenshot, cytoscape-extensions, suggested styles, layers
     from a run's result, Why this look and state looks stay outside the view and the check.
-35. **Every time-window step re-runs the layout** with no animated transition.
-36. **The default run scope's docs line gains "includes the time window".**
-37. **Turning a filter off** shows hidden nodes where they were, then lays out with the transition.
-38. **The owner's path becomes an acceptance script** in `graphty/acceptance/` (College football,
+33. **Every time-window step re-runs the layout** with no animated transition.
+34. **The default run scope's docs line gains "includes the time window".**
+35. **Turning a filter off** shows hidden nodes where they were, then lays out with the transition.
+36. **The owner's path becomes an acceptance script** in `graphty/acceptance/` (College football,
     Louvain groups 1, 4, 5, 7) asserting Circle and Grid place 49 nodes.
-39. **Group boxes, the location-map extent, curved-edge support points, label declutter and its
-    counts, and the AI tools (queryGraph, schema facts, findNodes) read the view**; a group whose
-    members are all hidden draws no box.
-40. **`waitForSettled()` resolves after the re-layout a filter or window change starts**, so the
-    canonical example's counts and framing follow the new layout.
+37. **Group boxes, the map extent, curve supports, label declutter and the AI tools read the
+    view**; an all-hidden group draws no box.
+38. **`waitForSettled()` resolves after the re-layout a filter or window change starts.**
+39. **`time.bins` reads the whole graph with no scope, and `"visible"` stays filter-only**, so the
+    time window never reads its own output; the dock is unchanged.
+40. **`visibility.draft(id)` opens a draft on an existing condition.**
+41. **The preview's look is fixed**: card colors and today's faint look, no new option (one can be
+    added later, additively).
+42. **The draft's "of M" is the full graph and ignores an active time window.**
+43. **`recommendLayout`, `selection.apply` (where or text) and `data.nodes` read the view.**
+44. **Returning nodes enter at their last positions** and a simulation restarts from them.
+45. **Layout estimates, refusals and the force driver choice use the view**, so a layout refused on
+    the whole graph may run on a filtered one.
+46. **Autosave write and recovery and the recipe read the whole graph**, as the project file.
+47. **The selection drop is inside the filter change's own history step.**
+48. **The screenshot `fitToGraph` preset and AI framing frame the view.**
+49. **Timeline 'keep' and 'rerun', run staleness and `clusterBy` read the view.**

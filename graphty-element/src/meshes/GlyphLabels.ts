@@ -143,11 +143,15 @@ export function recordRuns(scene: Scene, paint: (ctx: CanvasRenderingContext2D) 
  * @returns The font at that size and the size it had, or null when it names no pixel size.
  */
 function atSize(font: string, px: number): { font: string; size: number } | null {
-    const match = /(\d+(?:\.\d+)?)px/.exec(font);
-    if (match === null) {
+    // The canvas keeps its font with the size as the first word ending in "px", before the family.
+    const words = font.split(" ");
+    const at = words.findIndex((word) => word.endsWith("px") && Number.isFinite(Number(word.slice(0, -2))));
+    if (at < 0) {
         return null;
     }
-    return { font: font.replace(match[0], `${String(px)}px`), size: Number(match[1]) };
+    const size = Number(words[at].slice(0, -2));
+    words[at] = `${String(px)}px`;
+    return { font: words.join(" "), size };
 }
 
 /**

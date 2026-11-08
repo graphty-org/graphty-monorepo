@@ -13,9 +13,9 @@
 /** The atlas texture's side, in texels. */
 export const ATLAS_SIZE = 4096;
 /** The font size each glyph's distance field is drawn at, in pixels. */
-export const SDF_FONT_PX = 56;
+const SDF_FONT_PX = 56;
 /** How far the distance field reaches past a glyph's ink, in texels. */
-export const SDF_RADIUS = 12;
+const SDF_RADIUS = 12;
 /** One tile's side: the font size and the field's reach on both sides. 51 x 51 = 2,601 tiles. */
 export const GLYPH_TILE = SDF_FONT_PX + 2 * SDF_RADIUS;
 /** The distance, as a fraction of the reach, that sits on a glyph's edge (texel value 191). */
@@ -84,7 +84,7 @@ export function placeGlyphs(text: string, measure: (s: string) => number): Place
 }
 
 /** Pairs fonts most often draw as one glyph: typographic ligatures and programming ligatures. */
-export const LIGATURE_PROBES = ["fi", "fl", "ff", "ffi", "ffl", "->", "=>", "!=", "==", "<=", ">=", "www"] as const;
+const LIGATURE_PROBES = ["fi", "fl", "ff", "ffi", "ffl", "->", "=>", "!=", "==", "<=", ">=", "www"] as const;
 // The share of a probe's ink that may differ between one run and its glyphs drawn one by one.
 // Chromium draws a font without ligatures identically both ways (0.000); DejaVu Sans and DejaVu
 // Serif "fi" differ by 0.065 and 0.112 at 48 px.

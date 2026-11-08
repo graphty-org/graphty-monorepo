@@ -318,6 +318,13 @@ export const layoutEngineInternals = {} as {
      * engine never held -- the element's array. Undefined for a hidden node nothing has placed.
      */
     positionOf(engine: LayoutEngine, n: Node): Position | undefined;
+    /**
+     * Where an edge runs: the engine's answer, or for an edge its working graph hides -- which the
+     * engine never held -- straight between its ends' {@link positionOf}. That covers the frames
+     * between a filter or window change, which shows the edge at once, and the re-layout that
+     * hands it to the engine. Undefined when an end has no position.
+     */
+    edgePositionOf(engine: LayoutEngine, e: Edge): EdgePosition | undefined;
 };
 
 /**
@@ -421,6 +428,15 @@ export abstract class LayoutEngine {
 
             const out = { x: 0, y: 0, z: 0 };
             return engine.readNodePosition(n, out) ? out : undefined;
+        };
+        layoutEngineInternals.edgePositionOf = (engine, e) => {
+            if (engine.takesEdge(e)) {
+                return engine.getEdgePosition(e);
+            }
+
+            const src = layoutEngineInternals.positionOf(engine, e.srcNode);
+            const dst = layoutEngineInternals.positionOf(engine, e.dstNode);
+            return src === undefined || dst === undefined ? undefined : { src, dst };
         };
         layoutEngineInternals.removeNode = (engine, n) => {
             engine.removeNode(n);

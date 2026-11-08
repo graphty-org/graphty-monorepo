@@ -79,7 +79,8 @@ export function link(
             ...(apiKey === undefined ? {} : { apiKey }),
             toolset: "generated",
             keyPersistence: { enabled: true, storage: choice.remember ? "localStorage" : "sessionStorage" },
-            history: "browser",
+            // A chat belongs to the project: a new project, even on the same sample, starts empty.
+            history: { store: "browser", byProject: true },
             instructions: MODEL_INSTRUCTIONS,
             questions: true,
             voice: { review: true, output: "off" },

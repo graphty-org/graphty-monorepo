@@ -469,7 +469,14 @@ describe("Workspace autosave with the real graphty-element", () => {
                 assert.isNotNull(shown.queryByText(MOCK_REPLY));
                 assert.isNull(shown.queryByText("First question"), "the saved chat replaced the new one");
             });
-            // The list fills in around it: the open chat first, the saved one after.
+            // The list fills in around it: the open chat first, the saved one after. The chat begun
+            // before the work came in moves into the reopened project, so the count reaches 2.
+            await waitFor(() => {
+                assert.strictEqual(
+                    screen.getByRole("button", { name: /^Chats/ }).getAttribute("aria-label"),
+                    "Chats, 2: Second question",
+                );
+            });
             await userEvent.click(screen.getByRole("button", { name: /^Chats/ }));
             const list = await screen.findByRole("list", { name: "Chats" });
             await waitFor(() => {

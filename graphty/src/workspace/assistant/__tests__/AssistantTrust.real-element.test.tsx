@@ -13,7 +13,8 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
-import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
+import { forgetAutosave, reload } from "../../../test/reload";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -207,6 +208,7 @@ describe("checking what the Assistant says", () => {
         await page.viewport(1440, 900);
         localStorage.clear();
         sessionStorage.clear();
+        await forgetAutosave();
         await new Promise((resolve) => {
             indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
         });
@@ -856,15 +858,21 @@ describe("checking what the Assistant says", () => {
     });
 
     it("brings a waiting request back after a reload", async () => {
-        const { store } = await openOn(12);
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        // Autosave on, as the application has it: the reload reopens the same project.
+        const store = createWorkspaceStore({ project: { name: "Check", id: 1 }, autosave: true });
+        const before = { store, view: render(<Workspace store={store} />) };
+        await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+        await graph(12);
+        await screen.findByRole("textbox", COMPOSER);
         model.turns = [calling("edit_data", { action: "remove_nodes", ids: ids(12) })];
         await say("Remove them");
         await screen.findByRole("region", { name: "Waiting for you" });
-        cleanup();
 
-        render(<Workspace store={createWorkspaceStore({ project: store.get().project })} />);
-        await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
-        await graph(12);
+        await reload(before);
+        if (screen.queryByRole("region", { name: "Assistant" }) === null) {
+            await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+        }
         const section = await screen.findByRole("region", { name: "Waiting for you" });
         await within(section).findByText("Remove 12 nodes?");
     });

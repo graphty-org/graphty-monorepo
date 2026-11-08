@@ -13,7 +13,10 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
-import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
+import { openBy } from "../../../test/open";
+import { forgetAutosave, openAutosaved, reload } from "../../../test/reload";
+import { pickSample } from "../../../test/samples-dialog";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -229,6 +232,7 @@ describe("talking to the Assistant", () => {
         await page.viewport(1440, 900);
         localStorage.clear();
         sessionStorage.clear();
+        await forgetAutosave();
         await new Promise((resolve) => {
             indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
         });
@@ -795,16 +799,66 @@ describe("talking to the Assistant", () => {
 
     it("reopens a saved conversation after a reload", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
-        await open();
+        const before = await openAutosaved("Florentine families");
         await openPanel();
         await say("Remember this");
         await screen.findByText("The reply.");
-        cleanup();
 
-        await open(createWorkspaceStore({ project: { name: "Talk", id: 1 } }));
-        await openPanel();
+        await reload(before);
+        if (screen.queryByRole("region", { name: "Assistant" }) === null) {
+            await openPanel();
+        }
         await within(await chatLog()).findByText("Remember this");
         await screen.findByText("The reply.");
+    });
+
+    it("starts an empty chat when the same sample opens again after Back to start", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+        await openBy(store, () => pickSample("Florentine families"));
+        await openPanel();
+        await chat("Remember this");
+        const first = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        );
+        const old = first?.getAiConversation()?.id;
+        assert.isDefined(old);
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
+        await openBy(store, () => pickSample("Florentine families"));
+        if (screen.queryByRole("region", { name: "Assistant" }) === null) {
+            await openPanel();
+        }
+
+        // The new project's element has its own chat open: a new, empty one.
+        await waitFor(() => {
+            const next = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            );
+            assert.notStrictEqual(next, first);
+            const open = next?.getAiConversation();
+            assert.isDefined(open?.id);
+            assert.notStrictEqual(open?.id, old);
+            assert.deepStrictEqual(open?.messages, []);
+        });
+        await screen.findByRole("button", { name: "Which nodes matter most?" });
+        assert.isNull(screen.queryByText("Remember this"), "neither the log nor the header shows the old chat");
+
+        const next = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        );
+        assert.deepStrictEqual(await next?.listAiConversations(), []);
+        await userEvent.click(chatsButton());
+        const list = await screen.findByRole("list", { name: "Chats" });
+        // Only the open, empty chat is listed.
+        const rows = within(list).getAllByRole("listitem");
+        assert.deepStrictEqual(
+            rows.map((row) => row.dataset.chat),
+            [next?.getAiConversation()?.id],
+        );
+        assert.isNull(within(list).queryByText("Remember this"));
     });
 
     it("lists chats newest first, opens one, deletes one on a confirm, and Esc returns", async () => {
@@ -997,7 +1051,7 @@ describe("talking to the Assistant", () => {
 
     it("renames a chat by F2 and Enter, and the name survives a reload", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
-        await open();
+        const before = await openAutosaved("Florentine families");
         await openPanel();
         await chat("First talk");
 
@@ -1018,10 +1072,11 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, 1: Departments");
         });
-        cleanup();
 
-        await open(createWorkspaceStore({ project: { name: "Talk", id: 1 } }));
-        await openPanel();
+        await reload(before);
+        if (screen.queryByRole("region", { name: "Assistant" }) === null) {
+            await openPanel();
+        }
         await waitFor(() => {
             assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, 1: Departments");
         });

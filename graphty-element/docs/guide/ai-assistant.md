@@ -363,7 +363,8 @@ history: {
   saved and listed under `session.project.id` instead of `key`. A new project starts with an empty
   conversation even on the same data; opening a saved project, or the autosave restore after a
   reload, brings back that project's newest conversation, even after its data was edited. When the
-  project changes, the open conversation is swapped even if it has messages.
+  project changes, the open conversation is swapped even if it has messages, except one begun
+  while the graph was still empty, which moves into the project that arrives.
 - **`budgetTokens`** is measured as characters / 4. The default is 16,000 (3,000 with
   `toolProfile: "small"`). Older exchanges drop out of what the model is shown, whole and oldest
   first; they stay in the conversation.

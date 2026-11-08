@@ -416,6 +416,24 @@ describe("AiController history", () => {
         assert.deepStrictEqual(await assistant.controller.listConversations(), []);
     });
 
+    it("byProject: a chat begun before any graph moves into the project that opens", async () => {
+        const store = new MemoryStore();
+        const history = { store: "memory", byProject: true } as const;
+        const { text } = await (await assistantSession()).project.save();
+        const assistant = new ScriptedAssistant(await assistantSession({ nodes: [], edges: [] }), { history, store });
+        await assistant.say("hello");
+        const begun = assistant.controller.getConversation()?.id;
+
+        await assistant.session.project.open(text, { discard: true });
+        await vi.waitFor(async () => {
+            assert.deepStrictEqual(
+                (await assistant.controller.listConversations()).map((summary) => summary.id),
+                [begun],
+            );
+        });
+        assert.strictEqual(assistant.controller.getConversation()?.id, begun);
+    });
+
     it("gives every message an id no other controller gives, also after a reload", async () => {
         const ids: string[] = [];
         for (let load = 0; load < 2; load++) {

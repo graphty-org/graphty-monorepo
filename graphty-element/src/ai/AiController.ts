@@ -548,7 +548,8 @@ export interface AiHistoryOptions {
      * `session.project.id` (read each time, so it follows the open project) instead of `key`. When
      * the project changes -- a new session, `project.open`, an autosave restore -- the open
      * conversation becomes that project's newest, or a new empty one, even if the one open had
-     * messages. Within a project the newest conversation reopens whatever its data has become, so
+     * messages -- except a conversation begun while the session held no graph (an autosave
+     * restore still on its way), which moves into the project that arrives. Within a project the newest conversation reopens whatever its data has become, so
      * `dataKey` and the graph fingerprint play no part. Default false.
      */
     readonly byProject?: boolean;
@@ -781,6 +782,8 @@ export class AiController {
     private chosen = false;
     /** With `byProject`, the project the open conversation was picked for. */
     private pickedFor: string | undefined;
+    /** With `byProject`, whether that project had a graph when last seen: one with none hands its chat on. */
+    private pickedHadGraph = false;
     /** Settles once the store is open and the conversation reopened. */
     private readonly opened: Promise<void>;
     /** Who this controller is, when it claims a saved request to resolve it. */
@@ -2602,7 +2605,11 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     private followSession(): void {
         const session = this.graph.getSession();
         const stopLoads = session.on("project:changed", ({ slices }) => {
-            if (slices.includes("graph") || this.projectMoved()) {
+            const moved = this.projectMoved();
+            if (!moved) {
+                this.pickedHadGraph = session.data.statistics().nodeCount > 0;
+            }
+            if (slices.includes("graph") || moved) {
                 void this.enqueue(() => this.reopenForGraph());
             }
         });
@@ -2634,6 +2641,13 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             return;
         }
 
+        if (moved && !this.pickedHadGraph && current.messages.length > 0) {
+            // A chat begun before any graph (an autosave restore still on its way) belongs to the
+            // project that arrives.
+            await this.adoptIntoProject(store, current);
+            return;
+        }
+
         const found = await this.toReopen(store);
         const next = found ?? (moved ? this.freshRecord() : undefined);
         if (next !== undefined && next.id !== current.id) {
@@ -2655,9 +2669,31 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     private async toReopen(store: ConversationStore): Promise<ConversationRecord | undefined> {
         const key = this.key();
         this.pickedFor = key;
+        this.pickedHadGraph = this.graph.getSession().data.statistics().nodeCount > 0;
         return conversationToReopen(await store.list(key), key, this.graphFacts(), {
             anyGraph: this.history?.byProject === true,
         });
+    }
+
+    /**
+     * Keep the open conversation, moved to the session's project.
+     * @param store - The open store.
+     * @param current - The open conversation.
+     * @returns When saved.
+     */
+    private async adoptIntoProject(store: ConversationStore, current: ConversationRecord): Promise<void> {
+        const key = this.key();
+        this.pickedFor = key;
+        this.pickedHadGraph = true;
+        this.current = { ...current, key };
+        try {
+            this.current = await store.save(this.current);
+        } catch (error) {
+            // A store reports its own write failures; the copy in hand carries the new key.
+            logger.warn("Conversation not moved", { error: toSafeError(error).name });
+        }
+
+        this.emitChanged();
     }
 
     /**

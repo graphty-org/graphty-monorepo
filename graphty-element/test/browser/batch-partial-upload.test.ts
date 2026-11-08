@@ -15,8 +15,8 @@ import { operationQueueOf } from "../../src/Graph";
 import { ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import { useBundledStandardShaders } from "../../src/meshes/bundledStandardShaders";
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
-import { EDGE_STATIC_FLOATS, JOIN_TEMPLATE_POSITIONS } from "../../src/meshes/edgeJoinShader";
-import { EdgeLineBatch, forceExpandedLines, isEdgeLineBatchMesh } from "../../src/meshes/EdgeLineBatch";
+import { EDGE_STATIC_FLOATS } from "../../src/meshes/edgeJoinShader";
+import { EdgeLineBatch, isEdgeLineBatchMesh } from "../../src/meshes/EdgeLineBatch";
 import { batchUploadFrames } from "../../src/meshes/FrameRoster";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
@@ -27,7 +27,6 @@ beforeAll(() => {
 });
 
 const SLOTS = 512;
-const VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
 
 /** One GPU buffer and the array it must equal. */
 interface Mirror {
@@ -36,8 +35,6 @@ interface Mirror {
     /** One row per slot. */
     readonly rows: Float32Array;
     readonly width: number;
-    /** How many times the GPU buffer repeats a row. */
-    readonly spread: number;
 }
 
 /** A batch's writes, the same few for lines and caps. */
@@ -61,7 +58,6 @@ const cleanups: (() => void)[] = [];
 let mounted: Graphty | null = null;
 
 afterEach(() => {
-    forceExpandedLines(null);
     vi.restoreAllMocks();
     for (const cleanup of cleanups.splice(0)) {
         cleanup();
@@ -116,11 +112,11 @@ function gpuFloats(scene: Scene, buffer: Buffer, floats: number): Float32Array {
  */
 function assertGpuEqualsArrays(scene: Scene, batch: Writes, when: string): void {
     assert.strictEqual((scene.getEngine() as Engine)._gl.getError(), 0, `${when}: no GL error`);
-    for (const { name, buffer, rows, width, spread } of batch.mirrors()) {
-        const gpu = gpuFloats(scene, buffer, batch.drawnCount * spread * width);
+    for (const { name, buffer, rows, width } of batch.mirrors()) {
+        const gpu = gpuFloats(scene, buffer, batch.drawnCount * width);
         let wrong = 0;
         for (let at = 0; at < gpu.length; at++) {
-            const row = Math.floor(at / (width * spread));
+            const row = Math.floor(at / width);
             wrong += Number(gpu[at] !== rows[row * width + (at % width)]);
         }
 
@@ -134,14 +130,12 @@ function assertGpuEqualsArrays(scene: Scene, batch: Writes, when: string): void 
  * @returns Its mirrors.
  */
 function lineMirrors(batch: EdgeLineBatch): readonly Mirror[] {
-    const { slots, statics, matrices, expanded, stride } = batch as unknown as {
+    const { slots, statics, matrices, stride } = batch as unknown as {
         slots: Float32Array;
         statics: Float32Array | null;
         matrices: Float32Array | null;
-        expanded: object | null;
         stride: number;
     };
-    const spread = expanded === null ? 1 : VERTICES;
     const wrapper = (kind: string): Buffer => {
         const buffer = batch.mesh.getVertexBuffer(kind)?.getWrapperBuffer();
         assert.exists(buffer, kind);
@@ -149,14 +143,14 @@ function lineMirrors(batch: EdgeLineBatch): readonly Mirror[] {
     };
 
     if (matrices !== null) {
-        return [{ name: "world0", buffer: wrapper("world0"), rows: matrices, width: 16, spread: 1 }];
+        return [{ name: "world0", buffer: wrapper("world0"), rows: matrices, width: 16 }];
     }
 
     return [
-        { name: "slots", buffer: wrapper("pA"), rows: slots, width: stride, spread },
+        { name: "slots", buffer: wrapper("pA"), rows: slots, width: stride },
         ...(statics === null
             ? []
-            : [{ name: "statics", buffer: wrapper("edgeColorA"), rows: statics, width: EDGE_STATIC_FLOATS, spread }]),
+            : [{ name: "statics", buffer: wrapper("edgeColorA"), rows: statics, width: EDGE_STATIC_FLOATS }]),
     ];
 }
 
@@ -221,7 +215,7 @@ function capWrites(batch: ArrowCapBatch): Writes {
         },
         acquire: () => batch.acquire(),
         mirrors: () => [
-            { name: "world0", buffer: wrapper("world0"), rows: held.matrices, width: 16, spread: 1 },
+            { name: "world0", buffer: wrapper("world0"), rows: held.matrices, width: 16 },
             ...[
                 ["arrowDirection", 3],
                 ["arrowSize", 1],
@@ -232,17 +226,14 @@ function capWrites(batch: ArrowCapBatch): Writes {
                 buffer: wrapper(kind as string),
                 rows: held.billboard[kind],
                 width: width as number,
-                spread: 1,
             })),
         ],
     };
 }
 
 const SHAPES: readonly { name: string; make: (scene: Scene) => Writes }[] = [
-    { name: "plain", make: (scene) => lineWrites(joined(scene, false, false)) },
-    { name: "widened", make: (scene) => lineWrites(joined(scene, false, true)) },
-    { name: "expanded", make: (scene) => lineWrites(joined(scene, true, false)) },
-    { name: "expanded and widened", make: (scene) => lineWrites(joined(scene, true, true)) },
+    { name: "plain", make: (scene) => lineWrites(joined(scene, false)) },
+    { name: "widened", make: (scene) => lineWrites(joined(scene, true)) },
     { name: "matrix", make: (scene) => lineWrites(new EdgeLineBatch(new Mesh("edge-style-test", scene), scene)) },
     {
         name: "caps",
@@ -250,8 +241,7 @@ const SHAPES: readonly { name: string; make: (scene: Scene) => Writes }[] = [
     },
 ];
 
-function joined(scene: Scene, expanded: boolean, widened: boolean): EdgeLineBatch {
-    forceExpandedLines(expanded);
+function joined(scene: Scene, widened: boolean): EdgeLineBatch {
     const mesh = CustomLineRenderer.createJoinedLineMesh({ width: 0.2, color: "#336699", widened }, scene);
     return new EdgeLineBatch(mesh, scene);
 }
@@ -359,11 +349,11 @@ describe("ranged uploads on a real GPU buffer", () => {
                 assert.isTrue(batch.mesh.isReady(true), "the mesh compiled again");
                 assert.deepEqual(logged.mock.calls, [], "and nothing failed to");
                 const gl = (scene.getEngine() as Engine)._gl;
-                for (const { buffer, width, spread } of batch.mirrors()) {
+                for (const { buffer, width } of batch.mirrors()) {
                     (scene.getEngine() as Engine).bindArrayBuffer(buffer.getBuffer());
                     assert.isAtLeast(
                         gl.getBufferParameter(gl.ARRAY_BUFFER, gl.BUFFER_SIZE) as number,
-                        SLOTS * spread * width * 4,
+                        SLOTS * width * 4,
                     );
                 }
 
@@ -436,8 +426,11 @@ describe("the element's switch", () => {
         await drawn(element);
         assert.isTrue(batchUploadFrames.rangedUploads(scene).on, "a window is in force");
 
+        // A step hides and shows edges by their hidden flags, and places the ones whose ends moved.
         const lines = new Set(
-            scene.meshes.filter(isEdgeLineBatchMesh).map((mesh) => mesh.getVertexBuffer("pA")?.getWrapperBuffer()),
+            scene.meshes
+                .filter(isEdgeLineBatchMesh)
+                .flatMap((mesh) => ["pA", "edgeHidden"].map((kind) => mesh.getVertexBuffer(kind)?.getWrapperBuffer())),
         );
         const sent: { floats: number; whole: boolean }[] = [];
         const upload = Buffer.prototype.updateDirectly;

@@ -549,7 +549,7 @@ async function snapshot<T extends { at: number }>(reads: Reads, name: string): P
 const prList = (ns: number[]): Cell => ({ t: "list", sep: "space", items: ns.map((n) => ({ t: "pr", n })) });
 
 /**
- * Master's shared failures (4.1): the checks failing in 3 or more open pull requests with one signature (or that
+ * Master's shared failures (4.1): the checks failing in 2 or more open pull requests with one signature (or that
  * master's newest build fails too), or failing alone, now and in the last 24 h; each row names what ties them.
  * @param reads - the store reads shared by this build
  * @returns the shared failures table, or an empty or not-collected section

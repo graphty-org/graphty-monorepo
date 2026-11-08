@@ -36,7 +36,7 @@ import { benchmarkRows } from "./post-benchmarks.mjs";
 import { unstableStories } from "./post-unstable-stories.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
-import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
+import { durationsOf, planRead, readersOf, variantsOf } from "./plan-read.mjs";
 import {
     baseId,
     fileIssues,
@@ -833,13 +833,40 @@ describe("planRead", () => {
         assert.equal(seen.length, 1);
         const q = new URL(seen[0].url, url).searchParams;
         // layout's stories run in ci.yml's story-tests job, so its `-shots` family is asked too (STORY_SHARDS)
-        assert.equal(
-            q.get("variants"),
-            "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots," +
-                "layout-storybook|flags=off|whole,layout-storybook|flags=off|selected",
+        const variants = q.get("variants").split(",");
+        assert.deepEqual(
+            variants.filter((v) => v.startsWith("layout")),
+            [
+                "layout|flags=off|whole",
+                "layout|flags=off|selected",
+                "layout-shots|flags=off|shots",
+                "layout-storybook|flags=off|whole",
+                "layout-storybook|flags=off|selected",
+            ],
         );
-        assert.equal(q.get("inputs"), "-,-,-,-,-");
+        assert.equal(q.get("inputs"), variants.map(() => "-").join(","));
         assert.equal(q.get("files"), "layout/src/x.ts");
+    });
+    it("finds the packages that import an affected package by relative path, which nx leaves out (#6229)", () => {
+        const packages = ["graph-io", "graphty-element", "graphty", "layout"];
+        // graph-io's fidelity stories import ../../../graphty-element/index.ts; graph-io/project.json drops the edge
+        assert.ok(readersOf(process.cwd(), ["graphty-element"], packages).includes("graph-io"));
+        assert.ok(!readersOf(process.cwd(), ["graphty-element", "graph-io"], packages).includes("graph-io"));
+        assert.deepEqual(readersOf(process.cwd(), [], packages), []);
+        assert.deepEqual(readersOf(join(TMP, "not-a-checkout"), ["graphty-element"], packages), []);
+    });
+    it("asks for the durations of graph-io's story bins when only graphty-element is affected (#6229)", async () => {
+        const { url, seen } = await serve();
+        const out = join(TMP, "plan-readers");
+        await planRead({
+            root: process.cwd(),
+            affected: ["graphty-element"],
+            out,
+            env: { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        const variants = new URL(seen[0].url, url).searchParams.get("variants").split(",");
+        assert.ok(variants.includes("graph-io-storybook|flags=off|selected"), variants.join("\n"));
+        assert.ok(variants.includes("graphty-element-browser|flags=off|selected"));
     });
 });
 
@@ -1732,13 +1759,13 @@ describe("health API fan-out", () => {
                 timestamp: "new",
                 results: [
                     { algorithm: "GRSBM", graphSize: 50, edges: 98, executionTime: 4.18, memoryUsage: 0 },
-                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, memoryUsage: 0 },
+                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, input: "3fa2c1d0e9b8" },
                 ],
             },
         ];
         assert.deepEqual(benchmarkRows(algorithms), [
             { name: "GRSBM n=50", value: 4.18 },
-            { name: "GRSBM n=100", value: 15.75 },
+            { name: "GRSBM n=100", value: 15.75, input: "3fa2c1d0e9b8" },
         ]);
         // webgpu-graph-algorithms/benchmarks/out/gpu-linux-t4.json (benchmarks/harness.ts)
         const harness = [

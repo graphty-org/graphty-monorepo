@@ -156,6 +156,8 @@ export interface WorkspaceState {
     readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
     /** The Sources row the reader picked, kept while they visit another place; null: the newest load. */
     readonly pickedSource: SourceKey | null;
+    /** The Data place's tab: what was loaded or what was calculated; kept per project, Loaded first. */
+    readonly dataTab: "loaded" | "calculated";
     /**
      * Whether the timeline dock is shown under the canvas while a time field is set;
      * `timeline.toggle` (T) flips it. Shut until the reader asks: the canvas keeps its size.
@@ -217,6 +219,8 @@ export interface WorkspaceState {
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
     readonly serverKind: string | null;
+    /** Whether the server form opened the project it sits in (the start screen's Open network data). */
+    readonly serverFromStart: boolean;
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
@@ -299,6 +303,7 @@ const INITIAL: WorkspaceState = {
     editingJoin: null,
     ends: null,
     pickedSource: null,
+    dataTab: "loaded",
     timelineOpen: false,
     timeSheetOpen: false,
     timeWindowCard: false,
@@ -314,6 +319,7 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     exportSource: null,
     serverKind: null,
+    serverFromStart: false,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,
@@ -470,7 +476,7 @@ export function tabFor(kind: InspectedKind | undefined, remembered: WorkspaceSta
 const PLACE_ITEM = "app.graphty.workspace.place";
 
 /** The part of the chrome a reload of this tab puts back: the page, the place, the tab and the row. */
-type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | "styleSide">;
+type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | "styleSide" | "dataTab">;
 
 /**
  * Keeps the reader's place in this tab's session storage while a project is open, so a reload
@@ -482,8 +488,8 @@ type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | 
 export function keepPlace(store: WorkspaceStore): () => void {
     let last = "";
     const write = (): void => {
-        const { project, page, place, inspected, tabs, styleSide } = store.get();
-        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide });
+        const { project, page, place, inspected, tabs, styleSide, dataTab } = store.get();
+        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide, dataTab });
         if (text === last) {
             return;
         }

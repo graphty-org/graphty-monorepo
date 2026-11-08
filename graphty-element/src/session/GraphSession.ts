@@ -135,7 +135,13 @@ import {
 import { createStepRuns, type StepRuns } from "./scope/stepRuns";
 import { freezeLiveReferences, mapUnions } from "./scope/steps";
 import { sealedSet } from "./sealed";
-import { createSelectionApi, type RuleCheck, type SelectionOwner, type SelectionTextMode } from "./selection";
+import {
+    createSelectionApi,
+    type RuleCheck,
+    type SelectionOwner,
+    type SelectionSources,
+    type SelectionTextMode,
+} from "./selection";
 import { createMaterialiser } from "./sets/algebra";
 import { outcomeOf, SetsCache } from "./sets/cache";
 import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
@@ -287,6 +293,8 @@ export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "
     readonly records?: SessionRecordSource;
     /** What VR and AR can do on the renderer this session draws through. */
     readonly xr?: XrSource;
+    /** The drawn nodes inside a polygon on the canvas, for a `region` selection target. */
+    readonly region?: SelectionSources["region"];
     /** The configuration; `data` may be a function, read on every use. */
     readonly config?: Omit<NonNullable<CreateGraphSessionOptions["config"]>, "data"> & {
         readonly data?: SessionDataConfigInput | (() => SessionDataConfig);
@@ -519,15 +527,6 @@ function needsTimeline(command: SessionCommand): boolean {
         command.op === "visibility.playback" ||
         (command.op === "visibility.window" && windowNeedsTimeline(command.window))
     );
-}
-
-/**
- * Whether a command writes a file's style values, which only the file styles experiment does.
- * @param command - The command.
- * @returns True for `data.setFileStyles`, and a batch holding one.
- */
-function setsFileStyles(command: SessionCommand): boolean {
-    return command.op === "batch" ? command.steps.some(setsFileStyles) : command.op === "data.setFileStyles";
 }
 
 /**
@@ -772,12 +771,15 @@ class Session implements ElementSession {
                 publish(this.watchers, "project:status", change);
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
+            restoreDerived: (id) => {
+                this.sessionRuns.restoreDerived(id);
+            },
             projectChanged: () => {
                 this.network.projectChanged();
             },
             sources: {
-                restore: (read) => {
-                    this.sessionData.restoreSourceMember(read);
+                restore: (read, autosave) => {
+                    this.sessionData.restoreSourceMember(read, autosave);
                 },
             },
         });
@@ -845,11 +847,6 @@ class Session implements ElementSession {
      * @returns Its outcome.
      */
     execute<C extends SessionCommand>(command: C): CommandOutcome<C> {
-        // Inside a transaction it runs, so a saved project opens with the styles its file had.
-        if (setsFileStyles(command) && !this.settledFeatures().enabled.includes("file-styles")) {
-            return Promise.reject(featureOff("file-styles", "data.setFileStyles")) as CommandOutcome<C>;
-        }
-
         return this.executeThrough(
             command,
             (each, options) => this.dispatcher.dispatch(each, options),
@@ -2597,7 +2594,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Asked without settling, as an element's attributes may still be arriving, and on every
     // timeline move: resolved again only when the ids asked for are a new array.
     let askedFor: readonly string[] | null = null;
-    let askedEnabled: readonly FeatureId[] = [];
+    let askedOn: readonly FeatureId[] = [];
     const featureOn = (id: FeatureId): boolean => {
         if (settledFeatures !== undefined) {
             return settledFeatures.enabled.includes(id);
@@ -2606,13 +2603,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const asked = requested() ?? pageDefaultFeatures();
         if (asked !== askedFor) {
             askedFor = asked;
-            askedEnabled = resolveFeatures(asked).enabled;
+            askedOn = resolveFeatures(asked).enabled;
         }
 
-        return askedEnabled.includes(id);
+        return askedOn.includes(id);
     };
     const timelineOn = (): boolean => featureOn("timeline");
-    const fileStylesOn = (): boolean => featureOn("file-styles");
+    const networkOn = (): boolean => featureOn("network-data");
+    const fileStylesOn = (): boolean =>
+        (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
@@ -2633,6 +2632,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
     dispatcher.services.timeline = timelineOn;
+    dispatcher.services.network = networkOn;
     dispatcher.services.fileStyles = fileStylesOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
@@ -2783,6 +2783,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // Read through calls: the timeline and the visibility are built below.
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeline: () => timelineOn(),
+            network: () => networkOn(),
             fileStyles: () => fileStylesOn(),
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
@@ -3428,6 +3429,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         scope,
         results,
+        ...(options.region === undefined ? {} : { region: options.region }),
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
         // A rule reads a file column by its bare name ("minutes"); the published path is the

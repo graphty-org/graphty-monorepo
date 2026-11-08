@@ -79,8 +79,14 @@ export function failingChecks(p: GqlPr, now?: number): FailingCheck[] {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Shared failures (4.1): a check or family failing in 3 or more open pull requests with the same signature (or with
+// Shared failures (4.1): a check or family failing in 2 or more open pull requests with the same signature (or with
 // master's newest build failing it too), or an aggregator failing alone.
+
+/**
+ * The stacks one cause must reach to be shared. It is the first count over master.red_same_check's target (<= 1), so
+ * the member (the largest group, prStocks) breaches exactly when the shared section has an ongoing row (#6177).
+ */
+export const SHARED_MIN = 2;
 
 export interface Merge {
     pr: number;
@@ -236,8 +242,8 @@ export function failureGroups(
 }
 
 /**
- * The causes failing in 3 or more open, ready pull requests (a stack counts once), or failing alone, with the pull
- * requests and start.
+ * The causes failing in SHARED_MIN or more open, ready pull requests (a stack counts once), or failing alone, with
+ * the pull requests and start.
  * @param open - the open pull requests with their checks
  * @param now - the current time, in ms; omitted, stale checks are kept
  * @param masterFailing - the checks (families folded) master's newest build failed
@@ -249,7 +255,7 @@ export function sharedChecks(
     masterFailing?: ReadonlySet<string>,
 ): (Pick<SharedRow, "check" | "signature" | "master" | "bins" | "alone" | "prs"> & { startedAt?: number })[] {
     return [...failureGroups(open, now, masterFailing).values()]
-        .filter((g) => g.units.size >= 3 || g.alone)
+        .filter((g) => g.units.size >= SHARED_MIN || g.alone)
         .map((g) => ({
             check: g.check,
             ...(g.signature === undefined ? {} : { signature: g.signature }),

@@ -59,8 +59,8 @@ master. **No breaking change is needed.** Two changes are optional and held for 
 ## 3. Rows and options
 
 A row is an object row for one of two reasons. _Paint or view_: `batchableOf(paint, view)`, one pure function in
-`managers/StylePainter.ts` with a test table, says the batch cannot draw it. `view` is the scene state paint does not hold: lighting,
-`depthIndependentSize`, a map's `nodeScale`. The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
+`managers/StylePainter.ts` with a test table, says the batch cannot draw it. `view` is the scene state paint does not hold: lighting
+(until stage 14 also `depthIndependentSize` and a map's `nodeScale`, which a batched row now carries in its matrix). The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
 re-batch pass. _Mesh read_: someone holds its mesh; this is permanent. An _object edge_ is the same idea for edges; the fast form is a
 _pulled edge_.
 
@@ -160,9 +160,138 @@ helper sets the flag and turns a batched render-parity or forced-batched run int
 `test/browser` and `test/interactions` still read `Node.mesh` (365 reads in 109 files when this was written); each such test
 runs those nodes on the objects path even in the forced-batched project.
 
+As built (stage 11, third pull request, first commit): `NodeBatches` now calls `Node.drawInBatch` -- with the source when it
+settles a group onto the batch or syncs a row into a batched group whose row the table holds, with null on leave, forget,
+and at the start of every sync (so a repaint that moves a node to another source is read from its mesh, not the batch).
+So a batched row's `drawn*` reads, edge ends and ray hits come from the row tables while the proxies still exist.
+`RowTable.moves` counts every write that can move a row (a repack from the lane, `place`, a freeze, a clear), and
+`nodesMoved` skips batched rows while it is unchanged since the last walk: a frame at rest calls `centerOf` for no
+batched row. This is a correction to the row: `lane.changes` alone is not enough, since an eased or dragged row is
+`place`d off its lane row without the lane changing; `node-batch.test.ts` holds a glide at its midpoint and checks the
+edge is drawn where the objects path draws it. The node loop itself still visits every node. Batched rows still hold
+their mesh: removing it is the stage's remaining work.
+
+As built (stage 11, third pull request, later commits): `Node.drawInBatch(source)` swaps a batched row's instance for a plain
+`TransformNode` anchor (position, scaling, rotation, parent, metadata, enabled state and children move across) and disposes
+the instance; `drawInBatch(null)` rebuilds the instance from the last mesh key and style and moves everything back. So
+`NodeBatches.sync` no longer calls `drawInBatch(null)` first: it reads `Node.paintedSourceMesh`, the source recorded when
+the mesh was built, and releases the row only when it is not batched. Reading `Node.mesh` gives a batched row its mesh
+back at once. `drawnPickMesh` is null for a batched row; a row pick answers with `drawnAnchor`, which carries the
+metadata, so `pickAsDrawn` and `DrawnHit.mesh` return a `TransformNode`. Bounds of a meshless row come from the source's
+local box at the anchor's world matrix (`drawnBoundingInfo`). A meshless row is still batchable (`batchableIn` accepts a
+null mesh), and `RowTable.hide` leaves a shrinking row's W alone when it was and stays drawn, so rebuilding a row's
+instance mid-shrink does not draw it whole.
+
+As built (stage 11, third pull request, XR laser): `src/xr/laserOnRows.ts`, started and stopped with each XR session.
+Babylon's laser (`WebXRControllerPointerSelection`) picks with `scene.pickWithRay`, which sees no meshless row. At the
+head of `onXRFrameObservable` each controller's ray goes through `pickRayAsDrawn`'s scan; when it lands on a meshless
+row, an instance of the row's source, named and labeled as the row's mesh was, is parented to the row's anchor with an
+identity local transform (an instance starts at its source's place, which a batched source keeps far below the scene).
+An observer at the tail of the same observable takes it off again, so it exists only while Babylon's laser picks:
+it is never drawn (its visibility is the batched source's 0, and it is disabled before the frame renders) and no
+other pick sees it. Three corrections to section 4.4's text: there is one stand-in per controller, not one, since
+each controller casts its own ray in the same frame; it is admitted by Babylon's default predicates
+(`enablePointerMoveEvents` set), not through `raySelectionPredicate`; and `XRInputHandler` needed no change, as it
+already picks through `pickRayAsDrawn`. A trigger tap selects a meshless row (Babylon's tap names it from the
+stand-in's metadata) and a trigger drag moves it with no mesh built; `node-batch-xr.test.ts` drives both through
+IWER.
+
+As built (stage 12): `NodeBatches.roster` is the set a frame's walks visit under `"batched"`: every member a batch
+does not draw, plus batched rows with a halo or context point enabled, plus batched rows the row table holds off
+their layout place (`Node.walksEachFrame`), kept by `NodeBatches.rewalk` on every batch change, overlay change and
+change of the held flag in `Node.setMeshPosition`. A held row has to stay on the roster: only `RowTable.place`
+clears the flag and the repack skips a held row, and a drag writes the mesh before the layout, so a row
+dropped while the layout publishes every frame would stay where it was dropped. It answers null, and the walks visit every node,
+while some node is not yet a member. `Node.update` walks the roster and the group nodes, and the row table is
+flushed in the same pass, so the edge walk and the framing measure read this frame's places; the moved-node
+check on a frame at rest and the screen-width border check walk the roster too. A batched row's anchor
+follows its table row only when read (`getPosition`, `drawnAnchor`, framing, bounds, the world matrix,
+leaving the batch), stamped by `RowTable.moves`, with its world matrix recomputed, since stories read
+`absolutePosition`. Correction to the row: the roster walk applies only on a frame whose layout step
+published (`LayoutManager.steppedPublishes`). The position array is not always the engine's answer
+otherwise: a static or snapshot layout computes its answer in `getNodePosition` (Graphviz placed every node
+at the origin without that read), and d3 publishes a row when it is read. Frames that walk for a transition,
+a zoom to fit or a redrawn arrangement still visit every node. Measured at 100,000 nodes (`benchmarks/results/stage-12`):
+the moved-node and border walks, 3 and 4.5 ms of CPU a frame before, are gone from the profile; the moving
+frame is 88 ms against 95 before at similar load, the still frame 87 against 90, both bound by the GPU.
+The 10,000-node still frame stays 26 ms, all of it the card drawing 100,000 edges, so its 8 ms target
+waits for the edge stages.
+
+As built (stage 14, first pull request: per-instance size): a source mesh is still built per size, and its rows still
+read their bounds, radius, edge ends and picks from it; what changed is which batch draws them. `NodeBatches` puts each
+source's group in a family keyed by its look without the size (`Node.batchLook`: shape type, detail, texture, effect)
+and its geometry's vertex and index counts, and the family's one batch is built from its first source. Every other
+source joins only if `scaleAgainst` finds one factor that maps every vertex of the first source onto its own (normals
+and indices equal), so a creator whose geometry does not follow its size gets a family of its own and draws as before;
+that factor goes into the row's `matrix` (uniform, so the normal rewrite above keeps it at 0 pixels). A change to which
+groups a family draws rebuilds its batch at that flush in the objects path's draw order: a source's rows after those of every
+source drawn before it (Babylon sorts opaque sources by material, then by when it met them), each source's in row order. Plain
+row order across sizes lost depth ties between rows of two sizes, invisible on SwiftShader and 5 to 57 pixels on the RTX in 2D
+(#6287). For the same reason a source joins a family only when no other opaque family's source draws inside the family's span
+and it draws inside no other's: one batch draws its rows together. A size ramp of one shape is now one draw; a size made live
+after another shape's sources draws from a batch of its own.
+`MeshCache.batchedSources` keeps a prune from taking a source whose rows a batch draws, since such a source has no
+instance and no batch of its own; when the first source is disposed, its family dissolves and its groups find a family
+again at the same flush. Nothing changes under `"objects"`: `NodeBatches` exists only under `"batched"`, and the prune
+guard's set is empty without it.
+
+As built (stage 14, second pull request): `PajekShapesAndMidLineArrows` failed only on `"batched"` because its play read
+the shape-`none` node's source through `drawnPickMesh`, which is null for a batched row since stage 11; it reads
+`Node.paintedSourceMesh` now, and both paths pass. A fact for the opacity pull request, from the code: a node's opacity
+is its source mesh's `visibility` (`NodeMesh`, beside `material.alpha`), which a batched source gives up for 0, so a
+translucent batch must carry its look's rest visibility. With that, translucent rows batched per look match in 2D, but
+3D differs by about 600 pixels even with one opacity, and one batch per source breaks 2D as well: the batch's place in
+Babylon's back-to-front order of translucent meshes is what differs, and it has to be settled before opacity batches.
+
+As built (stage 14, third pull request: per-instance opacity): `batchableOf` takes a solid color at any opacity.
+An opacity is in its source's mesh key, so each opacity is a source and a look of its own, and a translucent
+source keeps a family of its own (no sharing across sizes): objects draw a translucent source's rows together,
+and one batch across sizes would draw them in row order. The batch takes its source's rest visibility.
+Correction to the second pull request's note, from the code: the order Babylon draws translucent meshes in
+is not decided by distance here. Every source sits at y = -10000 and every batch at the root's origin, so the
+back-to-front sort ties all of them and keeps the order they reach it in: a source's at its first instance
+in `scene.meshes`, a batch's at its own place there. Batches were made in row order, sources in paint order,
+which was the whole 563 and 654 pixel difference. `NodeBatches.orderTranslucent` puts a new translucent batch
+before every translucent batch whose source was made later, so batches tie in their sources' creation order.
+That stands in for the objects path's instance order, which repaint history can reorder; `render-parity`
+decides. A batched row's opacity reads as `Node.drawnOpacity` (its mesh's visibility, or the batch's).
+
+As built (stage 14, fourth pull request: z order): `batchableOf` takes `shape.zIndex` and `shape.drawOrder`.
+Both are in the mesh key and, in 2D, baked into the source's vertices (`placeByZIndex` moves the geometry
+back, `placeByDrawOrder` flattens its front half onto its level's plane); in 3D they change nothing. The
+batch draws a `Geometry.copy()` of its family's first source, so it carries the bake. `batchLook` leaves
+them out, but `scaleAgainst` compares every vertex, so a source at another level joins a family only when
+one factor maps its baked vertices exactly, and otherwise gets a family of its own. Opaque rows at
+different levels differ in depth, so no draw-order tie arises. This brings file styles' nodes onto the
+batch: every imported file but graphty's own gives each node a `node.drawOrder` level.
+
+As built (stage 14, fifth pull request: pictures): `batchableOf` takes `texture.image` (`node.texture`, a
+picture on a built-in shape). The picture is in its source's material, as a color is, so the batch draws it
+by sharing that material; `Node.drawnInstanceColor` gives a pictured row white, as `applyInstanceColor`
+gives its instance, since a picture replaces the shape's color. `batchLook` adds whether the picture is
+drawn: while it loads (or after it fails) the row's source is the plain shape's, with the same geometry, so
+without that flag a loaded row joined the plain family and drew the plain material (42,864 pixels off).
+`texture.icon` (which draws nothing) and the face picture `node.image` stay object rows.
+
+As built (stage 14, sixth pull request: gradients): `batchableOf` takes any `texture.color`, linear and
+radial gradients included. A gradient is a ramp texture in its source's material, and its start color is in
+the mesh key (`StylePainter`), so each gradient is a source and a look of its own and its batch shares that
+material. A gradient row paints no instance color (`paint.color` is null), so the batch writes white, which
+leaves the ramp as the object row draws it. Nothing else changed: `batchLook` already carries the
+gradient inside `texture`.
+
+As built (stage 14, seventh pull request: screen-scale size): `batchableOf` no longer turns every row into
+an object under `depthIndependentSize` or a map's `nodeScale: "screen"`; `BatchView` keeps only the flat
+outline. The update loop still scales each node every frame through `Node.drawnScale`, which scales the
+anchor and re-measures the row as before, and now also keeps `Node.wholeScale`, the view's scale without a
+particle shrink (the shrink is the row table's w). When it changes, `NodeBatches.rescale` writes the
+batched row's matrix as its family factor times that scale. The `Edge.capScale` mirror needed no code:
+`drawnScale` of a batched row reads `RowTable.extentOf`, measured from the scaled anchor, so arrowheads,
+edge trims and the row scan's picks follow the same scale. With the matrix left at the family factor, the
+orbit case of `node-batch.test.ts` is 17,594 pixels off and the map zoom cases about 380.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
-shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
-for `Edge.capScale`.
+shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widened the batch (see its row and the notes above).
 
 ### 4.3 Edges (#3251)
 
@@ -248,6 +377,184 @@ on WebGL and WebGPU, and holds 2D to no pulled edge. `render-parity` with `VITE_
 switched-on third: on WebGL 325 stories pass, but only 4 of them draw a pulled edge (309 edges), since a directed graph caps every
 edge. Found building it: a pulled line follows the row table, which takes the layout's places, so a place written to the layout
 engine and not yet to the node's mesh moves the line before the node; the update loop writes both in one frame.
+
+As built (stage 16, first pull request): `Edge.pullsLine` passes on the `"batched"` path, read as the graph keeping node batches,
+so `pulledEdgesDefault` is needed only to pull on `"objects"`. A line's rebuild test (`Edge.paintFrom`) compares whether it is
+pulled with whether it should be, and `Graph` repaints every edge, then walks them, when the path changes live, so an edge moves
+between a pulled piece and a placed slot both ways. `test/browser/pulled-edges-batched.test.ts` holds `"batched"` to the
+`"objects"` picture, 0 pixels, at rest, after a mouse drag and across a live switch each way, on WebGL and WebGPU. `repeatPerVertex`
+and the 1M-edge SwiftShader load are the stage's second pull request.
+
+Correction from stage 16: this pull request cannot move the stage's targets, because the harness pulls no edge. `lean` is 2D, and a
+2D solid line is a flat rectangle (`Simple2DLineRenderer`), which `Edge.pullsLine` refuses; `default` is 3D but every edge has a
+head, which waits for stage 17. One `lean-m` run each under `"batched"`, RTX, interleaved: before (`benchmarks/results/stage-16-before`,
+load average 5.4) moving 87.6 ms (p99 90.6), layout frame 942 ms; after (`benchmarks/results/stage-16`, 4.2) moving 86.9 ms (p99 89.5),
+layout frame 997 ms, `rowCounts.pulledEdges` 0 in both. The 2D targets need a pulled 2D line, which no stage yet builds.
+
+Also fixed in stage 16 (a `"batched"`-only defect already on master): a node source mesh whose batch group lost its last member
+stayed in `MeshCache.batchedSources` until the next flush, but the cache prunes right after the repaint, before that flush, so a
+toggled node size left one mesh and one material behind per look (`session-style-paint.test.ts` under the `forced-batched`
+project). `NodeBatches.leave` now drops an emptied group's source from `batchedSources` at once.
+
+Correction from stage 16: a pulled piece carries no age, so `Edge.pullsLine` also refuses while the scene's lines fade by age (the
+timeline's `ageFade`), and `UpdateManager.followAgeFade` repaints every edge when the fade turns on or off while node batches exist.
+Without it, `"batched"` drew every plain edge unfaded (`edge-age-fade.test.ts` under `forced-batched`).
+
+As built (stage 16, second pull request): `EdgeLineBatch`'s expanded form (`drawsExpandedLines`, `forceExpandedLines`,
+`repeatPerVertex`) is deleted, so every renderer draws a placed batch's pieces as instances. This changes no pixel on
+either path, but object lines on SwiftShader draw slower again (the #3095 table in `design/edges/sharp-corners.md`).
+`test/browser/million-edge-lines.test.ts` places a million pieces in one `EdgeLineBatch` and pulls a million in one
+`PulledLineBatch`, and holds both to no GL error and the millionth piece drawn on whatever renderer the browser has.
+Before the deletion it failed on SwiftShader with `GL_INVALID_OPERATION` (1282) on the placed batch. Correction: a
+frame of a million lines that each cross the canvas takes about 45 s on SwiftShader, from fill rather than from the
+draw, so the test draws all but the last as specks. `test/browser/million-edge-element.test.ts` holds the bar through the
+element: a `"batched"` element loads a million edges (all pulled) on 1,416 nodes and draws the millionth with no
+GL error, about 55 s on SwiftShader, almost all of it the load.
+
+As built (stage 19): a pulled piece carries its own look, so color, width and opacity key no batch.
+`EdgeMesh.pulledBatch` keys on the minimum screen width and the pass only (`edge-pulled|<minScreenWidth>|opaque`,
+`translucent` or `unblended`: a line under full opacity draws in the transparent pass, as the plain line's batch does,
+and a line with blending off neither blends in place nor goes there). A translucent batch reaches the transparent pass
+through its material's `needAlphaBlending`, never through its mesh's `visibility`: the mesh is shared, so the first
+edge's opacity would be every edge's, and an opacity of 0 would stop Babylon drawing the batch at all. The edge table
+takes two texels a piece, (source row, target row, width, opacity) then (red, green, blue), written by
+`PulledLineBatch.setRows` and `setLook` when an edge joins or restyles, never on a move. The shader reads them as
+`pieceWidth` and a flat varying `vLook` in place of the `width`, `color` and `opacity` uniforms, with the values
+`createStaticLine` would hand a material, so the pixels are the same. `Edge.drawnLine` keeps answering each edge's own
+look name and visibility. `test/browser/pulled-edge-look.test.ts` loads 1,000 edges of 1,000 colors, four widths and
+two opacities: the `"objects"` path draws at least 1,000 draws, `"batched"` at most 8, 0 pixels apart, and a restyled
+edge rewrites its piece with no draw more, on WebGL and WebGPU. Only `"batched"` (or the internal switch) pulls an edge,
+so `"objects"` is untouched. Correction: the edge table is 32 bytes a piece, not 8, so 32 MB at capacity 2^20, not 8 MB;
+a move still uploads no edge byte.
+
+As built (stage 20, first pull request): the GPU trim pass is measured, not built into the element.
+`test/browser/edge-trim-gpu.bench.test.ts` (`browser-bench`, skipped without `GRAPHTY_BROWSER_GPU`) runs it as a WebGL2
+fragment pass, one texel per edge holding both ends' reach (an RGBA32F target), each a ray from the node's center toward
+the other node against the shared shape's triangles (an RGB32F texture, a corner and two edges each), keeping the farthest
+crossing no farther than the other node, the one a ray from that node meets first. Against it, `RowScan.rowRayHitOn` per
+end as `Edge.interceptPointsFromRows` casts it, timed on 50,000 edges and scaled. Both are held to the same ray in float64.
+100,000 nodes on a 2D plane of side 4000, 1,000,000 edges (one in a hundred between overlapping nodes), RTX 4070 SUPER,
+load average 11.6-12.9:
+
+| Shape        | Triangles | CPU rays, 1M edges | GPU pass | Pass and 16 MB readback | CPU off float64 | GPU off float64 |
+| ------------ | --------- | ------------------ | -------- | ----------------------- | --------------- | --------------- |
+| tetrahedron  | 4         | 832 ms             | 1.9 ms   | 17.7 ms                 | 4.9e-3          | 4.0e-7          |
+| dodecahedron | 36        | 1,962 ms           | 6.1 ms   | 21.5 ms                 | 7.6e-4          | 3.4e-7          |
+| cone         | 96        | 4,814 ms           | 12.2 ms  | 31.4 ms                 | 3.1e-3          | 5.0e-7          |
+| torus        | 578       | 17,928 ms          | 7.6 ms   | 15.8 ms                 | 1.4e-4, 4 flips | 2.2e-7          |
+| torus knot   | 8,192     | 278,728 ms         | 90.7 ms  | 99.4 ms                 | 1.2e-5          | 2.6e-7          |
+
+A flip is an end, of 100,000, where one path hits and float64 misses or the reverse; the pass has none. The CPU path's
+error is its own: Babylon carries the ray into the node's space in float32 from an origin at the far node, up to 5,600
+away, where the pass starts at the center. So the pass beats the CPU path at a million edges by 90 to 3,000 times and is
+nearer the exact ray, which also means that on large coordinates it can differ from the `"objects"` path, which casts the
+CPU's ray, by that path's own error (5e-3 world units here, far below a pixel at the harness's zoom).
+
+Correction from stage 20: the section 7 pixel bar cannot be run on the pass yet, so it is not adopted. No shader reads a
+trimmed end on master: a pulled line has no cap and no gap (`Edge.pullsLine`), so it runs center to center and needs no
+reach, and the trim include is still read only by its CPU mirror. The two floats per pulled edge first have a reader in a
+pulled cap (stage 17), so stage 20 depends on 17 as well as 7 and 16. Until then the per-edge rays left on a move are those
+of object edges with a cap whose end is batched, through `Edge.interceptPointsFromRows`; the stage's later pull request
+caches their two floats at rest and takes the bounding radius while moving, keeping the CPU path as the reference and as
+the fallback for meshes too heavy for the pass (at 8,192 triangles a pass takes 91 ms, more than a frame).
+
+As built (stage 20, second pull request): an edge placed because an end moved (`Edge.endsMoving`: a placed end
+changed, not a first placement or one after `invalidatePositionCache`) gives a batched end that only a ray reaches its
+node's bounding radius, the length of `drawnHalfExtents`, and casts no ray; it tells `UpdateManager.endsByRadius`. Once
+`STILL_PASSES` (8) edge passes in a row place no edge that way, `UpdateManager.settleEnds` invalidates and places those
+edges again, measured by `rowRayHitOn` as before, and a pending-work entry ("sizing") holds `waitForStableFrame` until
+then. Only a batched end takes the radius, so `"objects"` draws as on master. `test/browser/edge-ends-cached.test.ts`
+drags the middle of seven `man` figures, each edge capped, on `"batched"`: 0 rays over 8 mouse moves (96 before), and
+at rest 0 pixels differ from the `"objects"` picture after the same drag (2,244 with the re-measure switched off).
+Correction: the plan cached the two floats at rest for a shader to read; nothing reads them yet (stage 17), so the
+measured end is placed straight into the cap and line, and keeping the floats waits for their reader. An end that
+moves while another drag rests is measured with the rest of the set: one quiet stretch of passes measures them all.
+
+As built (stage 17, dark): `PulledCapBatch` (`meshes/PulledCapBatch.ts`) draws 3D billboarded caps with `CAP_PULLED` in
+the cap shader (`FilledArrowRenderer.applyPulledShader`): a cap is its two rows, head end last (a tail is the head of its edge
+turned round), its gaps and how far its centre sits behind its tip, and the shader stands it where `Edge.placeArrowHead` would
+over `EDGE_TRIM_GLSL`'s ends, reading `rowExtent` for scale, round radius and border. Where the ends meet nothing (overlapping
+nodes) it stands the tip at the target's box, as `Edge.placeArrowFromCentres` does. **It is switched off**: the batch cannot be
+built while the internal switch `pulledCapsOn` is off, which it is on every render path, so every edge, batched or not, keeps
+drawing its caps as objects and no picture changes. `test/browser/pulled-arrow-caps.test.ts` turns it on and holds 30 pulled caps
+to the placed ones on SwiftShader WebGL: 0 cap bytes uploaded on a move, and a known, counted difference -- 3 pixels at rest, 1
+after a move, 1 with a row at w = 0, each by one anti-aliasing sample (at most 64 levels) -- asserted exactly, so a change in it is
+a change in the picture. The `render-parity` bar is not widened. Not a depth tie: with one cap per head row each differing pixel is
+a cap's tip against the background (the placed cap covers one sample of it, the pulled cap none; picture in section 10), and they
+stay put when the shader takes the direction from the centres. So the GPU's float32 place differs from the CPU's float64 place by
+enough to move a sample; the trim include was held to 1e-4 (stage 6), which is not pixel-exact. Caps meeting at one node also tie
+in depth, which a float's last bit settles. Turning pulled caps on is the owner's question in section 10; stage 20 may build on
+the dark caps meanwhile.
+
+As built (stage 21, first pull request): `meshes/pulledCurve.ts` holds a lone curve's path (`line.bezier`) in plain numbers and
+as `PULLED_CURVE_GLSL`, for the pulled curve to come. No edge draws with it yet; every curve is still an object edge.
+`bezierSamples` is `EdgeMesh.createBezierLine`'s samples, `curveSpan` the numbers `Edge.placeRoute`'s cut leaves (samples,
+first sample outside the source, pieces, and how far along each cut chord the path starts and stops), and `curvePathPoint`
+any point of the cut path from the two centers and those numbers. `test/pulled-curve.test.ts` holds the mirror to the object
+path's cut curve within 1e-9 on 400 seeded edges between spheres, chords along z among them; `test/browser/pulled-curve-glsl.test.ts`
+holds the GLSL to the mirror within 1e-4 through transform feedback on WebGL2. WebGPU was not run. Corrections to the table, from the code:
+
+- A curve's ends are not points of the cubic at a `t` range. `Edge.placeRoute` keeps the samples outside both nodes and cuts
+  on the straight chord between the last sample inside and the first outside (`crossingOf`), so what is kept per edge is a
+  sample index and a fraction along that chord at each end, plus the sample count (from 10 to 64 by length). The pieces a curve
+  draws with change as its nodes move, so a pulled curve holds a run as long as its longest cut.
+- A fanned curve's shape depends on the other edges between its two nodes (`DataManager.drawnBundle`), which change without
+  the curve being rebuilt, and `Edge.pullsLine` is read only when a line is built. So the first kind pulled is a curve that
+  does not fan (`line.fanned: false`), or a lone fanned curve once a bundle change rebuilds its members.
+- A curve whose center lies outside its own node (`span.first` 0) leaves from `Edge.leaveNode`, which the mirror does not
+  cover: `curveSpan` answers null and such an edge stays an object edge.
+
+Lone curves are pulled on `"batched"` in the same pull request. `Edge.pullsLine` takes `line.bezier: true` with
+`line.fanned: false` (no `arcRadius`, `supportModel` or gap, as before, since those keys keep any edge an object edge), in 3D
+only. Such an edge goes into a curve batch of its own (`EdgeMesh.pulledBatch` keys it `|curve`; the mesh compiles with
+`EDGE_PULLED_CURVE`), whose pieces take four texels: (source row, target row, width, opacity), (red, green, blue, point),
+(samples, first, pieces, startAt), (endAt). The shader picks the piece's six points along the cut path by
+`EdgeLineBatch.writeFlat`'s neighbour rules and sets `run` to zero: a solid line that does not taper never reads it
+(`perTotal` is 0 and the pattern branch is off). `Edge.pullCurve` writes the span from `placeLine`, so it is refreshed on
+every placement, which a moved end causes; it takes pieces while a cut needs more than the edge holds and never hands them
+back, so an edge holds a run as long as its longest cut, and a piece at or past the span's last point draws nothing. A
+straight pulled batch keeps two texels a piece and draws as before. `test/browser/pulled-curves-batched.test.ts` draws nine
+lone curves and one fanned curve (which stays an object edge) at 0 pixels against `"objects"`, at rest and after a mouse
+drag, on WebGL and on WebGPU (SwiftShader).
+
+Corrections, from the code:
+
+- A curve whose span is null on a later placement (its nodes come to overlap, so no sample is outside both) draws nothing
+  when pulled, where the object path draws a straight line between the cut ends; the edge is not moved back to an object
+  edge, since `Edge.pullsLine` is read only when the line is built.
+- Moving a node still writes edge bytes for a pulled curve: its span changes with its length, so every piece of a moved
+  curve is rewritten (16 floats a piece, against the object path's slot plus its matrix), and the CPU still samples the
+  curve to find its cut. The measurement on 100,000 curves waits for a curve scenario in `benchmarks/compare`.
+
+As built (stage 21, second pull request): a fanned curve alone between its two nodes is pulled too, on `"batched"`.
+`Edge.pullsLine` takes `line.bezier: true` with `line.fanned` unset or true when no other edge joins the two nodes in
+either direction (`Edge.aloneBetween`, asked of the store through `DataManager.getEdgesBetween`, since
+`DataManager.drawnBundle` works its answer out over the whole edge set once per change and an edge built during a load
+would pay that per edge). Such a curve draws `EdgeMesh.createBezierLine`'s curve, as a lone curve does. A change to the
+edge set already re-places every edge; on that placement a fanned curve whose answer changed is built again
+(`Edge.repullLine`): a pulled curve that gains a parallel edge becomes an object edge and fans, and one whose parallel
+edge goes is pulled again. Neither draws caps, so only the line is rebuilt. `test/browser/pulled-curves-batched.test.ts`
+adds and removes a parallel edge on a pulled fanned curve: 0 pixels against `"objects"` with it and after, the bundle's two
+edges object edges while it is there, every curve pulled after, on WebGL and WebGPU (SwiftShader). Still object edges: a
+curve in a bundle of two or more, a curve with caps, `arcRadius`, `supportModel`, `fanSpacing` or a gap, routes
+(`line.route`), bends, and self-loops.
+
+As built (stage 21, third pull request): a curve fanned out of a bundle is pulled too, on `"batched"`, so every curve
+(`line.bezier`) with no caps, `arcRadius`, `supportModel`, `fanSpacing` or gap is pulled, whatever shares its two nodes.
+A fanned curve's shape is `edgeRoute.fanArc`'s quadratic, which is set by the two centers and one signed number: how far
+its middle bows to the left of its own chord in the x-y plane (`fanOffset`, negated for an edge drawn against its
+bundle's first). `Edge.pullCurve` works that bow out on each placement (`Edge.fanOf`, the code `Edge.bundleRoute` uses),
+and `curveSpan` cuts the arc as it cuts a lone curve, so the span gains `bow`, null for a lone curve. The fourth texel
+of a curve piece is (endAt, bow, 1 for an arc, unused), and the shader samples a quadratic or the lone cubic by that
+flag. The middle of an evenly spread bundle (bow 0) is the 2-piece arc through the midpoint, the object path's route
+there. Since the bundle no longer decides whether a curve is pulled, `Edge.aloneBetween` and `Edge.repullLine` are gone:
+a change to the edge set re-places every edge, and that placement writes the new bow. `test/pulled-curve.test.ts` holds
+the arc mirror to `fanArc`'s cut within 1e-9 on 400 seeded edges, both ways round, bow 0 among them;
+`test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4; `test/browser/pulled-curves-batched.test.ts`
+pulls a bundle of five between two nodes (a curve that does not fan, three fanned curves one drawn the other way, and a
+straight edge) at 0 pixels against `"objects"`, at rest and after a mouse drag, and a fanned curve that gains and loses
+a parallel edge, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, `arcRadius`, `supportModel`,
+`fanSpacing` or a gap, routes (`line.route`), bends and self-loops.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
@@ -335,6 +642,40 @@ As built (stage 10): `render/NodeIdTarget.ts`, created and disposed with the `"b
   named it: at 100,000 nodes in the benchmark (radius 0.32 px) no hover ever came. Hover over such a row may therefore name it, or a
   neighbor drawn later, up to 1.5 px from its center, where the scan names nothing.
 
+As built (stage 18, first pull request): `render/EdgeIdTarget.ts`, created and disposed with the node target. The pointer-move
+cursor test, the one edge hover there is, reads it through `hoverEdgeAt`; press, release and `elementAt` still walk every edge
+until the stage's second pull request makes that walk typed. Four things differ from the text above:
+
+- The target draws no edge mesh. Each straight edge is one 1-pixel line from its two nodes' rows in `rowPosition`, so moving
+  nodes moves the lines with no upload, and its id is its place in a list of the visible edges. The list is rebuilt when
+  `edgeDrawChanges` moved: an edge painted, shown or hidden, added or removed, turned between straight and bent, or a node
+  renumbered. An edge the target cannot draw (a curve, a route, a loop, an end drawn as a group) is measured on every hover.
+- The window is `2 * (ceil(6 / scaling) + 1) + 1` pixels a side, 15 x 15 at a scaling of 1, not 13 x 13: a line 6 CSS pixels
+  from the pointer can be rasterized half a pixel further out. The edges it names, with the ones it cannot draw, go to
+  today's exact distance test, in walk order, so ties settle as before.
+- Where two lines cover the same pixels in the window (an edge and its reverse, lines that run on from each other) the target
+  names only the one drawn last, so hover may miss the other. `edge-id-target.test.ts` lists each such point.
+- A move over empty canvas measures only the edges the target cannot draw, and over a line only those near it
+  (`edgePickWork.measured`); on `"objects"` every move still measures every edge.
+- On WebGPU the read is asynchronous and takes three things the text above does not say. Babylon's readback pads each row to
+  256 bytes inside the buffer it is given, so the buffer is `h * align(w * 4, 256)` bytes; each read gets its own buffer,
+  because a later move's read can land first; and the draw in the frame that rebuilt the lines' vertex buffer comes out
+  empty (measured on SwiftShader), so a read waits for a draw in a later frame. `edge-id-target.test.ts` runs the agreement
+  test and a real-pointer hover on WebGPU when `GRAPHTY_BROWSER_GPU` is set.
+
+As built (stage 18, second pull request): the typed edge scan is `pickEdgeId` in `render/PickService.ts`. On the `"batched"`
+path a press, a release, `elementAt` and the hover's measure of its window all take it. It still walks the edges in order with
+today's distance test, so it gives the same answer on the same ties. The difference is where a straight edge between two batched
+rows gets its ends: from `rowBounds` and the root's matrix, which is what `Node.drawnWorldPosition` returns for such a row, put on
+screen through one `screenProjector` per pick. So it needs no `worldToScreen` call and no new vector for that edge.
+`Graph.worldToScreen` is that same projector, with the same arithmetic. Every other edge (a curve, a route, a loop, an end
+outside a batch) is still measured point by point, and `edgePickWork.measured` counts only those, so a move or a press over the
+stage 18 test graph counts 1, its loop. Two things differ from the stage row:
+
+- The row says "a typed scan for clicks". The hover's window measure takes the scan too, since it is the same test.
+- A press still walks every edge. The scan does not use the target's window, because a press needs no read. It is a typed walk,
+  not an index.
+
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by
 `raySelectionPredicate`; while hidden proxies exist (stages 8 to 10) the predicate alone serves. `XRInputHandler`'s direct `pickWithRay`
@@ -342,6 +683,23 @@ mesh a beam runs through the row. Row picks reach it through one invisible picka
 
 **Rectangle and lasso** are additive and off by default: a `{ region: { polygon } }` selection target and an opt-in gesture. One typed walk
 projects visible rows.
+
+As built (stage 23): the target is `{ region: { polygon } }` in canvas CSS pixels (a rectangle is its four
+corners); a node is inside when its center is, by the even-odd rule. The session takes it as an optional
+`region` capability, so `createGraphSession()` with no canvas refuses it with `E_UNSUPPORTED`. On `"batched"`
+it is `RowScan.rowsInRegion`, one walk over `rowBounds` (a bound of 0 is a hidden or unplaced row) with the
+root's matrix folded into the view and projection; `regionWork` counts the rows read. Three things differ
+from the text above:
+
+- The target works on `"objects"` too, each node placed as `nodeScreenPosition` places it, so both paths
+  select the same set. It is a new target, so nothing on `"objects"` changes for a caller that does not use it.
+- The gesture is `layoutBehavior.selection.region` (`"off"` by default, `"rectangle"`, `"lasso"`): Shift
+  and a drag from empty canvas, the camera held for the drag; it adds to the selection, as Shift-click does,
+  and a press on a node still drags it. A dashed gray outline follows the pointer over the canvas.
+- The 5,000 cap is the selection's own (`DEFAULT_SELECTION_CAP`), not a region limit. Measured at 100,000
+  rows with the middle half of the canvas, which the cap cuts to 5,000: 16.8 ms median per
+  `selection.apply`, against the 2 ms target (load average 16-20). That figure is the whole apply, the
+  walk and the cap's truncation and delta together; the walk alone was not timed.
 
 ### 4.5 Layout to renderer (#3248)
 
@@ -400,6 +758,21 @@ needs its own measurement, in stage 30.
 A settling batch repacks from the lane, so the rest picture matches the upload path. The new coded field
 `rendererStatus.layoutDevice: "shared" | "separate" | null` is detection before the run, never a fallback during one.
 
+As built (stage 25, first pull request): `layoutDevice` is set when the renderer opens, from the engine's own `sharesDevice` answer:
+`"shared"`, `"separate"` under WebGL and on a software adapter, and null when no accelerator is offered (policy `"off"`, or nothing
+registered before the renderer opened). The type is exported as `LayoutDevice`.
+
+As built (stage 25, second pull request): webgpu-graph-algorithms has the kernel and the ring; the element does not use them yet.
+`to-drawn` reads the stride-3 scene array `to_scene` already writes, so it applies the element's own formula,
+`(scene - center) * scale + target`, and runs in a pass of its own after the iteration pass of every batch. Correction to the text
+above: the kernel never writes w. The ring is seeded from the owner's stride-4 rows (`setDrawn({ slots, rows })`) and w, like the rows
+in the skip mask (`setDrawnSkip`), is only ever what the owner wrote, through `writeDrawn`, which writes every slot; so a hidden or
+shrunk row keeps its w while it moves, and the element never needs a ring-wide w pass. `setDrawnTransform` sets the uniform the next
+batches use. `landedDrawn` is the slot of the last batch that landed, null after a load, so a batch in flight across a reload never
+lands as one (the stale skip). The methods are optional members of `GpuLayoutSimulation`, so no implementer breaks.
+The element's copy at landing follows; `copyBufferToTexture` needs `bytesPerRow` a multiple of 256, which the `rowPosition`
+texture's width must allow.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,
@@ -430,8 +803,27 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
       `RichTextLabel`, per label.
     - Full atlas (a 4096 square holds about 2,500 tiles): no second page, no eviction; a label with a glyph that does not fit falls back to
       `RichTextLabel`, per label.
-- **Sampling**, off by default with its cell size a setting. When the view settles, every labelled row draws as one point into a target of
-  one texel per screen cell, depth from a priority column. A read of a few KB gives the winners; only they get built.
+    - Correction from stage 33 (`meshes/GlyphAtlas.ts`): no regular expression can see a ligature font, and widths cannot either (a
+      font keeps a ligature as wide as its parts: DejaVu Serif "fi" is 29.32 px at 48 px, "f" plus "i" the same). A ligature font is found
+      by its ink: each of a few probes ("fi", "fl", "ff", "ffi", "ffl", "->", "=>", "!=", "==", "<=", ">=", "www") is drawn as one run and
+      glyph by glyph at the placed x; any difference over 0.5% of the ink is a ligature, and a label holding that probe falls back
+      (not every label in the font: DejaVu Sans, the Linux fallback for Verdana, draws "fi" as one, which sent every label back). In Chromium a
+      font without ligatures draws identically both ways (0.000); DejaVu Sans and Serif "fi" differ by 0.065 and 0.112. Combining marks (`\p{M}`) fall back too, since only the font's positioning table places
+      them; "Indic" covers the other Brahmic scripts (Thai, Lao, Tibetan, Myanmar, Khmer). Tiles are 80 texels (56 px glyphs, a 12-texel
+      reach): 2,601 to the page. A label falls back whole when its glyphs do not all fit.
+    - Correction from stage 33 (`meshes/GlyphLabels.ts`): "plain" is not judged from the style. The label's own painting runs on a
+      recording canvas context, and a label is plain when that painting inks nothing but `fillText` (a transparent panel path is
+      fine; a fill, stroke, shadow or alpha is not). Runs in several fonts and colors (markup) are therefore glyph-drawn too. Each
+      label keeps its plane for placement, declutter and picking, with layer mask 0 so it draws nothing; the one draw rebuilds its
+      glyph instances from each shown plane's world matrix every frame. A web font not yet loaded falls back, so no tile is drawn
+      in a fallback font.
+- **Sampling**, off by default with its cell size a setting (`layoutBehavior.labels.sampleCell`, CSS pixels; unset is off). When the view
+  settles, one label per screen cell is picked (selected, then degree, then id); only the winners get built, and
+  `nodeLabelCounts.hiddenBySampling` (present only while it is on) counts the rest.
+  Correction from stage 32: built on the CPU (`managers/LabelSampler.ts`), not as a GPU point draw with a readback. The pass runs once per
+  settled view, not per frame, and projects each labelled row's CPU position (`drawnPosition`, which every path keeps) through one matrix:
+  a few milliseconds at 100,000 rows, with no render target, no readback stall and no WebGL/WebGPU split. A settled frame costs
+  one comparison of the camera, the canvas size, the position lane's generation and the edge version.
 
 ### 4.8 The small issues
 
@@ -582,12 +974,13 @@ Labels
 
 **Required: none.** The default stays `"objects"` and every other change is additive. Rows that cannot reach parity stay ineligible.
 
-**Optional, for the owner after stage 38; neither blocks a stage:**
+**Optional, for the owner after stage 38; none blocks a stage:**
 
-| Change                                                         | Why it cannot be additive                                                                             | Without it                    |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
-| Default `renderPath` to `"batched"`                            | `scene.meshes`, per-node action managers and Babylon move picks change for a consumer who set nothing | A consumer sets one attribute |
-| Default `renderCeiling` to 1,000,000, `edgesDrawn` as measured | It changes what today refuses                                                                         | A consumer sets `limits`      |
+| Change                                                         | Why it cannot be additive                                                                                                                                                                                                            | Without it                      |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| Default `renderPath` to `"batched"`                            | `scene.meshes`, per-node action managers and Babylon move picks change for a consumer who set nothing                                                                                                                                | A consumer sets one attribute   |
+| Default `renderCeiling` to 1,000,000, `edgesDrawn` as measured | It changes what today refuses                                                                                                                                                                                                        | A consumer sets `limits`        |
+| Turn pulled caps on (`pulledCapsOn`, stage 17)                 | A pulled cap places in float32 on the GPU and differs from the placed cap by one anti-aliasing sample at a cap's tip (3 pixels in 30 caps; [picture](pulled-caps-one-sample.png): circled, then placed and pulled side by side, 16x) | Caps stay objects on every path |
 
 ## 11. Alternatives rejected
 
@@ -637,6 +1030,20 @@ That run is the static layout (`skip-layout`). Force layouts used to walk every 
 that cannot be counted; the walk now reads `DataManager.edgeVersion` for them, so a settled force layout also takes this path and, for the first
 time, freezes its active meshes on a still frame. d3 hands back an array, because it takes an edge up at a later step than the store's version.
 
+Correction from stage 26 (code read at origin/master 8593e8751a): three facts the row did not carry. First, `Edge`'s constructor
+resolves both ends through `nodeCache.get` and stores the `Node`s in plain `srcNode` and `dstNode` fields, so while edges are built
+eagerly every endpoint of every edge is a built `Node`; the count at 0 on a load with edges needs the end accessors, which therefore
+move from stage 27 into this stage. Second, `node-add-before` carries `nodeId` and the record, never a `Node`, so it can be emitted
+for an unbuilt row and needs no gate; and since the element's own DOM forwarder and `Graph`'s click handler always observe the node
+observable, a gate on its observers would never close anyway. Third, under `"batched"` everything that reaches a row today reaches
+it as a `Node`: `NodeBatches` (`groupOf`, `sync`, `roster`, keyed by `Node`), `StylePainter`, the shipped layout engines'
+`addNode`, `RowTable.replaced`, `nodesByIndex` and about 40 internal walks of `nodes`. The stage is therefore several pull requests,
+each changing nothing under `"objects"`: (1) the count, `dataManagerInternals.nodesBuilt`, a test door every later pull request
+asserts on; (2) `NodeBatches` and `StylePainter` keyed by row, painting an unbuilt row from columns; (3) shipped engines, transitions,
+fit and filter by row, with a third party's engine still handed `Node`s; (4) the end accessors; (5) ingest skips `buildNode` for
+rows that need no object, `nodes`, `nodeCache` and `getNode` become materializing views with a strong map for identity, and the
+row's proving test runs.
+
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0   | Done: baseline, spikes              | all                             | Harness, `baseline` run, section 5                                                                                                                                                                                                                                                                      | --                                                                                                                                               | L   | None                                                                                                                                                                                                 | Harness and `baseline` committed                                                                                                                                                                                                                                                                                                                                                                 |
@@ -660,7 +1067,7 @@ time, freezes its active meshes on a still frame. d3 hands back an array, becaus
 | 17  | Caps pulled                         | #3251                           | Caps on the same rows and include; 2D, image, stacked caps wait for parity                                                                                                                                                                                                                              | 16                                                                                                                                               | M   | 3D default moving 100 ms (176 today)                                                                                                                                                                 | `render-parity`; line end equals cap place                                                                                                                                                                                                                                                                                                                                                       |
 | 18  | ID buffer, edges                    | #3250                           | Edge target, window read for hover; `pickEdgeId` a typed scan for clicks                                                                                                                                                                                                                                | 10, 16                                                                                                                                           | M   | Hover 20 ms                                                                                                                                                                                          | Agreement test; per-edge `worldToScreen` per move counted at 0                                                                                                                                                                                                                                                                                                                                   |
 | 19  | Per-slot edge look                  | #3251                           | Color, width, opacity per slot, out of the mesh key, under `"batched"`                                                                                                                                                                                                                                  | 16                                                                                                                                               | M   | 1,000 colors: draws counted, a handful                                                                                                                                                               | `render-parity`                                                                                                                                                                                                                                                                                                                                                                                  |
-| 20  | Cached non-round ends               | #3251                           | Two floats per pulled edge, refreshed at rest                                                                                                                                                                                                                                                           | 7, 16                                                                                                                                            | M   | No per-edge ray on a move                                                                                                                                                                            | `render-parity` at rest, figure-shaped node                                                                                                                                                                                                                                                                                                                                                      |
+| 20  | Cached non-round ends               | #3251                           | Two floats per pulled edge, refreshed at rest                                                                                                                                                                                                                                                           | 7, 16, 17                                                                                                                                        | M   | No per-edge ray on a move                                                                                                                                                                            | `render-parity` at rest, figure-shaped node                                                                                                                                                                                                                                                                                                                                                      |
 | 21  | Curves, routes (PRs)                | #3251                           | Curves in the shader; route texture; a kind stays an object edge until its parity passes                                                                                                                                                                                                                | 16                                                                                                                                               | H   | 100,000 curved edges: moving 40 ms                                                                                                                                                                   | `render-parity` per kind; `test/fidelity`                                                                                                                                                                                                                                                                                                                                                        |
 | 22  | Animated lines                      | #3251 closes                    | Fragment scroll replaces GreasedLine if parity holds                                                                                                                                                                                                                                                    | 21                                                                                                                                               | M   | CPU per animated edge per frame counted at 0                                                                                                                                                         | `render-parity`, animation parked                                                                                                                                                                                                                                                                                                                                                                |
 | 23  | Rectangle and lasso                 | #3250 closes                    | `{ region }` target, opt-in gesture                                                                                                                                                                                                                                                                     | 18                                                                                                                                               | L   | Lasso over 100,000 rows 2 ms                                                                                                                                                                         | Real-input drag selects a known set; blind-author example                                                                                                                                                                                                                                                                                                                                        |

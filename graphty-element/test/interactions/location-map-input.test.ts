@@ -66,6 +66,29 @@ async function applied(element: Graphty): Promise<void> {
 }
 
 /**
+ * Press W once and wait for the whole step it zooms by. A tap zooms over several frames, and a
+ * stable frame does not wait for the reader's own camera motion, so a slow machine that drew one
+ * frame per press would count presses rather than steps.
+ * @param element - The element.
+ */
+async function pressW(element: Graphty): Promise<void> {
+    const scene = element.graph.getScene();
+    const camera = (): Vector3 => scene.activeCamera?.globalPosition.clone() ?? Vector3.Zero();
+    await userEvent.keyboard("w");
+    // A drawn frame has zoomed by part of the step; the step is over on a frame that holds still.
+    await applied(element);
+    let last = camera();
+    for (;;) {
+        await drawnFrames(scene, 1);
+        const now = camera();
+        if (now.equals(last)) {
+            return;
+        }
+        last = now;
+    }
+}
+
+/**
  * Wait until the map reports a state, now or in a later basemap-status event: tiles take as long
  * as they take, so no deadline.
  * @param element - The element.
@@ -853,8 +876,7 @@ describe("the globe's map near its surface", () => {
         const height = (): number => (scene.activeCamera?.globalPosition.length() ?? Number.NaN) / radius - 1;
         let presses = 0;
         while (height() > 0.021) {
-            await userEvent.keyboard("w");
-            await applied(element);
+            await pressW(element);
             presses++;
             assert.isBelow(presses, 200, "W keeps moving the camera toward the surface");
         }
@@ -936,8 +958,7 @@ describe("the globe's layers near its surface", () => {
         const counts: Record<string, number> = {};
         for (const stop of [0.3, 0.15, 0.08, 0.04, 0.02]) {
             while (height() > stop) {
-                await userEvent.keyboard("w");
-                await applied(element);
+                await pressW(element);
                 presses++;
                 assert.isBelow(presses, 200, "W keeps moving the camera toward the surface");
             }

@@ -24,14 +24,7 @@
  * proves a value was stored. `instancedBuffers.color == [1,0,0,1]` proves a red node was drawn.
  */
 
-import {
-    type AbstractMesh,
-    DynamicTexture,
-    type InstancedMesh,
-    Matrix,
-    type StandardMaterial,
-    Vector3,
-} from "@babylonjs/core";
+import { type AbstractMesh, DynamicTexture, Matrix, type StandardMaterial, Vector3 } from "@babylonjs/core";
 import { expect, waitFor } from "storybook/test";
 
 import type { Edge } from "../src/Edge";
@@ -276,6 +269,23 @@ export async function eventually(done: () => boolean, complaint: string): Promis
  * The colour a node is actually drawn in, read from the buffer the GPU is handed.
  * @param mesh - The node's mesh.
  * @returns The colour as `#rrggbb`, or null when the mesh carries no instance colour.
+ */
+function hexOfRgba(color: { r: number; g: number; b: number } | null): string | null {
+    return color === null
+        ? null
+        : `#${[color.r, color.g, color.b]
+              .map((c) =>
+                  Math.round(Math.min(255, Math.max(0, c)))
+                      .toString(16)
+                      .padStart(2, "0"),
+              )
+              .join("")}`;
+}
+
+/**
+ * The colour an instance carries in its own buffer, as #rrggbb.
+ * @param mesh - The instance.
+ * @returns The colour, or null when it carries none.
  */
 function instanceHex(mesh: AbstractMesh): string | null {
     const colour = (mesh as unknown as { instancedBuffers?: { color?: { r: number; g: number; b: number } } })
@@ -552,25 +562,28 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
 
     const nodes: DrawnNode[] = graph.getNodes().map((node, index) => {
         // drawnPickMesh, not mesh: reading `mesh` would hold the node off the batch (see Node.mesh).
+        // A row a batch draws has no mesh: its shape is its source's, its place its anchor's.
         const mesh = node.drawnPickMesh;
-        const source = (mesh as InstancedMesh).sourceMesh as InstancedMesh["sourceMesh"] | undefined;
-        const box = mesh.getBoundingInfo().boundingBox.extendSizeWorld;
+        const anchor = node.drawnAnchor;
+        const source = node.drawnSourceMesh;
+        const box = node.drawnBoundingInfo.boundingBox.extendSizeWorld;
+        const color = node.drawnInstanceColor;
         const plane = node.label?.labelMesh ?? null;
         const label = labelInk(plane);
 
         return {
             id: String(node.id),
             index,
-            shape: source?.name ?? mesh.name,
-            geometryKey: `${source?.name ?? mesh.name}#${String(source?.uniqueId ?? mesh.uniqueId)}`,
-            vertexCount: source?.getTotalVertices() ?? mesh.getTotalVertices(),
-            geometryDigest: digestOf(source ?? mesh),
-            wireframe: source?.material?.wireframe ?? false,
-            enabled: mesh.isEnabled(),
-            opacity: mesh.visibility,
+            shape: source.name,
+            geometryKey: `${source.name}#${String(source.uniqueId)}`,
+            vertexCount: source.getTotalVertices(),
+            geometryDigest: digestOf(source),
+            wireframe: mesh === source ? false : (source.material?.wireframe ?? false),
+            enabled: anchor.isEnabled(),
+            opacity: node.drawnOpacity,
             radius: Number(box.x.toFixed(4)),
-            hex: instanceHex(mesh),
-            position: [mesh.absolutePosition.x, mesh.absolutePosition.y, mesh.absolutePosition.z],
+            hex: mesh === null ? hexOfRgba(color) : instanceHex(mesh),
+            position: [anchor.absolutePosition.x, anchor.absolutePosition.y, anchor.absolutePosition.z],
             hasLabelMesh: plane !== null && !plane.isDisposed() && plane.isEnabled(),
             labelInk: label.ink,
             labelColours: label.colours,

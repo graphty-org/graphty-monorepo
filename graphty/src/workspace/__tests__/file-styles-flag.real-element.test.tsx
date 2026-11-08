@@ -157,6 +157,13 @@ for (const on of [false, true]) {
             assert.strictEqual(await settingsSwitch(), on);
         });
 
+        it(`${on ? "offers" : "hides"} the Settings switch on the start screen, before any project`, async () => {
+            render(<Workspace store={createWorkspaceStore()} />);
+            await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+            await screen.findByText("Number format");
+            assert.strictEqual(screen.queryByRole("switch", { name: /^Import styles from files/ }) !== null, on);
+        });
+
         it(`${on ? "offers" : "hides"} Export's Include styles`, async () => {
             await openProject();
             assert.strictEqual(await includeStyles(), on);

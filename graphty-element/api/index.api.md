@@ -11,6 +11,7 @@ import { ActionManager } from '@babylonjs/core';
 import { AwsCredentials } from '@graphty/graph-io';
 import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
+import { BoundingInfo } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
@@ -101,6 +102,7 @@ import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
+import { SourceExample } from '@graphty/graph-io';
 import { SourceFeature } from '@graphty/graph-io';
 import { SourceFile } from '@graphty/graph-io';
 import { SourceFinish } from '@graphty/graph-io';
@@ -122,7 +124,6 @@ import { SourceReportInfo } from '@graphty/graph-io';
 import { SourceRequestInit } from '@graphty/graph-io';
 import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
-import { SourceSample } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
@@ -1118,6 +1119,8 @@ export class Edge {
     srcNode: Node_2;
     // @internal
     supportEdge(): SupportEdge | null;
+    // @internal
+    togglesOwnMeshes(): boolean;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     // @internal
@@ -2567,7 +2570,7 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles";
 
 // @public
 export interface FindAtLeastRow {
@@ -2793,6 +2796,9 @@ export class Graph implements GraphContext {
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
     getEdgeCount(): number;
+    // @internal
+    getEdgeIdTarget(): EdgeIdTarget | null;
+    getEdges(): Edge[];
     getEventManager(): EventManager;
     getGlobeLook(): GlobeLook;
     getLayoutBehavior(): GraphBehaviorConfig | undefined;
@@ -4762,6 +4768,9 @@ export interface LayoutChangedEvent {
 }
 
 // @public
+export type LayoutDevice = "shared" | "separate";
+
+// @public
 export abstract class LayoutEngine {
     // (undocumented)
     protected abstract addEdge(e: Edge): void;
@@ -4906,6 +4915,8 @@ export class LayoutManager implements Manager {
     setScopeSource(source: LayoutScopeSource): void;
     step(): void;
     stepBatch(): void;
+    // @internal
+    steppedPublishes: number;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
 }
@@ -5055,6 +5066,8 @@ class Node_2 implements ModelUser {
     // @internal
     batchableIn(view: BatchView): boolean;
     // @internal
+    get batchLook(): string;
+    // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
     // @internal
@@ -5065,9 +5078,13 @@ class Node_2 implements ModelUser {
     get dragHandler(): NodeDragHandler | undefined;
     set dragHandler(handler: NodeDragHandler | undefined);
     // @internal
-    drawInBatch(source: AbstractMesh | null): void;
+    drawInBatch(source: AbstractMesh | null, opacity?: number): void;
+    // @internal
+    get drawnAnchor(): TransformNode;
     // @internal
     get drawnBoundingBox(): BoundingBox;
+    // @internal
+    get drawnBoundingInfo(): BoundingInfo;
     // @internal
     get drawnBoundingRadius(): number;
     // @internal
@@ -5085,7 +5102,9 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnInstanceColor(): Rgba | null;
     // @internal
-    get drawnPickMesh(): AbstractMesh;
+    get drawnOpacity(): number;
+    // @internal
+    get drawnPickMesh(): AbstractMesh | null;
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
@@ -5130,6 +5149,8 @@ class Node_2 implements ModelUser {
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;
+    // @internal
+    imageDrawn(): BaseTexture | null;
     get index(): number;
     isDisposed(): boolean;
     // @internal
@@ -5164,6 +5185,8 @@ class Node_2 implements ModelUser {
     }>;
     // @internal
     get paintedColor(): Rgba | null;
+    // @internal
+    get paintedSourceMesh(): AbstractMesh;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
@@ -5180,6 +5203,8 @@ class Node_2 implements ModelUser {
     refreshSelectionOverlay(): void;
     // @internal
     refreshShaderPaint(): void;
+    // @internal
+    resampleLabel(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
@@ -5203,12 +5228,16 @@ class Node_2 implements ModelUser {
     // @internal
     syncXlabelPlace(): void;
     // @internal
-    get teardownMesh(): AbstractMesh;
+    get teardownMesh(): TransformNode;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
     update(): void;
     updateStyle(): void;
+    // @internal
+    get walksEachFrame(): boolean;
+    // @internal
+    get wholeScale(): number;
     // @internal
     get wordedLabel(): RichTextLabel | null;
     xlabelLabel?: RichTextLabel;
@@ -5332,6 +5361,7 @@ export interface NodeLabel {
 // @public
 export interface NodeLabelCounts {
     readonly hiddenByOverlap: number;
+    readonly hiddenBySampling?: number;
     readonly labeled: number;
     readonly nodeHidden: number;
 }
@@ -6901,6 +6931,7 @@ export interface ProjectOpenOptions {
     readonly limits?: {
         readonly fileBytes?: number;
     };
+    readonly ownWork?: boolean;
 }
 
 // @public
@@ -7000,6 +7031,7 @@ export type RendererRequest = "webgl" | "webgpu" | "auto";
 export interface RendererStatus {
     readonly active: ActiveRenderer;
     readonly drawing: boolean;
+    readonly layoutDevice: LayoutDevice | null;
     readonly reason: string | null;
     readonly requested: RendererRequest;
 }
@@ -7651,6 +7683,8 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+export { SourceExample }
+
 // @public
 export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 
@@ -7804,8 +7838,6 @@ export { SourceRuntimeReason }
 // @public
 export const SOURCES_MEMBER_VERSION = 2;
 
-export { SourceSample }
-
 export { SourceValidators }
 
 // @public
@@ -7948,6 +7980,8 @@ export class UpdateManager implements Manager {
     dispose(): void;
     drawArrivedPaint(frameMs?: number): void;
     enableZoomToFit(explicit?: boolean): void;
+    // @internal
+    endsByRadius(edge: Edge): void;
     // @internal
     fitAnnotations: (() => void) | null;
     forceEdgeWalk(): void;

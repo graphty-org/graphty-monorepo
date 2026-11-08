@@ -534,6 +534,7 @@ function nodeFrom(
                   },
         label: mergeTexts(texts),
         ...(drawn.length > 0 ? { order: Math.max(...drawn.map((p) => p.index)) } : {}),
+        ...((painted ?? filled) ? { fillOrder: (painted ?? filled)?.index } : {}),
     };
     if (outline !== undefined && shape !== null && SLANTED.has(shape) && outline.points.length >= 3) {
         slantedOutlines.set(node, outline.points);
@@ -5369,7 +5370,12 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
     const strays = scene.strays.filter(
         (s) =>
             s.kind !== "shape" ||
-            !covers.some((c) => c.order > s.index && withinShape(s.box, c.box, c.n.shape === "ellipse", slack)),
+            // hidden by a node that paints its fill over it: a piece drawn over the node's own fill (a chart's slice
+            // before the node's other slices, cx-syn-bypass's ring on node 2280) is drawn over it, not under
+            !covers.some(
+                (c) =>
+                    (c.n.fillOrder ?? c.order) > s.index && withinShape(s.box, c.box, c.n.shape === "ellipse", slack),
+            ),
     );
     if (covered.size === 0 && strays.length === scene.strays.length) {
         return scene;

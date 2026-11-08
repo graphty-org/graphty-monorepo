@@ -1,8 +1,8 @@
 /**
- * A sample mapping: the resolved dependency graph of one package version from deps.dev
+ * An example mapping: the resolved dependency graph of one package version from deps.dev
  * (https://deps.dev). The body already holds a node array and an edge array whose ends are node
  * positions, so the body is a container and `#` gives each package its position as its id.
- * Catalog data for the `rest` source's samples.
+ * Catalog data for the `rest` source's examples.
  */
 
 import { type RestMapping } from "../params.js";

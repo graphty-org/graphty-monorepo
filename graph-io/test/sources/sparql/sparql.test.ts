@@ -24,6 +24,7 @@ import { localName, parseNTriples } from "../../../src/sources/sparql/ntriples.j
 import { pagedQuery, readQuery } from "../../../src/sources/sparql/query.js";
 import { runSourceConformance } from "../harness.js";
 import { rejection } from "../helpers.js";
+import { WIKIDATA_ADVISORS, WIKIDATA_ENDPOINT } from "./advisors.js";
 import { answer, startFixture, TRIPLES } from "./fixture.js";
 
 const WD = "http://www.wikidata.org/entity/";
@@ -186,6 +187,29 @@ describe("the sparql source against a local endpoint", () => {
         expect(ids.size).toBe(7);
     });
 
+    it("sends a default User-Agent from Node, which a caller's userAgent replaces (#6217)", async () => {
+        const agents: (string | null)[] = [];
+        const fetch: typeof globalThis.fetch = (input, init) => {
+            const request = new Request(input, init);
+            agents.push(request.headers.get("user-agent"));
+            return globalThis.fetch(request);
+        };
+        const { snapshot } = await loadFromSource(
+            sparqlSource,
+            { query: ADVISORS },
+            { endpoint: fixture.endpoint, fetch },
+        );
+        expect(snapshot.nodeCount).toBe(7);
+        expect(new Set(agents)).toEqual(new Set(["graphty-graph-io (+https://graphty.app)"]));
+        agents.length = 0;
+        await loadFromSource(
+            sparqlSource,
+            { query: ADVISORS },
+            { endpoint: fixture.endpoint, fetch, userAgent: "me/1" },
+        );
+        expect(new Set(agents)).toEqual(new Set(["me/1"]));
+    });
+
     it("sends a caller's own LIMIT as written, once", async () => {
         const sent = fixture.queries.length;
         const { snapshot, report } = await loadFromSource(
@@ -346,17 +370,16 @@ describe("the sparql source against a local endpoint", () => {
 });
 
 describe("Wikidata, recorded on 2026-10-20", () => {
-    const sample = sparqlSource.descriptor?.samples?.[0];
-    const options = { endpoint: sample?.endpoint, limits: { maxNodes: 150 } };
+    const options = { endpoint: WIKIDATA_ENDPOINT, limits: { maxNodes: 150 } };
 
-    it("loads the sample query, Load more adds a page, and expanding a node adds its triples", async () => {
+    it("loads the advisors query, Load more adds a page, and expanding a node adds its triples", async () => {
         const fetch = replayFetch(wikidata);
-        const first = await loadFromSource(sparqlSource, sample?.params ?? {}, { ...options, fetch });
+        const first = await loadFromSource(sparqlSource, WIKIDATA_ADVISORS, { ...options, fetch });
         expect([first.snapshot.nodeCount, first.snapshot.edgeCount]).toEqual([281, 200]);
         expect(first.report.source?.next).toMatchObject({ offset: 200 });
         const advisor = first.snapshot.edges.value("type", 0);
         expect(advisor).toBe("P184");
-        const more = await loadFromSource(sparqlSource, sample?.params ?? {}, {
+        const more = await loadFromSource(sparqlSource, WIKIDATA_ADVISORS, {
             ...options,
             fetch,
             cursor: first.report.source?.next,
@@ -368,8 +391,8 @@ describe("Wikidata, recorded on 2026-10-20", () => {
         const seed = first.snapshot.ids.idOf(0);
         const around = await expandFromSource(
             sparqlSource,
-            { params: sample?.params ?? {}, ids: [seed], limit: 40 },
-            { endpoint: sample?.endpoint, fetch },
+            { params: WIKIDATA_ADVISORS, ids: [seed], limit: 40 },
+            { endpoint: WIKIDATA_ENDPOINT, fetch },
         );
         expect(around.snapshot.edgeCount).toBe(40);
         // only direct claims are followed: the award, the employer, the works that cite the seed

@@ -151,7 +151,11 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
     // MEASURED AGAINST THE NODE, never as a raw scaling number. The halo used to be drawn
     // smaller than the node it rings, so it was inside it and invisible -- and a scaling of 1.45
     // looked perfectly correct while that was true.
-    return { color: lit.emissiveColor.toHexString(), alpha: lit.alpha, clearance: of(mesh) / of(node.drawnPickMesh) };
+    return {
+        color: lit.emissiveColor.toHexString(),
+        alpha: lit.alpha,
+        clearance: of(mesh) / of({ getBoundingInfo: () => node.drawnBoundingInfo }),
+    };
 }
 
 /**

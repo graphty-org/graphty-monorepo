@@ -81,6 +81,9 @@ describe("Automatic Layout Updates", () => {
                     direction: "both",
                     layout: "continue",
                 },
+                selection: {
+                    region: "off",
+                },
             },
             data: {
                 knownFields: {

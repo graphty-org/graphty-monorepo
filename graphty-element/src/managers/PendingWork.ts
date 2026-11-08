@@ -197,6 +197,28 @@ export class PendingWork {
     }
 
     /**
+     * Whether work of one kind is still on its way: an open token of that kind, or a watch of it
+     * that says so.
+     * @param kind - The kind of work, e.g. `"shader"`.
+     * @returns True while such work is pending.
+     */
+    isPending(kind: string): boolean {
+        for (const item of this.#open.values()) {
+            if (item.kind === kind) {
+                return true;
+            }
+        }
+
+        for (const entry of this.#watches) {
+            if (entry.kind === kind && entry.pending()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Wait until no `wait` work that ends without a frame is pending: an open `wait` token until it
      * is released, and a `wait` entry given a `settled` promise until it says nothing is pending.
      * Asked again after each, so work one of them starts is waited for too. Work only a drawn frame

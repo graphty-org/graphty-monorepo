@@ -239,7 +239,8 @@ rest: 1 edge, next null
 
 The optional `descriptor` is data an application draws a form from: `plainName`, `params` (each
 with a `name`, `plainName`, `type` and optionally `required`, `default`, `min`, `max`, `values`),
-`defaultEndpoint`, `auth` (the credential kinds it takes) and `samples`. graph-io checks the
+`defaultEndpoint`, `auth` (the credential kinds it takes) and `examples` (public servers and the
+params that load a known graph from them). graph-io checks the
 parameters against it before sending any request: a missing required parameter, a number out of
 range or an unknown enum value fails with `E_SOURCE_PARAM` and `params: { name, reason }`.
 

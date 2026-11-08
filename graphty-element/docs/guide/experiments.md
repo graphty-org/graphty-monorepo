@@ -128,7 +128,8 @@ With it off:
 - The fixed layout's `edgeRoutes` and `graphvizAttributes` options are left out of
   `session.catalog`, and the recommended layout no longer asks Graphviz to route a placed DOT
   file's edges.
-- `session.execute({ op: "data.setFileStyles" })` refuses with `E_FEATURE_OFF`.
+- `data.setFileStyles`, sent through `session.execute` or inside `session.transaction`, refuses with
+  `E_FEATURE_OFF`.
 
 A layer that writes one of the experiment's channels or values directly is still accepted and
 drawn, and a project saved with the experiment on opens with the styles it was saved with.

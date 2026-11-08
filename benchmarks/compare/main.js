@@ -141,6 +141,31 @@ const B = {
         return { cam, t, stamps: stamps.length, after: lib.el?.graph.getCameraState() };
     },
     hoverTargets: (k) => lib.hoverTargets(k),
+    // A lasso over the middle half of the canvas, through the `{ region }` selection target
+    // (row-renderer.md stage 23): each call's time, the nodes it selected and whether the cap cut it.
+    // cosmos.gl's region select is not measured here.
+    async lasso(times = 20) {
+        const el = lib.el;
+        if (!el?.session?.selection) return null;
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        const polygon = [
+            { x: w / 4, y: h / 4 },
+            { x: (3 * w) / 4, y: h / 4 },
+            { x: (3 * w) / 4, y: (3 * h) / 4 },
+            { x: w / 4, y: (3 * h) / 4 },
+        ];
+        const ms = [];
+        let delta = null;
+        for (let i = 0; i < times; i++) {
+            await el.session.selection.clear();
+            const a = now();
+            delta = await el.session.selection.apply({ region: { polygon } });
+            ms.push(+(now() - a).toFixed(2));
+        }
+        await el.session.selection.clear();
+        return { ms: stats(ms), nodes: delta.nodes, truncated: delta.truncated };
+    },
     armHover() {
         B._hover = { ev: null, hit: null, f0: stamps.length, tArm: now() };
         return true;
@@ -384,7 +409,15 @@ function changedRows(before, after, rows) {
     return changed;
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, renderer }) {
+// layoutBehavior.labels for the sampled and glyphs flags
+function labelBehavior(sampled, glyphs) {
+    const b = {};
+    if (sampled) b.sampleCell = 96;
+    if (glyphs) b.labelText = "glyphs";
+    return b;
+}
+
+async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, renderPath, renderer }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
     const el = document.createElement("graphty-element");
@@ -428,6 +461,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
             set: { "edge.arrowHead": "none" },
         });
     }
+    if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({
             name: "labels",
@@ -523,7 +557,8 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
         moveNode(i) {
             moved ??= graph.getNode(0) ?? null;
             if (moved) {
-                const p = moved.drawnPosition;
+                // A build from before `drawnPosition` (the reference run) moves its mesh instead.
+                const p = moved.drawnPosition ?? moved.mesh.position;
                 moved.setMeshPosition(p.x + 0.05 * Math.sin(i / 5 + 1), p.y, p.z);
             }
         },

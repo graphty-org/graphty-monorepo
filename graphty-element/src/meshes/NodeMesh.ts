@@ -204,6 +204,9 @@ const MAX_GRADIENT_TEXTURES_PER_SCENE = 32;
  */
 const gradientTextureCache = new WeakMap<Scene, Map<string, DynamicTexture>>();
 
+/** A gradient color with an alpha under full: `#rgba` or `#rrggbbaa`. */
+const SEE_THROUGH = /^#(?:[0-9a-f]{3}[0-9a-e]|[0-9a-f]{6}(?!ff)[0-9a-f]{2})$/i;
+
 interface ColorObject {
     colorType: string;
     value?: string;
@@ -1161,7 +1164,8 @@ export class NodeMesh {
             // a flat approximation of a gradient is legible, an unstyled default is not.
             const [firstStop] = gradient.colors;
             if (firstStop) {
-                color3 = Color3.FromHexString(firstStop);
+                // its color, without an alpha Color3 cannot hold
+                color3 = Color3.FromHexString(firstStop.length === 9 ? firstStop.slice(0, 7) : firstStop);
             }
         }
 
@@ -1232,6 +1236,11 @@ export class NodeMesh {
         scene: Scene | undefined,
     ): void {
         if (gradientTexture) {
+            if (gradientTexture.hasAlpha) {
+                // blended, not alpha-tested: a diffuse texture with an alpha is otherwise cut where it fades
+                mat.opacityTexture = gradientTexture;
+                mat.transparencyMode = Material.MATERIAL_ALPHABLEND;
+            }
             if (unlit) {
                 // EMISSIVE ONLY. With lighting off the shader draws the emissive term times the
                 // diffuse texture, so the ramp in both drew it squared: a #E8EEF7 to #B7C9E3 fill
@@ -1444,6 +1453,9 @@ export class NodeMesh {
 
             ctx.fillStyle = ramp;
             ctx.fillRect(0, 0, size, size);
+            // A stop with an alpha (`#rgba`, `#rrggbbaa`) is see-through, so the material reads the
+            // texture's alpha too (setUpColorMaterial); an opaque ramp keeps its node opaque.
+            texture.hasAlpha = colors.some((c) => SEE_THROUGH.test(c));
             // Default invertY, matching RichTextLabel's texture updates, so a canvas painted with
             // a top-left origin ends up upright on the mesh and "direction 90" means the same
             // thing on a node as it does behind a label.

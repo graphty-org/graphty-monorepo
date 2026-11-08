@@ -3622,8 +3622,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.965,
-            "stray.extra": 0.971,
+            "stray.present": 0.966,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -3690,8 +3690,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.965,
-            "stray.extra": 0.971,
+            "stray.present": 0.966,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -6925,8 +6925,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.965,
-            "stray.extra": 0.971,
+            "stray.present": 0.966,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -6993,8 +6993,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.965,
-            "stray.extra": 0.971,
+            "stray.present": 0.966,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -11088,7 +11088,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 1,
-            "stray.extra": 0.971,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -11156,7 +11156,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 1,
-            "stray.extra": 0.971,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -26850,7 +26850,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.94,
             "raster.canvas": 0.99,
             "stray.extra": 1
@@ -27714,7 +27714,7 @@
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.92,
             "raster.edge": 0.92,
-            "raster.arrowhead": 0.9,
+            "raster.arrowhead": 0.91,
             "raster.label": 0.87,
             "raster.canvas": 0.98,
             "stray.extra": 1,
@@ -28483,11 +28483,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.92,
+            "raster.nodeBody": 0.97,
+            "raster.nodeOutline": 0.93,
             "raster.edge": 0.84,
-            "raster.arrowhead": 0.91,
-            "raster.label": 0.93,
+            "raster.arrowhead": 0.92,
+            "raster.label": 0.94,
             "raster.canvas": 0.98,
             "label.backgroundBox": 1,
             "stray.extra": 1
@@ -28886,7 +28886,7 @@
             "raster.edge": 0.92,
             "raster.arrowhead": 0.9,
             "raster.label": 0.88,
-            "raster.canvas": 0.98
+            "raster.canvas": 0.99
         },
         "graphml-stm32-func@matched": {
             "node.present": 1,
@@ -29086,8 +29086,8 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.985,
-            "node.fill": 0.985,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
@@ -29137,7 +29137,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.895,
+            "stray.present": 0.95,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -29147,7 +29147,7 @@
             "raster.nodeOutline": 0.94,
             "raster.edge": 0.88,
             "raster.arrowhead": 0.88,
-            "raster.label": 0.88,
+            "raster.label": 0.89,
             "raster.canvas": 0.98
         },
         "graphml-synthetic-nodes@matched": {
@@ -29158,8 +29158,8 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.985,
-            "node.fill": 0.985,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
@@ -29209,7 +29209,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.895,
+            "stray.present": 0.95,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -38780,8 +38780,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.964,
-            "stray.extra": 0.971,
+            "stray.present": 0.966,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -38848,8 +38848,8 @@
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
-            "stray.present": 0.964,
-            "stray.extra": 0.971,
+            "stray.present": 0.966,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -39619,7 +39619,7 @@
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
-            "node.fill": 0.895,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
@@ -39660,7 +39660,7 @@
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
-            "node.fill": 0.895,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
@@ -39865,7 +39865,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.98,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.94,
             "raster.canvas": 0.99,
             "stray.extra": 1
@@ -41856,7 +41856,7 @@
             "node.shape": 1,
             "node.fill": 0.92,
             "node.fillOpacity": 1,
-            "node.gradient": 0.978,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -41865,7 +41865,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
             "raster.canvas": 0.99
         },
@@ -41880,7 +41880,7 @@
             "node.shape": 1,
             "node.fill": 0.92,
             "node.fillOpacity": 1,
-            "node.gradient": 0.978,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -44182,10 +44182,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.94,
-            "raster.label": 0.88,
+            "raster.edge": 0.95,
+            "raster.label": 0.89,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
         "json-gephi-worldcup@matched": {
@@ -56413,22 +56413,6 @@
                 "date": "2026-11-05"
             }
         },
-        "graphml-synthetic-nodes": {
-            "node.stroke": {
-                "floor": 1,
-                "to": 0.985,
-                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
-                "date": "2026-11-07"
-            }
-        },
-        "graphml-synthetic-nodes@matched": {
-            "node.stroke": {
-                "floor": 1,
-                "to": 0.985,
-                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
-                "date": "2026-11-07"
-            }
-        },
         "graphml-yfiles-html-ss13-tree": {
             "label.rotation": {
                 "floor": 1,
@@ -56652,18 +56636,6 @@
             }
         },
         "yed-graphml-specimen-images-charts": {
-            "node.position": {
-                "floor": 1,
-                "to": 0.895,
-                "reason": "yEd's own drawing replaced draw.io's stand-in (#5792): yEd draws an unset ImageNode as nothing, an SVGNode at its SVG's own bounds, a label's text beside its icon, and the icons and images where graphty does not; these are graphty's real differences from yEd, first judged now",
-                "date": "2026-11-07"
-            },
-            "node.width": {
-                "floor": 1,
-                "to": 0.895,
-                "reason": "yEd's own drawing replaced draw.io's stand-in (#5792): yEd draws an unset ImageNode as nothing, an SVGNode at its SVG's own bounds, a label's text beside its icon, and the icons and images where graphty does not; these are graphty's real differences from yEd, first judged now",
-                "date": "2026-11-07"
-            },
             "label.offset": {
                 "floor": 1,
                 "to": 0.1,
@@ -56673,23 +56645,11 @@
             "stray.present": {
                 "floor": 1,
                 "to": 0.158,
-                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
-                "date": "2026-11-07"
-            },
-            "node.shape": {
-                "floor": 1,
-                "to": 0.875,
                 "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
                 "date": "2026-11-07"
             }
         },
         "yed-graphml-specimen-images-charts@matched": {
-            "node.width": {
-                "floor": 1,
-                "to": 0.895,
-                "reason": "yEd's own drawing replaced draw.io's stand-in (#5792): yEd draws an unset ImageNode as nothing, an SVGNode at its SVG's own bounds, a label's text beside its icon, and the icons and images where graphty does not; these are graphty's real differences from yEd, first judged now",
-                "date": "2026-11-07"
-            },
             "label.offset": {
                 "floor": 1,
                 "to": 0.1,
@@ -56699,12 +56659,6 @@
             "stray.present": {
                 "floor": 1,
                 "to": 0.158,
-                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
-                "date": "2026-11-07"
-            },
-            "node.shape": {
-                "floor": 1,
-                "to": 0.875,
                 "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
                 "date": "2026-11-07"
             }

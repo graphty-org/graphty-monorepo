@@ -1212,6 +1212,12 @@ const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
     keys: () => [`graph/v:${FILE_STYLES_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
+        // Writing a file's style values is the file styles experiment; only a project open restores
+        // saved ones with it off, so reopening and saving a project keeps them.
+        if (ctx.services.fileStyles?.() === false && ctx.services.restoringFileStyles !== true) {
+            throw featureOff("file-styles", "data.setFileStyles");
+        }
+
         // Checked before anything is written: the values may come from a file anyone edited.
         const store = fileStyleStoreOf(command.loads);
         const service = serviceOf(ctx.services.data);

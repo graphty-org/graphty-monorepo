@@ -2721,13 +2721,23 @@ export class LayoutManager implements Manager {
             engine.step();
             // See the note in `_setLayoutInternal`: the element publishes, not the engine.
             engine.publishPositions();
+            this.steppedPublishes++;
         } else if (engine instanceof SimulationLayoutEngine && this.running) {
             // An accelerated batch lands after the frame that submitted it published, so the batch
             // that settled the simulation is published here, on the frame that finds it settled and
             // stops the layout (issue #3379).
             engine.publishPositions();
+            this.steppedPublishes++;
         }
     }
+
+    /**
+     * How many times {@link LayoutManager.step} has published the engine's answer into the
+     * position array. A frame that sees it change knows the array holds the engine's answer, so the
+     * rows a batch draws need no `Node.update` to be placed (design/rendering/row-renderer.md 4.2).
+     * @internal
+     */
+    steppedPublishes = 0;
 
     /**
      * Step the layout ONCE, whatever the frame loop's multiplier is.

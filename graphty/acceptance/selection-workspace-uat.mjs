@@ -465,7 +465,7 @@ class Visit {
         await this.checkRunsAfterDone();
     }
 
-    // Done keeps the runs the final cards read, as ordinary runs in Data > Runs.
+    // Done keeps the runs the final cards read, as ordinary results in Data > Calculated.
     async checkRunsAfterDone() {
         const read = new Set(
             this.cards.flatMap((c) =>
@@ -487,10 +487,11 @@ class Visit {
             fail(`Done: runs ${missing.join(",")} are gone; session holds ${runs.join(",")}`);
         }
         await this.page.getByRole("button", { name: "Data", exact: true }).click();
-        const rows = this.page.getByRole("list", { name: "Runs" }).getByRole("listitem");
+        await this.page.getByRole("tab", { name: "Calculated" }).click();
+        const rows = this.page.getByRole("list", { name: "Results" }).getByRole("listitem");
         await rows.first().waitFor();
         if ((await rows.count()) !== runs.length) {
-            fail(`Done: Data > Runs lists ${String(await rows.count())} rows for ${String(runs.length)} runs`);
+            fail(`Done: Data > Calculated lists ${String(await rows.count())} rows for ${String(runs.length)} runs`);
         }
     }
 

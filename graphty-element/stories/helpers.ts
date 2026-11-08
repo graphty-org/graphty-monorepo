@@ -259,6 +259,8 @@ interface StorySetup {
     stepMultiplier?: number;
     /** Hide labels whose words would overlap: the element's `labels.declutter` behaviour. */
     declutterLabels?: boolean;
+    /** How node labels draw their words: the element's `labels.labelText` behaviour. */
+    labelText?: "canvas" | "glyphs";
 }
 
 /**
@@ -458,9 +460,13 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
 
     // One document, written once: two assignments would leave only the second, and a story that
     // declutters its labels used to lose its pre-steps that way.
-    const { preSteps, stepMultiplier, declutterLabels } = setup;
+    const { preSteps, stepMultiplier, declutterLabels, labelText } = setup;
+    const labels = {
+        ...(declutterLabels === undefined ? {} : { declutter: declutterLabels }),
+        ...(labelText === undefined ? {} : { labelText }),
+    };
 
-    if (preSteps !== undefined || stepMultiplier !== undefined || declutterLabels !== undefined) {
+    if (preSteps !== undefined || stepMultiplier !== undefined || Object.keys(labels).length > 0) {
         element.layoutBehavior = {
             ...(preSteps === undefined && stepMultiplier === undefined
                 ? {}
@@ -470,7 +476,7 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
                           ...(stepMultiplier === undefined ? {} : { stepMultiplier }),
                       },
                   }),
-            ...(declutterLabels === undefined ? {} : { labels: { declutter: declutterLabels } }),
+            ...(Object.keys(labels).length === 0 ? {} : { labels }),
         };
     }
 

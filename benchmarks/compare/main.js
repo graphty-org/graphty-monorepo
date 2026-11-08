@@ -456,8 +456,10 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
     }
     if (renderer) el.renderer = renderer;
     el.layout = "fixed";
-    // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode.
-    el.viewMode = mode === "lean" && !curves ? "2d" : "3d";
+    // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode. The camera
+    // moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.
+    const is2d = mode === "lean" && !curves;
+    el.viewMode = is2d ? "2d" : "3d";
     el.acceleration = accel === "off" ? "off" : "auto";
     if (onDemand) el.renderOnDemand = true;
     if (dpr !== 1) el.setAttribute("pixel-ratio", "device");
@@ -577,7 +579,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
         },
         moveCamera(i) {
             cam0 ??= graph.getCameraState();
-            if (mode === "lean") {
+            if (is2d) {
                 const p = cam0.pan ?? { x: 0, y: 0 };
                 graph.setCameraState({ pan: { x: p.x + 0.05 * 4 * Math.sqrt(G.n) * Math.sin(i / 20), y: p.y } });
             } else {
@@ -601,7 +603,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
         async resetCamera() {
             if (cam0)
                 graph.setCameraState(
-                    mode === "lean"
+                    is2d
                         ? { pan: cam0.pan }
                         : { alpha: cam0.alpha, beta: cam0.beta, radius: cam0.radius, target: cam0.target },
                 );

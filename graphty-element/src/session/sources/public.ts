@@ -35,6 +35,7 @@ export type {
     SourcePreview,
     SourcePreviewOptions,
     SourcePreviewRow,
+    SourceRead,
     SourceRefreshReport,
 } from "./types";
 export type {

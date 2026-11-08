@@ -2718,6 +2718,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             testSource: READ,
             listSource: READ,
             previewSource: READ,
+            readSource: READ,
             checkSource: READ,
             refresh: SOURCE_REFRESH,
             loads: READ,

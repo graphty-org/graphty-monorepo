@@ -7809,6 +7809,13 @@ export interface SourcePreviewRow {
 export { SourceProbe }
 
 // @public
+export interface SourceRead extends SourceInput {
+    readonly edges: number;
+    readonly nodes: number;
+    readonly rows: unknown;
+}
+
+// @public
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;

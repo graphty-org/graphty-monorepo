@@ -58,6 +58,20 @@ export interface SourceInput {
 }
 
 /**
+ * A network source read and not yet loaded, from `data.readSource`. Pass the whole object to
+ * `data.import`, on this session or another, and it loads without reading the service again.
+ * Experimental.
+ */
+export interface SourceRead extends SourceInput {
+    /** How many nodes it read. */
+    readonly nodes: number;
+    /** How many edges it read. */
+    readonly edges: number;
+    /** What it read, for `data.import`. Opaque: the shape is not part of the API. */
+    readonly rows: unknown;
+}
+
+/**
  * What a click or double-click on a node fetches, in the element's `behavior.expand` config.
  * Every default is neutral: nothing expands until `trigger` is set. Experimental.
  */

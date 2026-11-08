@@ -17,7 +17,8 @@ source (#6212), a file-host source (#6213), more REST presets (#6214), and Memgr
 Samples and network data are separate (section 12.5): a sample is a graph-samples dataset, shown
 as a thumbnail on the graphty app's start page and loaded with `session.data.loadDataset`; it is
 not a network source and never creates a load that waits for approval. Network data is reached
-only through the Network data form, whose Example row lists each source's public `examples`.
+only through the Network data form and the start page's network tiles, which show one of each
+kind of source's public `examples`.
 Reopening: a project opened with `session.project.open(file, { ownWork: true })` (the reader's
 own autosave or a project kept in this browser) keeps its loads live, and only the loads its
 `graphty-sources` member lists as `waiting` wait for approval; any other project file waits for
@@ -1056,8 +1057,8 @@ app's start page and in its Samples dialog. A sample never creates a network loa
 saved in `graphty-sources` and never waits for approval. An _example_ is a public server and the
 params that load a known graph from it, listed on its source's descriptor (`examples`), loaded with
 `session.data.loadExample(source, id)` (which applies the endpoint, the published login and the
-first page) and offered only in the network form's Example row. Example ids are unique within
-their source.
+first page) and offered only as tiles on the start page, never in the network form. Example ids
+are unique within their source.
 
 **The dependable set (2026-11-07).** Every one loaded live that day with the counts shown, from
 Node (`scripts/live-examples.ts`) and from the graphty app in Chromium through

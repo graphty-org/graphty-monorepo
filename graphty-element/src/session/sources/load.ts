@@ -27,6 +27,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import { describeRows } from "../attributes";
 import type { HeldRows } from "../commands/data";
 import type { DataImportSourceCommand } from "../commands/source-load";
+import { DEFAULT_LIMITS } from "../limits";
 import { historyMark } from "../loadLine";
 import type { SessionCommand } from "../planning";
 import { pairKey, planReplace } from "../replace";
@@ -47,6 +48,7 @@ import type {
     SourceMoreOptions,
     SourcePreview,
     SourcePreviewOptions,
+    SourceRead,
     SourceRefreshReport,
 } from "./types";
 
@@ -297,22 +299,69 @@ function totalOf(read: Read, known: number | undefined, knownEdges?: number): { 
     };
 }
 
+/** What `SourceRead.rows` holds: the read, and what it was read with, for the load that takes it. */
+interface HeldRead {
+    readonly access: Access;
+    readonly read: Read;
+    readonly options: SourceLoadOptions;
+}
+
+/**
+ * Refuses a count past what the renderer can draw, as a load into an empty graph would be.
+ * @param of - what is counted
+ * @param count - how many were read
+ * @param limit - the most the renderer can draw
+ * @throws A `GraphtyError` with `E_TOO_LARGE` when the count is past the limit
+ */
+function refuseAboveCeiling(of: "nodes" | "edges", count: number, limit: number): void {
+    if (count > limit) {
+        throw new GraphtyError({
+            code: "E_TOO_LARGE",
+            source: "data",
+            message: `${String(count)} ${of} is past the ${String(limit)} this renderer can draw. Load a subset of the graph.`,
+            details: { limit, count, of, graph: { nodes: 0, edges: 0 } },
+        });
+    }
+}
+
+/**
+ * Read a source without loading it, for a `data.import` that may run in another session.
+ * @param host - the session pieces
+ * @param input - the source and its params
+ * @param options - the load options; the import that takes the read keeps them
+ * @returns the read
+ */
+export async function readSource(
+    host: SourceHost,
+    input: SourceInput,
+    options: SourceLoadOptions,
+): Promise<SourceRead> {
+    const access = await accessFor(host, input.source, options, input.config);
+    const read = await readRows(input.source, input.config, access, options);
+    refuseAboveCeiling("nodes", read.held.nodes.length, DEFAULT_LIMITS.renderCeiling);
+    refuseAboveCeiling("edges", read.held.edges.length, DEFAULT_LIMITS.edgesDrawn);
+    const rows: HeldRead = { access, read, options };
+    return { ...input, nodes: read.held.nodes.length, edges: read.held.edges.length, rows };
+}
+
 /**
  * Load from a source as one undoable step, and record the load.
  * @param host - the session pieces
- * @param input - the source and its params
- * @param options - the load options
+ * @param input - the source and its params, or what `readSource` read, which loads without a fetch
+ * @param given - the load options
  * @param total - how many nodes the source holds, when the caller knows (a sample's count)
  * @returns the load's record
  */
 export async function importSource(
     host: SourceHost,
-    input: SourceInput,
-    options: SourceLoadOptions,
+    input: SourceInput | SourceRead,
+    given: SourceLoadOptions,
     total?: number,
 ): Promise<SourceLoadRecord> {
-    const access = await accessFor(host, input.source, options, input.config);
-    const read = await readRows(input.source, input.config, access, options);
+    const held = "rows" in input ? (input.rows as HeldRead) : undefined;
+    const options = held === undefined ? given : { ...held.options, ...given };
+    const access = held?.access ?? (await accessFor(host, input.source, options, input.config));
+    const read = held?.read ?? (await readRows(input.source, input.config, access, options));
     // A load asked for earlier dispatches first, however long it spends reading (issue #3382).
     await host.waitTurn?.();
     // Recorded as the step is dispatched, so a consumer that hears the step finds the record; put

@@ -88,6 +88,20 @@ example's. An id the source does not list rejects with `E_SOURCE_UNKNOWN`, whose
 The Neo4j demo server (`demo.neo4jlabs.com`) is read-only and publishes each database's login as
 its name, for both user and password. Amazon Neptune has no public server, so it has no example.
 
+## Read first, load later
+
+`session.data.readSource(input, options)` reads a source and changes nothing, so a failure can be
+shown before anything is opened for the data. It takes what `import` takes and refuses what the
+renderer could not draw with `E_TOO_LARGE`. Pass the result to `import`, on any session with
+`network-data` on, and it loads without reading the service again:
+
+```ts
+const scratch = createGraphSession({ features: ["network-data"] });
+const read = await scratch.data.readSource({ source: "ndex", config: { uuid } });
+await element.session.data.import(read); // read.nodes and read.edges say how big it is
+scratch.dispose();
+```
+
 ## Write your own source
 
 A source is an id and a function that returns nodes and edges. `ctx.fetchJson` does the request,
@@ -196,6 +210,7 @@ the values. Your application writes the words.
 | `E_SOURCE_UNSUPPORTED` | the source cannot do what was asked            | `feature`                            |
 | `E_SOURCE_PENDING`     | a load of an opened project has not been run   | `id`                                 |
 | `E_LOAD_UNKNOWN`       | no load in the graph has that key              | `key`, `known`                       |
+| `E_TOO_LARGE`          | it is past what the renderer can draw          | `limit`, `count`, `of`, `graph`      |
 | `E_FEATURE_OFF`        | the `network-data` experiment is off           | `feature`, `key`                     |
 
 `stored: true` on `E_SOURCE_AUTH` means a remembered credential was used and refused, so you can

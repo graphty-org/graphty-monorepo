@@ -5463,6 +5463,7 @@ export interface SessionDataApi {
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
     readableValues(): readonly ReadableValue[];
+    readSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceRead>;
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
@@ -6193,6 +6194,13 @@ export interface SourcePreviewRow {
 }
 
 export { SourceProbe }
+
+// @public
+export interface SourceRead extends SourceInput {
+    readonly edges: number;
+    readonly nodes: number;
+    readonly rows: unknown;
+}
 
 // @public
 export interface SourceRefreshReport {

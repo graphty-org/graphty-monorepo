@@ -157,6 +157,7 @@ import type {
     SourceMoreOptions,
     SourcePreview,
     SourcePreviewOptions,
+    SourceRead,
     SourceRefreshReport,
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
@@ -1394,6 +1395,26 @@ export class SessionData implements SessionDataApi {
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.previewSource(host, source, options));
+    }
+
+    /**
+     * Read a network source and change nothing: nothing is drawn, recorded or added to history.
+     * Pass the result to `import`, on this session or another with `network-data` on, and it loads
+     * without reading the service again. Refuses what the renderer could not draw (`E_TOO_LARGE`)
+     * here, before anything is opened for it.
+     * @param source - The source id and its params.
+     * @param options - Anything `import` takes; the import that takes the read keeps them.
+     * @returns The read and how many nodes and edges it holds.
+     */
+    readSource(source: SourceInput, options: SourceLoadOptions = {}): Promise<SourceRead> {
+        this.requireLive("readSource");
+        const off = this.networkOff("readSource");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.readSource(host, source, options));
     }
 
     /**

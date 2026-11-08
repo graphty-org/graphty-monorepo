@@ -108,6 +108,7 @@ import type {
     SourceMoreOptions,
     SourcePreview,
     SourcePreviewOptions,
+    SourceRead,
     SourceRefreshReport,
 } from "./sources/types";
 import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
@@ -1694,6 +1695,15 @@ export interface SessionDataApi {
      *     source holds more, the server's facts and the read's issues; rejects with the source's code.
      */
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
+
+    /**
+     * Read a network source and change nothing. Pass the result to `import`, on this session or
+     * another with `network-data` on, and it loads without reading the service again.
+     * @param source - The source id and its params.
+     * @param options - Anything `import` takes; the import that takes the read keeps them.
+     * @returns The read and how many nodes and edges it holds.
+     */
+    readSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceRead>;
     /**
      * Ask a load's source whether its data changed since the load, loading nothing. Experimental.
      * @param load - The load's key, from `sources()` or `loads()`.

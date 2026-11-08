@@ -59,6 +59,7 @@ import {
 import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } from "./meshes/EdgeShaderDrawing";
 import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
+import { batchUploadFrames } from "./meshes/FrameRoster";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
@@ -2404,7 +2405,8 @@ export class Edge {
      * Whether this edge's line is pulled from the row table (`PulledLineBatch`): on the `"batched"`
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
-     * key -- in 3D. Read when the line is built.
+     * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). Read when the
+     * line is built.
      * @param style - The resolved style.
      * @returns True when it is pulled.
      */
@@ -2424,7 +2426,8 @@ export class Edge {
             noCap(style.arrowHead) &&
             noCap(style.arrowTail) &&
             style.band?.color === undefined &&
-            this.route === "straight"
+            this.route === "straight" &&
+            !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
     }
 

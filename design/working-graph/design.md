@@ -180,6 +180,15 @@ Each slider step moves the masks and rebuilds the view; counts read it and the l
 (decision 33). Plan step 2 measures a 50,000-node rebuild; only if it exceeds 16 ms does the
 view rebuild on a 200 ms pause instead, and the counts update then (decisions 13 and 14).
 
+Measured 2026-11-08 (`test/session/working-graph-view.bench.test.ts`, 50,000 nodes, 250,000
+edges): a rebuild per slider step takes a median 21.8 ms, over the 16 ms line. In the app, a drag
+with the circular layout (which isolates the view from the force simulation) runs at about 40
+frames per second with no frame over 100 ms, because the view is built only when a reader asks
+for it and a drag step asks for it at most once. The pause rule is therefore not built: the
+agreement's test is whether the drag is too slow, and the view does not slow it. The slow frames
+in a drag with the default force layout come from the simulation, which is as slow with the option
+off and before any filter (decision 77).
+
 ## 9. The honesty check (agreed point 10)
 
 - **`graphty-element/test/contracts/working-graph-readers.test.ts`** finds every reader itself:
@@ -339,7 +348,8 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
 75. **A filter's count says how many of its matches are shown** (`FilterConditionMatches.shown`,
     `StepsReading.total.shown`, both additive): the count and its range still read the whole
     graph (agreed point 5), and a card beside other filters adds ", 19 shown" when fewer of its
-    matches are shown than it counts. A filter that hides nothing extra reads as before. A
+    matches are shown than it counts, and the filter editor's header says which graph it counts
+    ("115 of 115 in full graph, 49 shown"). A filter that hides nothing extra reads as before. A
     condition's count is kept until its rule or what is shown changes.
 76. **A saved run records how many nodes and edges its scope held** (`ranOn` in the
     `graphty-results` member, additive). On open, a run whose scope holds as many with no filter
@@ -348,3 +358,8 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
     restores its runs before the filter, as before. Counts, not the membership digest: edge ids
     are minted again on open, so a digest never matches; a filter only removes elements, so equal
     counts mean the same set. Runs restored after the filter move after the others in the list.
+77. **The pause rule is not built** although a 50,000-node rebuild (21.8 ms) passes 16 ms: the
+    view does not slow a drag end to end (section 8). The 3 s filter-to-drawn limit and the 250 ms
+    frame rule at 50,000 nodes with the force layout fail with the option on and off alike, before
+    any filter too; the cost is the force simulation and the renderer per frame, not the view, and
+    is not fixed here.

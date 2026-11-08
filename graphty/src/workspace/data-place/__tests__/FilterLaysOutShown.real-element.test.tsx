@@ -326,4 +326,32 @@ describe("a filter lays out what it shows", () => {
         assert.include(row.textContent ?? "", String(whole));
         await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
     });
+
+    it("a second filter's editor says it counts the full graph, and how many of its matches are shown", async () => {
+        const { element, session } = await openGraph();
+        await filterDegree(element, "6");
+        await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        const modal = await ws();
+        await userEvent.click(within(modal).getByRole("button", { name: /^Value$/ }));
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.keyboard("Degree");
+        await userEvent.keyboard("{Enter}");
+        await degreeFrom("2");
+        // Its count reads every node's degree in the whole graph (a filter's own conditions do);
+        // the first filter hides some of what it matches.
+        const shown = new Set([...session.visibility.nodes].map(String));
+        const matches = session.data
+            .nodes({ scope: "graph" })
+            .filter((node) => Number(session.data.structureValue(node.id, "graphty.degree", { scope: "graph" })) >= 2);
+        const seen = matches.filter((node) => shown.has(String(node.id))).length;
+        assert.isBelow(seen, matches.length, "the first filter hides some of its matches");
+        await waitFor(() => {
+            assert.strictEqual(
+                modal.querySelector(".sel-ws-head .sel-count")?.textContent,
+                `${String(matches.length)} of 77 in full graph, ${String(seen)} shown`,
+            );
+        });
+        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+    });
 });

@@ -97,6 +97,7 @@ import {
     rowTest,
     rowWords,
     shortCount,
+    shownWords,
     stepWords,
     VERB_WORDS,
 } from "./words";
@@ -338,6 +339,9 @@ export function SelectionEditorInline({
     const focusAfter = useRef<string | readonly string[] | number | null>(arrival);
     const multi = rule.branches.length > 1 || (keepShape && rule.branches.length === 1);
     const { of } = reading.total;
+    // A filter's count reads the full graph; beside other filters it can count nodes that are not
+    // drawn, so the header says which graph it counts and how many are shown.
+    const wsCountWhere = host === "filter" && reading.total.shown < reading.total.count ? " in full graph" : "";
     const say = (words: string): void => {
         store.set({ announcement: words });
     };
@@ -1245,7 +1249,7 @@ export function SelectionEditorInline({
                             }
                         >
                             <Text size="sm" className="sel-count" ml="auto">
-                                {`${shortCount(reading.total.count)} of ${shortCount(of)}`}
+                                {`${shortCount(reading.total.count)} of ${shortCount(of)}${shownWords(reading.total)}`}
                             </Text>
                         </Tooltip>
                     )}
@@ -1932,7 +1936,7 @@ export function SelectionEditorInline({
                               {wsTitle}
                           </Text>
                           <Text size="sm" className="sel-count">
-                              {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
+                              {`${formatNumber(reading.total.count)} of ${formatNumber(of)}${wsCountWhere}${shownWords(reading.total)}`}
                           </Text>
                           {(drawing || starting || closing || !warm) && (
                               <Text size="sm" c="dimmed" className="sel-state" data-drawing="">

@@ -52,10 +52,8 @@ function cellValue(
     whole: boolean,
 ): DataTableValue {
     const key = column.attribute ?? column.id;
-    const value =
-        column.structure === true
-            ? session.data.structureValue(record.id, key, whole ? { scope: "graph" } : {})
-            : record[key];
+    const scope = whole ? ({ scope: "graph" } as const) : {};
+    const value = column.structure === true ? session.data.structureValue(record.id, key, scope) : record[key];
     if (kind === "edge" && (key === "source" || key === "target")) {
         const id = value as NodeId;
         return session.data.name(id) ?? String(id);

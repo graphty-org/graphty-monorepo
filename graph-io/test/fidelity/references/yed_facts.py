@@ -108,9 +108,15 @@ def yed_default_painted(r):
     return local(r.tag) == "GenericNode" and (r.get("configuration") or "").lower().startswith("com.yjava.")
 
 
+def picture_only(r):
+    """Whether yEd draws the node as its picture alone: its own drawings of graphml-synthetic-nodes and
+    graphml-stm32-func paint neither the realizer's fill nor its border under a y:SVGNode or y:ImageNode."""
+    return local(r.tag) in ("SVGNode", "ImageNode")
+
+
 def fill_of(r):
     f = r.find(Y + "Fill")
-    if f is None or f.get("hasColor") == "false" or f.get("transparent") == "true":
+    if picture_only(r) or f is None or f.get("hasColor") == "false" or f.get("transparent") == "true":
         return None, 0.0
     c = hex_color(f.get("color"))
     return (c[0], c[1]) if c else (None, 0.0)
@@ -126,7 +132,7 @@ def gradient_of(r):
 
 def border_of(r):
     b = r.find(Y + "BorderStyle")
-    if b is None or b.get("hasColor") == "false":
+    if picture_only(r) or b is None or b.get("hasColor") == "false":
         return None, 0, "solid"
     c = hex_color(b.get("color"))
     # a color with no alpha at all is no line: yEd's own drawing of graphml-stm32-func strokes none of them

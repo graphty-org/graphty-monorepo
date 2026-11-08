@@ -294,6 +294,9 @@ attribute vec3 arrowColor;
 // Where a pattern segment is cut off, per instance: the last segment of a zigzag or a sinewave is
 // clipped to the room left on its line, and -1 leaves a segment (and every arrow cap) whole.
 attribute float arrowClip;
+// 1 while the visibility mask hides the cap (ArrowCapBatch.park): drawn at no size, so hiding or
+// showing it writes this one float and never its matrix. An unbound attribute reads 0, drawn.
+attribute float arrowHidden;
 varying vec3 vColor;
 varying float vClip;
 #else
@@ -319,7 +322,7 @@ void main() {
     // reads as the world origin, and since this shader builds the cap from the centre and
     // arrowSize, not from the matrix, it would draw a full-size cap there. A placed slot's
     // bottom-right is 1, so a zero there means "draw nothing": collapse the cap to a point.
-    float scale = finalWorld[3][3] == 0.0 ? 0.0 : arrowSize;
+    float scale = finalWorld[3][3] == 0.0 || arrowHidden > 0.5 ? 0.0 : arrowSize;
     vColor = arrowColor;
     vClip = arrowClip;
 #else
@@ -1495,7 +1498,7 @@ void main() {
             scene,
             { vertex: "filledArrow", fragment: "filledArrow" },
             {
-                attributes: ["position", "arrowDirection", "arrowSize", "arrowColor", "arrowClip"],
+                attributes: ["position", "arrowDirection", "arrowSize", "arrowColor", "arrowClip", "arrowHidden"],
                 // `world` is the batch mesh's own transform, which Babylon's instancing include
                 // multiplies a thin instance's slot matrix by. Without it in this list the
                 // include declares the uniform and nothing ever writes it, so the whole batch

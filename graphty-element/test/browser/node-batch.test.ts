@@ -160,8 +160,8 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             objectEdges: 0,
         });
         assert.equal(overBar(objects, batched), 0);
-        // One draw per look, here two sizes.
-        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 2);
+        // One draw per shape: the two sizes share a batch, each row scaled in its matrix.
+        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 1);
     });
 
     it("keep no mesh for a batched row, and give each row its mesh back on the object path", async () => {
@@ -216,7 +216,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const { slots } = batch;
 
         // More than a quarter of the slots leave in one repaint, and come back out of row order.
-        const small = await layer(element, [0, 4, 8], { "node.size": 0.7 });
+        const small = await layer(element, [0, 4, 8, 9], { "node.shape": "box" });
         await readFrame(graph);
         assert.isBelow(batch.slots, slots);
         assert.equal(batch.holes, 0);
@@ -238,6 +238,39 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(graph.rowCounts.objectNodes, 0);
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
+
+    it.each(["3d", "2d"] as const)(
+        "draw a size ramp in %s with one batch per shape, as the object rows draw it",
+        async (view) => {
+            const element = await mounted(renderer);
+            await loaded(element, view);
+            for (const node of NODES) {
+                await layer(element, [node.id], { "node.size": 0.4 + node.id * 0.13 });
+            }
+
+            await layer(
+                element,
+                NODES.filter((node) => node.id >= 6).map((node) => node.id),
+                { "node.shape": "box" },
+            );
+            await element.waitForStableFrame();
+            const { graph } = element;
+            const objects = await frameOn(graph, "objects");
+            const batched = await frameOn(graph, "batched");
+            assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+            const drawing = batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false));
+            assert.equal(drawing.length, 2, "twelve sizes in two shapes draw as one batch per shape");
+            assert.equal(overBar(objects, batched), 0);
+
+            // A row's size changes live: the batch follows it in its matrix.
+            await layer(element, [3], { "node.size": 2.2 });
+            await element.waitForStableFrame();
+            const resized = await readFrame(graph);
+            assert.notEqual(overBar(batched, resized), 0, "the new size reached the picture");
+            assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 2);
+            assert.equal(overBar(resized, await frameOn(graph, "objects")), 0);
+        },
+    );
 
     it("measure a batched row's radius again after a repaint changes its size", async () => {
         const element = await mounted(renderer);
@@ -408,8 +441,11 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await frameOn(graph, "batched");
         const scale = Matrix.Scaling(1.5, 0.6, 1);
         for (const batch of graph.getMeshCache().nodeBatchMap.values()) {
+            // On top of each row's size, which the batch keeps in the same matrix.
+            const sized = batch.mesh.thinInstanceGetWorldMatrices();
             for (let slot = 0; slot < batch.slots; slot++) {
-                batch.mesh.thinInstanceSetMatrixAt(slot, scale, slot === batch.slots - 1);
+                const matrix = sized[slot] ?? Matrix.Identity();
+                batch.mesh.thinInstanceSetMatrixAt(slot, scale.multiply(matrix), slot === batch.slots - 1);
             }
         }
 

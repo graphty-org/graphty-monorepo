@@ -413,6 +413,11 @@ export interface PNode {
      */
     order?: number;
     /**
+     * The oracle's side only: the document order of the primitive that paints its fill, which says what its fill hides
+     * (what it draws after its fill, a chart's slices, is drawn over it).
+     */
+    fillOrder?: number;
+    /**
      * A figure's own outline, where it is neither its box nor the ellipse its box holds (a shape with a dent: Pajek's
      * man, woman and cross, a star): its edges, in halves of the node's width and height from its center, y down, so
      * the node's place and size carry it. A line is cut, and a node judged hidden, at it (`insideFigure`). Absent for

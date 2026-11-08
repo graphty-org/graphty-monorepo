@@ -34,7 +34,7 @@
  * Numbers go to the console as `[timeline-frame]` lines; nothing about speed is asserted. What is
  * asserted, at the end of the jumps, of a Hide slide and of a Ghost slide: every edge, one by one, is drawn or not
  * (and ghosted or not) as a brute-force test of its `t` against the window says, and the slots read
- * back from the GPU buffers are empty exactly for the edges that are not drawn. The suites run only
+ * back from the GPU buffers draw nothing (empty, or flagged hidden) exactly for the edges that are not drawn. The suites run only
  * when `GRAPHTY_BROWSER_GPU` is set: on the software renderer the numbers mean nothing and one frame
  * of 100,000 nodes takes about a second. Run it with the extracted libEGL tree when the machine has
  * no system one:
@@ -217,42 +217,66 @@ interface EdgeSlots {
     lineBatch: EdgeLineBatch | null;
     lineSlots: number[];
 }
+interface GpuBuffer {
+    getBuffer(): { underlyingResource: unknown } | null;
+}
 interface BatchStore {
-    buffer: { getBuffer(): { underlyingResource: unknown } | null } | null;
+    buffer: GpuBuffer | null;
+    hiddenBuffer: GpuBuffer | null;
     expanded: unknown;
     stride: number;
     highWater: number;
 }
 
-/**
- * Read a batch's slots back from the GPU, as the draw call reads them.
- * @param gl - The context.
- * @param batch - The batch.
- * @returns The slots, stride floats each.
- */
-function readBack(gl: WebGL2RenderingContext, batch: EdgeLineBatch): { floats: Float32Array; stride: number } {
-    const store = batch as unknown as BatchStore;
-    assert.isNull(store.expanded, "the real GPU draws instanced lines, not expanded ones");
-    const resource = store.buffer?.getBuffer()?.underlyingResource;
-    assert.instanceOf(resource, WebGLBuffer, "the batch has a GPU buffer");
-    const floats = new Float32Array(store.highWater * store.stride);
-    gl.bindBuffer(gl.ARRAY_BUFFER, resource);
-    gl.getBufferSubData(gl.ARRAY_BUFFER, 0, floats);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-    return { floats, stride: store.stride };
+/** A batch's slots and hidden flags read back from the GPU. */
+interface ReadBack {
+    floats: Float32Array;
+    hidden: Float32Array;
+    stride: number;
 }
 
 /**
- * Whether a slot read back holds a line: a hidden slot is all zeros.
+ * Read one GPU buffer's first floats.
+ * @param gl - The context.
+ * @param buffer - The buffer.
+ * @param count - How many floats.
+ * @returns The floats.
+ */
+function readFloats(gl: WebGL2RenderingContext, buffer: GpuBuffer | null, count: number): Float32Array {
+    const resource = buffer?.getBuffer()?.underlyingResource;
+    assert.instanceOf(resource, WebGLBuffer, "the batch has a GPU buffer");
+    const floats = new Float32Array(count);
+    gl.bindBuffer(gl.ARRAY_BUFFER, resource);
+    gl.getBufferSubData(gl.ARRAY_BUFFER, 0, floats);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    return floats;
+}
+
+/**
+ * Read a batch's slots and hidden flags back from the GPU, as the draw call reads them.
+ * @param gl - The context.
+ * @param batch - The batch.
+ * @returns The slots, stride floats each, and a hidden flag per slot.
+ */
+function readBack(gl: WebGL2RenderingContext, batch: EdgeLineBatch): ReadBack {
+    const store = batch as unknown as BatchStore;
+    assert.isNull(store.expanded, "the real GPU draws instanced lines, not expanded ones");
+    return {
+        floats: readFloats(gl, store.buffer, store.highWater * store.stride),
+        hidden: readFloats(gl, store.hiddenBuffer, store.highWater),
+        stride: store.stride,
+    };
+}
+
+/**
+ * Whether a slot read back draws a line: one that holds a placement and is not flagged hidden.
  * @param read - The batch read back.
- * @param read.floats - Its slots.
- * @param read.stride - Floats per slot.
  * @param slot - The slot.
  * @returns True when the GPU would draw it.
  */
-function slotDrawn(read: { floats: Float32Array; stride: number }, slot: number): boolean {
+function slotDrawn(read: ReadBack, slot: number): boolean {
     const from = slot * read.stride;
-    return read.floats.subarray(from, from + read.stride).some((value) => value !== 0);
+    return read.hidden[slot] === 0 && read.floats.subarray(from, from + read.stride).some((value) => value !== 0);
 }
 
 /**
@@ -273,7 +297,7 @@ function assertEdgesMatchWindow(
     // The element's session is the full one; its public type leaves out the ghost read.
     const ghosts = (visibility as SessionVisibilityApi).ghosts()?.edge ?? null;
     assert.strictEqual(ghosts !== null, ghosting, "ghosts exist exactly while ghosting");
-    const reads = new Map<EdgeLineBatch, { floats: Float32Array; stride: number }>();
+    const reads = new Map<EdgeLineBatch, ReadBack>();
     const wrong: string[] = [];
     let inside = 0;
     let checkedSlots = 0;

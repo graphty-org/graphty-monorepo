@@ -1571,9 +1571,8 @@ function yedResourceUrl(r: unknown): string | null {
 
 /**
  * The picture an image or SVG node realizer draws (`y:Image refid`, `y:SVGModel/y:SVGContent refid`), stretched over
- * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`. The realizer's own fill and border are kept beneath it,
- * though yEd paints neither (`graphml-stm32-func`): draw.io, the stand-in for `yed-graphml-specimen-images-charts`,
- * paints both, and that sheet waits for a drawing by yEd itself (ISSUES.md).
+ * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`: the picture alone, without the realizer's own fill or
+ * border, which yEd does not paint (`graphml-stm32-func`, `graphml-synthetic-nodes`, `yed-graphml-specimen-images-charts`).
  * @param real - the realizer
  * @param resources - the graph's shared pictures
  * @param put - receives the values
@@ -1590,6 +1589,8 @@ function readPicture(real: Realizer, resources: ReadonlyMap<string, string>, put
     put("image", src);
     put("imageFit", "fill");
     put("imageClip", "none");
+    // no body under it, as yEd Live's image node with no background is read (`readPictureStyle`)
+    put("shape", "none");
 }
 
 /**

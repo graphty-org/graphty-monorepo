@@ -11,6 +11,7 @@ import type { GraphSession } from "../../session/types";
 import { type CommandRegistry, reserveToolNames } from "../commands/CommandRegistry";
 import type { GraphCommand } from "../commands/types";
 import { text } from "./fields";
+import { INTENT_FIELD } from "./inputs";
 import { suggest } from "./search";
 import {
     AssistantTool,
@@ -115,7 +116,7 @@ export class CallTool extends AssistantTool {
      * @returns The named tool's checked call.
      */
     override check(raw: Readonly<Record<string, unknown>>): CheckedCall {
-        const { tool, action, args } = stripPlaceholders(raw);
+        const { tool, action, args, [INTENT_FIELD]: intent } = stripPlaceholders(raw);
         let inner: unknown = args ?? {};
         if (typeof args === "string") {
             try {
@@ -145,7 +146,11 @@ export class CallTool extends AssistantTool {
             });
         }
 
-        const merged = action === undefined ? inner : { ...inner, action };
+        const merged = {
+            ...inner,
+            ...(action === undefined ? {} : { action }),
+            ...(intent === undefined ? {} : { [INTENT_FIELD]: intent }),
+        };
         return isAssistantTool(target) ? target.check(merged) : consumerCall(target, merged);
     }
 }
@@ -163,11 +168,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * A consumer command called through `call`, checked against the command's own parameters as a
  * direct call is. An `action` the command does not take is the model naming the one way to run it.
  * @param command - The command.
- * @param args - The arguments.
+ * @param raw - The arguments; the model's intent is left out of them.
  * @returns The checked call.
  * @throws {ToolRefusal} `AI_ARG_INVALID` naming the first argument its parameters refuse.
  */
-function consumerCall(command: GraphCommand, args: Record<string, unknown>): CheckedCall {
+function consumerCall(command: GraphCommand, raw: Record<string, unknown>): CheckedCall {
+    const { [INTENT_FIELD]: _intent, ...args } = raw;
     const { action: _action, ...rest } = args;
     const takesAction = command.parameters instanceof z.ZodObject && "action" in command.parameters.shape;
     const parsed = command.parameters.safeParse(takesAction ? args : rest);

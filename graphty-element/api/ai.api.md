@@ -188,6 +188,8 @@ export interface AiCallRecord {
     readonly command: string;
     readonly durationMs?: number;
     readonly effects?: readonly AiEffect[];
+    readonly inputs?: readonly AiCallInput[];
+    readonly intent?: string;
     readonly params: AiResultParams;
 }
 

@@ -41,6 +41,7 @@
 
 import { maskTest, type U32 } from "@graphty/graph-format";
 
+import type { AiRule, AiRuleTerm } from "../../catalog/ai";
 import type { EdgeId, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
@@ -1353,6 +1354,89 @@ export function expressionRule(where: Query, comparisons = false): RuleTree | un
     } catch {
         return undefined;
     }
+}
+
+/** A literal a rule term can state. */
+type TermValue = AiRuleTerm["values"][number];
+
+/**
+ * The comparisons of one `&&` or `||` chain, flattened through groups.
+ * @param node - The node.
+ * @param join - The chain's operator.
+ * @returns The comparisons, or undefined when the chain holds anything else.
+ */
+function chainOf(node: ExpressionNode, join: "and" | "or"): ExpressionNode[] | undefined {
+    if (node.kind === "group") {
+        return chainOf(node.inner, join);
+    }
+
+    if (node.kind === join) {
+        const left = chainOf(node.left, join);
+        const right = chainOf(node.right, join);
+        return left === undefined || right === undefined ? undefined : [...left, ...right];
+    }
+
+    return node.kind === "compare" ? [node] : undefined;
+}
+
+/**
+ * One comparison as a term: a path on one side, a literal on the other.
+ * @param node - The comparison.
+ * @returns The term, or undefined for any other comparison.
+ */
+function termOf(node: ExpressionNode): AiRuleTerm | undefined {
+    if (node.kind !== "compare") {
+        return undefined;
+    }
+
+    const literal = pickLiteral(node.left, node.right);
+    const other = node.left.kind === "literal" ? node.right : node.left;
+    const { value } = literal ?? {};
+    const plain = value === null || ["string", "number", "boolean"].includes(typeof value);
+    if (literal === null || other.kind !== "path" || !plain) {
+        return undefined;
+    }
+
+    const op = node.left.kind === "literal" ? FLIPPED[node.operator] : node.operator;
+    return { column: other.path, op, values: [value as TermValue] };
+}
+
+/**
+ * A rule in parts, for an application to word: each comparison of a column with a value, and
+ * whether all or any must pass. Comparisons of one column by `==` joined by `||` (or by `!=` joined
+ * by `&&`) fold into one term with several values.
+ * @param where - The expression.
+ * @returns The parts, or undefined for an expression they cannot state (`!`, a mix of `&&` and
+ *     `||`, a comparison of two columns).
+ */
+export function ruleParts(where: Query): AiRule | undefined {
+    let tree: ExpressionNode;
+    try {
+        tree = parseExpression(where);
+    } catch {
+        return undefined;
+    }
+
+    const either = chainOf(tree, "or");
+    const join = either !== undefined && either.length > 1 ? "any" : "all";
+    const chain = chainOf(tree, join === "any" ? "or" : "and");
+    const terms = chain?.map(termOf);
+    if (terms === undefined || terms.some((term) => term === undefined)) {
+        return undefined;
+    }
+
+    const folding = join === "any" ? "==" : "!=";
+    const folded: AiRuleTerm[] = [];
+    for (const term of terms as AiRuleTerm[]) {
+        const same = folded.find((each) => each.column === term.column && each.op === folding && term.op === folding);
+        if (same === undefined) {
+            folded.push(term);
+        } else {
+            folded[folded.indexOf(same)] = { ...same, values: [...same.values, ...term.values] };
+        }
+    }
+
+    return { join: folded.length === 1 ? "all" : join, terms: folded };
 }
 
 /**

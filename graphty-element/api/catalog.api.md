@@ -26,13 +26,16 @@ export const AI_CONVERSATION_FORMAT = "graphty-ai-conversation";
 export const AI_CONVERSATION_FORMAT_VERSION = 1;
 
 // @public
-export const AI_EFFECT_CODES: readonly ["AI_EFFECT_STYLE", "AI_EFFECT_LAYOUT", "AI_EFFECT_FILTER", "AI_EFFECT_RUN", "AI_EFFECT_RUN_REMOVED", "AI_EFFECT_DATA", "AI_EFFECT_SELECTION", "AI_EFFECT_VIEW", "AI_EFFECT_FOUND", "AI_EFFECT_EMPTY", "AI_EFFECT_OTHER"];
+export const AI_EFFECT_CODES: readonly ["AI_EFFECT_STYLE", "AI_EFFECT_LAYOUT", "AI_EFFECT_FILTER", "AI_EFFECT_RUN", "AI_EFFECT_RUN_REMOVED", "AI_EFFECT_DATA", "AI_EFFECT_SELECTION", "AI_EFFECT_VIEW", "AI_EFFECT_FOUND", "AI_EFFECT_EMPTY", "AI_EFFECT_OTHER", "AI_EFFECT_READ"];
 
 // @public
 export const AI_HOSTED_TOOL_CAPABILITIES: Readonly<Record<AiProviderId, AiToolCapabilities>>;
 
 // @public
 export const AI_HOSTED_TOOL_IDS: readonly ["web-search", "web-fetch", "in-page-code"];
+
+// @public
+export const AI_INPUT_KINDS: readonly ["rule", "result", "ids", "column", "layer", "run", "algorithm", "layout", "format", "values", "number", "yes-no", "choice", "text", "other"];
 
 // @public
 export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
@@ -68,6 +71,15 @@ export const AI_VOICE_CAPABILITIES: Readonly<Record<AiProviderId, AiProviderVoic
 export const AI_VOICE_UNAVAILABLE_REASONS: readonly ["no-recognition", "no-microphone", "permission-denied", "insecure-context", "no-provider-transcription", "no-provider-speech", "no-key", "no-synthesis", "playback-failed", "unknown-voice", "recognition-network", "no-provider-live", "live-custom-base-url", "no-live-transport", "output-off", "live-busy", "recognition-failed"];
 
 // @public
+export interface AiCallInput {
+    readonly kind: AiInputKind;
+    readonly name: string;
+    readonly plainName: string;
+    readonly rule?: AiRule;
+    readonly value: unknown;
+}
+
+// @public
 export interface AiCapabilities {
     readonly model: string;
     readonly provider: AiProviderId | (string & {});
@@ -81,6 +93,7 @@ export type AiCapabilityStatus = "available" | "unsupported" | "results-not-retu
 export interface AiEffect {
     readonly code: AiEffectCode;
     readonly params: AiResultParams;
+    readonly rule?: AiRule;
     readonly target?: AiTarget;
 }
 
@@ -92,6 +105,9 @@ export type AiHostedToolId = (typeof AI_HOSTED_TOOL_IDS)[number];
 
 // @public
 export function aiHostedToolStatus(provider: AiProviderId, model: string, tool: AiHostedToolId): AiCapabilityStatus;
+
+// @public
+export type AiInputKind = (typeof AI_INPUT_KINDS)[number];
 
 // @public
 export interface AiKeyShape {
@@ -200,6 +216,19 @@ export type AiResultCode = (typeof AI_RESULT_CODES)[number];
 
 // @public
 export type AiResultParams = Readonly<Record<string, string | number>>;
+
+// @public
+export interface AiRule {
+    readonly join: "all" | "any";
+    readonly terms: readonly AiRuleTerm[];
+}
+
+// @public
+export interface AiRuleTerm {
+    readonly column: string;
+    readonly op: "==" | "!=" | "<" | "<=" | ">" | ">=";
+    readonly values: readonly (string | number | boolean | null)[];
+}
 
 // @public
 export type AiTarget = {

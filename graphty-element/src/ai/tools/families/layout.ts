@@ -8,6 +8,7 @@ import { z } from "zod";
 import { layoutEntry, layoutIdForEngine } from "../../../catalog/layouts";
 import type { LayoutDescriptor, OptionDescriptor } from "../../../catalog/types";
 import { idsOf, MAX_ITEMS, MAX_STRING, requireTarget, scopeOf, targetFields, text } from "../fields";
+import { inputKind } from "../inputs";
 import { checkOptions } from "../optionSchema";
 import { suggest } from "../search";
 import { type ActionSpec, type CatalogView, type ToolDefinition, ToolRefusal } from "../types";
@@ -79,7 +80,7 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
             name: "set",
             summary: "layout by name",
             fields: {
-                name: nameField(ids, "Layout."),
+                name: inputKind(nameField(ids, "Layout."), "layout", "Layout"),
                 engine: z
                     .string()
                     .max(100)

@@ -9,6 +9,7 @@ import type { RuleTree } from "../../../catalog/types";
 import type { TransactionScope } from "../../../session/types";
 import { filterEffects } from "../effects";
 import { MAX_STRING, requireTarget, resolveNode, type Target, targetFields, text } from "../fields";
+import { inputKind } from "../inputs";
 import { type ActionResult, type ActionSpec, type JsonObject, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, ok } from "./common";
 
@@ -121,7 +122,7 @@ export const filterTool: ToolDefinition = {
             name: "range",
             summary: "attribute from/to; dates = time window",
             fields: {
-                attribute: z.string().max(200).describe("Attribute name."),
+                attribute: inputKind(z.string().max(200), "column", "Column").describe("Attribute name."),
                 from: z
                     .union([z.number(), z.string().max(MAX_STRING)])
                     .optional()

@@ -202,6 +202,7 @@ describe("effects", () => {
         assert.deepEqual(empty, {
             code: "AI_EFFECT_EMPTY",
             params: { tool: "style", searched: "data.type == 'none'" },
+            rule: { join: "all", terms: [{ column: "data.type", op: "==", values: ["none"] }] },
         });
     });
 

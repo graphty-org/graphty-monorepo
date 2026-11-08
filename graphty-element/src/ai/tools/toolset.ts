@@ -30,6 +30,7 @@ import { conditionsTool, timeTool } from "./families/timeline";
 import { undoTool } from "./families/undo";
 import { viewTool } from "./families/view";
 import { text } from "./fields";
+import { INTENT_FIELD, intentField } from "./inputs";
 import { undescribedPlugins } from "./reach";
 import { type IndexEntry, SearchIndex, suggest } from "./search";
 import {
@@ -182,14 +183,14 @@ export class AssistantTool implements GraphCommand {
         if (this.compact === undefined) {
             const schema = compactSchema(toolJsonSchema(this.parameters)) as {
                 properties?: Record<string, { description?: string }>;
+                required?: string[];
             };
-            // A result target's shape is in its description; the strict check holds the rest.
-            const result = schema.properties?.result;
-            if (schema.properties !== undefined && result !== undefined) {
-                schema.properties.result = {
-                    type: "object",
-                    ...(result.description === undefined ? {} : { description: result.description }),
-                } as never;
+            // The model's few words are asked of every call; a call without them still runs.
+            schema.required = [...new Set([...(schema.required ?? []), INTENT_FIELD])];
+            // A result target's shape is in the instructions, which say how every target is named;
+            // the strict check holds the rest.
+            if (schema.properties?.result !== undefined) {
+                schema.properties.result = { type: "object" } as never;
             }
 
             this.compact = schema;
@@ -205,7 +206,7 @@ export class AssistantTool implements GraphCommand {
      * @returns True for a known write action.
      */
     writesFor(raw: Readonly<Record<string, unknown>>): boolean {
-        const { action: named, ...rest } = stripPlaceholders(raw);
+        const { action: named, [INTENT_FIELD]: _intent, ...rest } = stripPlaceholders(raw);
         return this.entryFor(named, rest)?.spec.effect === "write";
     }
 
@@ -239,7 +240,7 @@ export class AssistantTool implements GraphCommand {
      * @throws {ToolRefusal} `AI_UNKNOWN_ACTION`, `AI_ARG_INVALID` or `AI_ARG_OUT_OF_RANGE`.
      */
     check(raw: Readonly<Record<string, unknown>>): CheckedCall {
-        const { action: named, ...rest } = stripPlaceholders(raw);
+        const { action: named, [INTENT_FIELD]: _intent, ...rest } = stripPlaceholders(raw);
         const entry = this.entryFor(named, rest);
         if (entry === undefined) {
             throw new ToolRefusal("AI_UNKNOWN_ACTION", {
@@ -397,12 +398,13 @@ function flatSchema(definition: ToolDefinition): { flat: z.ZodObject; conflicts:
             flat: z.object({
                 action: z.enum(definition.actions.map((action) => action.name) as [string, ...string[]]),
                 ...shape,
+                [INTENT_FIELD]: intentField,
             }),
             conflicts,
         };
     }
 
-    return { flat: z.object(shape), conflicts };
+    return { flat: z.object({ ...shape, [INTENT_FIELD]: intentField }), conflicts };
 }
 
 /**

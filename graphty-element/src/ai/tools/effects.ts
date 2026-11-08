@@ -38,7 +38,11 @@ export function styleEffects(tx: Pick<TransactionScope, "styles">, id: string): 
     const { matched } = tx.styles.counts(id);
     const counted = { [layer.target === "edge" ? "edges" : "nodes"]: matched };
     const hidden = matched - tx.styles.drawnCount(id);
-    const base = { layer: id, ...counted, hidden };
+    const base: Record<string, string | number> = { layer: id, ...counted, hidden };
+    if (layer.name !== "") {
+        base.layerName = layer.name;
+    }
+
     const target: AiTarget = { layer: id };
     return [
         ...Object.keys(layer.set ?? {}).map((channel): AiEffect => ({

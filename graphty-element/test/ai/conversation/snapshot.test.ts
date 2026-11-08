@@ -76,7 +76,9 @@ describe("the conversation snapshot", () => {
         const record = { ...golden, messages, pending: [] } as unknown as NonNullable<typeof golden>;
         const reply = conversationSnapshot(record).messages.find((message) => message.id === "c1");
         const calls = reply?.role === "assistant" ? reply.calls : [];
-        assert.deepEqual(calls[0]?.effects, [found]);
+        // Its rule comes in parts too, for an application to word.
+        const rule = { join: "all", terms: [{ column: "degree", op: ">=", values: [3] }] };
+        assert.deepEqual(calls[0]?.effects, [{ ...found, rule }]);
         assert.notProperty(calls[1], "effects");
     });
 

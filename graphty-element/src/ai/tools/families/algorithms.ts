@@ -13,6 +13,7 @@ import type { Run } from "../../../session/runs/types";
 import type { GraphSession, TransactionScope } from "../../../session/types";
 import { foundEffects, selectionEffects } from "../effects";
 import { requireTarget, resolveRun, scopeOf, text, WHERE_HELP, whereField } from "../fields";
+import { inputKind } from "../inputs";
 import { checkOptions } from "../optionSchema";
 import { suggest } from "../search";
 import { limitOf, offsetOf, pageOf, paintedFact, summarizeRun, toJson } from "../shape";
@@ -273,7 +274,7 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
                 name: "run",
                 summary: "one algorithm",
                 fields: {
-                    name: nameField(names, "Algorithm."),
+                    name: inputKind(nameField(names, "Algorithm."), "algorithm", "Algorithm"),
                     options: z.record(z.string(), z.unknown()).optional().describe("The algorithm's options by name."),
                     scope: z
                         .strictObject({
@@ -377,8 +378,12 @@ const RUN_FACTS = [
     "error",
 ] as const;
 
-const runField = z.string().max(200).optional().describe('Run id, algorithm name or "latest" (default).');
-const fieldField = z.string().max(200).optional().describe("Result field; default the run's first.");
+const runField = inputKind(z.string().max(200), "run", "Run")
+    .optional()
+    .describe('Run id, algorithm name or "latest" (default).');
+const fieldField = inputKind(z.string().max(200), "column", "Field")
+    .optional()
+    .describe("Result field; default the run's first.");
 
 /** The `results` tool. */
 export const resultsTool: ToolDefinition = {

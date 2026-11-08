@@ -7,6 +7,7 @@
  */
 
 import type {
+    AiCallInput,
     AiEffect,
     AiHostedToolId,
     AiMessageScope,
@@ -16,6 +17,7 @@ import type {
 } from "../../catalog/ai";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
 import { ASK_READER } from "../runConversation";
+import { callIntent, ruledEffects } from "../tools/inputs";
 import type { ConversationRecord } from "./formats";
 import type { SavedMessage, SavedPending } from "./formats/v1";
 
@@ -41,6 +43,20 @@ export interface AiCallRecord {
      * @experimental assistant
      */
     readonly effects?: readonly AiEffect[];
+    /**
+     * The model's own few words for what this call does, as it gave them in the generated tools'
+     * `intent` argument; absent when it gave none. It is the model's claim about the call, not what
+     * the call did: `effects` and `code` say that.
+     * @experimental assistant
+     */
+    readonly intent?: string;
+    /**
+     * What the model passed, each argument with its kind and its schema's default name, read
+     * against the tool's own parameters (`action` and `intent` left out); absent when the
+     * conversation is read without the tools (a list, an export) or the call passed nothing.
+     * @experimental assistant
+     */
+    readonly inputs?: readonly AiCallInput[];
 }
 
 /** A page a tool the provider ran (a web search, reading a web page) found or read. */
@@ -435,6 +451,14 @@ function assistantEntry(
             return part.type === "text" && part.origin === "model" ? [part.text] : [];
         })
         .join("\n");
+    const ruled = new Map<string, readonly AiEffect[]>();
+    for (const part of message.parts) {
+        const did = part.type === "tool-call" ? effects.get(part.callId) : undefined;
+        if (part.type === "tool-call" && did !== undefined) {
+            ruled.set(part.callId, ruledEffects(did, part.arguments));
+        }
+    }
+
     const calls = message.parts.flatMap((part): AiCallRecord[] =>
         part.type === "tool-call"
             ? [
@@ -442,7 +466,8 @@ function assistantEntry(
                       command: part.command,
                       arguments: part.arguments,
                       ...(outcomes.get(part.callId) ?? { code: "AI_TOOL_NOT_RUN", params: { tool: part.command } }),
-                      ...(effects.has(part.callId) && { effects: effects.get(part.callId) }),
+                      ...(ruled.has(part.callId) && { effects: ruled.get(part.callId) }),
+                      ...intentOf(part.arguments),
                   },
               ]
             : [],
@@ -458,7 +483,7 @@ function assistantEntry(
         return [];
     }
 
-    const did = message.parts.flatMap((part) => (part.type === "tool-call" ? (effects.get(part.callId) ?? []) : []));
+    const did = message.parts.flatMap((part) => (part.type === "tool-call" ? (ruled.get(part.callId) ?? []) : []));
     return [
         {
             id: message.id,
@@ -470,6 +495,16 @@ function assistantEntry(
             ...(did.length > 0 && { effects: did }),
         },
     ];
+}
+
+/**
+ * A call's intent, as its record holds it.
+ * @param args - The call's arguments.
+ * @returns `{ intent }`, or nothing when the model gave none.
+ */
+function intentOf(args: Readonly<Record<string, unknown>>): { intent?: string } {
+    const intent = callIntent(args);
+    return intent === undefined ? {} : { intent };
 }
 
 /**

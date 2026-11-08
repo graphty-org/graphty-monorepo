@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { isGraphtyError } from "../../errors";
 import type { GraphSession, TransactionScope } from "../../session/types";
+import { inputKind } from "./inputs";
 import { type BoundSelection, type JsonObject, ToolRefusal } from "./types";
 
 /** The most ids, records or positions one call carries. */
@@ -30,13 +31,17 @@ export const SELECTOR_HELP = "Selector: data.type == 'server', data.weight > `0.
 export const WHERE_HELP = "Selector.";
 
 /** A selector. */
-export const whereField = z.string().max(MAX_SELECTOR).describe(WHERE_HELP);
+export const whereField = inputKind(z.string().max(MAX_SELECTOR).describe(WHERE_HELP), "rule", "Which");
 
 /** What an ids field holds. */
 const IDS_HELP = "Ids or labels.";
 
 /** Element ids. */
-export const idsField = z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe(IDS_HELP);
+export const idsField = inputKind(
+    z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe(IDS_HELP),
+    "ids",
+    "Which",
+);
 
 /**
  * The operators a `result` target takes: comparisons, `in` for a list, and `largest` for the
@@ -48,14 +53,18 @@ const RESULT_OPS = ["==", "!=", "<", "<=", ">", ">=", "in", "largest"] as const;
 const primitive = z.union([z.string().max(MAX_STRING), z.number(), z.boolean(), z.null()]);
 
 /** Selects by a run's value: the tool writes the selector, since run ids are hard to quote. */
-export const resultField = z
-    .strictObject({
-        run: z.string().max(200),
-        field: z.string().max(200),
-        op: z.enum(RESULT_OPS),
-        value: z.unknown().optional().describe("A value; a list for in; how many groups for largest (default 1)."),
-    })
-    .describe("Run value: {run, field, op, value}; op largest: biggest groups.");
+export const resultField = inputKind(
+    z
+        .strictObject({
+            run: z.string().max(200),
+            field: z.string().max(200),
+            op: z.enum(RESULT_OPS),
+            value: z.unknown().optional().describe("A value; a list for in; how many groups for largest (default 1)."),
+        })
+        .describe("Run value: {run, field, op, value}; op largest: biggest groups."),
+    "result",
+    "Which",
+);
 
 /** The three ways to name a target. */
 export const targetFields = {

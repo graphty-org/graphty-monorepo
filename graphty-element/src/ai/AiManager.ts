@@ -50,6 +50,7 @@ import { createProvider, type ProviderType } from "./providers";
 import type { LlmProvider, ProviderOptions } from "./providers/types";
 import { checkAiConfig } from "./roles";
 import { SchemaManager } from "./schema";
+import { withInputs } from "./tools/inputs";
 import { installAssistantTools } from "./tools/install";
 import type { AssistantGateLimits } from "./tools/types";
 import type * as VoicePrime from "./voice/prime";
@@ -1195,7 +1196,8 @@ export class AiManager {
      * @returns Its snapshot, or null without `history`.
      */
     getConversation(): AiConversationSnapshot | null {
-        return this.controller?.getConversation() ?? null;
+        const snapshot = this.controller?.getConversation() ?? null;
+        return snapshot === null ? null : withInputs(snapshot, this.commandRegistry);
     }
 
     /**

@@ -28,6 +28,7 @@ import {
     targetFields,
     text,
 } from "../fields";
+import { inputKind } from "../inputs";
 import { optionsSchema } from "../optionSchema";
 import { httpUrl, readerGave } from "../readerUrls";
 import {
@@ -390,7 +391,11 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                 name: "import",
                 summary: "Import text or a URL the reader gave.",
                 fields: {
-                    format: nameField(formats, "Format; detected when absent.").optional(),
+                    format: inputKind(
+                        nameField(formats, "Format; detected when absent."),
+                        "format",
+                        "Format",
+                    ).optional(),
                     text: z.string().max(200_000).optional().describe("The document's text."),
                     url: z.string().max(MAX_STRING).optional().describe("A URL the reader gave in this message."),
                     mode: z.enum(["merge", "replace"]).optional().describe("Default merge."),
@@ -534,7 +539,7 @@ export function exportGraphTool(catalog: CatalogView): ToolDefinition {
                         .boolean()
                         .optional()
                         .describe("true: the whole graph, even when the message is about a selection."),
-                    format: nameField(formats, "Format."),
+                    format: inputKind(nameField(formats, "Format."), "format", "Format"),
                     options: z
                         .record(z.string(), z.unknown())
                         .optional()

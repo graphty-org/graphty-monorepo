@@ -35,11 +35,13 @@ export * from "./src/catalog/index";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    AiCallInput,
     AiCapabilities,
     AiCapabilityStatus,
     AiEffect,
     AiEffectCode,
     AiHostedToolId,
+    AiInputKind,
     AiKeyShape,
     AiKeyShapeCheck,
     AiKeyShapeCode,
@@ -53,6 +55,8 @@ export type {
     AiReasoningEffort,
     AiResultCode,
     AiResultParams,
+    AiRule,
+    AiRuleTerm,
     AiTarget,
     AiToolCapabilities,
     AiVoiceDestination,
@@ -67,6 +71,7 @@ export {
     AI_EFFECT_CODES,
     AI_HOSTED_TOOL_CAPABILITIES,
     AI_HOSTED_TOOL_IDS,
+    AI_INPUT_KINDS,
     AI_PROVIDER_DESCRIPTORS,
     AI_PROVIDER_IDS,
     AI_REASONING_EFFORTS,

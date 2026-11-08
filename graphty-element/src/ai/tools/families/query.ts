@@ -19,6 +19,7 @@ import {
     targetFields,
     text,
 } from "../fields";
+import { inputKind } from "../inputs";
 import { compactRecord, limitOf, offsetOf, pageOf, toJson } from "../shape";
 import { type ActionSpec, type JsonObject, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, ok } from "./common";
@@ -26,7 +27,7 @@ import { coded, ok } from "./common";
 const fields = z.array(z.string().max(200)).max(12).optional().describe("Fields to return.");
 const limit = z.number().int().min(0).max(50).optional().describe("Default 20.");
 const cursor = z.string().max(200).optional().describe("From the previous page.");
-const sort = z.string().max(200).optional().describe("Attribute; -name descends.");
+const sort = inputKind(z.string().max(200), "column", "Sort by").optional().describe("Attribute; -name descends.");
 
 /**
  * A page of node or edge records.
@@ -306,7 +307,11 @@ export const queryTool: ToolDefinition = {
         {
             name: "histogram",
             summary: "of an attribute",
-            fields: { column: z.string().max(200).describe("Attribute name, e.g. type or data.weight.") },
+            fields: {
+                column: inputKind(z.string().max(200), "column", "Column").describe(
+                    "Attribute name, e.g. type or data.weight.",
+                ),
+            },
             effect: "read",
             reaches: [{ door: "SessionDataApi.histogram" }],
             run: ({ tx }, args) => {

@@ -626,16 +626,19 @@ async function evidenceOf(
     }
 
     const named = await outcome.effects?.();
-    if (named !== undefined) {
+    const { checked } = call;
+    const reads = checked?.action.effect === "read";
+    if (named !== undefined && (named.length > 0 || !reads)) {
         return { effects: named };
     }
 
-    const { checked } = call;
-    return checked === undefined || checked.action.effect === "read"
-        ? {}
-        : {
-              effects: [{ code: "AI_EFFECT_OTHER", params: { tool: checked.tool.name, action: checked.action.name } }],
-          };
+    if (checked === undefined) {
+        return {};
+    }
+
+    // A look-up that names nothing still says what it read; anything else still says it changed.
+    const code = reads ? "AI_EFFECT_READ" : "AI_EFFECT_OTHER";
+    return { effects: [{ code, params: { tool: checked.tool.name, action: checked.action.name } }] };
 }
 
 /**

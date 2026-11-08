@@ -26,6 +26,7 @@ import {
     targetFields,
     text,
 } from "../fields";
+import { inputKind } from "../inputs";
 import { optionsSchema } from "../optionSchema";
 import { suggest } from "../search";
 import { toJson } from "../shape";
@@ -634,14 +635,15 @@ async function encodeLayer(tx: TransactionScope, spec: LayerSpec): Promise<Layer
     return coded(() => tx.styles.add(spec));
 }
 
-const values = z
-    .record(z.string().max(100), z.unknown())
+const values = inputKind(z.record(z.string().max(100), z.unknown()), "values", "Set")
     .optional()
     .describe('e.g. {"node.color":"red","node.size":2}; channels: catalog search');
-const layer = z.string().max(MAX_STRING).optional().describe("Layer id or name.");
+const layer = inputKind(z.string().max(MAX_STRING), "layer", "Layer").optional().describe("Layer id or name.");
 const name = z.string().max(200).optional().describe("The layer's name.");
 const position = z.enum(["top", "bottom", "above", "below"]).optional().describe("Where in the stack.");
-const relativeTo = z.string().max(MAX_STRING).optional().describe("Layer for above or below.");
+const relativeTo = inputKind(z.string().max(MAX_STRING), "layer", "Next to")
+    .optional()
+    .describe("Layer for above or below.");
 
 /**
  * The `style` tool for a catalog.
@@ -810,7 +812,11 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
         {
             name: "apply_suggestion",
             summary: "a run's own styles",
-            fields: { run: z.string().max(200).optional().describe('Run id, algorithm name or "latest".') },
+            fields: {
+                run: inputKind(z.string().max(200), "run", "Run")
+                    .optional()
+                    .describe('Run id, algorithm name or "latest".'),
+            },
             effect: "write",
             reaches: [{ door: "Run.suggestEncodings" }, { door: "RunsApi.start" }, { op: "algo.run" }],
             run: ({ tx, message }, args) => {
@@ -847,8 +853,12 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
             name: "highlight",
             summary: "a run's path or edge set",
             fields: {
-                run: z.string().max(200).optional().describe('Run id, algorithm name or "latest".'),
-                field: z.string().max(200).optional().describe("The run's field; default its own."),
+                run: inputKind(z.string().max(200), "run", "Run")
+                    .optional()
+                    .describe('Run id, algorithm name or "latest".'),
+                field: inputKind(z.string().max(200), "column", "Field")
+                    .optional()
+                    .describe("The run's field; default its own."),
                 values,
             },
             effect: "write",

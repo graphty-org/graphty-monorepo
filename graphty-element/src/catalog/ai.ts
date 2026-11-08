@@ -687,9 +687,10 @@ export type AiResultParams = Readonly<Record<string, string | number>>;
 /**
  * What one tool call did, as a code an application words for itself (`AiEffect.code`):
  *
- * - `AI_EFFECT_STYLE` -- a layer sets a channel. `{ channel, layer, nodes | edges, hidden, source? }`:
- *   `nodes` or `edges` count the elements its rule matches, `hidden` how many of them a filter hides,
- *   and `source` the path a bound channel reads (`data.group`); a fixed value has no `source`.
+ * - `AI_EFFECT_STYLE` -- a layer sets a channel. `{ channel, layer, layerName?, nodes | edges, hidden,
+ *   source? }`: `nodes` or `edges` count the elements its rule matches, `hidden` how many of them a
+ *   filter hides, `layerName` the layer's own name when it has one, and `source` the path a bound
+ *   channel reads (`data.group`); a fixed value has no `source`.
  * - `AI_EFFECT_LAYOUT` -- the layout changed. `{ layout, nodes? }`, `nodes` being the nodes it arranges.
  * - `AI_EFFECT_FILTER` -- the filter changed. `{ kept, total, keptEdges, totalEdges }`.
  * - `AI_EFFECT_RUN` -- an algorithm ran. `{ run, algorithm, nodes?, painted?, groups?, largest? }`,
@@ -707,6 +708,11 @@ export type AiResultParams = Readonly<Record<string, string | number>>;
  * - `AI_EFFECT_EMPTY` -- a read or a write matched nothing. `{ tool, searched }`: `searched` is the
  *   rule or text it looked for.
  * - `AI_EFFECT_OTHER` -- anything else that changed the graph. `{ tool, action }`.
+ * - `AI_EFFECT_READ` -- a look-up that names no elements and changes nothing (a list of layers, a
+ *   catalog search, a column's values). `{ tool, action }`: the tool and the action it read with.
+ *
+ * An effect whose call named elements by a rule carries the rule's parts as `rule` (see
+ * {@link AiRule}), so an application can word it from its own names for columns and values.
  *
  * OPEN UNION: codes may be added in a minor release.
  * @experimental assistant
@@ -723,6 +729,7 @@ export const AI_EFFECT_CODES = Object.freeze([
     "AI_EFFECT_FOUND",
     "AI_EFFECT_EMPTY",
     "AI_EFFECT_OTHER",
+    "AI_EFFECT_READ",
 ] as const);
 
 /**
@@ -759,6 +766,96 @@ export interface AiEffect {
     readonly params: AiResultParams;
     /** The elements it is about, when it names any. */
     readonly target?: AiTarget;
+    /**
+     * The rule its call named elements by, in parts, when the rule has that form; absent for a call
+     * that named no rule, or one the parts cannot state (`!`, a mix of `&&` and `||`).
+     */
+    readonly rule?: AiRule;
+}
+
+/**
+ * One comparison of a rule: a column, how it compares, and the values it compares with. `values`
+ * holds more than one value only for `==` (any of them) and `!=` (none of them).
+ * @experimental assistant
+ */
+export interface AiRuleTerm {
+    /** The column, as the rule names it: a bare column name (`weight`) or a path (`results.r1.community`). */
+    readonly column: string;
+    /** The comparison. */
+    readonly op: "==" | "!=" | "<" | "<=" | ">" | ">=";
+    /** The values: numbers, text, yes-or-no, or null for "no value". */
+    readonly values: readonly (string | number | boolean | null)[];
+}
+
+/**
+ * A rule in parts: its comparisons, and whether an element must pass all of them or any. `a == 1
+ * || a == 2` is one term on `a` with the values 1 and 2.
+ * @experimental assistant
+ */
+export interface AiRule {
+    /** `"all"` for `&&`, `"any"` for `||`; a rule of one term is `"all"`. */
+    readonly join: "all" | "any";
+    /** The comparisons, in the order the rule names them. */
+    readonly terms: readonly AiRuleTerm[];
+}
+
+/**
+ * What kind of value a tool's argument holds, so an application can word what the model asked
+ * for with one formatter per kind (`AiCallInput.kind`):
+ *
+ * - `rule` -- a selector, as text; its parts are `AiCallInput.rule` when it has that form.
+ * - `result` -- a run's value to match: `{ run, field, op, value }`, with its parts as `rule`.
+ * - `ids` -- node or edge ids (or labels).
+ * - `column` -- a column's path or name.
+ * - `layer` -- a style layer's id or name.
+ * - `run` -- a run's id, an algorithm's name, or `"latest"`.
+ * - `algorithm`, `layout`, `format` -- a catalog entry's key or id.
+ * - `values` -- style values by channel: `{ "node.color": "red" }`.
+ * - `number`, `yes-no`, `choice` (one of a list), `text` -- a plain value.
+ * - `other` -- anything else (an options object, coordinates); no formatter is expected.
+ *
+ * OPEN UNION: kinds may be added in a minor release; treat a kind you do not know as `other`.
+ * @experimental assistant
+ */
+export const AI_INPUT_KINDS = Object.freeze([
+    "rule",
+    "result",
+    "ids",
+    "column",
+    "layer",
+    "run",
+    "algorithm",
+    "layout",
+    "format",
+    "values",
+    "number",
+    "yes-no",
+    "choice",
+    "text",
+    "other",
+] as const);
+
+/**
+ * One input kind; see {@link AI_INPUT_KINDS}.
+ * @experimental assistant
+ */
+export type AiInputKind = (typeof AI_INPUT_KINDS)[number];
+
+/**
+ * One argument a model passed a tool, read against the tool's own parameter schema.
+ * @experimental assistant
+ */
+export interface AiCallInput {
+    /** The argument's name in the tool's schema. */
+    readonly name: string;
+    /** The schema's default name for it, for an application to show or replace by `name`. */
+    readonly plainName: string;
+    /** What kind of value it holds. */
+    readonly kind: AiInputKind;
+    /** The value, as the model passed it. */
+    readonly value: unknown;
+    /** For a `rule` or a `result`, its parts, when it has that form. */
+    readonly rule?: AiRule;
 }
 
 /**

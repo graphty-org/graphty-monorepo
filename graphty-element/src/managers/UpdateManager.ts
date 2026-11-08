@@ -1017,11 +1017,13 @@ export class UpdateManager implements Manager {
         const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
 
         for (const row of rows) {
-            // Showing or hiding a node enables or disables its mesh, which the frozen list must see.
-            if (
-                nodesByIndex[row]?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState) === true
-            ) {
-                this.sceneChanged = true;
+            const node = nodesByIndex[row];
+            // Showing or hiding a node drawn by its own mesh enables or disables that mesh, which the
+            // frozen list must see; a batched row only writes its hidden flag. Asked before and
+            // after, since the change can take an overlay away or bring one back.
+            const ownMeshes = node?.togglesOwnMeshes() === true;
+            if (node?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState) === true) {
+                this.sceneChanged ||= ownMeshes || node.togglesOwnMeshes();
             }
         }
     }

@@ -493,6 +493,29 @@ export function describeFrames(nodes: number): void {
             await run("step", slide);
         });
 
+        it("a 2% window stepping with nodes drawn from batches", async () => {
+            // Under render-path="batched" a node shown or hidden writes its row's hidden flag, so
+            // the frozen list of what is drawn holds through the step.
+            const { element } = on();
+            element.graph.setRenderPath("batched");
+            element.graph.engine.runRenderLoop(() => {
+                element.graph.scene.render();
+            });
+            await element.waitForSettled();
+            await element.waitForStableFrame();
+            element.graph.engine.stopRenderLoop();
+            assert.strictEqual(element.graph.rowCounts.objectNodes, 0, "every node is drawn by a batch");
+            await run("step-batched", slide);
+            await check(slideOnce, false);
+            element.graph.setRenderPath("objects");
+            element.graph.engine.runRenderLoop(() => {
+                element.graph.scene.render();
+            });
+            await element.waitForSettled();
+            await element.waitForStableFrame();
+            element.graph.engine.stopRenderLoop();
+        });
+
         /**
          * Make one more move, pump the frame, and check every edge against the window.
          * @param move - The move.

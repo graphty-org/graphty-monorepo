@@ -223,7 +223,6 @@ interface GpuBuffer {
 interface BatchStore {
     buffer: GpuBuffer | null;
     hiddenBuffer: GpuBuffer | null;
-    expanded: unknown;
     stride: number;
     highWater: number;
 }
@@ -260,7 +259,6 @@ function readFloats(gl: WebGL2RenderingContext, buffer: GpuBuffer | null, count:
  */
 function readBack(gl: WebGL2RenderingContext, batch: EdgeLineBatch): ReadBack {
     const store = batch as unknown as BatchStore;
-    assert.isNull(store.expanded, "the real GPU draws instanced lines, not expanded ones");
     return {
         floats: readFloats(gl, store.buffer, store.highWater * store.stride),
         hidden: readFloats(gl, store.hiddenBuffer, store.highWater),

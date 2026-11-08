@@ -293,7 +293,7 @@ function identities(count: number): Float32Array<ArrayBuffer> {
  * @param canonical - The source the batch is built from.
  * @returns The factor, or null.
  */
-export function scaleAgainst(mesh: Mesh, canonical: Mesh): number | null {
+function scaleAgainst(mesh: Mesh, canonical: Mesh): number | null {
     if (mesh === canonical) {
         return 1;
     }

@@ -226,7 +226,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.loadDataset()": "writes",
     "data.loadedWeight()": "not the graph",
     "data.loads()": "not the graph",
-    "data.loadSample()": "writes",
+    "data.loadExample()": "writes",
     "data.matchesSource()": "not the graph",
     "data.more()": "writes",
     "data.name()": "names its target",

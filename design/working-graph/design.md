@@ -59,7 +59,7 @@ window (its `"visible"` reading); `"graph"` reads everything (decisions 39, 59).
     import "@graphty/graphty-element";
     const graph = document.querySelector("graphty-element");
     const { session } = graph;
-    await session.data.loadSample("graph-samples-karate");
+    await session.data.loadDataset("karate");
     await session.visibility.addCondition({
         effect: "keep",
         rule: { kind: "categories", attribute: "data.club", values: ["Officer"] },

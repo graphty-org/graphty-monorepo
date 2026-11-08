@@ -189,6 +189,54 @@ describe("the selection under a filter", () => {
         session.dispose();
     });
 
+    it("never selects a node the filter hides, by id or mixed with shown ones", async () => {
+        const harness = harnessOf();
+        const { session } = harness;
+        await session.visibility.set(HOSTS);
+
+        await session.selection.apply({ nodes: ["d"] }, "replace");
+        assert.deepStrictEqual([...session.selection.nodes], [], "a hidden node is dropped (decision B)");
+        await session.selection.apply({ nodes: ["a", "b", "d", "e"] }, "replace");
+        assert.sameMembers([...session.selection.nodes], ["a", "b"]);
+        session.dispose();
+    });
+
+    it("selects only shown neighbors, and never walks through a hidden node", async () => {
+        const harness = harnessOf();
+        const { session } = harness;
+        // a-b-c-d-e with b hidden: a's neighborhood is a alone, even two steps out.
+        await session.visibility.addCondition({
+            effect: "exclude",
+            rule: { kind: "range", attribute: "data.seen", min: 2, max: 2 },
+        });
+        assert.isFalse(session.visibility.isVisible("b"));
+        await session.selection.apply({ neighborsOf: ["c"] }, "replace");
+        assert.sameMembers([...session.selection.nodes], ["c", "d"]);
+        await session.selection.apply({ neighborsOf: ["a"], depth: 2 }, "replace");
+        assert.sameMembers([...session.selection.nodes], ["a"]);
+        session.dispose();
+    });
+
+    it("inverts within what is shown", async () => {
+        const harness = harnessOf();
+        const { session } = harness;
+        await session.visibility.set(HOSTS);
+        await session.selection.apply({ nodes: ["a"] }, "replace");
+        await session.selection.apply({ invert: true }, "replace");
+        assert.sameMembers([...session.selection.nodes], ["b", "c"]);
+        session.dispose();
+    });
+
+    it("keeps selecting a node the time window alone hides", async () => {
+        const harness = harnessOf();
+        const { session } = harness;
+        await session.visibility.setWindow(EARLY);
+        assert.isFalse(session.visibility.isVisible("c"));
+        await session.selection.apply({ nodes: ["c"] }, "replace");
+        assert.sameMembers([...session.selection.nodes], ["c"]);
+        session.dispose();
+    });
+
     it("keeps what the filter hides with the option off, as before", async () => {
         const harness = harnessOf(false);
         const { session } = harness;
@@ -319,6 +367,22 @@ describe("a style layer's categories", () => {
             ["host"],
             "a legend row is a category that is shown",
         );
+        harness.session.dispose();
+    });
+
+    it("count a layer's matches among what is shown, and the whole graph by name", async () => {
+        const { harness, id } = await byType(true);
+        const { styles } = harness.session;
+        const shown = styles.counts(id);
+        assert.strictEqual(shown.matched, 3);
+        assert.strictEqual(shown.painted["node.color"], 3);
+        assert.strictEqual(styles.counts(id, { scope: "graph" }).matched, 5);
+        harness.session.dispose();
+    });
+
+    it("count the whole graph with the option off, as before", async () => {
+        const { harness, id } = await byType(false);
+        assert.strictEqual(harness.session.styles.counts(id).matched, 5);
         harness.session.dispose();
     });
 

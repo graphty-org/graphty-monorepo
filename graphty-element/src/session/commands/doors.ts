@@ -3546,6 +3546,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ghosts: READ,
             rule: READ,
             previewSteps: READ,
+            openDrafts: READ,
             filterBytes: READ,
             passingBytes: READ,
             hold: exempt(

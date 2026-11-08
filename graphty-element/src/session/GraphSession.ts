@@ -3473,6 +3473,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
         // A rule or a text names no scope: what is shown while the working graph is on.
         defaultScope: () => (working.enabled ? "visible" : undefined),
+        // With the working graph on, no target selects a node a filter hides (owner decision B).
+        filterKeeps: () => (working.enabled ? visibility.passingBytes() : null),
         // A rule reads a file column by its bare name ("minutes"); the published path is the
         // attribute's ("data.minutes"), so a caller can look the column up in `data.attributes()`.
         pathsOf: (where: Query) =>
@@ -4161,16 +4163,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return [];
         }
 
-        const reads = (rule: RuleTree): boolean => {
-            let found = false;
-            mapUnions(rule, (leaf) => {
-                found ||= leaf.branches.some((branch) =>
-                    branch.steps.some((step) => stepRuns.reads(step, leaf.within, run)),
-                );
-                return leaf;
-            });
-            return found;
-        };
+        const reads = (rule: RuleTree): boolean => ruleReadsRun(stepRuns, rule, run);
         return [
             ...(stack?.list() ?? []).flatMap((layer): RunReader[] =>
                 layer.selector.match === "rule" && reads(layer.selector.where) ? [{ kind: "layer", id: layer.id }] : [],
@@ -4179,6 +4172,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 reads(condition.rule) ? [{ kind: "filter", id: condition.id }] : [],
             ),
         ];
+    }
+
+    /**
+     * Whether an open filter draft's steps read a run.
+     * @param id - The run.
+     * @returns True when one does.
+     */
+    function draftReads(id: RunId): boolean {
+        const run = runs.get(id);
+        const stepRuns = stepRunsRef.current;
+        if (run === undefined || stepRuns === undefined) {
+            return false;
+        }
+
+        return visibility.openDrafts().some((condition) => ruleReadsRun(stepRuns, condition.rule, run));
     }
 
     /**
@@ -4215,7 +4223,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             get started() {
                 return Object.freeze(started());
             },
-            commit: () => end((id) => runReaders(id).length > 0 || runs.bindings(id).length > 0),
+            // A filter draft still open is written after the visit ends (the editor's Done closes
+            // the visit, then commits the draft), so a run its steps read is kept too.
+            commit: () => end((id) => runReaders(id).length > 0 || runs.bindings(id).length > 0 || draftReads(id)),
             discard: () => end(() => false),
         };
     }
@@ -4511,6 +4521,22 @@ export function setsNotifierOfSession(session: GraphSession): SetsNotifier {
 
 /** Each session's input counters, beside it rather than on it so the published type gains nothing. */
 const sessionInputs = new WeakMap<GraphSession, InputCounters>();
+
+/**
+ * Whether any step of a rule's selections reads a run.
+ * @param stepRuns - The session's step runs.
+ * @param rule - The rule.
+ * @param run - The run.
+ * @returns True when one does.
+ */
+function ruleReadsRun(stepRuns: StepRuns, rule: RuleTree, run: Run): boolean {
+    let found = false;
+    mapUnions(rule, (leaf) => {
+        found ||= leaf.branches.some((branch) => branch.steps.some((step) => stepRuns.reads(step, leaf.within, run)));
+        return leaf;
+    });
+    return found;
+}
 
 /** Each session's working graph, for the internal readers of its view. */
 const sessionWorking = new WeakMap<GraphSession, WorkingGraph>();

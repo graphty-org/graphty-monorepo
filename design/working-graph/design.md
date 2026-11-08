@@ -105,7 +105,7 @@ original and is one of the agreement's named cases: a filter's own conditions, "
 - **Layout and camera, View:** every layout and engine (Graphviz, third-party, custom); edge
   filters, time-window re-layout, scoped layouts (section 7); estimate and refusals, force driver
   choice, clusterBy; decision 37's items; Fit, standard views, `applyCameraView` with no scope,
-  zoomToFit, auto-framing (A); Frame selection, `zoomToNodes(ids)` (17); decision 48; pins replay.
+  zoomToFit, auto-framing (A); Frame selection (17); decision 48; pins replay.
 - **Styling, View:** the Which head "N of M"; `styles.categories`, `styles.groups` counts and
   "Select these N"; legend category rows; the property row "on N" and "Matched nodes";
   `styles.agreement`; `styles.preview` bins; label declutter and its counts.
@@ -246,7 +246,8 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
     get a legacy graph built from it.
 16. **A run keeps the view it started on** until it ends.
 17. **Undo of a filter step restores the dropped selection ids**; clearing or turning off the
-    filter does not. `zoomToNodes(ids)` frames the given ids in the view.
+    filter does not. Frame selection frames the shown selected nodes; `zoomToNodes(ids)` and a
+    named scope frame the ids as given (a caller that names a node gets it framed).
 18. **`within` covers Top-N, percentile, the color domain and legend counts**; `styles.preview`
     bins read the view.
 19. **A search allowed to find hidden items** is `find({ scope: "graph" })`; `excludedBy` marks
@@ -312,3 +313,16 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
 66. **While a draft is open, every other reader reads the committed view**; the draft never moves
     the masks.
 67. **The app's time dock code is unchanged**; its bins follow the filter through `time.bins`.
+68. **A selection editor's Done keeps the runs an open filter draft reads**: Done ends the edit
+    visit before it commits the draft, so without this the filter's own run was removed and the
+    committed filter showed nothing. `runs.readers` still lists only written conditions.
+69. **No selection target selects a node a filter hides** (ids, mixed lists, every arm); the time
+    window alone hides nothing from it (B, 60). Neighborhood walks only through shown nodes, and
+    invert selects only shown nodes.
+70. **`styles.counts(id, { scope })`**, `"graph" | "visible"`, reads the view by default with the
+    option on; the legend's painted count stays the whole graph's (C).
+71. **When filters hide every node, the canvas says "Every node is hidden"** with a Filters door,
+    not the empty-graph card; Filters stays open to it.
+72. **A degree read over the view is labeled "Degree showing"** (the Overview's degree section,
+    a node's and a selection's Degree row) while anything is hidden.
+73. **A filter's matches list each node's whole-graph degree**, the degree its card tests.

@@ -234,6 +234,14 @@ export interface TargetContext {
      * @returns The scope, or undefined for the whole graph.
      */
     readonly defaultScope?: () => ScopeInput | undefined;
+    /**
+     * What the visibility filter keeps, one byte per row of `graph` (null for a half it keeps
+     * whole), while a filter drops what it hides from the selection (the working graph, owner
+     * decision B): every target is narrowed to it, so no target selects a node a filter hides. A
+     * node the time window alone hides is kept. Absent, or answering null, nothing is narrowed.
+     * @returns The bytes, or null.
+     */
+    readonly filterKeeps?: () => { readonly nodes: Uint8Array | null; readonly edges: Uint8Array | null } | null;
     /** Reads finished runs. Absent refuses a `top`, `above` or `range` target. */
     readonly results?: ResultsApi;
     /**
@@ -382,6 +390,23 @@ function narrowToScope(
     addIds(inScope.edges, resolved.edges);
     nodes.intersect(inScope.nodes);
     edges.intersect(inScope.edges);
+}
+
+/**
+ * The nodes a scope holds, as a mask over the context's graph.
+ * @param context - What the resolution reads.
+ * @param scope - The scope, or undefined for the whole graph.
+ * @returns The mask, or null for the whole graph.
+ */
+function scopeMask(context: TargetContext, scope: ScopeInput | undefined): ElementMask<NodeId> | null {
+    if (scope === undefined) {
+        return null;
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    nodes.fill();
+    narrowToScope(context, scope, nodes, edges);
+    return nodes;
 }
 
 /**
@@ -544,6 +569,7 @@ function neighborDepth(depth: number | undefined): number {
  * @param seeds - The seed indices, already in the mask.
  * @param depth - How many steps to take.
  * @param direction - Which way to follow an edge.
+ * @param allowed - The nodes the walk may reach (what is shown), or null for every node.
  */
 function walkNeighborhood(
     nodes: ElementMask<NodeId>,
@@ -551,6 +577,7 @@ function walkNeighborhood(
     seeds: readonly number[],
     depth: number,
     direction: SelectionDirection,
+    allowed: ElementMask<NodeId> | null,
 ): void {
     let frontier = seeds;
 
@@ -559,7 +586,7 @@ function walkNeighborhood(
 
         for (const node of frontier) {
             eachAdjacentArc(graph, node, direction, (other) => {
-                if (nodes.add(other)) {
+                if ((allowed === null || allowed.has(other)) && nodes.add(other)) {
                     next.push(other);
                 }
             });
@@ -580,24 +607,32 @@ function resolveNeighborhood(target: NeighborhoodTarget, context: TargetContext)
     const { nodes, edges } = emptyMasks(context);
     const depth = neighborDepth(target.depth);
     const seeds: number[] = [];
+    // The walk stays inside what the default scope shows (the working graph), so it neither
+    // reaches a hidden neighbor nor passes through one.
+    const allowed = scopeMask(context, context.defaultScope?.());
+    const seed = (index: number): void => {
+        if ((allowed === null || allowed.has(index)) && nodes.add(index)) {
+            seeds.push(index);
+        }
+    };
 
     if (target.neighborsOf === undefined) {
         for (let index = 0; index < context.selectedNodes.count; index++) {
-            if (context.selectedNodes.has(index) && nodes.add(index)) {
-                seeds.push(index);
+            if (context.selectedNodes.has(index)) {
+                seed(index);
             }
         }
     } else {
         for (const id of target.neighborsOf) {
             const index = nodes.indexOf(id);
 
-            if (index !== INVALID_INDEX && nodes.add(index)) {
-                seeds.push(index);
+            if (index !== INVALID_INDEX) {
+                seed(index);
             }
         }
     }
 
-    walkNeighborhood(nodes, context.graph, seeds, depth, target.direction ?? DEFAULT_DIRECTION);
+    walkNeighborhood(nodes, context.graph, seeds, depth, target.direction ?? DEFAULT_DIRECTION, allowed);
 
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
 }
@@ -964,8 +999,10 @@ function resolveInvert(target: Extract<SelectionTarget, { invert: unknown }>, co
 
     const { nodes, edges } = emptyMasks(context);
     nodes.fill();
-    nodes.subtract(context.selectedNodes);
     edges.fill();
+    // Everything else that the default scope shows (the working graph), never what it hides.
+    narrowToScope(context, context.defaultScope?.(), nodes, edges);
+    nodes.subtract(context.selectedNodes);
     edges.subtract(context.selectedEdges);
 
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
@@ -1022,6 +1059,45 @@ function resolveLayer(layer: LayerId, context: TargetContext): TargetMembers {
  *   outside the permitted range.
  */
 export function resolveTarget(target: SelectionTarget, context: TargetContext): TargetMembers {
+    const members = resolveArm(target, context);
+    const keeps = context.filterKeeps?.() ?? null;
+    if (keeps !== null) {
+        dropUnkept(members.nodes, keeps.nodes);
+        dropUnkept(members.edges, keeps.edges);
+    }
+
+    return members;
+}
+
+/**
+ * Drop from a mask every row a filter does not keep.
+ * @param mask - The mask.
+ * @param keeps - One byte per row, 1 where the filter keeps it; null keeps every row.
+ */
+function dropUnkept<TId>(mask: ElementMask<TId>, keeps: Uint8Array | null): void {
+    if (keeps === null || mask.size === 0) {
+        return;
+    }
+
+    const drop: number[] = [];
+    mask.forEachMember((index) => {
+        if (keeps[index] !== 1) {
+            drop.push(index);
+        }
+    });
+    for (const index of drop) {
+        mask.delete(index);
+    }
+}
+
+/**
+ * The elements one target names, before any filter narrows them. See {@link resolveTarget}.
+ * @param target - What to select.
+ * @param context - What the resolution reads.
+ * @returns The members.
+ * @throws A `GraphtyError` as {@link resolveTarget} documents.
+ */
+function resolveArm(target: SelectionTarget, context: TargetContext): TargetMembers {
     if (typeof target !== "object" || target === null) {
         throw notATarget(target);
     }

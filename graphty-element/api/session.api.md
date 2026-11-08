@@ -6481,7 +6481,9 @@ export interface StylesApi {
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     categories(id: LayerId, channel: Channel): readonly ValueCategory[];
     colors(rowIds: readonly StyleRowId[]): readonly StyleColor[];
-    counts(id: LayerId): StyleCounts;
+    counts(id: LayerId, options?: {
+        readonly scope?: "graph" | "visible";
+    }): StyleCounts;
     defaultValue(channel: Channel): ChannelValue | undefined;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;

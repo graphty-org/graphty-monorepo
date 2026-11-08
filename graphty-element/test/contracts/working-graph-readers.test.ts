@@ -473,8 +473,14 @@ const MEMBERS: Readonly<
     "styles.categories()": { view: (s) => s.styles.categories(layerOf(s), "node.color") },
     "styles.colors()": "names its target",
     "styles.counts()": {
-        shown: (s) => s.styles.counts(layerOf(s)).visible?.matched,
-        all: (s) => s.styles.counts(layerOf(s)).matched,
+        view: (s) => {
+            const { matched, painted, noValue } = s.styles.counts(layerOf(s));
+            return { matched, painted, noValue };
+        },
+        whole: (s) => {
+            const { matched, painted, noValue } = s.styles.counts(layerOf(s), { scope: "graph" });
+            return { matched, painted, noValue };
+        },
     },
     "styles.defaultValue()": "not the graph",
     "styles.deleteRow()": "writes",

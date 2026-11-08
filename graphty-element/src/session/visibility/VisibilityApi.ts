@@ -541,6 +541,12 @@ export interface SessionVisibilityApi extends VisibilityApi {
     /** The one rule the masks evaluate: the filter AND every step that is on, or null. */
     readonly rule: RuleTree | null;
     /**
+     * The conditions the filter drafts still open hold, as they hold them now: what a selection
+     * editor's Done keeps the runs of, since its draft is written after the visit ends.
+     * @returns The conditions.
+     */
+    openDrafts(): readonly FilterCondition[];
+    /**
      * What a steps list would leave visible, without recording it: the counts before the first
      * step (the filter and the window alone), then after each step that is on, in order.
      * @param steps - The steps.
@@ -1990,6 +1996,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         readonly FilterCondition[],
         { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }
     >();
+    /** The filter drafts still open, for {@link SessionVisibilityApi.openDrafts}. */
+    const drafts = new Set<FilterDraft>();
     /** The selection before a filter change dropped what it hides, by the visibility it reached. */
     const droppedFrom = new WeakMap<
         VisibilityState,
@@ -2676,6 +2684,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return countsNow();
         },
 
+        openDrafts(): readonly FilterCondition[] {
+            return [...drafts].map((each) => each.condition);
+        },
+
         draft(target: FilterConditionInput | string): FilterDraft {
             const list = conditionsNow();
             const editing = typeof target === "string";
@@ -2700,7 +2712,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                     });
                 }
             };
-            return {
+            const made: FilterDraft = {
                 get condition(): FilterCondition {
                     return held();
                 },
@@ -2717,6 +2729,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 commit(options: RunOptions = {}): Run<FilterResult & { readonly id: string }> {
                     requireOpen();
                     open = false;
+                    drafts.delete(made);
                     // One step, as `updateCondition` or `addCondition` writes it, against the
                     // conditions as they stand now.
                     const now = conditionsNow();
@@ -2734,8 +2747,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 },
                 cancel(): void {
                     open = false;
+                    drafts.delete(made);
                 },
             };
+            drafts.add(made);
+            return made;
         },
 
         restoreConditions(conditions: readonly FilterCondition[]): Run<FilterResult> {

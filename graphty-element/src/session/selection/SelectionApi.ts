@@ -528,6 +528,8 @@ export interface SelectionSources {
     readonly checkRule?: (where: Query) => RuleCheck;
     /** The scope a `where` or `text` target naming none reads. Absent, the whole graph. */
     readonly defaultScope?: TargetContext["defaultScope"];
+    /** What the filter keeps, which every target is narrowed to. Absent, nothing is narrowed. */
+    readonly filterKeeps?: TargetContext["filterKeeps"];
     /** What a note's targets select. Absent refuses a `note` target. */
     readonly note?: TargetContext["note"];
     /** What a style layer's rule matches. Absent refuses a `layer` target. */
@@ -1268,7 +1270,7 @@ class Selection implements SelectionOwner {
      * @returns The context, built around the frame the selection is synchronised to.
      */
     #context(): TargetContext {
-        const { scope, results, match, find, note, layer, defaultScope } = this.#sources;
+        const { scope, results, match, find, note, layer, defaultScope, filterKeeps } = this.#sources;
 
         return {
             graph: this.#frame.graph,
@@ -1283,6 +1285,7 @@ class Selection implements SelectionOwner {
             ...(note === undefined ? {} : { note }),
             ...(layer === undefined ? {} : { layer }),
             ...(defaultScope === undefined ? {} : { defaultScope }),
+            ...(filterKeeps === undefined ? {} : { filterKeeps }),
         };
     }
 

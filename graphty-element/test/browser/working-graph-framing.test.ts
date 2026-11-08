@@ -70,6 +70,27 @@ describe("framing over the working graph", () => {
         });
     }
 
+    it("Frame selection frames only the selected nodes that are shown, with the option on", async () => {
+        const { graph, session } = await filtered(true);
+        // "far" is hidden by the time window alone, so it stays selected (owner decision B).
+        await session.data.updateNodes([
+            { id: "a", values: { seen: 1 } },
+            { id: "b", values: { seen: 1 } },
+            { id: "far", values: { seen: 5 } },
+        ]);
+        await session.visibility.set(null);
+        await session.visibility.setWindow({ attribute: "data.seen", from: 0, to: 2 });
+        await graph.waitForSettled();
+        await session.selection.apply({ nodes: ["a", "far"] }, "replace");
+        assert.sameMembers([...session.selection.nodes], ["a", "far"]);
+
+        await graph.applyCameraView("fitToGraph", { scope: "selection" });
+        const mixed = graph.getCameraState();
+        await session.selection.apply({ nodes: ["a"] }, "replace");
+        await graph.applyCameraView("fitToGraph", { scope: "selection" });
+        assert.deepStrictEqual(mixed, graph.getCameraState(), "the hidden selected node is not framed");
+    });
+
     it("frames the whole graph with the option off, as before", async () => {
         const { graph } = await filtered(false);
 

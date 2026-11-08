@@ -1039,11 +1039,15 @@ export interface StylesApi {
      * layer's kind of element. Re-read it when `revision` would change: on `style:changed`, and
      * after a data or run change.
      * @param id - The layer.
+     * @param options - How to count.
+     * @param options.scope - Which elements are counted (since 3.36.0): `"graph"` the whole graph,
+     *     `"visible"` only what the filter and the time window leave shown. Absent, the whole
+     *     graph, or what is shown while the session reads the working graph.
      * @returns What it matches, where it wins each channel, and what it could not paint.
      * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
      * @since 3.16.0
      */
-    counts(id: LayerId): StyleCounts;
+    counts(id: LayerId, options?: { readonly scope?: "graph" | "visible" }): StyleCounts;
     /**
      * Turn a rule into the fixed value it currently produces, so a person can then edit it.
      *
@@ -3131,7 +3135,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         ...(sources.field === undefined ? {} : { field: sources.field }),
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         valueLabels: (path) => valueLabelsAt(dispatcher.state.valueLabels, path),
-        painted: (id) => api.counts(id).painted,
+        // The whole graph's by default: the legend's `within` decides its painted count.
+        painted: (id) => api.counts(id, { scope: "graph" }).painted,
         // What the layer selects among the elements drawn: a filter step that hides some of them
         // takes them out of the count, so a key never counts nodes the drawing does not show.
         selects: (id) => {
@@ -5783,12 +5788,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         },
 
-        counts(id: LayerId): StyleCounts {
+        counts(id: LayerId, options: { readonly scope?: "graph" | "visible" } = {}): StyleCounts {
             const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+            const scope = options.scope ?? (sources.workingGraph?.() === true ? "visible" : "graph");
+            if (scope !== "graph" && scope !== "visible") {
+                throw new GraphtyError({
+                    code: "E_OPTION_RANGE",
+                    message: `styles.counts scope must be "graph" or "visible", not ${JSON.stringify(scope)}`,
+                    source: "data",
+                });
+            }
+            const shown = elementsOf(DRAWN);
 
             // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
             const counts = {
-                ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision, elementsOf(DRAWN)),
+                ...styleCounts(
+                    id,
+                    scope === "graph" ? elementsOf(WHOLE_GRAPH) : shown,
+                    countSources(),
+                    revision,
+                    shown,
+                ),
                 visible: amongDrawn(id),
             };
             // Groups past the outline cap draw nothing; said here, never dropped silently.

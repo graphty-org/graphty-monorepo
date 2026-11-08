@@ -12,7 +12,7 @@ import {
 import { JOIN_TEMPLATE_INDICES, JOIN_TEMPLATE_VERTICES } from "./edgeJoinShader";
 import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
-import type { CurveSpan } from "./pulledCurve";
+import { curveShape, type CurveSpan } from "./pulledCurve";
 
 /**
  * @file Straight edges drawn from the row table: a piece is two row numbers, not twenty floats.
@@ -207,8 +207,7 @@ export class PulledLineBatch {
         this.rows[at + 10] = span?.pieces ?? 0;
         this.rows[at + 11] = span?.startAt ?? 0;
         this.rows[at + 12] = span?.endAt ?? 0;
-        this.rows[at + 13] = span?.bow ?? 0;
-        this.rows[at + 14] = (span?.bow ?? null) === null ? 0 : 1;
+        [this.rows[at + 13], this.rows[at + 14]] = curveShape(span);
         this.touch(piece);
     }
 

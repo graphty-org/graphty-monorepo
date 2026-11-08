@@ -468,22 +468,23 @@ const BUNDLE_STEPS = 24;
 const ARC_TURN_PER_PIECE = Math.PI / 24;
 
 /**
- * A curved edge drawn as an arc of the circle through both node centers (`line.arcRadius`), bowing to the left of
- * the direction from the source to the target in the x-y plane, the shorter way round, as Gephi draws a curved
- * edge (`EdgeRenderer.CurvedEdgeRenderer`: radius the center distance over its arc curveness). z runs straight
- * from one end to the other.
+ * The circle a center arc (`line.arcRadius`) runs on, and how {@link centerArc} samples it: its center and radius,
+ * the angle from the center to the source, the signed turn to the target the shorter way round, and the pieces.
  * @param src - The source node's center.
  * @param dst - The target node's center.
- * @param radius - The circle's radius as a multiple of the distance between the centers in the x-y plane, at
- *     least 0.5 (a half circle).
- * @returns The arc, flat x, y, z, both ends included; the straight line when the centers meet in the x-y plane.
+ * @param radius - The radius as a multiple of the distance between the centers in the x-y plane.
+ * @returns The circle, or null when the centers meet in the x-y plane (the arc is then the straight line).
  */
-export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
+export function centerCircle(
+    src: Xyz,
+    dst: Xyz,
+    radius: number,
+): { cx: number; cy: number; r: number; from: number; turn: number; pieces: number } | null {
     const dx = dst.x - src.x;
     const dy = dst.y - src.y;
     const chord = Math.hypot(dx, dy);
     if (chord < 1e-9) {
-        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+        return null;
     }
 
     const r = Math.max(radius, 0.5) * chord;
@@ -495,6 +496,27 @@ export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
     let turn = Math.atan2(dst.y - cy, dst.x - cx) - from;
     turn -= 2 * Math.PI * Math.round(turn / (2 * Math.PI));
     const pieces = Math.min(BUNDLE_STEPS, Math.max(2, Math.ceil(Math.abs(turn) / ARC_TURN_PER_PIECE - 1e-9)));
+    return { cx, cy, r, from, turn, pieces };
+}
+
+/**
+ * A curved edge drawn as an arc of the circle through both node centers (`line.arcRadius`), bowing to the left of
+ * the direction from the source to the target in the x-y plane, the shorter way round, as Gephi draws a curved
+ * edge (`EdgeRenderer.CurvedEdgeRenderer`: radius the center distance over its arc curveness). z runs straight
+ * from one end to the other.
+ * @param src - The source node's center.
+ * @param dst - The target node's center.
+ * @param radius - The circle's radius as a multiple of the distance between the centers in the x-y plane, at
+ *     least 0.5 (a half circle).
+ * @returns The arc, flat x, y, z, both ends included; the straight line when the centers meet in the x-y plane.
+ */
+export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
+    const circle = centerCircle(src, dst, radius);
+    if (circle === null) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    }
+
+    const { cx, cy, r, from, turn, pieces } = circle;
     const out: number[] = [];
     for (let i = 0; i <= pieces; i++) {
         const t = i / pieces;

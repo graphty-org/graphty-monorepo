@@ -8,7 +8,7 @@ import { Vector3 } from "@babylonjs/core";
 import { assert, describe, it } from "vitest";
 
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
-import { crossingOf, fanArc, routeOutside, type Xyz } from "../src/meshes/edgeRoute";
+import { centerArc, crossingOf, fanArc, routeOutside, type Xyz } from "../src/meshes/edgeRoute";
 import { bezierSamples, curvePathPoint, curveSpan } from "../src/meshes/pulledCurve";
 
 /** A seeded generator, so a failure names a case that comes back. */
@@ -134,6 +134,34 @@ describe("a pulled curve's path", () => {
             const want = objectPath(src, dst, rSrc, rDst, fanArc(src, dst, left, right, offset));
             const bow = forward ? offset : -offset;
             const span = curveSpan(src, dst, outsideOf(src, rSrc), outsideOf(dst, rDst), bow);
+            assert.strictEqual(span === null, want === null, "a span exactly when the object path cuts an arc");
+            if (span === null || want === null) {
+                continue;
+            }
+
+            drawn++;
+            uncut += want[0].x === src.x && want[0].y === src.y && want[0].z === src.z ? 1 : 0;
+            assert.strictEqual(span.pieces, want.length - 1);
+            want.forEach((p, j) => {
+                const q = curvePathPoint(src, dst, span, j);
+                const off = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+                assert.isAtMost(off, 1e-9 * (1 + Math.hypot(p.x, p.y, p.z)), `case ${String(i)} point ${String(j)}`);
+            });
+        }
+
+        assert.isAtLeast(drawn, 150, "most cases draw a cut arc");
+        assert.isAbove(uncut, 0, "some arcs clear neither node and are drawn as the lone curve, uncut");
+    });
+
+    it("puts every point of a center arc where the object path's cut arc has it", () => {
+        const random = seeded(4478);
+        let drawn = 0;
+        let uncut = 0;
+        for (const [i, { src, dst, rSrc, rDst }] of cases().entries()) {
+            // `line.arcRadius` is at least 0.5, a half circle; a centerArc below it is clamped there
+            const radius = i % 9 === 0 ? 0.5 : 0.5 + random() * 3;
+            const want = objectPath(src, dst, rSrc, rDst, centerArc(src, dst, radius));
+            const span = curveSpan(src, dst, outsideOf(src, rSrc), outsideOf(dst, rDst), null, radius);
             assert.strictEqual(span === null, want === null, "a span exactly when the object path cuts an arc");
             if (span === null || want === null) {
                 continue;

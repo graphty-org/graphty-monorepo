@@ -1,6 +1,6 @@
 /**
  * @file `PULLED_CURVE_GLSL` puts a curve's path points where its mirror, `curvePathPoint`, puts them
- * (design/rendering/row-renderer.md, stage 21): every point of 200 cut curves, lone and fanned, read back through
+ * (design/rendering/row-renderer.md, stage 21): every point of 200 cut curves, lone, fanned and center arcs, read back through
  * transform feedback on WebGL2, within 1e-4 of the mirror, edges moved to the origin as the trim test
  * moves them, since a float's spacing grows with the coordinate.
  */
@@ -8,7 +8,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { Xyz } from "../../src/meshes/edgeRoute";
-import { curvePathPoint, type CurveSpan, curveSpan, PULLED_CURVE_GLSL } from "../../src/meshes/pulledCurve";
+import { curvePathPoint, curveShape, type CurveSpan, curveSpan, PULLED_CURVE_GLSL } from "../../src/meshes/pulledCurve";
 
 const VERTEX = `#version 300 es
 precision highp float;
@@ -66,8 +66,8 @@ function shaderPoints(asks: Ask[]): Float32Array {
     const floats = asks.flatMap(({ src, dst, span, j }) => [
         ...[src.x, src.y, src.z, 0],
         ...[dst.x, dst.y, dst.z, 0],
-        ...[span.samples, span.first, span.pieces, span.bow ?? 0],
-        ...[span.startAt, span.endAt, span.bow === null ? 0 : 1, j],
+        ...[span.samples, span.first, span.pieces, curveShape(span)[0]],
+        ...[span.startAt, span.endAt, curveShape(span)[1], j],
     ]);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(floats), gl.STATIC_DRAW);
@@ -118,8 +118,19 @@ function asks(): Ask[] {
             const d = Math.hypot(x - c.x, y - c.y, z - c.z);
             return d > 0 && d > r;
         };
-        const bow = out.length % 2 === 0 ? null : (random() - 0.5) * 2 * scale;
-        const span = curveSpan(src, dst, radius(src, random() * scale * 0.3), radius(dst, random() * scale * 0.3), bow);
+        // a lone curve, a fanned arc, and a center arc (`line.arcRadius`) in turn
+        const kind = Math.floor(random() * 3);
+        const bow = kind === 1 ? (random() - 0.5) * 2 * scale : null;
+        // a half circle (radius 0.5) among them, whose way round is a float's noise
+        const arc = kind === 2 ? Math.max(0.5, random() * 3.5 - 0.5) : null;
+        const span = curveSpan(
+            src,
+            dst,
+            radius(src, random() * scale * 0.3),
+            radius(dst, random() * scale * 0.3),
+            bow,
+            arc,
+        );
         for (let j = 0; span !== null && j <= span.pieces; j++) {
             out.push({ src, dst, span, j });
         }
@@ -135,7 +146,8 @@ describe("the pulled curve's GLSL", () => {
         let worst = 0;
         all.forEach(({ src, dst, span, j }, i) => {
             const p = curvePathPoint(src, dst, span, j);
-            worst = Math.max(worst, Math.hypot(got[3 * i] - p.x, got[3 * i + 1] - p.y, got[3 * i + 2] - p.z));
+            const off = Math.hypot(got[3 * i] - p.x, got[3 * i + 1] - p.y, got[3 * i + 2] - p.z);
+            worst = Math.max(worst, off);
         });
         assert.isAtMost(worst, 1e-4, `the farthest point is ${String(worst)} off`);
     });

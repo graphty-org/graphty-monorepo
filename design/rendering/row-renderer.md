@@ -569,6 +569,22 @@ curve draws the same uncut curve; it answers null only for a center outside its 
 pixels against `"objects"`, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, `arcRadius`,
 `supportModel` or a gap, routes (`line.route`), bends and self-loops.
 
+As built (stage 21, fifth pull request): a curve drawn on a circle through both centers (`line.arcRadius`,
+`edgeRoute.centerArc`) is pulled too, on `"batched"`. `arcRadius` joins `PULLED_LINE_KEYS`; it shapes only a curve that
+does not fan (a fanned curve in a bundle keeps its bow, as on the object path), and a change to it already re-places
+the edge. `edgeRoute.centerCircle` is `centerArc`'s circle, split out unchanged so the mirror samples it the same way;
+`curveSpan` takes the radius and the span gains `radius` and `turn` (the signed angle from source to target, set by the
+radius alone), both null for the other kinds. The fourth texel of a curve piece is (endAt, bow or turn, 0 lone, 1 fanned
+arc, 2 circle, unused), written through `pulledCurve.curveShape`. Two findings from the code: the shader takes the turn,
+not the radius, because a half circle's way round (radius 0.5) is float noise in `centerArc` itself, so float32 must not
+work it out again; and it samples the circle by the chord each sample sweeps from the source, with its own Taylor sine
+and cosine, because SwiftShader's built-in `sin`, `cos` and `atan` put samples up to 9e-3 off at a radius of 40, where
+the bar is 1e-4. `test/pulled-curve.test.ts` holds the mirror to `centerArc`'s cut within 1e-9 on 400 seeded edges (half
+circles among them, some falling back to the uncut lone curve); `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to
+it within 1e-4; `test/browser/pulled-curves-batched.test.ts` draws every curve at radius 0.6, drags a node, then widens
+the radius to 2, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve
+with caps, `supportModel` or a gap, routes (`line.route`), bends and self-loops.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

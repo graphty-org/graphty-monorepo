@@ -238,6 +238,19 @@ translucent batch must carry its look's rest visibility. With that, translucent 
 3D differs by about 600 pixels even with one opacity, and one batch per source breaks 2D as well: the batch's place in
 Babylon's back-to-front order of translucent meshes is what differs, and it has to be settled before opacity batches.
 
+As built (stage 14, third pull request: per-instance opacity): `batchableOf` takes a solid color at any opacity.
+An opacity is in its source's mesh key, so each opacity is a source and a look of its own, and a translucent
+source keeps a family of its own (no sharing across sizes): objects draw a translucent source's rows together,
+and one batch across sizes would draw them in row order. The batch takes its source's rest visibility.
+Correction to the second pull request's note, from the code: the order Babylon draws translucent meshes in
+is not decided by distance here. Every source sits at y = -10000 and every batch at the root's origin, so the
+back-to-front sort ties all of them and keeps the order they reach it in: a source's at its first instance
+in `scene.meshes`, a batch's at its own place there. Batches were made in row order, sources in paint order,
+which was the whole 563 and 654 pixel difference. `NodeBatches.orderTranslucent` puts a new translucent batch
+before every translucent batch whose source was made later, so batches tie in their sources' creation order.
+That stands in for the objects path's instance order, which repaint history can reorder; `render-parity`
+decides. A batched row's opacity reads as `Node.drawnOpacity` (its mesh's visibility, or the batch's).
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

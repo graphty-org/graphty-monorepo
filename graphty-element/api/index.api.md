@@ -5135,6 +5135,7 @@ class Node_2 implements ModelUser {
     // @internal
     get isDrawn(): boolean;
     get isDrawnAsGroup(): boolean;
+    get isDrawnBehindEdges(): boolean;
     // @internal
     isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;

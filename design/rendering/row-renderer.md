@@ -230,6 +230,14 @@ instance and no batch of its own; when the first source is disposed, its family 
 again at the same flush. Nothing changes under `"objects"`: `NodeBatches` exists only under `"batched"`, and the prune
 guard's set is empty without it.
 
+As built (stage 14, second pull request): `PajekShapesAndMidLineArrows` failed only on `"batched"` because its play read
+the shape-`none` node's source through `drawnPickMesh`, which is null for a batched row since stage 11; it reads
+`Node.paintedSourceMesh` now, and both paths pass. A fact for the opacity pull request, from the code: a node's opacity
+is its source mesh's `visibility` (`NodeMesh`, beside `material.alpha`), which a batched source gives up for 0, so a
+translucent batch must carry its look's rest visibility. With that, translucent rows batched per look match in 2D, but
+3D differs by about 600 pixels even with one opacity, and one batch per source breaks 2D as well: the batch's place in
+Babylon's back-to-front order of translucent meshes is what differs, and it has to be settled before opacity batches.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

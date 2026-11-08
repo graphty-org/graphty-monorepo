@@ -627,10 +627,14 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await frameOn(graph, "batched");
         const scale = graph.getNode(0)?.drawnScale;
         await wheel(element, { x: 200, y: 150 }, -300);
+        // A reader's zoom does not make the frame unstable, and the rows are rescaled by the render
+        // loop's next update pass, not by the wheel event: wait for that pass, not for a stable frame.
+        await vi.waitFor(() => {
+            assert.notEqual(graph.getNode(0)?.drawnScale, scale, "the zoom scaled the nodes");
+        });
         await element.waitForStableFrame();
         const batched = await readFrame(graph);
 
-        assert.notEqual(graph.getNode(0)?.drawnScale, scale, "the zoom scaled the nodes");
         assert.equal(graph.rowCounts.batchedNodes, NODES.length);
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });

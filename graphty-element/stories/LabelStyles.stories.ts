@@ -1769,7 +1769,7 @@ export const EmojiLabels: Story = {
  * `layoutBehavior.labels.labelText: "glyphs"`. The words sit where the canvas labels of Default put
  * them; their edges come from a distance field, so they differ slightly from the canvas's.
  */
-export const GlyphText: Story = {
+export const AtlasText: Story = {
     args: {
         ...CAT_NETWORK,
         setup: storySetup({
@@ -1778,20 +1778,20 @@ export const GlyphText: Story = {
         }),
     },
     play: async ({ canvasElement }) => {
-        const { graph } = await loaded(canvasElement, "GlyphText");
+        const { graph } = await loaded(canvasElement, "AtlasText");
         const glyphs = graph.scene.meshes.filter((mesh) => mesh.name === GLYPH_DRAW_NAME);
         const canvasDrawn = [...graph.getDataManager().nodes.values()].filter(
             (node) => node.label !== undefined && node.label.drawnBy !== "glyphs",
         );
 
-        await holds(glyphs.length === 1, `Styles/Label GlyphText: ${String(glyphs.length)} glyph draws, not one`);
+        await holds(glyphs.length === 1, `Styles/Label AtlasText: ${String(glyphs.length)} glyph draws, not one`);
         await holds(
             ((glyphs[0] as Mesh | undefined)?.thinInstanceCount ?? 0) > 0,
-            "Styles/Label GlyphText: the glyph draw holds no glyphs",
+            "Styles/Label AtlasText: the glyph draw holds no glyphs",
         );
         await holds(
             canvasDrawn.length === 0,
-            `Styles/Label GlyphText: ${String(canvasDrawn.length)} plain labels were drawn on their own canvas`,
+            `Styles/Label AtlasText: ${String(canvasDrawn.length)} plain labels were drawn on their own canvas`,
         );
     },
 };

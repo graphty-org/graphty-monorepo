@@ -1748,7 +1748,9 @@ export class Edge {
             (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
             EdgeMesh.drawsAsPattern(style, this.srcNode === this.dstNode) &&
             !asSurface;
-        const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh;
+        // A line moves between a pulled piece and a placed slot when the render path changes.
+        const samePull = this.wantsPull(style) === (this.pulled !== null);
+        const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
         const sameFlavor = flavorOf(style) === this.lineWanted;
@@ -2341,7 +2343,7 @@ export class Edge {
             options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
 
         this.lineWanted = flavorOf(style);
-        const pulled = options.width > 0 && this.pullsLine(style) ? this.pullLine(options, style) : null;
+        const pulled = this.wantsPull(style) ? this.pullLine(options, style) : null;
         if (pulled) {
             this.lineBatch = null;
             this.lineSlots = [];
@@ -2385,17 +2387,31 @@ export class Edge {
     }
 
     /**
-     * Whether this edge's line is pulled from the row table (`PulledLineBatch`, behind the internal
-     * switch `pulledEdgesDefault`): a plain solid straight line between two node centres -- no
-     * cap, gap, group, bend, loop, label, band or any other line key -- in 3D. Read when the line is
-     * built.
+     * Whether this edge's line is to be pulled from the row table: it {@link Edge.pullsLine}, it
+     * draws a line at all, and the graph keeps a row table to pull from.
+     * @param style - The resolved style.
+     * @returns True when it is to be pulled.
+     */
+    private wantsPull(style: EdgeStyleConfig): boolean {
+        return (
+            (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
+            this.pullsLine(style) &&
+            (this.context.getRowTable?.() ?? null) !== null
+        );
+    }
+
+    /**
+     * Whether this edge's line is pulled from the row table (`PulledLineBatch`): on the `"batched"`
+     * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
+     * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
+     * key -- in 3D. Read when the line is built.
      * @param style - The resolved style.
      * @returns True when it is pulled.
      */
     private pullsLine(style: EdgeStyleConfig): boolean {
         const line = style.line ?? {};
         return (
-            pulledEdgesDefault.value &&
+            (pulledEdgesDefault.value || (this.context.getNodeBatches?.() ?? null) !== null) &&
             this.srcNode !== this.dstNode &&
             !this.srcNode.isDrawnAsGroup &&
             !this.dstNode.isDrawnAsGroup &&

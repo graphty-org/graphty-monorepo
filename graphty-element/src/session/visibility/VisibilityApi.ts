@@ -234,6 +234,52 @@ export interface FilterConditionCount {
     readonly unresolved: readonly Path[];
 }
 
+/**
+ * One filter condition being edited without changing what is shown: its edits are held until
+ * {@link FilterDraft.commit}, so the masks, every reader of what is shown and the layout stay as
+ * they are while a reader edits it, and the edit lands as one undo step. Opened with
+ * {@link VisibilityApi.draft}.
+ * @example
+ * ```ts
+ * const draft = element.session.visibility.draft({ effect: "keep", rule: { kind: "range", attribute: "data.score", min: 0.5 } });
+ * draft.update({ rule: { kind: "range", attribute: "data.score", min: 0.7 } });
+ * console.log(draft.counts().nodes); // what it would keep, over the whole graph
+ * await draft.commit(); // one step: the filter changes, and the graph is laid out again over it
+ * ```
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.36.0
+ * @beta
+ */
+export interface FilterDraft {
+    /** The condition as the draft holds it now, with its id: a new one's id is made when it opens. */
+    readonly condition: FilterCondition;
+    /** Whether the draft is still open: false once committed or cancelled. */
+    readonly open: boolean;
+    /**
+     * Change what the draft holds. Nothing is written and nothing that is shown changes.
+     * @param change - What to change: the rule, the effect, `on`, `within` or the name.
+     * @throws A `GraphtyError` (`E_BAD_COMMAND`) once the draft is no longer open.
+     */
+    update(change: Partial<Omit<FilterCondition, "id">>): void;
+    /**
+     * What the draft's rule matches over the whole graph, the time window ignored, as
+     * {@link VisibilityApi.conditionCounts} counts a condition.
+     * @returns The counts, under the condition's id.
+     */
+    counts(): FilterConditionCount;
+    /**
+     * Write the draft: the condition is added, or the condition it opened on is changed, in one
+     * undoable step. The draft closes.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns The run, which resolves with the counts and the condition's id.
+     * @throws A `GraphtyError` (`E_BAD_COMMAND`) once the draft is no longer open, or when the
+     *     condition is malformed.
+     */
+    commit(options?: RunOptions): Run<FilterResult & { readonly id: string }>;
+    /** Close the draft and write nothing. Does nothing once it is closed. */
+    cancel(): void;
+}
+
 // ---------------------------------------------------------------------------------------------
 // The surface
 // ---------------------------------------------------------------------------------------------
@@ -451,6 +497,20 @@ export interface VisibilityApi {
      * @beta
      */
     conditionCounts(): readonly FilterConditionCount[];
+    /**
+     * Open a draft of one filter condition: a new condition, or an existing one by id. Edits to the
+     * draft change nothing that is shown until it is committed, which writes them as one step.
+     * See {@link FilterDraft}.
+     * @param target - The new condition (an id is made when absent, and `on` defaults to true), or
+     *     the id of a condition to edit.
+     * @returns The draft.
+     * @throws A `GraphtyError` (`E_BAD_COMMAND`) when no condition has that id, or the new
+     *     condition is malformed or its id is taken.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.36.0
+     * @beta
+     */
+    draft(target: FilterConditionInput | string): FilterDraft;
     /**
      * Whether hidden nodes should still be drawn faintly instead of vanishing.
      *
@@ -2554,6 +2614,58 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         conditionCounts(): readonly FilterConditionCount[] {
             return countsNow();
+        },
+
+        draft(target: FilterConditionInput | string): FilterDraft {
+            const list = conditionsNow();
+            const editing = typeof target === "string";
+            let held: FilterCondition = editing
+                ? list[indexOfCondition(list, target)]
+                : admitConditions([target], list)[0];
+            let open = true;
+            const requireOpen = (): void => {
+                if (!open) {
+                    throw new GraphtyError({
+                        code: "E_BAD_COMMAND",
+                        message: `the draft of filter condition "${held.id}" is closed`,
+                        source: "data",
+                    });
+                }
+            };
+            return {
+                get condition(): FilterCondition {
+                    return held;
+                },
+                get open(): boolean {
+                    return open;
+                },
+                update(change: Partial<Omit<FilterCondition, "id">>): void {
+                    requireOpen();
+                    held = Object.freeze({ ...held, ...change, id: held.id });
+                },
+                counts(): FilterConditionCount {
+                    return Object.freeze({ id: held.id, ...countRule(upToDate(), held.rule, null) });
+                },
+                commit(options: RunOptions = {}): Run<FilterResult & { readonly id: string }> {
+                    requireOpen();
+                    open = false;
+                    // One step, as `updateCondition` or `addCondition` writes it, against the
+                    // conditions as they stand now.
+                    const now = conditionsNow();
+                    const { id } = held;
+                    if (editing) {
+                        const at = indexOfCondition(now, id);
+                        const next = now.map((each, index) => (index === at ? conditionOf(held, held.rule) : each));
+                        return editConditions(admitConditions(next), options, { id });
+                    }
+
+                    const [added] = admitConditions([held], now);
+                    return editConditions(admitConditions([...now, added]), options, { id: added.id });
+                },
+                cancel(): void {
+                    open = false;
+                },
+            };
         },
 
         restoreConditions(conditions: readonly FilterCondition[]): Run<FilterResult> {

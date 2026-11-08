@@ -247,6 +247,7 @@ import {
     scopeResolverOfSession,
     sessionRunsOf,
     setsNotifierOfSession,
+    workingGraphOfSession,
 } from "./session/GraphSession";
 import { ISSUES_VALUE } from "./session/issues";
 import { loadLineOf, type LoadTurn } from "./session/loadLine";
@@ -1600,7 +1601,10 @@ export class Graph implements GraphContext {
         const resolver = scopeResolverOfSession(this.session);
         // A layout's grouping option names an attribute or a run's field the way an algorithm's does.
         const columns = sessionColumns(this.session, [], {}, "layout");
+        const working = workingGraphOfSession(this.session);
         this.layoutManager.setScopeSource({
+            // What layouts run over while the session reads the working graph.
+            working: () => (working.enabled ? working.view() : null),
             nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
@@ -1622,6 +1626,24 @@ export class Graph implements GraphContext {
             if (change.change === "removed") {
                 this.layoutManager.releaseDetachedScope();
             }
+        });
+        // WHAT IS SHOWN CHANGED: a filter, a time-window commit, or an undo or redo of one. While
+        // the session reads the working graph, the running layout follows it once
+        // (design/working-graph/design.md, section 7); queued, so `waitForSettled` waits for it.
+        this.session.on("visibility:changed", () => {
+            if (!working.enabled) {
+                return;
+            }
+
+            void this.operationQueue
+                .queueOperationAsync(
+                    "layout-update",
+                    async () => {
+                        await this.layoutManager.followView();
+                    },
+                    { description: "Laying out what is shown" },
+                )
+                .catch(() => undefined);
         });
 
         // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.

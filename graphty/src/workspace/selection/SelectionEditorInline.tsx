@@ -609,7 +609,8 @@ export function SelectionEditorInline({
                 rest: "faint",
                 // A filter card counts on the full graph, so it is drawn there: the other cards'
                 // removals are lifted, and drawn faint, while it is edited.
-                ...(host === "filter" ? { base: "full" as const } : {}),
+                // With the working graph on, the card is a draft and only what is shown is drawn.
+                ...(host === "filter" && !session.workingGraph ? { base: "full" as const } : {}),
                 ...(hold === undefined ? {} : { hold }),
                 ...(markedNow === null ? {} : { mark: markedNow }),
             });

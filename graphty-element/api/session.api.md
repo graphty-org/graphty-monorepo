@@ -1316,6 +1316,18 @@ export interface FilterConditionMatches {
 export type FilterDirection = SelectionDirection;
 
 // @beta
+export interface FilterDraft {
+    cancel(): void;
+    commit(options?: RunOptions): Run<FilterResult & {
+        readonly id: string;
+    }>;
+    readonly condition: FilterCondition;
+    counts(): FilterConditionCount;
+    readonly open: boolean;
+    update(change: Partial<Omit<FilterCondition, "id">>): void;
+}
+
+// @beta
 export type FilterEffect = "keep" | "exclude" | "select";
 
 // @public
@@ -7129,6 +7141,8 @@ export interface VisibilityApi {
     conditionCounts(): readonly FilterConditionCount[];
     // @beta
     readonly conditions: readonly FilterCondition[];
+    // @beta
+    draft(target: FilterConditionInput | string): FilterDraft;
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;

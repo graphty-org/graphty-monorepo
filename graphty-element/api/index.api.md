@@ -4792,6 +4792,8 @@ export abstract class LayoutEngine {
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema;
     static hasZodOptions(): boolean;
+    // @internal
+    protected hidesRow(index: number): boolean;
     get holdMask(): NodeMask | null;
     protected get holdsAny(): boolean;
     static honoursWeights: boolean;
@@ -4835,6 +4837,8 @@ export abstract class LayoutEngine {
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // @internal
+    protected get shownView(): WorkingView | null;
+    // @internal
     get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
@@ -4861,6 +4865,8 @@ export class LayoutManager implements Manager {
     dispose(): void;
     drawArrivedPaint: (() => void) | null;
     get edges(): Iterable<Edge>;
+    // @internal
+    followView(): Promise<void>;
     getNodePosition(node: Node_2): [number, number, number] | undefined;
     getStats(): {
         layoutType: string | undefined;

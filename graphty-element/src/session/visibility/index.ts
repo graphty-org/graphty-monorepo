@@ -41,6 +41,7 @@ export {
     createVisibilityApi,
     type FilterConditionCount,
     type FilterConditionMatches,
+    type FilterDraft,
     type FilterResult,
     type SessionVisibilityApi,
     type StepCounts,

@@ -24,6 +24,7 @@ import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
+import type { WorkingView } from "../session/working/view";
 import type { ClusterColumn } from "./clusterForce";
 
 export interface Position {
@@ -301,6 +302,17 @@ export const layoutEngineInternals = {} as {
         rows: ReadonlySet<number> | null,
         members?: ReadonlyMap<number, readonly number[]>,
     ): void;
+    /**
+     * Hand the engine the working graph it lays out, or null for the whole graph. Set before its
+     * nodes are added and again at every freeze; see `LayoutEngine.shownView`.
+     */
+    setView(engine: LayoutEngine, view: WorkingView | null): void;
+    /** The working graph the engine lays out, or null for the whole graph. */
+    view(engine: LayoutEngine): WorkingView | null;
+    /** Whether the engine lays out this node: always, unless its working graph hides it. */
+    takesNode(engine: LayoutEngine, n: Node): boolean;
+    /** Whether the engine lays out this edge: always, unless its working graph hides it or an end. */
+    takesEdge(engine: LayoutEngine, e: Edge): boolean;
 };
 
 /**
@@ -367,19 +379,36 @@ export abstract class LayoutEngine {
             engine.unpin(n);
         };
         layoutEngineInternals.positions = (engine) => engine.writablePositions;
-        layoutEngineInternals.edgeProblems = (engine, drawn) => engine.edgeProblems(drawn);
+        // An edge the working graph hides is drawn and, by design, never held.
+        layoutEngineInternals.edgeProblems = (engine, drawn) =>
+            engine.edgeProblems(
+                engine.shown === null ? drawn : new Map([...drawn].filter(([, edge]) => engine.takesEdge(edge))),
+            );
+        // A NODE OR EDGE THE WORKING GRAPH HIDES NEVER REACHES THE ENGINE, whichever door it comes
+        // through -- a build, a late arrival, a third party's engine -- so a hidden node exerts no
+        // force and takes no slot in any layout (design/working-graph/design.md, section 7).
         layoutEngineInternals.addNode = (engine, n) => {
-            engine.addNode(n);
+            if (engine.takesNode(n)) {
+                engine.addNode(n);
+            }
         };
         layoutEngineInternals.addEdge = (engine, e) => {
-            engine.addEdge(e);
+            if (engine.takesEdge(e)) {
+                engine.addEdge(e);
+            }
         };
         layoutEngineInternals.addNodes = (engine, nodes) => {
-            engine.addNodes(nodes);
+            engine.addNodes(engine.shown === null ? nodes : nodes.filter((n) => engine.takesNode(n)));
         };
         layoutEngineInternals.addEdges = (engine, edges) => {
-            engine.addEdges(edges);
+            engine.addEdges(engine.shown === null ? edges : edges.filter((e) => engine.takesEdge(e)));
         };
+        layoutEngineInternals.setView = (engine, view) => {
+            engine.shown = view;
+        };
+        layoutEngineInternals.view = (engine) => engine.shown;
+        layoutEngineInternals.takesNode = (engine, n) => engine.takesNode(n);
+        layoutEngineInternals.takesEdge = (engine, e) => engine.takesEdge(e);
         layoutEngineInternals.removeNode = (engine, n) => {
             engine.removeNode(n);
         };
@@ -463,6 +492,9 @@ export abstract class LayoutEngine {
 
     /** The rows the element is holding still, or null when nothing is held. See {@link setHoldMask}. */
     private hold: NodeMask | null = null;
+
+    /** The working graph this engine lays out, or null for the whole graph. See {@link shownView}. */
+    private shown: WorkingView | null = null;
 
     /** How many rows {@link hold} covers; a row at or past it is newer than the hold, so held. */
     private holdRows = 0;
@@ -709,6 +741,58 @@ export abstract class LayoutEngine {
     protected attachPositions(positions: ElementPositions): void {
         this.positionArray = positions;
         this.positionArrayAttached = true;
+    }
+
+    /**
+     * The working graph this engine lays out: the part of the graph the visibility filter and the
+     * time window leave shown, while the session's `workingGraph` option is on and something is
+     * hidden. Null lays out the whole graph. A node or edge it hides is never added to the engine,
+     * and no layout write reaches its row, so it keeps its last position.
+     * @returns The view, or null.
+     * @internal
+     */
+    protected get shownView(): WorkingView | null {
+        return this.shown;
+    }
+
+    /**
+     * Whether the working graph hides this row: a row it covers whose bit is clear. A row newer
+     * than the view (a node added since) is not hidden until the next freeze says so.
+     * @param index - The node's row.
+     * @returns True when the row is hidden.
+     * @internal
+     */
+    protected hidesRow(index: number): boolean {
+        const view = this.shown;
+        return view !== null && index < view.graph.nodeCount && !maskTest(view.nodes, index);
+    }
+
+    /**
+     * Whether this engine lays out a node.
+     * @param n - The node.
+     * @returns False for a node the working graph hides.
+     */
+    private takesNode(n: Node): boolean {
+        return !this.hidesRow(n.index);
+    }
+
+    /**
+     * Whether this engine lays out an edge: both its ends are taken, and the working graph does not
+     * hide the edge itself.
+     * @param e - The edge.
+     * @returns False for an edge the working graph hides.
+     */
+    private takesEdge(e: Edge): boolean {
+        const view = this.shown;
+        if (view === null) {
+            return true;
+        }
+
+        if (e.index < view.graph.edgeCount) {
+            return maskTest(view.edges, e.index);
+        }
+
+        return this.takesNode(e.srcNode) && this.takesNode(e.dstNode);
     }
 
     /**
@@ -959,7 +1043,10 @@ export abstract class LayoutEngine {
         // A HELD ROW IS REFUSED LIKE A PINNED ONE, once it has a coordinate. A node that arrived
         // after a scoped layout started has none, and its first coordinate lands so that it is
         // drawn somewhere; from then on it stays where that put it.
-        if (intent === "layout" && (positions.isPinned(index) || (this.isHeld(index) && positions.isPlaced(index)))) {
+        if (
+            intent === "layout" &&
+            (positions.isPinned(index) || ((this.isHeld(index) || this.hidesRow(index)) && positions.isPlaced(index)))
+        ) {
             return false;
         }
 
@@ -1028,7 +1115,7 @@ export abstract class LayoutEngine {
             const base = POSITION_COMPONENTS * row;
             const placed = row < live && isStorableCoordinate(array[base]);
             const guarded = placed || !firstPlacement;
-            if (guarded && (pins[row] === 1 || (holds && placed && this.isHeld(row)))) {
+            if (guarded && (pins[row] === 1 || (placed && ((holds && this.isHeld(row)) || this.hidesRow(row))))) {
                 continue;
             }
 
@@ -1281,14 +1368,52 @@ interface GraphSource {
     undirected(snapshot: GraphSnapshot): DerivedGraph;
 }
 
+/** What a one-pass run reads of the element's coordinates, in the rows of the graph it arranges. */
+export type RowPositions = Pick<ElementPositions, "count" | "isPlaced" | "read" | "isPinned" | "view">;
+
+/**
+ * The element's coordinates read in a working graph's rows: row `i` is the original row
+ * `origin[i]`. Read-only; a one-pass layout publishes through the node's own row.
+ * @param positions - The element's array.
+ * @param origin - View row -> element row.
+ * @returns The coordinates by view row.
+ */
+function positionsInRows(positions: ElementPositions, origin: Uint32Array): RowPositions {
+    return {
+        get count(): number {
+            return origin.length;
+        },
+        isPlaced: (row) => row < origin.length && positions.isPlaced(origin[row]),
+        isPinned: (row) => row < origin.length && positions.isPinned(origin[row]),
+        read: (row, out) => {
+            positions.read(origin[row], out);
+        },
+        view: (nodeCount) => {
+            const out = new Float32Array(POSITION_COMPONENTS * nodeCount).fill(Number.NaN);
+            const at = { x: 0, y: 0, z: 0 };
+            for (let row = 0; row < nodeCount && row < origin.length; row++) {
+                if (positions.isPlaced(origin[row])) {
+                    positions.read(origin[row], at);
+                    out.set([at.x, at.y, at.z], POSITION_COMPONENTS * row);
+                }
+            }
+
+            return out;
+        },
+    };
+}
+
 /** The graph one run of a static engine arranges, and how a node finds its row in it. */
 interface LoadedGraph {
     /** The undirected graph the layout reads. */
     readonly snapshot: GraphSnapshot;
-    /** The element's snapshot it was derived from, or null for an engine driven without one. */
+    /**
+     * The graph `snapshot` was derived from: the element's snapshot, or the working graph's compact
+     * one while the engine lays out a view. Null for an engine driven without an element.
+     */
     readonly source: GraphSnapshot | null;
-    /** The element's array, or null for an engine driven without one. */
-    readonly positions: ElementPositions | null;
+    /** The element's array, in `snapshot`'s rows, or null for an engine driven without one. */
+    readonly positions: RowPositions | null;
     /** A node's row in `snapshot`, or `INVALID_INDEX`. */
     rowOf(n: Node): number;
 }
@@ -1463,7 +1588,7 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
  * @param positions - the element's array, holding the drawn coordinates of the rows in `keep`
  * @param keep - the held rows
  */
-function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): void {
+function alignToHeld(column: F32, positions: RowPositions, keep: NodeMask): void {
     const rows = column.length / 3;
     const held: Coords[] = [];
     const drawn = { x: 0, y: 0, z: 0 };
@@ -1555,7 +1680,7 @@ export const simpleLayoutInternals = {
     /** The rows the run in progress keeps where they are (an add), or null. */
     kept(engine: StaticLayoutEngine): NodeMask | null;
     /** The element's array for the run in progress, or null for an engine driven without one. */
-    positions(engine: StaticLayoutEngine): ElementPositions | null;
+    positions(engine: StaticLayoutEngine): RowPositions | null;
     /** How many nodes and edges the engine's lists hold, removed ones not yet swept included, without sweeping them. */
     held(engine: StaticLayoutEngine): { readonly nodes: number; readonly edges: number };
 };
@@ -2082,6 +2207,22 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         const source = manager as Partial<GraphSource> | undefined;
         if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
             const store = source.getSnapshot();
+            // A WORKING GRAPH IS ARRANGED IN ITS OWN ROWS: one slot per shown node, and the answer
+            // reaches the element through each node's row map. Only a view of the snapshot the
+            // element holds now; one left behind by a freeze arranges the whole graph.
+            const view = this.shownView;
+            const { nodeOrigin, nodeRows } = view ?? {};
+            if (view?.graph === store && nodeOrigin && nodeRows) {
+                const { snapshot } = source.undirected(view.snapshot);
+                const lane = writableLane(manager);
+                return {
+                    snapshot,
+                    source: view.snapshot,
+                    positions: lane === undefined ? null : positionsInRows(lane, nodeOrigin),
+                    rowOf: (n) => (n.index < nodeRows.length ? nodeRows[n.index] : INVALID_INDEX),
+                };
+            }
+
             const { snapshot } = source.undirected(store);
             return {
                 snapshot,

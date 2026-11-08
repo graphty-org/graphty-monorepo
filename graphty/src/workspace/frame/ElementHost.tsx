@@ -188,6 +188,9 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             // The app's own Undo and Redo take these keys everywhere, the drawing included, so
             // every step taken back is named in a notice.
             historyKeys={false}
+            // Every reader -- layouts, counts, algorithms -- reads what the filter and the time
+            // window leave shown (design/working-graph/design.md).
+            workingGraph
             zoomToPointer
             xr={XR_CONFIG}
             {...(autosave ? { autosave: WORKSPACE_AUTOSAVE_KEY, autosaveOptions: WORKSPACE_AUTOSAVE_OPTIONS } : {})}

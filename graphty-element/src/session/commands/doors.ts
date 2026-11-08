@@ -1014,6 +1014,8 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     ),
     removeCondition: conditionDoor(["c1"], []),
     conditionCounts: READ,
+    // Opening a draft writes nothing; its commit is `addCondition` or `updateCondition`.
+    draft: READ,
 };
 
 /**
@@ -2211,6 +2213,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             releaseDetachedScope: DERIVED,
             // A run's results changed; a layout clustering by them moves, and rests in its own step.
             clustersChanged: TRANSPORT,
+            // What is shown changed; the layout follows it, and rests in its own step.
+            followView: TRANSPORT,
         },
     },
     {
@@ -3104,6 +3108,28 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             commit: calls([], [{ op: "algo.remove", runId: "degree" }]),
             discard: calls([], [{ op: "algo.remove", runId: "degree" }]),
             started: READ,
+        },
+    },
+    {
+        name: "FilterDraft",
+        file: "src/session/visibility/VisibilityApi.ts",
+        half: "session",
+        doors: {
+            // The doors test opens a draft of a new condition "c1"; its commit adds it in one step.
+            commit: calls(
+                [],
+                [
+                    {
+                        op: "visibility.conditions",
+                        conditions: [{ id: "c1", on: true, effect: "keep", rule: { kind: "degree", min: 1 } }],
+                    },
+                ],
+            ),
+            update: exempt("holds an edit in the draft; nothing is written until its commit"),
+            cancel: exempt("closes the draft, writing nothing"),
+            counts: READ,
+            condition: READ,
+            open: READ,
         },
     },
     {

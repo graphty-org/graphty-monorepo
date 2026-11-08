@@ -763,6 +763,15 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "FilterDraft.commit",
+        growth: "linear",
+        prepare: (session) => {
+            const draft = session.visibility.draft({ effect: "keep", rule: { kind: "degree", min: 2 } });
+            draft.update({ rule: { kind: "degree", min: 1 } });
+            return Promise.resolve(() => draft.commit());
+        },
+    },
+    {
         method: "VisibilityApi.removeCondition",
         growth: "linear",
         prepare: async (session) => {

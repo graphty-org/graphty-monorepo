@@ -1997,6 +1997,8 @@ export abstract class LayoutEngine {
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema_2;
     static hasZodOptions(): boolean;
+    // @internal
+    protected hidesRow(index: number): boolean;
     get holdMask(): NodeMask | null;
     protected get holdsAny(): boolean;
     static honoursWeights: boolean;
@@ -2039,6 +2041,8 @@ export abstract class LayoutEngine {
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    protected get shownView(): WorkingView | null;
     // @internal
     get spacesBySize(): boolean;
     // (undocumented)

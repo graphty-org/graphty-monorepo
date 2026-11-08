@@ -534,6 +534,7 @@ export type {
     FilterConditionCount,
     FilterConditionInput,
     FilterConditionMatches,
+    FilterDraft,
     FilterEffect,
     FilterResult,
     FilterSelectWithin,

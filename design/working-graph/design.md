@@ -221,8 +221,12 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
 3. **No new whole-graph word, no deprecation**: readers keep `"graph"` or `"all"`; scope-less
    readers gain `"graph" | "visible"`.
 4. **The preview is an element API, `visibility.draft`** (`update`, `counts`, `commit`,
-   `cancel`); the app holds no draft state.
-5. **The element draws the preview**; the app stops using `styles.showBranches` with `hold`.
+   `cancel`); the app holds no draft state. `update` takes a condition change
+   (`Partial<Omit<FilterCondition, "id">>`, as `updateCondition` does), not only a rule, so an
+   edit that turns a Filter out card into one that keeps (the app's existing rule) is one draft.
+5. **The element draws the preview** through `styles.showBranches`, which the selection editor
+   already calls for every host (its Card colors switch decides whether it draws); for a filter
+   draft the app passes neither `hold` nor `base: "full"`, so only what is shown is drawn.
 6. **Nodes the draft would bring back are counted, not drawn**, until commit.
 7. **With the option on, `hold`, `base: "full"` and `showContext` are suspended**: no node
    outside the view is drawn; with it off they keep their meaning.

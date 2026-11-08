@@ -1,4 +1,4 @@
-import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, type NodeMask, type U32 } from "@graphty/graph-format";
 import type {
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
@@ -46,6 +46,7 @@ import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
+import type { WorkingView } from "../session/working/view";
 import type { Styles } from "../Styles";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import type { DataManager } from "./DataManager";
@@ -585,6 +586,42 @@ interface LayoutScopeSource {
      * @returns The values, or null when nothing carries the path.
      */
     nodeValues?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
+    /**
+     * The working graph a layout runs over: what the filter and the time window leave shown, while
+     * the session's `workingGraph` option is on. Absent, or null, layouts run over the whole graph.
+     * @returns The view; a whole view when nothing is hidden.
+     */
+    working?(): WorkingView | null;
+}
+
+/**
+ * Whether two bitmaps hold the same words.
+ * @param left - One.
+ * @param right - The other.
+ * @returns True when equal.
+ */
+function sameWords(left: U32, right: U32): boolean {
+    return left.length === right.length && left.every((word, index) => word === right[index]);
+}
+
+/**
+ * Whether a layout built over one working graph still lays out what another shows. Views of two
+ * different snapshots are the same as far as following goes: a data edit places what it adds, and
+ * never lays the graph out again (design/working-graph/design.md, section 7).
+ * @param built - What the engine was built over; null for the whole graph.
+ * @param now - What is shown now; null for the whole graph.
+ * @returns True when nothing needs laying out again.
+ */
+function sameShown(built: WorkingView | null, now: WorkingView | null): boolean {
+    if (built === now) {
+        return true;
+    }
+
+    if (built === null || now === null) {
+        return false;
+    }
+
+    return built.graph !== now.graph || (sameWords(built.nodes, now.nodes) && sameWords(built.edges, now.edges));
 }
 
 /**
@@ -1155,7 +1192,9 @@ export class LayoutManager implements Manager {
     private driverChanged(nodeCount: number): boolean {
         const engine = this.layoutEngine;
         const running = this.runningDriver;
-        return engine !== undefined && running !== undefined && this.forceDriver(engine.type, nodeCount) !== running;
+        // Counted as the build counts it: what the working graph shows, when it hides something.
+        const count = this.shownNow()?.nodeCount ?? nodeCount;
+        return engine !== undefined && running !== undefined && this.forceDriver(engine.type, count) !== running;
     }
 
     /**
@@ -1177,6 +1216,12 @@ export class LayoutManager implements Manager {
         // members -- before a simulation reloads, so that its reload packs the new mask.
         if (engine !== undefined && this.members !== null) {
             engine.setHoldMask(...this.holdMaskOf(this.members));
+        }
+
+        // AND THE ROWS THE WORKING GRAPH COVERS: the engine is handed the view of the new snapshot,
+        // before it reloads, and a node an edit added or changed joins or leaves it.
+        if (engine !== undefined) {
+            this.followShownRows(engine);
         }
 
         if (engine instanceof StaticLayoutEngine) {
@@ -1315,7 +1360,9 @@ export class LayoutManager implements Manager {
         // reports, the `layout-changed` event, a failure message -- names what they asked for, so a
         // swap between the two drivers of one arrangement is not a layout change to anybody
         // outside.
-        const driver = this.forceDriver(type, this.dataManager.nodes.size);
+        // The driver is chosen for the size of what it will lay out: the working graph, when one hides something.
+        const shown = this.shownNow();
+        const driver = this.forceDriver(type, shown?.nodeCount ?? this.dataManager.nodes.size);
         const driverClass = driver === type ? engineClass : LayoutEngine.getClass(driver);
         if (!driverClass) {
             throw unknownLayout(driver);
@@ -1381,8 +1428,14 @@ export class LayoutManager implements Manager {
         this.driverOptions = callerOpts;
 
         try {
-            // Add all existing nodes and edges to the new engine
-            const nodeArray = [...this.dataManager.nodes.values()];
+            // Add all existing nodes and edges to the new engine: every one the working graph shows,
+            // which is every one with the option off or nothing hidden. The view goes first, so a
+            // node it hides never reaches the engine and an engine that reads the snapshot reads
+            // the view's.
+            layoutEngineInternals.setView(engine, this.shownNow());
+            const nodeArray = [...this.dataManager.nodes.values()].filter((n) =>
+                layoutEngineInternals.takesNode(engine, n),
+            );
             const edgeArray = [...this.dataManager.edges.values()];
             layoutEngineInternals.addNodes(engine, nodeArray);
             layoutEngineInternals.addEdges(engine, edgeArray);
@@ -2355,6 +2408,96 @@ export class LayoutManager implements Manager {
             !(engine instanceof StaticLayoutEngine) &&
             typeof (this.driverOptions as { seed?: unknown }).seed === "number"
         );
+    }
+
+    /**
+     * The working graph a layout runs over now, or null for the whole graph: the option is off, or
+     * nothing is hidden.
+     * @returns The view, or null.
+     */
+    private shownNow(): WorkingView | null {
+        const view = this.scopeSource?.working?.() ?? null;
+        return view === null || view.whole ? null : view;
+    }
+
+    /**
+     * Hand a running engine the working graph of the snapshot that has just replaced its own, and
+     * bring what it holds into line: a node an edit added that the filter hides leaves it, and one
+     * the edit brought into view joins it. The simulation bridge reads the view itself.
+     * ponytail: one walk of the nodes and edges per freeze while a view is in play; a row diff of the
+     * two views replaces it if a filtered graph ever streams in large freezes.
+     * @param engine - The running engine.
+     */
+    private followShownRows(engine: LayoutEngine): void {
+        const before = layoutEngineInternals.view(engine);
+        const now = this.shownNow();
+        layoutEngineInternals.setView(engine, now);
+        if ((before === null && now === null) || engine instanceof SimulationLayoutEngine) {
+            return;
+        }
+
+        const heldNodes = new Set(engine.nodes);
+        for (const node of this.dataManager.nodes.values()) {
+            const taken = layoutEngineInternals.takesNode(engine, node);
+            if (taken && !heldNodes.has(node)) {
+                layoutEngineInternals.addNode(engine, node);
+            } else if (!taken && heldNodes.has(node)) {
+                layoutEngineInternals.removeNode(engine, node);
+            }
+        }
+
+        const heldEdges = new Set(engine.edges);
+        for (const edge of this.dataManager.edges.values()) {
+            const taken = layoutEngineInternals.takesEdge(engine, edge);
+            if (taken && !heldEdges.has(edge)) {
+                layoutEngineInternals.addEdge(engine, edge);
+            } else if (!taken && heldEdges.has(edge)) {
+                layoutEngineInternals.removeEdge(engine, edge);
+            }
+        }
+    }
+
+    /**
+     * Lay the graph out again when what is shown is no longer what the running layout was built
+     * over: a filter change, a time-window commit, or an undo or redo of one, while the session
+     * reads the working graph (design/working-graph/design.md, section 7). Hidden nodes keep their
+     * last positions; nodes that came back start from theirs; the same layout, with the same
+     * options, runs once more over the view, with the animated transition. Queued behind every
+     * build already asked for, and counted as a build.
+     * @returns Settles once the layout has been built again, or at once when nothing changed.
+     * @internal
+     */
+    followView(): Promise<void> {
+        const engine = this.layoutEngine;
+        if (engine === undefined || sameShown(layoutEngineInternals.view(engine), this.shownNow())) {
+            return Promise.resolve();
+        }
+
+        const generation = this.#generation;
+        this.#building++;
+        const rebuild = this.#applying.then(async () => {
+            const running = this.layoutEngine;
+            if (running === undefined || sameShown(layoutEngineInternals.view(running), this.shownNow())) {
+                return;
+            }
+
+            await this._setLayoutInternal(running.type, this.driverOptions, {
+                dimension: this.engineDimension ?? 3,
+                restoring: false,
+                live: () => this.#generation === generation,
+                explicitScope: false,
+                transition: true,
+            });
+        });
+        this.#applying = rebuild.catch(() => undefined);
+        return rebuild
+            .catch(() => {
+                // Reported by `_setLayoutInternal`, which left the running layout in place; a
+                // restore that overtook the rebuild is not a failure either.
+            })
+            .finally(() => {
+                this.#building--;
+            });
     }
 
     /**

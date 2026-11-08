@@ -470,6 +470,22 @@ Correction: the plan cached the two floats at rest for a shader to read; nothing
 measured end is placed straight into the cap and line, and keeping the floats waits for their reader. An end that
 moves while another drag rests is measured with the rest of the set: one quiet stretch of passes measures them all.
 
+As built (stage 17, dark): `PulledCapBatch` (`meshes/PulledCapBatch.ts`) draws 3D billboarded caps with `CAP_PULLED` in
+the cap shader (`FilledArrowRenderer.applyPulledShader`): a cap is its two rows, head end last (a tail is the head of its edge
+turned round), its gaps and how far its centre sits behind its tip, and the shader stands it where `Edge.placeArrowHead` would
+over `EDGE_TRIM_GLSL`'s ends, reading `rowExtent` for scale, round radius and border. Where the ends meet nothing (overlapping
+nodes) it stands the tip at the target's box, as `Edge.placeArrowFromCentres` does. **It is switched off**: the batch cannot be
+built while the internal switch `pulledCapsOn` is off, which it is on every render path, so every edge, batched or not, keeps
+drawing its caps as objects and no picture changes. `test/browser/pulled-arrow-caps.test.ts` turns it on and holds 30 pulled caps
+to the placed ones on SwiftShader WebGL: 0 cap bytes uploaded on a move, and a known, counted difference -- 3 pixels at rest, 1
+after a move, 1 with a row at w = 0, each by one anti-aliasing sample (at most 64 levels) -- asserted exactly, so a change in it is
+a change in the picture. The `render-parity` bar is not widened. Not a depth tie: with one cap per head row each differing pixel is
+a cap's tip against the background (the placed cap covers one sample of it, the pulled cap none; picture in section 10), and they
+stay put when the shader takes the direction from the centres. So the GPU's float32 place differs from the CPU's float64 place by
+enough to move a sample; the trim include was held to 1e-4 (stage 6), which is not pixel-exact. Caps meeting at one node also tie
+in depth, which a float's last bit settles. Turning pulled caps on is the owner's question in section 10; stage 20 may build on
+the dark caps meanwhile.
+
 As built (stage 21, first pull request): `meshes/pulledCurve.ts` holds a lone curve's path (`line.bezier`) in plain numbers and
 as `PULLED_CURVE_GLSL`, for the pulled curve to come. No edge draws with it yet; every curve is still an object edge.
 `bezierSamples` is `EdgeMesh.createBezierLine`'s samples, `curveSpan` the numbers `Edge.placeRoute`'s cut leaves (samples,
@@ -896,12 +912,13 @@ Labels
 
 **Required: none.** The default stays `"objects"` and every other change is additive. Rows that cannot reach parity stay ineligible.
 
-**Optional, for the owner after stage 38; neither blocks a stage:**
+**Optional, for the owner after stage 38; none blocks a stage:**
 
-| Change                                                         | Why it cannot be additive                                                                             | Without it                    |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
-| Default `renderPath` to `"batched"`                            | `scene.meshes`, per-node action managers and Babylon move picks change for a consumer who set nothing | A consumer sets one attribute |
-| Default `renderCeiling` to 1,000,000, `edgesDrawn` as measured | It changes what today refuses                                                                         | A consumer sets `limits`      |
+| Change                                                         | Why it cannot be additive                                                                                                                                                                                                            | Without it                      |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| Default `renderPath` to `"batched"`                            | `scene.meshes`, per-node action managers and Babylon move picks change for a consumer who set nothing                                                                                                                                | A consumer sets one attribute   |
+| Default `renderCeiling` to 1,000,000, `edgesDrawn` as measured | It changes what today refuses                                                                                                                                                                                                        | A consumer sets `limits`        |
+| Turn pulled caps on (`pulledCapsOn`, stage 17)                 | A pulled cap places in float32 on the GPU and differs from the placed cap by one anti-aliasing sample at a cap's tip (3 pixels in 30 caps; [picture](pulled-caps-one-sample.png): circled, then placed and pulled side by side, 16x) | Caps stay objects on every path |
 
 ## 11. Alternatives rejected
 

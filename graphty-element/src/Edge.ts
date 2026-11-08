@@ -133,6 +133,7 @@ const PULLED_LINE_KEYS = new Set([
     "minScreenWidth",
     "bezier",
     "fanned",
+    "fanSpacing",
 ]);
 
 /**
@@ -2503,8 +2504,8 @@ export class Edge {
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
      * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
-     * too, with no `arcRadius`, `supportModel`, `fanSpacing` or gap: its shape is its two centres' and,
-     * for one that fans out of a bundle, how far it bows, which each placement writes
+     * too, with no `arcRadius`, `supportModel` or gap: its shape is its two centres' and, for one that
+     * fans out of a bundle, how far it bows (spread by `fanSpacing` when set), which each placement writes
      * (`meshes/pulledCurve.ts`, {@link Edge.pullCurve}). Read when the line is built.
      * @param style - The resolved style.
      * @returns True when it is pulled.

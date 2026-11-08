@@ -3,6 +3,7 @@
  * between the same two nodes, is pulled from the row table (`PulledLineBatch` with curve texels,
  * `meshes/pulledCurve.ts`) and draws the picture the `"objects"` path draws, at rest and after a drag.
  * A fanned curve that gains a parallel edge fans out beside it, and draws as before once it goes.
+ * A bundle spread by `line.fanSpacing` is pulled too, and follows a new spacing.
  * Stage 21 of design/rendering/row-renderer.md; the bar is its section 7.
  */
 
@@ -204,5 +205,51 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length + 4, objectEdges: 0 });
         assert.equal(overBar(objectsRest, await readCanvas(batched.graph)), 0, "at rest");
         assert.equal(overBar(objectsMoved, await moved(batched)), 0, "after a drag");
+    });
+
+    it("pull a bundle spread by fanSpacing, and follow a new spacing, drawing the objects path's picture", async () => {
+        /**
+         * Join nodes 3 and 4 with three fanned curves spread 0.25 apart, read the frame, then spread them 0.5 apart.
+         * @param element - The element.
+         * @returns The frames at each spacing.
+         */
+        async function spread(element: Graphty): Promise<{ narrow: Frame; wide: Frame }> {
+            await element.session.data.addEdges([
+                { src: 3, dst: 4 },
+                { src: 4, dst: 3 },
+                { src: 3, dst: 4 },
+            ]);
+            const data = element.graph.getDataManager();
+            const added = [...data.getEdgesBetween(3, 4).slice(1), ...data.getEdgesBetween(4, 3)];
+            assert.lengthOf(added, 3);
+            const edges = added.map((edge) => edge.id);
+            await element.session.styles.add({
+                name: "spread",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.arrowHead": "none", "edge.curvature": true, "edge.fanSpacing": 0.25 },
+            } as never);
+            await settled(element);
+            const narrow = await readCanvas(element.graph);
+            await element.session.styles.add({
+                name: "wider",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.fanSpacing": 0.5 },
+            } as never);
+            await settled(element);
+            return { narrow, wide: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await spread(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await spread(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length + 3, objectEdges: 0 });
+        assert.isAbove(overBar(before.narrow, before.wide), 0, "the new spacing moves the arcs");
+        assert.equal(overBar(before.narrow, after.narrow), 0, "spread 0.25 apart");
+        assert.equal(overBar(before.wide, after.wide), 0, "spread 0.5 apart");
     });
 });

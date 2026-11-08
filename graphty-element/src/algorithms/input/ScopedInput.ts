@@ -177,7 +177,7 @@ const bindings = new WeakMap<object, RunInput>();
  * @param algorithm - The instance.
  * @returns True when it computes over its scope.
  */
-export function declaresScopedInput(algorithm: object): boolean {
+function declaresScopedInput(algorithm: object): boolean {
     return (algorithm.constructor as { scopeInput?: unknown }).scopeInput === "subgraph";
 }
 

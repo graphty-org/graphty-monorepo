@@ -16,6 +16,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
+import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
@@ -487,6 +488,28 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         graph.setRenderPath("objects");
         await readFrame(graph);
         assert.isAtMost(Vector3.Distance(edge.drawnCentre, centre), 1e-4, "where the object path draws it");
+    });
+
+    it("hide and show a batched row with no halo, context point or tooltip without walking it again", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await readFrame(graph);
+        const node = graph.getNode(0);
+        assert.isDefined(node);
+        assert.isFalse(node.walksEachFrame, "a plain batched row walks only when something changes it");
+
+        // A time window shows and hides tens of thousands of such rows in one frame (issue #6025).
+        const rewalk = vi.spyOn(NodeBatches.prototype, "rewalk");
+        cleanups.push(() => rewalk.mockRestore());
+        assert.isTrue(node.setRenderState("hidden"));
+        assert.isTrue(node.setRenderState("visible"));
+        assert.equal(rewalk.mock.calls.length, 0, "nothing the batch walks by changed");
+        rewalk.mockRestore();
+
+        assert.isFalse(node.walksEachFrame);
+        assert.equal(overBar(await frameOn(graph, "batched"), await frameOn(graph, "objects")), 0);
     });
 
     it("move a dragged row through the table alone", async () => {

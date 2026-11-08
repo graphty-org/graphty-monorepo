@@ -3146,8 +3146,15 @@ export class Node implements ModelUser {
         // painted over the whole node instead of around it. The halo's OWN look: a layer's
         // halo is drawn even while the selection's own halo is hidden at opacity 0.
         if (!wanted || (kind === "halo" && look.opacity === 0)) {
+            // Only a drawn overlay makes the node walk each frame (`walksEachFrame`), so hiding one
+            // that is not drawn changes nothing the batch needs to hear: a time window that hides
+            // 40,000 plain nodes asked it 80,000 times (issue #6025).
+            const drawn = existing?.isEnabled() === true;
             this.hideOverlay(kind, existing);
-            this.context.getNodeBatches?.()?.rewalk(this);
+            if (drawn) {
+                this.context.getNodeBatches?.()?.rewalk(this);
+            }
+
             return;
         }
 
@@ -3988,7 +3995,11 @@ export class Node implements ModelUser {
      * been hovered is a texture per node, which is the cost the hover-only rule exists to avoid.
      */
     hideTooltip(): void {
-        this.tooltip?.dispose();
+        if (this.tooltip === undefined) {
+            return;
+        }
+
+        this.tooltip.dispose();
         this.tooltip = undefined;
         this.context.getNodeBatches?.()?.rewalk(this);
     }

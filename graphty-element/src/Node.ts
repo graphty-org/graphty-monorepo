@@ -1530,12 +1530,14 @@ export class Node implements ModelUser {
             this.#mesh.dispose();
             this.#anchor = anchor;
             this.#mesh = null;
+            this.forgetMeasuredMesh();
         } else if (source === null && this.#mesh === null && !this.disposed) {
             const anchor = this.#anchor;
             this.build(this.#fit.meshKey, this.#fit.style);
             Node.moveOnto(anchor, this.#anchor);
             this.retargetLabels(anchor, this.#anchor);
             anchor.dispose();
+            this.forgetMeasuredMesh();
             if (this.#actions !== null) {
                 this.makeDrawnPickable(this.#actions);
             }
@@ -1545,6 +1547,16 @@ export class Node implements ModelUser {
             this.applyInstancePaint(this.drawnStyle ?? this.#fit.style, this.drawnColor);
             this.applyRenderState();
         }
+    }
+
+    /**
+     * Drop the memos keyed on a mesh or anchor the batch handover just disposed: they would keep
+     * it, and through it its scene data, alive (issue #3247). The next read measures again.
+     */
+    private forgetMeasuredMesh(): void {
+        this.roundRadiusMesh = null;
+        this.halfExtentsMesh = null;
+        this.halfExtentsValue.x = 0;
     }
 
     /**

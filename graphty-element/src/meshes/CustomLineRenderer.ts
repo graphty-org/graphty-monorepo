@@ -152,6 +152,7 @@ function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): str
         "pNext",
         "pNext2",
         "run",
+        "edgeHidden",
         ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
     ];
 }

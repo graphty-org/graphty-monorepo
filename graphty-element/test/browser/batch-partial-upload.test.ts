@@ -436,8 +436,11 @@ describe("the element's switch", () => {
         await drawn(element);
         assert.isTrue(batchUploadFrames.rangedUploads(scene).on, "a window is in force");
 
+        // A step hides and shows edges by their hidden flags, and places the ones whose ends moved.
         const lines = new Set(
-            scene.meshes.filter(isEdgeLineBatchMesh).map((mesh) => mesh.getVertexBuffer("pA")?.getWrapperBuffer()),
+            scene.meshes
+                .filter(isEdgeLineBatchMesh)
+                .flatMap((mesh) => ["pA", "edgeHidden"].map((kind) => mesh.getVertexBuffer(kind)?.getWrapperBuffer())),
         );
         const sent: { floats: number; whole: boolean }[] = [];
         const upload = Buffer.prototype.updateDirectly;

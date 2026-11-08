@@ -442,6 +442,18 @@ of object edges with a cap whose end is batched, through `Edge.interceptPointsFr
 caches their two floats at rest and takes the bounding radius while moving, keeping the CPU path as the reference and as
 the fallback for meshes too heavy for the pass (at 8,192 triangles a pass takes 91 ms, more than a frame).
 
+As built (stage 20, second pull request): an edge placed because an end moved (`Edge.endsMoving`: a placed end
+changed, not a first placement or one after `invalidatePositionCache`) gives a batched end that only a ray reaches its
+node's bounding radius, the length of `drawnHalfExtents`, and casts no ray; it tells `UpdateManager.endsByRadius`. Once
+`STILL_PASSES` (8) edge passes in a row place no edge that way, `UpdateManager.settleEnds` invalidates and places those
+edges again, measured by `rowRayHitOn` as before, and a pending-work entry ("sizing") holds `waitForStableFrame` until
+then. Only a batched end takes the radius, so `"objects"` draws as on master. `test/browser/edge-ends-cached.test.ts`
+drags the middle of seven `man` figures, each edge capped, on `"batched"`: 0 rays over 8 mouse moves (96 before), and
+at rest 0 pixels differ from the `"objects"` picture after the same drag (2,244 with the re-measure switched off).
+Correction: the plan cached the two floats at rest for a shader to read; nothing reads them yet (stage 17), so the
+measured end is placed straight into the cap and line, and keeping the floats waits for their reader. An end that
+moves while another drag rests is measured with the rest of the set: one quiet stretch of passes measures them all.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

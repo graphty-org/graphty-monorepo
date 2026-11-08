@@ -15,6 +15,7 @@ import type { RichTextLabel } from "../meshes/RichTextLabel";
 import type { Node } from "../Node";
 import { animatesEveryFrame } from "./everyFrameAnimations";
 import type { GraphContext } from "./GraphContext";
+import { LabelSampler } from "./LabelSampler";
 
 /**
  * How many node labels the element is drawing, and why the rest are not.
@@ -43,6 +44,13 @@ export interface NodeLabelCounts {
      * of the canvas.
      */
     readonly hiddenByOverlap: number;
+    /**
+     * Labels not built because label sampling (`layoutBehavior.labels.sampleCell`) kept another
+     * node's label in their screen cell, or their node is outside the view. Never counts a label
+     * whose node is hidden. Present only while sampling is on.
+     * @since 3.47.0
+     */
+    readonly hiddenBySampling?: number;
 }
 
 /**
@@ -125,7 +133,12 @@ const QUIET_FRAMES = 10;
  * @returns True when every count is equal.
  */
 function sameCounts(a: NodeLabelCounts, b: NodeLabelCounts): boolean {
-    return a.labeled === b.labeled && a.nodeHidden === b.nodeHidden && a.hiddenByOverlap === b.hiddenByOverlap;
+    return (
+        a.labeled === b.labeled &&
+        a.nodeHidden === b.nodeHidden &&
+        a.hiddenByOverlap === b.hiddenByOverlap &&
+        a.hiddenBySampling === b.hiddenBySampling
+    );
 }
 
 /** One labeled node, what the last pass saw of it, and where its words were on screen. */
@@ -259,6 +272,8 @@ export class LabelDeclutter {
     /** What the last pass saw of edge texts. Read by `element.edgeLabelCounts`. */
     edgeCounts: EdgeLabelCounts = NO_EDGE_LABELS;
 
+    /** Label sampling: which nodes build their label at all. */
+    readonly sampler: LabelSampler;
     private readonly observer: Observer<Scene>;
     private readonly entries = new Map<Node, Entry>();
     /** How many labels were ever tracked, numbering each entry's `added`. */
@@ -333,6 +348,7 @@ export class LabelDeclutter {
         private readonly scene: Scene,
         private readonly context: GraphContext,
     ) {
+        this.sampler = new LabelSampler(scene, context);
         this.observer = scene.onBeforeRenderObservable.add(() => {
             this.run();
         });
@@ -386,6 +402,23 @@ export class LabelDeclutter {
                 slot: -1,
             });
         }
+    }
+
+    /**
+     * Asked by a node about to build its label: whether label sampling holds it back.
+     * @param scene - The scene the label is drawn in.
+     * @param context - The graph.
+     * @param node - The node.
+     * @param wanted - Whether its style asks for a label at all.
+     * @returns True when the label must not be built.
+     */
+    static withholds(scene: Scene, context: GraphContext, node: Node, wanted: boolean): boolean {
+        if (context.getStyles().config.behavior.labels.sampleCell === undefined) {
+            const declutter: unknown = scene.metadata?.labelDeclutter;
+            return declutter instanceof LabelDeclutter ? declutter.sampler.withholds(node, wanted) : false;
+        }
+
+        return LabelDeclutter.of(scene, context).sampler.withholds(node, wanted);
     }
 
     /**
@@ -444,6 +477,20 @@ export class LabelDeclutter {
             return;
         }
 
+        const { sampler } = this;
+        if (
+            sampler.run(camera, this.entries.keys(), () => {
+                this.refreshDegrees();
+                return this.degrees;
+            })
+        ) {
+            this.dirty = true;
+        }
+
+        if (sampler.pending) {
+            this.releaseFrames ??= animatesEveryFrame(this.scene);
+        }
+
         if (
             on !== this.wasOn ||
             avoidNodesAndEdges !== this.wasAvoiding ||
@@ -459,7 +506,7 @@ export class LabelDeclutter {
 
             this.quiet = 0;
             this.releaseFrames ??= animatesEveryFrame(this.scene);
-        } else if (++this.quiet === QUIET_FRAMES || this.waiters.length > 0 || this.wanted) {
+        } else if (!sampler.pending && (++this.quiet === QUIET_FRAMES || this.waiters.length > 0 || this.wanted)) {
             // Someone waiting for the counts (`waitForStableFrame`) gets them on the first frame
             // with nothing to re-decide: the labels have settled, and the QUIET_FRAMES wait only
             // keeps a gesture from publishing every frame. Counting those frames instead made the
@@ -502,7 +549,8 @@ export class LabelDeclutter {
         // wait started right after `labels.declutter` changed resolved before any label moved.
         const { declutter, avoidNodesAndEdges } = this.context.getStyles().config.behavior.labels;
         const on = declutter || avoidNodesAndEdges || this.styledLabels > 0;
-        const settled = !this.dirty && on === this.wasOn && avoidNodesAndEdges === this.wasAvoiding;
+        const settled =
+            !this.dirty && !this.sampler.pending && on === this.wasOn && avoidNodesAndEdges === this.wasAvoiding;
         if (settled && sameCounts(this.counts, this.announced)) {
             return true;
         }
@@ -563,13 +611,17 @@ export class LabelDeclutter {
     }
 
     private setCounts(labeled: number, nodeHidden: number, hiddenByOverlap: number): void {
-        const { counts } = this;
-        if (
-            counts.labeled !== labeled ||
-            counts.nodeHidden !== nodeHidden ||
-            counts.hiddenByOverlap !== hiddenByOverlap
-        ) {
-            this.counts = Object.freeze({ labeled, nodeHidden, hiddenByOverlap });
+        const { on, unbuilt, unbuiltHidden } = this.sampler;
+        const next: NodeLabelCounts = on
+            ? {
+                  labeled: labeled + unbuilt,
+                  nodeHidden: nodeHidden + unbuiltHidden,
+                  hiddenByOverlap,
+                  hiddenBySampling: unbuilt - unbuiltHidden,
+              }
+            : { labeled, nodeHidden, hiddenByOverlap };
+        if (!sameCounts(this.counts, next)) {
+            this.counts = Object.freeze(next);
         }
     }
 

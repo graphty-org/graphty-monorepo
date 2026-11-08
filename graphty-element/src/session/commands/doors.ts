@@ -1914,6 +1914,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             shapeTextLabels: RENDER,
             xlabelLabel: RENDER,
             syncXlabelPlace: RENDER,
+            resampleLabel: RENDER,
             isDrawnAsGroup: READ,
             groupDrawnForAnotherCamera: READ,
             drawnPosition: READ,
@@ -3817,6 +3818,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     {
         name: "LabelDeclutter",
         file: "src/managers/LabelDeclutter.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "LabelSampler",
+        file: "src/managers/LabelSampler.ts",
         half: "renderer",
         whole: RENDER,
     },

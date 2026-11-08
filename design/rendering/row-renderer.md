@@ -500,8 +500,13 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
       `RichTextLabel`, per label.
     - Full atlas (a 4096 square holds about 2,500 tiles): no second page, no eviction; a label with a glyph that does not fit falls back to
       `RichTextLabel`, per label.
-- **Sampling**, off by default with its cell size a setting. When the view settles, every labelled row draws as one point into a target of
-  one texel per screen cell, depth from a priority column. A read of a few KB gives the winners; only they get built.
+- **Sampling**, off by default with its cell size a setting (`layoutBehavior.labels.sampleCell`, CSS pixels; unset is off). When the view
+  settles, one label per screen cell is picked (selected, then degree, then id); only the winners get built, and
+  `nodeLabelCounts.hiddenBySampling` (present only while it is on) counts the rest.
+  Correction from stage 32: built on the CPU (`managers/LabelSampler.ts`), not as a GPU point draw with a readback. The pass runs once per
+  settled view, not per frame, and projects each labelled row's CPU position (`drawnPosition`, which every path keeps) through one matrix:
+  a few milliseconds at 100,000 rows, with no render target, no readback stall and no WebGL/WebGPU split. A settled frame costs
+  one comparison of the camera, the canvas size, the position lane's generation and the edge version.
 
 ### 4.8 The small issues
 

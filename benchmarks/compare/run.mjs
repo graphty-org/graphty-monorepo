@@ -1,4 +1,4 @@
-// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [no-still] [no-move]
+// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [no-still] [no-move]
 // lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
 // unset, the element keeps its default. See RUNBOOK.md for the other variables.
@@ -25,6 +25,8 @@ const RENDERER = process.env.BENCH_RENDERER || undefined;
 const [lib, mode, accel, n, m, dpr, ...flags] = process.argv.slice(2);
 const skip = flags.includes("skip-layout"),
     labels = flags.includes("labels"),
+    // label sampling on (layoutBehavior.labels.sampleCell), only with labels
+    sampled = flags.includes("sampled"),
     noStill = flags.includes("no-still"),
     noMove = flags.includes("no-move");
 const N = Number(n),
@@ -172,6 +174,7 @@ try {
                     accel,
                     dpr: DPR,
                     labels,
+                    sampled,
                     renderPath: RENDER_PATH,
                     renderer: RENDERER,
                     onDemand: !!process.env.LAYOUT_ONLY,
@@ -193,6 +196,16 @@ try {
             throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
     };
     await checkBatched("load");
+    // What a labelled run really built: with sampling on, only the cells' winners.
+    if (labels && lib === "graphty")
+        log(
+            "labelCounts",
+            await page.evaluate(async () => {
+                const el = document.querySelector("graphty-element");
+                await el.graph?.waitForStableFrame?.();
+                return el.nodeLabelCounts;
+            }),
+        );
     if (process.env.ONLY_ORBIT) {
         console.log("orbit-debug", JSON.stringify(await page.evaluate(() => B.orbitDebug(20))));
         throw new Error("debug stop");

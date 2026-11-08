@@ -32,6 +32,7 @@ declare -A C=(
   [default-m-dpr2]="graphty default on 100000 1000000 2 skip-layout"
   [lean-s-labels]="graphty lean on 10000 100000 1 skip-layout labels"
   [lean-m-labels]="graphty lean on 100000 1000000 1 skip-layout labels"
+  [lean-m-sampled]="graphty lean on 100000 1000000 1 skip-layout labels sampled"
   [lean-s-cpu]="graphty lean off 10000 100000 1"
   [lean-m-cpu]="graphty lean off 100000 1000000 1 no-still no-move"
   [default-s-cpu]="graphty default off 10000 100000 1"

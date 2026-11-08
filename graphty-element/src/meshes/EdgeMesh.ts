@@ -491,8 +491,8 @@ void main() {
      *
      * ONE BATCH PER SHAPE, WHATEVER THE COLOR (`byShape`, issue #6026). A plain joined line -- not
      * widened, not animated -- reads its color and opacity from its slot, so its batch is keyed by
-     * what its mesh is built from (the line type, width, minimum screen width, blending and dash
-     * count) and not by the look's key, and the edge writes its own color into each of its slots
+     * what its mesh is built from (the line type, width, minimum screen width, pass and dash count)
+     * and not by the look's key, and the edge writes its own color into each of its slots
      * (`EdgeLineBatch.setColor`). Edges that differ only in color then share a batch, and a restyle
      * between two such looks recolors the slots where they are. Only the edge's own line asks for
      * it: a selection band, an outline or a gradient's piece keeps a batch of its own look, whose
@@ -520,11 +520,24 @@ void main() {
     ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
         const styleKey = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
-        const key =
-            byShape && !widened
-                ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${String(this.drawsOpaque(style))}|${String(style.line?.patternCount ?? "")}`
-                : styleKey;
-        const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache, widened);
+        const shared = byShape && !widened;
+        const key = shared
+            ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}`
+            : styleKey;
+        // A batch shared by shape holds edges of many opacities, so its first edge's opacity is not
+        // its mesh's visibility: at 0 Babylon would draw none of them. Its translucent slots put it
+        // in the transparent pass (`EdgeLineBatch.countTranslucent`).
+        const made =
+            (create: () => Mesh): (() => Mesh) =>
+            () => {
+                const mesh = create();
+                if (shared) {
+                    mesh.visibility = 1;
+                }
+
+                return mesh;
+            };
+        const staticLine = made(() => this.createStaticLine(options, style, scene, cache, widened));
         const curve = style.line?.bezier === true;
         // Only a widened batch knows the whole edge's length, and a band or a gradient's piece,
         // which is not one, does not fade.
@@ -545,7 +558,7 @@ void main() {
             const width = options.width / 40;
             return cache.getBatch(
                 `${key}-joined${is2D ? "-2d" : ""}`,
-                () =>
+                made(() =>
                     CustomLineRenderer.createJoinedLineMesh(
                         {
                             width,
@@ -564,6 +577,7 @@ void main() {
                         },
                         scene,
                     ),
+                ),
                 scene,
             );
         }
@@ -576,7 +590,7 @@ void main() {
         if ((curve || lineType === "solid") && this.is2DMode(scene)) {
             return cache.getBatch(
                 `${key}-2d`,
-                () =>
+                made(() =>
                     Simple2DLineRenderer.createBatchMesh(
                         options.width / 40, // Convert back from scaled width to match 3D line thickness
                         options.color,
@@ -586,6 +600,7 @@ void main() {
                         style.line?.minScreenWidth,
                         { fade, opaque },
                     ),
+                ),
                 scene,
             );
         }
@@ -602,7 +617,8 @@ void main() {
      * The batch a plain straight line between node centres is pulled into, drawn from the row table
      * (`PulledLineBatch`). A piece carries its color, width and opacity itself
      * (`PulledLineBatch.setLook`), so they key no batch: one batch per minimum screen width and
-     * per pass (translucent lines draw in the transparent pass, as the plain line's do).
+     * per pass (translucent lines draw in the transparent pass, as the plain line's do). A lone curve
+     * (`line.bezier`) is pulled into a curve batch of its own, whose pieces are points of its path.
      * @param cache - The cache that keeps the batches.
      * @param options - The line's look.
      * @param style - The resolved style.
@@ -620,17 +636,19 @@ void main() {
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}`;
+        const curve = style.line?.bezier === true;
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${curve ? "|curve" : ""}`;
         return cache.getPulledBatch(key, () => {
-            const mesh = this.createStaticLine(options, style, scene, cache, false, true);
+            const mesh = this.createStaticLine(options, style, scene, cache, false, curve ? "curve" : true);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
-            return new PulledLineBatch(mesh, scene, rowPositions);
+            return new PulledLineBatch(mesh, scene, rowPositions, curve);
         });
     }
 
     /**
-     * The pass a pulled edge's batch draws in, which its mesh, not its piece, decides.
+     * The pass a pulled edge's batch, or a line batch shared by shape, draws in, which its mesh, not
+     * its piece or slot, decides.
      * @param style - The resolved style.
      * @returns The pass.
      */
@@ -934,7 +952,7 @@ void main() {
 
         _cache: MeshCache,
         widened = false,
-        pulled = false,
+        pulled: boolean | "curve" = false,
     ): Mesh {
         // Use custom line renderer if flag is enabled
 
@@ -950,7 +968,8 @@ void main() {
                     minScreenWidth: style.line?.minScreenWidth,
                     fade: widened ? this.fadeOf(style) : undefined,
                     opaque: this.drawsOpaque(style),
-                    pulled,
+                    pulled: pulled !== false,
+                    pulledCurve: pulled === "curve",
                 },
                 scene,
             );

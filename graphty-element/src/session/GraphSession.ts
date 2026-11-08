@@ -3490,6 +3490,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         defaultScope: () => (working.enabled ? "visible" : undefined),
         // With the working graph on, no target selects a node a filter hides (owner decision B).
         filterKeeps: () => (working.enabled ? visibility.passingBytes() : null),
+        shownEdges: () => {
+            const view = working.view();
+            return view.whole ? null : view.edges;
+        },
         // A rule reads a file column by its bare name ("minutes"); the published path is the
         // attribute's ("data.minutes"), so a caller can look the column up in `data.attributes()`.
         pathsOf: (where: Query) =>

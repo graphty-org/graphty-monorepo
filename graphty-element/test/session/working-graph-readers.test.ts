@@ -155,6 +155,26 @@ describe("the data readers", () => {
 });
 
 describe("the selection under a filter", () => {
+    it("adds up its degrees and edges over what is shown, and over the whole graph with the option off", async () => {
+        for (const working of [true, false]) {
+            const harness = harnessOf(working);
+            const { session } = harness;
+            await session.visibility.set(HOSTS);
+            await session.selection.apply({ nodes: ["b", "c"] }, "replace");
+            const stats = await session.selection.statistics();
+            if (working) {
+                // c's edge to the hidden d is not shown: b has 2 edges and c 1, and b-a alone leaves.
+                assert.deepStrictEqual(stats.degree, { min: 1, max: 2 });
+                assert.strictEqual(stats.cutEdges, 1);
+            } else {
+                assert.deepStrictEqual(stats.degree, { min: 2, max: 2 });
+                assert.strictEqual(stats.cutEdges, 2);
+            }
+            assert.strictEqual(stats.inducedEdges, 1, "b-c");
+            session.dispose();
+        }
+    });
+
     it("drops what the filter hides, and clearing the filter does not bring it back", async () => {
         const harness = harnessOf();
         const { session } = harness;

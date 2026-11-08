@@ -32,7 +32,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { GraphSnapshot, U8, U32 } from "@graphty/graph-format";
+import { type GraphSnapshot, maskTest, type U8, type U32 } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, ScopeId, Selector } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
@@ -530,6 +530,11 @@ export interface SelectionSources {
     readonly defaultScope?: TargetContext["defaultScope"];
     /** What the filter keeps, which every target is narrowed to. Absent, nothing is narrowed. */
     readonly filterKeeps?: TargetContext["filterKeeps"];
+    /**
+     * The edges the session's working graph shows, one bit per row of the snapshot, or null when
+     * it reads the whole graph. The statistics count only these. Absent, every edge.
+     */
+    readonly shownEdges?: () => U32 | null;
     /** What a note's targets select. Absent refuses a `note` target. */
     readonly note?: TargetContext["note"];
     /** What a style layer's rule matches. Absent refuses a `layer` target. */
@@ -1196,10 +1201,22 @@ class Selection implements SelectionOwner {
         this.#sync();
         const { graph } = this.#frame;
         const list = graph.edgeList();
+        // With the working graph on, an edge it hides is neither counted nor part of a degree.
+        const shown = this.#sources.shownEdges?.() ?? null;
+        const degrees = shown === null ? graph.degree() : new Uint32Array(graph.nodeCount);
         let induced = 0;
         let cut = 0;
 
         for (let edge = 0; edge < graph.edgeCount; edge++) {
+            if (shown !== null && !maskTest(shown, edge)) {
+                continue;
+            }
+
+            if (shown !== null) {
+                degrees[list.src[edge]] += 1;
+                degrees[list.dst[edge]] += 1;
+            }
+
             const source = this.#nodes.has(list.src[edge]);
             const target = this.#nodes.has(list.dst[edge]);
 
@@ -1210,7 +1227,6 @@ class Selection implements SelectionOwner {
             }
         }
 
-        const degrees = graph.degree();
         let min = Infinity;
         let max = -Infinity;
 

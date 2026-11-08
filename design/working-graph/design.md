@@ -40,8 +40,9 @@ existing whole-graph word: `"graph"` (`data.nodePage`, `find`, `neighbors`, unio
 78); `data.issues` reads the whole graph (decision 74).
 
 **`within?: "graph" | "visible"`, default `"graph"` (decisions C, 50)** on the
-threshold leaf (Top-N, percentile), on a color binding's automatic domain, and on the legend's
-counts (painted count, category cap). The graphty app sets `"visible"` on all three.
+threshold leaf (Top-N, percentile). The graphty app sets `"visible"` on the leaves its style
+cards make. A color binding's automatic domain and the legend's painted count read the whole
+graph and take no `within` yet (decision 18).
 
 **The time dock.** Its track and extent span all time (the window's own control). With the
 option on, `time.bins` with no scope reads the visibility filter over all time, without the
@@ -113,8 +114,8 @@ original and is one of the agreement's named cases: a filter's own conditions, "
 - **Styling, View:** the Which head "N of M"; `styles.categories`, `styles.groups` counts and
   "Select these N"; legend category rows; the property row "on N" and "Matched nodes";
   `styles.agreement`; `styles.preview` bins; label declutter and its counts.
-- **Styling, Whole by default, `within` sets the view:** Top-N and percentile ranking, the
-  automatic color domain, the legend's painted count and category cap.
+- **Styling, Whole by default, `within` sets the view:** Top-N and percentile ranking.
+- **Styling, Whole:** the automatic color domain and the legend's painted count (decision 18).
 - **Data views, View:** matches strip Degree; find box rows and counts; node inspector Degree and
   neighbors; decision 55's items; layer Values histogram; a selection card's Top-N bound and
   dates; table rows on Shown; source rows; load notices; expand and collapse; the time dock's
@@ -267,8 +268,9 @@ off and before any filter (decision 77).
 17. **Undo of a filter step restores the dropped selection ids**; clearing or turning off the
     filter does not. Frame selection frames the shown selected nodes; `zoomToNodes(ids)` and a
     named scope frame the ids as given (a caller that names a node gets it framed).
-18. **`within` covers Top-N, percentile, the color domain and legend counts**; `styles.preview`
-    bins read the view.
+18. **`within` covers Top-N and percentile only**: a color binding's automatic domain and the
+    legend's painted count read the whole graph, so colors stay put as a filter changes;
+    `styles.preview` bins read the view. A `within` on either is additive when a consumer needs it.
 19. **A search allowed to find hidden items** is `find({ scope: "graph" })`; `excludedBy` marks
     hidden hits.
 20. **The honesty check's shape** (section 9).
@@ -350,7 +352,7 @@ off and before any filter (decision 77).
     source replace's plan reads the whole graph's edge pairs for the same reason. It is listed in
     the whole-readers list under the case `"not agreed"` until the owner agrees it or it moves to
     the view. The legend is not a whole reader: its rows are the categories a shown element carries,
-    and only its painted count is the whole graph's (`within`, decision C).
+    and only its painted count is the whole graph's (decision 18).
 75. **A filter's count says how many of its matches are shown** (`FilterConditionMatches.shown`,
     `StepsReading.total.shown`, both additive): the count and its range still read the whole
     graph (agreed point 5), and a card beside other filters adds ", 19 shown" when fewer of its

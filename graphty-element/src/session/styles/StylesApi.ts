@@ -3135,7 +3135,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         ...(sources.field === undefined ? {} : { field: sources.field }),
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         valueLabels: (path) => valueLabelsAt(dispatcher.state.valueLabels, path),
-        // The whole graph's by default: the legend's `within` decides its painted count.
+        // The whole graph's: the legend's painted count takes no `within` (working graph design, decision 18).
         painted: (id) => api.counts(id, { scope: "graph" }).painted,
         // What the layer selects among the elements drawn: a filter step that hides some of them
         // takes them out of the count, so a key never counts nodes the drawing does not show.

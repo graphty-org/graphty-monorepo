@@ -1091,12 +1091,13 @@ export class EdgeLineBatch {
     /**
      * Count a slot into or out of the translucent ones, and draw the batch in the pass they ask for.
      *
-     * ONE BATCH, ONE PASS. Edges that differ only in color and opacity share a batch, so a batch may
-     * hold opaque and translucent edges at once (a time window's Ghost row beside the edges inside
-     * it). While any slot is translucent the whole batch is drawn in the alpha-blended pass, after
-     * the opaque meshes, as a batch of translucent edges always was; the opaque edges in it lose
-     * nothing there, since every joined line blends its anti-aliased edge in place in either pass.
-     * A line drawn without blending (`line.blending` false) is never translucent.
+     * ONE BATCH, ONE PASS. Edges that differ only in color share a batch, but opaque and translucent
+     * edges never do: the pass is in the batch's key (`EdgeMesh.lineBatch`). An opaque edge drawn in
+     * the alpha-blended pass is drawn after the translucent edges its batch drew first, and the
+     * depth they wrote hides it. While any slot is translucent the batch is drawn in the
+     * alpha-blended pass; its mesh's visibility never takes its first edge's opacity, which at 0
+     * would stop Babylon drawing the whole batch. A line drawn without blending (`line.blending`
+     * false) is never translucent.
      * @param by - 1 for a slot that turned translucent, -1 for one that stopped.
      */
     private countTranslucent(by: number): void {

@@ -221,8 +221,11 @@ describe("a paint that changes only an edge's colour moves it without placing it
 
         edge.applySessionPaint(ghost);
 
-        // A translucent look is drawn in the other pass, so in another batch (issue #6326).
-        assert.isFalse(edge.mesh === line, "the line moved to the translucent batch");
+        // A plain line's batch and a billboarded cap's are keyed by shape and pass, and their slots
+        // carry the color (issue #6026). An opaque line in the alpha-blended pass would be hidden by
+        // the depth its batch's translucent lines wrote first, so a look made translucent changes
+        // batch (issues #6325, #6326).
+        assert.isFalse(edge.mesh === line, "the line moves to the translucent batch");
         assert.deepStrictEqual(endsOf(edge), ends, "drawn between the same two points");
         const { batch, slots } = lineOf(edge);
         const [r, g, b, a] = batch.colorOf(slots[0]) ?? [];

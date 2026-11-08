@@ -1,12 +1,8 @@
 /**
  * @file On the `"batched"` path a pulled edge's color, width and opacity are its piece's, not its
  * batch's: a thousand edges of a thousand looks draw from a handful of draws, and draw the picture
- * the `"objects"` path draws with a batch per look. A changed look rewrites the piece. Stage 19 of
+ * the `"objects"` path draws. A changed look rewrites the piece. Stage 19 of
  * design/rendering/row-renderer.md; the bar is its section 7.
- *
- * The `"objects"` path keys a plain line's batch by its shape and colors each slot (issue #6026),
- * which draws the same lines in another order where they overlap; the reference here keys it by
- * the whole look again (`lineBatchesByLook`), a batch per look.
  */
 
 import "../../src/graphty-element";
@@ -16,7 +12,6 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
-import { lineBatchesByLook } from "../../src/meshes/EdgeMesh";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { edgeBetween } from "../helpers/testSetup";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -25,7 +20,6 @@ const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_
 const RENDERERS = ADAPTER === "" ? (["webgl"] as const) : (["webgl", "webgpu"] as const);
 
 afterEach(() => {
-    lineBatchesByLook.value = false;
     document.body.replaceChildren();
 });
 
@@ -54,6 +48,18 @@ function opacityOf(i: number): number {
 }
 
 /**
+ * An edge's width: four widths, rising with the edge's index. The objects path draws one batch per
+ * width and pass (whatever the color), batch after batch, and the batched path draws its pieces in
+ * edge order. A sub-pixel line blends its coverage over what is drawn before it, so the two orders
+ * must agree for the two pictures to: widths in edge order make them agree.
+ * @param i - The edge's index.
+ * @returns Its width.
+ */
+function widthOf(i: number): number {
+    return 0.5 + Math.floor((i * 4) / EDGE_COUNT) * 0.5;
+}
+
+/**
  * The first edges between distinct node pairs, each with a color, width and opacity of its own.
  */
 const EDGES = (() => {
@@ -62,7 +68,7 @@ const EDGES = (() => {
         for (let b = a + 1; b < NODES.length && edges.length < EDGE_COUNT; b++) {
             const i = edges.length;
             const color = `#${((i * 2654435761) >>> 8).toString(16).padStart(6, "0").slice(-6)}`;
-            edges.push({ src: a, dst: b, color, width: 0.5 + (i % 4) * 0.5, opacity: opacityOf(i) });
+            edges.push({ src: a, dst: b, color, width: widthOf(i), opacity: opacityOf(i) });
         }
     }
 
@@ -85,8 +91,6 @@ async function settled(element: Graphty): Promise<void> {
  * @returns The element.
  */
 async function loaded(renderer: "webgl" | "webgpu", path: RenderPath): Promise<Graphty> {
-    // The objects path is the reference: a batch per look.
-    lineBatchesByLook.value = path === "objects";
     const element = document.createElement("graphty-element");
     element.renderer = renderer;
     element.renderPath = path;
@@ -133,14 +137,12 @@ function draws(element: Graphty): number {
 describe.each(RENDERERS)("a pulled edge's own look on %s", (renderer) => {
     it("draw a thousand looks in a handful of draws, as the objects path draws them", async () => {
         const objects = await loaded(renderer, "objects");
-        const objectsDraws = draws(objects);
         const objectsRest: Frame = await readCanvas(objects.graph);
         objects.remove();
 
         const batched = await loaded(renderer, "batched");
         assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGE_COUNT, objectEdges: 0 });
         const batchedDraws = draws(batched);
-        assert.isAtLeast(objectsDraws, EDGE_COUNT, "the objects path draws a batch per look");
         assert.isAtMost(batchedDraws, 8, "the batched path draws a handful");
         assert.equal(overBar(objectsRest, await readCanvas(batched.graph)), 0, "the same picture");
     });

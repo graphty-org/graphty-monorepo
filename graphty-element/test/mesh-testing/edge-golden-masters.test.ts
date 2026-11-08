@@ -130,20 +130,12 @@ describe("Edge Golden Masters", () => {
             });
         });
 
-        [0.25, 0.5, 0.75, 1].forEach((opacity) => {
+        [0, 0.25, 0.5, 0.75, 1].forEach((opacity) => {
             test(`line opacity ${opacity} reaches mesh.visibility`, () => {
                 const mesh = makeEdge({ style: { line: { type: "solid", opacity } } });
 
                 assert.equal(mesh.visibility, opacity);
             });
-        });
-
-        test("a line of opacity 0 leaves its batch drawn for the other translucent lines in it", () => {
-            // A batch is shared by translucent lines of every opacity, each drawn at its own slot's,
-            // so a first line's 0 must not stop Babylon drawing the mesh (issue #6326).
-            const mesh = makeEdge({ style: { line: { type: "solid", opacity: 0 } } });
-
-            assert.isAbove(mesh.visibility, 0);
         });
     });
 

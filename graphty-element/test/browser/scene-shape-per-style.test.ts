@@ -205,7 +205,8 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         });
         await frame();
 
-        // A plain line's color and opacity are its slot's (issue #6026).
+        // A plain line's color is its slot's (issue #6026); an opacity under 1 is another pass, and
+        // so another batch.
         const batches = new Set(edges().map((edge) => edge.mesh));
         assert.equal(batches.size, 1, "both looks draw from one batch");
         assert.equal(graph.scene.meshes.length, oneStyle, "and it adds no mesh");

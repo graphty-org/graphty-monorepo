@@ -41,13 +41,6 @@ import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 /** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
 const animatedEdgeFrames = new FrameRoster();
 
-/**
- * The internal switch that keys a plain line's batch by its whole look, color and opacity
- * included, as before batches were keyed by shape (issue #6026): one batch per look. Off by
- * default; only a test that holds another path to the picture of a batch per look writes it.
- */
-export const lineBatchesByLook: { value: boolean } = { value: false };
-
 const PATTERNED_TYPES: ReadonlySet<string> = new Set<PatternType>([
     "dot",
     "star",
@@ -498,8 +491,8 @@ void main() {
      *
      * ONE BATCH PER SHAPE, WHATEVER THE COLOR (`byShape`, issue #6026). A plain joined line -- not
      * widened, not animated -- reads its color and opacity from its slot, so its batch is keyed by
-     * what its mesh is built from (the line type, width, minimum screen width, blending and dash
-     * count) and not by the look's key, and the edge writes its own color into each of its slots
+     * what its mesh is built from (the line type, width, minimum screen width, pass and dash count)
+     * and not by the look's key, and the edge writes its own color into each of its slots
      * (`EdgeLineBatch.setColor`). Edges that differ only in color then share a batch, and a restyle
      * between two such looks recolors the slots where they are. Only the edge's own line asks for
      * it: a selection band, an outline or a gradient's piece keeps a batch of its own look, whose
@@ -527,15 +520,24 @@ void main() {
     ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
         const styleKey = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
-        // A translucent line is drawn in the alpha-blended pass, after every opaque one, and an
-        // opaque one in the opaque pass: one batch is drawn in one pass, so the two never share
-        // a batch (issue #6326).
-        const pass = this.opacityOf(style) < 1 ? "translucent" : "opaque";
-        const key =
-            byShape && !widened && !lineBatchesByLook.value
-                ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${String(this.drawsOpaque(style))}|${String(style.line?.patternCount ?? "")}|${pass}`
-                : styleKey;
-        const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache, widened);
+        const shared = byShape && !widened;
+        const key = shared
+            ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}`
+            : styleKey;
+        // A batch shared by shape holds edges of many opacities, so its first edge's opacity is not
+        // its mesh's visibility: at 0 Babylon would draw none of them. Its translucent slots put it
+        // in the transparent pass (`EdgeLineBatch.countTranslucent`).
+        const made =
+            (create: () => Mesh): (() => Mesh) =>
+            () => {
+                const mesh = create();
+                if (shared) {
+                    mesh.visibility = 1;
+                }
+
+                return mesh;
+            };
+        const staticLine = made(() => this.createStaticLine(options, style, scene, cache, widened));
         const curve = style.line?.bezier === true;
         // Only a widened batch knows the whole edge's length, and a band or a gradient's piece,
         // which is not one, does not fade.
@@ -556,7 +558,7 @@ void main() {
             const width = options.width / 40;
             return cache.getBatch(
                 `${key}-joined${is2D ? "-2d" : ""}`,
-                () =>
+                made(() =>
                     CustomLineRenderer.createJoinedLineMesh(
                         {
                             width,
@@ -575,6 +577,7 @@ void main() {
                         },
                         scene,
                     ),
+                ),
                 scene,
             );
         }
@@ -587,7 +590,7 @@ void main() {
         if ((curve || lineType === "solid") && this.is2DMode(scene)) {
             return cache.getBatch(
                 `${key}-2d`,
-                () =>
+                made(() =>
                     Simple2DLineRenderer.createBatchMesh(
                         options.width / 40, // Convert back from scaled width to match 3D line thickness
                         options.color,
@@ -597,6 +600,7 @@ void main() {
                         style.line?.minScreenWidth,
                         { fade, opaque },
                     ),
+                ),
                 scene,
             );
         }
@@ -641,7 +645,8 @@ void main() {
     }
 
     /**
-     * The pass a pulled edge's batch draws in, which its mesh, not its piece, decides.
+     * The pass a pulled edge's batch, or a line batch shared by shape, draws in, which its mesh, not
+     * its piece or slot, decides.
      * @param style - The resolved style.
      * @returns The pass.
      */

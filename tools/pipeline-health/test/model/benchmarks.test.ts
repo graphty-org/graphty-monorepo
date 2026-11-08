@@ -88,6 +88,14 @@ describe("benchmark regressions", () => {
         });
     });
 
+    it("compares results only with results of the newest one's input", () => {
+        // Leiden n=20 on the dashboard (issue #6220): random graphs near 0.40 ms until the benchmark graph was seeded,
+        // then the fixed seed-1 graph, a heavier graph near 0.50 ms, with no code change. A new input is a new series.
+        const all = pts([0.4, 0.39, 0.41, 0.38, 0.42, 0.4, 0.37, 0.41, 0.39, 0.4, 0.5, 0.49, 0.51]);
+        expect(trend(all).regressed).toBe(true);
+        expect(trend(all.map((p, i) => (i < 10 ? p : { ...p, input: "seed1" }))).regressed).toBe(false);
+    });
+
     it("keeps the newest results of each machine", () => {
         let item = withPoint(undefined, "b", "ms", { at: 0, v: 1, run: 1, machine: "a" }, 0);
         for (let i = 1; i <= BENCH_KEEP * 3; i++) {

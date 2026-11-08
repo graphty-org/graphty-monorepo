@@ -211,10 +211,9 @@ describe("a paint that changes only an edge's colour moves it without placing it
         return { edge, normal, ghost: { meshKey: "s0|#9e9e9e|0.15|>", style } };
     }
 
-    it("recolors the line and the head in their own batches, where they are drawn", () => {
+    it("recolors the head in its batch, and moves the translucent line to the translucent batch", () => {
         const { edge, ghost } = ghostable();
         const line = edge.mesh;
-        const { batch, slots } = lineOf(edge);
         const head = edge.arrowCap;
         const ends = endsOf(edge);
         const headAt = head?.position.asArray();
@@ -222,9 +221,11 @@ describe("a paint that changes only an edge's colour moves it without placing it
 
         edge.applySessionPaint(ghost);
 
-        // A plain line's batch is keyed by its shape, and its slots carry the color (issue #6026).
-        assert.isTrue(edge.mesh === line, "the line stays in its batch");
-        assert.deepStrictEqual(lineOf(edge).slots, slots, "in the same slots");
+        // A plain line's batch is keyed by its shape and its pass, and its slots carry the color
+        // (issue #6026). An opaque line in the alpha-blended pass would be hidden by the depth its
+        // batch's translucent lines wrote first, so a line made translucent changes batch.
+        assert.isFalse(edge.mesh === line, "the line moves to the translucent batch");
+        const { batch, slots } = lineOf(edge);
         assert.deepStrictEqual(endsOf(edge), ends, "drawn between the same two points");
         const [r, g, b, a] = batch.colorOf(slots[0]) ?? [];
         const grey = Math.fround(0x9e / 255);

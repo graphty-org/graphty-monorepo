@@ -260,6 +260,14 @@ one factor maps its baked vertices exactly, and otherwise gets a family of its o
 different levels differ in depth, so no draw-order tie arises. This brings file styles' nodes onto the
 batch: every imported file but graphty's own gives each node a `node.drawOrder` level.
 
+As built (stage 14, fifth pull request: pictures): `batchableOf` takes `texture.image` (`node.texture`, a
+picture on a built-in shape). The picture is in its source's material, as a color is, so the batch draws it
+by sharing that material; `Node.drawnInstanceColor` gives a pictured row white, as `applyInstanceColor`
+gives its instance, since a picture replaces the shape's color. `batchLook` adds whether the picture is
+drawn: while it loads (or after it fails) the row's source is the plain shape's, with the same geometry, so
+without that flag a loaded row joined the plain family and drew the plain material (42,864 pixels off).
+`texture.icon` (which draws nothing) and the face picture `node.image` stay object rows.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

@@ -523,7 +523,7 @@ Corrections, from the code:
   object path draws the lone curve from center to center there. The fourth pull request draws that curve (below).
 - Moving a node still writes edge bytes for a pulled curve: its span changes with its length, so every piece of a moved
   curve is rewritten (16 floats a piece, against the object path's slot plus its matrix), and the CPU still samples the
-  curve to find its cut. The measurement on 100,000 curves waits for a curve scenario in `benchmarks/compare`.
+  curve to find its cut. The measurement on 100,000 curves is in the ninth pull request's paragraph below.
 
 As built (stage 21, second pull request): a fanned curve alone between its two nodes is pulled too, on `"batched"`.
 `Edge.pullsLine` takes `line.bezier: true` with `line.fanned` unset or true when no other edge joins the two nodes in
@@ -634,6 +634,16 @@ gapped and flat among them; `test/browser/pulled-curve-glsl.test.ts` holds the G
 `test/browser/pulled-curves-batched.test.ts` straightens every edge, raises it, drags a node, raises it to 0.6 and
 flattens it to 0, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a
 curve with caps or `supportModel`, a great-circle route, a raised route the layout picks, bends and self-loops.
+
+As built (stage 21, ninth pull request): `benchmarks/compare` has the curve scenario, key `lean-s-curves`: 10,000 boxes
+and 100,000 curves (`edge.curvature`, no caps) in 3D, which under `"batched"` fails if any edge is an object edge. On
+the RTX at commit c62c4c915c, three runs a path interleaved, load average 1.5 to 4.5: under `"batched"` all 100,000
+curves are pulled and the moving frame is 46.7 ms median (runs 31.7 to 46.8, p99 50.3), drag frame 47.0 ms, renderer
+and GPU processes 5,183 MB (`benchmarks/results/stage-21-curves-batched`); under `"objects"` moving 61.1 ms (57.9 to
+61.6, p99 76.5), drag 125 ms, 2,841 MB (`benchmarks/results/stage-21-curves-objects`). The 40 ms target is missed by
+about 7 ms. The moving frames sit at about 29 ms or about 47 ms, with one run of three mostly at the lower; and the
+pulled path holds 2.3 GB more, which a curve's pieces (one per sample of its longest cut, four texels each) and its
+per-piece vertices would explain but no profile has yet confirmed.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.

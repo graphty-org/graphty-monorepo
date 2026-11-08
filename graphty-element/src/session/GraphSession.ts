@@ -1160,7 +1160,10 @@ class Session implements ElementSession {
      * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bad window or kind.
      */
     find(text: string, options?: FindOptions): FindResult {
-        return this.sessionData.find(text, options);
+        // With the working graph on, a find that names no scope lists what is shown.
+        const scoped =
+            options?.scope === undefined && this.working.enabled ? { ...options, scope: "visible" as const } : options;
+        return this.sessionData.find(text, scoped);
     }
 
     /**
@@ -4039,6 +4042,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }),
     );
 
+    const working = createWorkingGraph(
+        { snapshot, masks: visibility.masks, store: store.store },
+        options.workingGraph === true,
+    );
+    shareInputs(store.store, working.shared);
     // A layout's availability also reads the graph, the values its grouping names, and the tick
     // that says neither has changed since the last estimate.
     const planning: PlanningContext = {
@@ -4051,6 +4059,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             () => keptSets.list(),
         ),
         inputTick: () => inputs.tick.value,
+        workingGraph: () => working.enabled,
         dataRevision,
         snapshot,
         nodeValues: (path) =>
@@ -4182,11 +4191,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, event, detail);
         },
     });
-    const working = createWorkingGraph(
-        { snapshot, masks: visibility.masks, store: store.store },
-        options.workingGraph === true,
-    );
-    shareInputs(store.store, working.shared);
     const session = new Session({
         working,
         store: store.store,

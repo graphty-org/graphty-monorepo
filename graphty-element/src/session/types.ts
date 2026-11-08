@@ -353,7 +353,8 @@ export interface FindOptions {
     readonly kinds?: readonly FindKind[];
     /**
      * Where to search. Default the whole graph: a hit the visibility filter hides is still
-     * listed, and carries `excludedBy`.
+     * listed, and carries `excludedBy`. With the session's `workingGraph` option on, the default
+     * is `"visible"`, what is shown; name `"graph"` to find hidden items too.
      */
     readonly scope?: ScopeInput;
     /**

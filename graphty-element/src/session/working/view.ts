@@ -265,6 +265,7 @@ export function createWorkingGraph(sources: WorkingGraphSources, enabled = false
             const at = current();
             if (
                 at.graph !== declared ||
+                (at.nodeCount === at.graph.nodeCount && at.edgeCount === at.graph.edgeCount) ||
                 !sameWords(at.nodes, membership.nodes) ||
                 !sameWords(at.edges, membership.edges)
             ) {

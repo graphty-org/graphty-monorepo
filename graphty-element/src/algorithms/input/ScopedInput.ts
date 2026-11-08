@@ -17,7 +17,8 @@
  * WHO GETS A SCOPED INPUT is decided per algorithm class: only a class declaring
  * `static scopeInput = "subgraph"` is handed its run's scope. Every other class reads the whole
  * graph through the same accessor, because an algorithm that enumerates its nodes from the data
- * manager would otherwise compute over a scoped topology while listing every node.
+ * manager would otherwise compute over a scoped topology while listing every node -- except over
+ * the working graph's view (design/working-graph/design.md section 6), which every class reads.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -180,13 +181,44 @@ export function declaresScopedInput(algorithm: object): boolean {
     return (algorithm.constructor as { scopeInput?: unknown }).scopeInput === "subgraph";
 }
 
+/** Per bound algorithm, whether its scope is the view its store shares; settled once per run. */
+const overSharedView = new WeakMap<object, boolean>();
+
 /**
- * The run input an algorithm reads through, when its class declares a scoped input.
+ * Whether an algorithm computes over its run's scope: its class declares a scoped input, or the
+ * scope is the view its store shares -- the session's working graph (design/working-graph/design.md
+ * section 6) -- which every class computes over, whatever it declares. Settled on the first ask in
+ * a run, so a run keeps the input it started on.
+ * @param algorithm - The instance.
+ * @returns True when it computes over its scope.
+ */
+export function computesOverScope(algorithm: object): boolean {
+    if (declaresScopedInput(algorithm)) {
+        return true;
+    }
+
+    const binding = bindings.get(algorithm);
+    if (binding === undefined) {
+        return false;
+    }
+
+    let over = overSharedView.get(algorithm);
+    if (over === undefined) {
+        const scope = binding.scope();
+        over = scope !== null && sharedInputOf(scope.resolution, scope.graph) !== undefined;
+        overSharedView.set(algorithm, over);
+    }
+
+    return over;
+}
+
+/**
+ * The run input an algorithm reads through, when it computes over its scope.
  * @param algorithm - The instance.
  * @returns The binding, or undefined for the whole graph.
  */
 export function runInputOf(algorithm: object): RunInput | undefined {
-    return declaresScopedInput(algorithm) ? bindings.get(algorithm) : undefined;
+    return computesOverScope(algorithm) ? bindings.get(algorithm) : undefined;
 }
 
 /**
@@ -863,7 +895,7 @@ export async function withRunInput<T>(
     const holder = {};
     bindings.set(algorithm, { inputs, holder, scope });
     try {
-        if (declaresScopedInput(algorithm)) {
+        if (computesOverScope(algorithm)) {
             const resolved = scope();
             if (
                 resolved !== null &&
@@ -877,6 +909,7 @@ export async function withRunInput<T>(
         return await work();
     } finally {
         bindings.delete(algorithm);
+        overSharedView.delete(algorithm);
         inputs.releaseHolder(holder);
     }
 }

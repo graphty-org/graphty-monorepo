@@ -383,7 +383,7 @@ export class RowScan {
         const box = polygonBox(polygon);
         const { rowBounds: bounds, rows } = this.table;
         for (let row = 0, at = 0; row < rows; row++, at += 4) {
-            if (!((bounds[at + 3] ?? 0) > 0)) {
+            if ((bounds[at + 3] ?? 0) <= 0) {
                 continue;
             }
 

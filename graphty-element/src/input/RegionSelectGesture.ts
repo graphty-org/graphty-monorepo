@@ -44,7 +44,7 @@ export function regionPolygon(shape: Exclude<RegionShape, "off">, points: readon
     }
 
     const from = points[0];
-    const to = points[points.length - 1];
+    const to = points.at(-1) ?? from;
     return [from, { x: to.x, y: from.y }, to, { x: from.x, y: to.y }];
 }
 

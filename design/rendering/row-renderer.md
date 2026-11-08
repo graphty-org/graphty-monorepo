@@ -251,6 +251,15 @@ before every translucent batch whose source was made later, so batches tie in th
 That stands in for the objects path's instance order, which repaint history can reorder; `render-parity`
 decides. A batched row's opacity reads as `Node.drawnOpacity` (its mesh's visibility, or the batch's).
 
+As built (stage 14, fourth pull request: z order): `batchableOf` takes `shape.zIndex` and `shape.drawOrder`.
+Both are in the mesh key and, in 2D, baked into the source's vertices (`placeByZIndex` moves the geometry
+back, `placeByDrawOrder` flattens its front half onto its level's plane); in 3D they change nothing. The
+batch draws a `Geometry.copy()` of its family's first source, so it carries the bake. `batchLook` leaves
+them out, but `scaleAgainst` compares every vertex, so a source at another level joins a family only when
+one factor maps its baked vertices exactly, and otherwise gets a family of its own. Opaque rows at
+different levels differ in depth, so no draw-order tie arises. This brings file styles' nodes onto the
+batch: every imported file but graphty's own gives each node a `node.drawOrder` level.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

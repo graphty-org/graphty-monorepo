@@ -71,8 +71,11 @@ export interface BatchView {
     readonly flatOutline: boolean;
 }
 
-/** The shape options a batch draws: everything else about a shape waits for a wider batch. */
-const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail"]);
+/**
+ * The shape options a batch draws: everything else about a shape waits for a wider batch. A z order
+ * (`zIndex`, `drawOrder`) is baked into the source's vertices in 2D, which the batch's geometry copy keeps.
+ */
+const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail", "zIndex", "drawOrder"]);
 /** The effects a batch draws: both are in the geometry or the material. */
 const BATCHABLE_EFFECT_KEYS: ReadonlySet<string> = new Set(["wireframe", "flatShaded", "unlit"]);
 /** The style keys a plain row may set. Anything new stays an object row until a batch can draw it. */

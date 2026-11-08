@@ -784,7 +784,8 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
                 // A node is called by its label, else its id.
                 name: nodeName(session, resolved.node),
                 swatch: swatchOf(session, { node: resolved.node }),
-                // A node a filter hides is still selected; the header says why it is not drawn.
+                // A node inspected while hidden (one the time window hides stays selected); the
+                // header says why it is not drawn.
                 ...(session.visibility.isVisible(resolved.node) ? {} : { kind: "Node, hidden by a filter" }),
             };
         // The center node's own header: its name and the color it is drawn in.

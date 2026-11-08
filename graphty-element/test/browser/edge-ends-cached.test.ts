@@ -12,6 +12,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
+import { UpdateManager } from "../../src/managers/UpdateManager";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { RowScan } from "../../src/render/PickService";
 import { moveHeld, nextFrame, press, release } from "../helpers/real-input";
@@ -58,7 +59,9 @@ async function loaded(path: RenderPath): Promise<Graphty> {
 }
 
 /**
- * Drag the middle node with the mouse, counting rays cast at a batched row and edge visits while it moves.
+ * Drag the middle node with the mouse, counting rays cast at a batched row by the moves, and edge visits.
+ * Rays the rest pass casts are not counted: the page renders between two moves, and a gap of a few frames
+ * is a rest that measures the ends again, which is the design.
  * @param element - The element.
  * @returns The counts.
  */
@@ -71,14 +74,23 @@ async function dragCounted(element: Graphty): Promise<{ rays: number; visits: nu
 
     const rays = vi.spyOn(RowScan.prototype, "rowRayHitOn");
     const visits = vi.spyOn(Edge.prototype, "update");
+    const settles = UpdateManager.prototype as unknown as { settleEnds: () => void };
+    const settle = settles.settleEnds;
+    let rested = 0;
+    const settled = vi.spyOn(settles, "settleEnds").mockImplementation(function (this: UpdateManager) {
+        const before = rays.mock.calls.length;
+        settle.call(this);
+        rested += rays.mock.calls.length - before;
+    });
     try {
         for (let move = 1; move <= MOVES; move++) {
             await moveHeld(element, { x: x + 10 + 5 * move, y: y + 5 });
             await nextFrame();
         }
 
-        return { rays: rays.mock.calls.length, visits: visits.mock.calls.length };
+        return { rays: rays.mock.calls.length - rested, visits: visits.mock.calls.length };
     } finally {
+        settled.mockRestore();
         rays.mockRestore();
         visits.mockRestore();
         await release(element, { x: x + 10 + 5 * MOVES, y: y + 5 });
@@ -97,7 +109,7 @@ describe("cached non-round ends", () => {
         assert.isTrue(batched.graph.getNode("t")?.drawnInBatch, "the figure is drawn in a batch");
         const { rays, visits } = await dragCounted(batched);
         assert.isAbove(visits, 0, "the drag moved the edges");
-        assert.equal(rays, 0, `rays cast during ${String(visits)} edge visits`);
+        assert.equal(rays, 0, `rays cast by moves during ${String(visits)} edge visits`);
         assert.equal(overBar(objectsRest, await readCanvas(batched.graph)), 0, "at rest after the drag");
     });
 });

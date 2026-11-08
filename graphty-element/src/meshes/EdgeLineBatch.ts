@@ -1046,7 +1046,9 @@ export class EdgeLineBatch {
 
         this.colorBuffer?.dispose();
         const buffer = new Buffer(this.mesh.getEngine(), this.colors, true, FLOATS_PER_COLOR, false, true);
-        this.mesh.setVerticesBuffer(buffer.createVertexBuffer("edgeColor", 0, FLOATS_PER_COLOR, FLOATS_PER_COLOR, true));
+        this.mesh.setVerticesBuffer(
+            buffer.createVertexBuffer("edgeColor", 0, FLOATS_PER_COLOR, FLOATS_PER_COLOR, true),
+        );
         this.colorBuffer = buffer;
     }
 

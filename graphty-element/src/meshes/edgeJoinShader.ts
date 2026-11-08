@@ -49,6 +49,11 @@
  * and calls the shader's body. Width, taper, corners and the arrowheads (drawn by their own
  * batches) are unchanged: a surface replaces only the color of the pixels the line already covers.
  *
+ * HIDING BY THE VISIBILITY MASK (`edgeHidden`). One more instanced float per piece, in a buffer of
+ * its own: 1 while the piece's edge is hidden, so a time window that hides or shows tens of
+ * thousands of edges writes and uploads one float each instead of zeroing and restoring twenty
+ * (issue #6025). A pulled line has no such attribute: its rows say whether it is drawn.
+ *
  * DASHES FOLLOW THE WHOLE EDGE. A fragment's distance is measured along its own piece from the
  * edge's start; in the overlap on the inside of a bend it is drawn when either piece's dash covers
  * it, which is what dashing the centre line and then stroking each dash would draw.
@@ -183,6 +188,9 @@ attribute vec3 pB;
 attribute vec3 pNext;
 attribute vec3 pNext2;
 attribute vec2 run;
+// 1 while the visibility mask hides the piece's edge, which then draws nothing; 0 (and an unbound
+// attribute reads 0) draws it. One float a piece, so hiding or showing an edge writes no point.
+attribute float edgeHidden;
 #endif
 
 uniform mat4 world;
@@ -337,6 +345,12 @@ vec2 sideMeet(vec2 q0, float w0, vec2 p, float w, vec2 q1, float w1, vec2 dIn, v
 void main() {
 #ifdef EDGE_PULLED
     pullEdge();
+#else
+    if (edgeHidden > 0.5) {
+        // Every vertex of the piece at one point outside the clip volume: no triangle, no fragment.
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
 #endif
     bool atB = position.x > 0.5;
     float side = position.y;

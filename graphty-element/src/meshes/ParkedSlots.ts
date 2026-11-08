@@ -8,6 +8,10 @@
  * walk was most of the jump. The edge's own endpoint cache still says whether anything moved;
  * a parked slot only means the placement it last had is there to put back.
  *
+ * Used by the batches whose shader has no per-slot hidden flag to read: arrow caps and the lines
+ * drawn from thin-instance matrices. A joined line's batch hides a slot with its `edgeHidden`
+ * flag instead and never moves the slot's floats (`EdgeLineBatch.park`).
+ *
  * A slot is parked only by {@link ParkedSlots.park} and stays parked until it is put back or
  * written in any other way (placed, hidden, taken, handed back), which forgets it: a parked
  * slot then never brings back a placement something has since replaced.

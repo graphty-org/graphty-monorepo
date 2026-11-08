@@ -139,6 +139,36 @@ describe("partial uploads", () => {
             });
         }
 
+        // The visibility mask hides with park: a joined line writes its one hidden flag, a batch
+        // without one zeroes the slot as setDrawn does (issue #6025).
+        const parks = [
+            { name: "plain", make: () => lines({}), floats: 1 },
+            { name: "widened", make: () => lines({ widened: true }), floats: 1 },
+            { name: "expanded", make: () => lines({ expanded: true }), floats: VERTICES },
+            { name: "matrix", make: () => matrixLines(), floats: MATRIX_FLOATS },
+            { name: "billboarded caps", make: () => caps(true), floats: 1 },
+            { name: "standard caps", make: () => caps(false), floats: MATRIX_FLOATS },
+        ];
+
+        for (const { name, make, floats } of parks) {
+            it(`${name}, parked by the visibility mask, and shown again`, () => {
+                const batch = make();
+                settle();
+
+                for (const slot of TEN_SLOTS) {
+                    batch.park(slot);
+                }
+
+                const expected = TEN_SLOTS.map(() => floats);
+                assert.deepEqual(frame(), expected);
+                for (const slot of TEN_SLOTS) {
+                    assert.isTrue(batch.unpark(slot));
+                }
+
+                assert.deepEqual(frame(), expected);
+            });
+        }
+
         it("widened and expanded together, with static values", () => {
             const batch = lines({ expanded: true, widened: true });
             settle();
@@ -363,7 +393,9 @@ describe("partial uploads", () => {
                 batch.setDrawn(10, false);
                 batchUploadFrames.contextRestored(scene);
 
-                assert.deepEqual(frame(), [SLOTS * floats]);
+                // A line batch's hidden flags (one float a slot) go up whole with its slots.
+                const flags = name === "lines" ? [SLOTS] : [];
+                assert.deepEqual(frame(), [...flags, SLOTS * floats]);
             });
         }
 

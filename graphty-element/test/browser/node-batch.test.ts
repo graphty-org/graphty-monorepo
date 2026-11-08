@@ -365,6 +365,29 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 2);
     });
 
+    it.each(["3d", "2d"] as const)("draw rows with a gradient in %s as the object rows draw them", async (view) => {
+        const element = await mounted(renderer);
+        await loaded(element, view);
+        // Both sizes and every color: a gradient starts at the row's color, so each color is a ramp of its own.
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 0).map((node) => node.id),
+            { "node.gradientColor": "#00ff00", "node.gradientDirection": 90 },
+        );
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 1).map((node) => node.id),
+            { "node.gradientColors": "#ff00ff #ffff00 #0000ff", "node.gradientKind": "radial" },
+        );
+        await element.waitForStableFrame();
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        assert.equal(overBar(objects, batched), 0);
+    });
+
     it("measure a batched row's radius again after a repaint changes its size", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");

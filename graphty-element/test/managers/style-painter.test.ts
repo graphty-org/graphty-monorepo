@@ -809,7 +809,12 @@ describe("batchableOf", () => {
             { texture: { color: { colorType: "solid", value: "#f00", opacity: 0.5 } } },
             true,
         ],
-        ["a gradient", { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } }, false],
+        [
+            "a gradient, in its source's material",
+            { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } },
+            true,
+        ],
+        ["a radial gradient", { texture: { color: { colorType: "radial-gradient", colors: ["#f00", "#00f"] } } }, true],
         ["a picture, in its source's material", { texture: { image: "a.png" } }, true],
         ["an icon", { texture: { icon: "star" } }, false],
         ["a glow", { effect: { glow: { color: "#ff0000", strength: 1 } } }, false],

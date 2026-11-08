@@ -105,17 +105,15 @@ export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): b
         Object.entries(bag ?? {})
             .filter(([, value]) => value !== undefined)
             .map(([key]) => key);
-    const color = style.texture?.color;
+    // Any color, opacity or picture is in the source's material (its mesh key carries it), so each is
+    // a look of its own and its batch shares that material: a gradient is a texture there and its row
+    // paints no instance color, a picture replaces the color.
+    // A label or tooltip hangs from the row's geometry-free anchor (`Node.labelTarget`), so it keeps the row batched.
     return (
         set(style).every((key) => BATCHABLE_STYLE_KEYS.has(key)) &&
         set(style.shape).every((key) => BATCHABLE_SHAPE_KEYS.has(key)) &&
         set(style.effect).every((key) => BATCHABLE_EFFECT_KEYS.has(key)) &&
-        // A picture is in its source's material (`node.texture`), as a color is, and replaces the color.
-        set(style.texture).every((key) => key === "color" || key === "image") &&
-        // A plain color, or a solid one at any opacity: an opacity is in the source's material (its
-        // mesh key carries it), so each opacity is a look of its own and its batch shares that material.
-        // A label or tooltip hangs from the row's geometry-free anchor (`Node.labelTarget`), so it keeps the row batched.
-        (typeof color !== "object" || color.colorType === "solid")
+        set(style.texture).every((key) => key === "color" || key === "image")
     );
 }
 

@@ -354,6 +354,11 @@ export const dataManagerInternals = {} as {
      * failure is published as a graph error): at once unless it waited in the load line.
      */
     lastEdit(manager: DataManager): Promise<void>;
+    /**
+     * How many `Node` render objects this manager has built, ever: the count the lazy-node stage
+     * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
+     */
+    nodesBuilt(manager: DataManager): number;
 };
 
 /**
@@ -390,8 +395,11 @@ export class DataManager implements Manager {
     private readonly edgeRows: (Edge | undefined)[] = [];
     /** Who else holds rows by index (the session's selection), told after the render objects. */
     private readonly renumberFollowers = new Set<FreezeFollower>();
+    /** See `dataManagerInternals.nodesBuilt`. */
+    private builtNodes = 0;
 
     static {
+        dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
         dataManagerInternals.followRenumbering = (manager, follower) => {
             manager.renumberFollowers.add(follower);
             return () => {
@@ -1884,6 +1892,7 @@ export class DataManager implements Manager {
         const n = new Node(this.graphContext, nodeId, bootstrapNodePaint(), node as AdHocData, {
             pinOnDrag: this.graphContext.getConfig().pinOnDrag,
         });
+        this.builtNodes++;
         placeNodeRow(n, index);
         this.nodeCache.set(nodeId, n);
         this.nodeMap.set(nodeId, n);

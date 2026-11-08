@@ -41,6 +41,13 @@ import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 /** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
 const animatedEdgeFrames = new FrameRoster();
 
+/**
+ * The internal switch that keys a plain line's batch by its whole look, color and opacity
+ * included, as before batches were keyed by shape (issue #6026): one batch per look. Off by
+ * default; only a test that holds another path to the picture of a batch per look writes it.
+ */
+export const lineBatchesByLook: { value: boolean } = { value: false };
+
 const PATTERNED_TYPES: ReadonlySet<string> = new Set<PatternType>([
     "dot",
     "star",
@@ -520,9 +527,13 @@ void main() {
     ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
         const styleKey = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
+        // A translucent line is drawn in the alpha-blended pass, after every opaque one, and an
+        // opaque one in the opaque pass: one batch is drawn in one pass, so the two never share
+        // a batch (issue #6326).
+        const pass = this.opacityOf(style) < 1 ? "translucent" : "opaque";
         const key =
-            byShape && !widened
-                ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${String(this.drawsOpaque(style))}|${String(style.line?.patternCount ?? "")}`
+            byShape && !widened && !lineBatchesByLook.value
+                ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${String(this.drawsOpaque(style))}|${String(style.line?.patternCount ?? "")}|${pass}`
                 : styleKey;
         const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache, widened);
         const curve = style.line?.bezier === true;

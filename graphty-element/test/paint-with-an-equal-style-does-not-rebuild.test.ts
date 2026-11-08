@@ -211,10 +211,9 @@ describe("a paint that changes only an edge's colour moves it without placing it
         return { edge, normal, ghost: { meshKey: "s0|#9e9e9e|0.15|>", style } };
     }
 
-    it("recolors the line and the head in their own batches, where they are drawn", () => {
+    it("moves the line and the head to their shape's translucent batches, where they were drawn", () => {
         const { edge, ghost } = ghostable();
         const line = edge.mesh;
-        const { batch, slots } = lineOf(edge);
         const head = edge.arrowCap;
         const ends = endsOf(edge);
         const headAt = head?.position.asArray();
@@ -222,17 +221,38 @@ describe("a paint that changes only an edge's colour moves it without placing it
 
         edge.applySessionPaint(ghost);
 
-        // A plain line's batch is keyed by its shape, and its slots carry the color (issue #6026).
-        assert.isTrue(edge.mesh === line, "the line stays in its batch");
-        assert.deepStrictEqual(lineOf(edge).slots, slots, "in the same slots");
+        // A translucent look is drawn in the other pass, so in another batch (issue #6326).
+        assert.isFalse(edge.mesh === line, "the line moved to the translucent batch");
         assert.deepStrictEqual(endsOf(edge), ends, "drawn between the same two points");
+        const { batch, slots } = lineOf(edge);
         const [r, g, b, a] = batch.colorOf(slots[0]) ?? [];
         const grey = Math.fround(0x9e / 255);
         assert.deepStrictEqual([r, g, b, a], [grey, grey, grey, Math.fround(0.15)], "in the new color and opacity");
         assert.strictEqual(edge.drawnLine?.visibility, 0.15, "read back at the new opacity");
-        assert.isTrue(edge.arrowCap === head, "the head stays in its batch too");
+        assert.isFalse(edge.arrowCap === head, "the head moved too");
         assert.deepStrictEqual(edge.arrowCap?.position.asArray(), headAt, "drawn where it was");
         assert.strictEqual(edge.arrowCap?.visibility, 0.15, "at the new opacity");
+    });
+
+    it("recolors the line and the head where they are for a change within one pass", () => {
+        const { edge, ghost } = ghostable();
+        edge.applySessionPaint(ghost);
+        const line = edge.mesh;
+        const { batch, slots } = lineOf(edge);
+        const head = edge.arrowCap;
+        const style = cloneDeep(ghost.style);
+        style.line = { ...style.line, color: "#ff0000", opacity: 0.3 };
+        style.arrowHead = { ...style.arrowHead, opacity: 0.3 };
+
+        edge.applySessionPaint({ meshKey: "s0|#ff0000|0.3|>", style });
+
+        // A plain line's batch is keyed by its shape and pass, and its slots carry the color (issue #6026).
+        assert.isTrue(edge.mesh === line, "the line stays in its batch");
+        assert.deepStrictEqual(lineOf(edge).slots, slots, "in the same slots");
+        const [r, g, b, a] = batch.colorOf(slots[0]) ?? [];
+        assert.deepStrictEqual([r, g, b, a], [1, 0, 0, Math.fround(0.3)], "in the new color and opacity");
+        assert.isTrue(edge.arrowCap === head, "the head stays in its batch too");
+        assert.strictEqual(edge.arrowCap?.visibility, 0.3, "at the new opacity");
     });
 
     it("places nothing on the next update, there and back", () => {

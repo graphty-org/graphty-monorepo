@@ -3,6 +3,10 @@
  * batch's: a thousand edges of a thousand looks draw from a handful of draws, and draw the picture
  * the `"objects"` path draws with a batch per look. A changed look rewrites the piece. Stage 19 of
  * design/rendering/row-renderer.md; the bar is its section 7.
+ *
+ * The `"objects"` path keys a plain line's batch by its shape and colors each slot (issue #6026),
+ * which draws the same lines in another order where they overlap; the reference here keys it by
+ * the whole look again (`lineBatchesByLook`), a batch per look.
  */
 
 import "../../src/graphty-element";
@@ -12,6 +16,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { lineBatchesByLook } from "../../src/meshes/EdgeMesh";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { edgeBetween } from "../helpers/testSetup";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -20,6 +25,7 @@ const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_
 const RENDERERS = ADAPTER === "" ? (["webgl"] as const) : (["webgl", "webgpu"] as const);
 
 afterEach(() => {
+    lineBatchesByLook.value = false;
     document.body.replaceChildren();
 });
 
@@ -79,6 +85,8 @@ async function settled(element: Graphty): Promise<void> {
  * @returns The element.
  */
 async function loaded(renderer: "webgl" | "webgpu", path: RenderPath): Promise<Graphty> {
+    // The objects path is the reference: a batch per look.
+    lineBatchesByLook.value = path === "objects";
     const element = document.createElement("graphty-element");
     element.renderer = renderer;
     element.renderPath = path;

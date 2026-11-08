@@ -628,8 +628,12 @@ void main(void) {
         // one put it there; an opaque one blends in place, so a sub-pixel line's coverage shows.
         // A pulled batch's mesh is shared by every edge in it, each with its own opacity in its
         // piece (EDGE_PULLED), so the first edge's opacity must not become the whole mesh's: an
-        // opacity of 0 would stop Babylon drawing the mesh at all.
-        if (opacity < 1 && !opaque && options.pulled !== true) {
+        // opacity of 0 would stop Babylon drawing the mesh at all. A batch that reads each slot's
+        // color (EDGE_SLOT_COLOR) is shared by translucent edges of every opacity, so it keeps a
+        // first edge's opacity of 0 off its mesh too; its pass then comes from its translucent
+        // slots (`EdgeLineBatch`, issue #6326).
+        const sharedAtZero = opacity === 0 && drawsSlotColor(options, widened);
+        if (opacity < 1 && !opaque && options.pulled !== true && !sharedAtZero) {
             mesh.visibility = opacity;
         }
 

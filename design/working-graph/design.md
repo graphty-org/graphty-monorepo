@@ -31,11 +31,13 @@ it on; the default flips in the next major (#6124).
 
 **Reading the whole graph by name.** Every reader of nodes or edges takes a scope and keeps its
 existing whole-graph word: `"graph"` (`data.nodePage`, `find`, `neighbors`, union leaves) or
-`"all"` (`data.statistics`). A reader with no scope today gains
-`scope?: "graph" | "visible"`: `data.structureValue`, `selection.statistics`, `data.attributes`,
-`valueCounts`, `histogram`, `issues`, `styles.groups`, `styles.categories`, `styles.counts`,
-`styles.agreement`, `styles.preview`, the `neighborsOf`, `layer` and `invert` targets, and
-`catalog.optionsFor`.
+`"all"` (`data.statistics`). These readers with no scope before gain
+`scope?: "graph" | "visible"`: `data.nodes`, `data.edges`, `data.structureValue`,
+`data.valueCounts`, `data.histogram` and `styles.counts`. The other view readers
+(`selection.statistics`, `data.attributes`, `styles.groups`, `styles.categories`,
+`styles.agreement`, `styles.preview`, the `neighborsOf`, `layer` and `invert` targets,
+`catalog.optionsFor`) read only the view while the option is on and take no scope yet (decision
+78); `data.issues` reads the whole graph (decision 74).
 
 **`within?: "graph" | "visible"`, default `"graph"` (decisions C, 50)** on the
 threshold leaf (Top-N, percentile), on a color binding's automatic domain, and on the legend's
@@ -78,8 +80,9 @@ Advanced: `defineAlgorithm`'s `input()` hands it the view.
 
 **The rule: never draw two layouts on one canvas.** The filter changes once, at Done.
 
-- **While editing, nothing moves.** `FilterSelection.tsx` opens a `FilterDraft` and calls
-  `update` per edit. Opening it pauses a running simulation (decision 61). The element draws the
+- **While editing, no layout starts.** `FilterSelection.tsx` opens a `FilterDraft` and calls
+  `update` per edit. A draft never starts a layout; a layout still settling when it opens keeps
+  settling the graph as it was (decision 61). The element draws the
   preview in the current layout: draft members in card colors, shown nodes it would remove faint,
   returning nodes not drawn (decision 6).
 - **The counts** come from `draft.counts()` over the full graph, time window ignored ("49 of
@@ -88,10 +91,11 @@ Advanced: `defineAlgorithm`'s `input()` hands it the view.
   once over it with the animated transition, and the existing auto-framing frames what is shown.
   **Cancel is `cancel()`** and writes nothing.
 
-Turning a filter off is a filter change (decision 35). **With the option on, no node outside
-the view is drawn**: `styles.showBranches` `hold` and `base: "full"`, and `showContext`, are
-suspended (decision 7). Only the draft preview fades nodes, in place, and it never re-lays out
-before commit. Ghosts keep their faint look (D).
+Turning a filter off is a filter change (decision 35). **The app draws no node outside the view**:
+for a filter draft it passes neither `styles.showBranches` `hold` nor `base: "full"`, and it does
+not turn `showContext` on. Those keep their meaning in the element, so a consumer that asks for
+them gets hidden nodes drawn at their last positions (decision 7). Only the draft preview fades
+nodes, in place, and it never re-lays out before commit. Ghosts keep their faint look (D).
 
 ## 4. Every reader from the audit
 
@@ -224,8 +228,8 @@ off and before any filter (decision 77).
    It lands with no failing reader.
 8. **App**: set `working-graph`; the filter editor on `FilterDraft` (section 3); `within:
 "visible"`; the whole-graph word on readers labeled "Full graph" or "All"; the dock's code unchanged (decision 67).
-9. **The owner's path** (decision 36): nothing moves while editing; Circle and Grid place 49.
-10. **Docs**: a guide page with the canonical example; the suspended drawings (decision 7); the flip on #6124.
+9. **The owner's path** (decision 36): no layout starts while editing; Circle and Grid place 49.
+10. **Docs**: a guide page with the canonical example; the drawings that show hidden nodes (decision 7); the flip on #6124.
 
 ## 11. Decisions the owner has not seen
 
@@ -244,16 +248,17 @@ off and before any filter (decision 77).
    outline-and-pane editor (the selection workspace experiment off) has no Done: it keeps writing
    each edit, the layout follows each one, and it too draws no hidden node.
 6. **Nodes the draft would bring back are counted, not drawn**, until commit.
-7. **With the option on, `hold`, `base: "full"` and `showContext` are suspended**: no node
-   outside the view is drawn; with it off they keep their meaning.
+7. **`hold`, `base: "full"` and `showContext` keep their meaning with the option on**: they are
+   the consumer's choice to draw hidden nodes, at their last positions; the app asks for none of
+   them for a filter draft, so it draws no node outside the view.
 8. **The layout re-runs on a filter or window change** or its undo, never on a data edit; filter
    changes animate.
 9. **Framing after a filter re-layout** is today's auto-framing.
 10. **Simulations drop hidden nodes**, not hold them inert.
 11. **Layout scope `"graph"` lays out the view** with the option on, as naming no scope does: a
     layout never moves a hidden node (agreed point 7).
-12. **Context nodes (`showContext`) are not in the view**, so with the option on they are not
-    drawn (decision 7).
+12. **Context nodes (`showContext`) are not in the view**: no reader or layout counts them, and
+    they are drawn only when a consumer turns `showContext` on (decision 7).
 13. **The pause rule** (section 8); playback steps rebuild as they land.
 14. **During a drag, counts read the view**, on the pause under the pause rule.
 15. **Every algorithm class computes over the view**, mask-back classes included; legacy plugins
@@ -316,8 +321,8 @@ off and before any filter (decision 77).
 59. **The time dock's track and extent span all time** as the window's own control; its bins
     follow the filter.
 60. **An API select of a node hidden by a filter drops it**; one hidden only by the window stays.
-61. **Opening a draft pauses a running simulation**, so nothing moves while editing; cancel
-    resumes it, commit re-lays out.
+61. **A draft never starts or pauses a layout**: a layout still settling when the draft opens
+    keeps settling the graph as it was (one layout, not two); commit re-lays out over the view.
 62. **The whole-readers list names `within` defaults without listing them**, so its only-shrinks
     rule does not cover them.
 63. **Snapshot layouts get `stored`, `fixed` and `scope` in view rows**: a pinned or fixed hidden
@@ -364,3 +369,8 @@ off and before any filter (decision 77).
     frame rule at 50,000 nodes with the force layout fail with the option on and off alike, before
     any filter too; the cost is the force simulation and the renderer per frame, not the view, and
     is not fixed here.
+78. **Some view readers take no scope yet**: `selection.statistics`, `data.attributes`,
+    `styles.groups`, `styles.categories`, `styles.agreement`, `styles.preview`, the `neighborsOf`,
+    `layer` and `invert` targets and `catalog.optionsFor` read only the view while the option is
+    on. None is a reader the agreement says must see everything; a whole-graph spelling is
+    additive when a consumer needs one.

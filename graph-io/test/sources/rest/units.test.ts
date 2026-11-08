@@ -321,4 +321,25 @@ describe("records to nodes and edges", () => {
         expect(out.nodes.map((n) => n.id)).toEqual(["1"]);
         expect(out.edges).toHaveLength(1);
     });
+
+    it("keeps every full record but stops stubs, and their edges, once the page's room is spent", () => {
+        const state = newState();
+        state.room = 3;
+        const out = toRecords(
+            mapping,
+            [
+                {
+                    records: [
+                        { id: "x:1", refs: ["x:2", "x:7", "x:8", "x:9"] },
+                        { id: "x:2", refs: ["x:1"] },
+                    ],
+                    entity: "work",
+                },
+            ],
+            state,
+        );
+        // Two full records, then one stub fills the room; x:8 and x:9 and their edges are left out.
+        expect(out.nodes.map((n) => n.id)).toEqual(["1", "2", "7"]);
+        expect(out.edges.map((e) => `${e.source}>${e.target}`)).toEqual(["1>2", "1>7", "2>1"]);
+    });
 });

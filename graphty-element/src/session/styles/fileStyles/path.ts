@@ -15,7 +15,10 @@ import type { Path } from "../../../catalog/types";
 /** The root of every file-style path. */
 const STYLE_ROOT = "graphty.style.";
 
-/** Which kind of element a file-style value belongs to. */
+/**
+ * Which kind of element a file-style value belongs to.
+ * @experimental file-styles
+ */
 export type FileStyleKind = "node" | "edge";
 
 /** A value the element computes from the graph itself, live. */

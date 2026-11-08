@@ -7,8 +7,6 @@
 
 import { type Credential, credentials, credentialSlots, registry, type SourceCredentialSlot } from "@graphty/graph-io";
 
-import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
-
 /** What answers a lookup: a credential store's `lookup`. */
 export type CredentialResolver = (source: string, origin: string, slot: string) => Promise<Credential | undefined>;
 
@@ -34,7 +32,6 @@ export function attachCredentials(owner: object, resolver: CredentialResolver): 
  * @returns the slot, or undefined for a source that takes no credential
  */
 export function slotOf(source: string): SourceCredentialSlot | undefined {
-    ensureGraphSamplesSource();
     return credentialSlots(registry.listSources().find((info) => info.id === source)?.descriptor)[0];
 }
 
@@ -48,33 +45,55 @@ export function slotNameOf(source: string): string {
 }
 
 /**
- * The remembered credential for a source, an origin and the source's slot.
+ * The remembered credential for a source, an origin and the source's slot; else the login an
+ * example of the source publishes for everyone there.
  * @param owner - the session's data surface
  * @param source - the source id
  * @param origin - the origin about to be contacted
+ * @param params - the load's params, which pick among several examples at one origin
  * @returns the credential, or undefined
  */
-export async function resolve(owner: object, source: string, origin: string): Promise<Credential | undefined> {
-    return (await RESOLVERS.get(owner)?.(source, origin, slotNameOf(source))) ?? publicLogin(source, origin);
+export async function resolve(
+    owner: object,
+    source: string,
+    origin: string,
+    params?: Readonly<Record<string, unknown>>,
+): Promise<Credential | undefined> {
+    return (await RESOLVERS.get(owner)?.(source, origin, slotNameOf(source))) ?? publicLogin(source, origin, params);
 }
 
 /**
- * The login a sample of the source publishes for everyone at that origin, so a sample's next
- * page, refresh and expansions reach the service its first load did.
+ * The scheme, host and port of an endpoint. Not `URL.origin`, which is the string "null" for a
+ * scheme that is not special (`bolt+s://`, `neo4j://`).
+ * @param endpoint - the endpoint
+ * @returns the origin
+ */
+export function originOf(endpoint: string): string {
+    const url = new URL(endpoint);
+    return `${url.protocol}//${url.host}`;
+}
+
+/**
+ * The login an example of the source publishes for everyone at that origin, so an example's next
+ * page, refresh and expansions reach the service its first load did. Several examples at one
+ * origin (the Neo4j demo server's databases, each with its own login) are told apart by their
+ * `database` param.
+ * ponytail: matches on `database` only; compare every example param when a source needs more.
  * @param source - the source id
  * @param origin - the origin about to be contacted
- * @returns the credential, or undefined when no sample there publishes one
+ * @param params - the load's params
+ * @returns the credential, or undefined when no example there publishes one
  */
-function publicLogin(source: string, origin: string): Credential | undefined {
-    ensureGraphSamplesSource();
+function publicLogin(
+    source: string,
+    origin: string,
+    params: Readonly<Record<string, unknown>> | undefined,
+): Credential | undefined {
     const descriptor = registry.listSources().find((info) => info.id === source)?.descriptor;
-    for (const sample of descriptor?.samples ?? []) {
-        const endpoint = sample.endpoint ?? descriptor?.defaultEndpoint;
-        const login = sample.publicLogin;
-        if (login !== undefined && typeof endpoint === "string" && new URL(endpoint).origin === origin) {
-            return credentials.basic(login.username, login.password);
-        }
-    }
-
-    return undefined;
+    const here = (descriptor?.examples ?? []).filter((example) => {
+        const endpoint = example.endpoint ?? descriptor?.defaultEndpoint;
+        return example.publicLogin !== undefined && typeof endpoint === "string" && originOf(endpoint) === origin;
+    });
+    const login = (here.find((example) => example.params.database === params?.database) ?? here[0])?.publicLogin;
+    return login === undefined ? undefined : credentials.basic(login.username, login.password);
 }

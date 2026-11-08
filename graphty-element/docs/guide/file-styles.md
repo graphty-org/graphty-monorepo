@@ -7,10 +7,16 @@ nodes have colors and shapes. Load with `styles: "file"` and graphty-element dra
 ordinary style layers, so the graph looks as it does in the program that wrote the file. Export
 with `styles: true` and the layers go back into the file.
 
+Styles from files are the `file-styles` [experiment](./experiments): switch it on with
+`<graphty-element features="file-styles">`, `element.features = ["file-styles"]` before the element
+first renders, or `createGraphSession({ features: ["file-styles"] })`. With it off, a load with
+`styles: "file"` and an export with `styles: true` refuse with `E_FEATURE_OFF`.
+
 ```ts
 import type { Graphty } from "@graphty/graphty-element";
 
 export async function openAndSave(el: Graphty, url: string): Promise<string> {
+    // `el` was given features="file-styles" before it first rendered: styles from files are an experiment.
     // Draw the file's own colors, sizes, shapes and labels as style layers.
     await el.loadFromUrl(url, { styles: "file" });
 

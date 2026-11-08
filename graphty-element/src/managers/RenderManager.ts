@@ -116,7 +116,18 @@ export interface RendererStatus {
      * @since 3.29.0
      */
     readonly drawing: boolean;
+    /**
+     * Where an accelerated layout runs, decided when the renderer opens and never changed by a run:
+     * `"shared"` on the WebGPU device the graph is drawn with, `"separate"` on a device of its own (under
+     * WebGL, and on a software adapter, which never shares), null when no accelerator is offered
+     * (acceleration is off, or `@graphty/graphty-element/webgpu` was not imported before the renderer opened).
+     * @since 3.47.0
+     */
+    readonly layoutDevice: LayoutDevice | null;
 }
+
+/** Where an accelerated layout runs: on the renderer's own WebGPU device, or on one of its own. */
+export type LayoutDevice = "shared" | "separate";
 
 /** The two modules Babylon compiles a GLSL shader for WebGPU with. */
 interface ShaderCompilers {

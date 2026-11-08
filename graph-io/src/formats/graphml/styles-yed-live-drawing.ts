@@ -1,7 +1,8 @@
 /**
  * What yEd Live draws inside a node beside its outline, as a picture over the node: the compartments of a UMLNodeStyle
- * and the BPMN symbols. The picture moves and scales with its node, and its numbers are measured from yEd Live 8.5.16's
- * drawings (`yed-live-graphml-specimen-node-shapes-p4` to `-p7`); the symbols are BPMN's own, drawn plainly.
+ * and the BPMN symbols; and the BPMN symbols yEd draws inside its own BPMN GenericNodes. The picture moves and scales
+ * with its node, and its numbers are measured from yEd Live 8.5.16's drawings (`yed-live-graphml-specimen-node-shapes-p4`
+ * to `-p7`) and yEd 3.25's (`yed-graphml-specimen-node-shapes-p4` to `-p6`); the symbols are BPMN's own, drawn plainly.
  */
 
 /** A UMLNodeStyle's header, from the top of the node to the white rule under it. */
@@ -73,7 +74,7 @@ const PICTURE_SCALE = 3;
  * @param reach - how far the drawing reaches past the node's box (a BPMN event on a port)
  * @returns the URL
  */
-function svgPicture(
+export function svgPicture(
     width: number,
     height: number,
     border: number,
@@ -200,21 +201,43 @@ const GEAR =
     "M40,0H60L65,15L80,8L92,20L85,35L100,40V60L85,65L92,80L80,92L65,85L60,100H40L35,85L20,92L8,80L15,65L0,60V40L15,35L8,20L20,8L35,15Z";
 const BARS = "M0,0H25V100H0ZM37,0H62V100H37ZM75,0H100V100H75Z";
 const ROWS = "M0,0V25H100V0ZM0,37V62H100V37ZM0,75V100H100V75Z";
+const TIMER = `${RING}M50,0V10M100,50H90M50,100V90M0,50H10M50,50L75,52M50,50L60,15`;
+const CONDITIONAL = `${BOX}M10,15H90M10,38H90M10,62H90M10,85H90`;
+const LIGHTNING = "M0,100L30,15L60,55L100,0L70,85L40,45Z";
+const REWIND = "M45,0V100L0,50ZM100,0V100L55,50Z";
+const TRIANGLE = "M50,0L100,100H0Z";
+const HAND = "M0,40L30,0H60V20H100V40H70V60H90V80H70V100H20L0,80Z";
+const HAIR = "M0,100Q0,0 50,0Q100,0 100,100Z";
 
-/** One symbol piece: its box on a node of the sheet's size (left, top, width, height), its outline, and how it is painted: `solid`, a white line, or a line in the icon's color. */
-type Piece = readonly [number, number, number, number, string, ("solid" | "white")?];
+/**
+ * One symbol piece: its box on a node of the sheet's size (left, top, width, height), its outline, and how it is
+ * painted: filled in the icon's color (`solid`), a line in the icon's color with nothing inside (`open`), a white line,
+ * a line in the symbol's fill (`face`), filled in its shade with a line (`shade`), or unset filled in its fill with a
+ * line in the icon's color.
+ */
+type Piece = readonly [number, number, number, number, string, ("solid" | "open" | "white" | "face" | "shade")?];
+
+/** What a symbol is filled with beside its icon's color, and the width of its lines. */
+interface PieceLook {
+    /** Its fill, unset none. */
+    readonly fill?: string;
+    /** The fill of a `shade` piece. */
+    readonly shade?: string;
+    /** Its lines' width, unset 1. */
+    readonly width?: number;
+}
 
 /** The symbol of each BPMN event type, on an event 30 across. */
 const EVENT_SYMBOLS: ReadonlyMap<string, readonly Piece[]> = new Map<string, readonly Piece[]>([
     ["MESSAGE", [[6.3, 9, 17, 12, ENVELOPE]]],
-    ["TIMER", [[4.7, 4, 21, 22, `${RING}M50,0V10M100,50H90M50,100V90M0,50H10M50,50L75,52M50,50L60,15`]]],
+    ["TIMER", [[4.7, 4, 21, 22, TIMER]]],
     ["ESCALATION", [[7, 4, 16, 19, "M50,0L85,100L50,60L15,100Z"]]],
-    ["CONDITIONAL", [[9.3, 7, 12, 16, `${BOX}M10,15H90M10,38H90M10,62H90M10,85H90`]]],
+    ["CONDITIONAL", [[9.3, 7, 12, 16, CONDITIONAL]]],
     ["LINK", [[6.7, 6, 17, 18, ARROW]]],
-    ["ERROR", [[7, 7, 16, 16, "M0,100L30,15L60,55L100,0L70,85L40,45Z"]]],
+    ["ERROR", [[7, 7, 16, 16, LIGHTNING]]],
     ["CANCEL", [[6.3, 6, 17, 18, CROSS]]],
-    ["COMPENSATION", [[4.7, 9, 18, 12, "M45,0V100L0,50ZM100,0V100L55,50Z"]]],
-    ["SIGNAL", [[6, 4, 18, 16, "M50,0L100,100H0Z"]]],
+    ["COMPENSATION", [[4.7, 9, 18, 12, REWIND]]],
+    ["SIGNAL", [[6, 4, 18, 16, TRIANGLE]]],
     ["MULTIPLE", [[4.3, 4, 21, 20, PENTAGON]]],
     ["PARALLEL_MULTIPLE", [[4.7, 4, 21, 22, PLUS]]],
     ["TERMINATE", [[4, 4, 22, 22, RING]]],
@@ -270,10 +293,10 @@ const TASK_SYMBOLS: ReadonlyMap<string, readonly Piece[]> = new Map<string, read
                 15,
                 "M0,100V70Q0,55 30,50L50,60L70,50Q100,55 100,70V100ZM30,20A20,25 0 1,1 70,20A20,30 0 1,1 30,20Z",
             ],
-            [9.7, 6.3, 7, 3, "M0,100Q0,0 50,0Q100,0 100,100Z", "solid"],
+            [9.7, 6.3, 7, 3, HAIR, "solid"],
         ],
     ],
-    ["MANUAL", [[6, 8.3, 15, 11, "M0,40L30,0H60V20H100V40H70V60H90V80H70V100H20L0,80Z"]]],
+    ["MANUAL", [[6, 8.3, 15, 11, HAND]]],
     [
         "BUSINESS_RULE",
         [
@@ -309,8 +332,37 @@ const BOTTOM_MARKERS: ReadonlyMap<string, readonly Piece[]> = new Map<string, re
     ["loopCharacteristic=PARALLEL", [[-5, 0, 10, 10, BARS, "solid"]]],
     ["loopCharacteristic=SEQUENTIAL", [[-5, 0, 10, 10, ROWS, "solid"]]],
     ["adHoc=true", [[-5, 4, 10, 3, "M0,70Q25,0 50,50T100,30"]]],
-    ["compensation=true", [[-5, 2, 9, 6, "M45,0V100L0,50ZM100,0V100L55,50Z"]]],
+    ["compensation=true", [[-5, 2, 9, 6, REWIND]]],
 ]);
+
+/**
+ * How a piece is painted, as SVG attributes.
+ * @param piece - the piece
+ * @param color - the icon's color
+ * @param solid - fills every piece in the color (a throwing event's symbol)
+ * @param look - its fill, shade and line width
+ * @returns the attributes
+ */
+function piecePaint(piece: Piece, color: string, solid: boolean, look: PieceLook): string {
+    const strokeWidth = `stroke-width="${String(look.width)}"`;
+    const width = look.width === undefined ? "" : ` ${strokeWidth}`;
+    const line = (stroke: string, fill = "none"): string => `fill="${fill}" stroke="${stroke}"${width}`;
+    if (solid || piece[5] === "solid") {
+        return `fill="${color}"`;
+    }
+    switch (piece[5]) {
+        case "open":
+            return line(color);
+        case "white":
+            return line("white");
+        case "face":
+            return line(look.fill ?? "white");
+        case "shade":
+            return line(color, look.shade ?? color);
+        default:
+            return line(color, look.fill);
+    }
+}
 
 /**
  * Draws pieces.
@@ -318,6 +370,7 @@ const BOTTOM_MARKERS: ReadonlyMap<string, readonly Piece[]> = new Map<string, re
  * @param color - their color
  * @param fit - turns a piece's box into its place on the node
  * @param solid - fills every piece in the color (a throwing event's symbol)
+ * @param look - their fill, shade and line width
  * @returns the elements
  */
 function drawPieces(
@@ -325,13 +378,12 @@ function drawPieces(
     color: string,
     fit: (p: Piece) => readonly number[],
     solid = false,
+    look: PieceLook = {},
 ): string {
     return pieces
         .map((piece) => {
             const [x, y, w, h] = fit(piece);
-            const paint =
-                solid || piece[5] === "solid" ? `fill="${color}"` : `fill="none" stroke="${piece[5] ?? color}"`;
-            return `<path ${paint} vector-effect="non-scaling-stroke" d="${piece[4]}" transform="translate(${String(x)} ${String(y)}) scale(${String(w / 100)} ${String(h / 100)})"/>`;
+            return `<path ${piecePaint(piece, color, solid, look)} vector-effect="non-scaling-stroke" d="${piece[4]}" transform="translate(${String(x)} ${String(y)}) scale(${String(w / 100)} ${String(h / 100)})"/>`;
         })
         .join("");
 }
@@ -435,7 +487,7 @@ function choreographyMessages(
 }
 
 /** A BPMN node's picture, its size in the node's units, and how far it reaches past the node. */
-interface BpmnDrawing {
+export interface BpmnDrawing {
     readonly picture: string;
     readonly width: number;
     readonly height: number;
@@ -513,4 +565,257 @@ export function bpmnPicture(
         height: height - BPMN_BORDER + reach.top + reach.bottom,
         reach,
     };
+}
+
+/** A ring a ninth of the way in from a symbol's box, a pentagon inside it, and a thin plus inside it. */
+const RING_INSIDE = "M11.5,50a38.5,38.5 0 1,0 77,0a38.5,38.5 0 1,0 -77,0Z";
+const INNER_PENTAGON = "M50,20.5L78,41L67,74H33L22,41Z";
+const INNER_PLUS = "M46,19H54V46H81V54H54V81H46V54H19V46H46Z";
+/** A user's head and shoulders, the lines of their arms and collar, and a script's curled page. */
+const USER =
+    "M50,0A22.4,22.4 0 0,0 35.75,39.7L31.6,44.3Q13,50 0,70V100H100V70Q87,50 68.4,44.3L64.25,39.7A22.4,22.4 0 0,0 50,0Z";
+const USER_LINES = "M0,100V67M100,100V67M20,0C18,41 82,41 80,0";
+const PAGE = "M20,0H100Q75,25 90,50T75,100H0Q25,75 10,50T20,0Z";
+
+/** The symbol of each BPMN event type (`com.yworks.bpmn.type` after `event_type_`), on an event 36 across. */
+const YED_EVENT_SYMBOLS: ReadonlyMap<string, readonly Piece[]> = new Map<string, readonly Piece[]>([
+    ["message", [[8.22, 11.48, 19.56, 13.05, ENVELOPE]]],
+    ["timer", [[4.71, 4.71, 26.58, 26.58, TIMER]]],
+    ["escalation", [[9.48, 7.72, 17.04, 18.81, "M50,0L100,100L50,60L0,100Z"]]],
+    ["conditional", [[10.33, 8.32, 15.33, 19.35, CONDITIONAL]]],
+    ["link", [[9.48, 7.8, 17.04, 20.4, ARROW]]],
+    ["error", [[7.8, 8.4, 20.4, 19.2, LIGHTNING]]],
+    ["cancel", [[8.3, 8.3, 19.41, 19.41, CROSS]]],
+    ["compensation", [[6.68, 11.19, 20.4, 13.62, REWIND]]],
+    ["signal", [[8.13, 6.6, 19.75, 17.1, TRIANGLE]]],
+    ["multiple", [[7.16, 6.6, 21.68, 20.62, PENTAGON]]],
+    ["parallel_multiple", [[7.8, 7.8, 20.4, 20.4, PLUS]]],
+    ["terminate", [[5.77, 5.77, 24.45, 24.45, RING]]],
+]);
+
+/** The box of a gateway's marker, on a gateway 40 across. */
+const YED_GATEWAY_BOX = [9.09, 9.09, 21.82, 21.82] as const;
+
+/** The marker of each BPMN gateway type (`com.yworks.bpmn.type` after `gateway_type_`), on a gateway 40 across. */
+const YED_GATEWAY_SYMBOLS: ReadonlyMap<string, readonly Piece[]> = new Map<string, readonly Piece[]>([
+    ["data_based_exclusive", [[15.91, 10.45, 8.19, 19.1, "M0,0L100,100M100,0L0,100", "open"]]],
+    ["inclusive", [[10.34, 10.34, 19.33, 19.33, RING]]],
+    ["parallel", [[...YED_GATEWAY_BOX, "M50,0V100M0,50H100", "open"]]],
+    ["complex", [[...YED_GATEWAY_BOX, "M50,0V100M0,50H100M15,15L85,85M85,15L15,85", "open"]]],
+    ["event_based_exclusive", [[...YED_GATEWAY_BOX, `${RING}${RING_INSIDE}${INNER_PENTAGON}`]]],
+    ["event_based_exclusive_start_process", [[...YED_GATEWAY_BOX, `${RING}${INNER_PENTAGON}`]]],
+    ["parallel_event_based_exclusive_start_process", [[...YED_GATEWAY_BOX, `${RING}${INNER_PLUS}`]]],
+]);
+
+/** The width of a gateway marker's lines, 1 where unlisted. */
+const YED_GATEWAY_LINES: ReadonlyMap<string, number> = new Map([
+    ["data_based_exclusive", 3],
+    ["inclusive", 3.5],
+    ["parallel", 3],
+    ["complex", 3],
+]);
+
+/** The picture in the top left corner of each BPMN task type (`com.yworks.bpmn.taskType` after `task_type_`). */
+const YED_TASK_SYMBOLS: ReadonlyMap<string, readonly Piece[]> = new Map<string, readonly Piece[]>([
+    [
+        "send",
+        [
+            [5, 8.33, 20, 13.34, BOX, "solid"],
+            [5, 8.33, 20, 6.67, "M0,0L50,100L100,0", "face"],
+        ],
+    ],
+    ["receive", [[5, 8.33, 20, 13.34, ENVELOPE]]],
+    [
+        "user",
+        [
+            [5, 5, 20, 20, USER],
+            [8.8, 13.86, 12.4, 11.14, USER_LINES, "open"],
+            [10.52, 5, 8.92, 5.57, HAIR, "solid"],
+        ],
+    ],
+    ["manual", [[5, 8.52, 19.3, 12.96, HAND]]],
+    [
+        "business_rule",
+        [
+            [5, 7.6, 20, 3.55, BOX, "shade"],
+            [5, 11.15, 20, 11.25, `${BOX}M0,50H100M26.4,0V100`],
+        ],
+    ],
+    [
+        "service",
+        [
+            [5, 5, 15.63, 15.63, `${GEAR}M33,50a17,17 0 1,0 34,0a17,17 0 1,0 -34,0Z`],
+            [9.37, 9.37, 15.63, 15.63, `${GEAR}M33,50a17,17 0 1,0 34,0a17,17 0 1,0 -34,0Z`],
+        ],
+    ],
+    [
+        "script",
+        [
+            [5.78, 5, 19.22, 20, PAGE],
+            [8.89, 9, 12.22, 12, "M0,0H72M7,33H79M21,67H93M28,100H100", "open"],
+        ],
+    ],
+]);
+
+/** Each `com.yworks.bpmn.marker1` to `marker4` value (after `bpmn_marker_`), as yEd Live's marker (`BOTTOM_MARKERS`). */
+const YED_MARKERS: ReadonlyMap<string, string> = new Map([
+    ["loop", "loopCharacteristic=LOOP"],
+    ["parallel", "loopCharacteristic=PARALLEL"],
+    ["sequential", "loopCharacteristic=SEQUENTIAL"],
+    ["ad_hoc", "adHoc=true"],
+    ["compensation", "compensation=true"],
+    ["closed", "subState=COLLAPSED"],
+    ["open", "subState=EXPANDED"],
+]);
+
+/**
+ * The markers of yEd's older activity `com.yworks.bpmn.type` values (after `activity_type_`): a task's or a
+ * subprocess's loop, parallel or ad hoc marker, then the minus of a task or the plus of a subprocess.
+ */
+const YED_ACTIVITY_TYPE_MARKERS: ReadonlyMap<string, readonly string[]> = new Map(
+    Object.entries({ stateless_task: [], task: ["open"], subprocess: ["closed"] }).flatMap(([kind, state]) =>
+        Object.entries({ plain: [], loop: ["loop"], multiple: ["parallel"], ad_hoc: ["ad_hoc"] }).map(
+            ([variant, marks]): [string, readonly string[]] => [`${kind}_${variant}`, [...marks, ...state]],
+        ),
+    ),
+);
+
+/** A yEd marker's side, the gap between two, and how far above the activity's bottom they stand. */
+const YED_MARKER = { side: 15, gap: 5, rise: 4 };
+
+/** The colors yEd paints a BPMN node's symbols in. */
+export interface YedBpmnPaint {
+    /** Their lines and solid pieces: `com.yworks.bpmn.icon.line.color`, unset the node's border color. */
+    readonly line: string;
+    /** Their fill: `com.yworks.bpmn.icon.fill`, unset the node's fill. */
+    readonly fill: string;
+    /** The darker fill of a business rule's header. */
+    readonly shade: string;
+}
+
+/**
+ * The picture yEd 3.25 draws over a BPMN GenericNode (`com.yworks.bpmn.Event`, `.Gateway`, `.Activity`, `.Artifact`),
+ * or null where it draws nothing inside its outline, as `yed-graphml-specimen-node-shapes-p4` to `-p6` show it: an
+ * event's symbol, filled in the icon's line color for an end or a throwing event, a gateway's marker, a task's picture
+ * in its top left corner and an activity's markers side by side along its bottom (`marker1` to `marker4`, or those of
+ * its older `type`), and a data object's input or output arrow. An event's symbol and a gateway's marker scale with the
+ * node; the rest keep their size.
+ * @param kind - the configuration after `com.yworks.bpmn.`, lowercase, without `.withshadow`
+ * @param prop - reads a `com.yworks.bpmn.*` style property by the name after it, lowercase
+ * @param size - the node's size
+ * @param size.width - its width
+ * @param size.height - its height
+ * @param border - its border's width
+ * @param paint - the symbols' colors
+ * @returns the picture, or null
+ */
+export function yedBpmnPicture(
+    kind: string,
+    prop: (name: string) => string | undefined,
+    size: { width: number; height: number },
+    border: number,
+    paint: YedBpmnPaint,
+): BpmnDrawing | null {
+    const { width, height } = size;
+    const after = (name: string, prefix: string): string => prop(name)?.replace(prefix, "") ?? "";
+    const scaled = (across: number) => (p: Piece) => [
+        (p[0] * width) / across,
+        (p[1] * height) / across,
+        (p[2] * width) / across,
+        (p[3] * height) / across,
+    ];
+    const asIs = (p: Piece): readonly number[] => p.slice(0, 4) as number[];
+    const look: PieceLook = { fill: paint.fill, shade: paint.shade };
+    let body = "";
+    let spill = 0;
+    if (kind === "event") {
+        const characteristic = after("characteristic", "event_characteristic_");
+        const solid = characteristic === "end" || characteristic === "intermediate_throwing";
+        body = drawPieces(
+            YED_EVENT_SYMBOLS.get(after("type", "event_type_")) ?? [],
+            paint.line,
+            scaled(36),
+            solid,
+            look,
+        );
+    } else if (kind === "gateway") {
+        const type = after("type", "gateway_type_");
+        const lines = YED_GATEWAY_LINES.get(type);
+        body = drawPieces(YED_GATEWAY_SYMBOLS.get(type) ?? [], paint.line, scaled(40), false, {
+            ...look,
+            width: lines,
+        });
+    } else if (kind === "activity") {
+        const named = [1, 2, 3, 4].map((i) => after(`marker${String(i)}`, "bpmn_marker_")).filter((m) => m !== "");
+        const marks = named.length > 0 ? named : (YED_ACTIVITY_TYPE_MARKERS.get(after("type", "activity_type_")) ?? []);
+        const { side, gap, rise } = YED_MARKER;
+        const left = width / 2 - (marks.length * (side + gap) - gap) / 2;
+        spill = Math.max(0, -left);
+        const markers = marks.map((mark, i) =>
+            drawPieces(BOTTOM_MARKERS.get(YED_MARKERS.get(mark) ?? "") ?? [], paint.line, (p) => {
+                const s = side / 10;
+                return [left + i * (side + gap) + (p[0] + 5) * s, height - rise - side + p[1] * s, p[2] * s, p[3] * s];
+            }),
+        );
+        body = drawPieces(YED_TASK_SYMBOLS.get(after("taskType", "task_type_")) ?? [], paint.line, asIs, false, look);
+        body += markers.join("");
+    } else if (kind === "artifact") {
+        const type = after("dataObjectType", "data_object_type_");
+        const arrow: Piece[] = type === "input" || type === "output" ? [[4.82, 3.7, 11.36, 13.6, ARROW]] : [];
+        body = drawPieces(arrow, paint.line, asIs, type === "output", look);
+    }
+    if (body === "") {
+        return null;
+    }
+    const reach: PictureReach = { left: spill, top: 0, right: spill, bottom: 0 };
+    return {
+        picture: svgPicture(width, height, border, body, "", reach),
+        width: width - border + 2 * spill,
+        height: height - border,
+        reach,
+    };
+}
+
+/**
+ * A number as SVG text, to a thousandth.
+ * @param v - the number
+ * @returns the text
+ */
+function svgNumber(v: number): string {
+    return String(Math.round(v * 1000) / 1000);
+}
+
+/**
+ * The gloss yEd Live draws over a ShinyPlateNodeStyle: a white shape over its upper left, a corner of `radius` less a
+ * quarter of it, opaque at its top left and nearly clear eight tenths of the way across, as yEd Live 8.5.16 draws it
+ * (`yed-live-graphml-specimen-node-shapes-p2`): it reaches 0.65 of the node's width and 0.8 of its height, a quarter of
+ * the radius in from both, and its lower right side curves through its middle.
+ * @param width - the node's width
+ * @param height - the node's height
+ * @param radius - its corner radius
+ * @param border - its border's width
+ * @returns the picture URL
+ */
+export function shinyPlateGloss(width: number, height: number, radius: number, border: number): string {
+    const inset = radius / 4;
+    const c = radius - inset;
+    const [x0, y0, x1, y1] = [inset, inset, 0.65 * width - inset, 0.8 * height - inset];
+    const p = (x: number, y: number): string => `${svgNumber(x)},${svgNumber(y)}`;
+    const d = [
+        `M${p(x0, y0 + c)}`,
+        `Q${p(x0, y0)} ${p(x0 + c, y0)}`,
+        `L${p(x1 - c, y0)}`,
+        `Q${p(x1, y0)} ${p(x1, y0 + c)}`,
+        `Q${p(x1, y0 + 2 * c)} ${p((x0 + x1) / 2 + c, (y0 + y1) / 2 + c)}`,
+        `Q${p(x0 + 2 * c, y1)} ${p(x0 + c, y1)}`,
+        `Q${p(x0, y1)} ${p(x0, y1 - c)}Z`,
+    ].join("");
+    // ponytail: the ramp runs along the gloss box's diagonal, which is yEd Live's own with no radius; with one, its
+    // direction differs by a few degrees
+    const across = svgNumber(x1 > x0 ? (y1 - y0) / (x1 - x0) : 1);
+    const ramp =
+        `<linearGradient id="g" x1="0" y1="0" x2="${across}" y2="1">` +
+        '<stop stop-color="white" stop-opacity="0.859" offset="0"/>' +
+        '<stop stop-color="white" stop-opacity="0.078" offset="0.8"/></linearGradient>';
+    return svgPicture(width, height, border, `<defs>${ramp}</defs><path fill="url(#g)" d="${d}"/>`);
 }

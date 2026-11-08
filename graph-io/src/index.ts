@@ -175,6 +175,7 @@ export {
     type SourceCredentialSlot,
     type SourceCursor,
     type SourceDescriptor,
+    type SourceExample,
     type SourceFeature,
     type SourceFile,
     type SourceFinish,
@@ -193,7 +194,6 @@ export {
     type SourceRequestInit,
     type SourceRuntime,
     type SourceRuntimeReason,
-    type SourceSample,
     type SourceTotal,
     type SourceValidators,
 } from "./sources/types.js";

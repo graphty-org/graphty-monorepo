@@ -8,7 +8,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { CustomLineRenderer, type JoinedLineOptions } from "../../src/meshes/CustomLineRenderer";
 import { EDGE_JOIN_VERTEX_SHADER } from "../../src/meshes/edgeJoinShader";
-import { EdgeLineBatch, forceExpandedLines } from "../../src/meshes/EdgeLineBatch";
+import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { batchUploadFrames } from "../../src/meshes/FrameRoster";
 
 const AGED = "#define EDGE_AGED";
@@ -30,7 +30,6 @@ describe("fade by age in a line batch", () => {
     });
 
     afterEach(() => {
-        forceExpandedLines(null);
         vi.restoreAllMocks();
         scene.dispose();
     });
@@ -97,19 +96,16 @@ describe("fade by age in a line batch", () => {
         assert.strictEqual(body.replace(/#ifdef EDGE_AGED[\s\S]*?#endif/, "").indexOf("edgeAge"), -1);
     });
 
-    for (const expanded of [false, true]) {
-        it(`a batch built while on starts aged, ${expanded ? "expanded" : "instanced"}`, () => {
-            forceExpandedLines(expanded);
-            void turnOn();
-            const { batch, material } = lines();
-            assert.include(material.options.defines, AGED);
-            assert.include(material.options.attributes, "edgeAge");
-            assert.include(material.options.uniforms, "edgeAgeWindow");
-            assert.isTrue(material.needAlphaBlending(), "a faded line is drawn in the transparent pass");
-            assert.isTrue(batch.mesh.isVerticesDataPresent("edgeAge"));
-            frame();
-        });
-    }
+    it("a batch built while on starts aged", () => {
+        void turnOn();
+        const { batch, material } = lines();
+        assert.include(material.options.defines, AGED);
+        assert.include(material.options.attributes, "edgeAge");
+        assert.include(material.options.uniforms, "edgeAgeWindow");
+        assert.isTrue(material.needAlphaBlending(), "a faded line is drawn in the transparent pass");
+        assert.isTrue(batch.mesh.isVerticesDataPresent("edgeAge"));
+        frame();
+    });
 
     it("an opaque line never ages", () => {
         void turnOn();

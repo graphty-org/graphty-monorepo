@@ -4,7 +4,6 @@
  */
 import { registry, type SourceDescriptor } from "@graphty/graph-io";
 
-import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
 import { isLocalNetwork } from "./endpoint";
 import type { SourceHost } from "./host";
 import type { PendingSourceLoad, SourceLoadRecord } from "./types";
@@ -15,7 +14,6 @@ import type { PendingSourceLoad, SourceLoadRecord } from "./types";
  * @returns the descriptor, or undefined for an id no source has
  */
 export function descriptorOf(id: string): SourceDescriptor | undefined {
-    ensureGraphSamplesSource();
     return registry.listSources().find((info) => info.id === id)?.descriptor;
 }
 

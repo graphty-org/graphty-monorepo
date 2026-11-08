@@ -42,10 +42,11 @@ import {
     Title,
     Tooltip,
 } from "@mantine/core";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
+import { fileStylesOn } from "../features";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
@@ -429,7 +430,13 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                       }
                       store.set({ page: "panels" });
                       const incoming = { name: file.name, source: sourceInput(source, settings) };
-                      void replaceWith(store, session, sources[0].key, incoming, loadChoices(draft, choices, "merge"))
+                      void replaceWith(
+                          store,
+                          session,
+                          sources[0].key,
+                          incoming,
+                          loadChoices(draft, choices, "merge", fileStylesOn(session)),
+                      )
                           .then(() => {
                               rememberLoad(session, { files: [file], choices });
                           })
@@ -1182,27 +1189,51 @@ const COLUMN_MAX = 320;
 
 let measurer: CanvasRenderingContext2D | null = null;
 
+/** How wide a column must be to show its header and every value given, whole, in pixels. */
+type FitWidth = (header: string, values: readonly string[]) => number;
+
 /**
- * How wide a column must be to show its header and every value given, whole.
- * @param header - the column's name.
- * @param values - its shown values.
- * @returns the width in pixels.
+ * Measures with the faces loaded now. Inter swaps in after first paint, so a width measured before
+ * it arrived is the fallback font's; each font load hands out a new one, and the grid measures
+ * again (#6127).
+ * @returns the measure.
  */
-function fitWidth(header: string, values: readonly string[]): number {
-    measurer ??= document.createElement("canvas").getContext("2d");
-    if (measurer === null) {
-        return COLUMN_MIN;
-    }
-    const family = getComputedStyle(document.body).fontFamily;
-    measurer.letterSpacing = CELL_TRACKING;
-    measurer.font = `600 ${CELL_FONT} ${family}`;
-    let widest = measurer.measureText(header).width + HEADER_PAD;
-    measurer.font = `450 ${CELL_FONT} ${family}`;
-    for (const value of values) {
-        widest = Math.max(widest, measurer.measureText(value).width + CELL_PAD);
-    }
-    // One pixel more: the cell lays text out on subpixels and rounds its own box down.
-    return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.ceil(widest) + 1));
+function makeFitWidth(): FitWidth {
+    return (header, values) => {
+        measurer ??= document.createElement("canvas").getContext("2d");
+        if (measurer === null) {
+            return COLUMN_MIN;
+        }
+        const family = getComputedStyle(document.body).fontFamily;
+        measurer.letterSpacing = CELL_TRACKING;
+        measurer.font = `600 ${CELL_FONT} ${family}`;
+        let widest = measurer.measureText(header).width + HEADER_PAD;
+        measurer.font = `450 ${CELL_FONT} ${family}`;
+        for (const value of values) {
+            widest = Math.max(widest, measurer.measureText(value).width + CELL_PAD);
+        }
+        // One pixel more: the cell lays text out on subpixels and rounds its own box down.
+        return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.ceil(widest) + 1));
+    };
+}
+
+let fitWidthNow = makeFitWidth();
+// Swapped whether or not a grid is subscribed yet: one that rendered before the load and
+// subscribes after it still sees a new measure.
+document.fonts.addEventListener("loadingdone", () => {
+    fitWidthNow = makeFitWidth();
+});
+
+/**
+ * Follows the page's font loads.
+ * @param onChange - called after each load.
+ * @returns the unsubscribe.
+ */
+function subscribeFonts(onChange: () => void): () => void {
+    document.fonts.addEventListener("loadingdone", onChange);
+    return () => {
+        document.fonts.removeEventListener("loadingdone", onChange);
+    };
 }
 
 /**
@@ -1227,6 +1258,7 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
             row.missingEnds?.some((end) => endColumns?.[end]?.column === name) === true,
         [endColumns],
     );
+    const fitWidth = useSyncExternalStore(subscribeFonts, () => fitWidthNow);
     const columns = useMemo<DataTableColumn<DraftRow>[]>(() => {
         // A yes-or-no reads Yes or No, as it does everywhere else once loaded.
         const types = new Map(table.columns.map((column) => [column.name, column.type]));
@@ -1272,7 +1304,7 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                 };
             }),
         ];
-    }, [table, rows, missingIn]);
+    }, [table, rows, missingIn, fitWidth]);
     const what = page.filter === "unmatched" ? "unmatched row" : "row that could not be read";
     const missingNames = rows.flatMap((row) =>
         (row.missingEnds ?? []).flatMap((end) => {
@@ -1522,6 +1554,7 @@ function Footer({
     onCancel: () => void;
     onLoad: () => void;
 }): React.JSX.Element {
+    const { session } = useWorkspace();
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
     const replaceButton = useRef<HTMLButtonElement>(null);
@@ -1581,7 +1614,7 @@ function Footer({
                     });
                 }}
             />
-            {draft !== null && offersStyles(draft) ? (
+            {draft !== null && fileStylesOn(session) && offersStyles(draft) ? (
                 <Checkbox
                     label="Import styles from the file"
                     size="xs"

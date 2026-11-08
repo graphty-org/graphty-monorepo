@@ -37,6 +37,7 @@ interface Common {
     labelPosition: (w: number, h: number, box: { x?: number; y?: number; width: number; height: number }) => string;
     sceneErrors: (scene: unknown) => string[];
     normalizeNames: (scene: unknown) => Scene;
+    unchangedScene: (prior: string, fresh: string) => boolean;
 }
 type SceneParts = Pick<Scene, "nodes" | "edges" | "groups" | "gaps"> & {
     annotations?: Scene["annotations"];
@@ -176,6 +177,14 @@ describe("shared extractor logic", () => {
                 [100, 0, 20, 20, "rect"],
             )[0],
         ).toEqual([0, 5]);
+    });
+
+    it("calls a regenerated scene unchanged only when generatedAt is all that differs", async () => {
+        const { unchangedScene } = await load<Common>("common.mjs");
+        const scene = (at: string, x: number): string =>
+            JSON.stringify({ provenance: { route: "yed-file", generatedAt: at }, nodes: [{ id: "a", x }] });
+        expect(unchangedScene(scene("2026-10-17T00:00:00Z", 1), scene("2026-11-08T00:00:00Z", 1))).toBe(true);
+        expect(unchangedScene(scene("2026-10-17T00:00:00Z", 1), scene("2026-10-17T00:00:00Z", 1.001))).toBe(false);
     });
 
     it("classes a label box by where it sits against its node", async () => {

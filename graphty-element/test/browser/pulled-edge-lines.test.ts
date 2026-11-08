@@ -5,7 +5,7 @@
  * `design/rendering/row-renderer.md`, section 4.3, stage 15.
  */
 
-import { Color4, Constants, Engine, FreeCamera, Logger, RawTexture, Scene, Vector3 } from "@babylonjs/core";
+import { Color3, Color4, Constants, Engine, FreeCamera, Logger, RawTexture, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
@@ -126,6 +126,7 @@ describe("pulled edge lines", () => {
             const pieces = pairs.map(() => pulled.acquire());
             pairs.forEach(([a, b], e) => {
                 pulled.setRows(pieces[e], a, b);
+                pulled.setLook(pieces[e], Color3.FromHexString(look.color), 1, look.width);
             });
             const placeAll = (): void => {
                 pairs.forEach(([a, b], e) => {

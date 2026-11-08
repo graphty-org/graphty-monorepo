@@ -72,7 +72,7 @@ const MODAL_HEAD_BOTTOM = 68;
 const REFERENCE_WORDS: Readonly<Partial<Record<string, string>>> = { source: "From", target: "To" };
 
 /** What a step pane asks its editor to do. */
-export interface StepActions {
+interface StepActions {
     readonly onStep: (patch: Partial<UnionStep>) => void;
     readonly onToggle: () => void;
     readonly onMove: (by: -1 | 1) => void;

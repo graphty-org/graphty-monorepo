@@ -290,6 +290,21 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
         assert.isNotNull(mat.diffuseTexture);
     });
 
+    test("a gradient with a see-through stop reads its alpha from the ramp; an opaque one stays opaque", () => {
+        // yEd's color2 with an alpha (#C8C8C8 into #00000000) fades the node to clear across its box
+        const clear = materialFor("tex-clear", { ...linear, colors: ["#C8C8C8", "#00000000"] });
+        const halfIn2D = materialFor("tex-half-2d", { ...linear, colors: ["#FF8800", "#FF880080"] }, true);
+        const opaque = materialFor("tex-opaque", { ...linear, colors: ["#FF0000", "#0000FFFF"] });
+
+        assert.strictEqual(clear.opacityTexture, clear.diffuseTexture);
+        assert.isTrue(clear.needAlphaBlending());
+        // a lit node blends the fade rather than cutting it off where the alpha test would
+        assert.isNotOk(clear.needAlphaTesting());
+        assert.strictEqual(halfIn2D.opacityTexture, halfIn2D.emissiveTexture);
+        assert.isNull(opaque.opacityTexture);
+        assert.isNotOk(opaque.needAlphaBlending());
+    });
+
     test("a solid colour produces a diffuseColor and NO texture", () => {
         const mat = materialFor("tex-solid", { colorType: "solid", value: "#FF0000" });
 

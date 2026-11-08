@@ -51,7 +51,7 @@ registerSource(
             defaultEndpoint: ENDPOINT,
             params: [{ name: "size", plainName: "Size", type: "integer", required: true }],
             features: ["expand"],
-            samples: SIZES.map((size) => ({
+            examples: SIZES.map((size) => ({
                 id: `scaling-path-${String(size)}`,
                 plainName: `Path of ${String(size)}`,
                 params: { size },
@@ -103,7 +103,7 @@ function fresh(): GraphSession {
     const strict = scope.__GRAPHTY_STRICT_STATE__;
     scope.__GRAPHTY_STRICT_STATE__ = false;
     try {
-        return createGraphSession();
+        return createGraphSession({ features: ["network-data"] });
     } finally {
         scope.__GRAPHTY_STRICT_STATE__ = strict;
     }
@@ -135,12 +135,12 @@ interface Case {
 
 const CASES: readonly Case[] = [
     {
-        method: "SessionDataApi.loadSample",
+        method: "SessionDataApi.loadExample",
         prepare: (size) => {
             const session = fresh();
             return Promise.resolve({
                 session,
-                call: () => session.data.loadSample(`scaling-path-${String(size)}`),
+                call: () => session.data.loadExample("scaling-path", `scaling-path-${String(size)}`),
                 check: () => {
                     assert.strictEqual(session.data.snapshot().nodeCount, size);
                 },

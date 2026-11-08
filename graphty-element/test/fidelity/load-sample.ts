@@ -53,6 +53,8 @@ export async function sampleData(
 export function createSampleElement(width: number, height: number): Graphty {
     const element = document.createElement("graphty-element");
     element.style.cssText = `display:block;width:${String(width)}px;height:${String(height)}px`;
+    // The samples are drawn with their file's styles, the file styles experiment.
+    element.features = ["file-styles"];
     element.viewMode = "2d";
     element.layoutConfig = { seed: SEED };
     // Run the layout before the first frame, as the File Styles stories do: drawing every step

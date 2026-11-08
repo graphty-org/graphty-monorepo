@@ -104,7 +104,7 @@ export interface StoryText {
 }
 
 /** What the `live` control does, for every story that has only that control. */
-export const LIVE_CONTROL =
+const LIVE_CONTROL =
     "`live`: off, the story answers every request from recorded responses, so the story gives the same result " +
     "offline; on, it asks the real service, whose answer may have changed since the recording.";
 
@@ -152,6 +152,8 @@ export function render(caption = "", layout = "ngraph"): HTMLElement {
         "margin: 0; padding: 8px 56px 8px 12px; font: 600 15px/1.35 system-ui, sans-serif; color: #1f2933;";
     const element = document.createElement<"graphty-element">("graphty-element");
     element.setAttribute("layout", layout);
+    // Network sources sit behind the network-data experiment.
+    element.setAttribute("features", "network-data");
     element.viewMode = "2d";
     if (layout === "ngraph") {
         element.layoutConfig = { seed: LAYOUT_SEED, dim: 2 };

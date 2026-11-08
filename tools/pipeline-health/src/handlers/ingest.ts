@@ -13,7 +13,7 @@ import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
 import { dynamoStore } from "../dynamo.js";
-import { BENCH_PK, type BenchItem, benchKey, withPoint } from "../model/benchmarks.js";
+import { BENCH_PK, type BenchItem, benchKey, type BenchPoint, withPoint } from "../model/benchmarks.js";
 import {
     BUMP_BRANCH,
     DAY,
@@ -375,7 +375,22 @@ function testItem(
         signature: (message.split("\n")[0] ?? "").slice(0, 200),
         seenAt,
         ...(bump ? { bump: true } : {}),
+        ...(f.pictures === undefined ? {} : { pictures: picturesOf(f.pictures) }),
     };
+}
+
+const SHA256 = /^[0-9a-f]{64}$/;
+
+/**
+ * An unstable story's two picture hashes (tools/results/post-unstable-stories.mjs), or a refusal.
+ * @param v - the posted `pictures`
+ * @returns the first and second shot's sha256
+ */
+function picturesOf(v: unknown): [string, string] {
+    if (!Array.isArray(v) || v.length !== 2 || !v.every((h) => typeof h === "string" && SHA256.test(h))) {
+        refuse(400, "bad_field", { field: "pictures", type: "two sha256" });
+    }
+    return v as [string, string];
 }
 
 /**
@@ -564,7 +579,17 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
 }
 
 /**
- * A benchmark job's results (`{ source, sha?, machine?, unit?, rows: [{ name, value }] }`, tools/results/post-benchmarks.mjs),
+ * A benchmark point with the input its row names (a fingerprint of what it timed), when it names one.
+ * @param p - the point
+ * @param input - the row's `input`, if any
+ * @returns the point, with its input
+ */
+const withInput = (p: BenchPoint, input: unknown): BenchPoint =>
+    typeof input === "string" && input ? { ...p, input: input.slice(0, MAX_BENCH_NAME) } : p;
+
+/**
+ * A benchmark job's results (`{ source, sha?, machine?, unit?, rows: [{ name, value, input? }] }`,
+ * tools/results/post-benchmarks.mjs),
  * each added to its benchmark's item (model/benchmarks.ts) as this run's point. Only from master's workflows: a pull
  * request's numbers would move master's trend.
  * @param b - the posted body
@@ -596,7 +621,7 @@ async function benchItems(b: Record<string, unknown>, who: Who, db: Store, now: 
         }
         const benchmark = `${source}: ${(r.name as string).slice(0, MAX_BENCH_NAME)}`;
         const point = { at: now, v: r.value as number, run, ...(sha ? { sha } : {}), ...(machine ? { machine } : {}) };
-        out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, point, now));
+        out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, withInput(point, r.input), now));
     }
     return [...out.values()];
 }

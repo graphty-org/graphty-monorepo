@@ -549,8 +549,8 @@ async function snapshot<T extends { at: number }>(reads: Reads, name: string): P
 const prList = (ns: number[]): Cell => ({ t: "list", sep: "space", items: ns.map((n) => ({ t: "pr", n })) });
 
 /**
- * Master's shared failures (4.1): the checks failing in 3 or more open pull requests, or failing alone, now and
- * in the last 24 h.
+ * Master's shared failures (4.1): the checks failing in 2 or more open pull requests with one signature (or that
+ * master's newest build fails too), or failing alone, now and in the last 24 h; each row names what ties them.
  * @param reads - the store reads shared by this build
  * @returns the shared failures table, or an empty or not-collected section
  */
@@ -569,6 +569,10 @@ export async function shared(reads: Reads): Promise<Section> {
             let sub: Fact | undefined;
             if (r.alone) {
                 sub = f("check.failed_alone");
+            } else if (r.master) {
+                sub = f("check.master_fails", { bins: r.bins });
+            } else if (r.signature !== undefined) {
+                sub = f("check.signature", { signature: r.signature, bins: r.bins });
             } else if (r.bins > 1) {
                 sub = f("check.family", { bins: r.bins });
             }

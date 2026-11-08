@@ -366,11 +366,7 @@ function checkThreshold(value: Loose, walker: Walker): void {
 const FIELD_ROOTS = new Set(["data", "results"]);
 
 /** The structure values a rule reads with no run and no column: a node's degree. */
-export const STRUCTURE_PATHS: ReadonlySet<string> = new Set([
-    "graphty.degree",
-    "graphty.inDegree",
-    "graphty.outDegree",
-]);
+const STRUCTURE_PATHS: ReadonlySet<string> = new Set(["graphty.degree", "graphty.inDegree", "graphty.outDegree"]);
 
 /**
  * Refuse a field path whose root is reserved: `graph.<measure>` and every other root but `data`

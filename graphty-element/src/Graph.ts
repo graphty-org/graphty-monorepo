@@ -88,6 +88,12 @@ function hasEntryPoint(code: string | Uint32Array): boolean {
  */
 const ZOOM_STEP_FACTOR = 1.25;
 
+/**
+ * How near the camera comes to a map, as a share of its size: about 640 m above the earth on a
+ * globe. Single-precision positions are good to about a pixel there, whatever the map's size.
+ */
+const MAP_CLEARANCE = 1e-4;
+
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
@@ -107,6 +113,7 @@ import type {
     ElementAtResult,
     FormatId,
     GroupOutlineAtResult,
+    NodeId,
     Scope,
     ScopeInput,
 } from "./catalog/types";
@@ -142,6 +149,7 @@ import {
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
+import { attachRegionGesture } from "./input/RegionSelectGesture";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import {
     type AddEdgesOptions,
@@ -181,6 +189,7 @@ import { layoutManagerInternals } from "./managers/LayoutManager";
 import type { PendingWork } from "./managers/PendingWork";
 import { RecoveringWebGPUEngine } from "./managers/RecoveringWebGPUEngine";
 import {
+    type LayoutDevice,
     openWebGPUEngine,
     type PixelRatio,
     RENDERER_REQUESTS,
@@ -200,16 +209,25 @@ import { sceneLighting } from "./meshes/NodeLighting";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
+import { EdgeIdTarget } from "./render/EdgeIdTarget";
 import { NodeIdTarget } from "./render/NodeIdTarget";
 import {
+    type CanvasPoint,
+    hoverEdgeAt,
+    insidePolygon,
     openRowScan,
     pickAsDrawn,
     pickCloseLabel,
-    pickEdgeAt,
+    pickEdgeId,
     pickNodeId,
     pickWorldPoint,
+    regionWork,
+    rowScanOf,
+    screenProjector,
+    useEdgeIdTarget,
     useNodeIdTarget,
 } from "./render/PickService";
 import { RowTable } from "./render/RowTable";
@@ -802,8 +820,12 @@ export class Graph implements GraphContext {
     #nodeBatches: NodeBatches | null = null;
     /** What hover reads on the `"batched"` path. */
     #nodeIds: NodeIdTarget | null = null;
+    #edgeIds: EdgeIdTarget | null = null;
     /** The scene is the one that stays, so batches may be built on it. */
     #renderPathOpen = false;
+
+    /** Whether plain edges were last painted as pulled lines, the `"batched"` path's. */
+    #edgesPulled = false;
     /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
     #importsReading = 0;
 
@@ -1034,6 +1056,7 @@ export class Graph implements GraphContext {
             {
                 acceleration: this.acceleration,
                 xr: this.xrAvailability,
+                region: (polygon) => this.nodesInRegion(polygon),
                 store: laneStoreOf(this.dataManager),
                 features: () => requestedFeatures.get(this)?.(),
                 runs: {
@@ -2068,6 +2091,7 @@ export class Graph implements GraphContext {
                 active: "webgl",
                 reason: null,
                 drawing: !(this.engine instanceof NullEngine),
+                layoutDevice: this.layoutDeviceFor(false),
             };
             return;
         }
@@ -2120,6 +2144,7 @@ export class Graph implements GraphContext {
                 active: "webgl",
                 reason: opened,
                 drawing: !(this.engine instanceof NullEngine),
+                layoutDevice: this.layoutDeviceFor(false),
             };
             return;
         }
@@ -2183,7 +2208,26 @@ export class Graph implements GraphContext {
         );
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
-        this.#rendererStatus = { requested, active: "webgpu", reason: null, drawing: true };
+        this.#rendererStatus = {
+            requested,
+            active: "webgpu",
+            reason: null,
+            drawing: true,
+            layoutDevice: this.layoutDeviceFor(opened.sharesDevice),
+        };
+    }
+
+    /**
+     * Where an accelerated layout will run, as the renderer opens.
+     * @param shared - Whether the renderer opened its device for the accelerator too.
+     * @returns The device, or null when no accelerator is offered.
+     */
+    private layoutDeviceFor(shared: boolean): LayoutDevice | null {
+        if (!this.acceleration.offersAccelerator) {
+            return null;
+        }
+
+        return shared ? "shared" : "separate";
     }
 
     /**
@@ -4596,6 +4640,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The edge ID target an edge hover reads, on the `"batched"` path.
+     * @returns The target, or null.
+     * @internal
+     */
+    getEdgeIdTarget(): EdgeIdTarget | null {
+        return this.#edgeIds;
+    }
+
+    /**
      * How nodes are drawn.
      * @returns The path asked for.
      */
@@ -4625,17 +4678,27 @@ export class Graph implements GraphContext {
      */
     get rowCounts(): RowCounts {
         const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
+        let pulledEdges = 0;
+        for (const edge of this.dataManager.edges.values()) {
+            pulledEdges += edge.isPulled ? 1 : 0;
+        }
+
         return {
             batchedNodes,
             objectNodes: this.dataManager.nodes.size - batchedNodes,
-            pulledEdges: 0,
-            objectEdges: this.dataManager.edges.size,
+            pulledEdges,
+            objectEdges: this.dataManager.edges.size - pulledEdges,
         };
     }
 
     /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
     #applyRenderPath(): void {
         const batched = this.#renderPath === "batched" && !(this.engine instanceof NullEngine);
+        // Pulled edges read node places from the row table (`PulledLineBatch`).
+        if (pulledEdgesDefault.value && !(this.engine instanceof NullEngine)) {
+            this.openRowTable();
+        }
+
         if (batched && this.#nodeBatches === null) {
             const places = this.openRowTable();
             this.#nodeBatches = new NodeBatches(
@@ -4644,7 +4707,6 @@ export class Graph implements GraphContext {
                     places,
                     root: () => this.scene.getTransformNodeByName("graph-root"),
                     view: () => ({
-                        scaled: this.updateManager.nodesScaledByView,
                         flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
                     }),
                     nodes: () => this.dataManager.nodes.values(),
@@ -4668,12 +4730,37 @@ export class Graph implements GraphContext {
                 nodeIdAt: (row) => this.dataManager.nodeAtRow(row)?.id,
                 hiddenRows: () => batches.hiddenRows(),
             });
+            this.#edgeIds = new EdgeIdTarget(this.scene, {
+                positionTexture: () => places.positionTexture,
+                edges: () => this.dataManager.edges.values(),
+                root: () => this.scene.getTransformNodeByName("graph-root"),
+                requestFrame: () => {
+                    this.renderManager.requestFrame();
+                },
+            });
+            useEdgeIdTarget(this.scene, this.#edgeIds);
         } else if (!batched && this.#nodeBatches !== null) {
+            useEdgeIdTarget(this.scene, null);
+            this.#edgeIds?.dispose();
+            this.#edgeIds = null;
             useNodeIdTarget(this.scene, null);
             this.#nodeIds?.dispose();
             this.#nodeIds = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
+        }
+
+        // Plain edges are pulled on "batched" (`Edge.pullsLine`): repaint them when that changes.
+        const pulls = this.#nodeBatches !== null;
+        if (pulls !== this.#edgesPulled) {
+            this.#edgesPulled = pulls;
+            for (const edge of this.dataManager.edges.values()) {
+                edge.updateStyle();
+            }
+
+            // A rebuilt placed line is placed by the next edge walk.
+            this.updateManager.forceEdgeWalk();
+            this.updateManager.meshesAdded();
         }
 
         this.renderManager.requestFrame();
@@ -4865,6 +4952,52 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The drawn nodes whose centers lie inside a polygon on the canvas: the `{ region }` selection
+     * target. With a row table open it is one typed walk over `rowBounds`; otherwise each node is
+     * placed as `nodeScreenPosition` places it.
+     * @param polygon - The polygon, in CSS pixels from the canvas's top-left corner.
+     * @returns The nodes' ids.
+     */
+    private nodesInRegion(polygon: readonly CanvasPoint[]): NodeId[] {
+        const ids: NodeId[] = [];
+        const scan = rowScanOf(this.scene);
+        if (scan !== undefined) {
+            for (const row of scan.rowsInRegion(polygon)) {
+                const node = this.dataManager.nodeAtRow(row);
+                if (node !== undefined) {
+                    ids.push(node.id);
+                }
+            }
+
+            return ids;
+        }
+
+        const camera = this.scene.activeCamera;
+        if (!camera) {
+            return ids;
+        }
+
+        const project = screenProjector(this.scene);
+        const view = this.scene.getViewMatrix().m;
+        for (const node of this.dataManager.nodes.values()) {
+            regionWork.nodes++;
+            if (node.getRenderState() !== "visible") {
+                continue;
+            }
+
+            node.drawnWorldMatrix(true);
+            const centre = node.drawnWorldPosition;
+            const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
+            const { x, y } = project(centre);
+            if (depth >= camera.minZ && insidePolygon(polygon, x, y)) {
+                ids.push(node.id);
+            }
+        }
+
+        return ids;
+    }
+
+    /**
      * Set up a scene pointer observer to handle background clicks for deselection.
      * When the user clicks on an area with no node, the current selection is cleared.
      */
@@ -4904,6 +5037,23 @@ export class Graph implements GraphContext {
             }
         });
 
+        // Shift and a drag on empty canvas, when `selection.region` turns it on.
+        attachRegionGesture({
+            scene: this.scene,
+            shape: () => this.styles.config.behavior.selection.region,
+            onNode: (x, y) => pickNodeId(this.scene, x, y) !== undefined,
+            holdCamera: (held) => {
+                if (held) {
+                    this.camera.temporarilyDisableInput();
+                } else {
+                    this.camera.temporarilyEnableInput();
+                }
+            },
+            select: (polygon) => {
+                this.session.selection.applyNow({ region: { polygon } }, "add", "user");
+            },
+        });
+
         // The nodes' shared observer goes in right after this one, where the first node's own
         // observers used to be, so a node's handlers still hear an event after the background does.
         // Their shared action manager is made here too, so it belongs to the scene from the start.
@@ -4918,7 +5068,9 @@ export class Graph implements GraphContext {
         // node mesh has pointer triggers, so Babylon sets `hoverCursor` there). Lines are thin
         // instances of an unpickable batch, so Babylon never sees them: on every move it has just
         // restored `defaultCursor`, and this sets `hoverCursor` back when the pointer is over a line.
+        let edgeHoverMoves = 0;
         this.scene.onPointerObservable.add((pointerInfo) => {
+            const move = ++edgeHoverMoves;
             const canvas = this.scene.getEngine().getInputElement();
             const { buttons } = pointerInfo.event as { buttons?: number };
             if (
@@ -4931,8 +5083,23 @@ export class Graph implements GraphContext {
                 return;
             }
 
-            if (this.pickEdgeId(this.scene.pointerX, this.scene.pointerY) !== undefined) {
-                canvas.style.cursor = this.scene.hoverCursor;
+            const over = (edgeId: EdgeId | undefined): void => {
+                // A read answered after a later move is that move's no longer.
+                if (edgeId !== undefined && move === edgeHoverMoves) {
+                    canvas.style.cursor = this.scene.hoverCursor;
+                }
+            };
+            const edgeId = hoverEdgeAt(
+                this.scene,
+                () => this.dataManager.edges.values(),
+                this.scene.pointerX,
+                this.scene.pointerY,
+                (point) => this.worldToScreen(point),
+            );
+            if (edgeId instanceof Promise) {
+                void edgeId.then(over);
+            } else {
+                over(edgeId);
             }
         }, PointerEventTypes.POINTERMOVE);
 
@@ -5015,7 +5182,7 @@ export class Graph implements GraphContext {
      */
     private handledOnCloseLabel(x: number, y: number): boolean {
         const picked = pickAsDrawn(this.scene, x, y);
-        if (!picked || !isCloseLabel(picked)) {
+        if (!(picked instanceof AbstractMesh) || !isCloseLabel(picked)) {
             return false;
         }
 
@@ -5380,8 +5547,8 @@ export class Graph implements GraphContext {
 
     /**
      * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera
-     * never zooms inside it (its distance from the globe's center stays at least 1.02 radii) and
-     * its near clip plane comes in as it nears the surface, so the surface is never cut away.
+     * never zooms inside it, and its near clip plane comes in as it nears the surface, so the
+     * surface is never cut away. On a flat map the pivot stays on the map.
      * @param frame - The frame now active, or null.
      */
     #followFrame(frame: LocationMapFrame | null): void {
@@ -5389,7 +5556,8 @@ export class Graph implements GraphContext {
         this.#lookOfFrame(frame);
         const orbit = this.camera.getActiveController();
         if (orbit instanceof OrbitCameraController) {
-            orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * 1.02 } : null;
+            orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * (1 + MAP_CLEARANCE) } : null;
+            orbit.surfacePlane = frame?.surface === "flat" ? { floor: frame.size * MAP_CLEARANCE } : null;
             orbit.grabSphere = frame?.surface === "globe" ? { radius: frame.radius } : null;
             orbit.farReach = frame?.surface === "flat" ? { radius: flatMapReach(frame.mapFrame) } : null;
             // The clip planes follow the globe or the flat map (or their going).
@@ -6014,29 +6182,11 @@ export class Graph implements GraphContext {
      * @returns Screen coordinates {x, y}
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
-        const engine = this.scene.getEngine();
-        const viewport = this.scene.activeCamera?.viewport;
-        const view = this.scene.getViewMatrix();
-        const projection = this.scene.getProjectionMatrix();
-
-        if (!viewport) {
+        if (!this.scene.activeCamera?.viewport) {
             return { x: 0, y: 0 };
         }
 
-        // Create transformation matrix manually
-        const viewProjection = view.multiply(projection);
-        const worldVec = new Vector3(worldPos.x, worldPos.y, worldPos.z);
-
-        // Transform to clip space
-        const clipSpace = Vector3.TransformCoordinates(worldVec, viewProjection);
-
-        // Convert to screen space, in CSS pixels: the canvas may be drawn at a higher pixel ratio
-        // (`pixelRatio`), which the hardware scaling level undoes.
-        const css = engine.getHardwareScalingLevel();
-        const screenX = (clipSpace.x + 1) * 0.5 * engine.getRenderWidth() * css;
-        const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight() * css;
-
-        return { x: screenX, y: screenY };
+        return screenProjector(this.scene)(worldPos);
     }
 
     /**
@@ -6176,7 +6326,7 @@ export class Graph implements GraphContext {
      * @returns The edge's id, or `undefined` when no drawn edge is that close.
      */
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
-        return pickEdgeAt(this.scene, this.dataManager.edges.values(), x, y, (point) => this.worldToScreen(point));
+        return pickEdgeId(this.scene, this.dataManager.edges.values(), x, y, (point) => this.worldToScreen(point));
     }
 
     /**
@@ -8401,6 +8551,14 @@ export class Graph implements GraphContext {
      */
     getNodes(): Node[] {
         return Array.from(this.dataManager.nodes.values());
+    }
+
+    /**
+     * Get all edges, in the order the edge pick walks them.
+     * @returns Array of all edge instances
+     */
+    getEdges(): Edge[] {
+        return Array.from(this.dataManager.edges.values());
     }
 
     /**

@@ -7,6 +7,7 @@ import { InstancedMesh, Mesh, type Scene, type TransformNode } from "@babylonjs/
 
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import { NodeBatch } from "./NodeBatch";
+import type { PulledLineBatch } from "./PulledLineBatch";
 
 type MeshCreatorFn = () => Mesh;
 
@@ -29,8 +30,18 @@ export class MeshCache {
      */
     batchCacheMap = new Map<string, EdgeLineBatch>();
 
+    /** Pulled line batches by look, cleared with the rest so a 2D switch rebuilds their edges. */
+    pulledBatchMap = new Map<string, PulledLineBatch>();
+
     /** The node batches, by the source mesh they share a material with, which they die with. */
     nodeBatchMap = new Map<Mesh, NodeBatch>();
+
+    /**
+     * Sources whose rows a batch draws. A batch is built from one source of its shape and draws the
+     * other sizes scaled, so those sources have no instance and no batch of their own; this keeps
+     * a prune from taking them while their rows are drawn.
+     */
+    readonly batchedSources = new Set<Mesh>();
     hits = 0;
     misses = 0;
 
@@ -111,6 +122,23 @@ export class MeshCache {
     }
 
     /**
+     * Get or create the pulled line batch of one look.
+     * @param name - The look's key, which also names the batch's mesh.
+     * @param creator - Builds the batch the first time.
+     * @returns The batch.
+     */
+    getPulledBatch(name: string, creator: () => PulledLineBatch): PulledLineBatch {
+        let batch = this.pulledBatchMap.get(name);
+        if (batch === undefined) {
+            batch = creator();
+            batch.mesh.name = name;
+            this.pulledBatchMap.set(name, batch);
+        }
+
+        return batch;
+    }
+
+    /**
      * Get or create the batch drawing a source mesh's rows.
      * @param source - The source mesh.
      * @param places - The table that places the rows.
@@ -149,6 +177,12 @@ export class MeshCache {
         }
 
         this.batchCacheMap.clear();
+
+        for (const batch of this.pulledBatchMap.values()) {
+            batch.dispose();
+        }
+
+        this.pulledBatchMap.clear();
         this.reset();
     }
 
@@ -162,7 +196,11 @@ export class MeshCache {
      */
     prune(): void {
         for (const [name, mesh] of this.meshCacheMap) {
-            if (mesh.instances.length === 0 && !this.nodeBatchMap.get(mesh)?.liveSlots) {
+            if (
+                mesh.instances.length === 0 &&
+                !this.nodeBatchMap.get(mesh)?.liveSlots &&
+                !this.batchedSources.has(mesh)
+            ) {
                 this.disposeSource(mesh);
                 this.meshCacheMap.delete(name);
             }
@@ -201,6 +239,7 @@ export class MeshCache {
     private disposeSource(mesh: Mesh): void {
         this.nodeBatchMap.get(mesh)?.dispose();
         this.nodeBatchMap.delete(mesh);
+        this.batchedSources.delete(mesh);
         const { material } = mesh;
         mesh.dispose();
         material?.dispose(false, false);

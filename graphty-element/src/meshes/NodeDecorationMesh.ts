@@ -96,7 +96,7 @@ const FRONT_STEP = 0.0005;
  * @param o - The style.
  * @returns True with a pie, stripes, an image, or a database's rim.
  */
-export function hasDecoration(o: NodeDecorationOptions): boolean {
+function hasDecoration(o: NodeDecorationOptions): boolean {
     return (
         o.pie?.colors !== undefined ||
         o.stripes?.colors !== undefined ||

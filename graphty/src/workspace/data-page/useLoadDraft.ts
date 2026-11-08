@@ -16,6 +16,7 @@ import type {
 } from "@graphty/graphty-element/session";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { fileStylesOn } from "../features";
 import { INITIAL_CHOICES, initialChoices as freshChoices, loadChoices, type PageChoices } from "./choices";
 
 /** What the reader handed over. */
@@ -164,7 +165,7 @@ export function useLoadDraft(
         setChoices(
             source === initial && Object.keys(settings).length === 0 && initialChoices !== INITIAL_CHOICES
                 ? initialChoices
-                : freshChoices(),
+                : freshChoices(fileStylesOn(session)),
         );
         setLoadError(null);
         setFilter("all");
@@ -208,7 +209,7 @@ export function useLoadDraft(
         }
         let stale = false;
         setLoadError(null);
-        draft.report(loadChoices(draft, choices, mode)).then(
+        draft.report(loadChoices(draft, choices, mode, fileStylesOn(session))).then(
             (next) => {
                 if (!stale) {
                     setReport(next);
@@ -235,7 +236,8 @@ export function useLoadDraft(
             return undefined;
         }
         let stale = false;
-        const only = filter === "all" ? {} : { only: filter, choices: loadChoices(draft, choices, mode) };
+        const only =
+            filter === "all" ? {} : { only: filter, choices: loadChoices(draft, choices, mode, fileStylesOn(session)) };
         // "Show the 32 unmatched rows" shows all of them, not a sample (round 8).
         const limit = filter === "all" ? SAMPLE_ROWS : Infinity;
         draft.rows(tableId, { limit, ...only }).then(
@@ -262,7 +264,7 @@ export function useLoadDraft(
             loadingDraft.current = draft;
             try {
                 await draft.load({
-                    ...loadChoices(draft, choices, mode),
+                    ...loadChoices(draft, choices, mode, fileStylesOn(session)),
                     ...(history === undefined ? {} : { history }),
                 });
                 return true;

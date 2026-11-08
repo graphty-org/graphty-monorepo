@@ -89,6 +89,8 @@ export const STYLE_PROPERTIES: {
         ["shapeParts", "text"],
         ["shapeLines", "text"],
         ["shapeLineWidth", "number"],
+        ["shapeLineHaloColor", "color"],
+        ["shapeLineHaloWidth", "number"],
         ["shapeTexts", "text"],
         ["borderStyle", "borderStyle"],
         ["borderPosition", "borderPosition"],

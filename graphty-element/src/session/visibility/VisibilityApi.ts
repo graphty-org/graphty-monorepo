@@ -679,7 +679,7 @@ export interface VisibilitySources extends FilterSources {
 }
 
 /** The selection as select conditions reach it. */
-export interface ConditionSelection {
+interface ConditionSelection {
     /**
      * The ids selected now.
      * @returns The ids.

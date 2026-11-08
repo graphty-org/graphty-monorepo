@@ -1633,7 +1633,7 @@ export class LayoutManager implements Manager {
             this.ownArrangement = true;
             // Run layout pre-steps -- unless there is nothing to step yet, in which case they
             // are owed to the first frame that has something. See `preStepsOwed`.
-            if (nodeArray.length === 0) {
+            if (nodeArray.length === 0 || this.sizesToCome(engine)) {
                 this.preStepsOwed = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw cancelledBuild();
@@ -2266,6 +2266,20 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Whether a layout that keeps nodes apart by their drawn size (`nodeGap`) would spend its pre-steps before
+     * every size has been drawn. A style pass arrives, and the object rows build their meshes over several
+     * frames, on the clock; pre-steps spent then took whichever sizes had arrived, so the same seed drew a
+     * different graph built before the nodes were drawn than after, and on the object rows than on the batch.
+     * The pre-steps are owed instead, and paid on the first frame with every size.
+     * @param engine - The engine about to spend them.
+     * @returns True while a size is still to come.
+     */
+    private sizesToCome(engine: LayoutEngine): boolean {
+        const painter = this.graphContext?.getStylePainter?.();
+        return engine.spacesBySize && (painter?.isPainting === true || painter?.hasPendingNodes === true);
+    }
+
+    /**
      * Spend the pre-steps a layout built over an empty graph could not spend at the time.
      *
      * WHY THIS EXISTS. `preSteps` promises the simulation is run that many times BEFORE THE FIRST
@@ -2294,7 +2308,7 @@ export class LayoutManager implements Manager {
         // The DataManager adds every node to the engine as it creates it, so this is the same
         // question as "does the engine have anything to move" without walking an iterable on
         // every frame of an empty graph.
-        if (this.dataManager.nodes.size === 0) {
+        if (this.dataManager.nodes.size === 0 || this.sizesToCome(engine)) {
             return;
         }
 
@@ -2696,8 +2710,8 @@ export class LayoutManager implements Manager {
         }
 
         this.runPreStepsOnceThereIsSomethingToStep();
-        if (this.preStepsInFlight) {
-            // The payment just started has its first chunk on the device.
+        if (this.preStepsInFlight || (this.preStepsOwed && this.dataManager.nodes.size > 0)) {
+            // The payment just started has its first chunk on the device, or it waits for sizes.
             return;
         }
         this.syncFollowers();
@@ -2707,13 +2721,23 @@ export class LayoutManager implements Manager {
             engine.step();
             // See the note in `_setLayoutInternal`: the element publishes, not the engine.
             engine.publishPositions();
+            this.steppedPublishes++;
         } else if (engine instanceof SimulationLayoutEngine && this.running) {
             // An accelerated batch lands after the frame that submitted it published, so the batch
             // that settled the simulation is published here, on the frame that finds it settled and
             // stops the layout (issue #3379).
             engine.publishPositions();
+            this.steppedPublishes++;
         }
     }
+
+    /**
+     * How many times {@link LayoutManager.step} has published the engine's answer into the
+     * position array. A frame that sees it change knows the array holds the engine's answer, so the
+     * rows a batch draws need no `Node.update` to be placed (design/rendering/row-renderer.md 4.2).
+     * @internal
+     */
+    steppedPublishes = 0;
 
     /**
      * Step the layout ONCE, whatever the frame loop's multiplier is.

@@ -161,7 +161,10 @@ YED_HEAD = """<?xml version="1.0" encoding="UTF-8" standalone="no"?>
   <graph edgedefault="directed" id="G">
 """
 
-YED_RESOURCES = {"1": ("java.lang.String", escape(SVG_ICON)), "2": ("java.awt.image.BufferedImage", b64(QUADRANT_PNG))}
+# A label's iconData names an icon resource, which wraps an image resource, as yEd writes it; an iconData that names
+# the image itself makes yEd refuse the whole file ("Could not import file", #5792).
+YED_RESOURCES = {"1": ("java.lang.String", escape(SVG_ICON)), "2": ("java.awt.image.BufferedImage", b64(QUADRANT_PNG)),
+                 "3": (None, '<yed:ScaledIcon xScale="1.0" yScale="1.0"><yed:ImageIcon image="2"/></yed:ScaledIcon>')}
 
 
 def ygeom(cx, cy, w, h):
@@ -307,8 +310,8 @@ class YedWriter:
     def document(self):
         res = ""
         if self.resources:
-            res = "".join(f'      <y:Resource id="{k}" type="{YED_RESOURCES[k][0]}">{YED_RESOURCES[k][1]}</y:Resource>\n'
-                          for k in sorted(self.resources))
+            res = "".join(f'      <y:Resource id="{k}"{f' type="{kind}"' if kind else ""}>{body}</y:Resource>\n'
+                          for k in sorted(self.resources) for kind, body in [YED_RESOURCES[k]])
             res = f"    <y:Resources>\n{res}    </y:Resources>\n"
         else:
             res = "    <y:Resources/>\n"
@@ -923,8 +926,8 @@ def yed_images():
 
     def icon(sid, cap, **kw):
         def fn(c, w):
-            w.resources.add("2")
-            w.shape(sid, c["x"], c["y"], 70, 40, shape="rectangle", label=ylabel("Txt", 70, 40, iconData="2", **kw))
+            w.resources.update(("2", "3"))
+            w.shape(sid, c["x"], c["y"], 70, 40, shape="rectangle", label=ylabel("Txt", 70, 40, iconData="3", **kw))
         s.add(sid, cap, fn)
 
     icon("label-icon", "NodeLabel iconData")

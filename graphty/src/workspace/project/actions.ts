@@ -512,6 +512,8 @@ async function openInSession(
         const report = await session.project.open(file, {
             discard,
             fileName: file.name,
+            // A project this app kept in the browser is the reader's own work: its loads stay live.
+            ...(pending.storedId === undefined ? {} : { ownWork: true }),
             ...(fresh ? { history: "start" as const } : {}),
             draft: { guess: "values", ...(onto ? { onto: "graph" as const } : {}) },
         });

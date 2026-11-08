@@ -77,7 +77,7 @@ import {
 import { type LabelTable, readLabelTable } from "./html-table.js";
 import { type LabelPlaceContext, leftOutEdgeLabels, leftOutXlabels, readLabelPlaces } from "./label-places.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
-import { layoutRecord } from "./record.js";
+import { fontWidths, layoutRecord } from "./record.js";
 
 /**
  * The graph attribute holding the `graphty.styles` block of a DOT file graphty wrote.
@@ -1062,7 +1062,7 @@ function readRecord(n: NodeRead, label: string, names: DotEscapeNames): void {
         pt("width", DEFAULT_NODE_SIZE.w),
         pt("height", DEFAULT_NODE_SIZE.h),
         isTrue(get("fixedsize")),
-        Number.isFinite(size) && size > 0 ? size : 14,
+        { size: Number.isFinite(size) && size > 0 ? size : 14, widths: fontWidths(get("fontname")) },
         (line) => dotLabelText(line, names),
     );
     const hw = lay.width / 2;

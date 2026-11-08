@@ -80,6 +80,19 @@ export interface EdgePosition {
      * @since 3.35.0
      */
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
+    /**
+     * Where the layout starts and ends the edge's line, when it ends it itself, each given as
+     * {@link EdgePosition.labelAt} is: `target` is where an arrowhead's tip goes. The line is drawn to these ends instead
+     * of being cut at its nodes' outlines. A Graphviz layout with `nodeSize: "label"`, whose nodes Graphviz shapes as
+     * the element draws them, gives them: Graphviz's spline ends, on the outer ring of a node of several peripheries, at
+     * a record's field port, or on the border of the cluster an `lhead` or `ltail` names. Absent, the line is cut at
+     * the outlines.
+     * @since 3.36.0
+     */
+    lineEnds?: {
+        readonly source: readonly [along: number, across: number];
+        readonly target: readonly [along: number, across: number];
+    };
 }
 
 /**
@@ -517,6 +530,16 @@ export abstract class LayoutEngine {
      * @internal
      */
     wakeForResize(): boolean {
+        return false;
+    }
+
+    /**
+     * Whether this engine keeps nodes apart by their drawn size (`nodeGap`), so it must not step while a size is still
+     * to come: see `UpdateManager.updateLayout`.
+     * @returns True when the engine reads node sizes.
+     * @internal
+     */
+    get spacesBySize(): boolean {
         return false;
     }
 

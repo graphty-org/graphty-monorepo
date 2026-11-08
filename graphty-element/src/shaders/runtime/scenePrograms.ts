@@ -40,7 +40,7 @@ export const FIELD_TARGETS = 8;
 export const FIELD_SAMPLERS = Array.from({ length: FIELD_TARGETS }, (_, i) => `graphty_field${String(i)}`);
 
 /** The group outline program's uniforms beside the parameters and the scene block. */
-export const OUTLINE_UNIFORMS = [
+const OUTLINE_UNIFORMS = [
     // the outline target's size in pixels, and canvas pixels per target pixel
     "graphty_resolution",
     // 1 / field width, 1 / field height, canvas pixels per field texel, the field's value scale
@@ -74,7 +74,7 @@ export const SPLAT_ATTRIBUTES = [
 ] as const;
 
 /** A full-screen square's vertex stage, `vUV` 0..1: the square of Babylon's `EffectRenderer`. */
-export const SCREEN_VERTEX = `precision highp float;
+const SCREEN_VERTEX = `precision highp float;
 attribute vec2 position;
 varying vec2 vUV;
 void main() {

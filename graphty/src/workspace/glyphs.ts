@@ -94,6 +94,7 @@ import {
     Redo2,
     RefreshCw,
     Route,
+    Scan,
     Search,
     Server,
     Settings,
@@ -163,6 +164,8 @@ export const GLYPHS = {
     paintedOver: Blend,
     unlock: LockKeyholeOpen,
     everything: Layers,
+    // What a result ran over, when it is not what is showing: a frame round the part it read.
+    ranOver: Scan,
     // The effects a layer adds to nodes (outline, glow, halo) and to edges (band, motion).
     outline: Disc,
     glow: Sparkles,

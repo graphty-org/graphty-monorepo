@@ -87,7 +87,8 @@ A file load can set it to how the file's own program frames it, with the file st
 await element.session.data.import(source, { styles: "file", styleOptions: { framing: "file" } });
 ```
 
-The setting is saved in a project file and undone like any other project setting.
+The setting is saved in a project file and undone like any other project setting. A load with
+`styles: "file"` needs the `file-styles` experiment; see [Styles from Files](./file-styles).
 
 ### Zoom In and Out
 

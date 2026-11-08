@@ -75,7 +75,7 @@ function peopleFetch(): ReturnType<typeof replayFetch> {
  * @returns settles when it is done
  */
 async function withSession(body: (session: GraphSession) => Promise<void>): Promise<void> {
-    const session = createGraphSession();
+    const session = createGraphSession({ features: ["network-data"] });
     try {
         await body(session);
     } finally {

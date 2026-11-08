@@ -437,12 +437,14 @@ describe("the combined Style panel", () => {
         const summary = within(byLayer).getByRole("button", { name: /from each layer/ });
         assert.match(summary.textContent ?? "", /Group 1, Group 2, Group 3, \+\d/);
         await userEvent.click(summary);
-        const lines = within(byLayer)
-            .getAllByRole("listitem")
-            .map((item) => item.textContent ?? "");
-        assert.match(lines[0], /^Group 1: Group 1, \d+$/, "the first line is the tree's first layer");
-        // The open cards say the union, as the closed row does.
-        assert.isNotNull(within(region).getByText(/^77 of 77 nodes$/));
+        // Each line's count is the element's `scope.count`, a promise the line fills in once it
+        // answers: a reader sees the count arrive, so the line is read once it has.
+        await waitFor(() => {
+            const first = within(byLayer).getAllByRole("listitem")[0]?.textContent ?? "";
+            assert.match(first, /^Group 1: Group 1, \d+$/, "the first line is the tree's first layer");
+        });
+        // The open cards say the union, as the closed row does (counted the same way).
+        assert.isNotNull(await within(region).findByText(/^77 of 77 nodes$/));
 
         const steps = session.history.position;
         const card = await addCard("name");

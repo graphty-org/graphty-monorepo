@@ -23,7 +23,6 @@ import {
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { ErrorAggregator } from "../../data/ErrorAggregator";
 import { aggregateErrors, columnsMapping, sourceGraph, toRecords } from "../../data/graph-io-import";
-import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { describeRows } from "../attributes";
 import type { HeldRows } from "../commands/data";
@@ -33,7 +32,7 @@ import type { SessionCommand } from "../planning";
 import { pairKey, planReplace } from "../replace";
 import type { CodedFact } from "../shared";
 import type { RowUpdate } from "../types";
-import { resolve, slotNameOf, slotOf } from "./credentialLookup";
+import { originOf, resolve, slotNameOf, slotOf } from "./credentialLookup";
 import { notYetRun, toGraphtyError } from "./errors";
 import { factParams } from "./expand";
 import type { SourceHost } from "./host";
@@ -64,16 +63,6 @@ const PREVIEW_NODES = 25;
  */
 const MAX_PAGES = 100;
 
-/**
- * The scheme, host and port of an endpoint.
- * @param endpoint - the endpoint
- * @returns the origin
- */
-function originOf(endpoint: string): string {
-    const url = new URL(endpoint);
-    return `${url.protocol}//${url.host}`;
-}
-
 /** What one read of a source settled: the credential it used, its slot and whether it was remembered. */
 interface Access {
     readonly endpoint: string | null;
@@ -91,9 +80,15 @@ interface Access {
  * @param host - the session pieces
  * @param id - the source id
  * @param options - the caller's options
+ * @param params - the load's params, which pick an example's published login among several at one origin
  * @returns the access
  */
-async function accessFor(host: SourceHost, id: string, options: SourceLoadOptions): Promise<Access> {
+async function accessFor(
+    host: SourceHost,
+    id: string,
+    options: SourceLoadOptions,
+    params?: Readonly<Record<string, unknown>>,
+): Promise<Access> {
     const descriptor = descriptorOf(id);
     const endpoint = options.endpoint ?? descriptor?.defaultEndpoint ?? null;
     const slot = slotNameOf(id);
@@ -101,7 +96,7 @@ async function accessFor(host: SourceHost, id: string, options: SourceLoadOption
         return { endpoint, credential: options.credential, slot, stored: false };
     }
 
-    const remembered = endpoint === null ? undefined : await resolve(host.owner, id, originOf(endpoint));
+    const remembered = endpoint === null ? undefined : await resolve(host.owner, id, originOf(endpoint), params);
     if (remembered === undefined && (descriptor?.authRequired === "required" || slotOf(id)?.required === true)) {
         throw new GraphtyError({
             code: "E_SOURCE_AUTH",
@@ -316,7 +311,7 @@ export async function importSource(
     options: SourceLoadOptions,
     total?: number,
 ): Promise<SourceLoadRecord> {
-    const access = await accessFor(host, input.source, options);
+    const access = await accessFor(host, input.source, options, input.config);
     const read = await readRows(input.source, input.config, access, options);
     // A load asked for earlier dispatches first, however long it spends reading (issue #3382).
     await host.waitTurn?.();
@@ -361,44 +356,46 @@ export async function importSource(
 }
 
 /**
- * Load a public sample a registered source lists: its params, endpoint and published login.
+ * Load one of a source's examples: its params, endpoint, published login and first page.
  * @param host - the session pieces
- * @param id - the sample's id
+ * @param source - the source id
+ * @param id - the example's id within the source
  * @param options - the load options; a credential or endpoint given here wins
  * @returns the load's record
  */
-export function loadSample(host: SourceHost, id: string, options: SourceLoadOptions): Promise<SourceLoadRecord> {
-    ensureGraphSamplesSource();
-    const listed = registry
-        .listSources()
-        .flatMap((info) => (info.descriptor.samples ?? []).map((sample) => ({ source: info.id, sample })));
-    const found = listed.find((entry) => entry.sample.id === id);
-    if (found === undefined) {
+export function loadExample(
+    host: SourceHost,
+    source: string,
+    id: string,
+    options: SourceLoadOptions,
+): Promise<SourceLoadRecord> {
+    const examples = descriptorOf(source)?.examples ?? [];
+    const example = examples.find((each) => each.id === id);
+    if (example === undefined) {
         return Promise.reject(
             new GraphtyError({
                 code: "E_SOURCE_UNKNOWN",
-                message: `No registered source lists a sample with id ${JSON.stringify(id)}.`,
+                message: `The ${JSON.stringify(source)} source lists no example with id ${JSON.stringify(id)}.`,
                 source: "data",
-                details: { id, known: listed.map((entry) => entry.sample.id) },
+                details: { source, id, known: examples.map((each) => each.id) },
             }),
         );
     }
 
-    const { source, sample } = found;
-    const login = sample.publicLogin;
-    // A sample too big to load whole starts with the first page its descriptor names; `more` reads on.
+    const login = example.publicLogin;
+    // An example too big to load whole starts with the first page its descriptor names; `more` reads on.
     const firstPage =
-        sample.firstPage === undefined ? {} : { limits: { maxNodes: sample.firstPage, onLimit: "stop" as const } };
+        example.firstPage === undefined ? {} : { limits: { maxNodes: example.firstPage, onLimit: "stop" as const } };
     return importSource(
         host,
-        { source, config: sample.params, name: sample.plainName },
+        { source, config: example.params, name: example.plainName },
         {
-            ...(sample.endpoint === undefined ? {} : { endpoint: sample.endpoint }),
+            ...(example.endpoint === undefined ? {} : { endpoint: example.endpoint }),
             ...(login === undefined ? {} : { credential: credentials.basic(login.username, login.password) }),
             ...firstPage,
             ...options,
         },
-        sample.counts?.nodes,
+        example.counts?.nodes,
     );
 }
 
@@ -414,7 +411,7 @@ export async function testSource(
     input: SourceInput,
     options: SourceLoadOptions,
 ): Promise<SourceProbe> {
-    const access = await accessFor(host, input.source, options);
+    const access = await accessFor(host, input.source, options, input.config);
     return coded(access, () => registry.probeSource(input.source, input.config, ioOptions(access, options)));
 }
 
@@ -432,7 +429,7 @@ export async function listSource(
     query: Omit<SourceListQuery<Record<string, unknown>>, "params">,
     options: SourceLoadOptions,
 ): Promise<SourceListing> {
-    const access = await accessFor(host, input.source, options);
+    const access = await accessFor(host, input.source, options, input.config);
     return coded(access, () =>
         registry.listFromSource(input.source, { ...query, params: input.config }, ioOptions(access, options)),
     );
@@ -458,10 +455,15 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
 
     const saved = record.options as Pick<SourceLoadOptions, "limits">;
     const config = currentParams(record);
-    const access = await accessFor(host, record.source, {
-        ...rest,
-        endpoint: rest.endpoint ?? record.endpoint ?? undefined,
-    });
+    const access = await accessFor(
+        host,
+        record.source,
+        {
+            ...rest,
+            endpoint: rest.endpoint ?? record.endpoint ?? undefined,
+        },
+        record.config,
+    );
     const read = await readRows(record.source, config, access, {
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
         ...rest,
@@ -535,7 +537,7 @@ export async function previewSource(
     options: SourcePreviewOptions,
 ): Promise<SourcePreview> {
     const { maxNodes = PREVIEW_NODES, ...rest } = options;
-    const access = await accessFor(host, input.source, rest);
+    const access = await accessFor(host, input.source, rest, input.config);
     const read = await readRows(input.source, input.config, access, {
         ...rest,
         limits: { ...rest.limits, maxNodes, onLimit: "stop" },
@@ -605,10 +607,15 @@ export async function checkSource(host: SourceHost, key: string, options: Source
         return Object.freeze({ changed: null });
     }
 
-    const access = await accessFor(host, record.source, {
-        ...options,
-        endpoint: options.endpoint ?? record.endpoint ?? undefined,
-    });
+    const access = await accessFor(
+        host,
+        record.source,
+        {
+            ...options,
+            endpoint: options.endpoint ?? record.endpoint ?? undefined,
+        },
+        record.config,
+    );
     const freshness = await coded(access, () =>
         registry.validateSource(record.source, currentParams(record), record.validators, ioOptions(access, options)),
     );
@@ -636,10 +643,15 @@ export async function refreshSource(
     const config = currentParams(record);
     const { write: _write, ...readOnly } = options;
     const saved = record.options as Pick<SourceLoadOptions, "limits">;
-    const access = await accessFor(host, record.source, {
-        ...readOnly,
-        endpoint: options.endpoint ?? record.endpoint ?? undefined,
-    });
+    const access = await accessFor(
+        host,
+        record.source,
+        {
+            ...readOnly,
+            endpoint: options.endpoint ?? record.endpoint ?? undefined,
+        },
+        record.config,
+    );
     const read = await readPages(record, config, access, {
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
         ...readOnly,
@@ -851,10 +863,15 @@ export async function runPendingSourceLoad(host: SourceHost, id: string, options
     const config = currentParams(record);
     const { write: _write, ...readOnly } = options;
     const saved = record.options as Pick<SourceLoadOptions, "limits">;
-    const access = await accessFor(host, record.source, {
-        ...readOnly,
-        endpoint: options.endpoint ?? record.endpoint ?? undefined,
-    });
+    const access = await accessFor(
+        host,
+        record.source,
+        {
+            ...readOnly,
+            endpoint: options.endpoint ?? record.endpoint ?? undefined,
+        },
+        record.config,
+    );
     // As many pages as the load read, as a refresh does, so a later `more` continues past them.
     const read = await readPages(record, config, access, {
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),

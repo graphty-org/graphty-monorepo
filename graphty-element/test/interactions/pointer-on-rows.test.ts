@@ -13,12 +13,16 @@ import { ActionManager, ExecuteCodeAction } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { dragHandlersBuilt } from "../../src/NodeBehavior";
 import type { SourceExpanded } from "../../src/session/sources/types";
 import { loadRecordedSeed, PEOPLE_SEED } from "../../stories/fixtures/expand/source";
 import { click, hover, type Point } from "../helpers/real-input";
+
+// The expand test loads a network source, which sits behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -122,7 +126,10 @@ describe("pointer on rows", () => {
                     // Through `drawnPickMesh`: a read of `mesh` would make the seed an object row.
                     const seed = element.graph.getNode(PEOPLE_SEED.id);
                     assert.isDefined(seed);
-                    seed.drawnPickMesh.actionManager = null;
+                    const own = seed.drawnPickMesh;
+                    if (own !== null) {
+                        own.actionManager = null;
+                    }
                 }
 
                 element.layoutBehavior = { expand: { trigger: "click" } };

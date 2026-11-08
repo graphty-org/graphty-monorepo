@@ -8,7 +8,9 @@ import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { ActionManager } from '@babylonjs/core';
 import { AwsCredentials } from '@graphty/graph-io';
+import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
+import { BoundingInfo } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
@@ -98,6 +100,7 @@ import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
+import { SourceExample } from '@graphty/graph-io';
 import { SourceFeature } from '@graphty/graph-io';
 import { SourceFile } from '@graphty/graph-io';
 import { SourceFinish } from '@graphty/graph-io';
@@ -119,7 +122,6 @@ import { SourceReportInfo } from '@graphty/graph-io';
 import { SourceRequestInit } from '@graphty/graph-io';
 import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
-import { SourceSample } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
@@ -815,6 +817,8 @@ export class Edge {
     get index(): number;
     invalidatePositionCache(): void;
     isDisposed(): boolean;
+    // @internal
+    get isPulled(): boolean;
     isRenderVisible(): boolean;
     isSelected(): boolean;
     // (undocumented)
@@ -842,6 +846,8 @@ export class Edge {
     srcNode: Node_2;
     // @internal
     supportEdge(): SupportEdge | null;
+    // @internal
+    togglesOwnMeshes(): boolean;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     // @internal
@@ -869,6 +875,10 @@ export interface EdgePosition {
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
+    lineEnds?: {
+        readonly source: readonly [along: number, across: number];
+        readonly target: readonly [along: number, across: number];
+    };
     // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
@@ -2029,6 +2039,8 @@ export abstract class LayoutEngine {
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
     // (undocumented)
@@ -2123,6 +2135,8 @@ class Node_2 implements ModelUser {
     // @internal
     batchableIn(view: BatchView): boolean;
     // @internal
+    get batchLook(): string;
+    // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
     // @internal
@@ -2133,9 +2147,13 @@ class Node_2 implements ModelUser {
     get dragHandler(): NodeDragHandler | undefined;
     set dragHandler(handler: NodeDragHandler | undefined);
     // @internal
-    drawInBatch(source: AbstractMesh | null): void;
+    drawInBatch(source: AbstractMesh | null, opacity?: number): void;
+    // @internal
+    get drawnAnchor(): TransformNode;
     // @internal
     get drawnBoundingBox(): BoundingBox;
+    // @internal
+    get drawnBoundingInfo(): BoundingInfo;
     // @internal
     get drawnBoundingRadius(): number;
     // @internal
@@ -2153,7 +2171,9 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnInstanceColor(): Rgba | null;
     // @internal
-    get drawnPickMesh(): AbstractMesh;
+    get drawnOpacity(): number;
+    // @internal
+    get drawnPickMesh(): AbstractMesh | null;
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
@@ -2198,6 +2218,8 @@ class Node_2 implements ModelUser {
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;
+    // @internal
+    imageDrawn(): BaseTexture | null;
     get index(): number;
     isDisposed(): boolean;
     // @internal
@@ -2231,6 +2253,8 @@ class Node_2 implements ModelUser {
     }>;
     // @internal
     get paintedColor(): Rgba | null;
+    // @internal
+    get paintedSourceMesh(): AbstractMesh;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
@@ -2247,6 +2271,8 @@ class Node_2 implements ModelUser {
     refreshSelectionOverlay(): void;
     // @internal
     refreshShaderPaint(): void;
+    // @internal
+    resampleLabel(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
@@ -2270,12 +2296,16 @@ class Node_2 implements ModelUser {
     // @internal
     syncXlabelPlace(): void;
     // @internal
-    get teardownMesh(): AbstractMesh;
+    get teardownMesh(): TransformNode;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
     update(): void;
     updateStyle(): void;
+    // @internal
+    get walksEachFrame(): boolean;
+    // @internal
+    get wholeScale(): number;
     // @internal
     get wordedLabel(): RichTextLabel | null;
     xlabelLabel?: RichTextLabel;
@@ -2951,6 +2981,8 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+export { SourceExample }
+
 // @public
 export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 
@@ -3103,8 +3135,6 @@ export { SourceRuntimeReason }
 
 // @public
 export const SOURCES_MEMBER_VERSION = 2;
-
-export { SourceSample }
 
 export { SourceValidators }
 

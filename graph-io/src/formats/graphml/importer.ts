@@ -80,6 +80,7 @@ import {
     ORIGINAL_ID_ATTRIBUTE,
     ORIGINAL_ID_COLUMN,
     PARENT_COLUMN,
+    PORT_KEYS_EXTRA,
     PORTS_COLUMN,
     RESERVED_EDGE_NAMES,
     RESERVED_NODE_NAMES,
@@ -288,6 +289,8 @@ interface PendingKey {
     readonly attrType: string | null;
     readonly yfilesType: string | null;
     readonly domains: readonly Domain[];
+    /** Declared for `<port>` elements. */
+    readonly port: boolean;
     readonly line: number;
     desc: string;
     defaultText: string | null;
@@ -470,6 +473,8 @@ class GraphmlReader implements XmlHandler {
 
     /** The node ports column, once a port's yFiles data declared it. */
     private portsColumn: ColumnHandle | null = null;
+    /** The yFiles type (`yfiles.type` or `y:attr.uri`) of each yFiles port key, by its name, for a save. */
+    private readonly portKeyTypes: Record<string, string> = {};
 
     private readonly content: ContentState = {
         key: null,
@@ -1113,6 +1118,7 @@ class GraphmlReader implements XmlHandler {
                 dtype: "json",
                 nullable: true,
                 origin: { format: FORMAT, id: null, title: null, type: "port", namespace: "yfiles" },
+                extra: { [PORT_KEYS_EXTRA]: { ...this.portKeyTypes } },
             };
             this.portsColumn = this.declareTarget("node", decl, null, "comma").handle;
         }
@@ -1519,6 +1525,7 @@ class GraphmlReader implements XmlHandler {
             attrType,
             yfilesType,
             domains,
+            port: forText === "port",
             line,
             desc: "",
             defaultText: null,
@@ -1552,6 +1559,9 @@ class GraphmlReader implements XmlHandler {
         const yfiles = key.yfilesType !== null;
         const name = key.attrName !== null && key.attrName.length > 0 ? key.attrName : key.id;
         const skipped = yfiles && this.yfilesMode === "skip";
+        if (key.port && key.yfilesType !== null && !skipped) {
+            this.portKeyTypes[name] = key.yfilesType;
+        }
         if (skipped) {
             this.report.warning(
                 "unsupported",

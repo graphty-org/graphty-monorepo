@@ -224,8 +224,8 @@ function imports(mode: "replace" | "merge", source: ImportSource, extra: ImportE
 /** The network source the doors load from: two pages of one node each, read with no request. */
 const DOOR_SOURCE = "door-source";
 
-/** The one sample the doors' network source lists. */
-const DOOR_SAMPLE = "door-sample";
+/** The one example the doors' network source lists. */
+const DOOR_EXAMPLE = "door-example";
 
 /**
  * Register the doors' network source, once.
@@ -239,7 +239,7 @@ function doorSource(): string {
                 descriptor: {
                     plainName: "Door source",
                     params: [],
-                    samples: [{ id: DOOR_SAMPLE, plainName: "Door sample", params: {} }],
+                    examples: [{ id: DOOR_EXAMPLE, plainName: "Door example", params: {} }],
                 },
                 async *records(_params: Record<string, never>, ctx) {
                     for (let page = Number(ctx.cursor?.page ?? 0); page < 2; page++) {
@@ -1737,6 +1737,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             openRowTable: RENDER,
             getNodeBatches: READ,
             getNodeIdTarget: READ,
+            getEdgeIdTarget: READ,
             renderPath: READ,
             setRenderPath: MACHINE,
             rowCounts: READ,
@@ -1831,6 +1832,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ),
             getNode: READ,
             getNodes: READ,
+            getEdges: READ,
             render: RENDER,
             enableAiControl: ASSISTANT,
             disableAiControl: ASSISTANT,
@@ -1878,6 +1880,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dispose: RENDER,
             isDisposed: READ,
             modelDrawn: READ,
+            imageDrawn: READ,
             getRenderState: READ,
             setRenderState: RENDER,
             isSelected: READ,
@@ -1896,6 +1899,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPinned: READ,
             roundRadius: READ,
             drawnFill: READ,
+            drawnOpacity: READ,
             drawnRadius: READ,
             layoutRadius: READ,
             spacingRadius: READ,
@@ -1913,6 +1917,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             shapeTextLabels: RENDER,
             xlabelLabel: RENDER,
             syncXlabelPlace: RENDER,
+            resampleLabel: RENDER,
             isDrawnAsGroup: READ,
             groupDrawnForAnotherCamera: READ,
             drawnPosition: READ,
@@ -1920,14 +1925,20 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnWorldMatrix: READ,
             drawnSourceMesh: RENDER,
             drawnInstanceColor: READ,
+            wholeScale: READ,
             batchableIn: READ,
+            batchLook: READ,
             drawnBoundingBox: READ,
             drawnWorldRadius: READ,
             drawnWorldScaling: READ,
             drawnScaling: READ,
             drawnPickMesh: READ,
+            drawnAnchor: READ,
+            drawnBoundingInfo: READ,
+            paintedSourceMesh: READ,
             drawnByRowScan: READ,
             drawnInBatch: READ,
+            walksEachFrame: READ,
             drawInBatch: RENDER,
             drawnRayHit: READ,
             drawnScale: RENDER,
@@ -1997,6 +2008,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getInterceptPoints: READ,
             trimInput: READ,
             supportEdge: READ,
+            isPulled: READ,
+            togglesOwnMeshes: READ,
         },
     },
     {
@@ -2172,6 +2185,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dimension: READ,
             step: TRANSPORT,
             stepBatch: TRANSPORT,
+            steppedPublishes: READ,
             placeGroups: TRANSPORT,
             groupBox: READ,
             getNodePosition: READ,
@@ -2430,8 +2444,20 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        name: "PulledLineBatch",
+        file: "src/meshes/PulledLineBatch.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "NodeIdTarget",
         file: "src/render/NodeIdTarget.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "EdgeIdTarget",
+        file: "src/render/EdgeIdTarget.ts",
         half: "renderer",
         whole: RENDER,
     },
@@ -2729,27 +2755,27 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     ),
                 ],
             },
-            // A sample a source lists, loaded with its params as one source load.
-            loadSample: calls(() => {
-                doorSource();
-                return [DOOR_SAMPLE];
-            }, [
-                {
-                    ...sourceImport(
-                        "replace",
-                        ["door-s0", "door-s1"],
-                        {},
-                        {
-                            nodes: ["door-s0", "door-s1"].map((id) => ({
-                                id,
-                                "_source.expansion": "none",
-                                "_source.loads": ["load-1"],
-                            })),
-                        },
-                    ),
-                    source: { type: `source:${DOOR_SOURCE}`, config: {}, name: "Door sample" },
-                } as SessionCommand,
-            ]),
+            // An example a source lists, loaded with its params as one source load.
+            loadExample: calls(
+                () => [doorSource(), DOOR_EXAMPLE],
+                [
+                    {
+                        ...sourceImport(
+                            "replace",
+                            ["door-s0", "door-s1"],
+                            {},
+                            {
+                                nodes: ["door-s0", "door-s1"].map((id) => ({
+                                    id,
+                                    "_source.expansion": "none",
+                                    "_source.loads": ["load-1"],
+                                })),
+                            },
+                        ),
+                        source: { type: `source:${DOOR_SOURCE}`, config: {}, name: "Door example" },
+                    } as SessionCommand,
+                ],
+            ),
             // A saved load of an opened project, run again: its rows, merged over the ones it brought.
             runPendingSourceLoad: {
                 kind: "dispatches",
@@ -3572,6 +3598,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdMask: READ,
             // A node's drawn size changed, so a layout keeping nodes apart by it starts again.
             wakeForResize: TRANSPORT,
+            // Whether the engine keeps nodes apart by their drawn size (`nodeGap`).
+            spacesBySize: READ,
             // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
             clusterColumn: READ,
             // A node's community changed, so a layout pulling communities together starts again.
@@ -3803,6 +3831,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        name: "LabelSampler",
+        file: "src/managers/LabelSampler.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "Layer",
         file: "src/session/styles/Layer.ts",
         half: "session",
@@ -3889,7 +3923,7 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.import": "load",
     "SessionDataApi.generate": "load",
     "SessionDataApi.loadDataset": "load",
-    "SessionDataApi.loadSample": "load",
+    "SessionDataApi.loadExample": "load",
     "SessionDataApi.more": "load",
     "SessionDataApi.runPendingSourceLoad": "load",
     "SessionDataApi.expand": "load",

@@ -36,6 +36,7 @@ const SECTIONS: Record<string, { ranges: string[]; kinds?: string[] }> = {
     "runners/jobs": { ranges: ["7d"] },
 };
 const ALIAS: Record<string, string> = { local: "local-runs" };
+const HISTORY_PATHS = new Set(["/v1/test-history", "/v1/page/flaky/test"]);
 
 let store: Store | undefined;
 
@@ -128,13 +129,14 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
 }
 
 /**
- * GET /v1/run/<id> and /v1/test-history, read from their index items; undefined for every other route.
+ * GET /v1/run/<id> and a test's history, read from their index items; undefined for every other route. The history
+ * answers at /v1/test-history and at /v1/page/flaky/test, the API path of the hotspots' `/flaky/test?...` links.
  * @param event - the API Gateway request
  * @returns the response, or undefined when the route is not a drill-down
  */
 async function drillDown(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2 | undefined> {
     const run = /^\/v1\/run\/(\d+)$/.exec(event.rawPath);
-    if (!run && event.rawPath !== "/v1/test-history") {
+    if (!run && !HISTORY_PATHS.has(event.rawPath)) {
         return undefined;
     }
     const q = event.queryStringParameters ?? {};

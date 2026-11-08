@@ -207,7 +207,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/fidelity/dunnart-planar-orthogonal.gml | ok | 60 | 65 | 3 | 3 | 7 | 100% | 0% | 0 | 875 | 0 |  |
 | gml/fidelity/jgrapht-grid-territorio.gml | ok | 25 | 40 | 5 | 2 | 5 | 0% | 0% | 0 | 520 | 0 |  |
 | gml/fidelity/repro-groups-no-creator.gml | ok | 21 | 11 | 6 | 3 | 36 | 25% | 25% | 0 | 272 | 0 |  |
-| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 743 | 100% | 0% | 0 | 611 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 750 | 100% | 0% | 0 | 611 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/visualgraph-tree30.gml | ok | 30 | 29 | 4 | 2 | 30 | 97% | 0% | 0 | 413 | 0 |  |
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 1170 | 0 |  |
 | gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 7 | 5 | 87 | 0% | 0% | 0 | 812 | 0 |  |
@@ -233,12 +233,12 @@ Tool values are elements drawn with the writing program's default.
 | graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml | ok | 31 | 39 | 2 | 1 | 0 | - | - | 0 | 1431 | 0 |  |
 | graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | 2 | 1 | 0 | - | - | 0 | 441 | 0 |  |
 | graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 7 | 6 | 144 | 59% | 10% | 0 | 385 | 0 | W_STYLE_NO_FILL |
-| graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 7 | 5 | 108 | 74% | 12% | 0 | 381 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 7 | 5 | 118 | 76% | 11% | 0 | 381 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 4 | 152 | 56% | 2% | 0 | 293 | 0 |  |
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 452 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 4 | 6 | 69 | 46% | 0% | 0 | 311 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 357 | 100% | 0% | 0 | 526 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 2 | 359 | 100% | 0% | 0 | 328 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 2 | 365 | 100% | 0% | 0 | 328 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 141 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
 | graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 200 | 0 |  |
 | graphml/generated/labels-multi.graphml | ok | 6 | 0 | 3 | 1 | 0 | - | - | 0 | 43 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_EXTRA_LABELS |
@@ -258,7 +258,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml | ok | 10 | 4 | 6 | 2 | 20 | 75% | 20% | 0 | 56 | 0 |  |
 | graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | 8 | 3 | 55 | 84% | 24% | 0 | 149 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | graphml/java-graphml-lib/domondi1__KEVGraph__guin-D__Library-Management-System.graphml | ok | 16 | 15 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml | ok | 13 | 4 | 6 | 3 | 39 | 54% | 0% | 0 | 66 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml | ok | 13 | 4 | 6 | 3 | 41 | 56% | 0% | 0 | 66 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-genericnode/CERT-Polska__ursadb__dataset.graphml | ok | 11 | 0 | 4 | 1 | 18 | 44% | 0% | 0 | 33 | 0 |  |
 | graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml | ok | 8 | 3 | 5 | 2 | 18 | 100% | 22% | 0 | 64 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml | ok | 4 | 0 | 3 | 1 | 6 | 100% | 0% | 0 | 17 | 0 |  |
@@ -279,7 +279,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-svgnode/JustDerb__yed-aws-palettes__AWS_-_Blockchain.graphml | ok | 2 | 0 | 3 | 1 | 2 | 100% | 0% | 0 | 16 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/ZUGFeRD__quba-viewer__XSLGenesis.graphml | ok | 62 | 9 | 5 | 3 | 147 | 54% | 1% | 0 | 452 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/japila-books__apache-spark-internals__spark-rdd-partitioned-distributed.graphml | ok | 17 | 0 | 3 | 1 | 39 | 49% | 0% | 0 | 75 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | 6 | 3 | 21 | 43% | 38% | 0 | 50 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | 6 | 3 | 22 | 45% | 36% | 0 | 50 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml | ok | 9 | 6 | 5 | 3 | 23 | 100% | 26% | 0 | 53 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml | ok | 15 | 18 | 3 | 4 | 1 | 0% | 0% | 0 | 117 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 85 | 100% | 0% | 0 | 141 | 0 |  |

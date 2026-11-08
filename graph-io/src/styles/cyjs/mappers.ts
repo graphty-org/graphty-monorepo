@@ -25,7 +25,7 @@ import type { StyleTarget, StyleValue } from "../types.js";
 import { CYJS_FACE_PROPERTIES } from "./face.js";
 
 /** How Cytoscape.js types a property's value. */
-export type CyjsValueType =
+type CyjsValueType =
     | "color"
     | "zeroOne"
     | "size"

@@ -100,7 +100,9 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
     const cfg = config();
     const claim = async (c) => {
         const r = await call(cfg, "POST", "/v1/base-checks", { ...c, pr: Number(process.env.PR) || undefined });
-        return r.ok ? r.data?.dispatch : undefined;
+        if (r.ok) return r.data?.dispatch;
+        console.log(`results store: base check not claimed (${r.why}); dispatching it anyway: ${c.file}`);
+        return undefined;
     };
     const n = await dispatchChecks(checks, gh, { claim, pr: process.env.PR });
     console.log(`${n} of ${checks.length} base checks dispatched`);

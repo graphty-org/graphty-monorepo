@@ -6,17 +6,22 @@ import React from "react";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
 /**
- * A select's choices, named as graphty-element's catalog names them.
+ * A select's choices, named as graphty-element's catalog names them. A value the layer holds that
+ * the session no longer offers (one an experiment that is off adds) is listed too, so it still
+ * reads as the value in force.
  * @param descriptor - the property.
+ * @param held - the value the layer holds, if any.
  * @returns the options.
  */
-function choiceOptions(descriptor: ChannelDescriptor): { value: string; label: string }[] {
+function choiceOptions(descriptor: ChannelDescriptor, held?: unknown): { value: string; label: string }[] {
     const two = TWO_WORDS[descriptor.channel];
     if (two !== undefined) {
         return two.map(([value, word]) => ({ value: String(value), label: word }));
     }
     const glyphs = GLYPH_TABLES[descriptor.channel];
-    return (descriptor.values ?? []).map((value) => {
+    const values = descriptor.values ?? [];
+    const extra = typeof held === "string" && held !== "" && !values.includes(held) ? [held] : [];
+    return [...values, ...extra].map((value) => {
         const glyph = glyphs?.find((g) => g.id === value);
         return {
             value,
@@ -239,7 +244,7 @@ function choiceName(
 function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
     const { descriptor, label, value, shown, mixed, extraChoices = [], onChange } = props;
     const boolean = descriptor.accepts === "boolean";
-    const options = choiceOptions(descriptor);
+    const options = choiceOptions(descriptor, value);
     // Nothing set here: the value shown is the one in force by default, and is read as that.
     const inForce = options.find((option) => option.value === choiceText(shown))?.label;
     const unset = value === undefined && !mixed && inForce !== undefined;

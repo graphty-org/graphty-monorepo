@@ -7,7 +7,11 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, defineSource, registerSource } from "../../session";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import type { GraphSession } from "../../src/session/types";
+
+// Loads from a registered source sit behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 registerSource(
     defineSource({

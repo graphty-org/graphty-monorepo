@@ -39,6 +39,8 @@ describe("a node repaint that rebuilds meshes", () => {
         document.body.appendChild(container);
         graph = new Graph(container);
         await graph.init();
+        // A teardown is of a node's own mesh: a batched row has none to rebuild.
+        graph.setRenderPath("objects");
         await graph.addNodes(NODES);
         await graph.setLayout("fixed", { dim: 3 });
         await graph.waitForStableFrame();

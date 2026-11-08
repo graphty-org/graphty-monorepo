@@ -241,6 +241,31 @@ describe("style fidelity gate", () => {
         assert.deepEqual([drops.added, drops.unaccepted], [1, 1]);
     });
 
+    it("prunes only a known failure whose element neither drawing has any more, and only when asked", () => {
+        // the program's square rect@1 is gone (read as one picture now); node d is not judged for fill but is still
+        // drawn (graphty's extra d); x still fails; graphty's stray graphty:s1 is gone too
+        const gate = judgeKey(
+            "s",
+            run(
+                { "stray.present": ["x"], "node.extra": ["graphty:d"] },
+                { "stray.present": 0.5 },
+                { "stray.present": ["picture@0", "x"], "node.fill": ["a"], "node.extra": ["graphty:d"] },
+            ),
+            { "stray.present": ["rect@1", "x"], "node.fill": ["d"], "stray.extra": ["graphty:s1"] },
+            undefined,
+        );
+        assert.deepEqual(gate.gone, { "stray.present": ["rect@1"], "stray.extra": ["graphty:s1"] });
+        const known = { s: { "stray.present": ["rect@1", "x"], "node.fill": ["d"], "stray.extra": ["graphty:s1"] } };
+        assert.deepEqual(ratchetKnown(records(known), [gate]).records.known.s, known.s);
+        const pruned = ratchetKnown(records(known), [gate], undefined, true);
+        assert.deepEqual(pruned.records.known.s, { "stray.present": ["x"], "node.fill": ["d"], "stray.extra": [] });
+        assert.strictEqual(pruned.removed, 2);
+        assert.include(gateReportText([gate], "none", null), "s stray.present: rect@1");
+        // a run that judged no element (a sample that drew nothing) prunes nothing
+        const blank = judgeKey("s", run({}, {}, {}), known.s, undefined);
+        assert.deepEqual(blank.gone, {});
+    });
+
     it("raises a floor and records a new one, and never lowers one", () => {
         const table: Record<string, Record<string, number>> = { s: { "node.fill": 0.5, "edge.color": 0.9 } };
         assert.strictEqual(raiseFloors(table, "s", { "node.fill": 0.6, "edge.color": 0.1, "node.shape": 1 }), 2);

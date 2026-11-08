@@ -188,6 +188,11 @@ export class ScreenshotCapture {
             return await this.captureFramed(options, startTime);
         } finally {
             this.showSelectionHalos(hiddenHalos);
+            // And a frame drawn with them before the capture returns: a capture read right after
+            // would otherwise get the frame without them, when its tick skips drawing.
+            if (hiddenHalos.length > 0) {
+                await this.waitForRender();
+            }
             if (cameraOverride) {
                 await this.restoreCamera(cameraOverride);
             }
@@ -281,6 +286,9 @@ export class ScreenshotCapture {
         }
         if (halos.length > 0) {
             this.graph.getUpdateManager().meshesShownOrHidden();
+            // A graph drawn on demand cannot see a mesh enabled or disabled, and would rest on
+            // the frame it last drew.
+            this.requestFrame();
         }
 
         return halos;
@@ -298,6 +306,9 @@ export class ScreenshotCapture {
         }
         if (halos.length > 0) {
             this.graph.getUpdateManager().meshesShownOrHidden();
+            // A graph drawn on demand cannot see a mesh enabled or disabled, and would rest on
+            // the frame it last drew.
+            this.requestFrame();
         }
     }
 

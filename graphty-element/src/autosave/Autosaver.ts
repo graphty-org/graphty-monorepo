@@ -55,11 +55,15 @@ import {
     isAutosaveConflict,
 } from "./types";
 
-/** The entry format this code writes. */
+/**
+ * The entry format this code writes. Exported, and so tagged public, because
+ * tools/channel/nightly.mjs reads this declaration from the source text as written here.
+ * @public
+ */
 export const AUTOSAVE_FORMAT_VERSION = 1;
 
 /** How long a write may go without completing or failing before it is aborted. */
-export const WATCHDOG_MS = 10_000;
+const WATCHDOG_MS = 10_000;
 
 /** The history steps a page-supplied load makes; any other step made during one is the reader's. */
 const PAGE_LOAD_CODES: ReadonlySet<string> = new Set([
@@ -73,10 +77,10 @@ const PAGE_LOAD_CODES: ReadonlySet<string> = new Set([
 const DEADLINE_LATE_MS = 1_000;
 
 /** How long the listing at the start may take before the page loads without a restore. */
-export const LIST_TIMEOUT_MS = 3000;
+const LIST_TIMEOUT_MS = 3000;
 
 /** Automatic restores started and never confirmed, after which an entry is no longer restored automatically. */
-export const RESTORE_ATTEMPTS = 2;
+const RESTORE_ATTEMPTS = 2;
 
 /** Time, timers and idle callbacks: the real ones, or a test's. */
 export interface AutosaveClock {
@@ -1475,8 +1479,9 @@ export class Autosaver {
             await turn.wait();
             this.#restoreTurn = turn;
             this.#restoringFlag = true;
+            // The reader's own work coming back: a network load they ran stays live.
             report = await line.within(turn, () =>
-                this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } }),
+                this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
             );
         } catch (error) {
             this.#restoringFlag = false;

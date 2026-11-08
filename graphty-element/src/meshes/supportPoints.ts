@@ -15,7 +15,7 @@ import type { Xyz } from "./edgeRoute";
  * middle of constant size `centralGravity` (vis-network's default barnesHut solver); `"forceAtlas2"`, a push of
  * `repulsion / d` and a pull of `centralGravity * d` (its forceAtlas2Based solver).
  */
-export type SupportModel = "barnesHut" | "forceAtlas2";
+type SupportModel = "barnesHut" | "forceAtlas2";
 
 /** What one edge's support point settles under: the `line.support*` style options. */
 export interface SupportForces {

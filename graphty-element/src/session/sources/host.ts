@@ -18,7 +18,7 @@ export interface HostEdge {
 }
 
 /** Where a node is drawn, and whether a reader pinned it. */
-export interface HostPlacement {
+interface HostPlacement {
     /** Scene units; null while no layout has placed it. */
     readonly at: { readonly x: number; readonly y: number; readonly z: number } | null;
     readonly pinned: boolean;
@@ -59,7 +59,7 @@ export interface SourceHost {
     dispatch(command: SessionCommand): Promise<unknown>;
     /**
      * Waits for every load asked for before this one to dispatch, for a load that holds a
-     * place in line (`session.data.import`, `loadSample`); unset, or undefined, when none is ahead.
+     * place in line (`session.data.import`, `loadExample`); unset, or undefined, when none is ahead.
      * @returns the wait
      */
     waitTurn?(): Promise<void> | undefined;

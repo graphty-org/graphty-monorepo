@@ -13,7 +13,7 @@ import { isZip } from "../../catalog/detectModel";
 import { normalizePath, Refusal, refuse } from "./references";
 
 /** The caps of a zip, all in one place. */
-export const ZIP_CAPS = Object.freeze({ entries: 1024, nameLength: 512, ratio: 100 });
+const ZIP_CAPS = Object.freeze({ entries: 1024, nameLength: 512, ratio: 100 });
 
 /**
  * Unpack a zip into path to bytes.

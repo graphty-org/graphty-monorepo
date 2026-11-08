@@ -12,7 +12,7 @@ import {
     PER_VALUE_CONTROLS,
     publishedGraphSettings,
 } from "../coverage";
-import { isPercent, SECTIONS, takesBinding, valueFieldKind } from "../words";
+import { isPercent, sectionsFor, takesBinding, valueFieldKind } from "../words";
 
 /**
  * A path the glob gives relative to this folder, as a path under `src/`.
@@ -51,8 +51,10 @@ const SOURCES: Readonly<Record<string, string>> = Object.fromEntries(
 /** A branch on a color: `accepts === "color"`, `accepts !== "color"` or `isColor`. */
 const COLOR_BRANCH = /accepts [!=]== "color"|\bisColor\b/g;
 
-/** Every channel a section of the Style tab draws. */
-const DRAWN = new Set<string>([...SECTIONS.node, ...SECTIONS.edge].flatMap((section) => section.channels));
+/** Every channel a section of the Style tab draws, the experiments' included. */
+const DRAWN = new Set<string>(
+    [...sectionsFor("node", true), ...sectionsFor("edge", true)].flatMap((section) => section.channels),
+);
 
 describe("every style has a home", () => {
     it("gives every channel graphty-element publishes a control or a reason", () => {

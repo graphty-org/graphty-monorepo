@@ -114,6 +114,12 @@ export interface KeyGate {
     nowPassing: Record<string, string[]>;
     /** Known failures not judged at all now, by property: not measurable, never a failure; the list keeps them. */
     notMeasurable: Record<string, string[]>;
+    /**
+     * The not-measurable known failures whose element neither drawing has any more (no property judges or fails it,
+     * under the program's id or graphty's `graphty:<id>`): `npm run fidelity:ratchet -- --prune` takes them off. Absent
+     * from gate files written before it existed.
+     */
+    gone?: Record<string, string[]>;
     /** Pass rates that moved from their recorded value, or are not measurable any more. */
     changes: ScoreChange[];
     /** Every element failing each property now, so the ratchet can list the new ones with a reason. */
@@ -215,6 +221,31 @@ function measured(run: Judgement, property: string, ids: readonly string[]): str
 }
 
 /**
+ * The not-measurable elements that neither drawing has any more: no property of the run judges or fails them, under
+ * either side's id. A run that names no judged elements at all (a sample that drew nothing) says nothing is gone.
+ * @param run - the judgement
+ * @param notMeasurable - the known failures not judged now, by property
+ * @returns those whose element is gone, by property
+ */
+function goneFromBoth(run: Judgement, notMeasurable: Record<string, string[]>): Record<string, string[]> {
+    const lists = [...Object.values(run.judged ?? {}), ...Object.values(run.failures)];
+    const present = new Set(lists.flatMap((ids) => ids ?? []));
+    if (Object.values(run.judged ?? {}).every((ids) => (ids ?? []).length === 0)) {
+        return {};
+    }
+    const bare = (id: string): string => (id.startsWith("graphty:") ? id.slice("graphty:".length) : id);
+    const exists = (id: string): boolean => present.has(bare(id)) || present.has(`graphty:${bare(id)}`);
+    const gone: Record<string, string[]> = {};
+    for (const [p, ids] of Object.entries(notMeasurable)) {
+        const left = ids.filter((id) => !exists(id));
+        if (left.length > 0) {
+            gone[p] = left;
+        }
+    }
+    return gone;
+}
+
+/**
  * One key's verdict and report: the elements failing that the known failures do not list (the gate), the known
  * failures that pass now or are not measurable, and the pass rates beside their recorded values.
  * @param key - the sample (or `<sample>@matched`)
@@ -263,6 +294,7 @@ export function judgeKey(
             notMeasurable[p] = gone;
         }
     }
+    const gone = goneFromBoth(run, notMeasurable);
     const changes: ScoreChange[] = [];
     for (const p of new Set([...Object.keys(recorded ?? {}), ...Object.keys(run.scores)])) {
         const was = recorded?.[p];
@@ -305,6 +337,7 @@ export function judgeKey(
         belowFloor,
         nowPassing,
         notMeasurable,
+        gone,
         changes,
         failures: run.failures,
         scores: recordableScores(run.scores, options.gpu ?? "none"),
@@ -404,12 +437,14 @@ export function ratchetDrops(
  * @param add.date - `YYYY-MM-DD`
  * @param add.keys - only these keys (all when omitted)
  * @param add.properties - only these properties (all when omitted)
+ * @param prune - also take off the not-measurable ones whose element neither drawing has any more (`KeyGate.gone`)
  * @returns the new known failures and what changed
  */
 export function ratchetKnown(
     records: KnownRecords,
     gates: readonly KeyGate[],
     add?: { reason: string; date: string; keys?: readonly string[]; properties?: readonly string[] },
+    prune = false,
 ): { records: KnownRecords; removed: number; added: number; unlisted: number } {
     if (add !== undefined && add.reason.trim().length < 10) {
         throw new Error("adding to the known failures needs a reason of 10 or more characters");
@@ -421,7 +456,8 @@ export function ratchetKnown(
     const record: KnownReason = { date: add?.date ?? "", reason: add?.reason ?? "", added: {}, sources: {} };
     for (const gate of gates) {
         const now = known[gate.key] ?? {};
-        for (const [p, ids] of Object.entries(gate.nowPassing)) {
+        const takeOff = Object.entries(gate.nowPassing).concat(prune ? Object.entries(gate.gone ?? {}) : []);
+        for (const [p, ids] of takeOff) {
             const off = new Set(ids);
             const before = now[p] ?? [];
             now[p] = before.filter((x) => !off.has(x));
@@ -560,6 +596,10 @@ export function gateReportText(gates: readonly KeyGate[], gpu: string, baseline:
         ...section(
             "Known failures not measurable now (kept on the list)",
             listed((g) => g.notMeasurable),
+        ),
+        ...section(
+            "Of those, gone from both drawings (`npm run fidelity:ratchet -- --prune` takes them off)",
+            listed((g) => g.gone ?? {}),
         ),
         ...section("Scores below their recorded value (raster regions past 0.02 only)", changes("drop")),
         ...section("Scores above their recorded value", changes("rise")),

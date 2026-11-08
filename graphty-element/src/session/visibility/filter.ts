@@ -1108,7 +1108,7 @@ interface PathMark {
 }
 
 /** Everything the compiler carries down the filter tree. */
-export interface CompileContext {
+interface CompileContext {
     /** The snapshot every test is written against. */
     readonly graph: GraphSnapshot;
     /** Where to read what the compiler cannot compute. */

@@ -11,6 +11,7 @@ import { ActionManager } from '@babylonjs/core';
 import { AwsCredentials } from '@graphty/graph-io';
 import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
+import { BoundingInfo } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
@@ -100,6 +101,7 @@ import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
+import { SourceExample } from '@graphty/graph-io';
 import { SourceFeature } from '@graphty/graph-io';
 import { SourceFile } from '@graphty/graph-io';
 import { SourceFinish } from '@graphty/graph-io';
@@ -121,7 +123,6 @@ import { SourceReportInfo } from '@graphty/graph-io';
 import { SourceRequestInit } from '@graphty/graph-io';
 import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
-import { SourceSample } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
@@ -1088,6 +1089,8 @@ export class Edge {
     get index(): number;
     invalidatePositionCache(): void;
     isDisposed(): boolean;
+    // @internal
+    get isPulled(): boolean;
     isRenderVisible(): boolean;
     isSelected(): boolean;
     // (undocumented)
@@ -1115,6 +1118,8 @@ export class Edge {
     srcNode: Node_2;
     // @internal
     supportEdge(): SupportEdge | null;
+    // @internal
+    togglesOwnMeshes(): boolean;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     // @internal
@@ -1204,6 +1209,10 @@ export interface EdgePosition {
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
+    lineEnds?: {
+        readonly source: readonly [along: number, across: number];
+        readonly target: readonly [along: number, across: number];
+    };
     // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
@@ -2558,7 +2567,7 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles";
 
 // @public
 export interface FindAtLeastRow {
@@ -2784,6 +2793,9 @@ export class Graph implements GraphContext {
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
     getEdgeCount(): number;
+    // @internal
+    getEdgeIdTarget(): EdgeIdTarget | null;
+    getEdges(): Edge[];
     getEventManager(): EventManager;
     getGlobeLook(): GlobeLook;
     getLayoutBehavior(): GraphBehaviorConfig | undefined;
@@ -4753,6 +4765,9 @@ export interface LayoutChangedEvent {
 }
 
 // @public
+export type LayoutDevice = "shared" | "separate";
+
+// @public
 export abstract class LayoutEngine {
     // (undocumented)
     protected abstract addEdge(e: Edge): void;
@@ -4823,6 +4838,8 @@ export abstract class LayoutEngine {
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
     // (undocumented)
@@ -4895,6 +4912,8 @@ export class LayoutManager implements Manager {
     setScopeSource(source: LayoutScopeSource): void;
     step(): void;
     stepBatch(): void;
+    // @internal
+    steppedPublishes: number;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
 }
@@ -5044,6 +5063,8 @@ class Node_2 implements ModelUser {
     // @internal
     batchableIn(view: BatchView): boolean;
     // @internal
+    get batchLook(): string;
+    // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
     // @internal
@@ -5054,9 +5075,13 @@ class Node_2 implements ModelUser {
     get dragHandler(): NodeDragHandler | undefined;
     set dragHandler(handler: NodeDragHandler | undefined);
     // @internal
-    drawInBatch(source: AbstractMesh | null): void;
+    drawInBatch(source: AbstractMesh | null, opacity?: number): void;
+    // @internal
+    get drawnAnchor(): TransformNode;
     // @internal
     get drawnBoundingBox(): BoundingBox;
+    // @internal
+    get drawnBoundingInfo(): BoundingInfo;
     // @internal
     get drawnBoundingRadius(): number;
     // @internal
@@ -5074,7 +5099,9 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnInstanceColor(): Rgba | null;
     // @internal
-    get drawnPickMesh(): AbstractMesh;
+    get drawnOpacity(): number;
+    // @internal
+    get drawnPickMesh(): AbstractMesh | null;
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
@@ -5119,6 +5146,8 @@ class Node_2 implements ModelUser {
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;
+    // @internal
+    imageDrawn(): BaseTexture | null;
     get index(): number;
     isDisposed(): boolean;
     // @internal
@@ -5152,6 +5181,8 @@ class Node_2 implements ModelUser {
     }>;
     // @internal
     get paintedColor(): Rgba | null;
+    // @internal
+    get paintedSourceMesh(): AbstractMesh;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
@@ -5168,6 +5199,8 @@ class Node_2 implements ModelUser {
     refreshSelectionOverlay(): void;
     // @internal
     refreshShaderPaint(): void;
+    // @internal
+    resampleLabel(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
@@ -5191,12 +5224,16 @@ class Node_2 implements ModelUser {
     // @internal
     syncXlabelPlace(): void;
     // @internal
-    get teardownMesh(): AbstractMesh;
+    get teardownMesh(): TransformNode;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
     update(): void;
     updateStyle(): void;
+    // @internal
+    get walksEachFrame(): boolean;
+    // @internal
+    get wholeScale(): number;
     // @internal
     get wordedLabel(): RichTextLabel | null;
     xlabelLabel?: RichTextLabel;
@@ -5320,6 +5357,7 @@ export interface NodeLabel {
 // @public
 export interface NodeLabelCounts {
     readonly hiddenByOverlap: number;
+    readonly hiddenBySampling?: number;
     readonly labeled: number;
     readonly nodeHidden: number;
 }
@@ -5347,7 +5385,6 @@ export const NodeShapes: z.ZodEnum<{
     cross: "cross";
     star: "star";
     sphere: "sphere";
-    ellipse: "ellipse";
     cylinder: "cylinder";
     cone: "cone";
     capsule: "capsule";
@@ -5375,6 +5412,7 @@ export const NodeShapes: z.ZodEnum<{
     "round-rectangle": "round-rectangle";
     "top-round-rectangle": "top-round-rectangle";
     "bottom-round-rectangle": "bottom-round-rectangle";
+    ellipse: "ellipse";
     triangle: "triangle";
     pentagon: "pentagon";
     hexagon: "hexagon";
@@ -5414,8 +5452,8 @@ export const NodeStyle: z.ZodObject<{
             diameter: "diameter";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
-            low: "low";
             full: "full";
+            low: "low";
         }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
@@ -5425,7 +5463,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5453,6 +5490,7 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
             triangle: "triangle";
             pentagon: "pentagon";
             hexagon: "hexagon";
@@ -5488,6 +5526,8 @@ export const NodeStyle: z.ZodObject<{
         parts: z.ZodOptional<z.ZodString>;
         lines: z.ZodOptional<z.ZodString>;
         lineWidth: z.ZodOptional<z.ZodNumber>;
+        lineHaloColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        lineHaloWidth: z.ZodOptional<z.ZodNumber>;
         texts: z.ZodOptional<z.ZodString>;
         labelTable: z.ZodOptional<z.ZodString>;
         labelFit: z.ZodOptional<z.ZodEnum<{
@@ -5627,7 +5667,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5655,6 +5694,7 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
             triangle: "triangle";
             pentagon: "pentagon";
             hexagon: "hexagon";
@@ -5688,7 +5728,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5716,6 +5755,7 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             "top-round-rectangle": "top-round-rectangle";
             "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
             triangle: "triangle";
             pentagon: "pentagon";
             hexagon: "hexagon";
@@ -5828,9 +5868,9 @@ export const NodeStyle: z.ZodObject<{
         paddingRatio: z.ZodOptional<z.ZodNumber>;
         paddingOf: z.ZodOptional<z.ZodEnum<{
             width: "width";
-            height: "height";
             min: "min";
             max: "max";
+            height: "height";
             average: "average";
         }>>;
         minWidth: z.ZodOptional<z.ZodNumber>;
@@ -6686,7 +6726,9 @@ export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072
 
 // @public
 export interface OperationCancelledEvent {
+    code: "queue-cleared" | "cancelled";
     id: string;
+    // @deprecated
     reason: string;
     // (undocumented)
     type: "operation-cancelled";
@@ -6878,6 +6920,7 @@ export interface ProjectOpenOptions {
     readonly limits?: {
         readonly fileBytes?: number;
     };
+    readonly ownWork?: boolean;
 }
 
 // @public
@@ -6977,6 +7020,7 @@ export type RendererRequest = "webgl" | "webgpu" | "auto";
 export interface RendererStatus {
     readonly active: ActiveRenderer;
     readonly drawing: boolean;
+    readonly layoutDevice: LayoutDevice | null;
     readonly reason: string | null;
     readonly requested: RendererRequest;
 }
@@ -7628,6 +7672,8 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+export { SourceExample }
+
 // @public
 export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 
@@ -7781,8 +7827,6 @@ export { SourceRuntimeReason }
 // @public
 export const SOURCES_MEMBER_VERSION = 2;
 
-export { SourceSample }
-
 export { SourceValidators }
 
 // @public
@@ -7925,6 +7969,8 @@ export class UpdateManager implements Manager {
     dispose(): void;
     drawArrivedPaint(frameMs?: number): void;
     enableZoomToFit(explicit?: boolean): void;
+    // @internal
+    endsByRadius(edge: Edge): void;
     // @internal
     fitAnnotations: (() => void) | null;
     forceEdgeWalk(): void;

@@ -81,6 +81,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/groups-follow-members.test.ts",
     "test/browser/label-declutter.test.ts",
     "test/browser/curves-rest-the-same-however-frames-split.test.ts",
+    "test/browser/node-gap-rests-the-same-however-frames-split.test.ts",
     "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
     "test/browser/a-layer-added-later-paints.test.ts",
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",

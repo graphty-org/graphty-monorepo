@@ -24,7 +24,7 @@ import { easeInOut } from "./presets/glide";
 import { type RegisteredTransition, transitionById, type TransitionNode } from "./registry";
 
 /** A transition's duration when `seconds` is not set. */
-export const DEFAULT_TRANSITION_SECONDS = 0.8;
+const DEFAULT_TRANSITION_SECONDS = 0.8;
 
 /** A move shorter than this, in scene units, is no move: the clock does not start for it. */
 const STILL = 1e-6;

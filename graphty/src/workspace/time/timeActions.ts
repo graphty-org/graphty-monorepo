@@ -294,7 +294,7 @@ export function jumpToSelection(session: GraphSession, store: WorkspaceStore): v
  * Whether the window is a phone's, where the brush lives in a sheet and the dock replaces the panels.
  * @returns true on a phone.
  */
-export function onPhone(): boolean {
+function onPhone(): boolean {
     return globalThis.matchMedia(PHONE_WIDTH).matches;
 }
 

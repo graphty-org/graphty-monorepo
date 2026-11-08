@@ -237,13 +237,15 @@ const CASES: readonly Case[] = [
                 meshKey: `${paint.meshKey}-red`,
                 style: { ...paint.style, line: { ...paint.style.line, color: "red" } },
             };
-            const before = edge.mesh;
+            // A color-only change recolors the edge in its own batch (issue #6026), so the look
+            // it is drawn in is read back by name rather than by which mesh holds it.
+            const before = edge.drawnLine?.name;
             return {
                 call: () => {
                     edge.applySessionPaint(red);
                 },
                 check: () => {
-                    assert.notStrictEqual(edge.mesh, before, "the edge was drawn from the new paint's line");
+                    assert.notStrictEqual(edge.drawnLine?.name, before, "the edge was drawn in the new paint's look");
                 },
             };
         },

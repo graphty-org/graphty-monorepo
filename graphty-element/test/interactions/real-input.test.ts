@@ -446,8 +446,7 @@ describe("the mouse", () => {
             });
 
             const point = at(element, "b");
-            // One doubleClick, not two awaited clicks: the scene counts two presses as a double-click
-            // only within its 300 ms delay, and two round trips can take longer than that.
+            // One doubleClick, not two awaited clicks: the second press must carry a click count of two.
             await doubleClick(element, point);
             await vi.waitFor(() => {
                 assert.isDefined(element.getNode("x"), "the fetched neighbour was added");

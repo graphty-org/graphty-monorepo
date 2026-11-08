@@ -84,6 +84,13 @@ With [acceleration](./acceleration) on, the graph draws on WebGPU and the adapte
 run on one device. The element decides this before the renderer opens, and needs nothing from you. On a software adapter they stay on two.
 If the device is lost, both stop, the renderer comes back on a new device, and the layout carries on there.
 
+`rendererStatus.layoutDevice` says which it is: `"shared"`, `"separate"` (WebGL, or a software adapter), or `null` when no accelerator
+is offered:
+
+```js
+const { layoutDevice } = element.rendererStatus ?? {};
+```
+
 ## Is WebGPU faster?
 
 Not yet, for this element. Measured frame times at 10,000 and 100,000 nodes are in the

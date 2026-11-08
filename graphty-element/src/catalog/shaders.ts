@@ -681,7 +681,7 @@ export function shaderCovers(
 const SHADER_ID = /^[a-z\d]+(?:-[a-z\d]+)*(?:\/[a-z\d]+(?:-[a-z\d]+)*)?$/;
 
 /** The longest shader id. */
-export const SHADER_ID_MAX = 40;
+const SHADER_ID_MAX = 40;
 
 /**
  * Whether a string is a well-formed shader id.

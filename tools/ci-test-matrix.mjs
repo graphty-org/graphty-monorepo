@@ -74,7 +74,7 @@ const ELEMENT_REPORTERS =
     "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} ${GRAPHTY_RUNNING_TESTS:+--reporter=../tools/running-tests.mjs}";
 
 /** How many CI parts the `large-graph` project splits into: one per LargeGraph.*.real-element.test.tsx file. */
-export const LARGE_GRAPH_PARTS = 4;
+export const LARGE_GRAPH_PARTS = 6;
 
 // graphty's projects the five graphty parts run: all but the stories and large-graph, which have shards of their own.
 const GRAPHTY_PROJECTS = "--project=browser --project=real-element --project=eslint-rules --project=node";
@@ -549,7 +549,7 @@ export const STORY_RUNS = {
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
- * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS), graphty-large-graph-1 to -4 (one file each, at most about 10 minutes)
+ * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS), graphty-large-graph-1 to -6 (one file each, at most about 6 minutes)
  * graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it)
  * and graphty-element-gpu-loss (11.2 minutes of vitest in full run 42255498419; small-browser took 28 minutes
  * with it and reached its deadline before the layout and cytoscape-extensions storybooks ran, #6035).

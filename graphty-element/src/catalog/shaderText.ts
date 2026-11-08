@@ -59,10 +59,10 @@ import {
 export const SHADER_TEXT_MAGIC = "graphty-shader 1";
 
 /** The most parameters one shader declares. */
-export const SHADER_PARAM_LIMIT = 16;
+const SHADER_PARAM_LIMIT = 16;
 
 /** The most parameters one shader lets `encode` bind per element. */
-export const SHADER_VARIES_LIMIT = 4;
+const SHADER_VARIES_LIMIT = 4;
 
 /** The most characters a name or a label keeps. */
 const NAME_LIMIT = 40;

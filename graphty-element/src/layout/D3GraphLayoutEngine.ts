@@ -349,6 +349,15 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
+     * Whether `nodeGap` is set.
+     * @returns True when the engine spaces nodes by their drawn size.
+     * @internal
+     */
+    override get spacesBySize(): boolean {
+        return this.nodeGap !== null;
+    }
+
+    /**
      * Start the simulation again because a node's drawn size changed, when `nodeGap` keeps nodes apart by that size.
      * @returns True when the frame loop has to start stepping this layout again.
      */

@@ -184,6 +184,17 @@ export function modelsFreeing(scene: Scene): boolean {
     return caches.get(scene)?.freeing === true;
 }
 
+/**
+ * Tell a scene's cache which template a node draws now, so a frame counts the nodes drawing a
+ * template without asking every node (issue #6208).
+ * @param scene - The node's scene.
+ * @param user - The node.
+ * @param template - The template it draws now, or null.
+ */
+export function noteModelDrawn(scene: Scene, user: ModelUser, template: ModelTemplate | null): void {
+    caches.get(scene)?.drew(user, template);
+}
+
 /** The models one scene draws. */
 export class ModelCache {
     private readonly entries = new Map<string, Entry>();
@@ -197,6 +208,9 @@ export class ModelCache {
     private readonly unwatchSupplied: () => void;
     private readonly unwatchAllowed: () => void;
     private readonly frames: Observer<Scene>;
+    /** The template each node draws, and how many nodes draw each: kept by {@link drew}. */
+    private readonly drawnBy = new Map<ModelUser, ModelTemplate>();
+    private readonly drawnCount = new Map<ModelTemplate, number>();
 
     /**
      * Watch a scene's frames and its session's style changes.
@@ -250,7 +264,7 @@ export class ModelCache {
      */
     get freeing(): boolean {
         for (const entry of this.entries.values()) {
-            if (entry.idle >= 0 && entry.template !== null && this.drawing(entry).nodes === 0) {
+            if (entry.idle >= 0 && entry.template !== null && !this.drawn(entry.template)) {
                 return true;
             }
         }
@@ -315,6 +329,43 @@ export class ModelCache {
         }
 
         return entry.template;
+    }
+
+    /**
+     * Note the template a node draws now, or null when it draws none or is disposed.
+     * @param user - The node.
+     * @param template - Its template.
+     */
+    drew(user: ModelUser, template: ModelTemplate | null): void {
+        const before = this.drawnBy.get(user) ?? null;
+        if (before === template) {
+            return;
+        }
+
+        if (before !== null) {
+            const left = (this.drawnCount.get(before) ?? 1) - 1;
+            if (left > 0) {
+                this.drawnCount.set(before, left);
+            } else {
+                this.drawnCount.delete(before);
+            }
+        }
+
+        if (template === null) {
+            this.drawnBy.delete(user);
+        } else {
+            this.drawnBy.set(user, template);
+            this.drawnCount.set(template, (this.drawnCount.get(template) ?? 0) + 1);
+        }
+    }
+
+    /**
+     * Whether a node draws a template now.
+     * @param template - The template.
+     * @returns True while one does.
+     */
+    private drawn(template: ModelTemplate): boolean {
+        return this.drawnCount.has(template);
     }
 
     /**
@@ -403,7 +454,7 @@ export class ModelCache {
             return;
         }
 
-        const picture = TextureCache.forScene(this.scene, this.session)?.load(entry.image) ?? Promise.resolve(null);
+        const picture = this.textures()?.load(entry.image) ?? Promise.resolve(null);
         const go = (image: BaseTexture | null): void => {
             if (this.entries.get(entry.key) === entry) {
                 this.loadWith(entry, shape, image);
@@ -483,6 +534,11 @@ export class ModelCache {
                     return;
                 }
 
+                // The picture stays while this template draws with it.
+                if (image !== null && entry.image !== undefined) {
+                    this.textures()?.hold(entry.image, 1);
+                }
+
                 this.requestRepaint(entry);
             } catch (error) {
                 const fact =
@@ -491,6 +547,30 @@ export class ModelCache {
                         : { code: "E_MODEL_PARSE", params: { format: record.format } };
                 this.settle(ref, "failed", [fact]);
             }
+        }
+    }
+
+    /**
+     * The scene's pictures.
+     * @returns The picture cache, or null.
+     */
+    private textures(): TextureCache | null {
+        return TextureCache.forScene(this.scene, this.session);
+    }
+
+    /**
+     * Dispose an entry's template, and let go of the picture it was built with.
+     * @param entry - The entry.
+     */
+    private free(entry: Entry): void {
+        if (entry.template === null) {
+            return;
+        }
+
+        entry.template.dispose();
+        entry.template = null;
+        if (entry.image !== undefined) {
+            this.textures()?.hold(entry.image, -1);
         }
     }
 
@@ -565,6 +645,7 @@ export class ModelCache {
         let colorIgnored = false;
         for (const user of entry.users) {
             if (user.isDisposed()) {
+                entry.users.delete(user);
                 continue;
             }
 
@@ -732,7 +813,11 @@ export class ModelCache {
         }
 
         for (const entry of this.entries.values()) {
-            const named = layersNaming(this.session.styles, entry.ref, "node.model").length > 0;
+            // A template built with a picture no layer names any more is not the one its nodes ask for.
+            const named =
+                layersNaming(this.session.styles, entry.ref, "node.model").length > 0 &&
+                (entry.image === undefined ||
+                    layersNaming(this.session.styles, entry.image, "node.texture").length > 0);
             if (named) {
                 entry.idle = -1;
             } else if (entry.idle < 0) {
@@ -749,15 +834,14 @@ export class ModelCache {
                 continue;
             }
 
-            if (this.drawing(entry).nodes > 0) {
+            if (this.drawn(entry.template)) {
                 // A node still draws it (a value computed per node names no layer): keep it.
                 continue;
             }
 
             entry.idle++;
             if (entry.idle >= IDLE_FRAMES) {
-                entry.template?.dispose();
-                entry.template = null;
+                this.free(entry);
                 this.entries.delete(entry.key);
             }
         }
@@ -769,6 +853,7 @@ export class ModelCache {
         this.unwatchSupplied();
         this.unwatchAllowed();
         this.scene.onAfterRenderObservable.remove(this.frames);
+        // The scene's pictures go with the scene: nothing to let go of.
         for (const entry of this.entries.values()) {
             entry.template?.dispose();
         }

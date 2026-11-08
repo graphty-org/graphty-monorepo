@@ -21,8 +21,11 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
+import { fileStylesOn } from "../helpers/file-styles-on";
 import { PINNED_LABEL_FONT_URL } from "../helpers/pin-label-font";
 import { asData, styleEveryNode } from "../helpers/testSetup";
+
+fileStylesOn();
 
 /**
  * Register a face under a family name without loading it. The name has no digits, so it can be

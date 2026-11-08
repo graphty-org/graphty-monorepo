@@ -113,6 +113,20 @@ read-only guarantee from the endpoint, which runs what it is sent with the crede
 A `SERVICE` clause in a query makes the endpoint itself fetch from another service, so a query
 you did not write -- one in a project file someone sent -- deserves a look before it runs.
 
+## Examples
+
+The `sparql` source's descriptor lists three public endpoints with a query each
+(`descriptor.examples` in `listSources()`). None needs a login, and each is one request:
+
+| Example                | Endpoint                            | What it loads                                   | Nodes / edges |
+| ---------------------- | ----------------------------------- | ----------------------------------------------- | ------------- |
+| `uniprot-tp53`         | `https://sparql.uniprot.org/sparql` | the interactions of the human protein TP53      | 375 / 746     |
+| `dbpedia-philosophers` | `https://dbpedia.org/sparql`        | philosophers and who influenced them            | 575 / 669     |
+| `wikidata-einstein`    | `https://query.wikidata.org/sparql` | what Albert Einstein links to, named in English | 232 / 246     |
+
+Wikidata answers 403 to a request without a descriptive User-Agent: a browser sends its own; in
+Node, pass `userAgent`.
+
 ## Errors
 
 | Code                | When                                                                                                        |

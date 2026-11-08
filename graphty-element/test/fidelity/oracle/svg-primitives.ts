@@ -27,6 +27,7 @@ import {
     type PText,
     rampAngleOnScreen,
     solidOuter,
+    spreadStops,
 } from "./primitives";
 
 const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "polygon", "path"]);
@@ -206,7 +207,7 @@ function gradientOf(
         }
         source = next;
     }
-    const stops = [...source.querySelectorAll("stop")].map((s) => {
+    let stops = [...source.querySelectorAll("stop")].map((s) => {
         const cs = getComputedStyle(s);
         const c = parseCssColor(cs.stopColor) ?? { hex: "#000000", alpha: 0 };
         const off = s.getAttribute("offset") ?? "0";
@@ -229,6 +230,33 @@ function gradientOf(
             const t = m.multiply(box).multiply(transform);
             const deg = rampAngleOnScreen([u2 - u1, v2 - v1], [t.a, t.b, t.c, t.d]);
             angle = deg === null ? null : r3(deg);
+            // a reflected or repeated ramp is judged by the colors it paints across its element's box, from where the
+            // box starts along the ramp to where it ends (t over the box's corners in the gradient's own units)
+            // ponytail: spreadMethod is read off this gradient only, not inherited through href
+            const spread = g.getAttribute("spreadMethod") ?? "pad";
+            const [du, dv] = [u2 - u1, v2 - v1];
+            const len2 = du * du + dv * dv;
+            if (spread !== "pad" && len2 > 1e-12) {
+                const inv = transform.inverse();
+                const corners: Pt[] = userSpace
+                    ? [
+                          [b.x, b.y],
+                          [b.x + b.width, b.y],
+                          [b.x, b.y + b.height],
+                          [b.x + b.width, b.y + b.height],
+                      ]
+                    : [
+                          [0, 0],
+                          [1, 0],
+                          [0, 1],
+                          [1, 1],
+                      ];
+                const ts = corners.map(([x, y]) => {
+                    const p = new DOMPoint(x, y).matrixTransform(inv);
+                    return ((p.x - u1) * du + (p.y - v1) * dv) / len2;
+                });
+                stops = spreadStops(stops, spread, Math.min(...ts), Math.max(...ts));
+            }
         } else {
             const toUser = (u: number, v: number): Pt => {
                 const t = new DOMPoint(u, v).matrixTransform(transform);
@@ -579,6 +607,19 @@ const at = (m: DOMMatrix, x: number, y: number): Pt => {
     const p = new DOMPoint(x, y).matrixTransform(m);
     return [r3(p.x), r3(p.y)];
 };
+
+/**
+ * The box an embedded `<svg>` draws in, in its own user space (through its viewBox): the viewBox when it has one, else
+ * its width and height from its origin.
+ * @param svg - the embedded SVG
+ * @returns the box
+ */
+function viewportOf(svg: SVGSVGElement): DOMRect {
+    const view = svg.viewBox.baseVal as SVGRect | null;
+    return view !== null && view.width > 0 && view.height > 0
+        ? new DOMRect(view.x, view.y, view.width, view.height)
+        : new DOMRect(0, 0, svg.width.baseVal.value, svg.height.baseVal.value);
+}
 
 function boxThrough(m: DOMMatrix, b: DOMRect): PBox {
     return boxOfPoints([
@@ -1229,7 +1270,14 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
         let index = 0;
         for (const el of root.querySelectorAll<SVGGraphicsElement>("*")) {
             const tag = el.localName;
-            if (!GEOMETRY.has(tag) && tag !== "text" && tag !== "image") {
+            // a picture the program embeds as an SVG of its own (yEd's SVGNode) is one picture, as an `<image>` is: what
+            // it draws inside is the picture's content, not shapes of the drawing (graphty draws the picture as one)
+            const embedded = el.parentElement?.closest("svg");
+            if (embedded !== root && embedded?.closest(`[${STAMPED}]`) === null) {
+                continue;
+            }
+            const picture = tag === "svg" && el !== root && el.closest(`[${STAMPED}]`) === null;
+            if (!GEOMETRY.has(tag) && tag !== "text" && tag !== "image" && !picture) {
                 continue;
             }
             // #PajekSig: the spider logo Pajek adds to every SVG export, not part of the network
@@ -1294,11 +1342,12 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 }
                 continue;
             }
-            if (tag === "image") {
+            if (tag === "image" || picture) {
                 const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
                 const pixels = href === null ? undefined : pictures.get(unbrokenHref(href));
                 const gradient = pixels === undefined ? null : pictureGradient(pixels);
-                const b = el.getBBox();
+                // an embedded SVG's viewport, in the coordinates its own matrix (which holds its viewBox) maps from
+                const b = picture ? viewportOf(el as unknown as SVGSVGElement) : el.getBBox();
                 prims.push({
                     ...(gradient === null ? {} : { gradient }),
                     index: i,

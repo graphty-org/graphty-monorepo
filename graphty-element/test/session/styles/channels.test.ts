@@ -191,6 +191,8 @@ const DECLARED = [
     "node.shapeTexts",
     "node.labelTable",
     "node.shapeLineWidth",
+    "node.shapeLineHaloColor",
+    "node.shapeLineHaloWidth",
     "node.labelFit",
     "node.labelPaddingX",
     "node.labelPaddingY",
@@ -412,8 +414,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and ninety-five node channels and one hundred and sixty-three edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 195);
+    it("splits into one hundred and ninety-seven node channels and one hundred and sixty-three edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 197);
         assert.strictEqual(channelsFor("edge").length, 163);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -645,6 +647,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelTable",
         "edge.labelTable",
         "node.shapeLineWidth",
+        "node.shapeLineHaloColor",
+        "node.shapeLineHaloWidth",
         "node.gradientColors",
         "node.gradientStops",
         "node.label",
@@ -963,6 +967,7 @@ describe("colour channels", () => {
             "node.overlayColor",
             "node.glyphColor",
             "node.chartBorderColor",
+            "node.shapeLineHaloColor",
             "node.gradientColor",
             "edge.color",
             "edge.bandColor",

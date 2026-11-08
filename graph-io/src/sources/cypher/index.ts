@@ -585,13 +585,18 @@ async function expand(reader: Reader, request: ExpandRequest<CypherParams>, sink
     const { collected, rows, fields } = await reader.generated((d) => neighborhood(profile, filters, shape, d), {
         ids: request.ids,
         ...(after === null ? {} : { after }),
+        ...(after === null || filters.idProperty === null ? {} : { afterByServer: ctx.cursor?.byServer === true }),
     });
     writeCollected(collected, sink, reader.idProperty, report, ctx.signal);
     const { server } = await reader.facts([]);
     // A full page may have more behind it: hand back where the next one starts.
-    const last = rows.at(-1)?.[fields.indexOf("key")];
+    const lastRow = rows.at(-1);
+    const last = lastRow?.[fields.indexOf("key")];
     const full = shape.limit !== null && rows.length >= Number(shape.limit);
-    const next = full && (typeof last === "string" || typeof last === "number") ? { after: last } : null;
+    // Keyed by an id property, the cursor also says which kind of key it stopped in.
+    const at = fields.indexOf("byServer");
+    const kind: SourceCursor = at < 0 ? {} : { byServer: lastRow?.[at] === true };
+    const next = full && (typeof last === "string" || typeof last === "number") ? { after: last, ...kind } : null;
     return ctx.finish({ server, next });
 }
 

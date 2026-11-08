@@ -530,6 +530,8 @@ export interface SelectionSources {
     readonly note?: TargetContext["note"];
     /** What a style layer's rule matches. Absent refuses a `layer` target. */
     readonly layer?: TargetContext["layer"];
+    /** The drawn nodes inside a polygon on the canvas. Absent refuses a `region` target. */
+    readonly region?: TargetContext["region"];
     /** Where the attribute bags are read. Absent leaves the attribute statistics empty. */
     readonly records?: SessionRecordSource;
     /**
@@ -1266,7 +1268,7 @@ class Selection implements SelectionOwner {
      * @returns The context, built around the frame the selection is synchronised to.
      */
     #context(): TargetContext {
-        const { scope, results, match, find, note, layer } = this.#sources;
+        const { scope, results, match, find, note, layer, region } = this.#sources;
 
         return {
             graph: this.#frame.graph,
@@ -1280,6 +1282,7 @@ class Selection implements SelectionOwner {
             ...(find === undefined ? {} : { find }),
             ...(note === undefined ? {} : { note }),
             ...(layer === undefined ? {} : { layer }),
+            ...(region === undefined ? {} : { region }),
         };
     }
 

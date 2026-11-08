@@ -2,8 +2,8 @@
  * Runs started from a card in the full-screen selection workspace (design: algo-options
  * cardruns.md), on the REAL graphty-element and Les Miserables, driven by real clicks and keys: a
  * card's run adds no style layer; Cancel drops every run the visit started and Done keeps the one
- * the final card reads, listed in the Data place's Runs with the layer that reads it; removing that
- * run asks first, naming the layer, and then the layer waits (a wait mark on its row, Run beside
+ * the final card reads, listed in the Data place's Calculated tab with the layer that reads it;
+ * removing that run asks first, naming the layer, and then the layer waits (a wait mark on its row, Run beside
  * Edit) until the reader presses Run, which starts it once.
  */
 
@@ -113,18 +113,23 @@ describe("runs started from a selection card", () => {
         });
         assert.strictEqual(pagerankRuns(session), 1, "Done kept it as an ordinary run");
 
-        // The Data place lists it, with the layer that reads it as a chip.
+        // The Data place's Calculated tab lists it, with a quiet mark naming the layer that reads it.
         await userEvent.click(screen.getByRole("button", { name: /^Data/ }));
-        const runs = await screen.findByRole("list", { name: "Runs" });
+        await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
+        const runs = await screen.findByRole("list", { name: "Results" });
         const row = await waitFor(() => {
             const found = runs.querySelector<HTMLElement>("[data-run]");
             assert.isNotNull(found);
             return found;
         });
-        assert.include(row.textContent ?? "", "Calm", "the selection that reads it");
+        assert.isNotNull(
+            within(row).getByRole("img", { name: /^Styles: .*Calm/ }),
+            "the style whose selection reads it",
+        );
 
-        // Remove asks first, naming the layer whose selection will wait.
-        await userEvent.click(within(row).getByRole("button", { name: /^Remove / }));
+        // Remove, in the row's "...", asks first, naming the layer whose selection will wait.
+        await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Remove result/ }));
         const confirm = await waitFor(() => {
             const found = document.querySelector<HTMLElement>("[data-confirm-remove]");
             assert.isNotNull(found);

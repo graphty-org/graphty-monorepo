@@ -7,7 +7,7 @@ import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-elemen
 import { Box, Button, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
+import { cosmographOn, selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, isHidden, isLocked, paintedTarget, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { isPanelEscape } from "../keys/keys";
@@ -37,7 +37,7 @@ import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
-import { firstStyleWords, madeWords, SECTIONS } from "./words";
+import { firstStyleWords, madeWords, sectionsFor } from "./words";
 
 /**
  * The row the Style tab edits when the caller names none, read from `inspected` as the inspector
@@ -371,7 +371,7 @@ export interface KindControl {
 }
 
 /** How a kind's picker and the other kind's tab hand a field between them. */
-export interface Elsewhere {
+interface Elsewhere {
     /** The field to open on with a card on it. */
     readonly adding?: string;
     /** Goes to the other kind's tab with a card on a field it carries. */
@@ -490,7 +490,7 @@ export function RowStyle({
         };
         return (
             <section className="ws-style-group" data-group={side}>
-                {SECTIONS[side].map((spec) =>
+                {sectionsFor(side, cosmographOn(session)).map((spec) =>
                     spec.id === "text" ? (
                         <LabelSection key={spec.id} ctx={ctx} />
                     ) : (

@@ -11,6 +11,9 @@ import { assert, describe, it } from "vitest";
 
 import { DataSource, type FormatDescriptor } from "../../extend";
 import { createGraphSession, fileStyleOf, type GraphSession } from "../../session";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles");
 const MISERABLES = readFileSync(join(CORPUS, "gexf", "gexfjs-miserables.gexf"), "utf8");

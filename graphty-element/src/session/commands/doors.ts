@@ -1914,6 +1914,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             shapeTextLabels: RENDER,
             xlabelLabel: RENDER,
             syncXlabelPlace: RENDER,
+            resampleLabel: RENDER,
             isDrawnAsGroup: READ,
             groupDrawnForAnotherCamera: READ,
             drawnPosition: READ,

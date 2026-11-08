@@ -68,6 +68,19 @@ const LabelBehaviorOpts = z
          * style puts it. Decided again whenever `declutter` is.
          */
         avoidNodesAndEdges: z.boolean().default(false),
+        /*
+         * The size, in CSS pixels, of the square screen cells label sampling keeps one node label
+         * in.
+         *
+         * UNSET BY DEFAULT, so every label a style asks for is built. Set, the element divides the
+         * canvas into cells of this size and, once the view has settled (the camera, the canvas
+         * and the node positions held still for a frame), builds the label of one node per cell:
+         * a selected node first, then the node with more edges. Every other node label is not
+         * built at all, which keeps a graph with a label on every node as fast as one with none;
+         * `nodeLabelCounts.hiddenBySampling` counts them. `declutter` then thins the labels that
+         * were built.
+         */
+        sampleCell: z.number().positive().optional(),
     })
     .prefault({});
 

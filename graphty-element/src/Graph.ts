@@ -575,6 +575,17 @@ export function loadSourcePair(
 }
 
 /**
+ * Every node id a snapshot holds, in row order.
+ * @param snapshot - The snapshot.
+ * @yields Each id.
+ */
+function* idsOfSnapshot(snapshot: GraphSnapshot): Generator<string | number> {
+    for (let row = 0; row < snapshot.nodeCount; row++) {
+        yield snapshot.ids.idOf(row);
+    }
+}
+
+/**
  * A graph's operation queue: what the element's own parts (the element's data doors, the
  * screenshot capture) and its tests queue work on and wait for. Not published: code queued there
  * could run between the steps of a command, so a consumer waits with `graph.waitForSettled()`.
@@ -8070,10 +8081,15 @@ export class Graph implements GraphContext {
     }
 
     private boundsToFrame(nodeIds?: Iterable<string | number>, extent: CameraViewExtent = "centers"): GraphBounds {
+        // With no nodes named, the working graph's view while it is on: Fit and the standard views
+        // frame what is shown, as zoomToFit does (design/working-graph/design.md, decision A).
+        const working = nodeIds === undefined ? workingGraphOfSession(this.session) : null;
+        const view = working?.enabled === true ? working.view() : null;
+        const named = view === null || view.whole ? nodeIds : idsOfSnapshot(view.snapshot);
         const nodes =
-            nodeIds === undefined
+            named === undefined
                 ? this.getNodes()
-                : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined);
+                : [...named].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined);
 
         const points = nodes.map((node) => node.getPosition());
         // The whole graph on a map is the map too: its edges, or the globe.

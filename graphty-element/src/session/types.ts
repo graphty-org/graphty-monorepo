@@ -239,7 +239,10 @@ export interface RecordPageOptions {
     readonly offset?: number;
     /** The most records the page holds; `Infinity` reads to the end. Default 100. */
     readonly limit?: number;
-    /** Which records: any scope, such as `"selection"` or `{ set: id }`. Default `"graph"`. */
+    /**
+     * Which records: any scope, such as `"selection"` or `{ set: id }`. Default `"graph"`, or
+     * `"visible"` while the session's `workingGraph` option is on.
+     */
     readonly scope?: ScopeInput;
     /**
      * The order. Absent, records come in the graph's own order: the order they were added, which
@@ -577,7 +580,10 @@ export interface NeighborOptions {
      * weight the graph was loaded with, read as a strength; counts when it was loaded with none.
      */
     readonly weight?: WeightMeaning | null;
-    /** Which neighbors are listed: any scope, such as `"selection"`. Default `"graph"`. */
+    /**
+     * Which neighbors are listed: any scope, such as `"selection"`. Default `"graph"`, or
+     * `"visible"` while the session's `workingGraph` option is on.
+     */
     readonly scope?: ScopeInput;
     /**
      * The order. Absent: strongest first when the page has a weight (largest first for a
@@ -1358,12 +1364,16 @@ export interface SessionDataApi {
      * One node's structure value, as a column of a table reads it.
      * @param id - The node.
      * @param path - A path {@link SessionDataApi.structureValues} lists (`graphty.degree`).
+     * @param options - Where to measure.
+     * @param options.scope - `"visible"` measures among what the filter and the time window leave
+     *     shown, where a hidden node has no value; `"graph"` the whole graph. Default `"graph"`, or
+     *     `"visible"` while the session's `workingGraph` option is on (since 3.36.0).
      * @returns The value, or undefined for an unknown node or a path that is no structure value.
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      * @example
      * const degree = session.data.structureValue("Valjean", "graphty.degree");
      */
-    structureValue(id: NodeId, path: Path): number | undefined;
+    structureValue(id: NodeId, path: Path, options?: { readonly scope?: "graph" | "visible" }): number | undefined;
     /**
      * Say what a column measures, as one undoable step in the `"attributes"` project slice.
      *
@@ -1517,12 +1527,18 @@ export interface SessionDataApi {
      * ```
      * @param column - the column; an attribute descriptor can be passed as it is
      * @param options - `bins`: how many bars, or how many values a categorical column lists (20
-     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it
+     *     by default, 1 to 100); `scale`: a numeric column's axis, as `RunResult.histogram` takes it;
+     *     `scope`: `"visible"` counts only what the filter and the time window leave shown,
+     *     `"graph"` every element -- default `"graph"`, or `"visible"` while the session's
+     *     `workingGraph` option is on (since 3.36.0)
      * @returns the distribution
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
      *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
      */
-    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
+    histogram(
+        column: ColumnRef,
+        options?: HistogramOptions & { readonly scope?: "graph" | "visible" },
+    ): ColumnHistogram;
     /**
      * How many elements carry each value of a readable path, for a checklist of values with their
      * counts: a data column, a run's field (`results.<run>.group`) or a node value read at an
@@ -1537,15 +1553,22 @@ export interface SessionDataApi {
      * @param options - What to count.
      * @param options.kind - Nodes or edges; by default the kind `readableValues()` lists the path
      *     on, nodes first.
+     * @param options.scope - `"visible"` counts only what the filter and the time window leave
+     *     shown (`total` included), `"graph"` every element. Default `"graph"`, or `"visible"` while
+     *     the session's `workingGraph` option is on (since 3.36.0).
      * @returns The counts, most elements first.
      * @since 3.37.0
      */
-    valueCounts(path: Path, options?: { readonly kind?: "node" | "edge" }): ValueCounts;
+    valueCounts(
+        path: Path,
+        options?: { readonly kind?: "node" | "edge"; readonly scope?: "graph" | "visible" },
+    ): ValueCounts;
     /**
      * The graph's shape. Walked once per snapshot and cached.
      * @param options - What to measure.
      * @param options.scope - `"visible"` measures only what the filters and the time window leave
-     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`.
+     *     showing (the same as the whole graph while nothing is hidden). Default `"all"`, or
+     *     `"visible"` while the session's `workingGraph` option is on.
      * @returns the statistics
      */
     statistics(options?: { readonly scope?: "all" | "visible" }): GraphStatistics;

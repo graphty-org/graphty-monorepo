@@ -732,7 +732,7 @@ class Session implements ElementSession {
             // A group with no stored position is drawn as the box around its members, so it is
             // placed whenever they are.
             const groups = groupsOf(this.dispatcher.state.graph.values.get(GROUPS_VALUE));
-            const advice = recommendLayout(this.data.statistics(), {
+            const advice = recommendLayout(this.data.statistics({ scope: "all" }), {
                 placedNodes: this.store.seededNodeCount + groups.length,
                 file: fileGraph(),
                 graphvizAvailable: graphviz === true,
@@ -1193,7 +1193,8 @@ class Session implements ElementSession {
      * @returns The recommendation.
      */
     recommendLayout(): LayoutRecommendation | undefined {
-        return recommendLayout(this.data.statistics(), {
+        // ponytail: the whole graph's, as its placed count is; the view's when both read it.
+        return recommendLayout(this.data.statistics({ scope: "all" }), {
             placedNodes: this.seededNodeCount,
             locations: this.estimate({ op: "layout.set", id: "location-map" }).available,
         });
@@ -2007,7 +2008,8 @@ function componentLabelsOf(data: SessionDataApi): () => ComponentLabels {
         const snapshot = data.snapshot();
 
         if (against !== snapshot) {
-            const { components } = data.statistics();
+            // The whole graph's: a component filter reads every node, not what it shows.
+            const { components } = data.statistics({ scope: "all" });
             const labels = new Int32Array(snapshot.nodeCount);
 
             for (let index = 0; index < snapshot.nodeCount; index++) {
@@ -2166,7 +2168,7 @@ function runFieldPaths(runs: RunsApi, target: "node" | "edge"): Path[] {
  * @returns The paths.
  */
 function structurePaths(data: SessionDataApi): readonly Path[] {
-    return data.statistics().directedness === "directed" ? STRUCTURE_PATHS : ["graphty.degree"];
+    return data.statistics({ scope: "all" }).directedness === "directed" ? STRUCTURE_PATHS : ["graphty.degree"];
 }
 
 /**
@@ -2803,6 +2805,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeline: () => timelineOn(),
             fileStyles: () => fileStylesOn(),
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
+            // And the working graph, built below the visibility.
+            working: () => working,
         },
     );
     let values: FilterValueSource | undefined;
@@ -3046,6 +3050,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let onHandSelection: (() => void) | null = null;
     const visibility = createVisibilityApi({
         snapshot,
+        // Read through a call: the working graph is built below.
+        dropsHiddenSelection: () => working.enabled,
         // Not behind the experiment: a saved window's bounds are instants of the parsed column.
         instants: (path: Path) => timeInternals?.instants(path) ?? null,
         boundZone,
@@ -3741,6 +3747,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     const styles = createStylesApi({
         dispatcher,
+        // Read through a call: the working graph is built below.
+        workingGraph: () => working.enabled,
         elements: {
             ...elements,
             nodeIndex,
@@ -4670,7 +4678,8 @@ function planningContext(
 
     return {
         algorithms: () => SESSION_CATALOG_TABLES.algorithms(),
-        statistics: () => data.statistics(),
+        // The whole graph's shape: a run's scope is resolved against it.
+        statistics: () => data.statistics({ scope: "all" }),
         resolveScope,
         defaultScope,
         limits: runsOptions.limits ?? DEFAULT_COST_GATE_LIMITS,

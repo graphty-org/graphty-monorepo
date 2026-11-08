@@ -1593,6 +1593,12 @@ export interface StylesSources {
      * @returns What it resolves to now.
      */
     readonly resolveScope?: (spec: Scope) => ResolvedScope;
+    /**
+     * Whether the session reads the working graph: a layer's categories and its legend rows are
+     * then counted among what the filter and the time window leave shown. Absent, never.
+     * @returns True while it does.
+     */
+    readonly workingGraph?: () => boolean;
     /** Which versions are doing the work. Defaults to the element's own. */
     readonly engine?: EngineVersions;
     /**
@@ -3003,6 +3009,29 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * How many of the elements in a scope one layer selects carry each value of a path.
+     * @param id - The layer.
+     * @param path - The category path.
+     * @param scope - The elements counted.
+     * @returns The count by value, spelled as a category is.
+     */
+    const categoryCounts = (id: LayerId, path: Path, scope: Scope): Map<string, number> => {
+        const { selector, layer } = require(id);
+        const { nodes, edges } = elementsOf(scope);
+        const onNodes = layer.target === "node";
+        const read = onNodes ? sources.elements.nodeValue : sources.elements.edgeValue;
+        const held = new Map<string, number>();
+        for (const index of onNodes ? nodes : edges) {
+            if (selector.test === null || selector.test(index)) {
+                const key = String(read(index, path));
+                held.set(key, (held.get(key) ?? 0) + 1);
+            }
+        }
+
+        return held;
+    };
+
+    /**
      * What a layer selects among the elements no filter step hides, and how many of its kind those
      * are: the style selector's base (`StyleCounts.visible`, a legend block's `scope`).
      * @param id - The layer.
@@ -3112,6 +3141,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return { count: matched, of: edges ? whole.edgeCount : whole.nodeCount, visible: of };
         },
         reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), countSources()),
+        // With the working graph on, a row is a category some shown element of the layer carries.
+        shown: (id, channel) => {
+            const binding = byId().get(id)?.layer.encode?.[channel];
+            if (sources.workingGraph?.() !== true || binding === undefined || !("by" in binding)) {
+                return undefined;
+            }
+
+            const held = categoryCounts(id, binding.by, DRAWN);
+            return new Set([...held].filter(([, count]) => count > 0).map(([key]) => key));
+        },
         reached: (id, channel) => {
             const binding = byId().get(id)?.layer.encode?.[channel];
             if (binding === undefined || !("by" in binding)) {
@@ -5446,8 +5485,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 );
             }
 
-            return categoriesOf(entry.layer, channel, steadyEncodingOf(id), (path) =>
+            const categories = categoriesOf(entry.layer, channel, steadyEncodingOf(id), (path) =>
                 valueLabelsAt(dispatcher.state.valueLabels, path),
+            );
+            const binding = entry.layer.encode?.[channel];
+            if (
+                categories.length === 0 ||
+                sources.workingGraph?.() !== true ||
+                binding === undefined ||
+                !("by" in binding)
+            ) {
+                return categories;
+            }
+
+            // Counted among what is shown, as every reader of the working graph counts.
+            const held = categoryCounts(id, binding.by, DRAWN);
+            return categories.map((category) =>
+                Object.freeze({ ...category, count: held.get(String(category.value)) ?? 0 }),
             );
         },
 
@@ -5463,22 +5517,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const groups = groupsOf(entry.layer, path, steadyEncodingOf(id), (at) =>
                 valueLabelsAt(dispatcher.state.valueLabels, at),
             );
-            if (groups.length === 0 || entry.layer.selector.match === "everything") {
+            const working = sources.workingGraph?.() === true;
+            if (groups.length === 0 || (entry.layer.selector.match === "everything" && !working)) {
                 return groups;
             }
             // The prepared binding reads the whole graph, so its scale is the whole graph's; a group's
-            // count is how many of THIS layer's elements carry it, as `ValueGroup.count` says.
-            const { selector } = require(id);
-            const { nodes, edges } = elementsOf(WHOLE_GRAPH);
-            const onNodes = entry.layer.target === "node";
-            const read = onNodes ? sources.elements.nodeValue : sources.elements.edgeValue;
-            const held = new Map<string, number>();
-            for (const index of onNodes ? nodes : edges) {
-                if (selector.test === null || selector.test(index)) {
-                    const key = String(read(index, path));
-                    held.set(key, (held.get(key) ?? 0) + 1);
-                }
-            }
+            // count is how many of THIS layer's elements carry it, as `ValueGroup.count` says --
+            // among what is shown, with the working graph on.
+            const held = categoryCounts(id, path, working ? DRAWN : WHOLE_GRAPH);
             return groups.map((group) => Object.freeze({ ...group, count: held.get(String(group.value)) ?? 0 }));
         },
 
@@ -5742,7 +5788,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
             // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
             const counts = {
-                ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
+                ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision, elementsOf(DRAWN)),
                 visible: amongDrawn(id),
             };
             // Groups past the outline cap draw nothing; said here, never dropped silently.

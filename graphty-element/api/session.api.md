@@ -4662,6 +4662,7 @@ export type RuleTree = {
     readonly percentile?: number;
     readonly from?: "high" | "low";
     readonly missing?: MissingValues;
+    readonly within?: "graph" | "visible";
 }
 /**
 * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -5421,7 +5422,9 @@ export interface SessionDataApi {
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     hiddenColumns(): readonly ColumnRef[];
-    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
+    histogram(column: ColumnRef, options?: HistogramOptions & {
+        readonly scope?: "graph" | "visible";
+    }): ColumnHistogram;
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
@@ -5483,7 +5486,9 @@ export interface SessionDataApi {
         readonly scope?: "all" | "visible";
     }): GraphStatistics;
     readonly store: SessionGraphStore;
-    structureValue(id: NodeId_2, path: Path): number | undefined;
+    structureValue(id: NodeId_2, path: Path, options?: {
+        readonly scope?: "graph" | "visible";
+    }): number | undefined;
     structureValues(): readonly StructureValue[];
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
@@ -5491,6 +5496,7 @@ export interface SessionDataApi {
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
     valueCounts(path: Path, options?: {
         readonly kind?: "node" | "edge";
+        readonly scope?: "graph" | "visible";
     }): ValueCounts;
     valueLabels(path: Path): ReadonlyMap<string, string>;
 }

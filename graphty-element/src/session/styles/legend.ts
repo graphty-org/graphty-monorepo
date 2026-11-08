@@ -496,6 +496,17 @@ export interface LegendSources {
      * @returns The reach by category, or undefined when the layer binds no category there.
      */
     readonly reach?: (layerId: LayerId, channel: Channel) => ReadonlyMap<string, ValueReach> | undefined;
+    /**
+     * The categories some element one layer selects carries among what is shown, spelled as the
+     * legend spells a category: the rows a categorical block keeps while the session reads the
+     * working graph.
+     *
+     * Absent, or undefined for a layer, every category keeps its row.
+     * @param layerId - The layer.
+     * @param channel - The channel.
+     * @returns The categories, or undefined to keep every row.
+     */
+    readonly shown?: (layerId: LayerId, channel: Channel) => ReadonlySet<string> | undefined;
 }
 
 /** What one category of a layer's binding reaches; see {@link LegendSources.reach}. */
@@ -863,7 +874,15 @@ function allSwatches(prepared: PreparedBinding, layer: Layer, sources: LegendSou
     if (prepared.categories.length > 0) {
         // ponytail: the order is the map's key order, which JavaScript puts integer-like keys
         // first in ascending order; a numeric ordinal declared high-to-low lists low-to-high.
-        return categorySwatches(prepared, Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}), sources);
+        const swatches = categorySwatches(
+            prepared,
+            Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}),
+            sources,
+        );
+        const shown = sources.shown?.(layer.id, prepared.channel);
+        return shown === undefined
+            ? swatches
+            : swatches.filter((swatch) => swatch.role === "other" || shown.has(String(swatch.value)));
     }
 
     if (prepared.domain === null) {

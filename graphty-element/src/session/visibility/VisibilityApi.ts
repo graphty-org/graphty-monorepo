@@ -736,6 +736,12 @@ export interface VisibilitySources extends FilterSources {
      * is re-evaluated only when it is set again or the snapshot moves.
      */
     readonly watch?: FilterWatchSources;
+    /**
+     * Whether a filter drops what it hides from the selection: the session's working graph
+     * option. Absent or false, the selection keeps hidden ids.
+     * @returns True when it drops them.
+     */
+    readonly dropsHiddenSelection?: () => boolean;
 }
 
 /** The selection as select conditions reach it. */
@@ -1778,6 +1784,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         // conditions it reached leave visible.
         sync();
         followSelectHistory(was.conditions, now.conditions);
+        dropHiddenSelection(was, now);
     });
 
     // The filter follows the sets it names: when one moves -- a set edit, its undo or redo, or an
@@ -1983,6 +1990,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         readonly FilterCondition[],
         { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }
     >();
+    /** The selection before a filter change dropped what it hides, by the visibility it reached. */
+    const droppedFrom = new WeakMap<
+        VisibilityState,
+        { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }
+    >();
     /** The conditions whose select conditions the selection last followed, or null when none did. */
     let selectFollowed: readonly FilterCondition[] | null = null;
 
@@ -2023,6 +2035,54 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             "history",
         );
         selectFollowed = now;
+    };
+
+    /**
+     * With the working graph on, a filter change drops what the filter hides from the selection
+     * (owner decision B): the time window does not, and clearing the filter brings nothing back.
+     * Undoing the change puts back what it dropped; redoing it drops it again.
+     * @param was - The visibility shown before.
+     * @param now - The visibility shown after.
+     */
+    const dropHiddenSelection = (was: VisibilityState, now: VisibilityState): void => {
+        const { selection } = sources;
+        const cause = dispatcher.lane.passCause;
+        if (
+            selection === undefined ||
+            sources.dropsHiddenSelection?.() !== true ||
+            (was.filter === now.filter && was.conditions === now.conditions)
+        ) {
+            return;
+        }
+
+        if (cause === "undo") {
+            const back = droppedFrom.get(was);
+            if (back !== undefined) {
+                selection.replace(back, "history");
+            }
+
+            return;
+        }
+
+        if (cause !== "command" && cause !== "redo") {
+            return;
+        }
+
+        const graph = sources.snapshot();
+        const { nodes: keepsNodes, edges: keepsEdges } = passingOf(graph);
+        if (keepsNodes === null) {
+            return;
+        }
+
+        const current = selection.current();
+        const nodes = current.nodes.filter((id) => keepsNodes[nodeMaskValue.indexOf(id)] === 1);
+        const edges = current.edges.filter((id) => keepsEdges === null || keepsEdges[edgeMaskValue.indexOf(id)] === 1);
+        if (nodes.length === current.nodes.length && edges.length === current.edges.length) {
+            return;
+        }
+
+        droppedFrom.set(now, current);
+        selection.replace({ nodes, edges }, cause === "redo" ? "history" : "command");
     };
 
     /**

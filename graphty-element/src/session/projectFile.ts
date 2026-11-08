@@ -1786,6 +1786,41 @@ async function readProject(
         }
     });
 
+    // The filter before the runs, so a run over what is shown is restored over what the file showed
+    // and comes back current. A filter naming a set that waits for a run's result waits with it.
+    const restoreVisibility = async (): Promise<void> => {
+        const visibility = state.visibility as Record<string, unknown> | undefined;
+        if (visibility === undefined) {
+            return;
+        }
+
+        await attempt(opening, "visibility", async () => {
+            if (visibility.filter !== null && visibility.filter !== undefined) {
+                await tx.visibility.set(remap(visibility.filter) as never);
+            }
+
+            if (visibility.window !== null && visibility.window !== undefined) {
+                await (tx.visibility as SessionVisibilityApi).restoreWindow(
+                    visibility.window as TimeWindow,
+                    visibility.windowRaw === true,
+                );
+            }
+
+            await readFilterConditions(opening, visibility, remap);
+        });
+        // Read on their own, so a filter that cannot be read never loses them.
+        await attempt(opening, "visibility", async () => {
+            if (typeof visibility.playback === "object" && visibility.playback !== null) {
+                await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
+            }
+
+            tx.visibility.showContext = visibility.showContext === true;
+        });
+    };
+    if (waiting.length === 0) {
+        await restoreVisibility();
+    }
+
     const results = first("graphty-results");
     const sameData = results.fingerprint === tx.data.fingerprint();
     for (const run of (results.runs ?? []) as SavedRun[]) {
@@ -1856,30 +1891,8 @@ async function readProject(
         );
     }
 
-    const visibility = state.visibility as Record<string, unknown> | undefined;
-    if (visibility !== undefined) {
-        await attempt(opening, "visibility", async () => {
-            if (visibility.filter !== null && visibility.filter !== undefined) {
-                await tx.visibility.set(remap(visibility.filter) as never);
-            }
-
-            if (visibility.window !== null && visibility.window !== undefined) {
-                await (tx.visibility as SessionVisibilityApi).restoreWindow(
-                    visibility.window as TimeWindow,
-                    visibility.windowRaw === true,
-                );
-            }
-
-            await readFilterConditions(opening, visibility, remap);
-        });
-        // Read on their own, so a filter that cannot be read never loses them.
-        await attempt(opening, "visibility", async () => {
-            if (typeof visibility.playback === "object" && visibility.playback !== null) {
-                await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
-            }
-
-            tx.visibility.showContext = visibility.showContext === true;
-        });
+    if (waiting.length > 0) {
+        await restoreVisibility();
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);

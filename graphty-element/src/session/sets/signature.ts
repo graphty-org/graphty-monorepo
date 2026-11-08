@@ -268,6 +268,30 @@ function statePart(context: ResolveContext): string {
 }
 
 /**
+ * The part of a Top-N or percentile leaf: its path, and, ranked among what is shown, the visible
+ * masks too, since its members move with them.
+ * @param where - The leaf.
+ * @param context - What the resolution reads.
+ * @param parts - The epoch memo, or null.
+ * @param seen - The ids followed so far.
+ * @returns The part, or null when its inputs cannot be enumerated.
+ */
+function thresholdPart(
+    where: Extract<RuleTree, { readonly kind: "threshold" }>,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
+    const path = pathPart(where.path, context);
+    if (where.within !== "visible" || path === null) {
+        return path;
+    }
+
+    const base = scopePart("visible", context, parts, seen);
+    return base === null ? null : `${path}@${base}`;
+}
+
+/**
  * The part of a rule's `where`: a query's paths, or each leaf's inputs in tree order.
  * @param where - The query or tree.
  * @param context - What the resolution reads.
@@ -302,16 +326,8 @@ function rulePart(
         case "item":
             // Follow or hold, the members move exactly when the run's current execution does.
             return runPart(String(runIdOfRef(where.item.result)), context);
-        case "threshold": {
-            const path = pathPart(where.path, context);
-            // Ranked among what is shown, its members move with the visible masks.
-            if (where.within !== "visible" || path === null) {
-                return path;
-            }
-
-            const base = scopePart("visible", context, parts, seen);
-            return base === null ? null : `${path}@${base}`;
-        }
+        case "threshold":
+            return thresholdPart(where, context, parts, seen);
         case "by-size":
             return pathPart(where.path, context);
         case "union":

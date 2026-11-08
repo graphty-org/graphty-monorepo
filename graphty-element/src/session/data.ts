@@ -4553,17 +4553,7 @@ export class SessionData implements SessionDataApi {
         }
 
         const limit = resolveBinCount(options.bins);
-        // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
-        const counts = new Map<ColumnScalar, number>();
-        let present = 0;
-        for (let index = 0; index < count; index++) {
-            const value = valueAt(index);
-            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-                present++;
-                counts.set(value, (counts.get(value) ?? 0) + 1);
-            }
-        }
-
+        const { counts, present } = tallyScalars(count, valueAt);
         const values = [...counts]
             .sort((a, b) => b[1] - a[1])
             .slice(0, limit)
@@ -4591,31 +4581,16 @@ export class SessionData implements SessionDataApi {
             (this.readableValues().find((value) => value.path === path)?.on === "edge" ? "edge" : "node");
         const rows = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const shown = this.shownOf(kind, options.scope);
-        let total = rows;
-        // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
-        const counts = new Map<ColumnScalar, number>();
-        let missing = 0;
         // Degree, in-degree and out-degree are read from the snapshot, not a column.
         const structure = kind === "node" ? structureValuesOf(snapshot, path) : undefined;
-        for (let index = 0; index < rows; index++) {
-            if (shown !== null && !maskTest(shown, index)) {
-                total--;
-                continue;
-            }
-
-            let value: unknown;
-            if (structure !== undefined) {
-                value = structure[index];
-            } else {
-                value =
-                    path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
-            }
-            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-                counts.set(value, (counts.get(value) ?? 0) + 1);
-            } else {
-                missing++;
-            }
+        let valueOf = (index: number): unknown => this.pages.valueAt(kind, index, path);
+        if (structure !== undefined) {
+            valueOf = (index) => structure[index];
+        } else if (path === "id" && kind === "node") {
+            valueOf = (index) => snapshot.ids.idOf(index);
         }
+        const { counts, present, total } = tallyScalars(rows, valueOf, shown);
+        const missing = total - present;
 
         const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
         return Object.freeze({ values: Object.freeze(values), missing, total });
@@ -5687,6 +5662,38 @@ function pairName(config: Readonly<Record<string, unknown>>): string | undefined
  * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT` when nothing recognises the data, and
  *     `E_FETCH_FAILED` when the URL cannot be read.
  */
+/**
+ * How many rows carry each scalar value, in first-seen order.
+ * @param rows - How many rows to read.
+ * @param valueAt - A row's value.
+ * @param shown - The rows to count, or null for every row.
+ * @returns The counts (a Map keeps first-seen order, so a stable sort keeps a tie in it), how many
+ *     rows carried a scalar, and how many rows were counted.
+ */
+function tallyScalars(
+    rows: number,
+    valueAt: (index: number) => unknown,
+    shown: U32 | null = null,
+): { counts: Map<ColumnScalar, number>; present: number; total: number } {
+    const counts = new Map<ColumnScalar, number>();
+    let present = 0;
+    let total = 0;
+    for (let index = 0; index < rows; index++) {
+        if (shown !== null && !maskTest(shown, index)) {
+            continue;
+        }
+
+        total++;
+        const value = valueAt(index);
+        if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+            present++;
+            counts.set(value, (counts.get(value) ?? 0) + 1);
+        }
+    }
+
+    return { counts, present, total };
+}
+
 function resolveImportSource(source: DataSourceInput): ImportSource | Promise<ImportSource> {
     const { config } = source;
     const file = fileOf(config.file);

@@ -1034,6 +1034,28 @@ function sourceWords(session: GraphSession, card: Extract<Card, { type: "source"
 }
 
 /**
+ * A Top-N number card in words: "top 5 by degree", "bottom 10% by age".
+ * @param session - the element's session.
+ * @param card - the card, matching its top or bottom.
+ * @param name - its field's name.
+ * @returns the words.
+ */
+function topWords(session: GraphSession, card: CardOf<"number">, name: string): string {
+    if (card.top === undefined) {
+        return `${name}: how many?`;
+    }
+    const end = card.from === "low" ? "bottom" : "top";
+    if (card.percent === true) {
+        return `${end} ${num(card.top)}% by ${name}`;
+    }
+    // A count of every element there is keeps them all, and says so: every element of the
+    // card's base, the whole graph unless it has one.
+    const stats = session.data.statistics({ scope: card.field.within === "visible" ? "visible" : "all" });
+    const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
+    return card.top >= total ? `${name}: all ${String(total)}` : `${end} ${String(card.top)} by ${name}`;
+}
+
+/**
  * A number card in words: its top N, or its range.
  * @param session - the element's session.
  * @param card - the card, matching neither present nor absent.
@@ -1042,18 +1064,7 @@ function sourceWords(session: GraphSession, card: Extract<Card, { type: "source"
  */
 function numberWords(session: GraphSession, card: CardOf<"number">, name: string): string {
     if (card.match === "top") {
-        if (card.top === undefined) {
-            return `${name}: how many?`;
-        }
-        const end = card.from === "low" ? "bottom" : "top";
-        if (card.percent === true) {
-            return `${end} ${num(card.top)}% by ${name}`;
-        }
-        // A count of every element there is keeps them all, and says so: every element of the
-        // card's base, the whole graph unless it has one.
-        const stats = session.data.statistics({ scope: card.field.within === "visible" ? "visible" : "all" });
-        const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
-        return card.top >= total ? `${name}: all ${String(total)}` : `${end} ${String(card.top)} by ${name}`;
+        return topWords(session, card, name);
     }
     if (card.min !== undefined && card.max !== undefined) {
         return `${name} ${num(card.min)} to ${num(card.max)}`;

@@ -1683,6 +1683,68 @@ async function addStylesAndNotes(
 }
 
 /**
+ * Put the saved positions and pins back, for the nodes the opened graph holds.
+ * @param opening - The open.
+ * @param arrangement - The file's arrangement member, if it has one.
+ * @param nodeIds - The opened graph's nodes.
+ */
+async function readArrangement(
+    opening: Opening,
+    arrangement: Record<string, unknown> | undefined,
+    nodeIds: ReadonlySet<NodeId>,
+): Promise<void> {
+    if (arrangement === undefined) {
+        return;
+    }
+
+    const { tx } = opening;
+    await attempt(opening, "arrangement", async () => {
+        const ids = arrangement.ids as NodeId[];
+        const [xs, ys, zs] = [arrangement.x, arrangement.y, arrangement.z].map((column) =>
+            decodeColumn(column, ids.length),
+        );
+        await tx.positions.set(
+            ids.flatMap((id, at) =>
+                nodeIds.has(id) ? [{ id, x: xs[at] as number, y: ys[at] as number, z: zs[at] as number }] : [],
+            ),
+        );
+        await tx.positions.pin((arrangement.pins as NodeId[]).filter((id) => nodeIds.has(id)));
+        opening.restored.add("pins");
+    });
+}
+
+/**
+ * Put the saved selection back, for the elements the opened graph holds; a refusal is a problem.
+ * @param opening - The open.
+ * @param saved - The view-state member's selection, if it has one.
+ * @param nodeIds - The opened graph's nodes.
+ * @param edgeIds - The opened graph's edge ids, by the file's edge position.
+ */
+async function readSelection(
+    opening: Opening,
+    saved: unknown,
+    nodeIds: ReadonlySet<NodeId>,
+    edgeIds: readonly (EdgeId | undefined)[],
+): Promise<void> {
+    const view = saved as { nodes?: NodeId[]; edges?: number[] } | undefined;
+    if (view === undefined) {
+        return;
+    }
+
+    try {
+        await opening.tx.selection.apply({
+            nodes: (view.nodes ?? []).filter((node) => nodeIds.has(node)),
+            edges: (view.edges ?? []).flatMap((at) => edgeIds[at] ?? []),
+        });
+    } catch (error) {
+        opening.problems.push({
+            code: isGraphtyError(error) ? error.code : "E_INTERNAL",
+            params: { kind: "graphty-view-state" },
+        });
+    }
+}
+
+/**
  * Read a project into the session, in place of what it holds.
  * @param opening - The open.
  * @param doc - The document.
@@ -1701,7 +1763,7 @@ async function readProject(
 ): Promise<void> {
     // A sources member that was read says where the data came from; else the data member's own fields do.
     const { source, sources, provenance } = openedLoads(loads, doc.members.get("graphty-data")?.[0] ?? {});
-    const { tx, problems } = opening;
+    const { tx } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
@@ -1739,39 +1801,9 @@ async function readProject(
         });
     }
 
-    const arrangement = doc.members.get("graphty-arrangement")?.[0];
-    if (arrangement !== undefined) {
-        await attempt(opening, "arrangement", async () => {
-            const ids = arrangement.ids as NodeId[];
-            const [xs, ys, zs] = [arrangement.x, arrangement.y, arrangement.z].map((column) =>
-                decodeColumn(column, ids.length),
-            );
-            await tx.positions.set(
-                ids.flatMap((id, at) =>
-                    nodeIds.has(id) ? [{ id, x: xs[at] as number, y: ys[at] as number, z: zs[at] as number }] : [],
-                ),
-            );
-            await tx.positions.pin((arrangement.pins as NodeId[]).filter((id) => nodeIds.has(id)));
-            opening.restored.add("pins");
-        });
-    }
-
+    await readArrangement(opening, doc.members.get("graphty-arrangement")?.[0], nodeIds);
     // Before the runs: a run over the selection reads it. The selection is not project state.
-    const view = doc.members.get("graphty-view-state")?.[0]?.selection as
-        { nodes?: NodeId[]; edges?: number[] } | undefined;
-    if (view !== undefined) {
-        try {
-            await tx.selection.apply({
-                nodes: (view.nodes ?? []).filter((node) => nodeIds.has(node)),
-                edges: (view.edges ?? []).flatMap((at) => edgeIds[at] ?? []),
-            });
-        } catch (error) {
-            problems.push({
-                code: isGraphtyError(error) ? error.code : "E_INTERNAL",
-                params: { kind: "graphty-view-state" },
-            });
-        }
-    }
+    await readSelection(opening, doc.members.get("graphty-view-state")?.[0]?.selection, nodeIds, edgeIds);
 
     // Sets before the runs, so a run over a set finds it. A set is minted a new id when the session
     // has already issued its old one, so every `{ set }` the file names is rewritten to the new id.

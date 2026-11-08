@@ -59,8 +59,8 @@ master. **No breaking change is needed.** Two changes are optional and held for 
 ## 3. Rows and options
 
 A row is an object row for one of two reasons. _Paint or view_: `batchableOf(paint, view)`, one pure function in
-`managers/StylePainter.ts` with a test table, says the batch cannot draw it. `view` is the scene state paint does not hold: lighting,
-`depthIndependentSize`, a map's `nodeScale`. The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
+`managers/StylePainter.ts` with a test table, says the batch cannot draw it. `view` is the scene state paint does not hold: lighting
+(until stage 14 also `depthIndependentSize` and a map's `nodeScale`, which a batched row now carries in its matrix). The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
 re-batch pass. _Mesh read_: someone holds its mesh; this is permanent. An _object edge_ is the same idea for edges; the fast form is a
 _pulled edge_.
 
@@ -224,7 +224,12 @@ and its geometry's vertex and index counts, and the family's one batch is built 
 source joins only if `scaleAgainst` finds one factor that maps every vertex of the first source onto its own (normals
 and indices equal), so a creator whose geometry does not follow its size gets a family of its own and draws as before;
 that factor goes into the row's `matrix` (uniform, so the normal rewrite above keeps it at 0 pixels). A change to which
-groups a family draws rebuilds its batch in row order at that flush. A size ramp of one shape is now one draw.
+groups a family draws rebuilds its batch at that flush in the objects path's draw order: a source's rows after those of every
+source drawn before it (Babylon sorts opaque sources by material, then by when it met them), each source's in row order. Plain
+row order across sizes lost depth ties between rows of two sizes, invisible on SwiftShader and 5 to 57 pixels on the RTX in 2D
+(#6287). For the same reason a source joins a family only when no other opaque family's source draws inside the family's span
+and it draws inside no other's: one batch draws its rows together. A size ramp of one shape is now one draw; a size made live
+after another shape's sources draws from a batch of its own.
 `MeshCache.batchedSources` keeps a prune from taking a source whose rows a batch draws, since such a source has no
 instance and no batch of its own; when the first source is disposed, its family dissolves and its groups find a family
 again at the same flush. Nothing changes under `"objects"`: `NodeBatches` exists only under `"batched"`, and the prune
@@ -238,9 +243,55 @@ translucent batch must carry its look's rest visibility. With that, translucent 
 3D differs by about 600 pixels even with one opacity, and one batch per source breaks 2D as well: the batch's place in
 Babylon's back-to-front order of translucent meshes is what differs, and it has to be settled before opacity batches.
 
+As built (stage 14, third pull request: per-instance opacity): `batchableOf` takes a solid color at any opacity.
+An opacity is in its source's mesh key, so each opacity is a source and a look of its own, and a translucent
+source keeps a family of its own (no sharing across sizes): objects draw a translucent source's rows together,
+and one batch across sizes would draw them in row order. The batch takes its source's rest visibility.
+Correction to the second pull request's note, from the code: the order Babylon draws translucent meshes in
+is not decided by distance here. Every source sits at y = -10000 and every batch at the root's origin, so the
+back-to-front sort ties all of them and keeps the order they reach it in: a source's at its first instance
+in `scene.meshes`, a batch's at its own place there. Batches were made in row order, sources in paint order,
+which was the whole 563 and 654 pixel difference. `NodeBatches.orderTranslucent` puts a new translucent batch
+before every translucent batch whose source was made later, so batches tie in their sources' creation order.
+That stands in for the objects path's instance order, which repaint history can reorder; `render-parity`
+decides. A batched row's opacity reads as `Node.drawnOpacity` (its mesh's visibility, or the batch's).
+
+As built (stage 14, fourth pull request: z order): `batchableOf` takes `shape.zIndex` and `shape.drawOrder`.
+Both are in the mesh key and, in 2D, baked into the source's vertices (`placeByZIndex` moves the geometry
+back, `placeByDrawOrder` flattens its front half onto its level's plane); in 3D they change nothing. The
+batch draws a `Geometry.copy()` of its family's first source, so it carries the bake. `batchLook` leaves
+them out, but `scaleAgainst` compares every vertex, so a source at another level joins a family only when
+one factor maps its baked vertices exactly, and otherwise gets a family of its own. Opaque rows at
+different levels differ in depth, so no draw-order tie arises. This brings file styles' nodes onto the
+batch: every imported file but graphty's own gives each node a `node.drawOrder` level.
+
+As built (stage 14, fifth pull request: pictures): `batchableOf` takes `texture.image` (`node.texture`, a
+picture on a built-in shape). The picture is in its source's material, as a color is, so the batch draws it
+by sharing that material; `Node.drawnInstanceColor` gives a pictured row white, as `applyInstanceColor`
+gives its instance, since a picture replaces the shape's color. `batchLook` adds whether the picture is
+drawn: while it loads (or after it fails) the row's source is the plain shape's, with the same geometry, so
+without that flag a loaded row joined the plain family and drew the plain material (42,864 pixels off).
+`texture.icon` (which draws nothing) and the face picture `node.image` stay object rows.
+
+As built (stage 14, sixth pull request: gradients): `batchableOf` takes any `texture.color`, linear and
+radial gradients included. A gradient is a ramp texture in its source's material, and its start color is in
+the mesh key (`StylePainter`), so each gradient is a source and a look of its own and its batch shares that
+material. A gradient row paints no instance color (`paint.color` is null), so the batch writes white, which
+leaves the ramp as the object row draws it. Nothing else changed: `batchLook` already carries the
+gradient inside `texture`.
+
+As built (stage 14, seventh pull request: screen-scale size): `batchableOf` no longer turns every row into
+an object under `depthIndependentSize` or a map's `nodeScale: "screen"`; `BatchView` keeps only the flat
+outline. The update loop still scales each node every frame through `Node.drawnScale`, which scales the
+anchor and re-measures the row as before, and now also keeps `Node.wholeScale`, the view's scale without a
+particle shrink (the shrink is the row table's w). When it changes, `NodeBatches.rescale` writes the
+batched row's matrix as its family factor times that scale. The `Edge.capScale` mirror needed no code:
+`drawnScale` of a batched row reads `RowTable.extentOf`, measured from the scaled anchor, so arrowheads,
+edge trims and the row scan's picks follow the same scale. With the matrix left at the family factor, the
+orbit case of `node-batch.test.ts` is 17,594 pixels off and the map zoom cases about 380.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
-shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
-for `Edge.capScale`.
+shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widened the batch (see its row and the notes above).
 
 ### 4.3 Edges (#3251)
 
@@ -326,6 +377,39 @@ on WebGL and WebGPU, and holds 2D to no pulled edge. `render-parity` with `VITE_
 switched-on third: on WebGL 325 stories pass, but only 4 of them draw a pulled edge (309 edges), since a directed graph caps every
 edge. Found building it: a pulled line follows the row table, which takes the layout's places, so a place written to the layout
 engine and not yet to the node's mesh moves the line before the node; the update loop writes both in one frame.
+
+As built (stage 16, first pull request): `Edge.pullsLine` passes on the `"batched"` path, read as the graph keeping node batches,
+so `pulledEdgesDefault` is needed only to pull on `"objects"`. A line's rebuild test (`Edge.paintFrom`) compares whether it is
+pulled with whether it should be, and `Graph` repaints every edge, then walks them, when the path changes live, so an edge moves
+between a pulled piece and a placed slot both ways. `test/browser/pulled-edges-batched.test.ts` holds `"batched"` to the
+`"objects"` picture, 0 pixels, at rest, after a mouse drag and across a live switch each way, on WebGL and WebGPU. `repeatPerVertex`
+and the 1M-edge SwiftShader load are the stage's second pull request.
+
+Correction from stage 16: this pull request cannot move the stage's targets, because the harness pulls no edge. `lean` is 2D, and a
+2D solid line is a flat rectangle (`Simple2DLineRenderer`), which `Edge.pullsLine` refuses; `default` is 3D but every edge has a
+head, which waits for stage 17. One `lean-m` run each under `"batched"`, RTX, interleaved: before (`benchmarks/results/stage-16-before`,
+load average 5.4) moving 87.6 ms (p99 90.6), layout frame 942 ms; after (`benchmarks/results/stage-16`, 4.2) moving 86.9 ms (p99 89.5),
+layout frame 997 ms, `rowCounts.pulledEdges` 0 in both. The 2D targets need a pulled 2D line, which no stage yet builds.
+
+Also fixed in stage 16 (a `"batched"`-only defect already on master): a node source mesh whose batch group lost its last member
+stayed in `MeshCache.batchedSources` until the next flush, but the cache prunes right after the repaint, before that flush, so a
+toggled node size left one mesh and one material behind per look (`session-style-paint.test.ts` under the `forced-batched`
+project). `NodeBatches.leave` now drops an emptied group's source from `batchedSources` at once.
+
+Correction from stage 16: a pulled piece carries no age, so `Edge.pullsLine` also refuses while the scene's lines fade by age (the
+timeline's `ageFade`), and `UpdateManager.followAgeFade` repaints every edge when the fade turns on or off while node batches exist.
+Without it, `"batched"` drew every plain edge unfaded (`edge-age-fade.test.ts` under `forced-batched`).
+
+As built (stage 16, second pull request): `EdgeLineBatch`'s expanded form (`drawsExpandedLines`, `forceExpandedLines`,
+`repeatPerVertex`) is deleted, so every renderer draws a placed batch's pieces as instances. This changes no pixel on
+either path, but object lines on SwiftShader draw slower again (the #3095 table in `design/edges/sharp-corners.md`).
+`test/browser/million-edge-lines.test.ts` places a million pieces in one `EdgeLineBatch` and pulls a million in one
+`PulledLineBatch`, and holds both to no GL error and the millionth piece drawn on whatever renderer the browser has.
+Before the deletion it failed on SwiftShader with `GL_INVALID_OPERATION` (1282) on the placed batch. Correction: a
+frame of a million lines that each cross the canvas takes about 45 s on SwiftShader, from fill rather than from the
+draw, so the test draws all but the last as specks. `test/browser/million-edge-element.test.ts` holds the bar through the
+element: a `"batched"` element loads a million edges (all pulled) on 1,416 nodes and draws the millionth with no
+GL error, about 55 s on SwiftShader, almost all of it the load.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
@@ -508,6 +592,20 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
       `RichTextLabel`, per label.
     - Full atlas (a 4096 square holds about 2,500 tiles): no second page, no eviction; a label with a glyph that does not fit falls back to
       `RichTextLabel`, per label.
+    - Correction from stage 33 (`meshes/GlyphAtlas.ts`): no regular expression can see a ligature font, and widths cannot either (a
+      font keeps a ligature as wide as its parts: DejaVu Serif "fi" is 29.32 px at 48 px, "f" plus "i" the same). A ligature font is found
+      by its ink: each of a few probes ("fi", "fl", "ff", "ffi", "ffl", "->", "=>", "!=", "==", "<=", ">=", "www") is drawn as one run and
+      glyph by glyph at the placed x; any difference over 0.5% of the ink is a ligature, and a label holding that probe falls back
+      (not every label in the font: DejaVu Sans, the Linux fallback for Verdana, draws "fi" as one, which sent every label back). In Chromium a
+      font without ligatures draws identically both ways (0.000); DejaVu Sans and Serif "fi" differ by 0.065 and 0.112. Combining marks (`\p{M}`) fall back too, since only the font's positioning table places
+      them; "Indic" covers the other Brahmic scripts (Thai, Lao, Tibetan, Myanmar, Khmer). Tiles are 80 texels (56 px glyphs, a 12-texel
+      reach): 2,601 to the page. A label falls back whole when its glyphs do not all fit.
+    - Correction from stage 33 (`meshes/GlyphLabels.ts`): "plain" is not judged from the style. The label's own painting runs on a
+      recording canvas context, and a label is plain when that painting inks nothing but `fillText` (a transparent panel path is
+      fine; a fill, stroke, shadow or alpha is not). Runs in several fonts and colors (markup) are therefore glyph-drawn too. Each
+      label keeps its plane for placement, declutter and picking, with layer mask 0 so it draws nothing; the one draw rebuilds its
+      glyph instances from each shown plane's world matrix every frame. A web font not yet loaded falls back, so no tile is drawn
+      in a fallback font.
 - **Sampling**, off by default with its cell size a setting (`layoutBehavior.labels.sampleCell`, CSS pixels; unset is off). When the view
   settles, one label per screen cell is picked (selected, then degree, then id); only the winners get built, and
   `nodeLabelCounts.hiddenBySampling` (present only while it is on) counts the rest.

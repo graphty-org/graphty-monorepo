@@ -11,16 +11,18 @@
 
 import "../../src/graphty-element";
 
-import { Matrix, Mesh, type Scene, Vector3 } from "@babylonjs/core";
+import { Matrix, Mesh, type Scene, TransformNode, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
+import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
 import { drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
+import { nextModelEvent } from "./models/helpers";
 
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
 const RENDERERS = ADAPTER === "" ? (["webgl"] as const) : (["webgl", "webgpu"] as const);
@@ -262,15 +264,132 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             assert.equal(drawing.length, 2, "twelve sizes in two shapes draw as one batch per shape");
             assert.equal(overBar(objects, batched), 0);
 
-            // A row's size changes live: the batch follows it in its matrix.
+            // A row's size changes live. Its new source is made after the boxes', so the objects path
+            // draws it after them, and one batch with the other spheres would win their depth ties
+            // the other way: it draws from a batch of its own.
             await layer(element, [3], { "node.size": 2.2 });
             await element.waitForStableFrame();
             const resized = await readFrame(graph);
             assert.notEqual(overBar(batched, resized), 0, "the new size reached the picture");
-            assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 2);
+            assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 3);
             assert.equal(overBar(resized, await frameOn(graph, "objects")), 0);
         },
     );
+
+    it.each(["3d", "2d"] as const)("draw translucent rows in %s as the object rows draw them", async (view) => {
+        const element = await mounted(renderer);
+        await loaded(element, view);
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 0).map((node) => node.id),
+            { "node.opacity": 0.4 },
+        );
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 1).map((node) => node.id),
+            { "node.opacity": 0.7 },
+        );
+        await element.waitForStableFrame();
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        // An opacity is in the source's material, so each opacity is a look of its own, and a translucent
+        // look keeps one batch per size, as Babylon orders translucent sources back to front: 1 + 2 + 2.
+        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 5);
+        assert.equal(overBar(objects, batched), 0);
+    });
+
+    it.each(["3d", "2d"] as const)("draw rows in z order in %s as the object rows draw them", async (view) => {
+        const element = await mounted(renderer);
+        await loaded(element, view);
+        // Overlapping rows on both kinds of level: behind the edges' plane, and flattened in front of it.
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 0).map((node) => node.id),
+            { "node.zIndex": -2 },
+        );
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 1).map((node) => node.id),
+            { "node.drawOrder": 40 },
+        );
+        await layer(element, [2, 5], { "node.drawOrder": 90 });
+        await element.waitForStableFrame();
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        assert.equal(overBar(objects, batched), 0);
+    });
+
+    it.each(["3d", "2d"] as const)("draw rows with a picture in %s as the object rows draw them", async (view) => {
+        const element = await mounted(renderer);
+        await loaded(element, view);
+        // Four colored pixels, one clear: a 2D row cuts it out, a 3D row keeps it white.
+        const canvas = new OffscreenCanvas(2, 2);
+        canvas
+            .getContext("2d")
+            ?.putImageData(
+                new ImageData(
+                    Uint8ClampedArray.from([255, 200, 0, 255, 0, 120, 255, 255, 40, 40, 40, 255, 0, 0, 0, 0]),
+                    2,
+                    2,
+                ),
+                0,
+                0,
+            );
+        const png = new Uint8Array(await (await canvas.convertToBlob({ type: "image/png" })).arrayBuffer());
+        const picture = await element.session.assets.add({ files: new Map([["four.png", png]]) });
+        const drawn = nextModelEvent(element, (change) => change.ref === picture.id && change.state === "drawn");
+        // On the batch while the picture loads, so its rows move from the plain shape's batch to their own.
+        element.graph.setRenderPath("batched");
+        // Both sizes and every color: a picture replaces the color, so the colored rows draw white under it.
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 !== 2).map((node) => node.id),
+            { "node.texture": picture.id },
+        );
+        await drawn;
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const { graph } = element;
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        // One draw for the plain rows and one for the pictured ones, across both sizes.
+        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 2);
+        assert.equal(overBar(await frameOn(graph, "objects"), batched), 0);
+        // And the same built afresh.
+        assert.equal(overBar(await frameOn(graph, "objects"), await frameOn(graph, "batched")), 0);
+        // One draw for the plain rows and one for the pictured ones, across both sizes.
+        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 2);
+    });
+
+    it.each(["3d", "2d"] as const)("draw rows with a gradient in %s as the object rows draw them", async (view) => {
+        const element = await mounted(renderer);
+        await loaded(element, view);
+        // Both sizes and every color: a gradient starts at the row's color, so each color is a ramp of its own.
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 0).map((node) => node.id),
+            { "node.gradientColor": "#00ff00", "node.gradientDirection": 90 },
+        );
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 1).map((node) => node.id),
+            { "node.gradientColors": "#ff00ff #ffff00 #0000ff", "node.gradientKind": "radial" },
+        );
+        await element.waitForStableFrame();
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        assert.equal(overBar(objects, batched), 0);
+    });
 
     it("measure a batched row's radius again after a repaint changes its size", async () => {
         const element = await mounted(renderer);
@@ -373,6 +492,28 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.isAtMost(Vector3.Distance(edge.drawnCentre, centre), 1e-4, "where the object path draws it");
     });
 
+    it("hide and show a batched row with no halo, context point or tooltip without walking it again", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await readFrame(graph);
+        const node = graph.getNode(0);
+        assert.isDefined(node);
+        assert.isFalse(node.walksEachFrame, "a plain batched row walks only when something changes it");
+
+        // A time window shows and hides tens of thousands of such rows in one frame (issue #6025).
+        const rewalk = vi.spyOn(NodeBatches.prototype, "rewalk");
+        cleanups.push(() => rewalk.mockRestore());
+        assert.isTrue(node.setRenderState("hidden"));
+        assert.isTrue(node.setRenderState("visible"));
+        assert.equal(rewalk.mock.calls.length, 0, "nothing the batch walks by changed");
+        rewalk.mockRestore();
+
+        assert.isFalse(node.walksEachFrame);
+        assert.equal(overBar(await frameOn(graph, "batched"), await frameOn(graph, "objects")), 0);
+    });
+
     it("move a dragged row through the table alone", async () => {
         const element = await mounted(renderer);
         await loaded(element, "2d");
@@ -471,7 +612,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
-    it.each(["2d", "3d"] as const)("leave a screen-scaled map's rows as objects through a zoom in %s", async (view) => {
+    it.each(["2d", "3d"] as const)("batch a screen-scaled map's rows through a zoom in %s", async (view) => {
         const element = await mounted(renderer);
         await loaded(element, view);
         const { graph } = element;
@@ -489,26 +630,37 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const batched = await readFrame(graph);
 
         assert.notEqual(graph.getNode(0)?.drawnScale, scale, "the zoom scaled the nodes");
-        assert.equal(graph.rowCounts.batchedNodes, 0);
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
-    it("leave the batch for depth independent size, and come back when it goes", async () => {
+    it("draw rows sized by depth in the batch, arrowheads with them, through an orbit", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
         const { graph } = element;
-        await frameOn(graph, "batched");
+        // Arrowheads are drawn at their node's scale (`Edge.capScale`), so they show whether a batched row's scale is read.
+        await element.session.data.addEdges(NODES.slice(1).map((node) => ({ source: node.id - 1, target: node.id })));
+        await element.session.styles.add({
+            name: "arrowheads",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "normal" },
+        } as never);
+        await operationQueueOf(graph).waitForCompletion();
         element.layoutBehavior = { node: { depthIndependentSize: true } };
         await element.waitForStableFrame();
-        const batched = await readFrame(graph);
-        assert.equal(graph.rowCounts.batchedNodes, 0);
-        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
-
-        graph.setRenderPath("batched");
-        element.layoutBehavior = { node: { depthIndependentSize: false } };
+        await frameOn(graph, "batched");
+        const scale = graph.getNode(0)?.drawnScale;
+        // From an empty corner, so the drag turns the camera rather than moving a node.
+        await drag(element, { x: 10, y: 10 }, { x: 90, y: 60 });
         await element.waitForStableFrame();
-        await readFrame(graph);
+        const batched = await readFrame(graph);
+
+        assert.notEqual(graph.getNode(0)?.drawnScale, scale, "the orbit scaled the nodes");
         assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        // Still one draw for the shape: each row's view scale is in its matrix.
+        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 1);
+        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
     it("add no attribute to an element on the default path", async () => {
@@ -605,6 +757,78 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             assert.isDefined(node.tooltip, "the hovered row draws its tooltip");
         });
         assert.equal(graph.rowCounts.objectNodes, 0, "a hovered tooltip row stays batched");
+    });
+
+    it("keep no disposed mesh reachable from a node after handing it over, either way", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "objects");
+        // Fill the memos keyed on the node's mesh, as an edge's endpoint reads do.
+        const measured = graph.getNodes().map((node) => [node.drawnHalfExtents.x, node.roundRadius]);
+        assert.lengthOf(measured, NODES.length);
+
+        /**
+         * The node fields that hold a disposed scene node.
+         * @returns Their names.
+         */
+        const stale = (): string[] =>
+            graph.getNodes().flatMap((node) =>
+                Object.entries(node)
+                    .filter(([, value]) => value instanceof TransformNode && value.isDisposed())
+                    .map(([name]) => name),
+            );
+        await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.deepEqual(stale(), [], "a batched node keeps no mesh it disposed");
+
+        await frameOn(graph, "objects");
+        assert.deepEqual(stale(), [], "an object node keeps no anchor it disposed");
+    });
+
+    it("hand a group over to its batch and back in work linear in its size", async () => {
+        const element = await mounted(renderer);
+        const count = 400;
+        await element.session.data.addNodes(
+            Array.from({ length: count }, (_, id) => ({ id, position: { x: id % 20, y: Math.floor(id / 20), z: 0 } })),
+        );
+        await element.graph.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(element.graph).waitForCompletion();
+        const { graph } = element;
+        await frameOn(graph, "objects");
+        const scene = graph.getScene();
+        const root = scene.getTransformNodeByName("graph-root");
+        assert.isNotNull(root);
+        const children = (root as unknown as { _children: unknown[] })._children;
+
+        // Every removal from these lists scans them: count the entries scanned.
+        let scanned = 0;
+        for (const list of [scene.meshes, children] as unknown[][]) {
+            const { indexOf, some } = list;
+            Object.assign(list, {
+                indexOf(this: unknown[], ...args: Parameters<typeof indexOf>) {
+                    scanned += this.length;
+                    return indexOf.apply(this, args);
+                },
+                some(this: unknown[], ...args: Parameters<typeof some>) {
+                    scanned += this.length;
+                    return some.apply(this, args);
+                },
+            });
+            cleanups.push(() => {
+                Object.assign(list, { indexOf, some });
+            });
+        }
+
+        scanned = 0;
+        await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, count);
+        // One at a time, each removal scanned the whole graph: about count * count / 2.
+        assert.isBelow(scanned, 10 * count, "handing over scans a constant amount per node");
+
+        scanned = 0;
+        await frameOn(graph, "objects");
+        assert.isBelow(scanned, 10 * count, "taking back scans a constant amount per node");
     });
 
     it("stops drawing a batch when the graph leaves the path", async () => {

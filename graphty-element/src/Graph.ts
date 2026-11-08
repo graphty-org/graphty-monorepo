@@ -811,6 +811,9 @@ export class Graph implements GraphContext {
     #nodeIds: NodeIdTarget | null = null;
     /** The scene is the one that stays, so batches may be built on it. */
     #renderPathOpen = false;
+
+    /** Whether plain edges were last painted as pulled lines, the `"batched"` path's. */
+    #edgesPulled = false;
     /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
     #importsReading = 0;
 
@@ -4661,7 +4664,6 @@ export class Graph implements GraphContext {
                     places,
                     root: () => this.scene.getTransformNodeByName("graph-root"),
                     view: () => ({
-                        scaled: this.updateManager.nodesScaledByView,
                         flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
                     }),
                     nodes: () => this.dataManager.nodes.values(),
@@ -4691,6 +4693,19 @@ export class Graph implements GraphContext {
             this.#nodeIds = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
+        }
+
+        // Plain edges are pulled on "batched" (`Edge.pullsLine`): repaint them when that changes.
+        const pulls = this.#nodeBatches !== null;
+        if (pulls !== this.#edgesPulled) {
+            this.#edgesPulled = pulls;
+            for (const edge of this.dataManager.edges.values()) {
+                edge.updateStyle();
+            }
+
+            // A rebuilt placed line is placed by the next edge walk.
+            this.updateManager.forceEdgeWalk();
+            this.updateManager.meshesAdded();
         }
 
         this.renderManager.requestFrame();

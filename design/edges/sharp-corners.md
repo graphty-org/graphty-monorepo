@@ -344,19 +344,18 @@ and after this change.
 The cause is SwiftShader's Vulkan driver, which runs an instanced draw as one draw per instance
 (`CmdDrawBase::draw` loops over the instances), so each piece pays a draw's setup. Fewer attributes
 do not help: the widened line (eleven attributes a piece) costs the same as the plain one (six).
-So since issue #3095 `EdgeLineBatch` draws a joined line as one plain mesh when the WebGL renderer
-is a software one (`drawsExpandedLines`: SwiftShader, llvmpipe, Microsoft's Basic Render Driver):
-the template repeated once per slot, each slot's floats repeated into its fourteen vertices, read
-by the same shader, so the picture is the same; `test/edge-line-batch.test.ts` holds every vertex's
-inputs against the instance it stands for. A GPU keeps the instances, where expanding is slower.
+Issue #3095 had `EdgeLineBatch` draw a joined line as one plain mesh on a software renderer, the
+template repeated once per slot and each slot's floats repeated into its fourteen vertices:
 
 | 10,000 three-piece edges, one batch | instanced still | instanced moving | expanded still | expanded moving |
 | ----------------------------------- | --------------: | ---------------: | -------------: | --------------: |
 | SwiftShader                         |          171 ms |           163 ms |        14.9 ms |         27.4 ms |
 | NVIDIA RTX 4070 SUPER               |          1.5 ms |           3.3 ms |        10.9 ms |         21.5 ms |
 
-`test/browser/instanced-lines.bench.test.ts` measures it (`--project=browser-bench`; set
-`GRAPHTY_BROWSER_GPU=nvidia` for the card).
+Stage 16 of `design/rendering/row-renderer.md` deleted that expanded form: its per-vertex copy fails
+past 524,288 pieces on SwiftShader (a GL error, nothing drawn), so a software renderer could not load
+a million edges. Every renderer now draws a batch's pieces as instances, and the `"batched"` path
+draws plain edges as pulled pieces, one non-instanced draw (`test/browser/million-edge-lines.test.ts`).
 
 ## Known limits
 

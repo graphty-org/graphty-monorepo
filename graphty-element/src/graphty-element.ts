@@ -345,8 +345,7 @@ export class Graphty extends LitElement {
      * Save the project (`session.project.save`) and hand it to the reader as a download named
      * `<project name>.graphty.json`. Lives on the element, not the session, because the session
      * also runs in Node, where there is nothing to download to.
-     * @param options - What to leave out, your own extensions, how to keep models named by URL,
-     *     the file's name, and `markSaved: false` for a copy that leaves `project.dirty` as it was.
+     * @param options - What to leave out, your own extensions, and the file's name.
      * @returns What the file holds.
      * @example
      * ```typescript
@@ -354,18 +353,14 @@ export class Graphty extends LitElement {
      * ```
      */
     async downloadProject(
-        options: ProjectSaveOptions & { readonly fileName?: string } = {},
+        options: Omit<ProjectSaveOptions, "markSaved"> & { readonly fileName?: string } = {},
     ): Promise<ProjectSaveReport> {
         // The download is the write, and the caller never sees a SavedProject to mark, so this
-        // save clears `dirty` unless the caller asked for a copy.
-        const { fileName, ...saveOptions } = options;
-        const { text, report } = await this.session.project.save({
-            ...saveOptions,
-            markSaved: options.markSaved !== false,
-        });
+        // save always clears `dirty`.
+        const { text, report } = await this.session.project.save({ ...options, markSaved: true });
         downloadBlob(
             new Blob([text], { type: PROJECT_FILE.mediaType }),
-            fileName ?? projectFileName(this.session.project.name),
+            options.fileName ?? projectFileName(this.session.project.name),
         );
         return report;
     }
@@ -2007,6 +2002,33 @@ export class Graphty extends LitElement {
         });
     }
 
+    /**
+     * A source's options as the element loads them: with the file styles experiment off, a
+     * `styles: "file"` is refused (recorded in {@link Graphty.refusedFeatures} under `styles`) and
+     * the data loads without the file's styles.
+     * @param config - The options.
+     * @returns The options, without `styles` and `styleOptions` when they were refused.
+     */
+    #withoutRefusedStyles(config: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+        if (config?.styles !== "file") {
+            return config;
+        }
+
+        // Before the first update the session is not settled, so `features` as set now decides.
+        const enabled = this.#settingUp ? resolveFeatures(this.#featuresValue).enabled : this.session.features.enabled;
+        if (enabled.includes("file-styles")) {
+            return config;
+        }
+
+        this.#refusedFeatures.set("styles", {
+            code: "E_FEATURE_OFF",
+            params: { feature: "file-styles", key: "styles" },
+        });
+        console.error("<graphty-element>: dataSourceConfig.styles was refused.", featureOff("file-styles", "styles"));
+        const { styles: _styles, styleOptions: _styleOptions, ...rest } = config;
+        return rest;
+    }
+
     /** How many pair loads {@link #runImport} started that have not settled. */
     #pairLoads = 0;
 
@@ -2029,7 +2051,8 @@ export class Graphty extends LitElement {
      * @returns Settles once the load ran or failed.
      */
     #startImport(source: ImportSource, setup: boolean): Promise<void> {
-        const { type, config } = source;
+        const { type } = source;
+        const config = this.#withoutRefusedStyles(source.config);
         if (type !== undefined && config !== undefined) {
             const pair = { type, config };
             this.#loadedPair = pair;
@@ -2082,7 +2105,7 @@ export class Graphty extends LitElement {
                         op: "data.import",
                         source: {
                             ...(source.type === undefined ? {} : { type: source.type }),
-                            ...(source.config === undefined ? {} : { config: source.config }),
+                            ...(config === undefined ? {} : { config }),
                         },
                         mode: "replace",
                         coalesce: ELEMENT_SOURCE,

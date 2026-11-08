@@ -25,6 +25,9 @@ import { DataSource } from "../../src/data/DataSource";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { FILE_STYLE_LAYER_CAP } from "../../src/session/styles/fileStyles/fold";
 import { asFileStyleStore, FILE_STYLES_VALUE } from "../../src/session/styles/fileStyles/store";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles");
 const MISERABLES = readFileSync(join(CORPUS, "gexf", "gexfjs-miserables.gexf"), "utf8");

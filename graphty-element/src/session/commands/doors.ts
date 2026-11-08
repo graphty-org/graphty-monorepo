@@ -1897,6 +1897,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPinned: READ,
             roundRadius: READ,
             drawnFill: READ,
+            drawnOpacity: READ,
             drawnRadius: READ,
             layoutRadius: READ,
             spacingRadius: READ,
@@ -1922,6 +1923,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnWorldMatrix: READ,
             drawnSourceMesh: RENDER,
             drawnInstanceColor: READ,
+            wholeScale: READ,
             batchableIn: READ,
             batchLook: READ,
             drawnBoundingBox: READ,
@@ -3251,7 +3253,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 call: { kind: "call", args: ["Fixture project"] },
                 expect: [{ op: "config.set", values: { name: "Fixture project" } }],
             },
-            assetChoices: READ,
             save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
             markSaved: exempt("Moves the save point that dirty is measured from; it changes nothing a project saves."),
             open: exempt(

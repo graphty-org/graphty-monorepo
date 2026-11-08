@@ -26836,7 +26836,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.94,
             "raster.canvas": 0.99,
             "stray.extra": 1
@@ -27700,7 +27700,7 @@
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.92,
             "raster.edge": 0.91,
-            "raster.arrowhead": 0.9,
+            "raster.arrowhead": 0.91,
             "raster.label": 0.87,
             "raster.canvas": 0.98,
             "stray.extra": 1,
@@ -28467,11 +28467,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.92,
             "raster.edge": 0.83,
             "raster.arrowhead": 0.91,
-            "raster.label": 0.93,
+            "raster.label": 0.94,
             "raster.canvas": 0.98,
             "label.backgroundBox": 1
         },
@@ -29129,7 +29129,7 @@
             "raster.nodeOutline": 0.94,
             "raster.edge": 0.88,
             "raster.arrowhead": 0.88,
-            "raster.label": 0.88,
+            "raster.label": 0.89,
             "raster.canvas": 0.98
         },
         "graphml-synthetic-nodes@matched": {
@@ -39837,8 +39837,8 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.92,
+            "raster.nodeBody": 0.99,
+            "raster.nodeOutline": 0.93,
             "raster.canvas": 0.99
         },
         "yed-graphml-specimen-node-fills-borders@matched": {
@@ -41822,7 +41822,7 @@
             "node.shape": 1,
             "node.fill": 0.92,
             "node.fillOpacity": 1,
-            "node.gradient": 0.978,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 0.857,
@@ -41831,7 +41831,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.92,
             "raster.canvas": 0.99
         },
@@ -41846,7 +41846,7 @@
             "node.shape": 1,
             "node.fill": 0.92,
             "node.fillOpacity": 1,
-            "node.gradient": 0.978,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 0.857,

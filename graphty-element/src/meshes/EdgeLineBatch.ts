@@ -2,17 +2,7 @@
 // here so any path that reaches a batch has them. See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import {
-    type AbstractEngine,
-    Buffer,
-    Matrix,
-    type Mesh,
-    Quaternion,
-    type Scene,
-    ThinEngine,
-    Vector3,
-    VertexBuffer,
-} from "@babylonjs/core";
+import { Buffer, Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 
 import { UNTIMED_AGE } from "../session/time/ageFade";
 import { CustomLineRenderer } from "./CustomLineRenderer";
@@ -21,8 +11,6 @@ import {
     EDGE_STATIC_ATTRIBUTES,
     EDGE_STATIC_FLOATS,
     JOIN_FLOATS_PER_PIECE,
-    JOIN_TEMPLATE_INDICES,
-    JOIN_TEMPLATE_POSITIONS,
     WIDENED_FLOATS_PER_PIECE,
 } from "./edgeJoinShader";
 import { batchUploadFrames, type EdgeAgeState, type RangedUploads } from "./FrameRoster";
@@ -38,15 +26,6 @@ const FLOATS_PER_SLOT = JOIN_FLOATS_PER_PIECE;
 /** Slots a new batch starts with, before the first doubling. */
 const INITIAL_SLOTS = 32;
 
-/** Vertices in the join template, which a piece of an expanded batch repeats. */
-const TEMPLATE_VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
-
-/** Indices in the join template. */
-const TEMPLATE_INDICES = JOIN_TEMPLATE_INDICES.length;
-
-/** Renderer strings of the software rasterizers a browser falls back to without a usable GPU. */
-const SOFTWARE_RENDERER = /swiftshader|llvmpipe|softpipe|lavapipe|basic render driver|software/i;
-
 /** Floats in one slot's color: red, green, blue and the opacity. */
 const FLOATS_PER_COLOR = 4;
 
@@ -55,18 +34,6 @@ const FLOATS_PER_COLOR = 4;
  * alpha-blended pass. The join shader never reads the mesh's visibility, so this is not ink.
  */
 const TRANSPARENT_PASS = 0.5;
-
-/** Set by a test or a benchmark to choose how joined lines are drawn; null follows the renderer. */
-let expandedOverride: boolean | null = null;
-
-/**
- * Choose how joined lines are drawn whatever the renderer, for a test or a benchmark that holds
- * the two ways against each other. Batches made after the call follow it.
- * @param expanded - True for one plain mesh, false for instances, null to follow the renderer.
- */
-export function forceExpandedLines(expanded: boolean | null): void {
-    expandedOverride = expanded;
-}
 
 /** What a slot draws: its row, which says how old it is when lines fade by age. */
 export interface SlotOwner {
@@ -86,34 +53,13 @@ export function markEdgeLineBatchMesh(mesh: Mesh): void {
 }
 
 /**
- * Whether a mesh is a shared edge line batch rather than one edge's own mesh. An expanded batch has
+ * Whether a mesh is a shared edge line batch rather than one edge's own mesh. A pulled batch has
  * no instances, so `hasThinInstances` cannot tell.
  * @param mesh - The mesh.
  * @returns True for a batch's mesh.
  */
 export function isEdgeLineBatchMesh(mesh: unknown): boolean {
     return batchMeshes.has(mesh as Mesh);
-}
-
-/**
- * Whether joined lines on this engine are drawn as one plain mesh rather than as instances.
- *
- * A SOFTWARE RENDERER PAYS PER INSTANCE. SwiftShader -- Chromium's fallback without a GPU, and
- * what every CI browser test runs on -- runs an instanced draw as one draw per instance (its
- * Vulkan `CmdDrawBase::draw` loops over the instances), so each piece costs a whole draw's setup:
- * about 6 us a piece a frame, 174 ms for 10,000 three-piece edges against 29 ms for the same
- * triangles as one mesh (issue #3095). Fewer or packed attributes do not help; fewer instances do.
- * A real GPU draws instances for free, and there the batch keeps them, since expanding costs a
- * copy of every moved piece into each of its vertices.
- * @param engine - The engine the batch draws with.
- * @returns True on a software renderer.
- */
-export function drawsExpandedLines(engine: AbstractEngine): boolean {
-    if (expandedOverride !== null) {
-        return expandedOverride;
-    }
-
-    return engine instanceof ThinEngine && SOFTWARE_RENDERER.test(engine.getGlInfo().renderer);
 }
 
 // Scratch values for composing a slot's matrix. One edge moving is the hottest path in the
@@ -282,18 +228,6 @@ export class EdgeLineBatch {
     /** The GPU buffer a joined line's slots are read from, rebuilt when the batch grows. */
     private buffer: Buffer | null = null;
 
-    /**
-     * An expanded batch's slots and static values repeated once per template vertex, so the
-     * batch draws as one plain mesh ({@link drawsExpandedLines}); null for an instanced batch.
-     */
-    private expanded: {
-        slots: Float32Array;
-        statics: Float32Array | null;
-        ages: Float32Array | null;
-        hidden: Float32Array | null;
-        colors: Float32Array | null;
-    } | null = null;
-
     /** The scene's fade by age; see {@link batchUploadFrames}. */
     private readonly ageState: EdgeAgeState;
 
@@ -383,10 +317,6 @@ export class EdgeLineBatch {
         this.statics = widened ? new Float32Array(INITIAL_SLOTS * EDGE_STATIC_FLOATS) : null;
         this.slots = new Float32Array(INITIAL_SLOTS * this.stride);
         this.matrices = meta.joinedLine === true ? null : new Float32Array(INITIAL_SLOTS * FLOATS_PER_MATRIX);
-        if (meta.joinedLine === true && drawsExpandedLines(scene.getEngine())) {
-            this.expanded = { slots: new Float32Array(0), statics: null, ages: null, hidden: null, colors: null };
-        }
-
         this.ageState = batchUploadFrames.edgeAges(scene);
         this.ageable = meta.joinedLine === true && meta.opaque !== true;
         // A batch built while lines fade by age starts with the look: it has drawn nothing yet.
@@ -934,33 +864,33 @@ export class EdgeLineBatch {
         }
 
         this.followAges();
-        const { expanded, uploads } = this;
+        const { uploads } = this;
         if (this.ageRuns.dirty && this.ages !== null) {
             const runs = this.ageRuns.take(uploads.on);
-            this.send(runs, this.ages, expanded?.ages ?? null, this.ageBuffer, 1);
+            this.send(runs, this.ages, this.ageBuffer, 1);
         }
 
         if (this.staticRuns.dirty && this.statics !== null) {
             const runs = this.staticRuns.take(uploads.on);
-            this.send(runs, this.statics, expanded?.statics ?? null, this.staticBuffer, EDGE_STATIC_FLOATS);
+            this.send(runs, this.statics, this.staticBuffer, EDGE_STATIC_FLOATS);
         }
 
         const shown = this.hiddenRuns.dirty;
         if (shown) {
             const runs = this.hiddenRuns.take(uploads.on);
-            this.send(runs, this.hidden, expanded?.hidden ?? null, this.hiddenBuffer, 1);
+            this.send(runs, this.hidden, this.hiddenBuffer, 1);
         }
 
         if (this.colorRuns.dirty && this.colors !== null) {
             const runs = this.colorRuns.take(uploads.on);
-            this.send(runs, this.colors, expanded?.colors ?? null, this.colorBuffer, FLOATS_PER_COLOR);
+            this.send(runs, this.colors, this.colorBuffer, FLOATS_PER_COLOR);
         }
 
         const placed = this.slotRuns.dirty;
         if (placed) {
             const runs = this.slotRuns.take(uploads.on);
             if (this.buffer) {
-                this.send(runs, this.slots, expanded?.slots ?? null, this.buffer, this.stride);
+                this.send(runs, this.slots, this.buffer, this.stride);
             } else {
                 sendThinInstanceMatrices(this.mesh, runs);
             }
@@ -1062,10 +992,6 @@ export class EdgeLineBatch {
                 if (!on) {
                     this.ages = null;
                     this.agesFrom = null;
-                    if (this.expanded) {
-                        this.expanded.ages = null;
-                    }
-
                     this.mesh.removeVerticesData("edgeAge");
                     this.ageBuffer?.dispose();
                     this.ageBuffer = null;
@@ -1098,15 +1024,8 @@ export class EdgeLineBatch {
         }
 
         this.ageBuffer?.dispose();
-        const instanced = this.expanded === null;
-        let data = this.ages;
-        if (this.expanded) {
-            data = new Float32Array(this.ages.length * TEMPLATE_VERTICES);
-            this.expanded.ages = data;
-        }
-
-        const buffer = new Buffer(this.mesh.getEngine(), data, true, 1, false, instanced);
-        this.mesh.setVerticesBuffer(buffer.createVertexBuffer("edgeAge", 0, 1, 1, instanced));
+        const buffer = new Buffer(this.mesh.getEngine(), this.ages, true, 1, false, true);
+        this.mesh.setVerticesBuffer(buffer.createVertexBuffer("edgeAge", 0, 1, 1, true));
         this.ageBuffer = buffer;
         this.ageRuns.whole();
     }
@@ -1114,21 +1033,9 @@ export class EdgeLineBatch {
     /** Hand the hidden flags to the mesh as their own attribute, sized to the slots' capacity. */
     private bindHidden(): void {
         this.hiddenBuffer?.dispose();
-        const instanced = this.expanded === null;
-        let data = this.hidden;
-        if (this.expanded) {
-            data = new Float32Array(this.hidden.length * TEMPLATE_VERTICES);
-            this.expanded.hidden = data;
-        }
-
-        const buffer = new Buffer(this.mesh.getEngine(), data, true, 1, false, instanced);
-        this.mesh.setVerticesBuffer(buffer.createVertexBuffer("edgeHidden", 0, 1, 1, instanced));
+        const buffer = new Buffer(this.mesh.getEngine(), this.hidden, true, 1, false, true);
+        this.mesh.setVerticesBuffer(buffer.createVertexBuffer("edgeHidden", 0, 1, 1, true));
         this.hiddenBuffer = buffer;
-        // An instanced buffer is made from the flags themselves; an expanded one starts at zero,
-        // which is right until a slot is hidden.
-        if (this.expanded && this.hidden.includes(1)) {
-            this.hiddenRuns.whole();
-        }
     }
 
     /** Hand the colors to the mesh as their own attribute, sized to the slots' capacity. */
@@ -1138,19 +1045,8 @@ export class EdgeLineBatch {
         }
 
         this.colorBuffer?.dispose();
-        const instanced = this.expanded === null;
-        let data = this.colors;
-        if (this.expanded) {
-            // Filled here, so the new buffer starts from every slot's color as an instanced one does.
-            data = new Float32Array(this.colors.length * TEMPLATE_VERTICES);
-            repeatPerVertex(this.colors, data, 0, this.colors.length / FLOATS_PER_COLOR, FLOATS_PER_COLOR);
-            this.expanded.colors = data;
-        }
-
-        const buffer = new Buffer(this.mesh.getEngine(), data, true, FLOATS_PER_COLOR, false, instanced);
-        this.mesh.setVerticesBuffer(
-            buffer.createVertexBuffer("edgeColor", 0, FLOATS_PER_COLOR, FLOATS_PER_COLOR, instanced),
-        );
+        const buffer = new Buffer(this.mesh.getEngine(), this.colors, true, FLOATS_PER_COLOR, false, true);
+        this.mesh.setVerticesBuffer(buffer.createVertexBuffer("edgeColor", 0, FLOATS_PER_COLOR, FLOATS_PER_COLOR, true));
         this.colorBuffer = buffer;
     }
 
@@ -1220,36 +1116,18 @@ export class EdgeLineBatch {
      * buffer from at the run's size.
      * @param runs - The runs to send, or null for every row up to the high-water mark.
      * @param rows - One row per slot.
-     * @param repeated - An expanded batch's per-vertex copy of the rows, or null.
      * @param buffer - The GPU buffer.
      * @param width - Floats in a row.
      */
-    private send(
-        runs: readonly number[] | null,
-        rows: Float32Array,
-        repeated: Float32Array | null,
-        buffer: Buffer | null,
-        width: number,
-    ): void {
-        const spread = repeated === null ? 1 : TEMPLATE_VERTICES;
-        const source = repeated ?? rows;
+    private send(runs: readonly number[] | null, rows: Float32Array, buffer: Buffer | null, width: number): void {
         if (runs === null) {
-            if (repeated !== null) {
-                repeatPerVertex(rows, repeated, 0, this.highWater, width);
-            }
-
-            buffer?.updateDirectly(source, 0, this.highWater * spread);
+            buffer?.updateDirectly(rows, 0, this.highWater);
             return;
         }
 
         for (let i = 0; i < runs.length; i += 2) {
             const [at, end] = [runs[i], runs[i + 1]];
-            if (repeated !== null) {
-                repeatPerVertex(rows, repeated, at, end, width);
-            }
-
-            const from = at * spread * width;
-            buffer?.updateDirectly(source.subarray(from, end * spread * width), from, (end - at) * spread);
+            buffer?.updateDirectly(rows.subarray(at * width, end * width), at * width, end - at);
         }
     }
 
@@ -1405,15 +1283,7 @@ export class EdgeLineBatch {
 
     /** Tell the mesh how many instances to draw. */
     private setCount(): void {
-        if (this.expanded) {
-            // One plain mesh holds every slot the arrays have room for; draw only those handed out.
-            const [subMesh] = this.mesh.subMeshes;
-            subMesh.indexCount = this.highWater * TEMPLATE_INDICES;
-            subMesh.verticesCount = this.highWater * TEMPLATE_VERTICES;
-            // A part of a mesh keeps its own box, which the transparent pass sorts by; the mesh's
-            // own will do, since the batch is drawn whatever the camera sees.
-            subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
-        } else if (this.matrices) {
+        if (this.matrices) {
             this.mesh.thinInstanceCount = this.highWater;
         } else {
             this.mesh.forcedInstanceCount = this.highWater;
@@ -1430,26 +1300,21 @@ export class EdgeLineBatch {
         } else {
             this.buffer?.dispose();
             const { stride } = this;
-            const instanced = this.expanded === null;
-            const slots = this.expanded ? this.expandTemplate() : this.slots;
-            const buffer = new Buffer(this.mesh.getEngine(), slots, true, stride, false, instanced);
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pPrev", 0, 3, stride, instanced));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pA", 3, 3, stride, instanced));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pB", 6, 3, stride, instanced));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pNext", 9, 3, stride, instanced));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("run", 12, 2, stride, instanced));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pPrev2", 14, 3, stride, instanced));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pNext2", 17, 3, stride, instanced));
+            const buffer = new Buffer(this.mesh.getEngine(), this.slots, true, stride, false, true);
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pPrev", 0, 3, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pA", 3, 3, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pB", 6, 3, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pNext", 9, 3, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("run", 12, 2, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pPrev2", 14, 3, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pNext2", 17, 3, stride, true));
             this.buffer = buffer;
             if (this.statics !== null) {
-                this.mesh.setVerticesBuffer(buffer.createVertexBuffer("runTotal", 20, 1, stride, instanced));
+                this.mesh.setVerticesBuffer(buffer.createVertexBuffer("runTotal", 20, 1, stride, true));
                 this.staticBuffer?.dispose();
-                const data = this.expanded?.statics ?? this.statics;
-                const statics = new Buffer(this.mesh.getEngine(), data, true, EDGE_STATIC_FLOATS, false, instanced);
+                const statics = new Buffer(this.mesh.getEngine(), this.statics, true, EDGE_STATIC_FLOATS, false, true);
                 EDGE_STATIC_ATTRIBUTES.forEach((name, i) => {
-                    this.mesh.setVerticesBuffer(
-                        statics.createVertexBuffer(name, i * 4, 4, EDGE_STATIC_FLOATS, instanced),
-                    );
+                    this.mesh.setVerticesBuffer(statics.createVertexBuffer(name, i * 4, 4, EDGE_STATIC_FLOATS, true));
                 });
                 this.staticBuffer = statics;
             }
@@ -1498,60 +1363,6 @@ export class EdgeLineBatch {
         }
 
         this.bindBuffers();
-    }
-
-    /**
-     * Size an expanded batch for the slots' capacity: the join template repeated once per slot as
-     * the mesh's own positions and indices, and fresh arrays for the per-vertex copies, filled
-     * from the slots on the next upload.
-     * @returns The array the slots are repeated into.
-     */
-    private expandTemplate(): Float32Array {
-        const capacity = this.slots.length / this.stride;
-        const positions = new Float32Array(capacity * JOIN_TEMPLATE_POSITIONS.length);
-        const indices = new Uint32Array(capacity * TEMPLATE_INDICES);
-        for (let slot = 0; slot < capacity; slot++) {
-            positions.set(JOIN_TEMPLATE_POSITIONS, slot * JOIN_TEMPLATE_POSITIONS.length);
-            for (let i = 0; i < TEMPLATE_INDICES; i++) {
-                indices[slot * TEMPLATE_INDICES + i] = JOIN_TEMPLATE_INDICES[i] + slot * TEMPLATE_VERTICES;
-            }
-        }
-
-        this.mesh.setVerticesData(VertexBuffer.PositionKind, positions, false);
-        this.mesh.setIndices(indices, capacity * TEMPLATE_VERTICES);
-        const slots = new Float32Array(capacity * TEMPLATE_VERTICES * this.stride);
-        const statics =
-            this.statics === null ? null : new Float32Array(capacity * TEMPLATE_VERTICES * EDGE_STATIC_FLOATS);
-        this.expanded = { slots, statics, ages: null, hidden: null, colors: null };
-        this.slotRuns.whole();
-        if (statics !== null) {
-            this.staticRuns.whole();
-        }
-
-        return slots;
-    }
-}
-
-/**
- * Copy each row of a run of slots from `from` into `TEMPLATE_VERTICES` consecutive rows of `to`:
- * an instanced attribute spelled as a per-vertex one, which the shader reads the same.
- * @param from - One row per slot.
- * @param to - One row per vertex.
- * @param first - The first slot to copy.
- * @param end - The slot after the last.
- * @param width - Floats in a row.
- */
-function repeatPerVertex(from: Float32Array, to: Float32Array, first: number, end: number, width: number): void {
-    let out = first * TEMPLATE_VERTICES * width;
-    for (let slot = first; slot < end; slot++) {
-        const at = slot * width;
-        for (let v = 0; v < TEMPLATE_VERTICES; v++) {
-            for (let k = 0; k < width; k++) {
-                to[out + k] = from[at + k];
-            }
-
-            out += width;
-        }
     }
 }
 

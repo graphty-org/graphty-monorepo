@@ -631,7 +631,7 @@ class Session implements ElementSession {
             },
             () => this.project.id,
         );
-        this.assets = createAssetsApi(this.network, () => this.styles);
+        this.assets = createAssetsApi(this.network);
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
@@ -733,10 +733,13 @@ class Session implements ElementSession {
             if (advice === undefined) {
                 return undefined;
             }
+            // Graphviz's routes draw a placed DOT file as Graphviz does: part of the file styles experiment.
+            const routed = advice.options?.edgeRoutes === "graphviz";
+            const options = routed && this.dispatcher.services.fileStyles?.() === false ? undefined : advice.options;
             const advised = {
                 id: advice.layout.id,
                 engine: advice.layout.engine,
-                ...(advice.options === undefined ? {} : { options: advice.options }),
+                ...(options === undefined ? {} : { options }),
             };
 
             // A file that placed some nodes and not others: its placed nodes stay where it put
@@ -2596,6 +2599,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return askedOn;
     };
+    const fileStylesOn = (): boolean =>
+        (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
@@ -2616,6 +2621,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
     dispatcher.services.timeline = timelineOn;
+    dispatcher.services.fileStyles = fileStylesOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
@@ -2765,6 +2771,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // Read through calls: the timeline and the visibility are built below.
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeline: () => timelineOn(),
+            fileStyles: () => fileStylesOn(),
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
     );
@@ -3512,6 +3519,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // the elements one run measured walks that run's 300 rows, not the graph's 50,000.
             measured: elements.measured,
             scales,
+            fileStyles: fileStylesOn,
             // With the base look in the Everything row, what no shown layer paints is not drawn.
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),
@@ -3723,6 +3731,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         paths,
         scales,
+        fileStyles: fileStylesOn,
         runs: encodingSourceOf(runs),
         columns: {
             attributes: () => data.attributes(),
@@ -4172,6 +4181,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             results: () => results,
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
+            fileStyles: fileStylesOn,
         }),
         features: settleFeatures,
         timelineOn,

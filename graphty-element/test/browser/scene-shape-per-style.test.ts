@@ -305,7 +305,8 @@ describe("the scene grows with styles and nodes, not with edges", () => {
     }
 
     it("uploads a line batch's slots, and draws the moved slot, when a node moves", async () => {
-        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        // A head keeps the line in the line batch: "batched" pulls a capless straight line instead.
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
         await frame();
 
         const edge = edges().find((candidate) => candidate.srcId === "n0");

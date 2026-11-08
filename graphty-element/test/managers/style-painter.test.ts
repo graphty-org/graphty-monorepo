@@ -810,7 +810,7 @@ describe("batchableOf", () => {
             true,
         ],
         ["a gradient", { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } }, false],
-        ["an image", { texture: { image: "a.png" } }, false],
+        ["a picture, in its source's material", { texture: { image: "a.png" } }, true],
         ["an icon", { texture: { icon: "star" } }, false],
         ["a glow", { effect: { glow: { color: "#ff0000", strength: 1 } } }, false],
         ["a z order, baked into the source's vertices", { shape: { zIndex: -3, drawOrder: 20 } }, true],

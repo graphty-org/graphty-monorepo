@@ -1672,7 +1672,21 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnInstanceColor(): Rgba | null {
-        return this.drawnColor;
+        return this.instanceColorOf(this.drawnColor);
+    }
+
+    /**
+     * The color an instance draws for a painted color: a picture replaces the shape's color, and
+     * `node.modelTint` multiplies the node's color in.
+     * @param color - The painted color, or null.
+     * @returns The instance's color, or null.
+     */
+    private instanceColorOf(color: Rgba | null): Rgba | null {
+        if (color === null || this.drawnImage === null || modelTinted(this.drawnStyle?.shape)) {
+            return color;
+        }
+
+        return { ...color, r: 255, g: 255, b: 255 };
     }
 
     /**
@@ -1690,7 +1704,6 @@ export class Node implements ModelUser {
             (this.#mesh === null || this.#mesh instanceof InstancedMesh) &&
             !this.drawnAsGroup &&
             this.drawnModel === null &&
-            this.drawnImage === null &&
             this.shaderPath === null &&
             batchableOf({ style }, view)
         );
@@ -1704,7 +1717,14 @@ export class Node implements ModelUser {
      */
     get batchLook(): string {
         const style = this.drawnStyle;
-        return JSON.stringify([style?.shape?.type, style?.shape?.detail, style?.texture, style?.effect]);
+        // Whether the picture is drawn too: while it loads, or when it failed, the row draws the plain shape's material.
+        return JSON.stringify([
+            style?.shape?.type,
+            style?.shape?.detail,
+            style?.texture,
+            style?.effect,
+            this.drawnImage !== null,
+        ]);
     }
 
     /**
@@ -2071,11 +2091,7 @@ export class Node implements ModelUser {
             return;
         }
 
-        if (this.drawnImage !== null && !modelTinted(this.drawnStyle?.shape)) {
-            // A picture replaces the shape's color; `node.modelTint` multiplies the node's color in.
-            color = color === null ? null : { ...color, r: 255, g: 255, b: 255 };
-        }
-
+        color = this.instanceColorOf(color);
         if (color === null || !(this.#mesh instanceof InstancedMesh)) {
             return;
         }

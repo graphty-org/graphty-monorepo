@@ -384,7 +384,7 @@ function changedRows(before, after, rows) {
     return changed;
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, renderPath, renderer }) {
+async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, renderPath, renderer }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
     const el = document.createElement("graphty-element");
@@ -429,6 +429,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, ren
         });
     }
     if (labels && sampled) el.layoutBehavior = { labels: { sampleCell: 96 } };
+    if (labels && glyphs) el.layoutBehavior = { labels: { labelText: "glyphs" } };
     if (labels)
         await el.session.styles.add({
             name: "labels",

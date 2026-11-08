@@ -263,6 +263,15 @@ export class RowTable {
     }
 
     /**
+     * Whether a row is filtered out or hidden by a style ({@link RowTable.hide}).
+     * @param row - The row.
+     * @returns True when it is hidden.
+     */
+    isHidden(row: number): boolean {
+        return ((this.flags[row] ?? 0) & HIDDEN) !== 0;
+    }
+
+    /**
      * Where a row is drawn.
      * @param row - The row.
      * @returns A new vector.

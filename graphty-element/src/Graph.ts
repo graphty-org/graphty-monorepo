@@ -206,6 +206,7 @@ import { NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from 
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { sceneLighting } from "./meshes/NodeLighting";
+import { NodeMesh } from "./meshes/NodeMesh";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
@@ -4710,6 +4711,19 @@ export class Graph implements GraphContext {
                         flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
                     }),
                     nodes: () => this.dataManager.nodes.values(),
+                    sourceOf: ({ meshKey, style }) =>
+                        NodeMesh.source(
+                            this.dataManager.meshCache,
+                            { styleId: meshKey, is2D: this.getViewMode() === "2d", size: style.shape?.size ?? 0 },
+                            {
+                                shape: style.shape,
+                                texture: style.texture,
+                                effect: style.effect,
+                                border: style.border,
+                                picture: null,
+                            },
+                            this.scene,
+                        ),
                     meshesChanged: () => {
                         this.updateManager.thawActiveMeshes();
                         this.updateManager.meshesShownOrHidden();

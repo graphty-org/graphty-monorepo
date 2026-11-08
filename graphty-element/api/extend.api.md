@@ -2297,6 +2297,8 @@ class Node_2 implements ModelUser {
     syncXlabelPlace(): void;
     // @internal
     get teardownMesh(): TransformNode;
+    // @internal
+    togglesOwnMeshes(): boolean;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;

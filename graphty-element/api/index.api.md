@@ -2793,6 +2793,9 @@ export class Graph implements GraphContext {
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
     getEdgeCount(): number;
+    // @internal
+    getEdgeIdTarget(): EdgeIdTarget | null;
+    getEdges(): Edge[];
     getEventManager(): EventManager;
     getGlobeLook(): GlobeLook;
     getLayoutBehavior(): GraphBehaviorConfig | undefined;
@@ -7961,6 +7964,8 @@ export class UpdateManager implements Manager {
     dispose(): void;
     drawArrivedPaint(frameMs?: number): void;
     enableZoomToFit(explicit?: boolean): void;
+    // @internal
+    endsByRadius(edge: Edge): void;
     // @internal
     fitAnnotations: (() => void) | null;
     forceEdgeWalk(): void;

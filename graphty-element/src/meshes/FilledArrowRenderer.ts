@@ -291,14 +291,15 @@ uniform vec3 cameraPosition;
 // values are instance attributes rather than uniforms.
 attribute vec3 arrowDirection; // Line direction
 attribute float arrowSize;     // World-space arrow length
-attribute vec3 arrowColor;
+// The cap's color and, in alpha, its opacity (multiplying the batch's own).
+attribute vec4 arrowColor;
 // Where a pattern segment is cut off, per instance: the last segment of a zigzag or a sinewave is
 // clipped to the room left on its line, and -1 leaves a segment (and every arrow cap) whole.
 attribute float arrowClip;
 // 1 while the visibility mask hides the cap (ArrowCapBatch.park): drawn at no size, so hiding or
 // showing it writes this one float and never its matrix. An unbound attribute reads 0, drawn.
 attribute float arrowHidden;
-varying vec3 vColor;
+varying vec4 vColor;
 varying float vClip;
 #ifdef CAP_PULLED
 // A pulled cap (PulledCapBatch): no place of its own. Its two rows, head end last (a tail is the
@@ -434,7 +435,7 @@ precision highp float;
 
 // Uniforms
 #ifdef INSTANCES
-varying vec3 vColor;
+varying vec4 vColor;
 varying float vClip;
 #else
 uniform vec3 color;
@@ -460,7 +461,7 @@ void main() {
     }
 
 #ifdef INSTANCES
-    gl_FragColor = vec4(vColor, opacity);
+    gl_FragColor = vec4(vColor.rgb, opacity * vColor.a);
 #else
     gl_FragColor = vec4(color, opacity);
 #endif
@@ -1530,25 +1531,34 @@ void main() {
     }
 
     /**
-     * Draw one billboarded 3D arrow cap as a slot in its scene's batch for that shape and
-     * opacity. The direction, size and colour are the slot's own attributes, so caps of every
-     * colour and size share one draw call.
+     * Draw one billboarded 3D arrow cap as a slot in its scene's batch for that shape. The
+     * direction, size, colour and opacity are the slot's own attributes, so caps of every look
+     * share one draw call.
      * @param shape - The arrow type, which names the batch's geometry
      * @param createShape - Builds that geometry, for a new batch
      * @param options - The cap's size (world-space length), colour and opacity
      * @param scene - Babylon.js scene
+     * @param reuse - A cap to recolor and hand back when it is in this batch at this size
      * @returns The cap; point it with {@link ArrowCap.place}
      */
-    static createArrowCap(shape: string, createShape: () => Mesh, options: FilledArrowOptions, scene: Scene): ArrowCap {
-        const opacity = options.opacity ?? 1;
-        const cap = this.capOf(
+    static createArrowCap(
+        shape: string,
+        createShape: () => Mesh,
+        options: FilledArrowOptions,
+        scene: Scene,
+        reuse: ArrowCap | null = null,
+    ): ArrowCap {
+        // The opacity is the slot's too, so caps of one shape share a batch whatever their look
+        // (issue #6026), and a cap already in it is recolored where it stands.
+        const batch = arrowCapBatch(
             scene,
-            `3d|${shape}|${String(opacity)}`,
-            () => this.applyInstancedShader(createShape(), opacity, scene),
-            { scale: options.size, billboard: true },
+            `3d|${shape}`,
+            () => this.applyInstancedShader(createShape(), 1, scene),
+            true,
         );
+        const cap = reuse?.drawsIn(batch, options.size) === true ? reuse : new ArrowCap(batch, options.size);
 
-        cap.setAppearance(options.size, options.color);
+        cap.setAppearance(options.size, options.color, options.opacity ?? 1);
 
         return cap;
     }

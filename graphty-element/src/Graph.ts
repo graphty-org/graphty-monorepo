@@ -209,14 +209,17 @@ import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
+import { EdgeIdTarget } from "./render/EdgeIdTarget";
 import { NodeIdTarget } from "./render/NodeIdTarget";
 import {
+    hoverEdgeAt,
     openRowScan,
     pickAsDrawn,
     pickCloseLabel,
     pickEdgeAt,
     pickNodeId,
     pickWorldPoint,
+    useEdgeIdTarget,
     useNodeIdTarget,
 } from "./render/PickService";
 import { RowTable } from "./render/RowTable";
@@ -809,6 +812,7 @@ export class Graph implements GraphContext {
     #nodeBatches: NodeBatches | null = null;
     /** What hover reads on the `"batched"` path. */
     #nodeIds: NodeIdTarget | null = null;
+    #edgeIds: EdgeIdTarget | null = null;
     /** The scene is the one that stays, so batches may be built on it. */
     #renderPathOpen = false;
 
@@ -4606,6 +4610,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The edge ID target an edge hover reads, on the `"batched"` path.
+     * @returns The target, or null.
+     * @internal
+     */
+    getEdgeIdTarget(): EdgeIdTarget | null {
+        return this.#edgeIds;
+    }
+
+    /**
      * How nodes are drawn.
      * @returns The path asked for.
      */
@@ -4687,7 +4700,19 @@ export class Graph implements GraphContext {
                 nodeIdAt: (row) => this.dataManager.nodeAtRow(row)?.id,
                 hiddenRows: () => batches.hiddenRows(),
             });
+            this.#edgeIds = new EdgeIdTarget(this.scene, {
+                positionTexture: () => places.positionTexture,
+                edges: () => this.dataManager.edges.values(),
+                root: () => this.scene.getTransformNodeByName("graph-root"),
+                requestFrame: () => {
+                    this.renderManager.requestFrame();
+                },
+            });
+            useEdgeIdTarget(this.scene, this.#edgeIds);
         } else if (!batched && this.#nodeBatches !== null) {
+            useEdgeIdTarget(this.scene, null);
+            this.#edgeIds?.dispose();
+            this.#edgeIds = null;
             useNodeIdTarget(this.scene, null);
             this.#nodeIds?.dispose();
             this.#nodeIds = null;
@@ -4950,7 +4975,9 @@ export class Graph implements GraphContext {
         // node mesh has pointer triggers, so Babylon sets `hoverCursor` there). Lines are thin
         // instances of an unpickable batch, so Babylon never sees them: on every move it has just
         // restored `defaultCursor`, and this sets `hoverCursor` back when the pointer is over a line.
+        let edgeHoverMoves = 0;
         this.scene.onPointerObservable.add((pointerInfo) => {
+            const move = ++edgeHoverMoves;
             const canvas = this.scene.getEngine().getInputElement();
             const { buttons } = pointerInfo.event as { buttons?: number };
             if (
@@ -4963,8 +4990,23 @@ export class Graph implements GraphContext {
                 return;
             }
 
-            if (this.pickEdgeId(this.scene.pointerX, this.scene.pointerY) !== undefined) {
-                canvas.style.cursor = this.scene.hoverCursor;
+            const over = (edgeId: EdgeId | undefined): void => {
+                // A read answered after a later move is that move's no longer.
+                if (edgeId !== undefined && move === edgeHoverMoves) {
+                    canvas.style.cursor = this.scene.hoverCursor;
+                }
+            };
+            const edgeId = hoverEdgeAt(
+                this.scene,
+                () => this.dataManager.edges.values(),
+                this.scene.pointerX,
+                this.scene.pointerY,
+                (point) => this.worldToScreen(point),
+            );
+            if (edgeId instanceof Promise) {
+                void edgeId.then(over);
+            } else {
+                over(edgeId);
             }
         }, PointerEventTypes.POINTERMOVE);
 
@@ -8434,6 +8476,14 @@ export class Graph implements GraphContext {
      */
     getNodes(): Node[] {
         return Array.from(this.dataManager.nodes.values());
+    }
+
+    /**
+     * Get all edges, in the order the edge pick walks them.
+     * @returns Array of all edge instances
+     */
+    getEdges(): Edge[] {
+        return Array.from(this.dataManager.edges.values());
     }
 
     /**

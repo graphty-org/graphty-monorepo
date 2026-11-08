@@ -15,8 +15,7 @@ export type FeatureId =
     | "location-map"
     | "selection-workspace"
     | "cosmograph"
-    | "file-styles"
-    | "node-models";
+    | "file-styles";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {
@@ -41,10 +40,6 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // Reading and writing the styles other programs write into graph files, and every style channel
     // and value added to draw them.
     { id: "file-styles", plainName: "File styles", issue: 706, since: "2026-11-06" },
-    // The graphty app's model and picture UI in the Style panel and the save question, and in
-    // graphty-element a save with no choice for a URL keeping it as the project last kept it (off:
-    // embedded, as before); node.model* and node.texture, session.assets and session.network are not gated.
-    { id: "node-models", plainName: "Node models", issue: 3396, since: "2026-11-07" },
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */

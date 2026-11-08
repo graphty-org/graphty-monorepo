@@ -17,10 +17,10 @@ import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import { siteConfig } from "../../siteConfig";
-import { holdsAsset, holdsModel, putAssetOnNodes, putModelOnNodes } from "../canvas/models";
+import { putModelOnNodes } from "../canvas/models";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
-import { fileStylesOn, nodeModelsOn } from "../features";
+import { fileStylesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
@@ -473,26 +473,6 @@ export function readDataUrl(file: File): Promise<string> {
 }
 
 /**
- * Opens files dropped or chosen on the start screen: a model, or with the node-models experiment
- * a picture too, opens a new project drawing it (graphty-element says which it is); anything else
- * opens as {@link openFiles} opens it. The drop and Open a file share it, so neither is the only way.
- * @param ctx - the command context.
- * @param files - the files; nothing happens without one.
- * @param session - the start screen's element session, whose experiments decide.
- */
-export async function openOnStart(
-    ctx: CommandContext,
-    files: readonly File[],
-    session: GraphSession | null,
-): Promise<void> {
-    if (await (nodeModelsOn(session) ? holdsAsset : holdsModel)(files)) {
-        openModel(ctx.workspace, files[0]?.name ?? "Model", files);
-    } else {
-        openFiles(ctx, files);
-    }
-}
-
-/**
  * Open project or file... and File...: the browser's file picker, then the files open.
  * @param ctx - the command context.
  */
@@ -558,9 +538,8 @@ export function useDropToOpen(ctx: CommandContext): void {
  * @param fileName - the model's main file name.
  * @param source - the model's files.
  */
-function openModel(workspace: WorkspaceStore, fileName: string, source: AssetSource): void {
+export function openModel(workspace: WorkspaceStore, fileName: string, source: AssetSource): void {
     openProject(workspace, fileName.replace(/\.[^.]*$/, "") || fileName, async (session) => {
-        // The node-models experiment draws a dropped picture as well.
-        await (nodeModelsOn(session) ? putAssetOnNodes : putModelOnNodes)(session, workspace, source);
+        await putModelOnNodes(session, workspace, source);
     });
 }

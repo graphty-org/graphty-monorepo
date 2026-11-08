@@ -631,7 +631,7 @@ class Session implements ElementSession {
             },
             () => this.project.id,
         );
-        this.assets = createAssetsApi(this.network, () => this.styles);
+        this.assets = createAssetsApi(this.network);
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;

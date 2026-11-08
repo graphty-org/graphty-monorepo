@@ -41,14 +41,3 @@ export function fileStylesOn(session: GraphSession | null | undefined): boolean 
     return features.has("file-styles");
 }
 
-/**
- * Whether the node models experiment is on (issue #3396). On, the Style tab's Shape field offers
- * "Model..." with its Models, Model settings and Parts pop-overs, Fill offers Picture, and saving a
- * project that names a model or picture by web address asks whether to embed it or keep its address;
- * off, nothing of it is drawn.
- * @param session - the element's session, or null before it comes up.
- * @returns true when the element switched the experiment on.
- */
-export function nodeModelsOn(session: GraphSession | null | undefined): boolean {
-    return (session?.features.enabled ?? []).includes("node-models");
-}

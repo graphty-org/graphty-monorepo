@@ -5,14 +5,10 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { loadSiteConfig, resetSiteConfig } from "../../siteConfig";
 import { freshStore } from "../../stories/freshStore";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { sampleTile } from "../../test/sample-tile";
-import { siteFeatures } from "../../test/siteFeatures";
 import { Workspace } from "../Workspace";
-import policeUrl from "./__fixtures__/car-kit/police.glb?url";
-import colormapUrl from "./__fixtures__/car-kit/Textures/colormap.png?url";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 
@@ -514,122 +510,6 @@ export const ShadersGallery: Story = sceneStory(async () => {
     await page().findByTestId("shader-gallery", {});
 });
 
-// The node-models experiment (issue #3396): models in the Shape field and a picture in Fill.
-
-/**
- * A story with the node-models experiment switched on, as a site's site.json does; the page's own
- * configuration is put back afterwards.
- * @param story - the story.
- * @param name - its name in the sidebar.
- * @returns the story, with the experiment on.
- */
-function nodeModelsStory(story: Story, name: string): Story {
-    return {
-        ...story,
-        name,
-        beforeEach: async () => {
-            await siteFeatures(["node-models"]);
-            return async () => {
-                resetSiteConfig();
-                await loadSiteConfig();
-            };
-        },
-    };
-}
-
-/**
- * Opens the Models pop-over on Key people by real input: Shape's "+", then the Shape list's
- * Model... entry.
- * @returns the Style tab and the pop-over.
- */
-async function openModels(): Promise<{ tab: HTMLElement; models: HTMLElement }> {
-    const tab = await openStyle("Key people");
-    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }));
-    await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node shape/ }));
-    await userEvent.click(await page().findByRole("option", { name: "Model..." }));
-    return { tab, models: await page().findByRole("dialog", { name: "Models" }) };
-}
-
-/**
- * Draws Key people as the first sample model by real input, then waits until it is drawn.
- * @param session - the element's session.
- * @returns the Style tab.
- */
-async function drawKeyPeopleAsSample(session: GraphSession): Promise<HTMLElement> {
-    const [sample] = session.catalog.models();
-    const { tab, models } = await openModels();
-    await userEvent.click(within(models).getByRole("button", { name: sample.plainName }));
-    await within(tab).findByRole("combobox", { name: `Node shape, ${sample.plainName}` });
-    await waitFor(() => {
-        expect(session.assets.states().find((c) => c.ref === sample.id)?.state).toBe("drawn");
-    });
-    return tab;
-}
-
-/** Key people drawn as a sample model, picked from the Shape list's Model... entry. */
-export const ModelOnALayer: Story = nodeModelsStory(
-    sceneStory(async ({ session }) => {
-        await drawKeyPeopleAsSample(session);
-    }),
-    "Model on a layer",
-);
-
-/** Model settings open on Key people's model: Up, Turn, Color, Fit and Center. */
-export const ModelSettingsOpen: Story = nodeModelsStory(
-    sceneStory(async ({ session }) => {
-        const tab = await drawKeyPeopleAsSample(session);
-        await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
-        await page().findByRole("dialog", { name: "Model settings" });
-    }),
-    "Model settings",
-);
-
-/**
- * The Parts pop-over: Key people drawn as the car kit's police.glb chosen alone, so the Shape field
- * carries "1 missing" for Textures/colormap.png, and the pop-over opens on that part in the Models
- * pop-over's place.
- */
-export const Parts: Story = nodeModelsStory(
-    sceneStory(async () => {
-        const { tab, models } = await openModels();
-        // Choose model files' input, as the button opens it.
-        const chooser = models.querySelector<HTMLInputElement>("input[type=file]:not([data-folder])");
-        if (chooser === null) {
-            throw new Error("no file input");
-        }
-        const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
-        await userEvent.upload(chooser, new File([police], "police.glb", { type: "model/gltf-binary" }));
-        await within(tab).findByRole("button", { name: "police: 1 file missing" });
-        await page().findByRole("dialog", { name: "police.glb" });
-    }),
-    "Parts",
-);
-
-/**
- * A picture on Key people (node-models design 13.7) by real input: Fill's "+" adds Picture and opens
- * the Picture pop-over, and the car kit's colormap.png chosen there draws on the layer's nodes.
- */
-export const Picture: Story = nodeModelsStory(
-    sceneStory(async ({ session }) => {
-        const tab = await openStyle("Key people");
-        // Key people sets its color: Fill's "+" has only Picture left, and adds it at once.
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
-        const picture: HTMLElement = await page().findByRole("dialog", { name: "Picture" });
-        const chooser = picture.querySelector<HTMLInputElement>("input[type=file]");
-        if (chooser === null) {
-            throw new Error("no file input");
-        }
-        const colormap = new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer());
-        await userEvent.upload(chooser, new File([colormap], "colormap.png", { type: "image/png" }));
-        await within(tab).findByRole("textbox", { name: "Node picture, colormap" });
-        await waitFor(() => {
-            expect(session.assets.list().some((r) => r.kind === "image" && r.state === "accepted")).toBe(true);
-        });
-    }),
-    "Picture",
-);
-
 // Checkpoint 3: the Values tab and Graph settings.
 
 /** Degree's Values: its histogram with minimum, median and maximum. */
@@ -708,19 +588,10 @@ export const FootballConference: Story = {
         await userEvent.keyboard("{Control>}a{/Control}Conference{Enter}");
         const tab: HTMLElement = await page().findByTestId("style-tab", {});
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
-        const colorLine = (): HTMLElement | null =>
-            (page().getByTestId("style-tab") as HTMLElement).querySelector('.ws-row[data-line="node.color"]');
-        // Fill's "+" adds Color at once, or offers it in a menu when the node models experiment adds Picture.
-        const color = await waitFor(() => {
-            const item = page().queryByRole("menuitem", { name: "Color" });
-            expect(item !== null || colorLine() !== null).toBe(true);
-            return item;
-        });
-        if (color !== null) {
-            await userEvent.click(color);
-        }
         const box: HTMLElement = await waitFor(() => {
-            const found = colorLine();
+            const found: HTMLElement | null = (page().getByTestId("style-tab") as HTMLElement).querySelector(
+                '.ws-row[data-line="node.color"]',
+            );
             expect(found).not.toBeNull();
             return found as HTMLElement;
         });

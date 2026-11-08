@@ -4,7 +4,7 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { nodeModelsOn, selectionWorkspaceOn } from "../features";
+import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
@@ -16,16 +16,7 @@ import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
 import { addShader, moveShader, shaderEntries, writeWireframe } from "./shaderSlots";
 import { focusLineNext, headerBottom } from "./useFocusLine";
-import {
-    channelWord,
-    failureWords,
-    fieldName,
-    OPACITY_OF,
-    PICTURE_WORD,
-    type SectionSpec,
-    settingWord,
-    TWO_WORDS,
-} from "./words";
+import { channelWord, failureWords, fieldName, OPACITY_OF, type SectionSpec, settingWord, TWO_WORDS } from "./words";
 
 /**
  * The tab's own style options a gallery search also finds (decisions-v2, section 2.2): Outline,
@@ -48,26 +39,7 @@ const optionAdds = new Set<(side: "node" | "edge", channel: Channel) => boolean>
  */
 function isSet(ctx: RowContext, descriptor: ChannelDescriptor): boolean {
     const line = lineIn(ctx, descriptor.channel);
-    return (
-        (line !== undefined && !line.layer.locked) ||
-        partlySet(ctx, descriptor.channel) !== undefined ||
-        modelSet(ctx, descriptor.channel)
-    );
-}
-
-/**
- * Whether the Shape field holds a model in place of a built-in shape (node-models design 13.2),
- * with the experiment on.
- * @param ctx - the row.
- * @param channel - the property.
- * @returns true for Shape on a row whose own layer names a model.
- */
-function modelSet(ctx: RowContext, channel: Channel): boolean {
-    if (channel !== "node.shape" || !nodeModelsOn(ctx.session)) {
-        return false;
-    }
-    const model = lineIn(ctx, "node.model");
-    return model !== undefined && !model.layer.locked;
+    return (line !== undefined && !line.layer.locked) || partlySet(ctx, descriptor.channel) !== undefined;
 }
 
 /**
@@ -86,10 +58,6 @@ function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
     if (descriptor.channel === "node.wireframe") {
         // An on/off option: picking it turns the wireframe on, with the low-detail mesh.
         return [{ key: "node.wireframe=true", label: channelWord(descriptor.channel) }];
-    }
-    if (descriptor.channel === "node.texture") {
-        // Only Fill with the node-models experiment on lists it, by the panel's word for it.
-        return [{ key: descriptor.channel, label: PICTURE_WORD }];
     }
     return [{ key: descriptor.channel, label: channelWord(descriptor.channel) }];
 }

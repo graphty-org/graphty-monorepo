@@ -111,7 +111,9 @@ describe("keys in the condition cards, on the real element", () => {
     it("a card's Tab order is its remove button, its match, its values, then Add a condition and Done", async () => {
         await openLayer("Poster", POSTER);
         const region = await openCards();
-        const card = within(region).getByRole("group", { name: /^name/ });
+        // The count arrives after the card draws (the element counts asynchronously): wait for the
+        // card to say it, as a reader would, then read the header.
+        const card = await within(region).findByRole("group", { name: /^name, 3 nodes$/ });
         // The header names its count with its noun.
         assert.include(card.querySelector(".ws-card-head")?.textContent ?? "", "3 nodes");
         // Focus opened on the text box: two steps back is the remove button, drawn first.

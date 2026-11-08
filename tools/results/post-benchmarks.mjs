@@ -5,7 +5,7 @@
 //
 // Reads the newest session of each file, in either shape the repository writes:
 //   - algorithms' benchmark-results/benchmark-sessions-<platform>-<type>.json: [{ results: [{ algorithm, graphSize,
-//     executionTime }] }], one row per algorithm and graph size;
+//     executionTime, input? }] }], one row per algorithm and graph size;
 //   - the benchmark harness of webgpu-graph-algorithms (benchmarks/out/<runner class>.json): [{ results: [{ group,
 //     name, medianMs }] }], one row per group and name.
 // Fire and forget: a missing file, an unreadable one or an API that does not answer is a line on stderr, and the
@@ -18,14 +18,21 @@ import { flushHealth, postBenchmarks } from "./client.mjs";
 /**
  * The rows of one results file's newest session.
  * @param data the parsed file: a session or a list of them
- * @returns `{ name, value }` rows in milliseconds
+ * @returns `{ name, value, input? }` rows in milliseconds; `input` names what a row timed, so the dashboard never
+ *   compares results of two different inputs
  */
 export function benchmarkRows(data) {
     const sessions = Array.isArray(data) ? data : [data];
     const results = sessions.at(-1)?.results ?? [];
     return results.flatMap((r) => {
         if (typeof r.algorithm === "string" && Number.isFinite(r.executionTime))
-            return [{ name: `${r.algorithm} n=${r.graphSize}`, value: r.executionTime }];
+            return [
+                {
+                    name: `${r.algorithm} n=${r.graphSize}`,
+                    value: r.executionTime,
+                    ...(typeof r.input === "string" ? { input: r.input } : {}),
+                },
+            ];
         if (typeof r.name === "string" && Number.isFinite(r.medianMs))
             return [{ name: r.group ? `${r.group} / ${r.name}` : r.name, value: r.medianMs }];
         return [];

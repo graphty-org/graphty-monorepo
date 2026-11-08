@@ -23,6 +23,8 @@ export interface BenchmarkTestData {
     graphGenerationAlgorithm?: string;
     graphSize?: number;
     edges?: number;
+    /** A fingerprint of the input graph, so a trend never compares timings of two different graphs */
+    input?: string;
     additionalMetrics?: Record<string, number>;
 }
 
@@ -202,6 +204,7 @@ export class CrossPlatformBenchmark {
             graphGenerationAlgorithm: testData.graphGenerationAlgorithm,
             graphSize: testData.graphSize || 0,
             edges: testData.edges || 0,
+            ...(testData.input === undefined ? {} : { input: testData.input }),
             executionTime: benchmark.stats ? benchmark.stats.mean * 1000 : 0, // Convert to milliseconds
             memoryUsage: memoryUsed,
             memoryPerVertex: testData.graphSize ? memoryUsed / testData.graphSize : 0,

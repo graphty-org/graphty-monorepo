@@ -1309,12 +1309,9 @@ export class Edge {
 
         this._lastVia = via;
 
-        const bundleChanged = edgeVersion !== this.bundleVersion;
-        this.bundleVersion = edgeVersion;
         // a fanned curve is pulled only while it is alone between its nodes (`Edge.pullsLine`)
-        if (bundleChanged && this.fans) {
-            this.repullLine();
-        }
+        this.repullLine(edgeVersion);
+        this.bundleVersion = edgeVersion;
 
         // a placed end that moves is a move; a first placement, or one after invalidatePositionCache, is at rest
         this.endsMoving = (srcMoved && this._lastSrcPos !== null) || (dstMoved && this._lastDstPos !== null);
@@ -2555,10 +2552,16 @@ export class Edge {
      * Move a fanned curve's line between a pulled piece and placed slots when the edge set changed
      * whether it is alone between its nodes. It draws no caps (`Edge.pullsLine` takes none either way),
      * so only the line is built again; the placement that follows lays it.
+     * @param edgeVersion - The edge set (`DataManager.edgeVersion`) this placement is against.
      */
-    private repullLine(): void {
+    private repullLine(edgeVersion: number): void {
         const style = this.drawnStyle;
-        if (style === null || this.wantsPull(style) === (this.pulled !== null)) {
+        if (
+            edgeVersion === this.bundleVersion ||
+            !this.fans ||
+            style === null ||
+            this.wantsPull(style) === (this.pulled !== null)
+        ) {
             return;
         }
 

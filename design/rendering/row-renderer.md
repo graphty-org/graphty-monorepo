@@ -713,8 +713,18 @@ A settling batch repacks from the lane, so the rest picture matches the upload p
 
 As built (stage 25, first pull request): `layoutDevice` is set when the renderer opens, from the engine's own `sharesDevice` answer:
 `"shared"`, `"separate"` under WebGL and on a software adapter, and null when no accelerator is offered (policy `"off"`, or nothing
-registered before the renderer opened). The type is exported as `LayoutDevice`. `to_drawn`, the ring and the copy at landing follow in
-later pull requests of the stage.
+registered before the renderer opened). The type is exported as `LayoutDevice`.
+
+As built (stage 25, second pull request): webgpu-graph-algorithms has the kernel and the ring; the element does not use them yet.
+`to-drawn` reads the stride-3 scene array `to_scene` already writes, so it applies the element's own formula,
+`(scene - center) * scale + target`, and runs in a pass of its own after the iteration pass of every batch. Correction to the text
+above: the kernel never writes w. The ring is seeded from the owner's stride-4 rows (`setDrawn({ slots, rows })`) and w, like the rows
+in the skip mask (`setDrawnSkip`), is only ever what the owner wrote, through `writeDrawn`, which writes every slot; so a hidden or
+shrunk row keeps its w while it moves, and the element never needs a ring-wide w pass. `setDrawnTransform` sets the uniform the next
+batches use. `landedDrawn` is the slot of the last batch that landed, null after a load, so a batch in flight across a reload never
+lands as one (the stale skip). The methods are optional members of `GpuLayoutSimulation`, so no implementer breaks.
+The element's copy at landing follows; `copyBufferToTexture` needs `bytesPerRow` a multiple of 256, which the `rowPosition`
+texture's width must allow.
 
 ### 4.6 Columns and load (#3249)
 

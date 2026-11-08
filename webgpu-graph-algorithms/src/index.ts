@@ -153,6 +153,8 @@ export type {
 // ==================== types: layouts (P3; the P5 stats and trace records; the P4 calibration records)
 export type {
     CalibrateOptions,
+    DrawnOutput,
+    DrawnTransform,
     ForceAtlas2Stats,
     ForceAtlas2TraceRecord,
     FruchtermanReingoldStats,

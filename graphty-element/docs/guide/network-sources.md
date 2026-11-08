@@ -102,6 +102,8 @@ await element.session.data.import(read); // read.nodes and read.edges say how bi
 scratch.dispose();
 ```
 
+`session.data.readExample(source, example)` does the same for one of a source's examples.
+
 ## Write your own source
 
 A source is an id and a function that returns nodes and edges. `ctx.fetchJson` does the request,

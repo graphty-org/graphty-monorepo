@@ -46,7 +46,7 @@ import {
     SOURCES_VALUE,
 } from "../commands/data";
 import { ISSUES_VALUE, type IssueState, loadFactsOf, withLoadFacts } from "../issues";
-import { DEFAULT_LIMITS } from "../limits";
+import { DEFAULT_LIMITS, tooLargeError } from "../limits";
 import type { ProgressChange } from "../shared";
 import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/provenance";
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
@@ -2205,15 +2205,7 @@ export class Ingest<K extends KnownEdge> {
             return;
         }
 
-        throw new GraphtyError({
-            code: "E_TOO_LARGE",
-            source: "data",
-            message:
-                `Loading ${adding.toLocaleString("en-US")} more ${of} would take the graph to ` +
-                `${(held + adding).toLocaleString("en-US")}, past the ${limit.toLocaleString("en-US")} ` +
-                `this renderer can draw. Load a subset of the graph.`,
-            details: { limit, count: held + adding, of, graph: { nodes, edges } },
-        });
+        throw tooLargeError(of, held, adding, limit, { nodes, edges });
     }
 }
 

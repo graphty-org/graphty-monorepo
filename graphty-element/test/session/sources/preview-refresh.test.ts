@@ -268,6 +268,86 @@ describe("sourceDescriptors() features", () => {
     });
 });
 
+describe("a read imported into another session", () => {
+    /**
+     * Runs a body with two sessions: one to read with, one to load into.
+     * @param body - the body.
+     * @returns settles once the body has.
+     */
+    async function withTwo(body: (scratch: GraphSession, session: GraphSession) => Promise<void>): Promise<void> {
+        await withSession(async (scratch) => {
+            await withSession(async (session) => {
+                await body(scratch, session);
+            });
+        });
+    }
+
+    it("pages and refreshes as a load made there does", async () => {
+        await withTwo(async (scratch, session) => {
+            const read = await scratch.data.readSource(
+                { source: "people-pages", config: { prefix: "a" } },
+                { limits: { maxNodes: 3, onLimit: "stop" } },
+            );
+            await session.data.import(read, { history: "start" });
+            const [load] = session.data.loads();
+            await session.data.more({ load: load.key });
+            assert.strictEqual(session.data.nodes().length, 6);
+            const report = await session.data.refresh(load.key);
+            assert.strictEqual(report.removed.nodes, 0);
+            assert.strictEqual(session.data.nodes().length, 6);
+        });
+    });
+
+    it("reads an example with its published login, and the load keeps it", async () => {
+        await withTwo(async (scratch, session) => {
+            const read = await scratch.data.readExample("people-public", "people-public-example");
+            assert.strictEqual(read.name, "People");
+            assert.lengthOf(scratch.data.loads(), 0, "the read recorded nothing");
+            await session.data.import(read, { history: "start" });
+            assert.strictEqual(session.data.loads()[0].credential?.username, "u");
+            assert.strictEqual(session.data.nodes().length, 2);
+        });
+    });
+
+    it("refuses an example the source does not list", async () => {
+        await withSession(async (session) => {
+            const error = (await session.data.readExample("people-public", "nope").then(
+                () => null,
+                (reason: unknown) => reason,
+            )) as GraphtyError;
+            assert.strictEqual(error.code, "E_SOURCE_UNKNOWN");
+        });
+    });
+});
+
+describe("data.previewSource of a source that cannot cut its answer short", () => {
+    const NDEX_INPUT = { source: "ndex", config: { uuid: "86719f5b-1439-11f0-9806-005056ae3c32" } };
+
+    it("previews a few rows of a network bigger than the preview", async () => {
+        await withSession(async (session) => {
+            const preview = await session.data.previewSource(NDEX_INPUT, { fetch: replayFetch(ndexRecordings) });
+            assert.strictEqual(preview.nodes.length, 25);
+            assert.isTrue(preview.more);
+        });
+    });
+
+    it("still refuses past the caller's own cap, naming what the source holds", async () => {
+        await withSession(async (session) => {
+            const error = (await session.data
+                .previewSource(NDEX_INPUT, {
+                    fetch: replayFetch(ndexRecordings),
+                    limits: { maxNodes: 10, onLimit: "stop" },
+                })
+                .then(
+                    () => null,
+                    (reason: unknown) => reason,
+                )) as GraphtyError;
+            assert.strictEqual(error.code, "E_SOURCE_LIMIT");
+            assert.deepInclude(error.details, { limit: "maxNodes", value: 57 });
+        });
+    });
+});
+
 describe("data.more({ load })", () => {
     it("pages the chosen load, not the newest", async () => {
         await withSession(async (session) => {

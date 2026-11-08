@@ -78,6 +78,7 @@
  */
 
 import type { Limits } from "../acceleration";
+import { GraphtyError } from "../errors/GraphtyError";
 import { DEFAULT_SELECTION_CAP } from "./selection";
 
 /**
@@ -116,3 +117,33 @@ export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
      */
     approximateAboveNodes: 2_000,
 });
+
+/**
+ * The refusal of a load past what the renderer can draw.
+ * @param of - what is counted
+ * @param held - how many the graph holds already
+ * @param adding - how many the load would add
+ * @param limit - the most the renderer can draw
+ * @param graph - the graph's counts now
+ * @param graph.nodes - how many nodes it holds
+ * @param graph.edges - how many edges it holds
+ * @returns the `E_TOO_LARGE` error
+ */
+export function tooLargeError(
+    of: "nodes" | "edges",
+    held: number,
+    adding: number,
+    limit: number,
+    graph: { readonly nodes: number; readonly edges: number },
+): GraphtyError {
+    const count = held + adding;
+    return new GraphtyError({
+        code: "E_TOO_LARGE",
+        source: "data",
+        message:
+            `Loading ${adding.toLocaleString("en-US")} more ${of} would take the graph to ` +
+            `${count.toLocaleString("en-US")}, past the ${limit.toLocaleString("en-US")} ` +
+            `this renderer can draw. Load a subset of the graph.`,
+        details: { limit, count, of, graph: { nodes: graph.nodes, edges: graph.edges } },
+    });
+}

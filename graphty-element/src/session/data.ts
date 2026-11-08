@@ -1418,6 +1418,24 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Read one of a source's examples and change nothing: `readSource` for what `loadExample` loads.
+     * @param source - The source id.
+     * @param example - The example's id within that source.
+     * @param options - Anything `import` takes; the import that takes the read keeps them.
+     * @returns The read and how many nodes and edges it holds.
+     */
+    readExample(source: string, example: string, options: SourceLoadOptions = {}): Promise<SourceRead> {
+        this.requireLive("readExample");
+        const off = this.networkOff("readExample");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.readExample(host, source, example, options));
+    }
+
+    /**
      * Ask a load's source whether its data changed, loading nothing.
      * @param load - The load's key, from `loads()`.
      * @param options - The credential and the endpoint.

@@ -27,7 +27,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import { describeRows } from "../attributes";
 import type { HeldRows } from "../commands/data";
 import type { DataImportSourceCommand } from "../commands/source-load";
-import { DEFAULT_LIMITS } from "../limits";
+import { DEFAULT_LIMITS, tooLargeError } from "../limits";
 import { historyMark } from "../loadLine";
 import type { SessionCommand } from "../planning";
 import { pairKey, planReplace } from "../replace";
@@ -304,6 +304,8 @@ interface HeldRead {
     readonly access: Access;
     readonly read: Read;
     readonly options: SourceLoadOptions;
+    /** How many nodes the source holds, when the caller knew (a sample's count). */
+    readonly known?: number;
 }
 
 /**
@@ -315,12 +317,7 @@ interface HeldRead {
  */
 function refuseAboveCeiling(of: "nodes" | "edges", count: number, limit: number): void {
     if (count > limit) {
-        throw new GraphtyError({
-            code: "E_TOO_LARGE",
-            source: "data",
-            message: `${String(count)} ${of} is past the ${String(limit)} this renderer can draw. Load a subset of the graph.`,
-            details: { limit, count, of, graph: { nodes: 0, edges: 0 } },
-        });
+        throw tooLargeError(of, 0, count, limit, { nodes: 0, edges: 0 });
     }
 }
 
@@ -329,18 +326,20 @@ function refuseAboveCeiling(of: "nodes" | "edges", count: number, limit: number)
  * @param host - the session pieces
  * @param input - the source and its params
  * @param options - the load options; the import that takes the read keeps them
+ * @param known - how many nodes the source holds, when the caller knows (a sample's count)
  * @returns the read
  */
 export async function readSource(
     host: SourceHost,
     input: SourceInput,
     options: SourceLoadOptions,
+    known?: number,
 ): Promise<SourceRead> {
     const access = await accessFor(host, input.source, options, input.config);
     const read = await readRows(input.source, input.config, access, options);
     refuseAboveCeiling("nodes", read.held.nodes.length, DEFAULT_LIMITS.renderCeiling);
     refuseAboveCeiling("edges", read.held.edges.length, DEFAULT_LIMITS.edgesDrawn);
-    const rows: HeldRead = { access, read, options };
+    const rows: HeldRead = { access, read, options, ...(known === undefined ? {} : { known }) };
     return { ...input, nodes: read.held.nodes.length, edges: read.held.edges.length, rows };
 }
 
@@ -386,7 +385,7 @@ export async function importSource(
         validators: read.info?.validators ?? {},
         credential: access.credential ?? null,
         credentialSlot: access.slot,
-        ...totalOf(read, total),
+        ...totalOf(read, total ?? held?.known),
         ...(options.expand === undefined ? {} : { expand: options.expand }),
     });
     try {
@@ -405,47 +404,79 @@ export async function importSource(
 }
 
 /**
- * Load one of a source's examples: its params, endpoint, published login and first page.
- * @param host - the session pieces
+ * What reading one of a source's examples takes: its params, endpoint, published login and first page.
  * @param source - the source id
  * @param id - the example's id within the source
  * @param options - the load options; a credential or endpoint given here wins
- * @returns the load's record
+ * @returns the source's input, the options and how many nodes the example holds
+ * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` when the source lists no such example
  */
-export function loadExample(
-    host: SourceHost,
+function exampleRead(
     source: string,
     id: string,
     options: SourceLoadOptions,
-): Promise<SourceLoadRecord> {
+): { input: SourceInput; options: SourceLoadOptions; known: number | undefined } {
     const examples = descriptorOf(source)?.examples ?? [];
     const example = examples.find((each) => each.id === id);
     if (example === undefined) {
-        return Promise.reject(
-            new GraphtyError({
-                code: "E_SOURCE_UNKNOWN",
-                message: `The ${JSON.stringify(source)} source lists no example with id ${JSON.stringify(id)}.`,
-                source: "data",
-                details: { source, id, known: examples.map((each) => each.id) },
-            }),
-        );
+        throw new GraphtyError({
+            code: "E_SOURCE_UNKNOWN",
+            message: `The ${JSON.stringify(source)} source lists no example with id ${JSON.stringify(id)}.`,
+            source: "data",
+            details: { source, id, known: examples.map((each) => each.id) },
+        });
     }
 
     const login = example.publicLogin;
     // An example too big to load whole starts with the first page its descriptor names; `more` reads on.
     const firstPage =
         example.firstPage === undefined ? {} : { limits: { maxNodes: example.firstPage, onLimit: "stop" as const } };
-    return importSource(
-        host,
-        { source, config: example.params, name: example.plainName },
-        {
+    return {
+        input: { source, config: example.params, name: example.plainName },
+        options: {
             ...(example.endpoint === undefined ? {} : { endpoint: example.endpoint }),
             ...(login === undefined ? {} : { credential: credentials.basic(login.username, login.password) }),
             ...firstPage,
             ...options,
         },
-        example.counts?.nodes,
-    );
+        known: example.counts?.nodes,
+    };
+}
+
+/**
+ * Load one of a source's examples.
+ * @param host - the session pieces
+ * @param source - the source id
+ * @param id - the example's id within the source
+ * @param options - the load options; a credential or endpoint given here wins
+ * @returns the load's record
+ */
+export async function loadExample(
+    host: SourceHost,
+    source: string,
+    id: string,
+    options: SourceLoadOptions,
+): Promise<SourceLoadRecord> {
+    const example = exampleRead(source, id, options);
+    return importSource(host, example.input, example.options, example.known);
+}
+
+/**
+ * Read one of a source's examples without loading it, for a `data.import` that may run in another session.
+ * @param host - the session pieces
+ * @param source - the source id
+ * @param id - the example's id within the source
+ * @param options - the load options; a credential or endpoint given here wins
+ * @returns the read
+ */
+export async function readExample(
+    host: SourceHost,
+    source: string,
+    id: string,
+    options: SourceLoadOptions,
+): Promise<SourceRead> {
+    const example = exampleRead(source, id, options);
+    return readSource(host, example.input, example.options, example.known);
 }
 
 /**
@@ -587,9 +618,18 @@ export async function previewSource(
 ): Promise<SourcePreview> {
     const { maxNodes = PREVIEW_NODES, ...rest } = options;
     const access = await accessFor(host, input.source, rest, input.config);
-    const read = await readRows(input.source, input.config, access, {
-        ...rest,
-        limits: { ...rest.limits, maxNodes, onLimit: "stop" },
+    const readUpTo = (cap: number): Promise<Read> =>
+        readRows(input.source, input.config, access, {
+            ...rest,
+            limits: { ...rest.limits, maxNodes: cap, onLimit: "stop" },
+        });
+    // A source that cannot cut its answer short (a whole network file) refuses a cap below its size,
+    // before its first byte. It is read as a load would be, and the slice below is the preview.
+    const read = await readUpTo(maxNodes).catch((error: unknown) => {
+        if (!(error instanceof GraphtyError) || error.code !== "E_SOURCE_LIMIT") {
+            throw error;
+        }
+        return readUpTo(rest.limits?.maxNodes ?? DEFAULT_LIMITS.renderCeiling);
     });
     // The `_source.` facts are the element's bookkeeping, not the source's data.
     const nodes = read.held.nodes.slice(0, maxNodes).map(withoutSourceFacts);

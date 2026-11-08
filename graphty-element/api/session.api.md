@@ -5463,6 +5463,7 @@ export interface SessionDataApi {
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
     readableValues(): readonly ReadableValue[];
+    readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
     readSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceRead>;
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;

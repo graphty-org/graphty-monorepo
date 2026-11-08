@@ -7,8 +7,9 @@ experiment (issue #6211; off by default, on at canary.graphty.app). Built: graph
 contract, registry and built-in sources NDEx, Cypher (with the `neo4j` and `neptune` presets, over
 the Neo4j Query API, Bolt, Neptune Database and Neptune Analytics), SPARQL, and REST (with the
 `openalex` preset); graphty-element's source verbs on `session.data` (`import` with a `source`,
-`testSource`, `listSource`, `previewSource`, `checkSource`, `refresh`, `more`, `expand`,
-`collapse`, `loadExample`, `pendingSourceLoads`, `runPendingSourceLoad`), the credential store and
+`testSource`, `listSource`, `previewSource`, `readSource`, `readExample`, `checkSource`, `refresh`,
+`more`, `expand`, `collapse`, `loadExample`, `pendingSourceLoads`, `runPendingSourceLoad`), the
+credential store and
 the `graphty-sources` project member; the graphty app's Network data form. Not built: the Gremlin
 source (#6212), a file-host source (#6213), more REST presets (#6214), and Memgraph run locally
 (#3408). Tracking issue: #2907. Each built-in source's examples are loaded live every week

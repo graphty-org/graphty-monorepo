@@ -143,4 +143,19 @@ describe("data.readSource", () => {
             assert.deepEqual(error?.details, { limit: 3, count: 4, of: "nodes", graph: { nodes: 0, edges: 0 } });
         });
     });
+
+    it("refuses edges past the drawn ceiling with E_TOO_LARGE", async () => {
+        const nodes = [{ id: "a" }, { id: "b" }, { id: "c" }];
+        const edges = [
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+            { source: "c", target: "a" },
+        ];
+        const fetch = (): Promise<Response> => Promise.resolve(Response.json({ nodes, edges }));
+        await withSession(["network-data"], async (session) => {
+            const error = await refusal(session.data.readSource(INPUT, { fetch }));
+            assert.strictEqual(error?.code, "E_TOO_LARGE");
+            assert.deepEqual(error?.details, { limit: 2, count: 3, of: "edges", graph: { nodes: 0, edges: 0 } });
+        });
+    });
 });

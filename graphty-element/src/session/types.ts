@@ -1705,6 +1705,16 @@ export interface SessionDataApi {
      */
     readSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceRead>;
     /**
+     * Read one of a source's examples and change nothing: `readSource` for what `loadExample`
+     * loads, with the example's endpoint, published login and first page. Experimental.
+     * @param source - The source id, such as `"neo4j"`.
+     * @param example - The example's id within that source, such as `"neo4j-movies"`.
+     * @param options - Anything `import` takes; the import that takes the read keeps them.
+     * @returns The read and how many nodes and edges it holds; rejects with `E_SOURCE_UNKNOWN`
+     *     when the source lists no such example.
+     */
+    readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
+    /**
      * Ask a load's source whether its data changed since the load, loading nothing. Experimental.
      * @param load - The load's key, from `sources()` or `loads()`.
      * @param options - The credential and the endpoint.

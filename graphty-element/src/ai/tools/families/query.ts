@@ -6,7 +6,7 @@
 import { z } from "zod";
 
 import type { RecordPageOptions } from "../../../session/types";
-import { effectTarget, foundEffects } from "../effects";
+import { effectTarget, foundEffects, wholeGraphRead } from "../effects";
 import {
     attributeNames,
     guardSelector,
@@ -131,8 +131,8 @@ export const queryTool: ToolDefinition = {
             run: ({ tx }) => {
                 const { status } = tx;
                 const { summary } = tx.visibility;
-                return Promise.resolve(
-                    ok({
+                return Promise.resolve({
+                    ...ok({
                         nodes: status.counts.nodes,
                         edges: status.counts.edges,
                         visibleNodes: summary.visibleNodes,
@@ -151,7 +151,8 @@ export const queryTool: ToolDefinition = {
                             .list()
                             .map((run) => ({ run: run.id, algorithm: run.algorithm, status: run.status })),
                     }),
-                );
+                    effects: () => wholeGraphRead(status.counts.nodes, status.counts.edges),
+                });
             },
         },
         recordsAction("node"),
@@ -330,8 +331,8 @@ export const queryTool: ToolDefinition = {
             reaches: [{ door: "SessionDataApi.statistics" }],
             run: ({ tx }) => {
                 const stats = tx.data.statistics();
-                return Promise.resolve(
-                    ok({
+                return Promise.resolve({
+                    ...ok({
                         nodes: stats.nodeCount,
                         edges: stats.edgeCount,
                         density: stats.density,
@@ -346,7 +347,8 @@ export const queryTool: ToolDefinition = {
                         isolated: stats.components.isolatedCount,
                         ...(stats.transitivity === undefined ? {} : { transitivity: stats.transitivity }),
                     }),
-                );
+                    effects: () => wholeGraphRead(stats.nodeCount, stats.edgeCount),
+                });
             },
         },
         {

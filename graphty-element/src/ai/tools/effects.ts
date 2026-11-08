@@ -95,6 +95,16 @@ export function foundEffects(
 }
 
 /**
+ * A read of the whole graph (its overview, its statistics) as what it found: the graph's counts.
+ * @param nodes - The graph's nodes.
+ * @param edges - The graph's edges.
+ * @returns The effect.
+ */
+export function wholeGraphRead(nodes: number, edges: number): AiEffect[] {
+    return [{ code: "AI_EFFECT_FOUND", params: { nodes, edges }, target: { scope: "graph" } }];
+}
+
+/**
  * What a target looked for, as a fact.
  * @param target - The target.
  * @returns Its rule or text, or empty for a target that states neither.

@@ -260,6 +260,27 @@ describe("effects", () => {
         assert.deepEqual(session.selection.nodes.map(String), [String(top?.id)]);
     });
 
+    it("says what a whole-graph read found and how a grouping run grouped", async () => {
+        const session = await assistantSession(undefined, ON);
+        const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
+        await assistant.say(
+            "summarize and group",
+            [{ tool: "query", args: { action: "overview" } }],
+            [{ tool: "query", args: { action: "statistics" } }],
+            [{ tool: "run_algorithm", args: { action: "run", name: "louvain", style: false } }],
+        );
+
+        const [overview, statistics, run] = effectsOf(assistant);
+        const counts = { nodes: session.status.counts.nodes, edges: session.status.counts.edges };
+        assert.deepEqual(overview, { code: "AI_EFFECT_FOUND", params: counts, target: { scope: "graph" } });
+        assert.deepEqual(statistics, overview);
+        assert.strictEqual(run.code, "AI_EFFECT_RUN");
+        const summary = session.runs.get(String(run.params.run))?.result?.summary();
+        assert.isNumber(run.params.groups);
+        assert.strictEqual(run.params.groups, summary?.groupCount);
+        assert.strictEqual(run.params.largest, Math.max(...(summary?.groups ?? []).map((group) => group.size)));
+    });
+
     it("words every other kind of change as a code with its facts", async () => {
         const session = await assistantSession(undefined, ON);
         const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
@@ -292,7 +313,7 @@ describe("effects", () => {
             ],
         );
         const [layout, run, , selection, removed, changed, other] = effects;
-        assert.deepEqual(layout.params, { layout: "circular" });
+        assert.deepEqual(layout.params, { layout: "circular", nodes: 5 });
         assert.strictEqual(run.params.nodes, 5);
         assert.deepEqual(selection.params, { nodes: 2, edges: 0 });
         assert.deepEqual(removed.params, { removedNodes: 1, removedEdges: 2 });

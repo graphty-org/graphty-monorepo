@@ -95,10 +95,14 @@ export async function runEffects(
     run: Run,
     painted: { painted?: number } = paintedFact(session, run),
 ): Promise<AiEffect[]> {
-    const params = { run: run.id, algorithm: run.algorithm, ...painted };
+    const summary = run.result?.summary();
+    // A run that groups its elements says how many groups and how big the largest is.
+    const largest = summary?.groups?.reduce((most, group) => Math.max(most, group.size), 0);
+    const groups: Record<string, number> =
+        summary?.groupCount === undefined || largest === undefined ? {} : { groups: summary.groupCount, largest };
+    const params = { run: run.id, algorithm: run.algorithm, ...painted, ...groups };
     const target: AiTarget = { range: { run: run.id } };
     // A run that ranks its elements found its leader: the node an answer about it names.
-    const summary = run.result?.summary();
     const leader =
         summary !== undefined && summary.groups === undefined && summary.top.length > 0
             ? foundEffects("results", { nodes: 1 }, { top: { run: run.id, n: 1 } })

@@ -690,17 +690,20 @@ export type AiResultParams = Readonly<Record<string, string | number>>;
  * - `AI_EFFECT_STYLE` -- a layer sets a channel. `{ channel, layer, nodes | edges, hidden, source? }`:
  *   `nodes` or `edges` count the elements its rule matches, `hidden` how many of them a filter hides,
  *   and `source` the path a bound channel reads (`data.group`); a fixed value has no `source`.
- * - `AI_EFFECT_LAYOUT` -- the layout changed. `{ layout }`.
+ * - `AI_EFFECT_LAYOUT` -- the layout changed. `{ layout, nodes? }`, `nodes` being the nodes it arranges.
  * - `AI_EFFECT_FILTER` -- the filter changed. `{ kept, total, keptEdges, totalEdges }`.
- * - `AI_EFFECT_RUN` -- an algorithm ran. `{ run, algorithm, nodes?, painted? }`, `nodes` being the
- *   elements it measured and `painted` how many of its suggestions were added, omitted at 0.
+ * - `AI_EFFECT_RUN` -- an algorithm ran. `{ run, algorithm, nodes?, painted?, groups?, largest? }`,
+ *   `nodes` being the elements it measured, `painted` how many of its suggestions were added, omitted
+ *   at 0, and for a run that groups its elements (communities, components) `groups` how many groups it
+ *   made and `largest` the size of the largest.
  * - `AI_EFFECT_RUN_REMOVED` -- a run and the layers reading it left the graph. `{ run, algorithm,
  *   removedLayers }`, `removedLayers` being how many layers went with it.
  * - `AI_EFFECT_DATA` -- the data changed. Any of `{ addedNodes, addedEdges, removedNodes, removedEdges,
  *   changedValues }`.
  * - `AI_EFFECT_SELECTION` -- the selection changed. `{ nodes, edges }`.
  * - `AI_EFFECT_VIEW` -- the camera or the dimension changed.
- * - `AI_EFFECT_FOUND` -- a read named these elements. `{ nodes?, edges? }`.
+ * - `AI_EFFECT_FOUND` -- a read named these elements. `{ nodes?, edges? }`. A read of the whole graph
+ *   (its overview or statistics) names it all: target `{ scope: "graph" }`, with the graph's counts.
  * - `AI_EFFECT_EMPTY` -- a read or a write matched nothing. `{ tool, searched }`: `searched` is the
  *   rule or text it looked for.
  * - `AI_EFFECT_OTHER` -- anything else that changed the graph. `{ tool, action }`.

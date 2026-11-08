@@ -136,7 +136,9 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
                 );
                 return {
                     ...ok(undefined, { layout: tx.layout.id, engine: tx.layout.engine }),
-                    effects: () => [{ code: "AI_EFFECT_LAYOUT", params: { layout: tx.layout.id } }],
+                    effects: () => [
+                        { code: "AI_EFFECT_LAYOUT", params: { layout: tx.layout.id, nodes: tx.status.counts.nodes } },
+                    ],
                 };
             },
         },

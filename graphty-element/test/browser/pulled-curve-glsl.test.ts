@@ -104,8 +104,15 @@ function asks(): Ask[] {
     };
     const out: Ask[] = [];
     while (out.length === 0 || new Set(out.map((a) => a.dst)).size < 200) {
-        const src = { x: 0, y: 0, z: 0 };
+        // a lone curve, a fanned arc, a center arc (`line.arcRadius`), a gapped lone curve and a raised arc
+        // (`line.route` "arc"), a gapped straight line raised in an arc, flat at times, and a great-circle arc over a
+        // globe centered on the origin (`line.route` "great-circle"), curved or straight, in turn
+        const kind = Math.floor(random() * 7);
         const scale = [2, 10, 40][out.length % 3];
+        const src =
+            kind === 6
+                ? { x: (random() - 0.5) * scale, y: (random() - 0.5) * scale, z: (random() - 0.5) * scale }
+                : { x: 0, y: 0, z: 0 };
         const dst =
             random() < 0.05
                 ? { x: 0, y: 0, z: scale }
@@ -114,9 +121,6 @@ function asks(): Ask[] {
             const d = Math.hypot(x - c.x, y - c.y, z - c.z);
             return d > 0 && d > r;
         };
-        // a lone curve, a fanned arc, a center arc (`line.arcRadius`), a gapped lone curve and a raised arc
-        // (`line.route` "arc"), and a gapped straight line raised in an arc, flat at times, in turn
-        const kind = Math.floor(random() * 6);
         const bow = kind === 1 ? (random() - 0.5) * 2 * scale : null;
         // a half circle (radius 0.5) among them, whose way round is a float's noise
         const arc = kind === 2 ? Math.max(0.5, random() * 3.5 - 0.5) : null;
@@ -124,12 +128,12 @@ function asks(): Ask[] {
         let height: number | null = null;
         if (kind === 4) {
             height = random() * 1.5;
-        } else if (kind === 5) {
+        } else if (kind === 5 || kind === 6) {
             height = random() < 0.3 ? 0 : random() * 1.5;
         }
         const gapped = kind === 3 || kind === 5;
         const [gSrc, gDst] = gapped ? [random() * scale * 0.4, random() * scale * 0.4] : [0, 0];
-        const length = Math.hypot(dst.x, dst.y, dst.z);
+        const length = Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
         const bare = (from: Xyz, to: Xyz, reach: number): Xyz => {
             const t = Math.min(reach, length) / length;
             return {
@@ -143,7 +147,7 @@ function asks(): Ask[] {
             dst,
             radius(src, rSrc + gSrc),
             radius(dst, rDst + gDst),
-            { bow, radius: arc, height, straight: kind === 5 },
+            { bow, radius: arc, height, globe: kind === 6, straight: kind === 5 || (kind === 6 && random() < 0.5) },
             gapped ? () => [bare(src, dst, rSrc + gSrc), bare(dst, src, rDst + gDst)] : null,
         );
         for (let j = 0; span !== null && j <= span.pieces; j++) {
@@ -167,6 +171,7 @@ describe("the pulled curve's GLSL", () => {
             0,
             "some raised straight lines are drawn straight between their bare ends",
         );
+        assert.isAbove(all.filter((a) => (a.span.angle ?? 0) > 0).length, 0, "some great-circle arcs are drawn cut");
         const got = shaderPoints(all);
         let worst = 0;
         all.forEach(({ src, dst, span, j }, i) => {

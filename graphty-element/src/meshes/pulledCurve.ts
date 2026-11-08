@@ -11,10 +11,12 @@
  * is {@link curvePathPoint} for a shader. A curve fanned out of a bundle (`edgeRoute.fanArc`) is the same
  * cut of another path: a quadratic that bows a signed distance to the chord's left, kept in the span. A curve drawn
  * as an arc of a circle through both centers (`line.arcRadius`, `edgeRoute.centerArc`) is the cut of a third, kept as
- * its radius. Nothing here reads Babylon.js, so it runs in Node.
+ * its radius, a raised arc (`line.route` "arc", `edgeRoute.raisedArc`) as its height, and a great-circle arc over a
+ * globe (`line.route` "great-circle", `edgeRoute.greatCircleArc`) as its height and the angle it turns through. Nothing
+ * here reads Babylon.js, so it runs in Node.
  */
 
-import { centerCircle, fanArcPieces, routeOutside, type Xyz } from "./edgeRoute";
+import { centerCircle, fanArcPieces, greatCircle, routeOutside, type Xyz } from "./edgeRoute";
 
 /** How far the two control points stand off the chord, a share of its length (`EDGE_CONSTANTS.BEZIER_CONTROL_POINT_OFFSET`). */
 const CONTROL_OFFSET = 0.3;
@@ -59,6 +61,11 @@ export interface CurveSpan {
      * share of the chord in the x-y plane (`line.arcHeight`); null otherwise.
      */
     readonly height: number | null;
+    /**
+     * For a great-circle arc (`line.route` "great-circle", `edgeRoute.greatCircleArc`), the angle between its two
+     * centers' directions from the globe's center, 0 where it is drawn straight; null otherwise. Its lift is `height`.
+     */
+    readonly angle: number | null;
     /**
      * For the lone curve drawn uncut in place of a route no sample of which clears both nodes, how far along the
      * chord from source to target it starts and stops, when a gap (`line.nodeGap`) moves those ends off the centers
@@ -198,8 +205,39 @@ function raisedSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, height: 
     return { x: src.x + (dst.x - src.x) * t, y: src.y + (dst.y - src.y) * t, z: src.z + (dst.z - src.z) * t - lift };
 }
 
-/** Which path a span samples: a lone curve, a fanned arc (`bow`), a center arc (`radius`) or a raised arc (`height`). */
-type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "ends">;
+/**
+ * One sample of a great-circle arc, as `greatCircleArc` computes it: both ends exactly the centers, the straight line
+ * when its angle is 0.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param i - The sample, 0 to `samples`.
+ * @param samples - The pieces the arc is sampled with.
+ * @param height - Its lift, a share of the straight distance between the centers.
+ * @returns The point.
+ */
+function globeSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, height: number): Xyz {
+    if (i <= 0 || i >= samples) {
+        return i <= 0 ? src : dst;
+    }
+
+    const circle = greatCircle(src, dst, height);
+    if (circle === null) {
+        return along(src, dst, i / samples);
+    }
+
+    const { ra, rb, angle, sin, lift } = circle;
+    const t = i / samples;
+    const a = Math.sin((1 - t) * angle) / sin / ra;
+    const b = Math.sin(t * angle) / sin / rb;
+    const r = ra + (rb - ra) * t + lift * Math.sin(Math.PI * t);
+    return { x: (a * src.x + b * dst.x) * r, y: (a * src.y + b * dst.y) * r, z: (a * src.z + b * dst.z) * r };
+}
+
+/**
+ * Which path a span samples: a lone curve, a fanned arc (`bow`), a center arc (`radius`), a raised arc (`height`) or a
+ * great-circle arc (`angle`).
+ */
+type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "angle" | "ends">;
 
 /**
  * One sample of the path a span's shape names.
@@ -214,6 +252,10 @@ function pathSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, shape: Sha
     const { ends } = shape;
     if (ends !== null) {
         return sampleAt(along(src, dst, ends[0]), along(src, dst, ends[1]), i, samples);
+    }
+
+    if (shape.angle !== null) {
+        return globeSampleAt(src, dst, i, samples, shape.height ?? 0);
     }
 
     if (shape.height !== null) {
@@ -241,7 +283,8 @@ function along(src: Xyz, dst: Xyz, t: number): Xyz {
 /**
  * The span's shape as the shader's three numbers: (bow, turn or where an uncut curve starts; 0 for a lone curve,
  * 1 for a fanned arc, 2 for a center arc, 3 for a lone curve between two points of the chord, 4 for a raised arc
- * (its height first); where that curve stops), the last three of a curve piece's fourth texel.
+ * (its height first), 5 for a great-circle arc (its height first); where that curve stops, or a great-circle arc's
+ * angle), the last three of a curve piece's fourth texel.
  * @param span - The span, or null.
  * @returns The three numbers.
  */
@@ -252,6 +295,11 @@ export function curveShape(span: Shape | null): [number, number, number] {
     }
 
     const height = span?.height ?? null;
+    const angle = span?.angle ?? null;
+    if (angle !== null) {
+        return [height ?? 0, 5, angle];
+    }
+
     if (height !== null) {
         return [height, 4, 0];
     }
@@ -319,10 +367,12 @@ function crossingAlong(inside: Xyz, outside: Xyz, isOutside: (x: number, y: numb
  * @param outsideDst - Whether a point is outside the target node.
  * @param path - The path, a lone curve when empty: a fanned arc's bow ({@link CurveSpan.bow}), a center arc's radius
  *     ({@link CurveSpan.radius}), which wins over a bow, or a raised arc's height ({@link CurveSpan.height}), which wins
- *     over both.
+ *     over both; with `globe`, a great-circle arc's.
  * @param path.bow - The bow.
  * @param path.radius - The radius.
  * @param path.height - The height.
+ * @param path.globe - Whether the height lifts a great-circle arc over a globe centered on the origin (`line.route`
+ *     "great-circle") rather than a raised arc over a flat map.
  * @param path.straight - Whether the line is straight (no `line.bezier`): a route no sample of which clears both
  *     nodes is then the straight line between the bare ends, not the lone curve.
  * @param bareEnds - Where the line starts and stops when it is not cut (`Edge.bareEnd`: the centers, or with a gap,
@@ -337,20 +387,32 @@ export function curveSpan(
     dst: Xyz,
     outsideSrc: (x: number, y: number, z: number) => boolean,
     outsideDst: (x: number, y: number, z: number) => boolean,
-    path: { bow?: number | null; radius?: number | null; height?: number | null; straight?: boolean } = {},
+    path: {
+        bow?: number | null;
+        radius?: number | null;
+        height?: number | null;
+        globe?: boolean;
+        straight?: boolean;
+    } = {},
     bareEnds: (() => readonly [Xyz, Xyz]) | null = null,
 ): CurveSpan | null {
-    const { bow = null, radius = null, height = null, straight = false } = path;
+    const { bow = null, radius = null, height = null, globe = false, straight = false } = path;
     const circle = radius === null || height !== null ? null : centerCircle(src, dst, radius);
-    let shape: Shape = { bow, radius: null, turn: null, height: null, ends: null };
-    if (height !== null) {
-        shape = { bow: null, radius: null, turn: null, height, ends: null };
+    const sphere = globe && height !== null ? greatCircle(src, dst, height) : null;
+    let shape: Shape = { bow, radius: null, turn: null, height: null, angle: null, ends: null };
+    if (globe && height !== null) {
+        shape = { bow: null, radius: null, turn: null, height, angle: sphere?.angle ?? 0, ends: null };
+    } else if (height !== null) {
+        shape = { bow: null, radius: null, turn: null, height, angle: null, ends: null };
     } else if (radius !== null) {
-        shape = { bow: null, radius, turn: circle?.turn ?? 0, height: null, ends: null };
+        shape = { bow: null, radius, turn: circle?.turn ?? 0, height: null, angle: null, ends: null };
     }
 
     let samples = curvePieces(src, dst);
-    if (height !== null) {
+    if (shape.angle !== null) {
+        // `greatCircleArc`: a straight route is its two ends
+        samples = sphere?.pieces ?? 1;
+    } else if (height !== null) {
         // `raisedArc`: a flat route is its two ends
         const chord = Math.hypot(dst.x - src.x, dst.y - src.y);
         samples = height * chord > 0 ? fanArcPieces(chord, height * chord) : 1;
@@ -436,6 +498,7 @@ function uncutSpan(src: Xyz, dst: Xyz, bareEnds: readonly [Xyz, Xyz] | null): Cu
         radius: null,
         turn: null,
         height: null,
+        angle: null,
         ends: moved ? ends : null,
     };
 }
@@ -533,7 +596,28 @@ vec3 pulledRaisedSample(vec3 src, vec3 dst, float i, float samples, float height
     return p;
 }
 
-vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut) {
+// sin of an angle within a half turn, from the Taylor series of its half
+float pulledSin(float x) {
+    vec2 h = pulledSinCos(x * 0.5);
+    return 2.0 * h.x * h.y;
+}
+
+vec3 pulledGlobeSample(vec3 src, vec3 dst, float i, float samples, float height, float angle) {
+    float t = i / samples;
+    if (angle == 0.0 || i <= 0.0 || i >= samples) {
+        return angle == 0.0 ? mix(src, dst, t) : (i <= 0.0 ? src : dst);
+    }
+    float ra = length(src);
+    float rb = length(dst);
+    float s = pulledSin(angle);
+    float r = mix(ra, rb, t) + height * length(dst - src) * pulledSin(${Math.PI.toFixed(9)} * t);
+    return (src * (pulledSin((1.0 - t) * angle) / s / ra) + dst * (pulledSin(t * angle) / s / rb)) * r;
+}
+
+vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut, float angle) {
+    if (cut.w > 4.5) {
+        return pulledGlobeSample(src, dst, i, samples, cut.z, angle);
+    }
     if (cut.w > 3.5) {
         return pulledRaisedSample(src, dst, i, samples, cut.z);
     }
@@ -555,14 +639,14 @@ vec3 pulledCurvePoint(vec3 src, vec3 dst, vec4 span, vec4 cut, int j) {
     float first = span.y;
     int pieces = int(span.z + 0.5);
     if (j <= 0) {
-        vec3 a = pulledCurveSample(src, dst, first - 1.0, samples, cut);
-        return a + (pulledCurveSample(src, dst, first, samples, cut) - a) * cut.x;
+        vec3 a = pulledCurveSample(src, dst, first - 1.0, samples, cut, span.w);
+        return a + (pulledCurveSample(src, dst, first, samples, cut, span.w) - a) * cut.x;
     }
     if (j >= pieces) {
         float outside = first + float(pieces) - 1.0;
-        vec3 a = pulledCurveSample(src, dst, outside, samples, cut);
-        return a + (pulledCurveSample(src, dst, outside - 1.0, samples, cut) - a) * cut.y;
+        vec3 a = pulledCurveSample(src, dst, outside, samples, cut, span.w);
+        return a + (pulledCurveSample(src, dst, outside - 1.0, samples, cut, span.w) - a) * cut.y;
     }
-    return pulledCurveSample(src, dst, first + float(j) - 1.0, samples, cut);
+    return pulledCurveSample(src, dst, first + float(j) - 1.0, samples, cut, span.w);
 }
 `;

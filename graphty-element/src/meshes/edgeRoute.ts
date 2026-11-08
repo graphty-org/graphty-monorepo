@@ -855,6 +855,41 @@ export function raisedArc(src: Xyz, dst: Xyz, height: number): number[] {
 }
 
 /**
+ * The great circle {@link greatCircleArc} draws between two ends: their distances from the globe's center, the
+ * angle between their directions, its sine, the lift at the middle and the pieces.
+ * @param src - Where the edge starts.
+ * @param dst - Where it ends.
+ * @param height - The lift as a share of the straight-line distance between the ends.
+ * @returns The circle, or null when the arc is the straight line: an end at the center, or the ends in one
+ *     direction from it or in opposite ones.
+ */
+export function greatCircle(
+    src: Xyz,
+    dst: Xyz,
+    height: number,
+): { ra: number; rb: number; angle: number; sin: number; lift: number; pieces: number } | null {
+    const ra = Math.hypot(src.x, src.y, src.z);
+    const rb = Math.hypot(dst.x, dst.y, dst.z);
+    if (ra === 0 || rb === 0) {
+        return null;
+    }
+
+    const cos = Math.max(-1, Math.min(1, (src.x * dst.x + src.y * dst.y + src.z * dst.z) / (ra * rb)));
+    const angle = Math.acos(cos);
+    const sin = Math.sin(angle);
+    if (sin < 1e-6) {
+        return null;
+    }
+
+    const lift = height * Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
+    const pieces = Math.min(
+        RAISED_STEPS,
+        Math.max(Math.ceil(angle / ARC_TURN_PER_PIECE - 1e-9), fanArcPieces(angle * ((ra + rb) / 2), lift)),
+    );
+    return { ra, rb, angle, sin, lift, pieces };
+}
+
+/**
  * A great-circle arc over a globe centered on the origin (`line.route` "great-circle"): along the
  * great circle between the two ends' directions, its distance from the center running from one
  * end's to the other's, lifted at the middle by `height` times the straight-line distance between
@@ -867,25 +902,12 @@ export function raisedArc(src: Xyz, dst: Xyz, height: number): number[] {
  *     one direction from the center, or in opposite ones.
  */
 export function greatCircleArc(src: Xyz, dst: Xyz, height: number): number[] {
-    const ra = Math.hypot(src.x, src.y, src.z);
-    const rb = Math.hypot(dst.x, dst.y, dst.z);
-    const straight = [src.x, src.y, src.z, dst.x, dst.y, dst.z];
-    if (ra === 0 || rb === 0) {
-        return straight;
+    const circle = greatCircle(src, dst, height);
+    if (circle === null) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
     }
 
-    const cos = Math.max(-1, Math.min(1, (src.x * dst.x + src.y * dst.y + src.z * dst.z) / (ra * rb)));
-    const angle = Math.acos(cos);
-    const sin = Math.sin(angle);
-    if (sin < 1e-6) {
-        return straight;
-    }
-
-    const lift = height * Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
-    const pieces = Math.min(
-        RAISED_STEPS,
-        Math.max(Math.ceil(angle / ARC_TURN_PER_PIECE - 1e-9), fanArcPieces(angle * ((ra + rb) / 2), lift)),
-    );
+    const { ra, rb, angle, sin, lift, pieces } = circle;
     const out: number[] = [];
     for (let i = 0; i <= pieces; i++) {
         const t = i / pieces;

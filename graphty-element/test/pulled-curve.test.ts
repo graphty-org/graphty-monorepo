@@ -8,7 +8,15 @@ import { Vector3 } from "@babylonjs/core";
 import { assert, describe, it } from "vitest";
 
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
-import { centerArc, crossingOf, fanArc, raisedArc, routeOutside, type Xyz } from "../src/meshes/edgeRoute";
+import {
+    centerArc,
+    crossingOf,
+    fanArc,
+    greatCircleArc,
+    raisedArc,
+    routeOutside,
+    type Xyz,
+} from "../src/meshes/edgeRoute";
 import { bezierSamples, curvePathPoint, curveSpan } from "../src/meshes/pulledCurve";
 
 /** A seeded generator, so a failure names a case that comes back. */
@@ -276,6 +284,55 @@ describe("a pulled curve's path", () => {
 
         assert.isAtLeast(drawn, 150, "most cases draw a line");
         assert.isAbove(straight, 20, "many clear neither node and are drawn straight between the bare ends");
+    });
+
+    it("puts every point of a great-circle arc where the object path has it, curve or straight, gaps and all", () => {
+        const random = seeded(6371);
+        let drawn = 0;
+        let flat = 0;
+        for (const [i, { src, dst: far, rSrc, rDst }] of cases().entries()) {
+            // ends in one direction from the globe's center, or in opposite ones, are drawn as the straight line
+            let dst = far;
+            if (i % 13 === 0) {
+                dst = src.scale(i % 26 === 0 ? 1.5 : -0.7);
+            }
+
+            const height = i % 11 === 0 ? 0 : random() * 1.5;
+            const straight = i % 2 === 0;
+            const length = Vector3.Distance(src, dst);
+            const gSrc = i % 3 === 0 ? random() * length * 0.6 : 0;
+            const gDst = i % 3 === 0 ? random() * length * 0.6 : 0;
+            const route = greatCircleArc(src, dst, height);
+            const want = objectPath(src, dst, rSrc, rDst, route, gSrc, gDst, straight);
+            const span = curveSpan(
+                src,
+                dst,
+                outsideOf(src, rSrc + gSrc),
+                outsideOf(dst, rDst + gDst),
+                { height, globe: true, straight },
+                () => [bareEnd(src, dst, rSrc, gSrc), bareEnd(dst, src, rDst, gDst)],
+            );
+            assert.strictEqual(
+                span === null,
+                want === null,
+                `case ${String(i)}: a span exactly when the object path has one`,
+            );
+            if (span === null || want === null) {
+                continue;
+            }
+
+            drawn++;
+            flat += route.length === 6 && height > 0 ? 1 : 0;
+            assert.strictEqual(span.pieces, want.length - 1, `case ${String(i)}`);
+            want.forEach((p, j) => {
+                const q = curvePathPoint(src, dst, span, j);
+                const off = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+                assert.isAtMost(off, 1e-9 * (1 + Math.hypot(p.x, p.y, p.z)), `case ${String(i)} point ${String(j)}`);
+            });
+        }
+
+        assert.isAtLeast(drawn, 150, "most cases draw a line");
+        assert.isAbove(flat, 0, "some ends share a direction from the center and are drawn straight");
     });
 
     it("puts every point of a curve stopped short of its nodes by a gap where the object path has it", () => {

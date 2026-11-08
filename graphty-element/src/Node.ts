@@ -917,6 +917,22 @@ export class Node implements ModelUser {
     }
 
     /**
+     * How wide a node's border is drawn, in the scene: its width, except that an inside border is drawn narrower on a
+     * small node.
+     * @param style - The resolved style.
+     * @param border - The border drawn (a screen-pixel border already in scene units).
+     * @param perSize - The shape's extent per unit of size.
+     * @returns The width.
+     */
+    private drawnBorderWidth(style: NodeStyleConfig, border: NodeStyleConfig["border"], perSize: number): number {
+        if ((border?.position ?? "outside") === "outside") {
+            return (border?.width ?? 0) * perSize;
+        }
+        const extents = NodeMesh.extentsOf(style.shape ?? {}, Math.max(style.shape?.size ?? this.size, 1e-3));
+        return NodeMesh.borderFit(style.shape, border, extents).ring;
+    }
+
+    /**
      * Build this node's border from its style, as a child of its mesh so it moves, hides and is
      * disposed with the node. Called after every new mesh: the old border went with the old mesh.
      * @param meshKey - The source mesh key the node is drawn under.
@@ -940,15 +956,7 @@ export class Node implements ModelUser {
         }
 
         this.borderBuilt = { meshKey, style, scale };
-        this.borderWidth =
-            (border?.position ?? "outside") === "outside"
-                ? (border?.width ?? 0) * perSize
-                : // only an inside border is ever drawn narrower than its width, and only on a small node
-                  NodeMesh.borderFit(
-                      style.shape,
-                      border,
-                      NodeMesh.extentsOf(style.shape ?? {}, Math.max(style.shape?.size ?? this.size, 1e-3)),
-                  ).ring;
+        this.borderWidth = this.drawnBorderWidth(style, border, perSize);
         this.border = NodeMesh.createBorder(
             this.context.getMeshCache(),
             { styleId: key, is2D: this.context.is2D(), size: this.size },

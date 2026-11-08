@@ -1433,6 +1433,19 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         }
         return out.values;
     };
+    // under Lines finished at Vertex Border Pajek measures `ap` on the line between the outlines, the line graphty
+    // measures its own on (`pajek-specimen-arrows-p3`: `ap 10` puts the tip 5 from the target's outline at x 800,
+    // `ap 0.5` the point at x 432, the middle of 400..464)
+    const readArrowAt = (i: number, line: Param, put: Put, at: At, run: ReturnType<typeof runOf>): void => {
+        const ends = endsOf(i);
+        if (atBorder && run !== null && ends !== null) {
+            const length = Math.hypot(run[0], run[1]);
+            const k = Math.max(0, length - ends[0] - ends[1]) / length;
+            readArrowPosition(line("ap"), put, at, [run[0] * k, run[1] * k], line("s"));
+        } else {
+            readArrowPosition(line("ap"), put, at, run, line("s"), ends);
+        }
+    };
     const readEdge = (i: number, get: Param, put: Put, at: At): void => {
         // a loop on a placed node: an unplaced one is laid out by graphty, which draws its own loop, and a
         // file graphty wrote keeps its routes in its block
@@ -1448,17 +1461,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         const own = !directed[i] && u > v ? fromOtherEnd(get) : get;
         const line = bow === undefined ? own : bowedParams(own, bow);
         readLine(line, put, at, directed[i], labels, run, loop);
-        // under Lines finished at Vertex Border Pajek measures `ap` on the line between the outlines, the line graphty
-        // measures its own on (`pajek-specimen-arrows-p3`: `ap 10` puts the tip 5 from the target's outline at x 800,
-        // `ap 0.5` the point at x 432, the middle of 400..464)
-        const ends = endsOf(i);
-        if (atBorder && run !== null && ends !== null) {
-            const length = Math.hypot(run[0], run[1]);
-            const k = Math.max(0, length - ends[0] - ends[1]) / length;
-            readArrowPosition(line("ap"), put, at, [run[0] * k, run[1] * k], line("s"));
-        } else {
-            readArrowPosition(line("ap"), put, at, run, line("s"), ends);
-        }
+        readArrowAt(i, line, put, at, run);
         // an arc's arrowhead stops short of its target: at the port on its tip of a Bezier route, else by its gap (a
         // file graphty wrote keeps its gaps in its block)
         const ported =

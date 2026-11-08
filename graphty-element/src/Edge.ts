@@ -3371,21 +3371,15 @@ export class Edge {
             const c = crossingOf(port, to, out);
             return new Vector3(c.x, c.y, c.z);
         };
+        // the point a port's line runs on to: the route's next, else the other end
+        const one = span.first === span.last;
+        const afterA = one ? dst : Vector3.FromArray(route, 3 * span.first + 3);
         const start = ports.src
-            ? aimed(
-                  this.srcNode,
-                  a,
-                  span.first < span.last ? Vector3.FromArray(route, 3 * span.first + 3) : dst,
-                  outSrc,
-              )
+            ? aimed(this.srcNode, a, afterA, outSrc)
             : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
+        const beforeB = one ? start : Vector3.FromArray(route, 3 * span.last - 3);
         const end = ports.dst
-            ? aimed(
-                  this.dstNode,
-                  b,
-                  span.last > span.first ? Vector3.FromArray(route, 3 * span.last - 3) : start,
-                  outDst,
-              )
+            ? aimed(this.dstNode, b, beforeB, outDst)
             : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
         const mid = clearOfCaps(
             route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1))),

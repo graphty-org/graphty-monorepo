@@ -1964,6 +1964,37 @@ function readShadow(real: Realizer, put: PutValue, at: SiteOf): void {
 }
 
 /**
+ * The fill an outline darkens, and the raised and bevelled borders it draws round it.
+ * @param r - the node realizer element
+ * @param outline - the node's outline, or null for a plain shape
+ * @param border - its y:BorderStyle
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns the node's fill color, or null
+ */
+function readOutlineFaces(
+    r: unknown,
+    outline: ReturnType<typeof realizerOutline>,
+    border: unknown,
+    put: PutValue,
+    at: SiteOf,
+): string | null {
+    const fill = treeChild(r, "Fill");
+    const color = canonColor(treeAttr(fill, "color"), "yed", at("fill"))?.color ?? null;
+    const face = unfilled(fill) ? null : color;
+    if (outline?.darker === true) {
+        put("fill", color === null ? null : javaDarker(color));
+    }
+    if (outline?.raised === true || treeAttr(treeChild(r, "UML"), "use3DEffect") === "true") {
+        putRaisedBorder(face, put);
+    }
+    if (outline?.bevelInset !== undefined) {
+        putBevel(outline, face, outline.bevelInset, hasLine(border), put);
+    }
+    return color;
+}
+
+/**
  * Reads one node realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -2005,17 +2036,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     } else {
         putOutline(outline, width, height, put);
     }
-    const fill = treeChild(r, "Fill");
-    const color = canonColor(treeAttr(fill, "color"), "yed", at("fill"))?.color ?? null;
-    if (outline?.darker === true) {
-        put("fill", color === null ? null : javaDarker(color));
-    }
-    if (outline?.raised === true || treeAttr(treeChild(r, "UML"), "use3DEffect") === "true") {
-        putRaisedBorder(unfilled(fill) ? null : color, put);
-    }
-    if (outline?.bevelInset !== undefined) {
-        putBevel(outline, unfilled(fill) ? null : color, outline.bevelInset, hasLine(border), put);
-    }
+    const color = readOutlineFaces(r, outline, border, put, at);
     if (width !== null && height !== null && real.type === "GenericNode") {
         readMarks(real, outline, { width, height }, color, put, at);
     }

@@ -850,7 +850,6 @@ function chartAxes(
     const f = Number.isFinite(size) && size > 0 ? size : AXIS_LABEL_FONT_SIZE;
     const line = f * DIALOG_LINE_HEIGHT;
     const half = Math.max(0, disc - CHART_INSET - PLOT_INSET) / 2;
-    const plot = { x0: -half, y0: -half, x1: half, y1: half };
     const look = { size: num6(f / h), color: CHART_LABEL_COLOR };
     const put = (x: number, y: number, text: string, turn = 0): ChartText => [
         num6(x / (w / 2)),
@@ -862,17 +861,8 @@ function chartAxes(
     // the domain axis first: the range axis' ticks depend on the plot's height
     const position = DOMAIN_LABEL_POSITIONS.get(String(options.cy_domainLabelPosition)) ?? STANDARD_POSITION;
     const names = values.map((_, k) => nameOf(k) ?? "");
-    if (domain) {
-        const r = (position.turn * Math.PI) / 180;
-        const tall = (text: string): number =>
-            text === "" ? 0 : Math.abs(Math.sin(r)) * width(text) + Math.abs(Math.cos(r)) * line;
-        plot.y1 -= Math.max(0, ...names.map(tall)) + AXIS_ROOM;
-    }
-    // ponytail: the range's ends as JFreeChart's default number format writes them (up to 3 decimals, grouped)
-    const endText = (v: number): string => v.toLocaleString("en-US", { maximumFractionDigits: 3 });
-    if (range) {
-        plot.x0 += Math.max(width(endText(lo)), width(endText(hi))) + AXIS_ROOM;
-    }
+    const axes = { domain: domain ? names : null, range: range ? ([lo, hi] as const) : null };
+    const plot = plotRoom(half, axes, position.turn, { line, width });
     const [pw, ph] = [plot.x1 - plot.x0, plot.y1 - plot.y0];
     // labels that squeeze the plot to nothing: no axes, so no chart is offset far off its node
     if (!(pw > 0 && ph > 0)) {
@@ -891,6 +881,41 @@ function chartAxes(
         },
         texts,
     };
+}
+
+/**
+ * A bar or line chart's plot box once its axes' labels take their room: the domain axis' names below it (each as tall
+ * as it stands at its turn), and the range axis' end values on its left.
+ * @param half - half the plot's side before the labels
+ * @param axes - the domain axis' names and the range axis' ends, each null where that axis is not shown
+ * @param axes.domain - the names
+ * @param axes.range - the low and high ends
+ * @param turn - the domain labels' turn, in degrees
+ * @param text - the labels' line height and a text's width
+ * @param text.line - the line height
+ * @param text.width - a text's width
+ * @returns the plot's box
+ */
+function plotRoom(
+    half: number,
+    axes: { domain: readonly string[] | null; range: readonly [number, number] | null },
+    turn: number,
+    text: { line: number; width: (text: string) => number },
+): { x0: number; y0: number; x1: number; y1: number } {
+    const plot = { x0: -half, y0: -half, x1: half, y1: half };
+    const { line, width } = text;
+    if (axes.domain !== null) {
+        const r = (turn * Math.PI) / 180;
+        const tall = (t: string): number =>
+            t === "" ? 0 : Math.abs(Math.sin(r)) * width(t) + Math.abs(Math.cos(r)) * line;
+        plot.y1 -= Math.max(0, ...axes.domain.map(tall)) + AXIS_ROOM;
+    }
+    if (axes.range !== null) {
+        // ponytail: the range's ends as JFreeChart's default number format writes them (up to 3 decimals, grouped)
+        const endText = (v: number): string => v.toLocaleString("en-US", { maximumFractionDigits: 3 });
+        plot.x0 += Math.max(...axes.range.map((v) => width(endText(v)))) + AXIS_ROOM;
+    }
+    return plot;
 }
 
 /**
@@ -935,7 +960,8 @@ function heatMapDomain(
     const length = f * dialogWidth(text);
     const half = Math.max(0, disc - CHART_INSET - HEAT_MAP_INSET) / 2;
     const top = -half + length + HEAT_MAP_DOMAIN_ROOM;
-    if (!(half - top > 0)) {
+    const room = half - top;
+    if (Number.isNaN(room) || room <= 0) {
         return null;
     }
     const { w, h } = node;

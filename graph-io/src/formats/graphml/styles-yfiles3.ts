@@ -2186,45 +2186,25 @@ function readLabels(
     size: Size | null,
     path: EdgePath | null,
 ): void {
-    let label: unknown = undefined;
-    let text = "";
-    let extra = 0;
-    for (const l of treeChildren(treeChild(data, "List"), "Label")) {
+    const worded = treeChildren(treeChild(data, "List"), "Label").flatMap((l) => {
         const raw = treeAttr(l, "Text") ?? treeText(treeChild(l, "Label.Text")) ?? "";
-        if (raw.trim().length === 0) {
-            continue;
-        }
-        if (label === undefined) {
-            label = l;
-            text = raw;
-        } else {
-            extra++;
-        }
-    }
-    if (label === undefined) {
+        return raw.trim().length === 0 ? [] : [{ l, raw }];
+    });
+    if (worded.length === 0) {
         return;
     }
-    if (extra > 0) {
-        noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
+    if (worded.length > 1) {
+        noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(worded.length)} labels`);
     }
+    const label = worded[0].l;
+    let text = worded[0].raw;
     const ls = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
     const runs = typeof ls === "object" && ls !== null && ls.tag === "MarkupLabelStyle" ? markupRuns(text, at) : null;
     if (runs !== null) {
         text = runs.map((r) => r.text).join("");
     }
     put("label", canonText(text, at("label")));
-    let inBox = false;
-    if (at("label").target === "node") {
-        const position = labelPositionOf(refs, label);
-        put("labelPosition", position);
-        put("labelBox", labelBoxOf(refs, label, position));
-        inBox = !readLabelPlace(refs, label, position, size, put) && position === "center";
-    } else {
-        put("labelPosition", edgeLabelPositionOf(refs, label));
-        if (path !== null) {
-            readEdgeLabelPlace(refs, label, text, path, put);
-        }
-    }
+    const inBox = readLabelPlacing(refs, label, text, { size, path }, put, at);
     if (ls === null || ls === NULL || typeof ls !== "object" || !ls.tag.endsWith("LabelStyle")) {
         return;
     }
@@ -2242,6 +2222,39 @@ function readLabels(
     if (runs !== null) {
         putMarkupRuns(runs, labelFontSize(refs, label), put);
     }
+}
+
+/**
+ * Reads where a label is placed on its node or its edge.
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @param text - its words
+ * @param on - a node's size, an edge's boxes and route
+ * @param on.size - the node's size
+ * @param on.path - the edge's boxes and route, or null
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns whether a node's label is drawn in its box, where its words wrap
+ */
+function readLabelPlacing(
+    refs: References,
+    label: unknown,
+    text: string,
+    on: { size: Size | null; path: EdgePath | null },
+    put: PutValue,
+    at: SiteOf,
+): boolean {
+    if (at("label").target === "node") {
+        const position = labelPositionOf(refs, label);
+        put("labelPosition", position);
+        put("labelBox", labelBoxOf(refs, label, position));
+        return !readLabelPlace(refs, label, position, on.size, put) && position === "center";
+    }
+    put("labelPosition", edgeLabelPositionOf(refs, label));
+    if (on.path !== null) {
+        readEdgeLabelPlace(refs, label, text, on.path, put);
+    }
+    return false;
 }
 
 /** A run of a MarkupLabelStyle's words in one font: what differs from the label's own font. */
@@ -2292,42 +2305,77 @@ function markupRuns(markup: string, at: SiteOf): MarkupRun[] {
             runs.push({ text, ...font });
         }
     };
-    for (const [token] of markup.slice(0, MAX_STYLE_VALUE_LENGTH).matchAll(/<[^>]*>|[^<]+/g)) {
-        const tag = /^<\s*(\/?)\s*([a-z][a-z0-9]*)/i.exec(token);
+    // each alternative is one negated character class, so a token is matched once per character, over a capped text
+    const tokens = markup.slice(0, MAX_STYLE_VALUE_LENGTH).matchAll(/<[^>]*>|[^<]+/g); // NOSONAR(typescript:S5852): linear, no nested or overlapping quantifier
+    for (const [token] of tokens) {
+        const tag = markupTag(token);
         if (tag === null) {
             add(
                 htmlLabelSpans(token)
                     .map((s) => s.text)
                     .join(""),
             );
-            continue;
-        }
-        const name = tag[2].toLowerCase();
-        if (name === "br") {
+        } else if (tag.name === "br") {
             add("\n");
-        } else if (tag[1] === "/") {
-            if (name === "p") {
+        } else if (tag.closing) {
+            if (tag.name === "p") {
                 add("\n");
             }
-            const i = open.map((o) => o.name).lastIndexOf(name);
+            const i = open.map((o) => o.name).lastIndexOf(tag.name);
             if (i >= 0) {
                 open.splice(i);
             }
         } else if (!token.endsWith("/>")) {
-            const color = /color\s*:\s*([^;"']+)/i.exec(name === "span" ? token : "")?.[1];
-            const css = color === undefined ? null : canonColor(color.trim(), "css", at("labelRuns"));
-            open.push({ name, font: css === null ? (MARKUP_TAGS.get(name) ?? {}) : { color: css.color } });
+            open.push({ name: tag.name, font: markupFont(token, tag.name, at) });
         }
     }
+    return trimRuns(runs);
+}
+
+/**
+ * A markup token's tag: its name, lower case, and whether it closes one; null for words.
+ * @param token - the token, a whole `<...>` tag or words
+ * @returns the tag, or null
+ */
+function markupTag(token: string): { name: string; closing: boolean } | null {
+    if (!token.startsWith("<")) {
+        return null;
+    }
+    const inner = token.slice(1).trimStart();
+    const closing = inner.startsWith("/");
+    const name = /^[a-z][a-z0-9]*/i.exec(closing ? inner.slice(1).trimStart() : inner)?.[0];
+    return name === undefined ? null : { name: name.toLowerCase(), closing };
+}
+
+/**
+ * The font an opening markup tag sets: a `<span>`'s `style` color, else the tag's own (`MARKUP_TAGS`).
+ * @param token - the tag
+ * @param name - its name
+ * @param at - the sites
+ * @returns the font
+ */
+function markupFont(token: string, name: string, at: SiteOf): Omit<MarkupRun, "text"> {
+    const color = /color\s*:\s*([^;"']+)/i.exec(name === "span" ? token : "")?.[1];
+    const css = color === undefined ? null : canonColor(color.trim(), "css", at("labelRuns"));
+    return css === null ? (MARKUP_TAGS.get(name) ?? {}) : { color: css.color };
+}
+
+/**
+ * Runs without blank runs at either end, and the first and last trimmed.
+ * @param runs - the runs, changed in place
+ * @returns the runs
+ */
+function trimRuns(runs: MarkupRun[]): MarkupRun[] {
     while (runs.length > 0 && runs[0].text.trim() === "") {
         runs.shift();
     }
     while (runs.length > 0 && (runs.at(-1)?.text.trim() ?? "") === "") {
         runs.pop();
     }
-    if (runs.length > 0) {
-        runs[0].text = runs[0].text.trimStart();
-        runs[runs.length - 1].text = runs[runs.length - 1].text.trimEnd();
+    const [first, last] = [runs.at(0), runs.at(-1)];
+    if (first !== undefined && last !== undefined) {
+        first.text = first.text.trimStart();
+        last.text = last.text.trimEnd();
     }
     return runs;
 }
@@ -2483,7 +2531,7 @@ function readLabelLayout(ls: StyleObject, put: PutValue): void {
  */
 function stretchTurn(refs: References, label: unknown): number | null {
     const parameter = layoutParameter(refs, label);
-    if (parameter === null || !parameter.tag.includes("Stretch")) {
+    if (!parameter?.tag.includes("Stretch")) {
         return null;
     }
     const position = (treeAttr(parameter.e, "Position") ?? "").toLowerCase();
@@ -2596,26 +2644,53 @@ function readYfiles3Target(
         const put: PutValue = (property, value) => {
             out.put(i, property, value);
         };
-        let size: Size | null = null;
-        if (geometry !== undefined && !isNode) {
-            const box = (k: number): Float64Array => boxes.subarray(4 * k, 4 * k + 4);
-            const [s, t] = [snapshot.edgeSource(i), snapshot.edgeTarget(i)];
-            readEdgeGeometry(refs, cell(geometry, i), cell(style, i), [box(s), box(t), s === t], put);
+        if (isNode) {
+            const collapsed = cell(expanded, i) === false;
+            const folder = collapsed ? folderLayout(cell(viewState, i)) : null;
+            const size =
+                geometry === undefined ? null : readNodeGeometry(folder ?? cell(geometry, i), i, boxes, put, at);
+            if (style !== undefined) {
+                readNodeStyle(refs, cell(style, i), put, at, size, collapsed, cell(ports, i));
+            }
+            readLabels(refs, cell(labels, i), put, at, size, null);
+        } else {
+            readYfiles3Edge(ctx, i, { style, labels, geometry }, (name) => cell(name, i), put, at);
         }
-        if (!isNode) {
-            putEdgePorts(ctx, i, put);
-        } else if (geometry !== undefined) {
-            const folder = cell(expanded, i) === false ? folderLayout(cell(viewState, i)) : null;
-            size = readNodeGeometry(folder ?? cell(geometry, i), i, boxes, put, at);
-        }
-        if (style !== undefined && isNode) {
-            readNodeStyle(refs, cell(style, i), put, at, size, cell(expanded, i) === false, cell(ports, i));
-        } else if (style !== undefined) {
-            readEdgeStyle(refs, cell(style, i), put, at);
-        }
-        readLabels(refs, cell(labels, i), put, at, size, isNode ? null : edgePath(ctx, i, cell(geometry, i)));
     }
     return out.values;
+}
+
+/**
+ * Reads one edge's yFiles 3 geometry, ports, style and labels.
+ * @param ctx - the shared state
+ * @param i - the edge
+ * @param columns - the edge table's style, labels and geometry columns, each undefined where the file has none
+ * @param columns.style - the style column
+ * @param columns.labels - the labels column
+ * @param columns.geometry - the geometry column
+ * @param cell - the edge's cell of a column
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readYfiles3Edge(
+    ctx: Yfiles3Context,
+    i: number,
+    columns: { style: string | undefined; labels: string | undefined; geometry: string | undefined },
+    cell: (name: string | undefined) => unknown,
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const { snapshot, refs, boxes } = ctx;
+    if (columns.geometry !== undefined) {
+        const box = (k: number): Float64Array => boxes.subarray(4 * k, 4 * k + 4);
+        const [s, t] = [snapshot.edgeSource(i), snapshot.edgeTarget(i)];
+        readEdgeGeometry(refs, cell(columns.geometry), cell(columns.style), [box(s), box(t), s === t], put);
+    }
+    putEdgePorts(ctx, i, put);
+    if (columns.style !== undefined) {
+        readEdgeStyle(refs, cell(columns.style), put, at);
+    }
+    readLabels(refs, cell(columns.labels), put, at, null, edgePath(ctx, i, cell(columns.geometry)));
 }
 
 /**

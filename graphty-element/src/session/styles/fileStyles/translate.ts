@@ -3235,7 +3235,7 @@ class KindTranslation {
         const pattern = style.map((value, i) => {
             const w = width[i];
             const dash = typeof value === "string" ? dashes[value as keyof typeof dashes]?.value : undefined;
-            return dash === undefined || typeof w !== "number" || !(w > 0) ? null : dash(w);
+            return dash === undefined || typeof w !== "number" || Number.isNaN(w) || w <= 0 ? null : dash(w);
         });
         if (pattern.every((value) => value === null)) {
             return;

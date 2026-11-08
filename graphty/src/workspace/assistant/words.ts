@@ -1131,10 +1131,11 @@ function foundWords(session: GraphSession | null, effect: AiEffect): string {
 function changeWords(session: GraphSession | null, effect: AiEffect): string {
     const line = effectLine(session, effect);
     const rule = effect.params.source === undefined ? ruleWords(session, effect.rule) : "";
+    const by = rule === "" ? "" : ` with ${rule}`;
     const hidden = Number(effect.params.hidden ?? 0);
     const layer = typeof effect.params.layerName === "string" ? `, in ${effect.params.layerName}` : "";
     const left = effect.code === "AI_EFFECT_STYLE" && hidden > 0 ? `, ${formatNumber(hidden)} of them hidden` : "";
-    return `${line}${rule === "" ? "" : ` with ${rule}`}${layer}${left}`;
+    return `${line}${by}${layer}${left}`;
 }
 
 /** One sentence per effect code: the app's build fails when graphty-element adds a code without one. */

@@ -169,10 +169,13 @@ function supportLines(message: AssistantMessage): string[] {
     }
     return [
         "For support:",
-        ...message.calls.flatMap((record, index) => [
-            `${index + 1}. ${record.command} ${JSON.stringify(record.arguments)}`,
-            `   -> ${record.code} ${JSON.stringify(record.params)}${record.effects === undefined ? "" : ` ${JSON.stringify(record.effects)}`}`,
-        ]),
+        ...message.calls.flatMap((record, index) => {
+            const did = record.effects === undefined ? "" : ` ${JSON.stringify(record.effects)}`;
+            return [
+                `${index + 1}. ${record.command} ${JSON.stringify(record.arguments)}`,
+                `   -> ${record.code} ${JSON.stringify(record.params)}${did}`,
+            ];
+        }),
     ];
 }
 

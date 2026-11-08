@@ -1421,7 +1421,7 @@ export function ruleParts(where: Query): AiRule | undefined {
     const join = either !== undefined && either.length > 1 ? "any" : "all";
     const chain = chainOf(tree, join === "any" ? "or" : "and");
     const terms = chain?.map(termOf);
-    if (terms === undefined || terms.some((term) => term === undefined)) {
+    if (terms === undefined || terms.includes(undefined)) {
         return undefined;
     }
 

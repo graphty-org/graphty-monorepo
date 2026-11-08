@@ -9,6 +9,7 @@ import { assert, describe, it } from "vitest";
 
 import { readConversation } from "../../../src/ai/conversation/formats";
 import { conversationSnapshot } from "../../../src/ai/conversation/snapshot";
+import type { AiRule } from "../../../src/catalog/ai";
 
 const GOLDEN = readFileSync(new URL("fixtures/v1-every-kind.json", import.meta.url), "utf8");
 
@@ -77,7 +78,7 @@ describe("the conversation snapshot", () => {
         const reply = conversationSnapshot(record).messages.find((message) => message.id === "c1");
         const calls = reply?.role === "assistant" ? reply.calls : [];
         // Its rule comes in parts too, for an application to word.
-        const rule = { join: "all", terms: [{ column: "degree", op: ">=", values: [3] }] };
+        const rule: AiRule = { join: "all", terms: [{ column: "degree", op: ">=", values: [3] }] };
         assert.deepEqual(calls[0]?.effects, [{ ...found, rule }]);
         assert.notProperty(calls[1], "effects");
     });

@@ -400,6 +400,17 @@ Correction from stage 16: a pulled piece carries no age, so `Edge.pullsLine` als
 timeline's `ageFade`), and `UpdateManager.followAgeFade` repaints every edge when the fade turns on or off while node batches exist.
 Without it, `"batched"` drew every plain edge unfaded (`edge-age-fade.test.ts` under `forced-batched`).
 
+As built (stage 16, second pull request): `EdgeLineBatch`'s expanded form (`drawsExpandedLines`, `forceExpandedLines`,
+`repeatPerVertex`) is deleted, so every renderer draws a placed batch's pieces as instances. This changes no pixel on
+either path, but object lines on SwiftShader draw slower again (the #3095 table in `design/edges/sharp-corners.md`).
+`test/browser/million-edge-lines.test.ts` places a million pieces in one `EdgeLineBatch` and pulls a million in one
+`PulledLineBatch`, and holds both to no GL error and the millionth piece drawn on whatever renderer the browser has.
+Before the deletion it failed on SwiftShader with `GL_INVALID_OPERATION` (1282) on the placed batch. Correction: a
+frame of a million lines that each cross the canvas takes about 45 s on SwiftShader, from fill rather than from the
+draw, so the test draws all but the last as specks. `test/browser/million-edge-element.test.ts` holds the bar through the
+element: a `"batched"` element loads a million edges (all pulled) on 1,416 nodes and draws the millionth with no
+GL error, about 55 s on SwiftShader, almost all of it the load.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

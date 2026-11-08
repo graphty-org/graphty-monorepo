@@ -587,7 +587,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
-    it.each(["2d", "3d"] as const)("leave a screen-scaled map's rows as objects through a zoom in %s", async (view) => {
+    it.each(["2d", "3d"] as const)("batch a screen-scaled map's rows through a zoom in %s", async (view) => {
         const element = await mounted(renderer);
         await loaded(element, view);
         const { graph } = element;
@@ -605,26 +605,37 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const batched = await readFrame(graph);
 
         assert.notEqual(graph.getNode(0)?.drawnScale, scale, "the zoom scaled the nodes");
-        assert.equal(graph.rowCounts.batchedNodes, 0);
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
-    it("leave the batch for depth independent size, and come back when it goes", async () => {
+    it("draw rows sized by depth in the batch, arrowheads with them, through an orbit", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
         const { graph } = element;
-        await frameOn(graph, "batched");
+        // Arrowheads are drawn at their node's scale (`Edge.capScale`), so they show whether a batched row's scale is read.
+        await element.session.data.addEdges(NODES.slice(1).map((node) => ({ source: node.id - 1, target: node.id })));
+        await element.session.styles.add({
+            name: "arrowheads",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "normal" },
+        } as never);
+        await operationQueueOf(graph).waitForCompletion();
         element.layoutBehavior = { node: { depthIndependentSize: true } };
         await element.waitForStableFrame();
-        const batched = await readFrame(graph);
-        assert.equal(graph.rowCounts.batchedNodes, 0);
-        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
-
-        graph.setRenderPath("batched");
-        element.layoutBehavior = { node: { depthIndependentSize: false } };
+        await frameOn(graph, "batched");
+        const scale = graph.getNode(0)?.drawnScale;
+        // From an empty corner, so the drag turns the camera rather than moving a node.
+        await drag(element, { x: 10, y: 10 }, { x: 90, y: 60 });
         await element.waitForStableFrame();
-        await readFrame(graph);
+        const batched = await readFrame(graph);
+
+        assert.notEqual(graph.getNode(0)?.drawnScale, scale, "the orbit scaled the nodes");
         assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        // Still one draw for the shape: each row's view scale is in its matrix.
+        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 1);
+        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
     it("add no attribute to an element on the default path", async () => {

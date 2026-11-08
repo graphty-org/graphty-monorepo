@@ -3275,7 +3275,7 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether a node's size follows the view, which a node batch cannot draw yet.
+     * Whether a node's size follows the view, which a batched row carries in its matrix.
      * @returns True under `depthIndependentSize` or a map's `nodeScale: "screen"`.
      */
     get nodesScaledByView(): boolean {

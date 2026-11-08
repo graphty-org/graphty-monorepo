@@ -65,8 +65,6 @@ export interface EdgePaint {
 
 /** The scene state a node batch depends on that a paint does not hold. */
 export interface BatchView {
-    /** A node's size follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`). */
-    readonly scaled: boolean;
     /** 3D `flat` lighting: an outline renderer draws round every node, which has no batch path. */
     readonly flatOutline: boolean;
 }
@@ -97,7 +95,8 @@ const BATCHABLE_STYLE_KEYS: ReadonlySet<string> = new Set([
  */
 export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): boolean {
     const { style } = paint;
-    if (view.scaled || view.flatOutline) {
+    // A size that follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`) is in the row's matrix.
+    if (view.flatOutline) {
         return false;
     }
 

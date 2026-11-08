@@ -114,10 +114,32 @@ describe("the drawn ring", () => {
         const simulation = ringed(ctx, 2);
         simulation.load(snapshot, new Float32Array(3 * n).fill(Number.NaN));
         simulation.setDrawn({ slots: 2, rows: new Float32Array(4 * n) });
-        const stale = simulation.step(1);
-        simulation.load(snapshot, new Float32Array(3 * n).fill(Number.NaN));
-        await stale;
-        assert.strictEqual(simulation.landedDrawn, null, "the stale batch skipped");
+        await simulation.step(1);
+        assert.notStrictEqual(simulation.landedDrawn, null, "a batch landed before the load");
+        // the next batch's submit is caught so the load lands while its readback is still pending on the GPU
+        const { queue } = ctx.device;
+        const submit = queue.submit.bind(queue);
+        let submits = 0;
+        let submitted!: () => void;
+        const onSubmit = new Promise<void>((resolve) => {
+            submitted = resolve;
+        });
+        queue.submit = (buffers: Iterable<GPUCommandBuffer>): undefined => {
+            submit(buffers);
+            submits++;
+            submitted();
+        };
+        try {
+            const stale = simulation.step(1);
+            await onSubmit;
+            assert.strictEqual(submits, 1, "the batch was submitted before the load");
+            simulation.load(snapshot, new Float32Array(3 * n).fill(Number.NaN));
+            assert.strictEqual(simulation.landedDrawn, null, "the load clears the slot landed before it");
+            await stale;
+        } finally {
+            queue.submit = submit;
+        }
+        assert.strictEqual(simulation.landedDrawn, null, "the batch in flight across the load never lands");
         simulation.dispose();
     });
 

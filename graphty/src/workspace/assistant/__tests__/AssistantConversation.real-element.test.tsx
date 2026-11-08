@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
@@ -18,6 +18,12 @@ import { readAssistantChoice, writeAssistantChoice } from "../../assistant-door/
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { link } from "../connection";
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        grantClipboard: () => Promise<void>;
+    }
+}
 
 /** The experiment on, as a site.json that lists it. */
 const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
@@ -437,6 +443,52 @@ describe("talking to the Assistant", () => {
         assert.match(lines[0] ?? "", /^Counted 2 nodes with \S.*even/);
         assert.strictEqual(lines[1], "Colored 3 nodes");
         assert.strictEqual(lines[2], "Searched tools for export");
+    });
+
+    it("opens a step's details by click and Enter, and Copy chat copies the whole chat with them", async () => {
+        await commands.grantClipboard();
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        const session = await waitFor(() => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            return found;
+        });
+        await session.data.addNodes([
+            { id: "a", group: "even" },
+            { id: "b", group: "odd" },
+            { id: "c", group: "even" },
+        ]);
+        await openPanel();
+        model.turns = [
+            {
+                text: "",
+                toolCalls: [{ id: "c1", name: "query", arguments: { action: "count", where: "data.group == 'even'" } }],
+            },
+            { text: "Two are even.", toolCalls: [] },
+        ];
+        await say("How many are even?");
+        await screen.findByText("Two are even.");
+        await userEvent.click(await screen.findByRole("button", { name: "1 step" }));
+        const step = await screen.findByRole("button", { name: /^Counted 2 nodes/ });
+        assert.strictEqual(step.getAttribute("aria-expanded"), "false");
+        await userEvent.click(step);
+        await screen.findByText(/^Tool query: action count; where /);
+        assert.strictEqual(step.getAttribute("aria-expanded"), "true");
+        // Enter on the focused step closes it again.
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(step.getAttribute("aria-expanded"), "false");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Copy chat" }));
+        // The notice shows it, and the status line says it.
+        await screen.findAllByText("Chat copied");
+        const text = await navigator.clipboard.readText();
+        assert.match(text, /^# How many are even\?\nGraph: Talk -- 3 nodes, 0 edges\nAssistant: Mock/);
+        assert.include(text, "## You\nHow many are even?\n");
+        assert.include(text, "## Assistant\nTwo are even.\n");
+        assert.match(text, /\nSteps:\n1\. Counted 2 nodes with \S.*even.*\n {3}- Tool query: action count; where /);
+        assert.match(text, /\n- Found: edges 0, nodes 2, rule .*even.* -- nodes a, c\n/);
     });
 
     it("lets the reader select what was said and its reply, by real clicks", async () => {

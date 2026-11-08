@@ -283,6 +283,139 @@ describe("stepLine", () => {
             },
             "Query data failed: its rule could not be read",
         ],
+        [
+            {
+                tool: "query",
+                arguments: { action: "statistics" },
+                effects: found({ nodes: 34, edges: 78 }, { scope: "graph" }),
+            },
+            "Read graph statistics: 34 nodes, 78 edges",
+        ],
+        [
+            {
+                tool: "query",
+                arguments: { action: "overview" },
+                effects: found({ nodes: 34, edges: 78 }, { scope: "graph" }),
+            },
+            "Read the graph summary: 34 nodes, 78 edges",
+        ],
+        [
+            {
+                tool: "query",
+                arguments: { action: "count", result: { op: "largest", run: "louvain", field: "group" } },
+                effects: found({ nodes: 12 }, { where: "results.louvain.group == `0`" }),
+            },
+            "Counted 12 nodes in the largest group of Communities",
+        ],
+        [
+            {
+                tool: "style",
+                arguments: { action: "add", values: { "node.color": "red" }, where: "degree > `10`" },
+                effects: [
+                    { code: "AI_EFFECT_STYLE", params: { channel: "node.color", nodes: 3, hidden: 0, layer: "l" } },
+                ],
+            },
+            "Colored 3 nodes with degree > 10",
+        ],
+        [
+            {
+                tool: "run_algorithm",
+                arguments: { name: "louvain", style: true },
+                effects: [
+                    {
+                        code: "AI_EFFECT_RUN",
+                        params: { run: "louvain", algorithm: "louvain", nodes: 34, painted: 1, groups: 4, largest: 12 },
+                    },
+                ],
+            },
+            "Computed Communities: 4 groups, largest 12 nodes, colored by it",
+        ],
+        [
+            {
+                tool: "layout",
+                arguments: { action: "set", name: "circular" },
+                effects: [{ code: "AI_EFFECT_LAYOUT", params: { layout: "circular", nodes: 34 } }],
+            },
+            "Arranged 34 nodes as Ring",
+        ],
+        [
+            {
+                tool: "filter",
+                arguments: { action: "show_only", where: "degree >= `3`" },
+                effects: [{ code: "AI_EFFECT_FILTER", params: { kept: 22, total: 34 } }],
+            },
+            "Filtered to nodes with degree >= 3: 22 of 34 nodes shown",
+        ],
+        [
+            {
+                tool: "filter",
+                arguments: { action: "clear" },
+                effects: [{ code: "AI_EFFECT_FILTER", params: { kept: 33, total: 33 } }],
+            },
+            "Cleared the filter: 33 nodes shown",
+        ],
+        [
+            {
+                tool: "edit_data",
+                arguments: { action: "remove_nodes", where: "degree <= `2`" },
+                effects: [{ code: "AI_EFFECT_DATA", params: { removedNodes: 12, removedEdges: 23 } }],
+            },
+            "Removed 12 nodes and 23 edges, nodes with degree <= 2",
+        ],
+        [
+            {
+                tool: "select",
+                arguments: { action: "set", ids: ["1"] },
+                effects: [{ code: "AI_EFFECT_SELECTION", params: { nodes: 1, edges: 0 } }],
+            },
+            "Selected 1 node: 1",
+        ],
+        [
+            {
+                tool: "select",
+                arguments: { action: "neighborhood", hops: 1 },
+                effects: [{ code: "AI_EFFECT_SELECTION", params: { nodes: 17, edges: 0 } }],
+            },
+            "Selected 17 nodes within 1 hop",
+        ],
+        [
+            {
+                tool: "select",
+                arguments: { action: "remove", ids: ["1"] },
+                effects: [{ code: "AI_EFFECT_SELECTION", params: { nodes: 16, edges: 0 } }],
+            },
+            "Deselected 1: 16 nodes left",
+        ],
+        [
+            {
+                tool: "view",
+                arguments: { action: "fit" },
+                effects: [{ code: "AI_EFFECT_VIEW", params: {} }],
+            },
+            "Fit the graph in view",
+        ],
+        [
+            {
+                tool: "undo",
+                arguments: { action: "undo" },
+                effects: [{ code: "AI_EFFECT_OTHER", params: { tool: "undo", action: "undo" } }],
+            },
+            "Undid the last change",
+        ],
+        [
+            { tool: "export_graph", arguments: { format: "graphml", whole: true } },
+            "Exported the whole graph as graphml",
+        ],
+        [
+            { tool: "style", code: "AI_TOOL_FAILED", params: { cause: "E_BAD_LAYER" } },
+            "Style failed: the style it made was not valid",
+        ],
+        [{ tool: "style", code: "AI_TOOL_FAILED", params: { cause: "E_SOMETHING_NEW" } }, "Style failed"],
+        [
+            { tool: "style", code: "AI_TOOL_INVALID_ARGUMENTS", params: { cause: "AI_ARG_INVALID" } },
+            "Style failed: the assistant passed values it does not take",
+        ],
+        [{ tool: "style", code: "AI_APPROVAL_DENIED", params: {} }, "Style not run: you declined"],
     ];
 
     for (const [call, line] of ROWS) {

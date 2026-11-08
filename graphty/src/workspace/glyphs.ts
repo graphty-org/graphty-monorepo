@@ -241,6 +241,8 @@ export const GLYPHS = {
     more: MoreHorizontal,
     rename: Pencil,
     duplicate: Copy,
+    // Copy text to the clipboard.
+    copy: Copy,
     paste: ClipboardPaste,
     // Pin a style row above or below the unpinned rows, and let it go.
     pinTop: ArrowUpToLine,

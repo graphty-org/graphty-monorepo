@@ -1,7 +1,7 @@
 import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Collapse, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Collapse, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { AssistantChoice } from "../assistant-door/provider";
@@ -9,6 +9,7 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { ChangeRows, ResultRow } from "./Checks";
 import { scopeKind, send } from "./connection";
+import { stepDetail } from "./transcript";
 import { isRunning } from "./useAssistantView";
 import {
     durationWords,
@@ -48,9 +49,10 @@ interface Ending {
     readonly params: AiResultParams;
 }
 
-/** One step, as a row shows it: what it did in a few words. */
+/** One step, as a row shows it: what it did in one line, and its details under it. */
 interface Step {
     readonly name: string;
+    readonly detail: readonly string[];
     readonly ms?: number;
     /** What it found, on the last step of its reply. */
     readonly results?: readonly AiEffect[];
@@ -145,7 +147,61 @@ function StepsButton({ count, open, onToggle, buttonRef }: Readonly<StepsButtonP
 }
 
 /**
- * A turn's steps, while open: a plain name, a time and any chips each. They grow as a run adds them.
+ * One step: its line and time as a button that opens its details (the tool, what the model passed,
+ * what it did) in small secondary text, and any chips.
+ * @param props - Component props
+ * @param props.step - the step
+ * @returns The row
+ */
+function StepRow({ step }: Readonly<{ step: Step }>): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    return (
+        <li>
+            <UnstyledButton
+                className="ws-assistant-step"
+                aria-expanded={open}
+                onClick={() => {
+                    setOpen(!open);
+                }}
+            >
+                <Text span size="xs">
+                    {step.name}
+                </Text>
+                {step.ms === undefined ? null : (
+                    <Text span size="xs" c="dimmed">
+                        {durationWords(step.ms)}
+                    </Text>
+                )}
+            </UnstyledButton>
+            <Collapse in={open}>
+                {open ? (
+                    <div className="ws-assistant-step-detail">
+                        {step.detail.map((line, at) => (
+                            // A step's details never reorder.
+                            <Text
+                                key={at} // NOSONAR(S6479): a detail line has no id to key by
+                                size="xs"
+                                c="dimmed"
+                            >
+                                {line}
+                            </Text>
+                        ))}
+                    </div>
+                ) : null}
+            </Collapse>
+            {step.results?.map((effect, at) => (
+                // A reply's results never reorder.
+                <ResultRow
+                    key={at} // NOSONAR(S6479): an effect has no id to key by
+                    effect={effect}
+                />
+            ))}
+        </li>
+    );
+}
+
+/**
+ * A turn's steps, while open: one row each. They grow as a run adds them.
  * @param props - Component props
  * @param props.steps - the steps
  * @param props.open - whether they show
@@ -162,27 +218,10 @@ function StepList({ steps, open }: Readonly<{ steps: readonly Step[]; open: bool
                 <ul className="ws-assistant-steps">
                     {steps.map((step, index) => (
                         // A step has no id of its own, and a turn's steps only ever grow at the end.
-                        <li
+                        <StepRow
                             key={index} // NOSONAR(S6479): a step has no id to key by
-                        >
-                            <span className="ws-assistant-step">
-                                <Text span size="xs">
-                                    {step.name}
-                                </Text>
-                                {step.ms === undefined ? null : (
-                                    <Text span size="xs" c="dimmed">
-                                        {durationWords(step.ms)}
-                                    </Text>
-                                )}
-                            </span>
-                            {step.results?.map((effect, at) => (
-                                // A reply's results never reorder.
-                                <ResultRow
-                                    key={at} // NOSONAR(S6479): an effect has no id to key by
-                                    effect={effect}
-                                />
-                            ))}
-                        </li>
+                            step={step}
+                        />
                     ))}
                 </ul>
             ) : null}
@@ -324,15 +363,17 @@ function EndRow({ words, unchanged, onAgain, alert }: Readonly<EndRowProps>): Re
  */
 function stepsOf(session: GraphSession | null, turn: Turn, status: AiStatus | null): readonly Step[] {
     if (isRunning(status)) {
-        return (status?.toolCalls ?? []).map((call) => ({
-            name: stepLine(session, { tool: call.name, arguments: call.arguments }),
-        }));
+        return (status?.toolCalls ?? []).map((call) => {
+            const running = { tool: call.name, arguments: call.arguments };
+            return { name: stepLine(session, running), detail: stepDetail(session, running) };
+        });
     }
     return turn.replies.flatMap((reply) =>
         reply.calls.map((call, index) => ({
             name: stepLine(session, { ...call, tool: call.command }),
+            detail: stepDetail(session, { ...call, tool: call.command }),
             ...(call.durationMs === undefined ? {} : { ms: call.durationMs }),
-            ...(index === reply.calls.length - 1 ? { results: (reply.effects ?? []).filter(isResult) } : {}),
+            ...(index === reply.calls.length - 1 ? { results: (reply.effects ?? []).filter(isNamedResult) } : {}),
         })),
     );
 }
@@ -421,6 +462,15 @@ const changesGraph = (effect: AiEffect): boolean =>
     effect.code !== "AI_EFFECT_SELECTION" &&
     !(effect.code === "AI_EFFECT_RUN" && Number(effect.params.painted ?? 0) === 0);
 
+/**
+ * Whether a result has chips to show: it found nothing, or named some elements. A read of the whole
+ * graph (its summary) names them all, and its counts are in its step's line.
+ * @param effect - the effect.
+ * @returns true for a result row.
+ */
+const isNamedResult = (effect: AiEffect): boolean =>
+    isResult(effect) && !(effect.target !== undefined && "scope" in effect.target);
+
 /** Props for TurnEffects. */
 interface TurnEffectsProps {
     readonly turn: Turn;
@@ -443,7 +493,8 @@ interface TurnEffectsProps {
  */
 function TurnEffects({ turn, effects, onMore, actions }: Readonly<TurnEffectsProps>): React.JSX.Element {
     const changes = effects.filter(isChange);
-    const found = effects.findLast((effect) => effect.code === "AI_EFFECT_FOUND") ?? effects.findLast(isResult);
+    const results = effects.filter(isNamedResult);
+    const found = results.findLast((effect) => effect.code === "AI_EFFECT_FOUND") ?? results.at(-1);
     const result = changes.some(changesGraph) ? undefined : found;
     const resultShown = result !== undefined && (result.code === "AI_EFFECT_EMPTY" || result.target !== undefined);
     const changesShown = changes.length > 0;

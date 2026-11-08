@@ -196,6 +196,16 @@
     display: flex;
     justify-content: space-between;
     gap: 8px;
+    width: 100%;
+    text-align: left;
+}
+
+/* A step's details: under its line, indented past it. */
+.ws-assistant-step-detail {
+    padding: 0 0 2px 8px;
+    overflow-wrap: anywhere;
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 .ws-assistant-chips {

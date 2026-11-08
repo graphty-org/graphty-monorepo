@@ -13,9 +13,10 @@ import { type ChatRow, chatTitle, useChatRows } from "./chats";
 import { Composer } from "./Composer";
 import { Conversation } from "./Conversation";
 import { ConversationList } from "./ConversationList";
+import { chatText } from "./transcript";
 import { type AssistantView, isRunning, useAssistantView } from "./useAssistantView";
 import { Waiting } from "./Waiting";
-import { chatsCountLabel, starterColumn, WORDS } from "./words";
+import { chatsCountLabel, providerName, starterColumn, WORDS } from "./words";
 
 /**
  * The first screen: what the assistant does, then the one door to set it up. No composer, because
@@ -88,6 +89,63 @@ function Starters(): React.JSX.Element {
                 </Button>
             ))}
         </Stack>
+    );
+}
+
+/**
+ * Copies the open chat to the clipboard as plain text, and says whether it went.
+ * @param props - Component props
+ * @param props.choice - the provider, model and effort
+ * @param props.view - what the element reports
+ * @returns The button
+ */
+function CopyChat({ choice, view }: Readonly<{ choice: AssistantChoice; view: AssistantView }>): React.JSX.Element {
+    const { session, store } = useWorkspace();
+    const copy = async (): Promise<void> => {
+        const chat = view.conversation;
+        if (chat === null) {
+            return;
+        }
+        const { models } = providerDescriptor(choice.provider);
+        const state = store.get();
+        const text = await chatText(
+            session,
+            chat,
+            {
+                title: chatTitle(chat),
+                graph: state.project?.name ?? session?.data.source()?.name ?? null,
+                nodes: session?.status.counts.nodes ?? 0,
+                edges: session?.status.counts.edges ?? 0,
+                provider: providerName(choice.provider),
+                model: models.find((entry) => entry.id === choice.model)?.plainName ?? choice.model,
+                effort: choice.effort === undefined ? null : WORDS[`assistant.effort.${choice.effort}`],
+                scope: WORDS[state.assistantScopeSelection ? "assistant.scope.selection" : "assistant.scope.graph"],
+                at: new Date(),
+            },
+            { approvals: view.approvals, questions: view.questions },
+        );
+        await navigator.clipboard.writeText(text);
+    };
+    return (
+        <Tooltip label={WORDS["assistant.copy"]}>
+            <ActionIcon
+                variant="subtle"
+                color="gray"
+                aria-label={WORDS["assistant.copy"]}
+                onClick={() => {
+                    copy().then(
+                        () => {
+                            store.set({ notice: { message: WORDS["assistant.copied"] } });
+                        },
+                        () => {
+                            store.set({ notice: { message: WORDS["assistant.not-copied"] } });
+                        },
+                    );
+                }}
+            >
+                <GLYPHS.copy size={14} aria-hidden />
+            </ActionIcon>
+        </Tooltip>
     );
 }
 
@@ -230,6 +288,9 @@ export default function AssistantPanel(): React.JSX.Element {
                     <h2 className="ws-assistant-title">{WORDS["assistant.name"]}</h2>
                 )}
                 <span className="ws-assistant-actions">
+                    {setUp && (view.conversation?.messages.length ?? 0) > 0 ? (
+                        <CopyChat choice={choice} view={view} />
+                    ) : null}
                     {setUp ? (
                         <Tooltip label={WORDS["assistant.new"]}>
                             <ActionIcon

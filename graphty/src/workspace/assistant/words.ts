@@ -31,6 +31,9 @@ export const WORDS = {
     "assistant.title.tooltip": "Chats",
     "assistant.new": "New chat",
     "assistant.close": "Close",
+    "assistant.copy": "Copy chat",
+    "assistant.copied": "Chat copied",
+    "assistant.not-copied": "Chat not copied: the browser refused the clipboard",
     "assistant.intro": "Ask about this graph or change it. It can be wrong.",
     "assistant.wrong": "Answers can be wrong.",
     "assistant.setup.line": "Needs a key from an AI provider. Nothing is sent until you add one.",
@@ -221,8 +224,34 @@ const STEP_CAUSES: Readonly<Record<string, string>> = {
     AI_UNKNOWN_ENTRY: "the assistant named something that does not exist",
     AI_PAINTED_NOTHING: "other layers cover it",
     AI_BAD_SELECTOR: "its rule could not be read",
+    E_BAD_SELECTOR: "its rule could not be read",
+    E_SELECTOR_EMPTY: "its rule was empty",
     AI_UNKNOWN_COLUMN: "that column is not in this graph",
+    E_UNKNOWN_ATTRIBUTE: "that column is not in this graph",
     AI_NOT_AVAILABLE: "it is not available here",
+    E_UNSUPPORTED: "it is not available here",
+    AI_UNKNOWN_RUN: "that result has not been computed",
+    E_UNKNOWN_RUN: "that result has not been computed",
+    AI_UNKNOWN_NODE: "that node is not in this graph",
+    AI_UNKNOWN_EDGE: "that edge is not in this graph",
+    AI_ARG_INVALID: "a value it passed was not valid",
+    AI_ARG_OUT_OF_RANGE: "a value it passed was out of range",
+    E_OPTION_RANGE: "a value it passed was out of range",
+    E_BAD_LAYER: "the style it made was not valid",
+    E_UNKNOWN_CHANNEL: "that property does not exist",
+    E_UNKNOWN_PALETTE: "that palette does not exist",
+    E_UNKNOWN_SCALE: "that scale does not exist",
+    E_UNKNOWN_LAYER: "that layer does not exist",
+    E_LOCKED: "it is locked",
+    E_PROTECTED: "it is protected",
+    E_CAP_EXCEEDED: "it is over the limit",
+    AI_UNDO_NOTHING: "there was nothing to undo",
+    AI_UNDO_NOT_MINE: "the last change was not the assistant's",
+    AI_UNDO_NOT_ALONE: "only one undo goes in a reply",
+    AI_UNDO_IN_MESSAGE: "it cannot undo a change from the same reply",
+    AI_CURSOR_STALE: "the graph changed while it read",
+    AI_IMPORT_URL_REFUSED: "that address is not allowed",
+    E_INTERNAL: "an internal error",
 };
 
 /**
@@ -696,17 +725,21 @@ export function effectLine(session: GraphSession | null, effect: AiEffect): stri
         case "AI_EFFECT_STYLE":
             return styleLine(session, params);
         case "AI_EFFECT_LAYOUT": {
-            const layout = layoutDescriptor(String(params.layout));
-            return `Arranged as ${layout?.plainName ?? String(params.layout)}`;
+            const layout = layoutDescriptor(String(params.layout))?.plainName ?? String(params.layout);
+            return params.nodes === undefined
+                ? `Arranged as ${layout}`
+                : `Arranged ${counted(Number(params.nodes), "node")} as ${layout}`;
         }
         case "AI_EFFECT_FILTER":
             return `Filtered to ${formatNumber(Number(params.kept))} of ${counted(Number(params.total), "node")}`;
         case "AI_EFFECT_RUN": {
             const name = algorithmByKey(String(params.algorithm))?.plainName ?? String(params.algorithm);
-            const computed =
-                params.nodes === undefined
-                    ? `Computed ${name}`
-                    : `Computed ${name} for ${counted(Number(params.nodes), "node")}`;
+            let computed = `Computed ${name}`;
+            if (params.groups !== undefined) {
+                computed += `: ${counted(Number(params.groups), "group")}, largest ${counted(Number(params.largest), "node")}`;
+            } else if (params.nodes !== undefined) {
+                computed += ` for ${counted(Number(params.nodes), "node")}`;
+            }
             return params.painted === undefined ? computed : `${computed}, colored by it`;
         }
         case "AI_EFFECT_RUN_REMOVED": {
@@ -882,15 +915,49 @@ const ruleSaid = (session: GraphSession | null, where: string): string =>
     quoted(session === null ? plainRule(where) : shownRule(session, where)) ?? where;
 
 /**
+ * An algorithm's name for a run, from the run's id.
+ * @param session - the session.
+ * @param run - the run's id.
+ * @returns the algorithm's name, else the id.
+ */
+function runName(session: GraphSession | null, run: string): string {
+    const algorithm = session?.runs.get(run)?.algorithm ?? run;
+    return algorithmByKey(algorithm)?.plainName ?? run;
+}
+
+/**
+ * Which elements a call's arguments name, as a step line says it: "with Degree > 10", "in the
+ * largest group of Communities", or nothing for a call that names none by a rule.
+ * @param session - the session.
+ * @param args - the call's arguments.
+ * @returns the words, or "".
+ */
+function ruleOf(session: GraphSession | null, args: Readonly<Record<string, unknown>>): string {
+    // "all" is every element: the count says it.
+    if (typeof args.where === "string" && args.where !== "" && args.where !== "all") {
+        return `with ${ruleSaid(session, args.where)}`;
+    }
+    const result = args.result as { op?: unknown; run?: unknown } | undefined;
+    if (typeof result?.run === "string" && (result.op === "largest" || result.op === "smallest")) {
+        return `in the ${result.op} group of ${runName(session, result.run)}`;
+    }
+    return "";
+}
+
+/**
  * The step line of a read that named elements: how many, and the rule or text it read by.
  * @param session - the session.
- * @param action - the query's action.
+ * @param args - the call's arguments.
  * @param effect - the found effect.
  * @returns the line.
  */
-function foundLine(session: GraphSession | null, action: unknown, effect: AiEffect): string {
+function foundLine(session: GraphSession | null, args: Readonly<Record<string, unknown>>, effect: AiEffect): string {
     const count = nodesAndEdges(Number(effect.params.nodes ?? 0), Number(effect.params.edges ?? 0)) || "0 nodes";
     const { target } = effect;
+    const { action } = args;
+    if (target !== undefined && "scope" in target) {
+        return `${action === "statistics" ? "Read graph statistics" : "Read the graph summary"}: ${count.replace(" and ", ", ")}`;
+    }
     if (target !== undefined && "text" in target) {
         return `Found ${count} matching ${quoted(target.text) ?? ""}`.trimEnd();
     }
@@ -899,7 +966,13 @@ function foundLine(session: GraphSession | null, action: unknown, effect: AiEffe
         const name = (algorithm === undefined ? undefined : algorithmByKey(algorithm)?.plainName) ?? target.top.run;
         return `Found top ${count} by ${name}`;
     }
-    const by = target !== undefined && "where" in target ? ` with ${ruleSaid(session, target.where)}` : "";
+    const rule = ruleOf(session, args);
+    let by = "";
+    if (rule !== "") {
+        by = ` ${rule}`;
+    } else if (target !== undefined && "where" in target) {
+        by = ` with ${ruleSaid(session, target.where)}`;
+    }
     return `${action === "count" ? "Counted" : "Found"} ${count}${by}`;
 }
 
@@ -984,7 +1057,8 @@ function argumentsLine(session: GraphSession | null, call: StepCall): string | u
             ];
         case "export_graph": {
             const format = session?.catalog.formats().find((each) => each.id === args.format)?.plainName;
-            return `Exported as ${format ?? quoted(args.format) ?? "a file"}`;
+            const what = args.whole === true ? "the whole graph " : "";
+            return `Exported ${what}as ${format ?? quoted(args.format) ?? "a file"}`;
         }
         case "filter":
             return args.action === "clear" ? "Cleared the filter" : undefined;
@@ -998,25 +1072,121 @@ function argumentsLine(session: GraphSession | null, call: StepCall): string | u
 }
 
 /**
- * A step's line: what the call did, in a few words -- "Counted 22 nodes with Degree >= 3",
- * "Colored 12 nodes", "Ran Louvain" -- from what it did when it reports that, else from what the
- * model asked for, else the tool's name. A failed step says why.
+ * A selection's step line, from what the model asked for and how many it left selected.
+ * @param args - the call's arguments.
+ * @param line - the change line, such as "Selected 17 nodes".
+ * @param count - how many it left selected, in words.
+ * @param rule - which elements its rule names, or "".
+ * @returns the line.
+ */
+function selectionStep(args: Readonly<Record<string, unknown>>, line: string, count: string, rule: string): string {
+    const ids = Array.isArray(args.ids) ? args.ids.map(String) : [];
+    const named = ids.length > 0 && ids.length <= 3 ? ids.join(", ") : counted(ids.length, "element");
+    switch (args.action) {
+        case "neighborhood": {
+            const hops = typeof args.hops === "number" ? args.hops : 1;
+            return `Selected ${count} within ${counted(hops, "hop")}`;
+        }
+        case "remove":
+            return ids.length > 0 ? `Deselected ${named}: ${count} left` : `${line} left`;
+        default:
+            if (rule !== "") {
+                return `${line} ${rule}`;
+            }
+            return ids.length > 0 && ids.length <= 3 ? `${line}: ${named}` : line;
+    }
+}
+
+/**
+ * One change as a step line says it: the change line, with the rule or action the model asked for.
+ * @param session - the session.
+ * @param effect - the change.
+ * @param call - the call that made it.
+ * @returns the line.
+ */
+function changeStep(session: GraphSession | null, effect: AiEffect, call: StepCall): string {
+    const args = call.arguments ?? {};
+    const line = effectLine(session, effect);
+    const rule = ruleOf(session, args);
+    const { params } = effect;
+    switch (effect.code) {
+        case "AI_EFFECT_STYLE":
+            return params.source === undefined && rule !== "" ? `${line} ${rule}` : line;
+        case "AI_EFFECT_FILTER": {
+            const total = counted(Number(params.total), "node");
+            if (args.action === "clear") {
+                return `Cleared the filter: ${total} shown`;
+            }
+            return rule === ""
+                ? line
+                : `Filtered to nodes ${rule}: ${formatNumber(Number(params.kept))} of ${total} shown`;
+        }
+        case "AI_EFFECT_DATA":
+            return rule === "" ? line : `${line}, nodes ${rule}`;
+        case "AI_EFFECT_SELECTION":
+            return selectionStep(args, line, nodesAndEdges(Number(params.nodes ?? 0), Number(params.edges ?? 0)), rule);
+        case "AI_EFFECT_VIEW":
+            return args.action === "fit" ? "Fit the graph in view" : line;
+        case "AI_EFFECT_OTHER":
+            return argumentsLine(session, call) ?? line;
+        default:
+            return line;
+    }
+}
+
+/** Why a step did not run, by its outcome's code. */
+const NOT_RUN: Readonly<Record<string, string>> = {
+    AI_TOOL_NOT_RUN: "not run: an earlier step failed",
+    AI_APPROVAL_DENIED: "not run: you declined",
+    AI_APPROVAL_STALE: "not run: the request ended",
+    AI_TOOL_DENIED_BY_POLICY: "not allowed here",
+};
+
+/**
+ * A step that failed or did not run, in words: what failed and why.
+ * @param call - the call.
+ * @returns the line, or undefined for a step that ran.
+ */
+function failedStep(call: StepCall): string | undefined {
+    const name = stepName(call.tool, call.arguments);
+    switch (call.code) {
+        case "AI_TOOL_FAILED":
+            return failedStepWords(call.tool, call.params?.cause).replace(/\.$/, "");
+        case "AI_TOOL_INVALID_ARGUMENTS":
+            return `${name} failed: the assistant passed values it does not take`;
+        case "AI_TOOL_THREW":
+            return `${name} failed: an internal error`;
+        case "AI_TOOL_UNKNOWN":
+            return "A step failed: the assistant named a tool that does not exist";
+        default: {
+            const reason = call.code === undefined ? undefined : NOT_RUN[call.code];
+            return reason === undefined ? undefined : `${name} ${reason}`;
+        }
+    }
+}
+
+/**
+ * A step's line: what the call did, on what, and with what result, in one compact line --
+ * "Counted 22 nodes with Degree >= 3", "Colored 3 nodes with Degree > 10", "Computed Communities:
+ * 4 groups, largest 12 nodes" -- from what it did when it reports that, else from what the model
+ * asked for, else the tool's name. A failed step says what failed and why.
  * @param session - the session, to name columns and formats; null words without them.
  * @param call - the call.
  * @returns the line.
  */
 export function stepLine(session: GraphSession | null, call: StepCall): string {
-    if (call.code === "AI_TOOL_FAILED") {
-        return failedStepWords(call.tool, call.params?.cause).replace(/\.$/, "");
+    const failed = failedStep(call);
+    if (failed !== undefined) {
+        return failed;
     }
     const effects = call.effects ?? [];
-    const changes = [...new Set(effects.filter(isChange).map((effect) => effectLine(session, effect)))];
+    const changes = [...new Set(effects.filter(isChange).map((effect) => changeStep(session, effect, call)))];
     if (changes.length > 0) {
         return changes.join(", ");
     }
     const found = effects.find((effect) => effect.code === "AI_EFFECT_FOUND");
     if (found !== undefined) {
-        return foundLine(session, call.arguments?.action, found);
+        return foundLine(session, call.arguments ?? {}, found);
     }
     const empty = effects.find((effect) => effect.code === "AI_EFFECT_EMPTY");
     if (empty !== undefined) {

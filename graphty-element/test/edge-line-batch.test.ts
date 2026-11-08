@@ -5,6 +5,7 @@ import { CustomLineRenderer } from "../src/meshes/CustomLineRenderer";
 import { JOIN_FLOATS_PER_PIECE, WIDENED_FLOATS_PER_PIECE } from "../src/meshes/edgeJoinShader";
 import { EdgeLineBatch, segmentMatrixToRef } from "../src/meshes/EdgeLineBatch";
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
+import { batchUploadFrames } from "../src/meshes/FrameRoster";
 import { assertScalesLinearly } from "./helpers/cost";
 
 describe("EdgeLineBatch", () => {
@@ -332,6 +333,93 @@ describe("EdgeLineBatch", () => {
             scene.render();
             assert.deepEqual(sent, [{ kind: "hidden", count: 1 }], "and only its flag again");
             assert.isFalse(drawn.unpark(slot), "a shown slot has nothing to put back");
+        });
+
+        /** The GPU buffer a batch's colors go up in. */
+        function colorBufferOf(drawn: EdgeLineBatch): Buffer | null {
+            return (drawn as unknown as { colorBuffer: Buffer | null }).colorBuffer;
+        }
+
+        test("a new slot draws in the batch's color, and taking it uploads no color", () => {
+            const drawn = joined();
+            scene.render();
+            const update = vi.spyOn(Buffer.prototype, "updateDirectly");
+            const slot = drawn.acquire();
+            scene.render();
+
+            const blue = [0x33, 0x66, 0x99].map((byte) => Math.fround(byte / 255));
+            assert.deepStrictEqual(drawn.colorOf(slot), [...blue, 1]);
+            assert.isFalse(
+                update.mock.contexts.some((buffer) => buffer === colorBufferOf(drawn)),
+                "the buffer was made holding the default",
+            );
+        });
+
+        /**
+         * A time window's Ghost row recolors every edge that crosses the window's edge, a frame at
+         * a time. The work per edge is its color: four floats in place, no slot written or moved,
+         * and one run of the color buffer uploaded (issue #6026).
+         */
+        test("recoloring n edges writes no slot and uploads n color rows", () => {
+            // The scene's batches upload by runs of written slots, as the element turns on.
+            batchUploadFrames.rangedUploads(scene).on = true;
+            const drawn = joined();
+            const slots = Array.from({ length: 50 }, () => drawn.acquire());
+            for (const [i, slot] of slots.entries()) {
+                drawn.place(slot, new Vector3(i, 0, 0), new Vector3(i, 1, 0));
+            }
+            scene.render();
+            const placed = slots.map((slot) => slotOf(drawn, slot));
+            const sent: { kind: string; count: number }[] = [];
+            const upload = Buffer.prototype.updateDirectly;
+            vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (this: Buffer, ...args) {
+                const [, , count] = args;
+                sent.push({ kind: this === colorBufferOf(drawn) ? "color" : "other", count: count ?? 0 });
+                upload.apply(this, args);
+            });
+
+            const recolored = slots.filter((_, i) => i % 5 === 0);
+            for (const slot of recolored) {
+                drawn.setColor(slot, 0.5, 0.5, 0.5, 0.2);
+            }
+            scene.render();
+
+            assert.deepStrictEqual(
+                slots.map((slot) => slotOf(drawn, slot)),
+                placed,
+                "every slot stays as placed",
+            );
+            assert.deepStrictEqual(
+                sent,
+                recolored.map(() => ({ kind: "color", count: 1 })),
+                "one color row each",
+            );
+            assert.deepStrictEqual(drawn.colorOf(recolored[0]), [0.5, 0.5, 0.5, Math.fround(0.2)].map(Math.fround));
+
+            sent.length = 0;
+            for (const slot of recolored) {
+                drawn.setColor(slot, 0.5, 0.5, 0.5, 0.2);
+            }
+            scene.render();
+            assert.deepStrictEqual(sent, [], "the same color again writes nothing");
+        });
+
+        test("a batch is drawn in the transparent pass exactly while a slot in it is translucent", () => {
+            const drawn = joined();
+            const first = drawn.acquire();
+            const second = drawn.acquire();
+            assert.strictEqual(drawn.mesh.visibility, 1, "opaque slots: the opaque pass");
+
+            drawn.setColor(first, 1, 0, 0, 0.3);
+            drawn.setColor(second, 1, 0, 0, 0.3);
+            assert.isBelow(drawn.mesh.visibility, 1, "a translucent slot: the transparent pass");
+
+            drawn.setColor(first, 1, 0, 0, 1);
+            assert.isBelow(drawn.mesh.visibility, 1, "while one is left");
+            drawn.release(second);
+            assert.strictEqual(drawn.mesh.visibility, 1, "a released slot counts for nothing");
+            assert.strictEqual(drawn.acquire(), second, "taken again");
+            assert.strictEqual(drawn.mesh.visibility, 1, "in the batch's own color");
         });
 
         test("a slot placed while hidden is drawn again, and no longer parked", () => {

@@ -181,8 +181,8 @@ describe("partial uploads", () => {
                 batch.setClip(slot, 0.5);
             }
 
-            // A matrix, a direction, a size, a color and a clip.
-            assert.strictEqual(sum(frame()), 10 * (MATRIX_FLOATS + 3 + 1 + 3 + 1));
+            // A matrix, a direction, a size, a color with its opacity and a clip.
+            assert.strictEqual(sum(frame()), 10 * (MATRIX_FLOATS + 3 + 1 + 4 + 1));
         });
     });
 
@@ -335,8 +335,8 @@ describe("partial uploads", () => {
                 batch.setDrawn(10, false);
                 batchUploadFrames.contextRestored(scene);
 
-                // A line batch's hidden flags (one float a slot) go up whole with its slots.
-                const flags = name === "lines" ? [SLOTS] : [];
+                // A line batch's hidden flags (one float a slot) and colors (four) go up whole with its slots.
+                const flags = name === "lines" ? [SLOTS, SLOTS * 4] : [];
                 assert.deepEqual(frame(), [...flags, SLOTS * floats]);
             });
         }

@@ -411,6 +411,19 @@ draw, so the test draws all but the last as specks. `test/browser/million-edge-e
 element: a `"batched"` element loads a million edges (all pulled) on 1,416 nodes and draws the millionth with no
 GL error, about 55 s on SwiftShader, almost all of it the load.
 
+In progress (stage 17, first pull request, not yet merged): `PulledCapBatch` (`meshes/PulledCapBatch.ts`) draws 3D billboarded
+caps with `CAP_PULLED` in the cap shader (`FilledArrowRenderer.applyPulledShader`): a cap is its two rows, head end last (a tail is
+the head of its edge turned round), its gaps and how far its centre sits behind its tip, and the shader stands it where
+`Edge.placeArrowHead` would over `EDGE_TRIM_GLSL`'s ends, reading `rowExtent` for scale, round radius and border. Where the ends meet
+nothing (overlapping nodes) it stands the tip at the target's box, as `Edge.placeArrowFromCentres` does. No edge uses it yet.
+`test/browser/pulled-arrow-caps.test.ts` holds it to the placed cap on SwiftShader WebGL: 0 cap bytes uploaded on a move, but **3 pixels
+differ at rest, each by one anti-aliasing sample (55 levels)**, against the `render-parity` bar of one level. Not a depth tie: with one
+cap per head row the differing pixels are a cap's edge against the background, and they stay put when the shader takes the direction
+from the centres. So the GPU's float place differs from the CPU's double place by enough to move a sample. The trim include was held to
+1e-4 (stage 6), which is not pixel-exact. Caps meeting at one node also tie in depth, which a float's last bit settles. Open: either
+the placed path computes caps in float32 the shader's way (a change on `"objects"`), or a pulled cap is allowed to differ from a placed
+one by a sample, which is a pixel-bar question for the owner.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

@@ -1441,6 +1441,13 @@ interface LoadedGraph {
      * one while the engine lays out a view. Null for an engine driven without an element.
      */
     readonly source: GraphSnapshot | null;
+    /**
+     * The element's snapshot the run arranges, itself or through its working graph: what makes the
+     * next freeze an add to it. Null for an engine driven without an element.
+     */
+    readonly element: GraphSnapshot | null;
+    /** Row of `snapshot` -> the element's row, while a working graph is arranged; else null. */
+    readonly origin: Uint32Array | null;
     /** The element's array, in `snapshot`'s rows, or null for an engine driven without one. */
     readonly positions: RowPositions | null;
     /** A node's row in `snapshot`, or `INVALID_INDEX`. */
@@ -1736,7 +1743,7 @@ export const simpleLayoutInternals = {
  */
 export abstract class StaticLayoutEngine extends LayoutEngine {
     static {
-        simpleLayoutInternals.kept = (engine) => engine.#keep;
+        simpleLayoutInternals.kept = (engine) => engine.#keptRows(engine.#loaded ?? engine.#load());
         simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
         simpleLayoutInternals.held = (engine) => ({ nodes: engine.#nodes.length, edges: engine.#edges.length });
     }
@@ -2193,7 +2200,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         // node added meanwhile is laid out with the rest instead of being held unplaced.
         if (this.result === null && simpleLayoutInternals.waiting.has(this)) {
             this.#column = new Float32Array(0);
-            this.#waitingFor = (this.#loaded as LoadedGraph | null)?.source ?? null;
+            this.#waitingFor = (this.#loaded as LoadedGraph | null)?.element ?? null;
             return;
         }
 
@@ -2204,11 +2211,11 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             this.result === null || loaded === null
                 ? new Float32Array(0)
                 : toPositionColumn(this.result, this.scalingFactor, null);
-        this.#laidOut = loaded?.source ?? null;
+        this.#laidOut = loaded?.element ?? null;
 
         // A held row is dropped from the answer rather than skipped at publish time, so that a
         // later publish of the same answer cannot move it either: NaN is never written.
-        const keep = this.#keep;
+        const keep = loaded === null ? null : this.#keptRows(loaded);
         this.#keep = null;
         if (keep !== null && loaded?.positions) {
             alignToHeld(this.#column, loaded.positions, keep);
@@ -2223,6 +2230,29 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         }
 
         this.publishComputed();
+    }
+
+    /**
+     * The rows an add keeps where they are, in the rows of the graph this run arranges: `#keep` is
+     * in the element's rows, and a working graph is arranged in its own.
+     * @param loaded - the graph this run arranges
+     * @returns the kept rows, or null
+     */
+    #keptRows(loaded: LoadedGraph): NodeMask | null {
+        const keep = this.#keep;
+        const { origin } = loaded;
+        if (keep === null || origin === null) {
+            return keep;
+        }
+
+        const rows = makeMask(origin.length);
+        for (let row = 0; row < origin.length; row++) {
+            if (maskTest(keep, origin[row])) {
+                maskSet(rows, row, true);
+            }
+        }
+
+        return rows;
     }
 
     /**
@@ -2247,6 +2277,8 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
                 return {
                     snapshot,
                     source: view.snapshot,
+                    element: store,
+                    origin: nodeOrigin,
                     positions: lane === undefined ? null : positionsInRows(lane, nodeOrigin),
                     rowOf: (n) => (n.index < nodeRows.length ? nodeRows[n.index] : INVALID_INDEX),
                 };
@@ -2256,6 +2288,8 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             return {
                 snapshot,
                 source: store,
+                element: store,
+                origin: null,
                 positions: writableLane(manager) ?? null,
                 rowOf: (n) => (n.index < snapshot.nodeCount ? n.index : INVALID_INDEX),
             };
@@ -2281,6 +2315,8 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         const loaded: LoadedGraph = {
             snapshot,
             source: null,
+            element: null,
+            origin: null,
             positions: null,
             rowOf: (n) => snapshot.ids.indexOf(n.id),
         };

@@ -152,6 +152,25 @@ describe("a one-pass layout over the working graph", () => {
         assert.closeTo(smallestGap(positionsOf(graph), IDS), 18, 0.5, "all twenty on the circle again");
     });
 
+    it("keeps the shown nodes where they are when a node the filter shows is added, as with no filter", async () => {
+        await graph.setLayout("circular", { dim: 2 });
+        // The filter names a node that is not there yet, so it is shown as soon as it is added.
+        await graph.getSession().visibility.set({ kind: "member", of: { nodes: [...FIVE, "late"] } });
+        await graph.waitForSettled();
+        const before = positionsOf(graph);
+        assert.closeTo(smallestGap(before, FIVE), 72, 0.5, "five shown nodes on a circle of their own");
+
+        await graph.addNodes([{ id: "late" }]);
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
+        const after = positionsOf(graph);
+        assert.isTrue(graph.getSession().visibility.isVisible("late"), "the filter shows the newcomer");
+        assert.isTrue(after.has("late"), "the newcomer is placed");
+        for (const id of IDS) {
+            assert.deepEqual(after.get(id), before.get(id), `${id} stayed where it was`);
+        }
+    });
+
     it("gives a later layout only the shown nodes", async () => {
         await show(graph, FIVE);
         const hidden = positionsOf(graph);

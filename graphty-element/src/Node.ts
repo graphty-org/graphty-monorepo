@@ -65,6 +65,7 @@ import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from
 import { ModelCache, type ModelTemplate, type ModelUser, noteModelDrawn } from "./models/ModelCache";
 import { noteImageDrawn, publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, NodeDragHandler, nodePointerRosterOf } from "./NodeBehavior";
+import { edgeDrawChanges } from "./render/EdgeIdTarget";
 import { rowScanOf } from "./render/PickService";
 import type { RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
@@ -431,6 +432,8 @@ export class Node implements ModelUser {
 
     private set index(row: number) {
         this.row = row;
+        // the edge ID target draws each line from its nodes' rows
+        edgeDrawChanges.count++;
     }
 
     /**

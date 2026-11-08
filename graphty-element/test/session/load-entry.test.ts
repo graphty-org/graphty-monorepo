@@ -168,7 +168,7 @@ afterEach(() => {
  * @returns The session.
  */
 function fresh(): GraphSession {
-    const session = createGraphSession();
+    const session = createGraphSession({ features: ["network-data"] });
     sessions.push(session);
     return session;
 }
@@ -302,7 +302,7 @@ describe("every ordered door, called while a load is held in line", () => {
 
         it(`${label} keeps to its ordering (${order})`, async () => {
             const [root, member] = label.split(".");
-            const session = createElementSession();
+            const session = createElementSession({ features: () => ["network-data"] });
             sessions.push(session);
             const door = doors.get(label) as Door;
             const extra = EXTRA_CALLS[label] as ((session: GraphSession) => Promise<DoorCall>) | undefined;
@@ -359,20 +359,6 @@ describe("a clear cancels a session load that is still reading (issue #3524)", (
         readonly start: (session: GraphSession) => Promise<{ load: Promise<unknown>; read: Held }>;
     }[] = [
         { name: "import from a network source", start: (session) => heldLoad(session, 4) },
-        {
-            name: "loadSample",
-            start: async (session) => {
-                const read = hold("sample");
-                const fetch = async (): Promise<Response> => {
-                    await heldRead("sample");
-                    return new Response(KARATE, { headers: { "content-type": "application/gzip" } });
-                };
-                const load = session.data.loadSample("graph-samples-karate", { fetch });
-                load.catch(() => undefined);
-                await read.started;
-                return { load, read };
-            },
-        },
         {
             name: "loadDataset",
             start: async (session) => {

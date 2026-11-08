@@ -1,30 +1,36 @@
 /**
  * `sourceDescriptors()` from `./catalog` lists every network source with its descriptor and its
- * public samples, graph-samples' datasets among them, loading no source's code; and the
- * `graph-samples` source, written with the public `defineSource`, loads a dataset.
+ * public examples, loading no source's code; graph-samples' datasets are not a network source;
+ * and `session.data.loadExample(source, id)` loads an example in one call.
  */
-
-import { readFileSync } from "node:fs";
 
 import { assert, describe, it } from "vitest";
 
 import { sourceDescriptors } from "../../../catalog";
 import { createGraphSession, defineSource, registerSource } from "../../../session";
 
-// A source whose sample has its own endpoint and a published login, as the Neo4j demo's do.
+// A source whose example has its own endpoint and a published login, as the Neo4j demo's do; two
+// examples at one origin with different logins, told apart by their database.
 registerSource(
     defineSource({
-        id: "sample-login",
+        id: "example-login",
         descriptor: {
-            plainName: "Sample with a login",
+            plainName: "Example with a login",
             params: [],
-            samples: [
+            examples: [
                 {
-                    id: "sample-login-demo",
+                    id: "example-login-demo",
                     plainName: "The demo",
-                    params: { team: "demo" },
+                    params: { team: "demo", database: "demo" },
                     endpoint: "https://demo.example.com",
                     publicLogin: { username: "demo", password: "demo" },
+                },
+                {
+                    id: "example-login-other",
+                    plainName: "The other database",
+                    params: { team: "other", database: "other" },
+                    endpoint: "https://demo.example.com",
+                    publicLogin: { username: "other", password: "other" },
                 },
             ],
         },
@@ -35,117 +41,93 @@ registerSource(
     }),
 );
 
-/** graph-samples' own build of the karate club dataset, as graphty.app serves it. */
-const KARATE = readFileSync(new URL("../../../../graph-samples/dist/data/v1/karate.gsnp.gz", import.meta.url));
+/**
+ * A fetch that answers two people and remembers each request's URL and Authorization header.
+ * @returns The fetch and what it was asked.
+ */
+function people(): {
+    fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+    asked: { url: string; auth: string | null }[];
+} {
+    const asked: { url: string; auth: string | null }[] = [];
+    const fetch = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const request = new Request(input, init);
+        asked.push({ url: request.url, auth: request.headers.get("authorization") });
+        return Promise.resolve(Response.json([{ id: "a" }, { id: "b" }]));
+    };
+    return { fetch, asked };
+}
 
 describe("sourceDescriptors()", () => {
-    it("lists the built-in sources and graph-samples with their samples, loading no source code", () => {
+    it("lists the built-in sources with their examples, loading no source code", () => {
         const infos = sourceDescriptors();
         const ids = infos.map((info) => info.id);
-        for (const id of ["ndex", "cypher", "neo4j", "neptune", "rest", "openalex", "sparql", "graph-samples"]) {
+        for (const id of ["ndex", "cypher", "neo4j", "neptune", "rest", "openalex", "sparql"]) {
             assert.include(ids, id);
         }
 
-        for (const info of infos.filter(
-            (each) => !["graph-samples", "sample-login"].includes(each.id) && !each.id.startsWith("people"),
-        )) {
+        for (const info of infos.filter((each) => each.id !== "example-login" && !each.id.startsWith("people"))) {
             assert.isFalse(info.loaded, `${info.id}'s code was loaded`);
         }
 
-        const samples = infos.find((info) => info.id === "graph-samples")?.descriptor.samples ?? [];
-        const karate = samples.find((sample) => sample.params.dataset === "karate");
-        assert.deepEqual(karate?.counts, { nodes: 34, edges: 78 });
-        assert.isAbove(infos.find((info) => info.id === "ndex")?.descriptor.samples?.length ?? 0, 0);
+        assert.isAbove(infos.find((info) => info.id === "ndex")?.descriptor.examples?.length ?? 0, 0);
+        assert.isAbove(infos.find((info) => info.id === "neo4j")?.descriptor.examples?.length ?? 0, 0);
+    });
+
+    it("does not list graph-samples' datasets: they load through session.data.loadDataset", () => {
+        assert.notInclude(
+            sourceDescriptors().map((info) => info.id),
+            "graph-samples",
+        );
     });
 });
 
-describe("the graph-samples source", () => {
-    it("loads a dataset through session.data.import, with a counted fetch", async () => {
-        const session = createGraphSession();
+describe("session.data.loadExample", () => {
+    it("uses the example's endpoint and its published login, which a caller's options override", async () => {
+        const session = createGraphSession({ features: ["network-data"] });
         try {
-            const asked: string[] = [];
-            const fetch = (input: string | URL | Request): Promise<Response> => {
-                asked.push(String(input instanceof Request ? input.url : input));
-                return Promise.resolve(new Response(KARATE, { headers: { "content-type": "application/gzip" } }));
-            };
-            await session.data.import({ source: "graph-samples", config: { dataset: "karate" } }, { fetch });
-            assert.deepEqual(asked, ["https://graphty.app/data/graph-samples/v1/karate.gsnp.gz"]);
-            assert.strictEqual(session.data.nodes().length, 34);
-            assert.strictEqual(session.data.edges().length, 78);
-            assert.strictEqual(session.data.loads()[0].source, "graph-samples");
-        } finally {
-            session.dispose();
-        }
-    });
-
-    it("refuses a dataset it does not list before any request", async () => {
-        const session = createGraphSession();
-        try {
-            let calls = 0;
-            const fetch = (): Promise<Response> => {
-                calls++;
-                return Promise.resolve(new Response(""));
-            };
-            const error = await session.data
-                .import({ source: "graph-samples", config: { dataset: "no-such-dataset" } }, { fetch })
-                .then(
-                    () => null,
-                    (e: unknown) => e as { code?: string },
-                );
-            assert.strictEqual(error?.code, "E_SOURCE_PARAM");
-            assert.strictEqual(calls, 0);
-        } finally {
-            session.dispose();
-        }
-    });
-});
-
-describe("session.data.loadSample", () => {
-    it("loads a graph-samples dataset by its sample id in one call", async () => {
-        const session = createGraphSession();
-        try {
-            const fetch = (): Promise<Response> =>
-                Promise.resolve(new Response(KARATE, { headers: { "content-type": "application/gzip" } }));
-            await session.data.loadSample("graph-samples-karate", { fetch });
-            assert.strictEqual(session.data.nodes().length, 34);
-            const [load] = session.data.loads();
-            assert.strictEqual(load.source, "graph-samples");
-            assert.deepEqual(load.config, { dataset: "karate" });
-            assert.lengthOf(session.history.steps, 1, "one undoable step");
-        } finally {
-            session.dispose();
-        }
-    });
-
-    it("uses the sample's endpoint and its published login, which a caller's options override", async () => {
-        const session = createGraphSession();
-        try {
-            const asked: { url: string; auth: string | null }[] = [];
-            const fetch = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-                const request = new Request(input, init);
-                asked.push({ url: request.url, auth: request.headers.get("authorization") });
-                return Promise.resolve(Response.json([{ id: "a" }, { id: "b" }]));
-            };
-            await session.data.loadSample("sample-login-demo", { fetch });
+            const { fetch, asked } = people();
+            await session.data.loadExample("example-login", "example-login-demo", { fetch });
             assert.deepEqual(asked, [
                 { url: "https://demo.example.com/people?team=demo", auth: `Basic ${btoa("demo:demo")}` },
             ]);
             assert.strictEqual(session.data.nodes().length, 2);
-            assert.strictEqual(session.data.loads()[0].credential?.username, "demo");
+            const [load] = session.data.loads();
+            assert.strictEqual(load.source, "example-login");
+            assert.strictEqual(load.credential?.username, "demo");
+            assert.lengthOf(session.history.steps, 1, "one undoable step");
 
-            await session.data.loadSample("sample-login-demo", { fetch, endpoint: "https://other.example.com" });
+            await session.data.loadExample("example-login", "example-login-demo", {
+                fetch,
+                endpoint: "https://other.example.com",
+            });
             assert.strictEqual(asked[1]?.url, "https://other.example.com/people?team=demo");
         } finally {
             session.dispose();
         }
     });
 
-    it("a sample load that starts the history drops the steps before it", async () => {
-        const session = createGraphSession();
+    it("a refresh of an example reaches its server with that example's login, not another's there", async () => {
+        const session = createGraphSession({ features: ["network-data"] });
         try {
-            const fetch = (): Promise<Response> => Promise.resolve(Response.json([{ id: "a" }, { id: "b" }]));
+            const { fetch, asked } = people();
+            await session.data.loadExample("example-login", "example-login-other", { fetch });
+            await session.data.refresh(session.data.loads()[0].key, { fetch });
+            assert.deepEqual(
+                asked.map((each) => each.auth),
+                [`Basic ${btoa("other:other")}`, `Basic ${btoa("other:other")}`],
+            );
+        } finally {
+            session.dispose();
+        }
+    });
+
+    it("an example load that starts the history drops the steps before it", async () => {
+        const session = createGraphSession({ features: ["network-data"] });
+        try {
+            const { fetch } = people();
             await session.data.addNodes([{ id: "before" }]);
-            await session.data.loadSample("sample-login-demo", { fetch, history: "start" });
+            await session.data.loadExample("example-login", "example-login-demo", { fetch, history: "start" });
             assert.strictEqual(session.data.nodes().length, 2);
             assert.lengthOf(session.history.steps, 0, "the history starts at the loaded graph");
             assert.isFalse(session.canUndo);
@@ -154,16 +136,17 @@ describe("session.data.loadSample", () => {
         }
     });
 
-    it("refuses an id no source lists with E_SOURCE_UNKNOWN, naming the ids it knows", async () => {
-        const session = createGraphSession();
+    it("refuses an id the source does not list with E_SOURCE_UNKNOWN, naming the ids it knows", async () => {
+        const session = createGraphSession({ features: ["network-data"] });
         try {
-            const error = await session.data.loadSample("no-such-sample").then(
+            const error = await session.data.loadExample("example-login", "no-such-example").then(
                 () => null,
-                (e: unknown) => e as { code?: string; details?: { id?: string; known?: string[] } },
+                (e: unknown) => e as { code?: string; details?: { source?: string; id?: string; known?: string[] } },
             );
             assert.strictEqual(error?.code, "E_SOURCE_UNKNOWN");
-            assert.strictEqual(error?.details?.id, "no-such-sample");
-            assert.include(error?.details?.known ?? [], "graph-samples-karate");
+            assert.strictEqual(error?.details?.source, "example-login");
+            assert.strictEqual(error?.details?.id, "no-such-example");
+            assert.deepEqual(error?.details?.known, ["example-login-demo", "example-login-other"]);
             assert.lengthOf(session.history.steps, 0);
         } finally {
             session.dispose();

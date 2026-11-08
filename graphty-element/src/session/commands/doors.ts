@@ -224,8 +224,8 @@ function imports(mode: "replace" | "merge", source: ImportSource, extra: ImportE
 /** The network source the doors load from: two pages of one node each, read with no request. */
 const DOOR_SOURCE = "door-source";
 
-/** The one sample the doors' network source lists. */
-const DOOR_SAMPLE = "door-sample";
+/** The one example the doors' network source lists. */
+const DOOR_EXAMPLE = "door-example";
 
 /**
  * Register the doors' network source, once.
@@ -239,7 +239,7 @@ function doorSource(): string {
                 descriptor: {
                     plainName: "Door source",
                     params: [],
-                    samples: [{ id: DOOR_SAMPLE, plainName: "Door sample", params: {} }],
+                    examples: [{ id: DOOR_EXAMPLE, plainName: "Door example", params: {} }],
                 },
                 async *records(_params: Record<string, never>, ctx) {
                     for (let page = Number(ctx.cursor?.page ?? 0); page < 2; page++) {
@@ -1744,6 +1744,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             openRowTable: RENDER,
             getNodeBatches: READ,
             getNodeIdTarget: READ,
+            getEdgeIdTarget: READ,
             renderPath: READ,
             setRenderPath: MACHINE,
             rowCounts: READ,
@@ -1838,6 +1839,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ),
             getNode: READ,
             getNodes: READ,
+            getEdges: READ,
             render: RENDER,
             enableAiControl: ASSISTANT,
             disableAiControl: ASSISTANT,
@@ -2463,6 +2465,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        name: "EdgeIdTarget",
+        file: "src/render/EdgeIdTarget.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "EdgeLineBatch",
         file: "src/meshes/EdgeLineBatch.ts",
         half: "renderer",
@@ -2756,27 +2764,27 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     ),
                 ],
             },
-            // A sample a source lists, loaded with its params as one source load.
-            loadSample: calls(() => {
-                doorSource();
-                return [DOOR_SAMPLE];
-            }, [
-                {
-                    ...sourceImport(
-                        "replace",
-                        ["door-s0", "door-s1"],
-                        {},
-                        {
-                            nodes: ["door-s0", "door-s1"].map((id) => ({
-                                id,
-                                "_source.expansion": "none",
-                                "_source.loads": ["load-1"],
-                            })),
-                        },
-                    ),
-                    source: { type: `source:${DOOR_SOURCE}`, config: {}, name: "Door sample" },
-                } as SessionCommand,
-            ]),
+            // An example a source lists, loaded with its params as one source load.
+            loadExample: calls(
+                () => [doorSource(), DOOR_EXAMPLE],
+                [
+                    {
+                        ...sourceImport(
+                            "replace",
+                            ["door-s0", "door-s1"],
+                            {},
+                            {
+                                nodes: ["door-s0", "door-s1"].map((id) => ({
+                                    id,
+                                    "_source.expansion": "none",
+                                    "_source.loads": ["load-1"],
+                                })),
+                            },
+                        ),
+                        source: { type: `source:${DOOR_SOURCE}`, config: {}, name: "Door example" },
+                    } as SessionCommand,
+                ],
+            ),
             // A saved load of an opened project, run again: its rows, merged over the ones it brought.
             runPendingSourceLoad: {
                 kind: "dispatches",
@@ -3947,7 +3955,7 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.import": "load",
     "SessionDataApi.generate": "load",
     "SessionDataApi.loadDataset": "load",
-    "SessionDataApi.loadSample": "load",
+    "SessionDataApi.loadExample": "load",
     "SessionDataApi.more": "load",
     "SessionDataApi.runPendingSourceLoad": "load",
     "SessionDataApi.expand": "load",

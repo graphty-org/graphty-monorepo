@@ -1753,16 +1753,20 @@ export interface SessionDataApi {
      */
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     /**
-     * Load one of the public samples the registered sources list (`samples` on a descriptor of
-     * `sourceDescriptors()`, graph-samples' datasets among them), as one undoable step: the
-     * sample's params, its endpoint and the login its service publishes, so
-     * `loadSample("neo4j-movies")` is the whole call. Experimental.
-     * @param id - The sample's id, such as `"string-tp53"` or `"graph-samples-karate"`.
+     * Load one of a source's examples (`examples` on its descriptor in `sourceDescriptors()`: a
+     * public server and the params that load a known graph from it), as one undoable step: the
+     * example's params, its endpoint, the login its service publishes and, for one too big to
+     * load whole, its first page, so `loadExample("neo4j", "neo4j-movies")` is the whole call.
+     * graph-samples' datasets are not examples: load those with `loadDataset`. Needs the
+     * `network-data` experiment. Experimental.
+     * @param source - The source id, such as `"neo4j"`.
+     * @param example - The example's id within that source, such as `"neo4j-movies"`.
      * @param options - Anything `import` takes; a `credential` or `endpoint` given here wins.
-     * @returns Settles once the sample is in the graph; rejects with `E_SOURCE_UNKNOWN` (its
-     *     `known` lists every sample id) when no source lists the id.
+     * @returns Settles once the example is in the graph; rejects with `E_SOURCE_UNKNOWN`
+     *     (`{ source, id, known }`, `known` listing the source's example ids) when the source lists
+     *     no such example, and with `E_FEATURE_OFF` while the `network-data` experiment is off.
      */
-    loadSample(id: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
+    loadExample(source: string, example: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     /**
      * The loads from network sources this graph holds, in order: what a refresh needs, never a
      * secret. Experimental.

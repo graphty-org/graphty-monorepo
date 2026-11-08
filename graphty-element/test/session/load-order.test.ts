@@ -6,6 +6,10 @@ import { resolve } from "node:path";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, defineSource, registerSource } from "../../session";
+import { setDefaultFeatures } from "../../src/features/resolve";
+
+// Loads from a registered source sit behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 /** The network source's reads held back, by size, until the test releases them. */
 const heldTeams = new Map<string, Promise<void>>();

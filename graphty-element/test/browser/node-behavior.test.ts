@@ -1,9 +1,13 @@
 import { ActionManager, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
+
+// Network sources sit behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 /**
  * Record every command the graph's session dispatches from here on.

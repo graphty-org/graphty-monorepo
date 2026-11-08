@@ -2,7 +2,6 @@ import { offeredSamples, START_SAMPLES, type StartSample } from "../../data/samp
 import { type Command, defineRegistration } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { unlessUnsaved } from "../project/actions";
-import { NETWORK_DIALOG } from "./NetworkDataDialog";
 import { chooseAndOpenFile, openSample, pasteSource } from "./open";
 
 /**
@@ -32,8 +31,8 @@ const SAMPLE_COMMANDS: Command[] = START_SAMPLES.map((sample) => ({
 /**
  * The Start screen package's commands: Open project or file... and New from data..., the two ways
  * in on the start screen, also on the File list; and the Sources "+" doors to add data: File...,
- * Samples..., Network data... (the start screen's dialog) and Paste (data prototype spec section
- * 3.2); and one per start-screen sample.
+ * Samples... and Paste (data prototype spec section 3.2); and one per start-screen sample. Network
+ * data... is the server package's (server/commands.ts).
  */
 export const registration = defineRegistration({
     owner: "start",
@@ -60,15 +59,6 @@ export const registration = defineRegistration({
             keywords: ["add", "source", "example"],
             run: (ctx) => {
                 ctx.workspace.set({ dialog: "samples" });
-            },
-        },
-        {
-            id: "data.add-network",
-            label: "Network data...",
-            group: "Data",
-            keywords: ["add", "source", "web", "address", "url", "link", "online", "api", "ndex", "neo4j"],
-            run: (ctx) => {
-                ctx.workspace.set({ dialog: NETWORK_DIALOG });
             },
         },
         {

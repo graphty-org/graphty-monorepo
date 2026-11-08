@@ -12,6 +12,7 @@ import {
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, arrowCapBatch } from "./ArrowCapBatch";
+import { EDGE_TRIM_GLSL } from "./edgeTrim";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
 
@@ -290,15 +291,48 @@ uniform vec3 cameraPosition;
 // values are instance attributes rather than uniforms.
 attribute vec3 arrowDirection; // Line direction
 attribute float arrowSize;     // World-space arrow length
-attribute vec3 arrowColor;
+// The cap's color and, in alpha, its opacity (multiplying the batch's own).
+attribute vec4 arrowColor;
 // Where a pattern segment is cut off, per instance: the last segment of a zigzag or a sinewave is
 // clipped to the room left on its line, and -1 leaves a segment (and every arrow cap) whole.
 attribute float arrowClip;
 // 1 while the visibility mask hides the cap (ArrowCapBatch.park): drawn at no size, so hiding or
 // showing it writes this one float and never its matrix. An unbound attribute reads 0, drawn.
 attribute float arrowHidden;
-varying vec3 vColor;
+varying vec4 vColor;
 varying float vClip;
+#ifdef CAP_PULLED
+// A pulled cap (PulledCapBatch): no place of its own. Its two rows, head end last (a tail is the
+// head of its edge turned round), and what it stands back by; its place is read from the row
+// table each frame, so a move uploads no cap byte.
+attribute vec2 capRows;
+// The source end's gap, the target end's gap, the cap's own gap, and how far its centre sits
+// behind its tip at scale 1.
+attribute vec4 capPlace;
+uniform highp sampler2D rowPosition;
+uniform highp sampler2D rowExtent;
+${EDGE_TRIM_GLSL}
+vec4 capTexel(highp sampler2D table, int i) {
+    return texelFetch(table, ivec2(i & 1023, i >> 10), 0);
+}
+// A row's end as Edge.trimInput gives it for a closed end: rowExtent's scale, round radius, border
+// and flags, then half extents, each at the part w of it drawn.
+EdgeTrimEnd capEnd(int row, float w, float gap, out float scale) {
+    vec4 a = capTexel(rowExtent, row * 3);
+    vec4 b = capTexel(rowExtent, row * 3 + 1);
+    EdgeTrimEnd end;
+    end.radius = mod(a.w, 2.0) >= 1.0 ? a.y * w : -1.0;
+    end.halfSize = b.xyz * w;
+    end.ellipse = 0.0;
+    end.border = a.z;
+    end.gap = gap;
+    end.measured = -1.0;
+    end.leaves = 0.0;
+    end.group = 0.0;
+    scale = a.x * w;
+    return end;
+}
+#endif
 #else
 // Individual meshes (pattern elements)
 uniform vec3 lineDirection;
@@ -332,6 +366,44 @@ void main() {
 
     // Extract arrow center position from world matrix
     vec3 worldCenter = vec3(finalWorld[3][0], finalWorld[3][1], finalWorld[3][2]);
+#ifdef CAP_PULLED
+    // Edge.placeArrowHead over the include's ends: the tip stands its gap back from where the line
+    // meets the head's node, the centre its offset behind the tip, both along the trimmed line.
+    scale = 0.0;
+    if (capRows.x >= 0.0 && capRows.y >= 0.0) {
+        int fromRow = int(capRows.x + 0.5);
+        int to = int(capRows.y + 0.5);
+        vec4 a = capTexel(rowPosition, fromRow);
+        vec4 b = capTexel(rowPosition, to);
+        if (a.w * b.w != 0.0) {
+            float fromScale;
+            float toScale;
+            EdgeTrimEnd source = capEnd(fromRow, a.w, capPlace.x, fromScale);
+            EdgeTrimEnd target = capEnd(to, b.w, capPlace.y, toScale);
+            EdgeTrimmed ends = edgeTrimEnds(a.xyz, b.xyz, source, target, 0.0);
+            toScale = toScale > 0.0 ? toScale : 1.0;
+            vec3 tip = ends.dst;
+            bool placed = ends.hasSrc && ends.hasDst && ends.dst != ends.src;
+            if (placed) {
+                // A closed end lies on the line between the centres, so that line's direction is
+                // the trimmed line's, with fewer roundings.
+                lineDir = normalize(b.xyz - a.xyz);
+            } else if (any(greaterThan(abs(b.xyz - a.xyz), vec3(0.01)))) {
+                // Edge.placeArrowFromCentres: the line has no ends (the nodes overlap), so the
+                // tip stands at the target's box along the line between the centres.
+                lineDir = normalize(b.xyz - a.xyz);
+                target.radius = -1.0;
+                tip = b.xyz - lineDir * edgeTrimReach(-lineDir, target);
+                placed = true;
+            }
+            if (placed) {
+                vec3 centre = tip - lineDir * (capPlace.z + capPlace.w * toScale);
+                worldCenter = (finalWorld * vec4(centre, 1.0)).xyz;
+                scale = arrowSize * toScale;
+            }
+        }
+    }
+#endif
 
     // Build camera-facing coordinate system
     // This system is aligned with the line but rotates to face the camera
@@ -363,7 +435,7 @@ precision highp float;
 
 // Uniforms
 #ifdef INSTANCES
-varying vec3 vColor;
+varying vec4 vColor;
 varying float vClip;
 #else
 uniform vec3 color;
@@ -389,7 +461,7 @@ void main() {
     }
 
 #ifdef INSTANCES
-    gl_FragColor = vec4(vColor, opacity);
+    gl_FragColor = vec4(vColor.rgb, opacity * vColor.a);
 #else
     gl_FragColor = vec4(color, opacity);
 #endif
@@ -1459,25 +1531,36 @@ void main() {
     }
 
     /**
-     * Draw one billboarded 3D arrow cap as a slot in its scene's batch for that shape and
-     * opacity. The direction, size and colour are the slot's own attributes, so caps of every
-     * colour and size share one draw call.
+     * Draw one billboarded 3D arrow cap as a slot in its scene's batch for that shape. The
+     * direction, size, colour and opacity are the slot's own attributes, so caps of every look
+     * share one draw call.
      * @param shape - The arrow type, which names the batch's geometry
      * @param createShape - Builds that geometry, for a new batch
      * @param options - The cap's size (world-space length), colour and opacity
      * @param scene - Babylon.js scene
+     * @param reuse - A cap to recolor and hand back when it is in this batch at this size
      * @returns The cap; point it with {@link ArrowCap.place}
      */
-    static createArrowCap(shape: string, createShape: () => Mesh, options: FilledArrowOptions, scene: Scene): ArrowCap {
-        const opacity = options.opacity ?? 1;
-        const cap = this.capOf(
+    static createArrowCap(
+        shape: string,
+        createShape: () => Mesh,
+        options: FilledArrowOptions,
+        scene: Scene,
+        reuse: ArrowCap | null = null,
+    ): ArrowCap {
+        // The opacity is the slot's too, so caps of one shape share a batch whatever their color
+        // (issue #6026), and a cap already in it is recolored where it stands. Opaque and
+        // translucent caps keep apart, since one batch is drawn in one pass (issue #6326).
+        const pass = (options.opacity ?? 1) < 1 ? "translucent" : "opaque";
+        const batch = arrowCapBatch(
             scene,
-            `3d|${shape}|${String(opacity)}`,
-            () => this.applyInstancedShader(createShape(), opacity, scene),
-            { scale: options.size, billboard: true },
+            `3d|${shape}|${pass}`,
+            () => this.applyInstancedShader(createShape(), 1, scene),
+            true,
         );
+        const cap = reuse?.drawsIn(batch, options.size) === true ? reuse : new ArrowCap(batch, options.size);
 
-        cap.setAppearance(options.size, options.color);
+        cap.setAppearance(options.size, options.color, options.opacity ?? 1);
 
         return cap;
     }
@@ -1516,6 +1599,36 @@ void main() {
         // Below 1 this is what puts the batch in the alpha-blended queue, as it did each cap.
         mesh.visibility = opacity;
 
+        return mesh;
+    }
+
+    /**
+     * Give a pulled cap batch's mesh (`PulledCapBatch`) the billboard shader with `CAP_PULLED`:
+     * each cap's place and direction come from its two rows, not from its slot.
+     * @param mesh - The batch's mesh
+     * @param opacity - The opacity every cap in the batch is drawn at
+     * @param scene - Babylon.js scene
+     * @returns The same mesh
+     */
+    static applyPulledShader(mesh: Mesh, opacity: number, scene: Scene): Mesh {
+        this.registerShaders();
+        const material = new ShaderMaterial(
+            "pulledArrowMaterial",
+            scene,
+            { vertex: "filledArrow", fragment: "filledArrow" },
+            {
+                attributes: ["position", "arrowSize", "arrowColor", "capRows", "capPlace"],
+                uniforms: ["world", "viewProjection", "cameraPosition", "opacity"],
+                samplers: ["rowPosition", "rowExtent"],
+                defines: ["#define CAP_PULLED"],
+            },
+        );
+        material.setFloat("opacity", opacity);
+        this.cameraTracked.add(material);
+        material.blockDirtyMechanism = true;
+        material.backFaceCulling = false;
+        mesh.material = material;
+        mesh.visibility = opacity;
         return mesh;
     }
 

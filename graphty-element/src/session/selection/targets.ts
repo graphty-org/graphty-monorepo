@@ -172,7 +172,20 @@ export type SelectionTarget =
      * `styles.counts(layer).matched` counts. A layer paints one kind, so this names nodes or edges.
      * @since 3.26.0
      */
-    | { readonly layer: LayerId };
+    | { readonly layer: LayerId }
+    /**
+     * Every drawn node whose center lies inside a polygon on the canvas: what a rectangle or a
+     * lasso drawn over the graph covers. The points are in CSS pixels from the canvas's top-left
+     * corner, the pixels `worldToScreen` returns and a pointer's `offsetX` / `offsetY` use; a
+     * rectangle is its four corners. A node that is hidden, filtered out or not placed is not
+     * selected; a node drawn behind another is. It names nodes and no edges, as a neighborhood
+     * does. A session that draws nothing refuses it with `E_UNSUPPORTED`.
+     * @since 3.48.0
+     */
+    | { readonly region: { readonly polygon: readonly { readonly x: number; readonly y: number }[] } };
+
+/** A point on the canvas, in CSS pixels from its top-left corner. */
+type RegionPoint = Extract<SelectionTarget, { region: unknown }>["region"]["polygon"][number];
 
 // ---------------------------------------------------------------------------------------------
 // What the resolver reads
@@ -270,6 +283,12 @@ export interface TargetContext {
      * @returns The elements it matches.
      */
     readonly layer?: (id: LayerId) => SelectionMatch;
+    /**
+     * The drawn nodes inside a polygon on the canvas. Absent refuses a `region` target.
+     * @param polygon - At least three points, in CSS pixels.
+     * @returns Their ids.
+     */
+    readonly region?: (polygon: readonly RegionPoint[]) => Iterable<NodeId>;
 }
 
 /** The elements one target named. */
@@ -317,7 +336,7 @@ function notATarget(target: unknown): GraphtyError {
         code: "E_BAD_COMMAND",
         message:
             "A selection target is { nodes, edges }, { where }, { text }, { ids }, { scope }, " +
-            "{ neighborsOf }, { top }, { above }, { range }, { note }, { layer }, { edgesBetween: true } or { invert: true }.",
+            "{ neighborsOf }, { top }, { above }, { range }, { note }, { layer }, { region }, { edgesBetween: true } or { invert: true }.",
         source: "run",
         details: { target },
     });
@@ -1047,6 +1066,30 @@ function resolveLayer(layer: LayerId, context: TargetContext): TargetMembers {
 }
 
 /**
+ * The nodes a region on the canvas covers.
+ * @param polygon - The region's corners.
+ * @param context - What the resolution reads.
+ * @returns The two masks; the edge mask is empty.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the polygon has fewer than three finite
+ *   points, or `E_UNSUPPORTED` when the session draws nothing.
+ */
+function resolveRegion(polygon: readonly RegionPoint[], context: TargetContext): TargetMembers {
+    const finite = (point: RegionPoint): boolean => Number.isFinite(point.x) && Number.isFinite(point.y);
+    if (!Array.isArray(polygon) || polygon.length < 3 || !polygon.every(finite)) {
+        throw badOption("region.polygon", polygon, "at least three points with finite x and y");
+    }
+
+    if (context.region === undefined) {
+        throw unsupported("a region", "a renderer");
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    addIds(nodes, context.region(polygon));
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
  * The elements one target names.
  *
  * Synchronous, because every arm either reads a structure the session already holds or walks the
@@ -1112,6 +1155,10 @@ function resolveArm(target: SelectionTarget, context: TargetContext): TargetMemb
 
     if ("layer" in target) {
         return resolveLayer(target.layer, context);
+    }
+
+    if ("region" in target) {
+        return resolveRegion(target.region.polygon, context);
     }
 
     if ("text" in target) {

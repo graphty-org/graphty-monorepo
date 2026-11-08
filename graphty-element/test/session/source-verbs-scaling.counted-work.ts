@@ -6,7 +6,7 @@ export default {
     methods: [
         "SessionDataApi.collapse",
         "SessionDataApi.expand",
-        "SessionDataApi.loadSample",
+        "SessionDataApi.loadExample",
         "SessionDataApi.more",
         "SessionDataApi.refresh",
         "SessionDataApi.runPendingSourceLoad",

@@ -638,6 +638,23 @@ mesh a beam runs through the row. Row picks reach it through one invisible picka
 **Rectangle and lasso** are additive and off by default: a `{ region: { polygon } }` selection target and an opt-in gesture. One typed walk
 projects visible rows.
 
+As built (stage 23): the target is `{ region: { polygon } }` in canvas CSS pixels (a rectangle is its four
+corners); a node is inside when its center is, by the even-odd rule. The session takes it as an optional
+`region` capability, so `createGraphSession()` with no canvas refuses it with `E_UNSUPPORTED`. On `"batched"`
+it is `RowScan.rowsInRegion`, one walk over `rowBounds` (a bound of 0 is a hidden or unplaced row) with the
+root's matrix folded into the view and projection; `regionWork` counts the rows read. Three things differ
+from the text above:
+
+- The target works on `"objects"` too, each node placed as `nodeScreenPosition` places it, so both paths
+  select the same set. It is a new target, so nothing on `"objects"` changes for a caller that does not use it.
+- The gesture is `layoutBehavior.selection.region` (`"off"` by default, `"rectangle"`, `"lasso"`): Shift
+  and a drag from empty canvas, the camera held for the drag; it adds to the selection, as Shift-click does,
+  and a press on a node still drags it. A dashed gray outline follows the pointer over the canvas.
+- The 5,000 cap is the selection's own (`DEFAULT_SELECTION_CAP`), not a region limit. Measured at 100,000
+  rows with the middle half of the canvas, which the cap cuts to 5,000: 16.8 ms median per
+  `selection.apply`, against the 2 ms target (load average 16-20). That figure is the whole apply, the
+  walk and the cap's truncation and delta together; the walk alone was not timed.
+
 ### 4.5 Layout to renderer (#3248)
 
 **WebGL, and WebGPU with no shared device.** Readback lands as today. The engines' `publishPositions` overrides become one typed loop

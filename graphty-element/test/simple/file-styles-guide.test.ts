@@ -11,7 +11,10 @@ import { join } from "node:path";
 
 import { assert, describe, it } from "vitest";
 
+import { fileStylesOn } from "../helpers/file-styles-on";
 import { authorLines, DOCS, exampleText, internalTermsIn, tsBlocks } from "./guide-examples";
+
+fileStylesOn();
 
 const EXAMPLE = ["file-styles/open-and-save.ts", "example"] as const;
 

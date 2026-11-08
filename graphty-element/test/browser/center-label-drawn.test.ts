@@ -20,6 +20,9 @@ import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** How wide the canvas the graph is drawn on is. */
 const WIDTH = 640;

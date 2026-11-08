@@ -1923,6 +1923,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnWorldMatrix: READ,
             drawnSourceMesh: RENDER,
             drawnInstanceColor: READ,
+            wholeScale: READ,
             batchableIn: READ,
             batchLook: READ,
             drawnBoundingBox: READ,

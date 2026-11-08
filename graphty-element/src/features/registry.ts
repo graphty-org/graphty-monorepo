@@ -9,7 +9,8 @@
  */
 
 /** The id of an experiment, as `features="..."` and `createGraphSession({ features })` take it. */
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph";
+export type FeatureId =
+    "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {
@@ -31,6 +32,9 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // The graphty app's use of batched drawing and the long-edge fade and blending options;
     // graphty-element's `renderPath`, edge styles and layout options are not gated.
     { id: "cosmograph", plainName: "Cosmograph-inspired rendering", issue: 3247, since: "2026-11-06" },
+    // Reading and writing the styles other programs write into graph files, and every style channel
+    // and value added to draw them.
+    { id: "file-styles", plainName: "File styles", issue: 706, since: "2026-11-06" },
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */

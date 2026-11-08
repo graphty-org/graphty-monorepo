@@ -585,12 +585,24 @@ export class NodeBatches {
         }
 
         if (group.batched && !object) {
-            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale, group.rank);
+            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale, group.rank);
             // A row the table does not hold yet keeps its mesh until the flush settles its group.
             this.draw(node, node.index < this.host.places.rows ? group.source : null, group.restVisibility);
             this.dirty.add(group);
         } else {
             this.draw(node, null);
+        }
+    }
+
+    /**
+     * The view scaled a node (`Node.wholeScale`): its batched row's matrix follows.
+     * @param node - The node.
+     */
+    rescale(node: Node): void {
+        const group = this.groupOf.get(node);
+        if (group?.batched === true && !this.objectRows.has(node)) {
+            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale, group.rank);
+            this.dirty.add(group);
         }
     }
 
@@ -643,7 +655,7 @@ export class NodeBatches {
     /** Bring every batch up to date before a frame. */
     private flush(): void {
         const view = this.host.view();
-        if (view.scaled !== this.view.scaled || view.flatOutline !== this.view.flatOutline) {
+        if (view.flatOutline !== this.view.flatOutline) {
             this.view = view;
             this.syncAll();
         }
@@ -889,7 +901,7 @@ export class NodeBatches {
 
             rows.sort((a, b) => a.group.rank - b.group.rank || a.node.index - b.node.index);
             for (const { node, group } of rows) {
-                family.batch.put(node.index, node.drawnInstanceColor, group.scale, group.rank);
+                family.batch.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale, group.rank);
             }
         }
 

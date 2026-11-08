@@ -28,6 +28,9 @@ import { dataPaths, logicalEdgeRows } from "../../src/session/styles/fileStyles/
 import { fileStyleNamespace } from "../../src/session/styles/fileStyles/path";
 import { translateFileStyles } from "../../src/session/styles/fileStyles/translate";
 import { quotePath } from "../../src/session/styles/predicate";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles");
 

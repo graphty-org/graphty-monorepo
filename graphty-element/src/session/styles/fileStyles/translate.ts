@@ -79,7 +79,10 @@ const MAX_TABLE_KEYS = 256;
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
 export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 
-/** How a file's styles are turned into layers: choices another consumer may make differently. */
+/**
+ * How a file's styles are turned into layers: choices another consumer may make differently.
+ * @experimental file-styles
+ */
 export interface FileStyleOptions {
     /**
      * How lengths are scaled: `"median"` (the default) scales every length by one factor, so the
@@ -147,7 +150,10 @@ export function pictureUrl(src: string, base: string | undefined): string {
     }
 }
 
-/** One note of a translation: a code and the facts it is about. */
+/**
+ * One note of a translation: a code and the facts it is about.
+ * @experimental file-styles
+ */
 export interface FileStyleNote {
     /** What happened. */
     readonly code: FileStyleNoteCode;

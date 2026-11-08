@@ -315,14 +315,21 @@ export class RowTable {
         const rest = rows % ROW_TEXTURE_WIDTH;
         const encoder = device.createCommandEncoder({ label: "rowPosition/landed" });
         if (lines > 0) {
-            encoder.copyBufferToTexture({ buffer, bytesPerRow }, { texture }, [ROW_TEXTURE_WIDTH, lines]);
+            encoder.copyBufferToTexture(
+                { buffer, bytesPerRow },
+                { texture },
+                {
+                    width: ROW_TEXTURE_WIDTH,
+                    height: lines,
+                },
+            );
         }
 
         if (rest > 0) {
             encoder.copyBufferToTexture(
                 { buffer, offset: lines * bytesPerRow, bytesPerRow },
-                { texture, origin: [0, lines] },
-                [rest, 1],
+                { texture, origin: { x: 0, y: lines } },
+                { width: rest, height: 1 },
             );
         }
 

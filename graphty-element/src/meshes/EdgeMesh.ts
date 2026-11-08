@@ -584,7 +584,8 @@ void main() {
      * The batch a plain straight line between node centres is pulled into, drawn from the row table
      * (`PulledLineBatch`). A piece carries its color, width and opacity itself
      * (`PulledLineBatch.setLook`), so they key no batch: one batch per minimum screen width and
-     * per pass (translucent lines draw in the transparent pass, as the plain line's do).
+     * per pass (translucent lines draw in the transparent pass, as the plain line's do). A lone curve
+     * (`line.bezier`) is pulled into a curve batch of its own, whose pieces are points of its path.
      * @param cache - The cache that keeps the batches.
      * @param options - The line's look.
      * @param style - The resolved style.
@@ -602,12 +603,13 @@ void main() {
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}`;
+        const curve = style.line?.bezier === true;
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${curve ? "|curve" : ""}`;
         return cache.getPulledBatch(key, () => {
-            const mesh = this.createStaticLine(options, style, scene, cache, false, true);
+            const mesh = this.createStaticLine(options, style, scene, cache, false, curve ? "curve" : true);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
-            return new PulledLineBatch(mesh, scene, rowPositions);
+            return new PulledLineBatch(mesh, scene, rowPositions, curve);
         });
     }
 
@@ -911,7 +913,7 @@ void main() {
 
         _cache: MeshCache,
         widened = false,
-        pulled = false,
+        pulled: boolean | "curve" = false,
     ): Mesh {
         // Use custom line renderer if flag is enabled
 
@@ -927,7 +929,8 @@ void main() {
                     minScreenWidth: style.line?.minScreenWidth,
                     fade: widened ? this.fadeOf(style) : undefined,
                     opaque: this.drawsOpaque(style),
-                    pulled,
+                    pulled: pulled !== false,
+                    pulledCurve: pulled === "curve",
                 },
                 scene,
             );

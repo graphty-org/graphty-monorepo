@@ -561,6 +561,19 @@ until the stage's second pull request makes that walk typed. Four things differ 
   empty (measured on SwiftShader), so a read waits for a draw in a later frame. `edge-id-target.test.ts` runs the agreement
   test and a real-pointer hover on WebGPU when `GRAPHTY_BROWSER_GPU` is set.
 
+As built (stage 18, second pull request): the typed edge scan is `pickEdgeId` in `render/PickService.ts`. On the `"batched"`
+path a press, a release, `elementAt` and the hover's measure of its window all take it. It still walks the edges in order with
+today's distance test, so it gives the same answer on the same ties. The difference is where a straight edge between two batched
+rows gets its ends: from `rowBounds` and the root's matrix, which is what `Node.drawnWorldPosition` returns for such a row, put on
+screen through one `screenProjector` per pick. So it needs no `worldToScreen` call and no new vector for that edge.
+`Graph.worldToScreen` is that same projector, with the same arithmetic. Every other edge (a curve, a route, a loop, an end
+outside a batch) is still measured point by point, and `edgePickWork.measured` counts only those, so a move or a press over the
+stage 18 test graph counts 1, its loop. Two things differ from the stage row:
+
+- The row says "a typed scan for clicks". The hover's window measure takes the scan too, since it is the same test.
+- A press still walks every edge. The scan does not use the target's window, because a press needs no read. It is a typed walk,
+  not an index.
+
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by
 `raySelectionPredicate`; while hidden proxies exist (stages 8 to 10) the predicate alone serves. `XRInputHandler`'s direct `pickWithRay`

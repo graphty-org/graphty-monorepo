@@ -134,7 +134,13 @@ import {
 import { createStepRuns, type StepRuns } from "./scope/stepRuns";
 import { freezeLiveReferences, mapUnions } from "./scope/steps";
 import { sealedSet } from "./sealed";
-import { createSelectionApi, type RuleCheck, type SelectionOwner, type SelectionTextMode } from "./selection";
+import {
+    createSelectionApi,
+    type RuleCheck,
+    type SelectionOwner,
+    type SelectionSources,
+    type SelectionTextMode,
+} from "./selection";
 import { createMaterialiser } from "./sets/algebra";
 import { outcomeOf, SetsCache } from "./sets/cache";
 import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
@@ -286,6 +292,8 @@ export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "
     readonly records?: SessionRecordSource;
     /** What VR and AR can do on the renderer this session draws through. */
     readonly xr?: XrSource;
+    /** The drawn nodes inside a polygon on the canvas, for a `region` selection target. */
+    readonly region?: SelectionSources["region"];
     /** The configuration; `data` may be a function, read on every use. */
     readonly config?: Omit<NonNullable<CreateGraphSessionOptions["config"]>, "data"> & {
         readonly data?: SessionDataConfigInput | (() => SessionDataConfig);
@@ -3416,6 +3424,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         scope,
         results,
+        ...(options.region === undefined ? {} : { region: options.region }),
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
         // A rule reads a file column by its bare name ("minutes"); the published path is the

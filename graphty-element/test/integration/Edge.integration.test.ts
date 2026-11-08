@@ -126,6 +126,9 @@ function createMinimalStyles(): Styles {
                 direction: "both",
                 layout: "continue",
             },
+            selection: {
+                region: "off",
+            },
         },
         data: {
             knownFields: {

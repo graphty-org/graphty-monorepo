@@ -9,10 +9,12 @@
  * sample is first outside, how many pieces, and how far along each cut chord the line starts and stops),
  * and {@link curvePathPoint} any one point of the cut path from those numbers alone. `PULLED_CURVE_GLSL`
  * is {@link curvePathPoint} for a shader. A curve fanned out of a bundle (`edgeRoute.fanArc`) is the same
- * cut of another path: a quadratic that bows a signed distance to the chord's left, kept in the span. Nothing here reads Babylon.js, so it runs in Node.
+ * cut of another path: a quadratic that bows a signed distance to the chord's left, kept in the span. A curve drawn
+ * as an arc of a circle through both centers (`line.arcRadius`, `edgeRoute.centerArc`) is the cut of a third, kept as
+ * its radius. Nothing here reads Babylon.js, so it runs in Node.
  */
 
-import { fanArcPieces, routeOutside, type Xyz } from "./edgeRoute";
+import { centerCircle, fanArcPieces, routeOutside, type Xyz } from "./edgeRoute";
 
 /** How far the two control points stand off the chord, a share of its length (`EDGE_CONSTANTS.BEZIER_CONTROL_POINT_OFFSET`). */
 const CONTROL_OFFSET = 0.3;
@@ -42,6 +44,16 @@ export interface CurveSpan {
      * lone curve.
      */
     readonly bow: number | null;
+    /**
+     * For a center arc, the circle's radius as a multiple of the chord in the x-y plane (`line.arcRadius`, at
+     * least 0.5); null otherwise.
+     */
+    readonly radius: number | null;
+    /**
+     * For a center arc, the angle it turns through from the source to the target, negative clockwise: set by the
+     * radius alone, so the shader needs no arc tangent and turns a half circle the way `centerArc` did; null otherwise.
+     */
+    readonly turn: number | null;
 }
 
 /**
@@ -135,16 +147,64 @@ function arcSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, bow: number
 }
 
 /**
- * One sample of a lone curve, or of a fanned arc when `bow` is a number.
+ * One sample of a center arc, as `centerArc` computes it: both ends exactly the centers, z straight between them.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param i - The sample, 0 to `samples`.
+ * @param samples - The pieces the arc is sampled with.
+ * @param radius - The radius, a multiple of the chord in the x-y plane.
+ * @returns The point.
+ */
+function circleSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, radius: number): Xyz {
+    const t = i / samples;
+    const circle = centerCircle(src, dst, radius);
+    if (circle === null) {
+        return { x: src.x + (dst.x - src.x) * t, y: src.y + (dst.y - src.y) * t, z: src.z + (dst.z - src.z) * t };
+    }
+
+    if (i <= 0 || i >= samples) {
+        return i <= 0 ? src : dst;
+    }
+
+    const { cx, cy, r, from, turn } = circle;
+    const a = from + turn * t;
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z: src.z + (dst.z - src.z) * t };
+}
+
+/** Which path a span samples: a lone curve, a fanned arc (`bow`) or a center arc (`radius`). */
+type Shape = Pick<CurveSpan, "bow" | "radius" | "turn">;
+
+/**
+ * One sample of the path a span's shape names.
  * @param src - The source center.
  * @param dst - The target center.
  * @param i - The sample.
  * @param samples - The pieces.
- * @param bow - The arc's bow, or null.
+ * @param shape - The span's bow, radius and turn.
  * @returns The point.
  */
-function pathSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, bow: number | null): Xyz {
-    return bow === null ? sampleAt(src, dst, i, samples) : arcSampleAt(src, dst, i, samples, bow);
+function pathSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, shape: Shape): Xyz {
+    if (shape.radius !== null) {
+        return circleSampleAt(src, dst, i, samples, shape.radius);
+    }
+
+    return shape.bow === null ? sampleAt(src, dst, i, samples) : arcSampleAt(src, dst, i, samples, shape.bow);
+}
+
+/**
+ * The span's shape as the shader's two numbers: (bow or turn, 0 for a lone curve, 1 for a fanned arc, 2 for a
+ * center arc), the last two of a curve piece's fourth texel.
+ * @param span - The span, or null.
+ * @returns The two numbers.
+ */
+export function curveShape(span: Shape | null): [number, number] {
+    const turn = span?.turn ?? null;
+    if (turn !== null) {
+        return [turn, 2];
+    }
+
+    const bow = span?.bow ?? null;
+    return bow === null ? [0, 0] : [bow, 1];
 }
 
 /**
@@ -200,6 +260,7 @@ function crossingAlong(inside: Xyz, outside: Xyz, isOutside: (x: number, y: numb
  * @param outsideSrc - Whether a point is outside the source node.
  * @param outsideDst - Whether a point is outside the target node.
  * @param bow - A fanned arc's bow ({@link CurveSpan.bow}), or null for a lone curve.
+ * @param radius - A center arc's radius ({@link CurveSpan.radius}), or null; it wins over `bow`.
  * @returns The span; the lone curve from center to center, uncut, when no sample is outside both nodes, as
  *     the object path then draws it; or null when it draws the curve another way: a center outside its own node
  *     (the line then leaves from the center, `Edge.leaveNode`).
@@ -210,14 +271,24 @@ export function curveSpan(
     outsideSrc: (x: number, y: number, z: number) => boolean,
     outsideDst: (x: number, y: number, z: number) => boolean,
     bow: number | null = null,
+    radius: number | null = null,
 ): CurveSpan | null {
-    const samples =
-        bow === null
-            ? curvePieces(src, dst)
-            : fanArcPieces(Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z), bow);
+    const circle = radius === null ? null : centerCircle(src, dst, radius);
+    let shape: Shape = { bow, radius: null, turn: null };
+    if (radius !== null) {
+        shape = { bow: null, radius, turn: circle?.turn ?? 0 };
+    }
+
+    let samples = curvePieces(src, dst);
+    if (radius !== null) {
+        samples = circle?.pieces ?? 1;
+    } else if (shape.bow !== null) {
+        samples = fanArcPieces(Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z), shape.bow);
+    }
+
     const flat: number[] = [];
     for (let i = 0; i <= samples; i++) {
-        const p = pathSampleAt(src, dst, i, samples, bow);
+        const p = pathSampleAt(src, dst, i, samples, shape);
         flat.push(p.x, p.y, p.z);
     }
 
@@ -226,7 +297,7 @@ export function curveSpan(
         // a route no point of which clears both nodes is drawn as the lone curve from center to center, uncut
         // (`Edge.placeCurve`), a fanned arc's too
         const lone = curvePieces(src, dst);
-        return { samples: lone, first: 1, pieces: lone, startAt: 0, endAt: 0, bow: null };
+        return { samples: lone, first: 1, pieces: lone, startAt: 0, endAt: 0, bow: null, radius: null, turn: null };
     }
 
     if (span.first === 0 || span.last === samples) {
@@ -240,7 +311,7 @@ export function curveSpan(
         pieces: span.last - span.first + 2,
         startAt: crossingAlong(at(span.first - 1), at(span.first), outsideSrc),
         endAt: crossingAlong(at(span.last + 1), at(span.last), outsideDst),
-        bow,
+        ...shape,
     };
 }
 
@@ -254,10 +325,10 @@ export function curveSpan(
  * @returns The point.
  */
 export function curvePathPoint(src: Xyz, dst: Xyz, span: CurveSpan, j: number): Xyz {
-    const { samples, first, pieces, bow } = span;
+    const { samples, first, pieces } = span;
     const cut = (inside: number, outside: number, t: number): Xyz => {
-        const a = pathSampleAt(src, dst, inside, samples, bow);
-        const b = pathSampleAt(src, dst, outside, samples, bow);
+        const a = pathSampleAt(src, dst, inside, samples, span);
+        const b = pathSampleAt(src, dst, outside, samples, span);
         return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
     };
     if (j <= 0) {
@@ -268,12 +339,12 @@ export function curvePathPoint(src: Xyz, dst: Xyz, span: CurveSpan, j: number): 
         return cut(first + pieces - 1, first + pieces - 2, span.endAt);
     }
 
-    return pathSampleAt(src, dst, first + j - 1, samples, bow);
+    return pathSampleAt(src, dst, first + j - 1, samples, span);
 }
 
 /**
  * {@link curvePathPoint} for a shader: `pulledCurvePoint(src, dst, span, cut, j)`, where `span` is
- * (samples, first, pieces, unused) and `cut` is (startAt, endAt, bow, 1 for a fanned arc or 0).
+ * (samples, first, pieces, unused) and `cut` is (startAt, endAt, then {@link curveShape}'s two numbers).
  */
 export const PULLED_CURVE_GLSL = `
 vec3 pulledArcSample(vec3 src, vec3 dst, float i, float samples, float bow) {
@@ -303,7 +374,37 @@ vec3 pulledLoneSample(vec3 src, vec3 dst, float i, float samples) {
     return src * (u * u * u) + c1 * (3.0 * u * u * t) + c2 * (3.0 * u * t * t) + dst * (t * t * t);
 }
 
+// sin and cos of an angle within a quarter turn by their Taylor series, to x^15 and x^14 (under 1e-9 off): a GPU's
+// built-in sin and cos may be far coarser (SwiftShader's put a circle's samples 4e-3 off at a radius of 40)
+vec2 pulledSinCos(float x) {
+    float x2 = x * x;
+    float s = 1.0 + x2 * (-1.0 / 6.0 + x2 * (1.0 / 120.0 + x2 * (-1.0 / 5040.0 + x2 * (1.0 / 362880.0
+        + x2 * (-1.0 / 39916800.0 + x2 * (1.0 / 6227020800.0 + x2 * (-1.0 / 1307674368000.0)))))));
+    float c = 1.0 + x2 * (-0.5 + x2 * (1.0 / 24.0 + x2 * (-1.0 / 720.0 + x2 * (1.0 / 40320.0
+        + x2 * (-1.0 / 3628800.0 + x2 * (1.0 / 479001600.0 + x2 * (-1.0 / 87178291200.0)))))));
+    return vec2(x * s, c);
+}
+
+vec3 pulledCircleSample(vec3 src, vec3 dst, float i, float samples, float turn) {
+    float t = i / samples;
+    if (turn == 0.0 || i <= 0.0 || i >= samples) {
+        return turn == 0.0 ? mix(src, dst, t) : (i <= 0.0 ? src : dst);
+    }
+    // The radius from the center (to the chord's right) to the source, turned through its share of the turn, as the
+    // chord it sweeps: (R - I) v = 2 sin(h) (-sin(h) v + cos(h) perp(v)), h half the angle. Turning v itself puts a
+    // float's error times the radius on the point, and the radius grows without bound as the arc flattens.
+    vec2 d = dst.xy - src.xy;
+    vec2 halfTurn = pulledSinCos(abs(turn) * 0.5);
+    vec2 v = -(d * 0.5 + vec2(d.y, -d.x) * (0.5 * halfTurn.y / halfTurn.x));
+    vec2 h = pulledSinCos(turn * t * 0.5);
+    vec2 p = src.xy + 2.0 * h.x * (-h.x * v + h.y * vec2(-v.y, v.x));
+    return vec3(p, mix(src.z, dst.z, t));
+}
+
 vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut) {
+    if (cut.w > 1.5) {
+        return pulledCircleSample(src, dst, i, samples, cut.z);
+    }
     return cut.w > 0.5 ? pulledArcSample(src, dst, i, samples, cut.z) : pulledLoneSample(src, dst, i, samples);
 }
 

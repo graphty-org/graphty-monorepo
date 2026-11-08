@@ -3,7 +3,8 @@
  * between the same two nodes, is pulled from the row table (`PulledLineBatch` with curve texels,
  * `meshes/pulledCurve.ts`) and draws the picture the `"objects"` path draws, at rest and after a drag.
  * A fanned curve that gains a parallel edge fans out beside it, and draws as before once it goes.
- * A bundle spread by `line.fanSpacing` is pulled too, and follows a new spacing.
+ * A bundle spread by `line.fanSpacing` is pulled too, and follows a new spacing, and a curve drawn as an arc of a
+ * circle (`line.arcRadius`) follows a new radius.
  * Stage 21 of design/rendering/row-renderer.md; the bar is its section 7.
  */
 
@@ -251,5 +252,45 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.isAbove(overBar(before.narrow, before.wide), 0, "the new spacing moves the arcs");
         assert.equal(overBar(before.narrow, after.narrow), 0, "spread 0.25 apart");
         assert.equal(overBar(before.wide, after.wide), 0, "spread 0.5 apart");
+    });
+
+    it("pull curves drawn as circle arcs, and follow a new radius, drawing the objects path's picture", async () => {
+        /**
+         * Draw every lone curve as an arc of radius 0.6, read the frame, drag, then widen the radius to 2 and read again.
+         * @param element - The element.
+         * @returns The frames at each radius.
+         */
+        async function arcs(element: Graphty): Promise<{ tight: Frame; dragged: Frame; wide: Frame }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            await element.session.styles.add({
+                name: "arcs",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.arcRadius": 0.6 },
+            } as never);
+            await settled(element);
+            const tight = await readCanvas(element.graph);
+            const dragged = await moved(element);
+            await element.session.styles.add({
+                name: "wider arcs",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.arcRadius": 2 },
+            } as never);
+            await settled(element);
+            return { tight, dragged, wide: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await arcs(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await arcs(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.tight, before.wide), 0, "the new radius moves the arcs");
+        assert.equal(overBar(before.tight, after.tight), 0, "radius 0.6");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.wide, after.wide), 0, "radius 2");
     });
 });

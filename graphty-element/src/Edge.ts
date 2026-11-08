@@ -134,6 +134,7 @@ const PULLED_LINE_KEYS = new Set([
     "bezier",
     "fanned",
     "fanSpacing",
+    "arcRadius",
 ]);
 
 /**
@@ -2504,8 +2505,9 @@ export class Edge {
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
      * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
-     * too, with no `arcRadius`, `supportModel` or gap: its shape is its two centres' and, for one that
-     * fans out of a bundle, how far it bows (spread by `fanSpacing` when set), which each placement writes
+     * too, with no `supportModel` or gap: its shape is its two centres' and, for one that fans out of a
+     * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
+     * radius (`arcRadius`), which each placement writes
      * (`meshes/pulledCurve.ts`, {@link Edge.pullCurve}). Read when the line is built.
      * @param style - The resolved style.
      * @returns True when it is pulled.
@@ -2585,7 +2587,7 @@ export class Edge {
 
     /**
      * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there -- a lone
-     * curve, or the arc it fans out of its bundle on ({@link Edge.fanOf}) -- taking pieces while the cut
+     * curve, the arc it fans out of its bundle on ({@link Edge.fanOf}), or its circle (`line.arcRadius`) -- taking pieces while the cut
      * needs more than it holds. A curve no point of which clears both nodes is drawn as the lone
      * curve from centre to centre, uncut, as the object path draws it (`placeCurve`); one it would draw another way (`curveSpan` null: a
      * centre outside its own node) draws nothing.
@@ -2606,7 +2608,9 @@ export class Edge {
         if (fan !== null) {
             bow = fan.forward ? fan.offset : -fan.offset;
         }
-        const span = curveSpan(src, dst, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst), bow);
+        // a curve that does not fan is drawn on its circle when it has a radius, as `bundleRoute` draws it
+        const radius = fan === null ? (this.drawnStyle?.line?.arcRadius ?? null) : null;
+        const span = curveSpan(src, dst, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst), bow, radius);
         while (run.length + 1 < (span?.pieces ?? 0)) {
             const piece = batch.acquire();
             batch.setLook(piece, look.color, look.opacity, look.width);

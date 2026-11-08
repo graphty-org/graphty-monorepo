@@ -228,6 +228,12 @@ export interface TargetContext {
     readonly selectedEdges: ElementMask<EdgeId>;
     /** Resolves a scope. Absent refuses a `scope` target. */
     readonly scope?: ScopeResolver;
+    /**
+     * The scope a `where` or `text` target that names none is narrowed to: what is shown while the
+     * session's working graph is on. Absent, or answering undefined, the whole graph.
+     * @returns The scope, or undefined for the whole graph.
+     */
+    readonly defaultScope?: () => ScopeInput | undefined;
     /** Reads finished runs. Absent refuses a `top`, `above` or `range` target. */
     readonly results?: ResultsApi;
     /**
@@ -737,7 +743,7 @@ function resolveWhere(target: Extract<SelectionTarget, { where: unknown }>, cont
     const matched = context.match(target.where);
     addIds(nodes, matched.nodes ?? []);
     addIds(edges, matched.edges ?? []);
-    narrowToScope(context, target.scope, nodes, edges);
+    narrowToScope(context, target.scope ?? context.defaultScope?.(), nodes, edges);
 
     return {
         nodes,
@@ -797,7 +803,7 @@ function resolveText(target: Extract<SelectionTarget, { text: unknown }>, contex
         addSearchHit(hit, nodes, edges);
     }
 
-    narrowToScope(context, target.scope, nodes, edges);
+    narrowToScope(context, target.scope ?? context.defaultScope?.(), nodes, edges);
 
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
 }

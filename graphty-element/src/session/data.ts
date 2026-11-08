@@ -1849,27 +1849,45 @@ export class SessionData implements SessionDataApi {
 
     /**
      * Every node, in the graph's order.
+     * @param options - Which nodes.
+     * @param options.scope - What is shown, or the whole graph; absent, what the working graph
+     *     says: what is shown while it is on, the whole graph while it is off.
      * @returns the records, deep-frozen
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    nodes(): readonly NodeRecord[] {
+    nodes(options: { readonly scope?: WorkingScope } = {}): readonly NodeRecord[] {
         const snapshot = this.current();
-        return Array.from({ length: snapshot.nodeCount }, (_unused, index) =>
-            this.nodeAt(index, snapshot.ids.idOf(index)),
-        );
+        const shown = this.shownOf("node", options.scope);
+        const records: NodeRecord[] = [];
+        for (let index = 0; index < snapshot.nodeCount; index++) {
+            if (shown === null || maskTest(shown, index)) {
+                records.push(this.nodeAt(index, snapshot.ids.idOf(index)));
+            }
+        }
+
+        return records;
     }
 
     /**
      * Every edge, in the graph's order.
+     * @param options - Which edges.
+     * @param options.scope - What is shown, or the whole graph; absent, what the working graph
+     *     says: what is shown while it is on, the whole graph while it is off.
      * @returns the records, deep-frozen
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    edges(): readonly EdgeRecord[] {
+    edges(options: { readonly scope?: WorkingScope } = {}): readonly EdgeRecord[] {
         const snapshot = this.current();
         const space = edgeSpaceOf(snapshot);
-        return Array.from({ length: snapshot.edgeCount }, (_unused, index) =>
-            this.edgeAt(snapshot, index, space.idOf(index)),
-        );
+        const shown = this.shownOf("edge", options.scope);
+        const records: EdgeRecord[] = [];
+        for (let index = 0; index < snapshot.edgeCount; index++) {
+            if (shown === null || maskTest(shown, index)) {
+                records.push(this.edgeAt(snapshot, index, space.idOf(index)));
+            }
+        }
+
+        return records;
     }
 
     /**

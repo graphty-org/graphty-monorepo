@@ -902,7 +902,7 @@ function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: Wo
     const inside =
         window === null || extent === null
             ? undefined
-            : time.bins({ count: 1, from: Number(window.from), to: Number(window.to) })?.[0]?.[side];
+            : time.bins({ count: 1, from: Number(window.from), to: Number(window.to), scope: "all" })?.[0]?.[side];
     const name = words === null ? TIME_WINDOW : `${TIME_WINDOW} ${words}`;
     const apply = (on: boolean): void => {
         time.pause();

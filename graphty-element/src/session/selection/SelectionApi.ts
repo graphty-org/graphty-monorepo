@@ -526,6 +526,8 @@ export interface SelectionSources {
      * @returns The check.
      */
     readonly checkRule?: (where: Query) => RuleCheck;
+    /** The scope a `where` or `text` target naming none reads. Absent, the whole graph. */
+    readonly defaultScope?: TargetContext["defaultScope"];
     /** What a note's targets select. Absent refuses a `note` target. */
     readonly note?: TargetContext["note"];
     /** What a style layer's rule matches. Absent refuses a `layer` target. */
@@ -1266,7 +1268,7 @@ class Selection implements SelectionOwner {
      * @returns The context, built around the frame the selection is synchronised to.
      */
     #context(): TargetContext {
-        const { scope, results, match, find, note, layer } = this.#sources;
+        const { scope, results, match, find, note, layer, defaultScope } = this.#sources;
 
         return {
             graph: this.#frame.graph,
@@ -1280,6 +1282,7 @@ class Selection implements SelectionOwner {
             ...(find === undefined ? {} : { find }),
             ...(note === undefined ? {} : { note }),
             ...(layer === undefined ? {} : { layer }),
+            ...(defaultScope === undefined ? {} : { defaultScope }),
         };
     }
 

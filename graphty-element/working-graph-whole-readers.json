@@ -1,0 +1,31 @@
+{
+    "about": "Session readers that read the whole graph with no scope named, each one of the owner's agreed cases (2026-11-07). graphty-element/test/contracts/working-graph-readers.test.ts proves each still reads the whole graph; tools/check-working-graph.mjs lets this list only shrink. A new reader reads the view, or names the whole graph by its word.",
+    "cases": ["filter", "full graph"],
+    "readers": [
+        {
+            "reader": "data.snapshot()",
+            "case": "full graph",
+            "reason": "The original graph by name: the source of truth every edit, export and view is built from."
+        },
+        {
+            "reader": "data.store.getSnapshot()",
+            "case": "full graph",
+            "reason": "The store's own snapshot, the original graph the view is derived from."
+        },
+        {
+            "reader": "scope.histogram()",
+            "case": "filter",
+            "reason": "What a filter card's brush and checklist read: a filter's own conditions count over the whole graph. A card on what is shown names within: \"visible\"."
+        },
+        {
+            "reader": "snapshot()",
+            "case": "full graph",
+            "reason": "The original graph by name, as data.snapshot()."
+        },
+        {
+            "reader": "time.extent()",
+            "case": "filter",
+            "reason": "The time window's own extent: the track the window is chosen on spans all of time."
+        }
+    ]
+}

@@ -362,8 +362,8 @@ interface ExportRows {
  */
 function exportRows(session: GraphSession, scope: ExportScope | undefined): ExportRows {
     const all = (count: number): number[] => Array.from({ length: count }, (_value, row) => row);
-    const nodes = session.data.nodes();
-    const edges = session.data.edges();
+    const nodes = session.data.nodes({ scope: "graph" });
+    const edges = session.data.edges({ scope: "graph" });
     if (scope === undefined) {
         return { nodes: all(nodes.length), edges: all(edges.length) };
     }
@@ -575,8 +575,8 @@ export function buildExportSnapshot(
         weightDtype: "f64",
     });
 
-    const allNodes = session.data.nodes();
-    const allEdges = session.data.edges();
+    const allNodes = session.data.nodes({ scope: "graph" });
+    const allEdges = session.data.edges({ scope: "graph" });
     const rows = options.rows ?? exportRows(session, undefined);
     const nodes = rows.nodes.map((row) => allNodes[row]);
     const edges = rows.edges.map((row) => allEdges[row]);
@@ -1172,8 +1172,8 @@ function sessionStyles(
 ): StylesToWrite {
     const block = exporter.styles?.capabilities.block;
     const { state } = dispatcherOf(session);
-    const allNodes = session.data.nodes();
-    const allEdges = session.data.edges();
+    const allNodes = session.data.nodes({ scope: "graph" });
+    const allEdges = session.data.edges({ scope: "graph" });
     const nodes = rows.nodes.map((row) => allNodes[row]);
     const edges = rows.edges.map((row) => allEdges[row]);
     const nodeMask = session.visibility.nodeMask();

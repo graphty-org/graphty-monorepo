@@ -5414,7 +5414,9 @@ export interface SessionDataApi {
     };
     // (undocumented)
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
-    edges(): readonly EdgeRecord[];
+    edges(options?: {
+        readonly scope?: "graph" | "visible";
+    }): readonly EdgeRecord[];
     editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
     expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<SourceExpandResult>;
@@ -5451,7 +5453,9 @@ export interface SessionDataApi {
     };
     // (undocumented)
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
-    nodes(): readonly NodeRecord[];
+    nodes(options?: {
+        readonly scope?: "graph" | "visible";
+    }): readonly NodeRecord[];
     nodeSource(id: NodeId_2): NodeSource | null;
     pendingSourceLoads(): readonly PendingSourceLoad[];
     prepare(source: DataSourceInput, options?: {

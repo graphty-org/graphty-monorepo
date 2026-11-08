@@ -224,7 +224,8 @@ export interface TimeBinsOptions {
     readonly to?: number;
     /**
      * `"visible"` counts only elements that pass every filter, the window aside, so a bar outside
-     * the window still holds its filtered count. Default `"all"`.
+     * the window still holds its filtered count. Default `"visible"` while the session's
+     * `workingGraph` is on, `"all"` while it is off.
      */
     readonly scope?: "all" | "visible";
     /**
@@ -587,6 +588,8 @@ export interface TimeSources {
     readonly snapshot: () => GraphSnapshot;
     /** Whether the timeline experiment is on; absent reads on. */
     readonly timeline?: () => boolean;
+    /** Whether the working graph is on, so bins naming no scope count what the filter passes. */
+    readonly workingGraph?: () => boolean;
     /** Moves on every write to the graph's rows or records. */
     readonly token: () => number;
     /**
@@ -2643,7 +2646,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return extentOf(indexIfReady());
         },
 
-        bins(options: TimeBinsOptions = {}): readonly TimeBin[] | null {
+        bins(given: TimeBinsOptions = {}): readonly TimeBin[] | null {
+            const options: TimeBinsOptions =
+                given.scope === undefined && sources.workingGraph?.() === true ? { ...given, scope: "visible" } : given;
             const built = indexIfReady();
             const extent = extentOf(built);
             if (extent === null || built === null) {

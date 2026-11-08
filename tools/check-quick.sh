@@ -137,6 +137,7 @@ fi
 step "Migration count script" pnpm run check:migration-counts
 step "Legacy graph API use" pnpm run check:legacy-use
 step "No special style layers" pnpm run check:special-layers
+step "Readers honor the working graph" pnpm run check:working-graph
 step "No committed walk screenshots" pnpm run check:committed-images
 step "compact-mantine Figma lock" pnpm run check:figma-lock
 # The dry run walks graphty/dist, so it never runs on a build the app step failed to refresh.

@@ -25,6 +25,7 @@ import {
     PROJECT_FILE,
     type ResultShape,
     type RunId,
+    type Scope,
     type SetDefinitionInput,
 } from "../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
@@ -900,6 +901,9 @@ export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Rec
         shape: result.shape,
         fields: result.fields,
         measured: result.measured,
+        // How many elements it ran over, so an open restores it over the same ones (current) or
+        // marks it out of date, whichever the filter the file holds makes it.
+        ranOn: { nodes: entry.record.scope.nodes, edges: entry.record.scope.edges },
         graph: result.graph,
         caveats: entry.record.caveats,
         durationMs: entry.record.durationMs ?? 0,
@@ -1591,6 +1595,8 @@ interface Opening {
     readonly services: Dispatcher["services"];
     /** Marks a restored run as one whose id the element minted. */
     readonly restoreDerived: (id: RunId) => void;
+    /** How many elements a run over a scope (absent: the default run scope) would hold now. */
+    readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
 }
 
 /**
@@ -1789,8 +1795,12 @@ async function readProject(
         }
     });
 
-    // The filter before the runs, so a run over what is shown is restored over what the file showed
-    // and comes back current. A filter naming a set that waits for a run's result waits with it.
+    // Each run is restored over the elements it ran on: a run made before the filter (its scope
+    // held as many elements as it holds with no filter; a filter only takes elements away) before
+    // the filter, so it comes back out of date as it was saved;
+    // the rest after it, so a run over what the file shows comes back current. A file written
+    // before runs saved their counts restores them all before the filter, as it always did. A
+    // filter naming a set that waits for a run's result waits with it.
     const restoreVisibility = async (): Promise<void> => {
         const visibility = state.visibility as Record<string, unknown> | undefined;
         if (visibility === undefined) {
@@ -1820,13 +1830,10 @@ async function readProject(
             tx.visibility.showContext = visibility.showContext === true;
         });
     };
-    if (waiting.length === 0) {
-        await restoreVisibility();
-    }
 
     const results = first("graphty-results");
     const sameData = results.fingerprint === tx.data.fingerprint();
-    for (const run of (results.runs ?? []) as SavedRun[]) {
+    const restoreRun = async (run: SavedRun): Promise<void> => {
         await attempt(
             opening,
             "runs",
@@ -1880,6 +1887,24 @@ async function readProject(
             },
             run.id,
         );
+    };
+    const ranBefore = (run: SavedRun): boolean =>
+        run.ranOn === undefined || sameCount(run.ranOn, opening.scopeCountOf(remap(run).scope));
+    const after: SavedRun[] = [];
+    for (const run of (results.runs ?? []) as SavedRun[]) {
+        if (waiting.length > 0 || ranBefore(run)) {
+            await restoreRun(run);
+        } else {
+            after.push(run);
+        }
+    }
+
+    if (waiting.length === 0) {
+        await restoreVisibility();
+    }
+
+    for (const run of after) {
+        await restoreRun(run);
     }
 
     for (const set of waiting) {
@@ -2101,6 +2126,22 @@ function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId |
 }
 
 /** One finished run as a results member keeps it. */
+/** How many nodes and edges a scope holds. */
+interface ElementCount {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/**
+ * Whether two counts are the same.
+ * @param a - One.
+ * @param b - The other, or null for a scope that does not resolve.
+ * @returns True when both sides agree.
+ */
+function sameCount(a: ElementCount, b: ElementCount | null): boolean {
+    return b !== null && a.nodes === b.nodes && a.edges === b.edges;
+}
+
 interface SavedRun {
     readonly id: RunId;
     /** Whether the element minted the id rather than the author naming it. */
@@ -2114,6 +2155,8 @@ interface SavedRun {
     readonly shape: ResultShape;
     readonly fields: readonly FieldDescriptor[];
     readonly measured: { readonly nodes: number; readonly edges: number };
+    /** How many elements its scope held when it ran; absent in files written before it was saved. */
+    readonly ranOn?: ElementCount;
     readonly graph: Readonly<Record<string, unknown>>;
     readonly caveats: Caveats | Omit<Caveats, "facts">;
     readonly durationMs: number;
@@ -2235,6 +2278,7 @@ function projectIdOf(value: unknown): string | undefined {
  * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
  * @param hooks.restoreDerived - Marks a restored run's id as minted by the element.
+ * @param hooks.scopeCountOf - How many elements a run over a scope would hold now.
  * @param hooks.sources - Writes and restores the loads from network sources.
  * @param hooks.projectChanged - Called once an open has read the project's id, before anything is
  *     fetched, and again once its source loads are restored.
@@ -2248,11 +2292,12 @@ export function projectOf(
         readonly announce: (change: ProjectStatus) => void;
         readonly isDerived: (id: RunId) => boolean;
         readonly restoreDerived: (id: RunId) => void;
+        readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
         readonly sources?: NetworkSourceRecords;
         readonly projectChanged?: () => void;
     },
 ): ProjectApi {
-    const { announce, isDerived, restoreDerived, sources: networkSources, projectChanged } = hooks;
+    const { announce, isDerived, restoreDerived, scopeCountOf, sources: networkSources, projectChanged } = hooks;
     let id = newProjectId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
@@ -2414,6 +2459,7 @@ export function projectOf(
                             playback: dispatcher.state.visibility.playback,
                             services: dispatcher.services,
                             restoreDerived,
+                            scopeCountOf,
                         },
                         doc,
                         graph,
@@ -2459,7 +2505,14 @@ export function projectOf(
         await session.transaction(
             "Open document",
             async (tx) => {
-                const opening = { tx, problems, restored, services: dispatcher.services, restoreDerived };
+                const opening = {
+                    tx,
+                    problems,
+                    restored,
+                    services: dispatcher.services,
+                    restoreDerived,
+                    scopeCountOf,
+                };
                 if (graph !== undefined) {
                     await importInto(tx, graph, data?.source, data?.sources);
                     restored.add("graph");

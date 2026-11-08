@@ -266,6 +266,29 @@ describe("opening a project", () => {
         session.dispose();
         reopened.session.dispose();
     });
+
+    for (const working of [true, false]) {
+        it(`keeps a run made before the filter out of date (option ${working ? "on" : "off"})`, async () => {
+            const harness = harnessOf(working);
+            const { session } = harness;
+            await session.runs.start("degree");
+            await session.visibility.set(HOSTS);
+            assert.deepInclude(session.runs.list()[0]?.stale, { reason: "scope-changed", ranOn: 5, nowVisible: 3 });
+            const { text } = await session.project.save();
+
+            const reopened = harnessOf(working);
+            await reopened.session.project.open(text, { discard: true });
+            const back = reopened.session.runs.list()[0];
+            assert.isDefined(back);
+            assert.deepInclude(
+                back.stale,
+                { reason: "scope-changed", ranOn: 5, nowVisible: 3 },
+                "it ran on the whole graph, not on what the file shows",
+            );
+            session.dispose();
+            reopened.session.dispose();
+        });
+    }
 });
 
 describe("a Top-N style rule", () => {

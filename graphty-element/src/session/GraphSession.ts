@@ -772,6 +772,7 @@ class Session implements ElementSession {
             restoreDerived: (id) => {
                 this.sessionRuns.restoreDerived(id);
             },
+            scopeCountOf: (spec) => this.sessionRuns.scopeCountOf(spec),
             projectChanged: () => {
                 this.network.projectChanged();
             },

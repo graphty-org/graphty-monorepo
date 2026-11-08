@@ -39,7 +39,7 @@ optional `scope?: "graph" | "visible"`; the list is in section 4.
 `within?: "graph" | "visible"`, default `"graph"`, so ranking keeps the whole column unless the
 consumer asks. The graphty app writes `within: "visible"` on its style rules.
 
-**The canonical example** (names no internal concept):
+**The canonical example:**
 
 ```html
 <graphty-element working-graph></graphty-element>

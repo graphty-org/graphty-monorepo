@@ -1,7 +1,12 @@
 {
-    "about": "Session readers that read the whole graph with no scope named, each one of the owner's agreed cases (2026-11-07). graphty-element/test/contracts/working-graph-readers.test.ts proves each still reads the whole graph; tools/check-working-graph.mjs lets this list only shrink. A new reader reads the view, or names the whole graph by its word.",
-    "cases": ["filter", "full graph"],
+    "about": "Session readers that read the whole graph with no scope named, each one of the owner's agreed cases (2026-11-07). graphty-element/test/contracts/working-graph-readers.test.ts proves each still reads the whole graph; tools/check-working-graph.mjs lets this list only shrink. A new reader reads the view, or names the whole graph by its word. The case \"not agreed\" marks a reader the owner has not seen read the whole graph (design section 11); it is to be agreed or moved to the view.",
+    "cases": ["filter", "full graph", "project file", "not agreed"],
     "readers": [
+        {
+            "reader": "data.issues()",
+            "case": "not agreed",
+            "reason": "Design decision 74: an issue is a fact about the original, which every fix edits, so a filter neither hides an issue nor leaves a stale answer when it changes."
+        },
         {
             "reader": "data.snapshot()",
             "case": "full graph",
@@ -11,6 +16,11 @@
             "reader": "data.store.getSnapshot()",
             "case": "full graph",
             "reason": "The store's own snapshot, the original graph the view is derived from."
+        },
+        {
+            "reader": "project.save()",
+            "case": "project file",
+            "reason": "The project file holds the original graph (agreed point 5): saving while filtered keeps what is hidden."
         },
         {
             "reader": "scope.histogram()",

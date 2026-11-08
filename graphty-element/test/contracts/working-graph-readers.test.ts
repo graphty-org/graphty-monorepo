@@ -27,6 +27,7 @@ import { readFileSync } from "node:fs";
 
 import { assert, describe, it } from "vitest";
 
+import type { LegendBlock } from "../../session";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
@@ -145,12 +146,7 @@ const layerOf = (session: GraphSession): string => session.styles.list().find(({
  * Every member of the session, and what it is. A whole reader is named here with its probe and
  * listed, with its case, in the JSON file.
  */
-const MEMBERS: Readonly<
-    Record<
-        string,
-        ViewReader | BothReader | NotAReader | { readonly wholeProbe: Ask } | { readonly wholeByDefault: Ask }
-    >
-> = {
+const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { readonly wholeProbe: Ask }>> = {
     acceleration: "not the graph",
     "assets.add()": "writes",
     "assets.allowHosts()": "writes",
@@ -216,9 +212,10 @@ const MEMBERS: Readonly<
     "data.ignoreIssue()": "writes",
     "data.ignoreIssues()": "writes",
     "data.import()": "writes",
-    // What is wrong with the data is a fact about the original, which every fix edits (agreed point 2).
+    // What is wrong with the data is a fact about the original, which every fix edits (design
+    // decision 74, which the owner has not seen; listed so the list's ratchet covers it).
     "data.issues()": {
-        wholeByDefault: async (s) => {
+        wholeProbe: async (s) => {
             await s.data.addEdges([{ source: "a", target: "x" }]);
             return s.data.issues();
         },
@@ -370,7 +367,7 @@ const MEMBERS: Readonly<
     "project.open()": "writes",
     "project.rename()": "writes",
     // The project file holds the whole graph (agreed point 5): what the file's data member writes.
-    "project.save()": { wholeByDefault: async (s) => savedGraph((await s.project.save()).text) },
+    "project.save()": { wholeProbe: async (s) => savedGraph((await s.project.save()).text) },
     "recipe()": "not the graph",
     "recommendLayout()": { view: (s) => s.recommendLayout() },
     "redo()": "writes",
@@ -500,8 +497,12 @@ const MEMBERS: Readonly<
     "styles.highlightStyle()": "names its target",
     "styles.layerGroups()": "names its target",
     "styles.layersUnder()": "names its target",
-    "styles.legend()": { wholeByDefault: (s) => s.styles.legend() },
-    "styles.legendOf()": { wholeByDefault: (s) => s.styles.legendOf(layerOf(s)) },
+    // A key's rows are the categories some shown element carries; its painted count is the whole
+    // graph's unless the legend names `within` (decision C), so the probes read the rows.
+    "styles.legend()": { view: async (s) => legendRows(await weightLayer(s), s.styles.legend()) },
+    "styles.legendOf()": {
+        view: async (s) => legendRows(await weightLayer(s), s.styles.legendOf(await weightLayer(s))),
+    },
     "styles.list()": "not the graph",
     "styles.lockRow()": "writes",
     "styles.mark()": "writes",
@@ -603,6 +604,38 @@ const MEMBERS: Readonly<
     "visibility.window": "the filter's own",
     workingGraph: "not the graph",
 };
+
+/**
+ * A layer that colors each node by its weight, one category per weight, so the hidden node's
+ * weight is a category only it carries. Added once per session.
+ * @param session - The session.
+ * @returns The layer's id.
+ */
+async function weightLayer(session: GraphSession): Promise<string> {
+    const held = session.styles.list().find(({ name }) => name === "By weight");
+    if (held !== undefined) {
+        return held.id;
+    }
+
+    const { id } = await session.styles.add({
+        name: "By weight",
+        target: "node",
+        selector: { match: "everything" },
+        encode: { "node.color": { by: "data.weight", scale: "ordinal", palette: "okabe-ito" } },
+    });
+    await session.styles.settled();
+    return id;
+}
+
+/**
+ * The rows of one layer's key: the values its swatches stand for.
+ * @param id - The layer.
+ * @param blocks - The legend.
+ * @returns The values, by block.
+ */
+function legendRows(id: string, blocks: readonly LegendBlock[]): unknown {
+    return blocks.filter((block) => block.layerId === id).map((block) => block.swatches.map(({ value }) => value));
+}
 
 /**
  * The graph a saved project file holds: its `graphty-data` member's nodes and links.
@@ -828,24 +861,6 @@ describe("a reader of both answers each over its own graph", () => {
             assert.deepStrictEqual(shown.filtered, all.without, `${member}'s shown half reads the view`);
             assert.deepStrictEqual(all.filtered, all.unfiltered, `${member}'s whole half reads it all`);
             assert.notDeepEqual(all.unfiltered, all.without, `${member}'s probe tells the two graphs apart`);
-        });
-    }
-});
-
-describe("a reader that is whole by default reads hidden nodes as they are", () => {
-    // Design section 4, "Styling, Whole by default": a hidden node keeps its style (agreed point 4),
-    // so what a layer paints, and the legend's painted count, are the whole graph's. A rule's
-    // `within: "visible"` is how a layer reads only what is shown; it is named, not listed.
-    // The project file (agreed point 5) and the data's issues, which fixes edit in the original
-    // (point 2), read the whole graph too.
-    for (const [member, kind] of Object.entries(MEMBERS)) {
-        if (typeof kind !== "object" || !("wholeByDefault" in kind)) {
-            continue;
-        }
-
-        it(member, async () => {
-            const whole = await answers(kind.wholeByDefault);
-            assert.deepStrictEqual(whole.filtered, whole.unfiltered, `${member} reads the whole graph`);
         });
     }
 });

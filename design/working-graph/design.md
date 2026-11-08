@@ -128,8 +128,10 @@ original and is one of the agreement's named cases: a filter's own conditions, "
   no scope (decision 26).
 - **Project file and export, Whole:** the project file, autosave write and recovery, the recipe;
   export All.
-- **On open**, visibility is restored before runs in every mode; with the option on, runs journal
-  `"visible"`, not a resolved mask (decision 27).
+- **On open**, each run is restored over the elements it ran on, in every mode: a run that ran
+  before the filter before it (it comes back out of date, as saved), the rest after it (they come
+  back current); with the option on, runs journal `"visible"`, not a resolved mask (decisions 27,
+  76).
 - **Not readers**: run names, Runs "Show", legend out-of-date names, "Add X layer", decision 32.
 
 ## 5. Owner decisions A to E
@@ -189,7 +191,9 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
 - **`graphty-element/test/browser/working-graph-gpu.test.ts`** (browser project) runs a GPU algorithm and the GPU force driver with a filter on: the
   hidden node gets no value and does not move.
 - **`graphty-element/working-graph-whole-readers.json`** lists the readers that read the whole graph
-  with no scope named, each naming its agreed case (section 4's Whole rows); `within` defaults and
+  with no scope named, each naming its agreed case (section 4's Whole rows), or the case
+  `"not agreed"` for one the owner has not seen (`data.issues()`, decision 74); every whole reader
+  the test probes is listed, so none escapes the ratchet. `within` defaults and
   the `"graph"` layout scope are named, not listed. The test fails on a stale row.
   **`tools/check-working-graph.mjs`** (in `check:quick` and CI's Checks job) fails when the list
   gains a row against the merge base or a row is malformed. The list only shrinks.
@@ -260,7 +264,7 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
     the view.
 25. **A re-run reads the current view**, not the first run's.
 26. **Export with no scope reads the view**; export All reads the whole graph.
-27. **On open, visibility is restored before runs in every mode** (a bug fix); runs journal
+27. **On open, each run is restored over what it ran on** (a bug fix, decision 76); runs journal
     `"visible"` only with the option on.
 28. **Pins replay, source rows, "Largest component" and Save as set read the view.**
 29. **Hops or touching from a hidden reference return 0 with a reason code.**
@@ -328,4 +332,19 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
 73. **A filter's matches list each node's whole-graph degree**, the degree its card tests.
 74. **`data.issues()` reads the whole graph**: an issue is a fact about the original, which every
     fix edits, so a filter neither hides an issue nor leaves a stale answer when it changes. A
-    source replace's plan reads the whole graph's edge pairs for the same reason.
+    source replace's plan reads the whole graph's edge pairs for the same reason. It is listed in
+    the whole-readers list under the case `"not agreed"` until the owner agrees it or it moves to
+    the view. The legend is not a whole reader: its rows are the categories a shown element carries,
+    and only its painted count is the whole graph's (`within`, decision C).
+75. **A filter's count says how many of its matches are shown** (`FilterConditionMatches.shown`,
+    `StepsReading.total.shown`, both additive): the count and its range still read the whole
+    graph (agreed point 5), and a card beside other filters adds ", 19 shown" when fewer of its
+    matches are shown than it counts. A filter that hides nothing extra reads as before. A
+    condition's count is kept until its rule or what is shown changes.
+76. **A saved run records how many nodes and edges its scope held** (`ranOn` in the
+    `graphty-results` member, additive). On open, a run whose scope holds as many with no filter
+    is restored before the filter, so a run made on the whole graph comes back out of date as it
+    was saved; the rest are restored after it and come back current. A file without `ranOn`
+    restores its runs before the filter, as before. Counts, not the membership digest: edge ids
+    are minted again on open, so a digest never matches; a filter only removes elements, so equal
+    counts mean the same set. Runs restored after the filter move after the others in the list.

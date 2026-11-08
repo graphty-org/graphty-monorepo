@@ -61,6 +61,7 @@ import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } 
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { batchUploadFrames } from "./meshes/FrameRoster";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { curveSpan } from "./meshes/pulledCurve";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -123,7 +124,16 @@ const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
 const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
 
 /** Line keys a pulled line draws exactly as the plain line does. */
-const PULLED_LINE_KEYS = new Set(["type", "animationSpeed", "width", "color", "opacity", "minScreenWidth"]);
+const PULLED_LINE_KEYS = new Set([
+    "type",
+    "animationSpeed",
+    "width",
+    "color",
+    "opacity",
+    "minScreenWidth",
+    "bezier",
+    "fanned",
+]);
 
 /**
  * Whether every key set on a style block is one of the keys named.
@@ -665,6 +675,10 @@ export class Edge {
         /** The look's name and visibility, as a batch of its own would carry them ({@link Edge.drawnLine}). */
         name: string;
         visibility: number;
+        /** A lone curve's further pieces, after `piece`: as many as its longest cut so far ({@link Edge.pullCurve}). */
+        run: number[] | null;
+        /** The look its pieces are given, for the pieces a curve takes later. */
+        look: { color: Color3; opacity: number; width: number };
     } | null = null;
 
     /**
@@ -672,6 +686,15 @@ export class Edge {
      * segment of a curve, which is a run of straight segments. Empty when there is no batch.
      */
     private lineSlots: number[] = [];
+
+    /**
+     * The opacity {@link Edge.colorLine} last wrote into the line's slots, as the number the style
+     * gave rather than the 32-bit float the slot holds.
+     */
+    private lineOpacity = 1;
+
+    /** The color {@link Edge.colorLine} last wrote into the line's slots, as the style spelled it. */
+    private lineColor = "#FFFFFF";
 
     /** The batch this edge's outline (`line.outline`, a band under the line) is drawn from, or null for none. */
     private outlineBatch: EdgeLineBatch | null = null;
@@ -955,13 +978,17 @@ export class Edge {
 
         const batch = this.lineBatch;
 
+        const ownColor = this.lineSlots.length > 0 && batch.colorOf(this.lineSlots[0]) !== null;
         return {
-            name: batch.name,
+            // A batch keyed by shape draws every color, so the look it draws this edge in is named
+            // with the color and opacity the edge wrote into its slots.
+            name: ownColor ? `${batch.name}|${this.lineColor}|${String(this.lineOpacity)}` : batch.name,
             // A curve's length is its whole run's.
             length: this.lineSlots.reduce((sum, slot) => sum + batch.lengthOf(slot), 0),
             // The width `createLine` built the batch with, from the same style.
             width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-            visibility: batch.mesh.visibility,
+            // A batch keyed by shape draws each slot at the opacity this edge wrote into it.
+            visibility: ownColor ? this.lineOpacity : batch.mesh.visibility,
             centre: this.curveMiddle(batch),
         };
     }
@@ -1349,6 +1376,7 @@ export class Edge {
         laid?: readonly number[],
         laidEnds?: EdgePosition["lineEnds"],
     ): boolean {
+        this.pullCurve(src, dst);
         const lays = this.laysRoute();
         const batch = lays ? this.lineBatch : null;
         const stored = this.lineRoute;
@@ -1842,9 +1870,16 @@ export class Edge {
      * @param meshKey - Which source mesh the edge is drawn from.
      * @param style - The resolved style.
      * @param end - The head or the tail.
+     * @param reuse - The cap drawn at that end now, recolored and handed back when the new look's
+     *     batch is its own (see `EdgeMesh.createArrowHead`).
      * @returns The cap, or null for none.
      */
-    private createEndCap(meshKey: string, style: EdgeStyleConfig, end: "arrowHead" | "arrowTail"): ArrowCap | null {
+    private createEndCap(
+        meshKey: string,
+        style: EdgeStyleConfig,
+        end: "arrowHead" | "arrowTail",
+        reuse: ArrowCap | null = null,
+    ): ArrowCap | null {
         const arrow = style[end];
         return EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
@@ -1861,7 +1896,29 @@ export class Edge {
                 outline: arrow?.outlineWidth,
             },
             this.context.getScene(),
+            reuse,
         );
+    }
+
+    /**
+     * Write this edge's line color and opacity into each of its slots, for a batch that reads them
+     * per slot (one keyed by shape, see `EdgeMesh.lineBatch`); a batch whose material holds them
+     * ignores it.
+     * @param style - The look the line is drawn in.
+     */
+    private colorLine(style: EdgeStyleConfig): void {
+        const batch = this.lineBatch;
+        if (batch === null) {
+            return;
+        }
+
+        this.lineColor = style.line?.color ?? "#FFFFFF";
+        const rgb = Color3.FromHexString(this.lineColor);
+        const opacity = EdgeMesh.opacityOf(style);
+        this.lineOpacity = opacity;
+        for (const slot of this.lineSlots) {
+            batch.setColor(slot, rgb.r, rgb.g, rgb.b, opacity);
+        }
     }
 
     /**
@@ -1899,6 +1956,12 @@ export class Edge {
      * dispose and rebuild every cap, rebuild the content, and place everything again on the next
      * frame. Nothing about where the edge is drawn moved, so the slots are copied instead.
      * Anything but the common case (see {@link Edge.drawsPlainLine}) takes the rebuild.
+     *
+     * AND NOW NOT EVEN COPIED. A plain line's batch is keyed by its shape and a billboarded cap's
+     * by its shape alone, each slot carrying its own color and opacity, so the new look's batches
+     * are the ones the edge is already in: the line's slots and the caps are recolored where they
+     * are, four floats each. Only a batch that still holds its color on its material (an animated
+     * line, a 2D or sphere-dot cap) is moved to as before.
      * @param meshKey - The new look's mesh key.
      * @param style - The new look.
      * @returns True when the edge now draws the new look; false, having changed nothing, when it
@@ -1925,25 +1988,31 @@ export class Edge {
             this.context.getScene(),
             false,
             this.srcNode === this.dstNode,
+            true,
         );
         if (next === null) {
             return false;
         }
 
-        // Every slot is copied before any is released: the last release takes the old batch with it.
+        // A batch keyed by shape draws every color: the slots stay and only their color changes.
         let placed = true;
-        const slots = this.lineSlots.map((slot) => {
-            const moved = next.adopt(old, slot, this);
-            placed &&= moved.copied;
-            return moved.slot;
-        });
-        for (const slot of this.lineSlots) {
-            old.release(slot);
+        if (next !== old) {
+            // Every slot is copied before any is released: the last release takes the old batch with it.
+            const slots = this.lineSlots.map((slot) => {
+                const moved = next.adopt(old, slot, this);
+                placed &&= moved.copied;
+                return moved.slot;
+            });
+            for (const slot of this.lineSlots) {
+                old.release(slot);
+            }
+
+            this.lineBatch = next;
+            this.lineSlots = slots;
+            this.mesh = next.mesh;
         }
 
-        this.lineBatch = next;
-        this.lineSlots = slots;
-        this.mesh = next.mesh;
+        this.colorLine(style);
         placed = this.moveEndCaps(meshKey, style) && placed;
 
         // Whatever could not be copied is placed by the next update.
@@ -1963,9 +2032,10 @@ export class Edge {
     private moveEndCaps(meshKey: string, style: EdgeStyleConfig): boolean {
         let placed = true;
         const move = (cap: ArrowCap | null, end: "arrowHead" | "arrowTail"): ArrowCap | null => {
-            const made = this.createEndCap(meshKey, style, end);
             const live = cap !== null && !cap.isDisposed();
-            if (live) {
+            const made = this.createEndCap(meshKey, style, end, live ? cap : null);
+            // A cap whose batch draws the new look too was recolored where it stands, and stays.
+            if (live && made !== cap) {
                 placed = (made?.takePlaceOf(cap) ?? false) && placed;
                 cap.dispose();
             }
@@ -2390,12 +2460,14 @@ export class Edge {
             this.context.getScene(),
             false,
             this.srcNode === this.dstNode,
+            true,
         );
 
         if (this.lineBatch) {
             // A curve's run of slots is sized to its length when it is first placed.
             this.readRoute(drawnStyle);
             this.lineSlots = [this.lineBatch.acquire(this)];
+            this.colorLine(drawnStyle);
             this.lineStatic = null;
             this.createOutline(meshKey, drawnStyle);
             this.createGradient(meshKey, drawnStyle);
@@ -2430,8 +2502,9 @@ export class Edge {
      * Whether this edge's line is pulled from the row table (`PulledLineBatch`): on the `"batched"`
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
-     * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). Read when the
-     * line is built.
+     * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
+     * too when it does not fan (`line.fanned: false`), with no `arcRadius`, `supportModel` or gap: its
+     * shape is then its two centres' alone (`meshes/pulledCurve.ts`). Read when the line is built.
      * @param style - The resolved style.
      * @returns True when it is pulled.
      */
@@ -2446,6 +2519,7 @@ export class Edge {
             setsOnly(style, PULLED_STYLE_KEYS) &&
             setsOnly(line, PULLED_LINE_KEYS) &&
             (line.type ?? "solid") === "solid" &&
+            (line.bezier !== true || line.fanned === false) &&
             !line.animationSpeed &&
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
@@ -2485,7 +2559,14 @@ export class Edge {
         const piece = batch.acquire();
         // As `createStaticLine` hands the plain line's material its look.
         const opacity = EdgeMesh.opacityOf(style);
-        batch.setLook(piece, Color3.FromHexString(options.color), opacity, options.width * 20);
+        const look = { color: Color3.FromHexString(options.color), opacity, width: options.width * 20 };
+        batch.setLook(piece, look.color, look.opacity, look.width);
+        const curve = style.line?.bezier === true;
+        if (curve) {
+            // nothing drawn until the first placement writes the span
+            batch.setCurve(piece, 0, null);
+        }
+
         this.pulled = {
             batch,
             piece,
@@ -2494,9 +2575,40 @@ export class Edge {
             drawn: true,
             name: `edge-style-${options.styleId}-pulled`,
             visibility: Math.min(opacity, 1),
+            run: curve ? [] : null,
+            look,
         };
         this.pullRows();
         return batch.mesh;
+    }
+
+    /**
+     * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there, taking
+     * pieces while the cut needs more than it holds. A curve the object path would draw another way
+     * (`curveSpan` null: its nodes overlap, or a centre is outside its own node) draws nothing.
+     * @param src - The source node's centre.
+     * @param dst - The target node's centre.
+     */
+    private pullCurve(src: Vector3, dst: Vector3): void {
+        const run = this.pulled?.run ?? null;
+        if (this.pulled === null || run === null) {
+            return;
+        }
+
+        const { pulled } = this;
+        const { batch, look } = pulled;
+        const span = curveSpan(src, dst, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst));
+        while (run.length + 1 < (span?.pieces ?? 0)) {
+            const piece = batch.acquire();
+            batch.setLook(piece, look.color, look.opacity, look.width);
+            batch.setRows(piece, pulled.source, pulled.target);
+            run.push(piece);
+        }
+
+        batch.setCurve(pulled.piece, 0, span);
+        run.forEach((piece, i) => {
+            batch.setCurve(piece, i + 1, span);
+        });
     }
 
     /** Write this edge's rows to its pulled piece when they changed: its nodes', or none while hidden. */
@@ -2510,6 +2622,10 @@ export class Edge {
         const target = pulled.drawn ? this.dstNode.index : -1;
         if (source !== pulled.source || target !== pulled.target) {
             pulled.batch.setRows(pulled.piece, source, target);
+            for (const piece of pulled.run ?? []) {
+                pulled.batch.setRows(piece, source, target);
+            }
+
             pulled.source = source;
             pulled.target = target;
         }
@@ -2589,6 +2705,10 @@ export class Edge {
     private releaseLine(): void {
         if (this.pulled) {
             this.pulled.batch.release(this.pulled.piece);
+            for (const piece of this.pulled.run ?? []) {
+                this.pulled.batch.release(piece);
+            }
+
             this.pulled = null;
             return;
         }
@@ -4118,6 +4238,10 @@ export class Edge {
         // slot goes, which must not happen in the middle of re-sizing a run.
         while (slots.length < segments) {
             const slot = batch.acquire(owner);
+            // A piece the run grows by is drawn in the run's color (a batch keyed by shape).
+            if (slots.length > 0) {
+                batch.copyColor(slot, slots[0]);
+            }
             slots.push(slot);
             fresh?.(slot);
         }

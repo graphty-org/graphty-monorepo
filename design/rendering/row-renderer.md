@@ -470,6 +470,62 @@ Correction: the plan cached the two floats at rest for a shader to read; nothing
 measured end is placed straight into the cap and line, and keeping the floats waits for their reader. An end that
 moves while another drag rests is measured with the rest of the set: one quiet stretch of passes measures them all.
 
+As built (stage 17, dark): `PulledCapBatch` (`meshes/PulledCapBatch.ts`) draws 3D billboarded caps with `CAP_PULLED` in
+the cap shader (`FilledArrowRenderer.applyPulledShader`): a cap is its two rows, head end last (a tail is the head of its edge
+turned round), its gaps and how far its centre sits behind its tip, and the shader stands it where `Edge.placeArrowHead` would
+over `EDGE_TRIM_GLSL`'s ends, reading `rowExtent` for scale, round radius and border. Where the ends meet nothing (overlapping
+nodes) it stands the tip at the target's box, as `Edge.placeArrowFromCentres` does. **It is switched off**: the batch cannot be
+built while the internal switch `pulledCapsOn` is off, which it is on every render path, so every edge, batched or not, keeps
+drawing its caps as objects and no picture changes. `test/browser/pulled-arrow-caps.test.ts` turns it on and holds 30 pulled caps
+to the placed ones on SwiftShader WebGL: 0 cap bytes uploaded on a move, and a known, counted difference -- 3 pixels at rest, 1
+after a move, 1 with a row at w = 0, each by one anti-aliasing sample (at most 64 levels) -- asserted exactly, so a change in it is
+a change in the picture. The `render-parity` bar is not widened. Not a depth tie: with one cap per head row each differing pixel is
+a cap's tip against the background (the placed cap covers one sample of it, the pulled cap none; picture in section 10), and they
+stay put when the shader takes the direction from the centres. So the GPU's float32 place differs from the CPU's float64 place by
+enough to move a sample; the trim include was held to 1e-4 (stage 6), which is not pixel-exact. Caps meeting at one node also tie
+in depth, which a float's last bit settles. Turning pulled caps on is the owner's question in section 10; stage 20 may build on
+the dark caps meanwhile.
+
+As built (stage 21, first pull request): `meshes/pulledCurve.ts` holds a lone curve's path (`line.bezier`) in plain numbers and
+as `PULLED_CURVE_GLSL`, for the pulled curve to come. No edge draws with it yet; every curve is still an object edge.
+`bezierSamples` is `EdgeMesh.createBezierLine`'s samples, `curveSpan` the numbers `Edge.placeRoute`'s cut leaves (samples,
+first sample outside the source, pieces, and how far along each cut chord the path starts and stops), and `curvePathPoint`
+any point of the cut path from the two centers and those numbers. `test/pulled-curve.test.ts` holds the mirror to the object
+path's cut curve within 1e-9 on 400 seeded edges between spheres, chords along z among them; `test/browser/pulled-curve-glsl.test.ts`
+holds the GLSL to the mirror within 1e-4 through transform feedback on WebGL2. WebGPU was not run. Corrections to the table, from the code:
+
+- A curve's ends are not points of the cubic at a `t` range. `Edge.placeRoute` keeps the samples outside both nodes and cuts
+  on the straight chord between the last sample inside and the first outside (`crossingOf`), so what is kept per edge is a
+  sample index and a fraction along that chord at each end, plus the sample count (from 10 to 64 by length). The pieces a curve
+  draws with change as its nodes move, so a pulled curve holds a run as long as its longest cut.
+- A fanned curve's shape depends on the other edges between its two nodes (`DataManager.drawnBundle`), which change without
+  the curve being rebuilt, and `Edge.pullsLine` is read only when a line is built. So the first kind pulled is a curve that
+  does not fan (`line.fanned: false`), or a lone fanned curve once a bundle change rebuilds its members.
+- A curve whose center lies outside its own node (`span.first` 0) leaves from `Edge.leaveNode`, which the mirror does not
+  cover: `curveSpan` answers null and such an edge stays an object edge.
+
+Lone curves are pulled on `"batched"` in the same pull request. `Edge.pullsLine` takes `line.bezier: true` with
+`line.fanned: false` (no `arcRadius`, `supportModel` or gap, as before, since those keys keep any edge an object edge), in 3D
+only. Such an edge goes into a curve batch of its own (`EdgeMesh.pulledBatch` keys it `|curve`; the mesh compiles with
+`EDGE_PULLED_CURVE`), whose pieces take four texels: (source row, target row, width, opacity), (red, green, blue, point),
+(samples, first, pieces, startAt), (endAt). The shader picks the piece's six points along the cut path by
+`EdgeLineBatch.writeFlat`'s neighbour rules and sets `run` to zero: a solid line that does not taper never reads it
+(`perTotal` is 0 and the pattern branch is off). `Edge.pullCurve` writes the span from `placeLine`, so it is refreshed on
+every placement, which a moved end causes; it takes pieces while a cut needs more than the edge holds and never hands them
+back, so an edge holds a run as long as its longest cut, and a piece at or past the span's last point draws nothing. A
+straight pulled batch keeps two texels a piece and draws as before. `test/browser/pulled-curves-batched.test.ts` draws nine
+lone curves and one fanned curve (which stays an object edge) at 0 pixels against `"objects"`, at rest and after a mouse
+drag, on WebGL and on WebGPU (SwiftShader).
+
+Corrections, from the code:
+
+- A curve whose span is null on a later placement (its nodes come to overlap, so no sample is outside both) draws nothing
+  when pulled, where the object path draws a straight line between the cut ends; the edge is not moved back to an object
+  edge, since `Edge.pullsLine` is read only when the line is built.
+- Moving a node still writes edge bytes for a pulled curve: its span changes with its length, so every piece of a moved
+  curve is rewritten (16 floats a piece, against the object path's slot plus its matrix), and the CPU still samples the
+  curve to find its cut. The measurement on 100,000 curves waits for a curve scenario in `benchmarks/compare`.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 
@@ -576,6 +632,19 @@ until the stage's second pull request makes that walk typed. Four things differ 
   because a later move's read can land first; and the draw in the frame that rebuilt the lines' vertex buffer comes out
   empty (measured on SwiftShader), so a read waits for a draw in a later frame. `edge-id-target.test.ts` runs the agreement
   test and a real-pointer hover on WebGPU when `GRAPHTY_BROWSER_GPU` is set.
+
+As built (stage 18, second pull request): the typed edge scan is `pickEdgeId` in `render/PickService.ts`. On the `"batched"`
+path a press, a release, `elementAt` and the hover's measure of its window all take it. It still walks the edges in order with
+today's distance test, so it gives the same answer on the same ties. The difference is where a straight edge between two batched
+rows gets its ends: from `rowBounds` and the root's matrix, which is what `Node.drawnWorldPosition` returns for such a row, put on
+screen through one `screenProjector` per pick. So it needs no `worldToScreen` call and no new vector for that edge.
+`Graph.worldToScreen` is that same projector, with the same arithmetic. Every other edge (a curve, a route, a loop, an end
+outside a batch) is still measured point by point, and `edgePickWork.measured` counts only those, so a move or a press over the
+stage 18 test graph counts 1, its loop. Two things differ from the stage row:
+
+- The row says "a typed scan for clicks". The hover's window measure takes the scan too, since it is the same test.
+- A press still walks every edge. The scan does not use the target's window, because a press needs no read. It is a typed walk,
+  not an index.
 
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by
@@ -848,12 +917,13 @@ Labels
 
 **Required: none.** The default stays `"objects"` and every other change is additive. Rows that cannot reach parity stay ineligible.
 
-**Optional, for the owner after stage 38; neither blocks a stage:**
+**Optional, for the owner after stage 38; none blocks a stage:**
 
-| Change                                                         | Why it cannot be additive                                                                             | Without it                    |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
-| Default `renderPath` to `"batched"`                            | `scene.meshes`, per-node action managers and Babylon move picks change for a consumer who set nothing | A consumer sets one attribute |
-| Default `renderCeiling` to 1,000,000, `edgesDrawn` as measured | It changes what today refuses                                                                         | A consumer sets `limits`      |
+| Change                                                         | Why it cannot be additive                                                                                                                                                                                                            | Without it                      |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| Default `renderPath` to `"batched"`                            | `scene.meshes`, per-node action managers and Babylon move picks change for a consumer who set nothing                                                                                                                                | A consumer sets one attribute   |
+| Default `renderCeiling` to 1,000,000, `edgesDrawn` as measured | It changes what today refuses                                                                                                                                                                                                        | A consumer sets `limits`        |
+| Turn pulled caps on (`pulledCapsOn`, stage 17)                 | A pulled cap places in float32 on the GPU and differs from the placed cap by one anti-aliasing sample at a cap's tip (3 pixels in 30 caps; [picture](pulled-caps-one-sample.png): circled, then placed and pulled side by side, 16x) | Caps stay objects on every path |
 
 ## 11. Alternatives rejected
 

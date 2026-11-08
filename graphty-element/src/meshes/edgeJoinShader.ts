@@ -54,10 +54,19 @@
  * thousands of edges writes and uploads one float each instead of zeroing and restoring twenty
  * (issue #6025). A pulled line has no such attribute: its rows say whether it is drawn.
  *
+ * COLOR AND OPACITY PER PIECE (`EDGE_SLOT_COLOR`, `edgeColor`). A plain batch -- not widened, not
+ * pulled -- reads its color and opacity from one more instanced vec4 per piece instead of from the
+ * `color` and `opacity` uniforms, so edges that differ only in color share one batch and a restyle
+ * between two such looks (a time window's Ghost row) writes four floats in place rather than moving
+ * the edge to another batch (issue #6026). A widened batch has no varying row left for it and keeps
+ * the uniforms.
+ *
  * DASHES FOLLOW THE WHOLE EDGE. A fragment's distance is measured along its own piece from the
  * edge's start; in the overlap on the inside of a bend it is drawn when either piece's dash covers
  * it, which is what dashing the centre line and then stroking each dash would draw.
  */
+
+import { PULLED_CURVE_GLSL } from "./pulledCurve";
 
 /** The longest miter drawn, as a multiple of half the line's width (SVG's and Canvas's limit). */
 export const EDGE_MITER_LIMIT = 4;
@@ -126,6 +135,13 @@ export const JOIN_TEMPLATE_VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
  * its look is its own, not its material's: `pieceWidth` stands in for the `width` uniform, and the
  * flat varying `vLook` for the `color` and `opacity` uniforms, with the same values a material
  * would hold.
+ *
+ * A CURVE's piece (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its point along the
+ * edge's cut path, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Its six
+ * points are points of that path, picked as `EdgeLineBatch.writeFlat` picks a run's neighbours (they
+ * stop at the run's ends), and its run is zero: a solid line that does not taper never reads it (its
+ * `perTotal` is 0 and the pattern branch is off). A piece at or past the span's last point draws
+ * nothing, so an edge holds as many pieces as its longest cut.
  */
 const PULLED_EDGE_GLSL = `
 #ifdef EDGE_PULLED
@@ -145,10 +161,18 @@ vec4 pulledRow(int r) {
     return texelFetch(rowPosition, ivec2(r & 1023, r >> 10), 0);
 }
 
+#ifdef EDGE_PULLED_CURVE
+${PULLED_CURVE_GLSL}
+
+const int PIECE_TEXELS = 4;
+#else
+const int PIECE_TEXELS = 2;
+#endif
+
 void pullEdge() {
     int piece = gl_VertexID / ${String(JOIN_TEMPLATE_VERTICES)};
     position = JOIN_TEMPLATE[gl_VertexID - piece * ${String(JOIN_TEMPLATE_VERTICES)}];
-    int texel = piece * 2;
+    int texel = piece * PIECE_TEXELS;
     vec4 head = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
     vec4 tint = texelFetch(edgeRows, ivec2((texel + 1) & 1023, (texel + 1) >> 10), 0);
     vec2 rows = head.xy;
@@ -159,6 +183,37 @@ void pullEdge() {
     if (rows.x >= 0.0 && rows.y >= 0.0) {
         vec4 a = pulledRow(int(rows.x + 0.5));
         vec4 b = pulledRow(int(rows.y + 0.5));
+#ifdef EDGE_PULLED_CURVE
+        vec4 span = texelFetch(edgeRows, ivec2((texel + 2) & 1023, (texel + 2) >> 10), 0);
+        vec4 end = texelFetch(edgeRows, ivec2((texel + 3) & 1023, (texel + 3) >> 10), 0);
+        int j = int(tint.a + 0.5);
+        int pieces = int(span.z + 0.5);
+        if (a.w * b.w != 0.0 && j < pieces) {
+            vec4 counts = vec4(span.xyz, 0.0);
+            vec2 cut = vec2(span.w, end.x);
+            int prev = j == 0 ? 0 : j - 1;
+            int prev2 = j < 2 ? prev : j - 2;
+            int next = j == pieces - 1 ? j + 1 : j + 2;
+            int next2 = j >= pieces - 2 ? next : j + 3;
+            pA = pulledCurvePoint(a.xyz, b.xyz, counts, cut, j);
+            pB = pulledCurvePoint(a.xyz, b.xyz, counts, cut, j + 1);
+            pPrev = pulledCurvePoint(a.xyz, b.xyz, counts, cut, prev);
+            pPrev2 = pulledCurvePoint(a.xyz, b.xyz, counts, cut, prev2);
+            pNext = pulledCurvePoint(a.xyz, b.xyz, counts, cut, next);
+            pNext2 = pulledCurvePoint(a.xyz, b.xyz, counts, cut, next2);
+        } else {
+            pPrev = pA;
+            pPrev2 = pA;
+            pNext = pB;
+            pNext2 = pB;
+        }
+    } else {
+        pPrev = pA;
+        pPrev2 = pA;
+        pNext = pB;
+        pNext2 = pB;
+    }
+#else
         if (a.w * b.w != 0.0) {
             pA = a.xyz;
             pB = b.xyz;
@@ -168,6 +223,7 @@ void pullEdge() {
     pPrev2 = pA;
     pNext = pB;
     pNext2 = pB;
+#endif
     run = vec2(0.0);
 }
 #endif
@@ -201,6 +257,12 @@ attribute vec2 run;
 // 1 while the visibility mask hides the piece's edge, which then draws nothing; 0 (and an unbound
 // attribute reads 0) draws it. One float a piece, so hiding or showing an edge writes no point.
 attribute float edgeHidden;
+#endif
+
+#ifdef EDGE_SLOT_COLOR
+// The piece's color and, in alpha, its opacity.
+attribute vec4 edgeColor;
+varying vec4 vEdgeColor;
 #endif
 
 uniform mat4 world;
@@ -366,6 +428,9 @@ void main() {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         return;
     }
+#endif
+#ifdef EDGE_SLOT_COLOR
+    vEdgeColor = edgeColor;
 #endif
     bool atB = position.x > 0.5;
     float side = position.y;
@@ -596,6 +661,10 @@ varying float vEdgeTotal;
 uniform float edgeReach;
 #endif
 
+#ifdef EDGE_SLOT_COLOR
+varying vec4 vEdgeColor;
+#endif
+
 #ifdef EDGE_SHADED
 // Defined after this text by the shader runtime: the shader's color for one pixel of the line.
 vec4 graphty_edgeShade(float t, float side, float lengthPx, float widthPx, float coverage);
@@ -782,6 +851,8 @@ void main() {
     float sideS = clamp(dot(uS, vec2(-vOwn.w, vOwn.z)) / hwLine, -edgeReach, edgeReach);
     float pxPerWorld = vOwn2.y > 0.0 ? 1.0 / vOwn2.y : 0.0;
     gl_FragColor = graphty_edgeShade(tS, sideS, vEdgeTotal * pxPerWorld, 2.0 * hwLine, vWidth.z);
+#elif defined(EDGE_SLOT_COLOR)
+    gl_FragColor = vec4(vEdgeColor.rgb, vEdgeColor.a * vWidth.z);
 #else
 #ifdef EDGE_PULLED
     gl_FragColor = vec4(vLook.rgb, vLook.a * vWidth.z);

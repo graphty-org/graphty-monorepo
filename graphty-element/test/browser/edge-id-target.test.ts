@@ -15,7 +15,7 @@ import type { Graphty } from "../../index.js";
 import type { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { edgePickWork, hoverEdgeAt, pickEdgeAt } from "../../src/render/PickService";
-import { hover, nextFrame } from "../helpers/real-input";
+import { click, hover, nextFrame } from "../helpers/real-input";
 
 const NODES = 30;
 const EDGES = 60;
@@ -267,7 +267,7 @@ describe("the edge ID target", () => {
         );
     }
 
-    it("hovers with a real pointer and measures only the edges near it", async () => {
+    it("hovers with a real pointer and puts only the loop through worldToScreen", async () => {
         const element = await edgeGraph("2d");
         const { graph } = element;
         const canvas = graph.scene.getEngine().getInputElement();
@@ -282,20 +282,27 @@ describe("the edge ID target", () => {
         await hover(element, { x: 1, y: 1 });
         await element.waitForStableFrame();
         const empty = edgePickWork.measured;
+        const emptyRows = edgePickWork.fromRows;
         await hover(element, { x: 2, y: 2 });
         assert.strictEqual(
             edgePickWork.measured - empty,
             1,
             "over empty canvas only the loop the target cannot draw is measured",
         );
+        // The target names no edge there, so no straight edge is read from the rows either.
+        assert.strictEqual(edgePickWork.fromRows - emptyRows, 0, "over empty canvas no edge is read from the rows");
         assert.strictEqual(canvas?.style.cursor, "", "empty canvas");
 
         const before = edgePickWork.measured;
+        const beforeRows = edgePickWork.fromRows;
         await hover(element, mid);
         assert.strictEqual(canvas?.style.cursor, "pointer", "a line");
-        const measured = edgePickWork.measured - before;
-        assert.isAbove(measured, 0, "the edge under the pointer is measured");
-        assert.isBelow(measured, EDGES / 4, "only the edges near the pointer are measured");
+        // The edges near the pointer are measured from the rows; only the loop goes through worldToScreen.
+        assert.strictEqual(edgePickWork.measured - before, 1, "only the loop is measured point by point");
+        // A full walk would read all EDGES straight edges from the rows; the target names only those near.
+        const rows = edgePickWork.fromRows - beforeRows;
+        assert.isAbove(rows, 0, "the edge under the pointer is read from the rows");
+        assert.isBelow(rows, EDGES / 4, "only the edges near the pointer are read from the rows");
     });
 
     it.skipIf(ADAPTER === "")("hovers an edge with a real pointer on WebGPU", async () => {
@@ -321,6 +328,48 @@ describe("the edge ID target", () => {
         assert.strictEqual(canvas.style.cursor, "pointer", "a line");
     });
 
+    for (const viewMode of ["2d", "3d"] as const) {
+        it(`answers elementAt as the full walk does, measuring only the loop, in ${viewMode}`, async () => {
+            const element = await edgeGraph(viewMode);
+            let edgesNamed = 0;
+            for (const point of nearEdges(element, 13)) {
+                const before = edgePickWork.measured;
+                const got = element.graph.elementAt(point);
+                const where = `at ${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+                if (got?.kind === "node") {
+                    continue;
+                }
+
+                // The loop is a curve: it alone goes on screen point by point.
+                assert.strictEqual(edgePickWork.measured - before, 1, `only the loop is measured ${where}`);
+                edgesNamed += got === null ? 0 : 1;
+                assert.strictEqual(got?.id, walked(element, point.x, point.y), where);
+            }
+
+            assert.isAbove(edgesNamed, POINTS / 2, "enough points are on an edge");
+        });
+    }
+
+    it("selects an edge with a real click, measuring only the loop with worldToScreen", async () => {
+        const element = await edgeGraph("2d");
+        const { graph } = element;
+        const canvas = graph.scene.getEngine().getInputElement();
+        assert.isNotNull(canvas);
+        const [edge] = edgesOf(element);
+        const a = graph.worldToScreen(edge.srcNode.drawnWorldPosition);
+        const b = graph.worldToScreen(edge.dstNode.drawnWorldPosition);
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        // Edge i and edge i + NODES join the same nodes; the walk names the later one.
+        const expected = edgesOf(element)[NODES].id;
+        assert.strictEqual(walked(element, mid.x, mid.y), expected, "the walk names the edge there");
+        const before = edgePickWork.measured;
+        await click(element, mid);
+        await operationQueueOf(graph).waitForCompletion();
+        assert.deepEqual(graph.getSession().selection.edges, [expected], "the click selects the edge");
+        // Each move on the way in, and the click, measures the loop alone point by point.
+        assert.isBelow(edgePickWork.measured - before, EDGES / 4, "no click or move walks every edge");
+    });
+
     it("measures every edge on a move on the objects path, as before", async () => {
         const element = await edgeGraph("2d", "objects");
         assert.isNull(element.graph.getEdgeIdTarget());
@@ -328,5 +377,8 @@ describe("the edge ID target", () => {
         const before = edgePickWork.measured;
         await hover(element, { x: 2, y: 2 });
         assert.strictEqual(edgePickWork.measured - before, EDGES + 1, "the walk measures each edge");
+        const press = edgePickWork.measured;
+        element.graph.elementAt({ x: 2, y: 2 });
+        assert.strictEqual(edgePickWork.measured - press, EDGES + 1, "elementAt measures each edge");
     });
 });

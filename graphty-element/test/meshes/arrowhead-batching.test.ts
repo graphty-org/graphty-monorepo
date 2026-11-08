@@ -140,14 +140,18 @@ describe("3D arrowheads share one mesh and one material per shape", () => {
         assert.closeTo(cap.transform.m[15], 1, 1e-9, "the slot's matrix is degenerate");
     });
 
-    test("different shapes, and translucent heads, get their own batch", () => {
-        head("normal");
+    test("different shapes get their own batch; a translucent head shares its shape's, at its own opacity", () => {
+        const opaque = head("normal");
         head("normal");
         head("diamond");
-        head("normal", { opacity: 0.5 });
+        const translucent = head("normal", { opacity: 0.5 });
         head("normal", { opacity: 0.5 });
 
-        assert.lengthOf(arrowSources(), 3);
+        // The opacity is the slot's (issue #6026), so it no longer splits a shape's batch.
+        assert.lengthOf(arrowSources(), 2);
+        assert.strictEqual(opaque.visibility, 1);
+        assert.strictEqual(translucent.visibility, 0.5);
+        assert.isBelow(translucent.batchMesh?.visibility ?? 1, 1, "the shared batch is drawn in the transparent pass");
     });
 
     test("the shared arrowhead material skips Babylon's scene-wide dirty walk (issue #27)", () => {

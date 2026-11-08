@@ -43,7 +43,7 @@ export interface CurveSpan {
  * @param dst - The target center.
  * @returns The count.
  */
-export function curvePieces(src: Xyz, dst: Xyz): number {
+function curvePieces(src: Xyz, dst: Xyz): number {
     const length = Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z) * 1.5;
     return Math.min(MAX_PIECES, Math.max(MIN_PIECES, Math.ceil(length * DENSITY)));
 }
@@ -216,13 +216,13 @@ export function curvePathPoint(src: Xyz, dst: Xyz, span: CurveSpan, j: number): 
 export const PULLED_CURVE_GLSL = `
 vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples) {
     vec3 d = dst - src;
-    float distance = length(d);
+    float chordLength = length(d);
     vec3 side = vec3(-d.y, d.x, 0.0);
-    if (length(side) < 1e-6 * max(distance, 1e-12)) {
+    if (length(side) < 1e-6 * max(chordLength, 1e-12)) {
         side = vec3(-d.z, 0.0, d.x);
     }
     float sideLength = length(side);
-    side *= sideLength == 0.0 ? 0.0 : (1.0 / sideLength) * distance * ${CONTROL_OFFSET.toFixed(1)};
+    side *= sideLength == 0.0 ? 0.0 : (1.0 / sideLength) * chordLength * ${CONTROL_OFFSET.toFixed(1)};
     vec3 mid = src + d * 0.5;
     vec3 c1 = src + (mid - src) * 0.5 + side;
     vec3 c2 = mid + (dst - mid) * 0.5 + side;

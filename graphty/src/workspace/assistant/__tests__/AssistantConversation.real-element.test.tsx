@@ -356,7 +356,7 @@ describe("talking to the Assistant", () => {
         await screen.findByRole("button", { name: "Does department line up with the groups?" });
     });
 
-    it("streams a reply as it comes, then shows collapsed steps with plain names and no arguments", async () => {
+    it("streams a reply as it comes, then shows its steps closed, in plain words with no arguments", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         await open();
         await openPanel();
@@ -392,13 +392,19 @@ describe("talking to the Assistant", () => {
         assert.isAtMost(assistant.getBoundingClientRect().width, 1);
         assert.strictEqual(field.value, "next thing");
 
-        const steps = await screen.findByRole("button", { name: "1 step" });
+        // A reply that only looked something up says so, and counts no step.
+        const steps = await screen.findByRole("button", { name: "Looked something up" });
         assert.strictEqual(steps.getAttribute("aria-expanded"), "false");
         await userEvent.click(steps);
-        // The graph is empty: the summary read says so.
-        await screen.findByText("Read the graph summary: 0 nodes");
-        await screen.findByText(/^\d+ ms$/);
+        // The graph is empty: the summary read says so, in the line and in its Result.
+        const step = await screen.findByRole("button", { name: "Read the whole graph: nothing" });
+        await userEvent.click(step);
+        const item = step.closest<HTMLElement>("li");
+        assert.isNotNull(item);
+        await within(item).findByText("Result");
+        assert.lengthOf(within(item).getAllByText("Read the whole graph: nothing"), 2);
         const log = screen.getByRole("region", { name: "Chat" });
+        assert.notMatch(log.textContent, /\d+ ms/, "no timing");
         assert.notInclude(log.textContent, "overview");
         assert.notInclude(log.textContent, "{");
         assert.isNull(log.closest("[aria-live]"));
@@ -435,19 +441,35 @@ describe("talking to the Assistant", () => {
         ];
         await say("Count and color");
         await screen.findByText("Done.");
-        await userEvent.click(await screen.findByRole("button", { name: "3 steps" }));
+        // Two look-ups and one change: only the change counts.
+        await userEvent.click(await screen.findByRole("button", { name: "1 step" }));
         const turn = screen.getByText("Done.").closest<HTMLElement>(".ws-assistant-turn");
         assert.isNotNull(turn);
         const lines = await waitFor(() => {
-            const said = [...turn.querySelectorAll(".ws-assistant-step > :first-child")].map(
+            const said = [...turn.querySelectorAll(".ws-assistant-step-item .ws-assistant-step")].map(
                 (each) => each.textContent,
             );
             assert.lengthOf(said, 3);
             return said;
         });
-        assert.match(lines[0] ?? "", /^Counted 2 nodes with \S.*even/);
-        assert.strictEqual(lines[1], "Colored 3 nodes");
-        assert.strictEqual(lines[2], "Searched tools for export");
+        // With no words of the model's own, each step is what it came to.
+        assert.match(lines[0] ?? "", /^Found 2 nodes with \S.*even/);
+        assert.strictEqual(lines[1], "Colored 3 nodes, in assistant node style");
+        assert.strictEqual(lines[2], "Used Catalog");
+        // The colored step opens to what it asked for and what came of it, in words.
+        const colored = within(turn).getByRole("button", { name: "Colored 3 nodes, in assistant node style" });
+        await userEvent.click(colored);
+        const item = colored.closest<HTMLElement>("li");
+        assert.isNotNull(item);
+        await within(item).findByText("Asked for");
+        within(item).getByText("Set: color red");
+        within(item).getByText("Result");
+        assert.lengthOf(
+            within(item).getAllByText("Colored 3 nodes, in assistant node style"),
+            2,
+            "the line and its result",
+        );
+        assert.notInclude(item.textContent, "#ff0000");
     });
 
     it("opens a step's details by click and Enter, and Copy chat copies the whole chat with them", async () => {
@@ -474,11 +496,16 @@ describe("talking to the Assistant", () => {
         ];
         await say("How many are even?");
         await screen.findByText("Two are even.");
-        await userEvent.click(await screen.findByRole("button", { name: "1 step" }));
-        const step = await screen.findByRole("button", { name: /^Counted 2 nodes/ });
+        await userEvent.click(await screen.findByRole("button", { name: "Looked something up" }));
+        const step = await screen.findByRole("button", { name: /^Found 2 nodes/ });
         assert.strictEqual(step.getAttribute("aria-expanded"), "false");
         await userEvent.click(step);
-        await screen.findByText(/^Tool query: action count; where /);
+        const item = step.closest<HTMLElement>("li");
+        assert.isNotNull(item);
+        await within(item).findByText("Asked for");
+        within(item).getByText(/^Which: \S.*even$/);
+        within(item).getByText("Result");
+        assert.lengthOf(within(item).getAllByText(/^Found 2 nodes with \S.*even$/), 2, "the line and its result");
         assert.strictEqual(step.getAttribute("aria-expanded"), "true");
         // Enter on the focused step closes it again.
         await userEvent.keyboard("{Enter}");
@@ -492,8 +519,9 @@ describe("talking to the Assistant", () => {
         assert.match(text, /^# How many are even\?\nGraph: Talk -- 3 nodes, 0 edges\nAssistant: Mock/);
         assert.include(text, "## You\nHow many are even?\n");
         assert.include(text, "## Assistant\nTwo are even.\n");
-        assert.match(text, /\nSteps:\n1\. Counted 2 nodes with \S.*even.*\n {3}- Tool query: action count; where /);
-        assert.match(text, /\n- Found: edges 0, nodes 2, rule .*even.* -- nodes a, c\n/);
+        assert.match(text, /\nSteps:\n1\. Found 2 nodes with \S.*even.*\n {3}- Asked for: Which: \S.*even/);
+        assert.match(text, /\n- Found 2 nodes with \S.*even.* -- nodes a, c\n/);
+        assert.match(text, /\nFor support:\n1\. query \{"action":"count","where":"data\.group == 'even'"\}\n/);
     });
 
     it("lets the reader select what was said and its reply, by real clicks", async () => {
@@ -511,7 +539,7 @@ describe("talking to the Assistant", () => {
         assert.strictEqual(window.getSelection()?.toString().trim(), "Hubs");
     });
 
-    it("puts the Steps icon beside the working dots, so the step list opens and grows mid-run", async () => {
+    it("opens a running reply's steps above the working dots, growing as each step starts", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         const store = await open();
         const said: string[] = [];
@@ -521,58 +549,40 @@ describe("talking to the Assistant", () => {
         await openPanel();
         const query = (id: string): Awaited<ReturnType<Generate>> => ({
             text: "",
-            toolCalls: [{ id, name: "query", arguments: { action: "overview" } }],
+            toolCalls: [{ id, name: "query", arguments: { action: "overview", intent: `Reading ${id}` } }],
         });
-        // An earlier reply with two steps too: the workspace's focus guard alone could not tell its
-        // "2 steps" from the new reply's, so focus staying put is the reply's own hand-off.
-        model.turns = [query("a1"), query("a2"), { text: "First.", toolCalls: [] }];
-        await say("Before");
-        await screen.findByText("First.");
-        model.turns = [...model.turns, query("c1"), query("c2"), { text: "Done.", toolCalls: [] }];
-        model.held = false;
-        model.holdTurn = 4;
+        model.turns = [query("c1"), query("c2"), { text: "Done.", toolCalls: [] }];
+        model.holdTurn = 1;
         await say("What is here?");
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        const steps = await screen.findByRole("button", { name: "1 step" });
-        const turn = steps.closest<HTMLElement>(".ws-assistant-turn");
+        const group = await screen.findByRole("button", { name: "1 step" });
+        const turn = group.closest<HTMLElement>(".ws-assistant-turn");
         assert.isNotNull(turn);
-        const dots = screen.getByRole("img", { name: "Sending to Mock" });
-        assert.strictEqual(steps.textContent, "", "an icon, its count in its name");
-        assert.closeTo(steps.getBoundingClientRect().top, dots.getBoundingClientRect().top, 8, "on the dots' row");
-        assert.isAbove(steps.getBoundingClientRect().left, dots.getBoundingClientRect().left, "after the dots");
-        await userEvent.click(steps);
-        assert.strictEqual(steps.getAttribute("aria-expanded"), "true");
-        await within(turn).findByText("Read the graph summary");
+        assert.strictEqual(group.getAttribute("aria-expanded"), "true", "open while it runs");
+        await within(turn).findByText("Reading c1");
         assert.include(said, "Running Query data", "the step was announced as it ran");
-        assert.strictEqual(document.activeElement, steps, "the reader is on Steps");
+        const dots = screen.getByRole("img", { name: "Sending to Mock" });
+        assert.isBelow(group.getBoundingClientRect().top, dots.getBoundingClientRect().top, "the steps above the dots");
 
-        // A second step arrives while the list is open: it joins the list, under the same button.
+        // A second step arrives: it joins the open group, still above the dots.
         model.held = false;
-        model.holdTurn = 5;
+        model.holdTurn = 2;
         model.release();
+        await within(turn).findByText("Reading c2");
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        await waitFor(() => {
-            assert.lengthOf(within(turn).getAllByText(/^Read the graph summary/), 2);
-        });
-        assert.strictEqual(steps.getAttribute("aria-label"), "2 steps");
-        assert.strictEqual(document.activeElement, steps);
+        assert.strictEqual(group.getAttribute("aria-label") ?? group.textContent, "2 steps");
 
         model.release();
         await within(turn).findByText("Done.");
         await screen.findByRole("button", { name: "Send" });
         assert.isNull(screen.queryByRole("img", { name: /^Sending|^Writing|^Running/ }));
-        // The list stays open after the run, and focus stays on Steps as it moves to the reply's icons.
-        const ended = within(turn).getByRole("button", { name: "2 steps" });
-        assert.lengthOf(screen.getAllByRole("button", { name: "2 steps" }), 2);
-        assert.strictEqual(ended.getAttribute("aria-expanded"), "true");
-        assert.lengthOf(within(turn).getAllByText(/^Read the graph summary/), 2);
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, ended);
-        });
+        // Ended, its look-ups are not counted, and it closes: the answer is what the reader reads.
+        const ended = within(turn).getByRole("button", { name: "Looked up 2 things" });
+        assert.strictEqual(ended.getAttribute("aria-expanded"), "false");
     });
 
     it("sets the reader's message on a gray fill and the reply plain, with the caution on an empty chat", async () => {

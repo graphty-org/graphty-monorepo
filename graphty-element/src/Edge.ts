@@ -1991,12 +1991,8 @@ export class Edge {
         const move = (cap: ArrowCap | null, end: "arrowHead" | "arrowTail"): ArrowCap | null => {
             const live = cap !== null && !cap.isDisposed();
             const made = this.createEndCap(meshKey, style, end, live ? cap : null);
-            // A cap whose batch draws the new look too was recolored where it stands.
-            if (made === cap) {
-                return made;
-            }
-
-            if (live) {
+            // A cap whose batch draws the new look too was recolored where it stands, and stays.
+            if (live && made !== cap) {
                 placed = (made?.takePlaceOf(cap) ?? false) && placed;
                 cap.dispose();
             }

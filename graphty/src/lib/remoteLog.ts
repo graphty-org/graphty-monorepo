@@ -1,8 +1,11 @@
+import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
+
 /**
  * Sends this page's console to a @graphty/remote-logger server, for debugging a browser we cannot
  * open ourselves. Only with `?remoteLog` in the page's address: `?remoteLog=https://host:port`
  * names the server, and `?remoteLog=1` uses the one this build was made with (VITE_REMOTE_LOG_URL).
- * Without the parameter nothing is loaded.
+ * Without the parameter nothing is fetched or configured (the logging entry is already in the page,
+ * for src/lib/sentryPrivacy.ts).
  *
  * It loads the server's `/remote-logger.js`, which forwards every console call, reports uncaught
  * errors and unhandled rejections through `console.error`, and switches on graphty-element's
@@ -59,9 +62,7 @@ function onLoggerLoaded(): void {
         screen: `${window.innerWidth}x${window.innerHeight}@${window.devicePixelRatio}`,
     });
 
-    void import("@graphty/graphty-element/logging").then(({ GraphtyLogger, LogLevel }) =>
-        GraphtyLogger.configure({ enabled: true, level: LogLevel.DEBUG, modules: ["diag"] }),
-    );
+    void GraphtyLogger.configure({ enabled: true, level: LogLevel.DEBUG, modules: ["diag"] });
 
     // Logged as warnings because the app's lint allows only warn and error; the server keeps both.
     // The element's settings as it reports them, each time its acceleration status changes.

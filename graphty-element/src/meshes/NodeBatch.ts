@@ -754,10 +754,10 @@ export class NodeBatches {
     /**
      * The rows drawn with no `Node` ({@link NodeBatches.paintRow}): what a fit or a filter reaches
      * by row, since no walk of the nodes finds them.
-     * @returns Their row numbers.
+     * @returns Their row numbers, as a fresh array that can be walked more than once.
      */
-    columnRowIndices(): Iterable<number> {
-        return this.columnRows.keys();
+    columnRowIndices(): number[] {
+        return [...this.columnRows.keys()];
     }
 
     /** A freeze moved rows: every batch refills. */

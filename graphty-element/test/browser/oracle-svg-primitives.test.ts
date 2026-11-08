@@ -572,4 +572,20 @@ describe("the oracle SVG reader", () => {
             ],
         );
     });
+
+    it("reads an SVG embedded in the drawing as one picture, not as the shapes inside it", () => {
+        // yEd's SVGNode (yed-graphml-specimen-images-charts): the node's own SVG, scaled into the node's 36 px box
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <g transform="matrix(0.9,0,0,0.9,62,14)">
+                <svg viewBox="0 0 40 40" width="40" height="40">
+                    <rect fill="#dc2828" x="0" width="20" y="0" height="20"/>
+                    <rect fill="#f0c800" x="20" width="20" y="20" height="20"/>
+                </svg>
+            </g>
+        </svg>`;
+        assert.deepEqual(
+            readSvgPrimitives(svg).prims.map((p) => [p.kind, p.box.x0, p.box.y0, p.box.x1, p.box.y1]),
+            [["image", 62, 14, 98, 50]],
+        );
+    });
 });

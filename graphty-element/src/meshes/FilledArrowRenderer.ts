@@ -1548,11 +1548,13 @@ void main() {
         scene: Scene,
         reuse: ArrowCap | null = null,
     ): ArrowCap {
-        // The opacity is the slot's too, so caps of one shape share a batch whatever their look
-        // (issue #6026), and a cap already in it is recolored where it stands.
+        // The opacity is the slot's too, so caps of one shape share a batch whatever their color
+        // (issue #6026), and a cap already in it is recolored where it stands. Opaque and
+        // translucent caps keep apart, since one batch is drawn in one pass (issue #6326).
+        const pass = (options.opacity ?? 1) < 1 ? "translucent" : "opaque";
         const batch = arrowCapBatch(
             scene,
-            `3d|${shape}`,
+            `3d|${shape}|${pass}`,
             () => this.applyInstancedShader(createShape(), 1, scene),
             true,
         );

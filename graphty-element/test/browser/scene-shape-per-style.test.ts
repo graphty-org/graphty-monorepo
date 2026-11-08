@@ -212,6 +212,26 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.equal(graph.scene.meshes.length, oneStyle, "and it adds no mesh");
     });
 
+    it("adds one line batch for a second edge style that makes the line translucent", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        await frame();
+        const oneStyle = graph.scene.meshes.length;
+
+        await addStyleLayer(graph, {
+            name: "half the edges",
+            target: "edge",
+            selector: { match: "expression", where: "data.half == 'b'" },
+            set: { "edge.color": "#ff00ff", "edge.opacity": 0.4 },
+        });
+        await frame();
+
+        // A translucent line is drawn in the other pass, so from another batch (issue #6326).
+        const batches = new Set(edges().map((edge) => edge.mesh));
+        assert.equal(batches.size, 2, "the translucent edges draw from a second batch");
+        assert.equal(graph.scene.meshes.length, oneStyle + 1, "and that batch is the one mesh it adds");
+        assert.sameMembers([...new Set(edges().map((edge) => edge.drawnLine?.visibility))], [1, 0.4]);
+    });
+
     it("draws a few hundred arrow caps of one shape as one batch", async () => {
         await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
         await frame();

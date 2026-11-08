@@ -25,6 +25,31 @@ async function running(path: "objects" | "batched"): Promise<Graph> {
     return graph;
 }
 
+/**
+ * The worst relative difference between the `rowPosition` texture and the CPU copy, read with no frame
+ * between them. The frame's publish reaches the CPU copy at the next frame's repack, so that repack is
+ * run here.
+ * @param graph - The graph.
+ * @returns The worst difference over every lane, and over the w lanes alone.
+ */
+async function textureDiff(graph: Graph): Promise<{ worst: number; wWorst: number }> {
+    const table = graph.getRowTable();
+    assert.isNotNull(table);
+    graph.engine.stopRenderLoop();
+    table.flush();
+    const cpu = table.rowPosition.slice(0, 4 * table.rows);
+    const gpu = (await table.positionTexture.readPixels()) as Float32Array;
+    let worst = 0;
+    let wWorst = 0;
+    for (let i = 0; i < cpu.length; i++) {
+        const d = Math.abs((gpu[i] ?? Number.NaN) - (cpu[i] ?? 0)) / Math.max(1, Math.abs(cpu[i] ?? 0));
+        worst = Math.max(worst, d);
+        wWorst = i % 4 === 3 ? Math.max(wWorst, d) : wWorst;
+    }
+
+    return { worst, wWorst };
+}
+
 describe("the layout filling the row table on a shared device", () => {
     it("copies each landing into the texture and uploads no positions while it runs", async () => {
         const graph = await running("batched");
@@ -42,31 +67,52 @@ describe("the layout filling the row table on a shared device", () => {
         assert.isAtLeast(table.copies - copies, 5);
         assert.strictEqual(table.positionUploads - uploads, 0);
 
-        // no frame between the CPU copy read and the texture read; the frame's publish reaches the CPU copy
-        // at the next frame's repack, so that repack is run here
-        graph.engine.stopRenderLoop();
-        table.flush();
-        assert.strictEqual(table.positionUploads - uploads, 0);
-        const cpu = table.rowPosition.slice(0, 4 * table.rows);
-        const gpu = (await table.positionTexture.readPixels()) as Float32Array;
-        let worst = 0;
-        for (let i = 0; i < cpu.length; i++) {
-            worst = Math.max(
-                worst,
-                Math.abs((gpu[i] ?? Number.NaN) - (cpu[i] ?? 0)) / Math.max(1, Math.abs(cpu[i] ?? 0)),
-            );
-        }
-
-        assert.isBelow(worst, 1e-5);
+        const uploadsBeforeRead = table.positionUploads;
+        assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+        assert.strictEqual(table.positionUploads - uploadsBeforeRead, 0);
     });
 
-    it("never copies under objects", async () => {
-        const graph = await running("objects");
+    it("shows the rows added while it runs once the layout places them", async () => {
+        const graph = await running("batched");
         const table = graph.getRowTable();
+        assert.isNotNull(table);
+        await landed(graph);
+        await landed(graph);
+        const added = Array.from({ length: 40 }, (_, i) => ({ id: `added${String(i)}` }));
+        await graph.addNodes(added);
+        await graph.addEdges(added.map((node, i) => ({ src: node.id, dst: `n${String(i)}` })));
+        const { copies } = table;
+        for (let i = 0; i < 6; i++) {
+            await landed(graph);
+        }
+
+        assert.isAtLeast(table.copies - copies, 1);
+        const shown = Array.from(table.rowPosition.subarray(0, 4 * table.rows)).filter(
+            (v, i) => i % 4 === 3 && v === 1,
+        );
+        assert.isAbove(shown.length, 200);
+        const diff = await textureDiff(graph);
+        assert.isBelow(diff.wWorst, 1e-5);
+        assert.isBelow(diff.worst, 1e-5);
+    });
+
+    it("never copies under objects, even with the row table open", async () => {
+        adapterSays("test-hardware");
+        const graph = await open();
+        graph.setRenderPath("objects");
+        // under "objects" the table is only opened by tests and the benchmark harness; opened, it would
+        // take landings from the ring if the path did not keep the ring off
+        const table = graph.openRowTable();
+        await startLayout(graph);
+        assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
+        assert.isNull(graph.getDrawnTarget());
+        const uploads = table.positionUploads;
         for (let i = 0; i < 3; i++) {
             await landed(graph);
         }
 
-        assert.strictEqual(table?.copies ?? 0, 0);
+        assert.strictEqual(table.copies, 0);
+        assert.isNull(table.drawnMirror);
+        assert.isAbove(table.positionUploads - uploads, 0);
     });
 });

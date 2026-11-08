@@ -593,8 +593,15 @@ export class RowTable {
         floats[to] = bounds[to] = placed ? x : 0;
         floats[to + 1] = bounds[to + 1] = placed ? (lane[from + 1] ?? 0) : 0;
         floats[to + 2] = bounds[to + 2] = placed && !this.twoD ? (lane[from + 2] ?? 0) : 0;
+        const shownBefore = floats[to + 3];
         floats[to + 3] = w;
         bounds[to + 3] = (this.extents.floats[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
+        // The layout's ring keeps the w it was given, so a row the lane first places (or unplaces)
+        // tells it, and goes up once, since the landing already copied holds the old w.
+        if (w !== shownBefore && this.drawnMirror !== null) {
+            this.positions.touch(row);
+            this.mirror(row);
+        }
     }
 
     private writeW(row: number, w: number): void {

@@ -771,6 +771,10 @@ when a batch is recorded into it. The simulation reports the transform of the la
 (`landedDrawnTransform`), and the element publishes that landing with it, so the lane and the texture hold the same
 rows. A row the owner writes while an earlier batch in a slot is still to run is written into that slot again before
 its next batch. The one landing already recorded over it can still show the kernel's value for that row once.
+A second correction: a repack from the lane also changes w, when a row the layout adds while it runs is first placed
+(w 0 to 1) or a row is unplaced. The kernel keeps the ring's w, so such a row stayed at w 0 on the card until the layout
+settled. A repack that changes a row's w now mirrors that row into the ring and uploads it once, since the landing
+already copied holds the old w.
 
 ### 4.6 Columns and load (#3249)
 

@@ -121,11 +121,18 @@ export const JOIN_TEMPLATE_VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
  * own ends and its run is zero. A free piece (rows below 0) and a piece with a row of w = 0
  * (hidden or not placed) get every point at the origin, as a hidden slot does, and draw nothing.
  * Every line after this is the plain line's, so the two draw the same pixels.
+ *
+ * A piece takes two texels: (source row, target row, width, opacity), then (red, green, blue). So
+ * its look is its own, not its material's: `pieceWidth` stands in for the `width` uniform, and the
+ * flat varying `vLook` for the `color` and `opacity` uniforms, with the same values a material
+ * would hold.
  */
 const PULLED_EDGE_GLSL = `
 #ifdef EDGE_PULLED
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D edgeRows;
+float pieceWidth;
+flat varying vec4 vLook;
 const vec3 JOIN_TEMPLATE[${String(JOIN_TEMPLATE_VERTICES)}] = vec3[${String(JOIN_TEMPLATE_VERTICES)}](${Array.from(
     { length: JOIN_TEMPLATE_VERTICES },
     (_, i) =>
@@ -141,9 +148,12 @@ vec4 pulledRow(int r) {
 void pullEdge() {
     int piece = gl_VertexID / ${String(JOIN_TEMPLATE_VERTICES)};
     position = JOIN_TEMPLATE[gl_VertexID - piece * ${String(JOIN_TEMPLATE_VERTICES)}];
-    int texel = piece >> 1;
-    vec4 pair = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
-    vec2 rows = (piece & 1) == 0 ? pair.xy : pair.zw;
+    int texel = piece * 2;
+    vec4 head = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
+    vec4 tint = texelFetch(edgeRows, ivec2((texel + 1) & 1023, (texel + 1) >> 10), 0);
+    vec2 rows = head.xy;
+    pieceWidth = head.z;
+    vLook = vec4(tint.rgb, head.w);
     pA = vec3(0.0);
     pB = vec3(0.0);
     if (rows.x >= 0.0 && rows.y >= 0.0) {
@@ -259,12 +269,17 @@ vec2 perpOf(vec2 v) {
 // Half the line's width in pixels at a point, before a sub-pixel line is widened: never under
 // half of minWidth, the fewest pixels wide the line is drawn (line.minScreenWidth).
 float halfWidthAt(vec4 c) {
+#ifdef EDGE_PULLED
+    float lineWidth = pieceWidth;
+#else
+    float lineWidth = width;
+#endif
 #ifdef WORLD_WIDTH
-    float hw = width * length(world[1].xyz) * projection[1][1] * resolution.y * 0.25 / c.w;
+    float hw = lineWidth * length(world[1].xyz) * projection[1][1] * resolution.y * 0.25 / c.w;
 #else
     // The 3D line's own scale: an offset of width / 2 over the resolution in clip space, which the
     // perspective divide tapers with distance.
-    float hw = width * 0.25 / c.w;
+    float hw = lineWidth * 0.25 / c.w;
 #endif
     return max(hw, minWidth * 0.5);
 }
@@ -556,6 +571,10 @@ uniform float miterLimit;
 // The viewport's size in the pixels being drawn (the canvas's, or a capture's); 0 when unknown.
 uniform vec2 fragmentSize;
 
+#ifdef EDGE_PULLED
+// The piece's own color and opacity (PULLED_EDGE_GLSL).
+flat varying vec4 vLook;
+#endif
 varying vec4 vScreen;
 varying vec4 vOwn;
 varying vec4 vOwn2;
@@ -764,7 +783,11 @@ void main() {
     float pxPerWorld = vOwn2.y > 0.0 ? 1.0 / vOwn2.y : 0.0;
     gl_FragColor = graphty_edgeShade(tS, sideS, vEdgeTotal * pxPerWorld, 2.0 * hwLine, vWidth.z);
 #else
+#ifdef EDGE_PULLED
+    gl_FragColor = vec4(vLook.rgb, vLook.a * vWidth.z);
+#else
     gl_FragColor = vec4(color, opacity * vWidth.z);
+#endif
 #endif
 #ifdef EDGE_OPAQUE
     gl_FragColor.a = 1.0;

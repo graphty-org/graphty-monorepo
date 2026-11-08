@@ -581,9 +581,11 @@ void main() {
     }
 
     /**
-     * The batch a plain straight line between node centres is pulled into: the plain line's own
-     * look (`createStaticLine`), drawn from the row table (`PulledLineBatch`).
-     * @param cache - The cache that keeps one batch per look.
+     * The batch a plain straight line between node centres is pulled into, drawn from the row table
+     * (`PulledLineBatch`). A piece carries its color, width and opacity itself
+     * (`PulledLineBatch.setLook`), so they key no batch: one batch per minimum screen width and
+     * per pass (translucent lines draw in the transparent pass, as the plain line's do).
+     * @param cache - The cache that keeps the batches.
      * @param options - The line's look.
      * @param style - The resolved style.
      * @param scene - The scene.
@@ -597,7 +599,9 @@ void main() {
         scene: Scene,
         rowPositions: () => BaseTexture,
     ): PulledLineBatch {
-        return cache.getPulledBatch(`edge-style-${options.styleId}-pulled`, () => {
+        const translucent = this.opacityOf(style) < 1;
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${translucent ? "translucent" : "opaque"}`;
+        return cache.getPulledBatch(key, () => {
             const mesh = this.createStaticLine(options, style, scene, cache, false, true);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");

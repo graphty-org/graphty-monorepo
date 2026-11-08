@@ -411,6 +411,19 @@ draw, so the test draws all but the last as specks. `test/browser/million-edge-e
 element: a `"batched"` element loads a million edges (all pulled) on 1,416 nodes and draws the millionth with no
 GL error, about 55 s on SwiftShader, almost all of it the load.
 
+As built (stage 19): a pulled piece carries its own look, so color, width and opacity key no batch.
+`EdgeMesh.pulledBatch` keys on the minimum screen width and the pass only (`edge-pulled|<minScreenWidth>|opaque` or
+`translucent`: a line under full opacity draws in the transparent pass, as the plain line's batch does). The edge table
+takes two texels a piece, (source row, target row, width, opacity) then (red, green, blue), written by
+`PulledLineBatch.setRows` and `setLook` when an edge joins or restyles, never on a move. The shader reads them as
+`pieceWidth` and a flat varying `vLook` in place of the `width`, `color` and `opacity` uniforms, with the values
+`createStaticLine` would hand a material, so the pixels are the same. `Edge.drawnLine` keeps answering each edge's own
+look name and visibility. `test/browser/pulled-edge-look.test.ts` loads 1,000 edges of 1,000 colors, four widths and
+two opacities: the `"objects"` path draws at least 1,000 draws, `"batched"` at most 8, 0 pixels apart, and a restyled
+edge rewrites its piece with no draw more, on WebGL and WebGPU. Only `"batched"` (or the internal switch) pulls an edge,
+so `"objects"` is untouched. Correction: the edge table is 32 bytes a piece, not 8, so 32 MB at capacity 2^20, not 8 MB;
+a move still uploads no edge byte.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

@@ -1,6 +1,6 @@
 import "./start.css";
 
-import { FileSource, useFileDrop } from "@graphty/compact-mantine";
+import { FileSource, PopoutManager, useFileDrop } from "@graphty/compact-mantine";
 import {
     DATASET_DESCRIPTORS,
     type DatasetMeta,
@@ -24,7 +24,9 @@ import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
-import { openServerForm } from "../server/commands";
+import { serverKinds } from "../server/commands";
+import { OpenNetworkData } from "../server/ServerForm";
+import { kindName } from "../server/words";
 import type { WorkspaceStore } from "../state/store";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
@@ -42,6 +44,7 @@ import {
     openModel,
     openSample,
     openUrl,
+    openWithStylePanel,
     OWN_COPIES,
     pictureOf,
     samplePicture,
@@ -105,6 +108,20 @@ const FIELDS: Readonly<Record<string, string>> = {
 /** The field of every generated graph, for the field filter. */
 const GENERATED = "Generated";
 
+/** The field of every network sample, for the field filter. */
+const NETWORK = "Network";
+
+/**
+ * The public example each kind of network source shows on the start page, by source id and example
+ * id: small and quick to draw. Neptune has no public server; OpenAlex is one named service.
+ */
+const NETWORK_SAMPLES: readonly (readonly [source: string, example: string])[] = [
+    ["ndex", "ndex-wp5483"],
+    ["neo4j", "neo4j-movies"],
+    ["sparql", "uniprot-tp53"],
+    ["rest", "deps-dev-webpack"],
+];
+
 /** A short title that says what each dataset is good for; the dataset's own name is the subline. */
 const HOOKS: Readonly<Record<string, string>> = {
     karate: "A club that split in two",
@@ -150,6 +167,8 @@ interface SampleTile {
     readonly sentence: string;
     /** It waits for the timeline experiment. */
     readonly timed?: true;
+    /** It waits for the network-data experiment. */
+    readonly network?: true;
     /**
      * The address of a picture of the graph, when graph-samples publishes one. Asked for when the
      * tile draws: the address depends on the site's dataset address, which loads after this module.
@@ -186,10 +205,10 @@ function noteOf(dataset: DatasetMeta): string | undefined {
 
 /**
  * A dataset's size as a tile reads it: "77 nodes, 254 edges".
- * @param dataset - The dataset.
+ * @param dataset - The dataset's counts.
  * @returns The words.
  */
-function sizeWords(dataset: DatasetMeta): string {
+function sizeWords(dataset: Pick<DatasetMeta, "nodes" | "edges">): string {
     return `${countWords(dataset.nodes)} nodes, ${countWords(dataset.edges)} edges`;
 }
 
@@ -205,9 +224,47 @@ function firstSentence(text: string): string {
 }
 
 /**
+ * The network samples: one public example of each kind of network source, from the catalog. Its
+ * load is graphty-element's; a kind or example the catalog lacks is left out.
+ * @returns The tiles.
+ */
+function networkTiles(): SampleTile[] {
+    return NETWORK_SAMPLES.flatMap(([source, id]) => {
+        const entry = serverKinds().find((each) => each.id === source);
+        const example = entry?.descriptor.examples?.find((each) => each.id === id);
+        const { nodes, edges } = example?.counts ?? {};
+        if (entry === undefined || example === undefined || nodes === undefined || edges === undefined) {
+            return [];
+        }
+        const hook = kindName(entry);
+        const sentence = `Read from a public ${hook} server.`;
+        return [
+            {
+                id: `network-${source}`,
+                name: example.plainName,
+                hook,
+                field: NETWORK,
+                size: sizeWords({ nodes, edges }),
+                sentence,
+                network: true as const,
+                picture: () => `${import.meta.env.BASE_URL}samples/network-${source}.webp`,
+                note: undefined,
+                words: `${example.plainName} ${hook} ${NETWORK} ${sentence}`.toLowerCase(),
+                open: ({ store }: LibraryActions) => {
+                    openWithStylePanel(store, example.plainName, (session) =>
+                        session.data.loadExample(source, id, { history: "start" }),
+                    );
+                },
+            },
+        ];
+    });
+}
+
+/**
  * The sample library: the app's own samples first, then every other dataset in graph-samples'
- * catalog that graphty-element can open, in the catalog's order, then every generator. A dataset
- * past the element's published ceilings is left out: its tile could only open an empty graph.
+ * catalog that graphty-element can open, in the catalog's order, then the network samples, then
+ * every generator. A dataset past the element's published ceilings is left out: its tile could
+ * only open an empty graph.
  * @param samples - The app's own samples.
  * @param datasets - graph-samples' catalog.
  * @param generators - graph-samples' generators.
@@ -259,6 +316,7 @@ function sampleTiles(
                     }
                 },
             })),
+        ...networkTiles(),
         ...generators.map((generator) => ({
             id: `generate-${generator.name}`,
             name: generator.plainName,
@@ -505,13 +563,18 @@ function SampleLibrary(): React.JSX.Element {
     const query = text.trim().toLowerCase();
     // The first paint does not wait for the site's configuration.
     const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
-    const offered = SAMPLE_TILES.filter((tile) => tile.timed !== true || timeline);
+    const network = useSyncExternalStore(onSiteConfig, siteNetwork);
+    const offered = SAMPLE_TILES.filter(
+        (tile) => (tile.timed !== true || timeline) && (tile.network !== true || network),
+    );
     const fields = [...new Set(offered.map((tile) => tile.field))];
-    const datasetCount = offered.filter((tile) => tile.field !== GENERATED).length;
+    const isDataset = (tile: SampleTile): boolean => tile.field !== GENERATED && tile.field !== NETWORK;
+    const datasetCount = offered.filter(isDataset).length;
     const tiles = offered.filter(
         (tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)),
     );
-    const samples = tiles.filter((tile) => tile.field !== GENERATED);
+    const samples = tiles.filter(isDataset);
+    const networkSamples = tiles.filter((tile) => tile.field === NETWORK);
     const generators = tiles.filter((tile) => tile.field === GENERATED);
     // How many the box and the field filter leave, said as they change; never on arrival.
     useAnnounceChange(`${count(tiles.length, "sample")} shown`);
@@ -584,6 +647,27 @@ function SampleLibrary(): React.JSX.Element {
                         />
                     ))}
                 </div>
+            )}
+            {networkSamples.length === 0 ? null : (
+                <section aria-label="Load network data">
+                    <h3 className="ws-land-h3">Load network data</h3>
+                    <p className="ws-land-intro">
+                        Read a graph live from a server: a biology repository, a graph database, a linked-data endpoint
+                        or a web API.
+                    </p>
+                    <div className="ws-land-samples" data-view={view}>
+                        {networkSamples.map((tile) => (
+                            <LibraryTile
+                                key={tile.id}
+                                tile={tile}
+                                label={`Load network data: ${tile.name}`}
+                                onClick={() => {
+                                    tile.open(actions);
+                                }}
+                            />
+                        ))}
+                    </div>
+                </section>
             )}
             {generators.length === 0 ? null : (
                 <section aria-label="Generate a graph">
@@ -706,7 +790,7 @@ function useScrolledPast(lockup: React.RefObject<HTMLElement | null>): boolean {
  * recent projects, Open a file and New project. A file dropped anywhere on it opens.
  * @returns The start page
  */
-export function StartScreen(): React.JSX.Element {
+function StartPage(): React.JSX.Element {
     const workspace = useWorkspace();
     const scheme = useComputedColorScheme("dark");
     const recent = useRecentProjects();
@@ -893,16 +977,14 @@ export function StartScreen(): React.JSX.Element {
                                 {openButton("primary")}
                                 <div className="ws-land-more">
                                     {network ? (
-                                        <Button
-                                            className="ws-land-tint"
-                                            leftSection={<GLYPHS.data size={16} aria-hidden />}
-                                            aria-haspopup="dialog"
-                                            onClick={() => {
-                                                openServerForm(workspace.store);
-                                            }}
-                                        >
-                                            Open network data
-                                        </Button>
+                                        <OpenNetworkData>
+                                            <Button
+                                                className="ws-land-tint"
+                                                leftSection={<GLYPHS.data size={16} aria-hidden />}
+                                            >
+                                                Open network data
+                                            </Button>
+                                        </OpenNetworkData>
                                     ) : null}
                                     <Button
                                         className="ws-land-tint"
@@ -970,5 +1052,18 @@ export function StartScreen(): React.JSX.Element {
                 </div>
             ) : null}
         </div>
+    );
+}
+
+/**
+ * The start page in its floating layer, outside the hero's stacking context, so a pop-over opened
+ * from the launcher is drawn over the top bar and the fact bar.
+ * @returns The start page
+ */
+export function StartScreen(): React.JSX.Element {
+    return (
+        <PopoutManager>
+            <StartPage />
+        </PopoutManager>
     );
 }

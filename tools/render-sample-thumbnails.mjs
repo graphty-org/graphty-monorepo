@@ -10,6 +10,7 @@
  *   graph-samples/thumbnails/<dataset>.webp              every dataset, small and large
  *   graph-samples/thumbnails/generator-<generator>.webp  every generator in GENERATOR_CATALOG
  *   graphty/public/samples/<sample>.webp                 the graphty app's own samples in APP_SAMPLES
+ *   graphty/public/samples/network-<source>.webp         the start page's network samples in NETWORK_SAMPLES
  *
  * graph-samples' pack step copies them into dist/data/v1/ (and build-hosted.mjs into the files
  * graphty.app publishes at https://graphty.app/data/graph-samples/v1/), and each is named by the
@@ -32,6 +33,8 @@
  *   its structure (GENERATOR_LAYOUTS below); a generator that emits x and y columns is drawn at them,
  *   and one not listed gets the force layout, which graphty-element's recommendLayout picks for a
  *   connected graph that carries no positions.
+ * - A network sample: the source's own public example, read live from its server, so a rerun needs
+ *   network access.
  *
  * Needs a built graph-format, graph-samples (with dist/data/v1/) and graphty-element
  * (dist/graphty.bundle.js).
@@ -57,6 +60,13 @@ const bundle = path.join(root, "graphty-element/dist/graphty.bundle.js");
 /** The graphty app's own samples that have no graph-samples dataset to take a picture from. */
 const appSamplesDir = path.join(root, "graphty/public/samples");
 const APP_SAMPLES = ["campus-contacts", "graph-research", "marvel-films", "paper-citations"];
+/** The start page's network samples: a source id and that source's example (StartScreen.tsx). */
+const NETWORK_SAMPLES = [
+    ["ndex", "ndex-wp5483"],
+    ["neo4j", "neo4j-movies"],
+    ["sparql", "uniprot-tp53"],
+    ["rest", "deps-dev-webpack"],
+];
 
 /** The picture's size in pixels: twice a 240 x 150 tile, for sharp screens. */
 const WIDTH = 480;
@@ -353,6 +363,15 @@ async function jobs(wanted) {
             layout: { id: "force", options: { seed: SEED } },
         });
     }
+    for (const [source, example] of NETWORK_SAMPLES.filter(([source]) => want(`network-${source}`))) {
+        list.push({
+            file: path.join(appSamplesDir, `network-${source}.webp`),
+            name: `network-${source}`,
+            source,
+            example,
+            layout: { id: "force", options: { seed: SEED } },
+        });
+    }
     for (const meta of DATASETS.filter((each) => want(each.name))) {
         const small = existsSync(path.join(dataDir, `${meta.name}.gsnp.gz`)) && meta.nodes <= 5000;
         const job = small
@@ -393,7 +412,7 @@ async function jobs(wanted) {
 
 const PAGE = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;background:transparent}</style>
 <script type="module" src="/graphty.bundle.js"></script>
-<graphty-element style="display:block;width:${WIDTH}px;height:${HEIGHT}px"></graphty-element>`;
+<graphty-element features="network-data" style="display:block;width:${WIDTH}px;height:${HEIGHT}px"></graphty-element>`;
 
 const server = createServer((request, response) => {
     if (request.url === "/graphty.bundle.js") {
@@ -430,7 +449,9 @@ try {
             await page.goto(base);
             const picture = await page.evaluate(draw, {
                 name: job.name,
-                data: JSON.stringify({ directed: job.directed, ...job.records }),
+                data: job.records === undefined ? null : JSON.stringify({ directed: job.directed, ...job.records }),
+                source: job.source ?? null,
+                example: job.example ?? null,
                 emphasis: EMPHASIS[job.name] ?? null,
                 layout: job.layout,
                 width: WIDTH,
@@ -438,7 +459,8 @@ try {
                 waitGuardMs: WAIT_GUARD_MS,
             });
             writeFileSync(path.resolve(outDir, job.file), Buffer.from(picture, "base64"));
-            console.log(`${job.file} (${job.layout.engine ?? job.layout.id}, ${job.records.nodes.length} nodes)`);
+            const drawn = job.records === undefined ? job.example : `${job.records.nodes.length} nodes`;
+            console.log(`${job.file} (${job.layout.engine ?? job.layout.id}, ${drawn})`);
         } catch (error) {
             failed += 1;
             console.error(`${job.name}: ${error instanceof Error ? error.message : String(error)}`);
@@ -456,7 +478,9 @@ process.exit(failed === 0 ? 0 : 1);
  * Runs in the page: draws one graph and returns its picture.
  * @param job - what to draw
  * @param job.name - the graph's name
- * @param job.data - its records, as graphty-element's JSON
+ * @param job.data - its records, as graphty-element's JSON, or null for a network sample
+ * @param job.source - a network sample's source id, or null
+ * @param job.example - a network sample's example id, or null
  * @param job.layout - the layout: its catalogue id, the engine when not the default, and options
  * @param job.width - the picture's width in pixels
  * @param job.height - the picture's height in pixels
@@ -464,7 +488,7 @@ process.exit(failed === 0 ? 0 : 1);
  * @param job.waitGuardMs - the monorepo's one hang guard, which ends a stable-frame wait that hangs
  * @returns the WebP picture, base64
  */
-async function draw({ name, data, layout, width, height, emphasis, waitGuardMs }) {
+async function draw({ name, data, source, example, layout, width, height, emphasis, waitGuardMs }) {
     globalThis.__GRAPHTY_WAIT_GUARD_MS__ = waitGuardMs;
     await globalThis.customElements.whenDefined("graphty-element");
     const element = globalThis.document.querySelector("graphty-element");
@@ -488,7 +512,11 @@ async function draw({ name, data, layout, width, height, emphasis, waitGuardMs }
         ...(layout.engine === undefined ? {} : { engine: layout.engine }),
         options: layout.options,
     });
-    await session.data.import({ type: "json", name, config: { data } });
+    if (example === null) {
+        await session.data.import({ type: "json", name, config: { data } });
+    } else {
+        await session.data.loadExample(source, example, { history: "start" });
+    }
     await session.runs.start("louvain");
     await element.waitForStableFrame();
     const shot = await element.captureScreenshot({

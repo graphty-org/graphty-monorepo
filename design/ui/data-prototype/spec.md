@@ -308,7 +308,8 @@ the prior design (`structure-b-refined.md` section 12.1):
 
 ### 3.9 Server sources
 
-`+` > Server... opens a pop-over form in the left sidebar (not a modal), Figma-style rows:
+`+` > Server... opens a pop-over form in the left sidebar (not a modal), Figma-style rows. The start
+page's Open network data opens the same form beside its button, and only Load opens a project:
 
 ```
 Kind      [Neo4j / Cypher v]     (Cypher, SPARQL, NDEx, OpenAlex, REST mapping)

@@ -1,6 +1,6 @@
 /**
  * A network load reopened from the reader's own autosave just loads (issue #6210): Open network
- * data on the start page, NDEx's WikiPathways WP5483 example, Load, then a reload, which reopens
+ * data on the start page, NDEx's WikiPathways WP5483 by its UUID, Load, then a reload, which reopens
  * the work through graphty-element's autosave with every node drawn and no Approve row asking to
  * load it again. Real element, real IndexedDB, real input; NDEx answers from its recording.
  */
@@ -28,6 +28,9 @@ const DATABASE = "graphty-autosave";
 
 /** NDEx's origin, the only one answered from the recording. */
 const NDEX = "https://www.ndexbio.org";
+
+/** WikiPathways WP5483's UUID on NDEx, the network the recording holds. */
+const WP5483 = "86719f5b-1439-11f0-9806-005056ae3c32";
 
 /**
  * Deletes autosave's database and this tab's session storage.
@@ -103,12 +106,11 @@ describe("a network load reopened from autosave", () => {
         await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
         const form = await screen.findByRole("form", { name: "Network data" });
         await pick(form, "Kind", "NDEx");
-        await pick(form, "Example", "WikiPathways WP5483");
-        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
-        // The form closes once its load is in.
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
-        });
+        await userEvent.type(within(form).getByRole("textbox", { name: "Network UUID" }), WP5483);
+        // Load opens the project, and the graph comes in.
+        await openBy(first.store, () => userEvent.click(within(form).getByRole("button", { name: "Load" })));
+        assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        assert.strictEqual(first.store.get().project?.name, "NDEx");
         const { element, session } = openedElement();
         assert.strictEqual(session.data.statistics().nodeCount, 57);
 

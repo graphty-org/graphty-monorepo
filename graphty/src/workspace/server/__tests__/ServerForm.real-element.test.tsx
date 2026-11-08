@@ -353,12 +353,8 @@ describe("server sources on the real element", () => {
         assert.isNotNull(within(form).getByRole("textbox", { name: "Work" }));
 
         await pick(form, "Kind", "Neo4j");
-        await pick(form, "Example", "Neo4j demo: movies");
-        assert.equal(
-            within(form).getByRole<HTMLInputElement>("textbox", { name: "Endpoint" }).value,
-            "https://demo.neo4jlabs.com:7473",
-        );
-        assert.equal(within(form).getByRole<HTMLInputElement>("textbox", { name: "User" }).value, "movies");
+        assert.isNull(within(form).queryByRole("combobox", { name: "Example" }), "samples are never in the form");
+        assert.isNotNull(within(form).getByRole("textbox", { name: "User" }));
         await userEvent.click(within(form).getByText("Seed nodes"));
         assert.isNotNull(within(form).getByRole("textbox", { name: "Seed ids" }));
         assert.isNull(within(form).queryByRole("textbox", { name: "Query" }));
@@ -369,7 +365,7 @@ describe("server sources on the real element", () => {
         });
     });
 
-    it("enables Test and Load only once the endpoint is filled, and takes an example's Start", async () => {
+    it("enables Test and Load only once the endpoint is filled", async () => {
         await openDataPlace();
         const form = await openForm();
         await pick(form, "Kind", "Neo4j");
@@ -386,15 +382,6 @@ describe("server sources on the real element", () => {
         assert.isNull(within(form).queryByRole("button", { name: /Advanced/ }));
         assert.isNull(within(form).queryByRole("button", { name: "Expand settings" }));
         assert.isNotNull(within(form).getByLabelText("Expand limit"));
-        await pick(form, "Example", "Hetionet (end-of-life server)");
-        await pick(form, "Example", "Neo4j demo: movies");
-        assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "Everything" }).checked);
-        assert.equal(within(form).getByRole<HTMLInputElement>("textbox", { name: "Database" }).value, "movies");
-        assert.equal(
-            within(form).getByRole<HTMLInputElement>("combobox", { name: "Transport" }).value,
-            "",
-            "Hetionet's Bolt does not carry over",
-        );
     });
 
     it("names the server that answered on the failure chip", async () => {

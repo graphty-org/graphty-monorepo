@@ -6,6 +6,7 @@
  * `network-data` experiment on.
  */
 
+import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { type SourceCatalogEntry, sourceDescriptors } from "@graphty/graphty-element/catalog";
 import {
     type Credential,
@@ -19,7 +20,7 @@ import {
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { networkOn } from "../features";
-import { newProjectId, type WorkspaceStore } from "../state/store";
+import type { WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { codeWords, failureOf, kindName } from "./words";
 
@@ -73,8 +74,6 @@ export interface ServerFormState {
         /** Edge types, comma separated; blank for any. */
         readonly types: string;
     };
-    /** The example the form was filled from, which names the load. */
-    readonly example?: string;
 }
 
 /** What an expansion fetches until the reader changes it (spec section 3.9). */
@@ -144,90 +143,6 @@ export function formReady(entry: SourceCatalogEntry, form: ServerFormState): boo
 }
 
 /**
- * The cap a form holds for an example: its first page when it is too big to load whole, else none,
- * so the form loads what the example promises.
- * @param example - the example.
- * @param example.firstPage - its first page, if it has one.
- * @returns the form's Limit.
- */
-function exampleLimit(example: { readonly firstPage?: number | undefined }): number {
-    return example.firstPage ?? 0;
-}
-
-/**
- * The form filled from one of the source's examples: its endpoint, sign-in, params (its Start
- * among them) and its own cap, with the params the previous example set cleared first and the
- * transport always the example's (a source picks it from the endpoint when the example names
- * none). Load then loads what the example promises, as `session.data.loadExample` does.
- * @param entry - the source.
- * @param form - the form now.
- * @param id - the example's id; null clears the example.
- * @returns the filled form, the form with no example for null, or the form unchanged for an unknown id.
- */
-export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id: string | null): ServerFormState {
-    if (id === null) {
-        return withoutExample(entry, form);
-    }
-    const examples = entry.descriptor.examples ?? [];
-    const example = examples.find((each) => each.id === id);
-    if (example === undefined) {
-        return form;
-    }
-    return {
-        ...form,
-        example: example.plainName,
-        limit: exampleLimit(example),
-        endpoint: example.endpoint ?? "",
-        params: { ...example.params },
-        user: example.publicLogin?.username ?? "",
-        secret: example.publicLogin?.password ?? "",
-    };
-}
-
-/**
- * Whether a field still holds what an example put there.
- * @param held - what the form holds.
- * @param filled - what the example filled.
- * @returns true when unchanged.
- */
-function untouched(held: unknown, filled: unknown): boolean {
-    return JSON.stringify(held) === JSON.stringify(filled);
-}
-
-/**
- * The form with its example let go: the endpoint, sign-in and params the example filled and the
- * reader left as they were go back to a fresh form's, so nothing of the example's server rides
- * along to the reader's; whatever the reader typed stays.
- * @param entry - the source.
- * @param form - the form now.
- * @returns the form with no example.
- */
-export function withoutExample(entry: SourceCatalogEntry, form: ServerFormState): ServerFormState {
-    const { example, ...rest } = form;
-    const filled = (entry.descriptor.examples ?? []).find((each) => each.plainName === example);
-    if (filled === undefined) {
-        return rest;
-    }
-    const freshOne = freshForm(entry);
-    const fresh = freshOne.params;
-    const params: Record<string, unknown> = { ...fresh, ...form.params };
-    for (const [name, value] of Object.entries(filled.params)) {
-        if (untouched(params[name], value)) {
-            params[name] = fresh[name];
-        }
-    }
-    const login = filled.publicLogin;
-    return {
-        ...rest,
-        limit: form.limit === exampleLimit(filled) ? freshOne.limit : form.limit,
-        endpoint: untouched(form.endpoint, filled.endpoint ?? "") ? "" : form.endpoint,
-        params: Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
-        user: untouched(form.user, login?.username ?? "") ? "" : form.user,
-        secret: untouched(form.secret, login?.password ?? "") ? "" : form.secret,
-    };
-}
-
-/**
  * The form with a new Start: a Query start gets the starter query when its box is empty.
  * @param entry - the source.
  * @param form - the form now.
@@ -290,7 +205,7 @@ function paramValue(type: string, value: unknown): unknown {
  * @param form - the form.
  * @returns the credential.
  */
-export function formCredential(entry: SourceCatalogEntry, form: ServerFormState): Credential | undefined {
+function formCredential(entry: SourceCatalogEntry, form: ServerFormState): Credential | undefined {
     const auth = entry.descriptor.auth ?? [];
     if (auth.includes("basic") && form.user !== "") {
         return credentials.basic(form.user, form.secret);
@@ -307,8 +222,7 @@ export function formCredential(entry: SourceCatalogEntry, form: ServerFormState)
 
 /**
  * The form as one `data.import` call: the source and its params, and the endpoint, the cap and
- * the load's own double-click expand. The credential is not in it: the form remembers it in the
- * element's credential store, so Load more, Refresh and Expand find it.
+ * the load's own double-click expand. The credential is not in it: `serverLoad` adds it.
  * @param entry - the source.
  * @param form - the form.
  * @returns the input and the options.
@@ -317,7 +231,7 @@ export function serverRequest(
     entry: SourceCatalogEntry,
     form: ServerFormState,
 ): { input: SourceInput; options: SourceLoadOptions } {
-    // A param the descriptor does not declare (an example's template values) goes as it is.
+    // A param the descriptor does not declare goes as it is.
     const declared = new Map(entry.descriptor.params.map((param) => [param.name, param.type]));
     const config: Record<string, unknown> = {};
     for (const [name, typed] of Object.entries(form.params)) {
@@ -337,7 +251,7 @@ export function serverRequest(
         ...(types.length === 0 ? {} : { relationshipTypes: types }),
     };
     const host = URL.canParse(endpoint) ? new URL(endpoint).host : null;
-    const name = form.example ?? (host === null ? kindName(entry) : `${kindName(entry)} ${host}`);
+    const name = host === null ? kindName(entry) : `${kindName(entry)} ${host}`;
     return {
         input: { source: entry.id, config, name },
         options: {
@@ -348,22 +262,51 @@ export function serverRequest(
     };
 }
 
+/** What Load hands to whoever hosts the form: a read and everything needed to keep its sign-in. */
+export interface ServerLoad {
+    readonly input: SourceInput;
+    /** The load's options, the credential among them. */
+    readonly options: SourceLoadOptions;
+    readonly credential: Credential | undefined;
+    /** Where the credential goes: the typed endpoint, else the source's default. */
+    readonly endpoint: string | undefined;
+}
+
 /**
- * Opens the server form on the Data place, opening an empty project first when none is open
- * (the start screen's Open network data).
- * @param store - the workspace store.
- * @param kind - the source the form opens on, or none for its first.
+ * The form as what Load hands over.
+ * @param entry - the source.
+ * @param form - the form.
+ * @returns the load.
  */
-export function openServerForm(store: WorkspaceStore, kind: string | null = null): void {
-    store.set((state) => ({
-        ...(state.project === null ? { project: { name: "Untitled", id: newProjectId(state) }, inspected: null } : {}),
-        page: "panels",
-        place: "data",
-        ...panelsInView(),
-        dialog: SERVER_DIALOG,
-        serverKind: kind,
-        serverFromStart: state.project === null,
-    }));
+export function serverLoad(entry: SourceCatalogEntry, form: ServerFormState): ServerLoad {
+    const { input, options } = serverRequest(entry, form);
+    const credential = formCredential(entry, form);
+    return {
+        input,
+        options: credential === undefined ? options : { ...options, credential },
+        credential,
+        endpoint: options.endpoint ?? entry.descriptor.defaultEndpoint ?? undefined,
+    };
+}
+
+/**
+ * Remembers a load's sign-in in memory, never in the file, so Load more, Refresh and Expand find it.
+ * @param element - the element the graph is loaded into.
+ * @param load - the load.
+ * @returns settles once it is remembered.
+ */
+export async function rememberSignIn(element: GraphtyElement, load: ServerLoad): Promise<void> {
+    if (load.credential !== undefined && load.endpoint !== undefined) {
+        await element.credentials.remember({ source: load.input.source, endpoint: load.endpoint }, load.credential);
+    }
+}
+
+/**
+ * Opens the server form on the Data place of the open project.
+ * @param store - the workspace store.
+ */
+function openServerForm(store: WorkspaceStore): void {
+    store.set({ page: "panels", place: "data", ...panelsInView(), dialog: SERVER_DIALOG });
 }
 
 /**

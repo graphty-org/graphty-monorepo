@@ -5,6 +5,7 @@
  */
 
 import { pickFiles as pickFromBrowser, useFileDrop } from "@graphty/compact-mantine";
+import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import {
     DATASET_DESCRIPTORS,
     type DatasetMeta,
@@ -26,6 +27,7 @@ import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
 import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
 import { newProjectId, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
+import { labelRow } from "../style/row";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
 import { panelsInView } from "../time/timeActions";
 
@@ -41,7 +43,7 @@ import { panelsInView } from "../time/timeActions";
 export function openProject(
     workspace: WorkspaceStore,
     name: string,
-    load: (session: GraphSession) => Promise<void>,
+    load: (session: GraphSession, element: GraphtyElement) => Promise<void>,
 ): void {
     workspace.set((state) => ({
         project: { name, id: newProjectId(state) },
@@ -53,9 +55,9 @@ export function openProject(
         // before the load, which starts the history, so Undo never takes the name back.
         ...startOpening({
             name,
-            load: async (session) => {
+            load: async (session, element) => {
                 await session.config.set({ name });
-                await load(session);
+                await load(session, element);
             },
         }),
         ends: null,
@@ -63,6 +65,25 @@ export function openProject(
         dataTab: "loaded",
         timeWindowCard: false,
     }));
+}
+
+/**
+ * Opens a new project and, once its load is in, the Style panel on the row that paints the whole
+ * graph. Where a form Load and a network sample land. Inside the load because opening clears what
+ * is inspected and the row exists only once the project's element is up.
+ * @param workspace - the workspace store.
+ * @param name - the project's name.
+ * @param load - what to load into the new element.
+ */
+export function openWithStylePanel(
+    workspace: WorkspaceStore,
+    name: string,
+    load: (session: GraphSession, element: GraphtyElement) => Promise<void>,
+): void {
+    openProject(workspace, name, async (session, element) => {
+        await load(session, element);
+        workspace.set({ inspected: { ...labelRow(session, null).inspected, tab: "style" } });
+    });
 }
 
 /**

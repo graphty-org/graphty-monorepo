@@ -38,6 +38,7 @@ const CODE_WORDS: Readonly<Record<string, string>> = {
     E_SOURCE_PARAM: "missing or wrong value",
     E_SOURCE_LIMIT: "over the limit",
     E_SOURCE_UNSUPPORTED: "not supported",
+    E_TOO_LARGE: "too large to draw",
     W_SOURCE_LIMIT: "capped",
     W_SOURCE_AUTH: "sign-in needed for more",
     W_SOURCE_RETRIED: "retried",

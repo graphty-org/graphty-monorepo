@@ -71,11 +71,12 @@ describe("network data behind its experiment", () => {
         render(<Workspace store={store} />);
         await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
         await screen.findByRole("form", { name: "Network data" });
-        // Closed with nothing loaded: back to the start screen, not an empty Untitled project.
+        assert.isNull(store.get().project, "the form opens on the start page, with no project");
         await userEvent.click(await screen.findByRole("button", { name: "Close Network data" }));
         await waitFor(() => {
-            assert.isNull(store.get().project);
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
+        assert.isNull(store.get().project);
         assert.isNotNull(await screen.findByRole("button", { name: "Open network data" }));
     });
 

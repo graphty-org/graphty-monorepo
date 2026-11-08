@@ -237,16 +237,14 @@ describe("the start screen", () => {
         assert.isTrue(scrolled);
     });
 
-    it("opens the network data form on an Untitled project with network data on", async () => {
+    it("opens the network data form with no project with network data on", async () => {
         await siteFeatures(["timeline", "network-data"]);
         const store = renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
 
-        const state = store.get();
-        assert.equal(state.project?.name, "Untitled");
-        assert.equal(state.place, "data");
-        assert.equal(state.dialog, "server");
+        await screen.findByRole("form", { name: "Network data" });
+        assert.isNull(store.get().project);
     });
 
     it("opens a graph from a typed web address, and nothing for words that are not one", async () => {

@@ -217,10 +217,6 @@ export interface WorkspaceState {
     readonly exportOn: "image" | "nodes" | "edges";
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
-    /** The source the server form opens on (a catalog id, Open network data's card), else null. */
-    readonly serverKind: string | null;
-    /** Whether the server form opened the project it sits in (the start screen's Open network data). */
-    readonly serverFromStart: boolean;
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
@@ -318,8 +314,6 @@ const INITIAL: WorkspaceState = {
     outlineWidth: null,
     exportOn: "image",
     exportSource: null,
-    serverKind: null,
-    serverFromStart: false,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,

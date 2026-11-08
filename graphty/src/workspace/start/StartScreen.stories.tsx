@@ -134,7 +134,7 @@ export const ReturningReader: Story = {
     },
 };
 
-/** Open network data: the sources on the way, and Open from a link. */
+/** Open network data: the network form beside its button, with nothing opened yet. */
 export const NetworkData: Story = {
     // Network data is an experiment: the story switches it on, as a site's site.json does, and puts
     // the page's own configuration back afterwards.
@@ -170,6 +170,29 @@ export const NetworkData: Story = {
             setTimeout(resolve, 0);
         });
         focused.blur();
+    },
+};
+
+/** The sample library's network samples, one tile for each kind of network source. */
+export const NetworkSamples: Story = {
+    beforeEach: async () => {
+        answerUsageData("declined");
+        await siteFeatures(["network-data"]);
+        return async () => {
+            resetSiteConfig();
+            await loadSiteConfig();
+        };
+    },
+    play: async ({ canvasElement }) => {
+        await heroDrawn(canvasElement);
+        const section = await waitFor(() => {
+            const found = canvasElement.querySelector('section[aria-label="Load network data"]');
+            if (found === null) {
+                throw new Error("the network samples have not drawn yet");
+            }
+            return found;
+        });
+        section.scrollIntoView();
     },
 };
 

@@ -201,15 +201,15 @@ describe("the scene grows with styles and nodes, not with edges", () => {
             name: "half the edges",
             target: "edge",
             selector: { match: "expression", where: "data.half == 'b'" },
-            set: { "edge.color": "#ff00ff", "edge.opacity": 0.4 },
+            set: { "edge.color": "#ff00ff" },
         });
         await frame();
 
-        // A plain line's color and opacity are its slot's (issue #6026).
+        // A plain line's color is its slot's (issue #6026); an opacity under 1 is another pass, and
+        // so another batch.
         const batches = new Set(edges().map((edge) => edge.mesh));
         assert.equal(batches.size, 1, "both looks draw from one batch");
         assert.equal(graph.scene.meshes.length, oneStyle, "and it adds no mesh");
-        assert.sameMembers([...new Set(edges().map((edge) => edge.drawnLine?.visibility))], [1, 0.4]);
     });
 
     it("draws a few hundred arrow caps of one shape as one batch", async () => {

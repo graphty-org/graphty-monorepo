@@ -489,7 +489,8 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
         stamps.push(now());
         if (onFrame) onFrame();
     });
-    let cam0 = null;
+    let cam0 = null,
+        cam0Before = null;
     let moved = null;
     const a = {
         el,
@@ -578,7 +579,10 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
             }
         },
         moveCamera(i) {
-            cam0 ??= graph.getCameraState();
+            if (!cam0) {
+                cam0 = graph.getCameraState();
+                cam0Before = JSON.stringify(cam0);
+            }
             if (is2d) {
                 const p = cam0.pan ?? { x: 0, y: 0 };
                 graph.setCameraState({ pan: { x: p.x + 0.05 * 4 * Math.sqrt(G.n) * Math.sin(i / 20), y: p.y } });
@@ -601,6 +605,9 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
             }
         },
         async resetCamera() {
+            // A camera move the view ignores would time a still view as a moving one.
+            if (cam0 && JSON.stringify(graph.getCameraState()) === cam0Before)
+                throw new Error("the camera did not move during the moving stage");
             if (cam0)
                 graph.setCameraState(
                     is2d

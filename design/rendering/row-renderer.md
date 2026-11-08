@@ -230,6 +230,14 @@ instance and no batch of its own; when the first source is disposed, its family 
 again at the same flush. Nothing changes under `"objects"`: `NodeBatches` exists only under `"batched"`, and the prune
 guard's set is empty without it.
 
+As built (stage 14, second pull request): `PajekShapesAndMidLineArrows` failed only on `"batched"` because its play read
+the shape-`none` node's source through `drawnPickMesh`, which is null for a batched row since stage 11; it reads
+`Node.paintedSourceMesh` now, and both paths pass. A fact for the opacity pull request, from the code: a node's opacity
+is its source mesh's `visibility` (`NodeMesh`, beside `material.alpha`), which a batched source gives up for 0, so a
+translucent batch must carry its look's rest visibility. With that, translucent rows batched per look match in 2D, but
+3D differs by about 600 pixels even with one opacity, and one batch per source breaks 2D as well: the batch's place in
+Babylon's back-to-front order of translucent meshes is what differs, and it has to be settled before opacity batches.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.
@@ -500,8 +508,13 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
       `RichTextLabel`, per label.
     - Full atlas (a 4096 square holds about 2,500 tiles): no second page, no eviction; a label with a glyph that does not fit falls back to
       `RichTextLabel`, per label.
-- **Sampling**, off by default with its cell size a setting. When the view settles, every labelled row draws as one point into a target of
-  one texel per screen cell, depth from a priority column. A read of a few KB gives the winners; only they get built.
+- **Sampling**, off by default with its cell size a setting (`layoutBehavior.labels.sampleCell`, CSS pixels; unset is off). When the view
+  settles, one label per screen cell is picked (selected, then degree, then id); only the winners get built, and
+  `nodeLabelCounts.hiddenBySampling` (present only while it is on) counts the rest.
+  Correction from stage 32: built on the CPU (`managers/LabelSampler.ts`), not as a GPU point draw with a readback. The pass runs once per
+  settled view, not per frame, and projects each labelled row's CPU position (`drawnPosition`, which every path keeps) through one matrix:
+  a few milliseconds at 100,000 rows, with no render target, no readback stall and no WebGL/WebGPU split. A settled frame costs
+  one comparison of the camera, the canvas size, the position lane's generation and the edge version.
 
 ### 4.8 The small issues
 

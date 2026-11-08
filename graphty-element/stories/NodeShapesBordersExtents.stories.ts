@@ -1,7 +1,7 @@
 // Registers the <graphty-element> custom element; nothing is referenced by name.
 import "../src/graphty-element";
 
-import { InstancedMesh, Vector3 } from "@babylonjs/core";
+import { Vector3 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { FLAT_NODE_SHAPES, NodeBorderStyles } from "../src/config/NodeStyle";
@@ -129,8 +129,8 @@ export const PajekShapesAndMidLineArrows: Story = {
         await assertGraphLoaded(scene, { nodes: PAJEK_SHAPES.length, edges: PAJEK_EDGES.length });
         await assertShapeVariety(scene, PAJEK_SHAPES.length);
 
-        const bodiless = scene.graph.getNode("none")?.drawnPickMesh;
-        const sourceOf = bodiless instanceof InstancedMesh ? bodiless.sourceMesh : bodiless;
+        // The node's own source mesh: a row a batch draws has no mesh of its own to read it from.
+        const sourceOf = scene.graph.getNode("none")?.paintedSourceMesh;
         await holds(
             sourceOf?.getTotalIndices() === 0,
             `Styles/Node PajekShapesAndMidLineArrows: the node of shape "none" draws ${String(sourceOf?.getTotalIndices())} indices`,

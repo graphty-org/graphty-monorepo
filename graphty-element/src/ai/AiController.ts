@@ -543,6 +543,15 @@ export interface AiHistoryOptions {
      * newest of the scope whose `dataKey` matches; without one, whose graph fingerprint matches.
      */
     readonly dataKey?: string;
+    /**
+     * Keep conversations with the project rather than with the data: saved and listed under
+     * `session.project.id` (read each time, so it follows the open project) instead of `key`. When
+     * the project changes -- a new session, `project.open`, an autosave restore -- the open
+     * conversation becomes that project's newest, or a new empty one, even if the one open had
+     * messages. Within a project the newest conversation reopens whatever its data has become, so
+     * `dataKey` and the graph fingerprint play no part. Default false.
+     */
+    readonly byProject?: boolean;
     /** The IndexedDB database, for `"browser"`. Default `"graphty-ai"`. */
     readonly database?: string;
     /**
@@ -770,6 +779,8 @@ export class AiController {
      * list): a graph that loads later never puts its saved conversation in its place.
      */
     private chosen = false;
+    /** With `byProject`, the project the open conversation was picked for. */
+    private pickedFor: string | undefined;
     /** Settles once the store is open and the conversation reopened. */
     private readonly opened: Promise<void>;
     /** Who this controller is, when it claims a saved request to resolve it. */
@@ -2564,7 +2575,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             this.stopStore = store.subscribe((change) => {
                 this.storeChanged(change);
             });
-            const reopened = conversationToReopen(await store.list(this.key()), this.key(), this.graphFacts());
+            const reopened = await this.toReopen(store);
             this.current = reopened ?? this.freshRecord();
             await this.markOpenUndone(this.graph.getSession());
             if (failure !== undefined) {
@@ -2591,7 +2602,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     private followSession(): void {
         const session = this.graph.getSession();
         const stopLoads = session.on("project:changed", ({ slices }) => {
-            if (slices.includes("graph")) {
+            if (slices.includes("graph") || this.projectMoved()) {
                 void this.enqueue(() => this.reopenForGraph());
             }
         });
@@ -2608,28 +2619,54 @@ When the user asks you to perform an action, use the appropriate tool. If no too
 
     /**
      * Reopen the saved conversation of the graph just loaded, so a host may set its data before or
-     * after `enableAiControl`. A conversation the reader has begun or chosen stays open.
+     * after `enableAiControl`. A conversation the reader has begun or chosen stays open, unless
+     * `byProject` is on and the project changed: then that project's newest, or a new one, opens.
      * @returns When done.
      */
     private async reopenForGraph(): Promise<void> {
         const { store, current } = this;
-        if (
-            this.disposed ||
-            this.chosen ||
-            store === undefined ||
-            current === undefined ||
-            current.messages.length > 0
-        ) {
+        if (this.disposed || store === undefined || current === undefined) {
             return;
         }
 
-        const found = conversationToReopen(await store.list(this.key()), this.key(), this.graphFacts());
-        if (found !== undefined && found.id !== current.id) {
-            this.current = found;
+        const moved = this.projectMoved();
+        if (!moved && (this.chosen || current.messages.length > 0)) {
+            return;
+        }
+
+        const found = await this.toReopen(store);
+        const next = found ?? (moved ? this.freshRecord() : undefined);
+        if (next !== undefined && next.id !== current.id) {
+            this.chosen = false;
+            this.current = next;
             await this.markOpenUndone(this.graph.getSession());
             this.emitChanged();
-            this.reopenPending(found);
+            if (found !== undefined) {
+                this.reopenPending(found);
+            }
         }
+    }
+
+    /**
+     * The saved conversation to reopen for the scope and graph now.
+     * @param store - The open store.
+     * @returns The record, or undefined to start one.
+     */
+    private async toReopen(store: ConversationStore): Promise<ConversationRecord | undefined> {
+        const key = this.key();
+        this.pickedFor = key;
+        return conversationToReopen(await store.list(key), key, this.graphFacts(), {
+            anyGraph: this.history?.byProject === true,
+        });
+    }
+
+    /**
+     * Whether, with `byProject`, the session's project is not the one the open conversation was
+     * picked for.
+     * @returns True when it should be swapped.
+     */
+    private projectMoved(): boolean {
+        return this.history?.byProject === true && this.pickedFor !== this.key();
     }
 
     /**
@@ -2694,7 +2731,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      * @returns The key.
      */
     private key(): string {
-        return this.history?.key ?? "";
+        return this.history?.byProject === true ? this.graph.getSession().project.id : (this.history?.key ?? "");
     }
 
     /**

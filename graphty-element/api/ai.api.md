@@ -342,6 +342,7 @@ export interface AiExportReadyEvent {
 // @public
 export interface AiHistoryOptions {
     readonly budgetTokens?: number;
+    readonly byProject?: boolean;
     readonly database?: string;
     readonly dataKey?: string;
     readonly key?: string;

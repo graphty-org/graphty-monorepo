@@ -346,6 +346,7 @@ history: {
     store: "browser",          // or "memory"
     key: "sales-dashboard",    // which conversations belong here
     dataKey: "q3-accounts",    // your name for the dataset
+    byProject: false,          // true: keep conversations with the project instead
     database: "my-app-ai",     // the IndexedDB database (default "graphty-ai")
     budgetTokens: 16000,       // how much of the past the model is shown
 }
@@ -358,6 +359,11 @@ history: {
   failing that, whose graph matches the loaded one (same nodes and edges). Otherwise it starts a
   new one; the others stay listed. Set your data before or after `enableAiControl`: while the open
   conversation is still empty, loading a graph reopens that graph's conversation.
+- **`byProject: true`** keeps conversations with the project rather than with the data: they are
+  saved and listed under `session.project.id` instead of `key`. A new project starts with an empty
+  conversation even on the same data; opening a saved project, or the autosave restore after a
+  reload, brings back that project's newest conversation, even after its data was edited. When the
+  project changes, the open conversation is swapped even if it has messages.
 - **`budgetTokens`** is measured as characters / 4. The default is 16,000 (3,000 with
   `toolProfile: "small"`). Older exchanges drop out of what the model is shown, whole and oldest
   first; they stay in the conversation.

@@ -26,18 +26,25 @@ export interface ConversationGraph {
 
 /**
  * The conversation to reopen: the newest of `key` whose `dataKey` matches, or failing that, whose
- * fingerprint matches.
+ * fingerprint matches; with `anyGraph`, the newest of `key`.
  * @param records - The saved conversations.
  * @param key - The scope.
  * @param graph - The loaded graph.
+ * @param options - How to match.
+ * @param options.anyGraph - Take the newest of the scope whatever graph it was about.
  * @returns The record, or undefined when a new conversation should start.
  */
 export function conversationToReopen(
     records: readonly ConversationRecord[],
     key: string,
     graph: ConversationGraph,
+    options: { readonly anyGraph?: boolean } = {},
 ): ConversationRecord | undefined {
     const newest = newestFirst(records.filter((record) => record.key === key));
+    if (options.anyGraph === true) {
+        return newest[0];
+    }
+
     const { dataKey } = graph;
     return (
         (dataKey === undefined || dataKey === null

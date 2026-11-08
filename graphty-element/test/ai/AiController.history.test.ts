@@ -360,6 +360,62 @@ describe("AiController history", () => {
         assert.exists(assistant.session.data.node("f"));
     });
 
+    it("byProject: a new project starts empty, and lists only its own conversations", async () => {
+        const store = new MemoryStore();
+        const history = { store: "memory", byProject: true } as const;
+        const first = new ScriptedAssistant(await assistantSession(), { history, store });
+        await first.say("color by department");
+        first.controller.dispose();
+
+        // The same data in a new project.
+        const second = new ScriptedAssistant(await assistantSession(), { history, store });
+        await second.controller.ready();
+        assert.deepStrictEqual(second.controller.getConversation()?.messages, []);
+        assert.deepStrictEqual(await second.controller.listConversations(), []);
+        assert.strictEqual((await second.controller.listConversations({ allKeys: true })).length, 1);
+    });
+
+    it("byProject: reopening a project brings back its newest conversation after its data was edited", async () => {
+        const store = new MemoryStore();
+        const history = { store: "memory", byProject: true } as const;
+        const session = await assistantSession();
+        const first = new ScriptedAssistant(session, { history, store });
+        await first.say("add a node", [ADD_NODE]);
+        const id = first.controller.getConversation()?.id;
+        await session.data.addNodes([{ id: "later" }]);
+        const { text } = await session.project.save();
+        first.controller.dispose();
+
+        const reopened = new ScriptedAssistant(await assistantSession(), { history, store });
+        await reopened.controller.ready();
+        await reopened.session.project.open(text, { discard: true });
+        await reopened.controller.ready();
+        await vi.waitFor(() => {
+            assert.strictEqual(reopened.controller.getConversation()?.id, id);
+        });
+        assert.deepStrictEqual(
+            (await reopened.controller.listConversations()).map((summary) => summary.id),
+            [id],
+        );
+    });
+
+    it("byProject: opening another project swaps out a conversation that has messages", async () => {
+        const store = new MemoryStore();
+        const history = { store: "memory", byProject: true } as const;
+        const other = await assistantSession();
+        const { text } = await other.project.save();
+        const assistant = new ScriptedAssistant(await assistantSession(), { history, store });
+        await assistant.say("hello");
+        const before = assistant.controller.getConversation()?.id;
+
+        await assistant.session.project.open(text, { discard: true });
+        await vi.waitFor(() => {
+            assert.notStrictEqual(assistant.controller.getConversation()?.id, before);
+        });
+        assert.deepStrictEqual(assistant.controller.getConversation()?.messages, []);
+        assert.deepStrictEqual(await assistant.controller.listConversations(), []);
+    });
+
     it("gives every message an id no other controller gives, also after a reload", async () => {
         const ids: string[] = [];
         for (let load = 0; load < 2; load++) {

@@ -263,12 +263,14 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             assert.equal(drawing.length, 2, "twelve sizes in two shapes draw as one batch per shape");
             assert.equal(overBar(objects, batched), 0);
 
-            // A row's size changes live: the batch follows it in its matrix.
+            // A row's size changes live. Its new source is made after the boxes', so the objects path
+            // draws it after them, and one batch with the other spheres would win their depth ties
+            // the other way: it draws from a batch of its own.
             await layer(element, [3], { "node.size": 2.2 });
             await element.waitForStableFrame();
             const resized = await readFrame(graph);
             assert.notEqual(overBar(batched, resized), 0, "the new size reached the picture");
-            assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 2);
+            assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 3);
             assert.equal(overBar(resized, await frameOn(graph, "objects")), 0);
         },
     );

@@ -41,6 +41,8 @@ const FIRST_CAPACITY = 16;
 const HOLE = -1;
 const MATRIX_FLOATS = 16;
 const COLOR_FLOATS = 4;
+/** Rows a slot's draw key orders under one source rank: `graphtyRow` is exact to 2^24. */
+const ROWS_PER_RANK = 2 ** 24;
 /** The share of a batch's slots that may be holes before a repaint compacts them. */
 const MOST_HOLES = 0.25;
 
@@ -49,7 +51,7 @@ interface RowPlaces {
     readonly positionTexture: RawTexture;
 }
 
-/** One look's thin instances: a slot per row, in row order. */
+/** One look's thin instances: a slot per row, in draw order (source rank, then row). */
 export class NodeBatch {
     readonly mesh: Mesh;
     /** The rows in slots, holes included. */
@@ -60,6 +62,8 @@ export class NodeBatch {
     /** Slot of each row in a slot, and of each row that left its hole behind. */
     private readonly slotOf = new Map<number, number>();
     private rows = new Float32Array(FIRST_CAPACITY);
+    /** Each slot's draw key, kept through a hole so a returning row keeps its place. */
+    private keys = new Float64Array(FIRST_CAPACITY);
     private colors = new Float32Array(FIRST_CAPACITY * COLOR_FLOATS);
     private matrices = identities(FIRST_CAPACITY);
     private unsorted = false;
@@ -109,13 +113,17 @@ export class NodeBatch {
      * @param row - The row.
      * @param color - Its color, or null for white.
      * @param scale - Its size against the source the batch was built from.
+     * @param rank - Where its source draws among the sources the batch draws, which the objects
+     *   path draws one after another: a depth tie between two rows goes to the later draw.
      */
-    put(row: number, color: Rgba | null, scale = 1): void {
+    put(row: number, color: Rgba | null, scale = 1, rank = 0): void {
         let slot = this.slotOf.get(row);
         if (slot === undefined) {
             slot = this.slots;
             this.grow(slot + 1);
-            this.unsorted ||= slot > 0 && row < (this.rows[slot - 1] ?? 0);
+            const key = rank * ROWS_PER_RANK + row;
+            this.unsorted ||= slot > 0 && key < (this.keys[slot - 1] ?? 0);
+            this.keys[slot] = key;
             this.rows[slot] = row;
             this.slotOf.set(row, slot);
             this.slots++;
@@ -211,23 +219,24 @@ export class NodeBatch {
         this.mesh.dispose(false, false);
     }
 
-    /** Take the holes out and put the rows in ascending order, which keeps depth ties as they were. */
+    /** Take the holes out and put the rows in draw order, which keeps depth ties as they were. */
     private compact(): void {
-        const live: { row: number; from: number }[] = [];
+        const live: { row: number; key: number; from: number }[] = [];
         for (let slot = 0; slot < this.slots; slot++) {
             const row = this.rows[slot] ?? HOLE;
             if (row !== HOLE) {
-                live.push({ row, from: slot });
+                live.push({ row, key: this.keys[slot] ?? 0, from: slot });
             }
         }
 
-        live.sort((a, b) => a.row - b.row);
+        live.sort((a, b) => a.key - b.key);
         const { colors, matrices } = this;
         this.colors = new Float32Array(colors.length);
         this.matrices = identities(this.rows.length);
         this.slotOf.clear();
-        live.forEach(({ row, from }, slot) => {
+        live.forEach(({ row, key, from }, slot) => {
             this.rows[slot] = row;
+            this.keys[slot] = key;
             this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
             this.matrices.set(
                 matrices.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS),
@@ -255,6 +264,9 @@ export class NodeBatch {
         const { rows, colors } = this;
         this.rows = new Float32Array(next);
         this.rows.set(rows);
+        const { keys } = this;
+        this.keys = new Float64Array(next);
+        this.keys.set(keys);
         this.colors = new Float32Array(next * COLOR_FLOATS);
         this.colors.set(colors);
         const { matrices } = this;
@@ -357,6 +369,55 @@ interface RowFamily {
     batch: NodeBatch | null;
 }
 
+/**
+ * The order the objects path draws two sources in: Babylon sorts opaque meshes by material, then
+ * keeps the order it met them in, which is the order they were made.
+ * @param a - One source.
+ * @param b - The other.
+ * @returns Negative when `a` draws first.
+ */
+function drawOrder(a: Mesh, b: Mesh): number {
+    return (a.material?.uniqueId ?? 0) - (b.material?.uniqueId ?? 0) || a.uniqueId - b.uniqueId;
+}
+
+/**
+ * {@link drawOrder} for two groups.
+ * @param a - One group.
+ * @param b - The other.
+ * @returns Negative when `a` draws first.
+ */
+function drawsBefore(a: RowGroup, b: RowGroup): number {
+    return drawOrder(a.source, b.source);
+}
+
+/**
+ * Whether a source draws strictly between two others on the objects path.
+ * @param low - The earlier bound.
+ * @param source - The source.
+ * @param high - The later bound.
+ * @returns Whether it does.
+ */
+function drawsBetween(low: Mesh, source: Mesh, high: Mesh): boolean {
+    return drawOrder(low, source) < 0 && drawOrder(source, high) < 0;
+}
+
+/**
+ * The first and last of some sources in the objects path's order.
+ * @param first - One source.
+ * @param sources - The others.
+ * @returns The two.
+ */
+function drawSpan(first: Mesh, sources: Mesh[]): [Mesh, Mesh] {
+    let low = first;
+    let high = first;
+    for (const source of sources) {
+        low = drawOrder(source, low) < 0 ? source : low;
+        high = drawOrder(source, high) > 0 ? source : high;
+    }
+
+    return [low, high];
+}
+
 /** The rows of one source mesh. */
 interface RowGroup {
     readonly source: Mesh;
@@ -369,6 +430,8 @@ interface RowGroup {
     family: RowFamily | null;
     /** Its size against the family's canonical source. */
     scale: number;
+    /** Where its source draws among its family's on the objects path. */
+    rank: number;
     /** Drawn by the batch, its source hidden. */
     batched: boolean;
     /** The rows moved: refill. */
@@ -522,7 +585,7 @@ export class NodeBatches {
         }
 
         if (group.batched && !object) {
-            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale);
+            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale, group.rank);
             // A row the table does not hold yet keeps its mesh until the flush settles its group.
             this.draw(node, node.index < this.host.places.rows ? group.source : null, group.restVisibility);
             this.dirty.add(group);
@@ -679,6 +742,7 @@ export class NodeBatches {
                 highest: -1,
                 family: null,
                 scale: 1,
+                rank: 0,
                 batched: false,
                 stale: false,
                 restVisibility: source.visibility,
@@ -748,7 +812,11 @@ export class NodeBatches {
         const shared = group.restVisibility < 1 ? undefined : this.families.get(look);
         const scale = shared === undefined ? 1 : scaleAgainst(source, shared.canonical);
         // ponytail: a source whose geometry is no scale of the canonical one gets a family of its own.
-        const key = scale === null || group.restVisibility < 1 ? `${look}#${String(source.uniqueId)}` : look;
+        const alone =
+            scale === null ||
+            group.restVisibility < 1 ||
+            (shared !== undefined && this.splitsDrawOrder(shared, source));
+        const key = alone ? `${look}#${String(source.uniqueId)}` : look;
         let family = this.families.get(key);
         if (family === undefined) {
             family = { key, canonical: source, groups: new Set(), batch: null };
@@ -756,28 +824,60 @@ export class NodeBatches {
         }
 
         group.family = family;
-        group.scale = scale ?? 1;
+        group.scale = alone ? 1 : (scale ?? 1);
         family.groups.add(group);
     }
 
     /**
-     * Rebuild a family's batch from every batched row of its groups, in row order.
+     * Whether a source joining a family would interleave it with another opaque family in the
+     * objects path's draw order. One batch draws its rows together, so a depth tie between a row
+     * of the family and a row of a source drawn between two of its own would go the other way.
+     * ponytail: compares every source of every family, O(sources) a join; a sorted index of
+     * sources if looks with thousands of sizes appear.
+     * @param family - The family.
+     * @param source - The joining source.
+     * @returns Whether it would.
+     */
+    private splitsDrawOrder(family: RowFamily, source: Mesh): boolean {
+        const [low, high] = drawSpan(source, [family.canonical, ...[...family.groups].map((member) => member.source)]);
+        for (const other of this.families.values()) {
+            const [head, ...rest] = [...other.groups]
+                .filter((member) => member.restVisibility >= 1)
+                .map((member) => member.source);
+            if (other === family || head === undefined) {
+                continue;
+            }
+
+            const sources = [head, ...rest];
+            const [otherLow, otherHigh] = drawSpan(head, rest);
+            if (drawsBetween(otherLow, source, otherHigh) || sources.some((one) => drawsBetween(low, one, high))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Rebuild a family's batch from every batched row of its groups, a source's rows after the
+     * rows of every source the objects path draws before it, each source's in row order.
      * @param family - The family.
      * @returns Whether the batch started or stopped drawing.
      */
     private refill(family: RowFamily): boolean {
         family.batch?.clear();
-        const rows: { node: Node; scale: number }[] = [];
+        const rows: { node: Node; group: RowGroup }[] = [];
         let restVisibility = 1;
-        for (const group of family.groups) {
+        [...family.groups].sort(drawsBefore).forEach((group, rank) => {
+            group.rank = rank;
             if (group.batched) {
                 // A look's opacity is its source's visibility, which a batched source gives up for 0.
                 ({ restVisibility } = group);
                 for (const node of group.members) {
-                    rows.push({ node, scale: group.scale });
+                    rows.push({ node, group });
                 }
             }
-        }
+        });
 
         if (rows.length > 0) {
             const made = family.batch === null;
@@ -787,9 +887,9 @@ export class NodeBatches {
                 this.orderTranslucent(family.batch.mesh, family.canonical.uniqueId);
             }
 
-            rows.sort((a, b) => a.node.index - b.node.index);
-            for (const { node, scale } of rows) {
-                family.batch.put(node.index, node.drawnInstanceColor, scale);
+            rows.sort((a, b) => a.group.rank - b.group.rank || a.node.index - b.node.index);
+            for (const { node, group } of rows) {
+                family.batch.put(node.index, node.drawnInstanceColor, group.scale, group.rank);
             }
         }
 

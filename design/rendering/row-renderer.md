@@ -224,7 +224,12 @@ and its geometry's vertex and index counts, and the family's one batch is built 
 source joins only if `scaleAgainst` finds one factor that maps every vertex of the first source onto its own (normals
 and indices equal), so a creator whose geometry does not follow its size gets a family of its own and draws as before;
 that factor goes into the row's `matrix` (uniform, so the normal rewrite above keeps it at 0 pixels). A change to which
-groups a family draws rebuilds its batch in row order at that flush. A size ramp of one shape is now one draw.
+groups a family draws rebuilds its batch at that flush in the objects path's draw order: a source's rows after those of every
+source drawn before it (Babylon sorts opaque sources by material, then by when it met them), each source's in row order. Plain
+row order across sizes lost depth ties between rows of two sizes, invisible on SwiftShader and 5 to 57 pixels on the RTX in 2D
+(#6287). For the same reason a source joins a family only when no other opaque family's source draws inside the family's span
+and it draws inside no other's: one batch draws its rows together. A size ramp of one shape is now one draw; a size made live
+after another shape's sources draws from a batch of its own.
 `MeshCache.batchedSources` keeps a prune from taking a source whose rows a batch draws, since such a source has no
 instance and no batch of its own; when the first source is disposed, its family dissolves and its groups find a family
 again at the same flush. Nothing changes under `"objects"`: `NodeBatches` exists only under `"batched"`, and the prune

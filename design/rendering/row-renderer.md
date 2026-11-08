@@ -268,6 +268,13 @@ drawn: while it loads (or after it fails) the row's source is the plain shape's,
 without that flag a loaded row joined the plain family and drew the plain material (42,864 pixels off).
 `texture.icon` (which draws nothing) and the face picture `node.image` stay object rows.
 
+As built (stage 14, sixth pull request: gradients): `batchableOf` takes any `texture.color`, linear and
+radial gradients included. A gradient is a ramp texture in its source's material, and its start color is in
+the mesh key (`StylePainter`), so each gradient is a source and a look of its own and its batch shares that
+material. A gradient row paints no instance color (`paint.color` is null), so the batch writes white, which
+leaves the ramp as the object row draws it. Nothing else changed: `batchLook` already carries the
+gradient inside `texture`.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

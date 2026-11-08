@@ -6,6 +6,8 @@ import {
     GLYPH_TILE,
     GlyphAtlas,
     glyphKey,
+    ligatureFont,
+    type PlacedGlyph,
     placeGlyphs,
     scriptFallback,
 } from "../../src/meshes/GlyphAtlas";
@@ -14,20 +16,27 @@ const blank = (): Uint8Array => new Uint8Array(GLYPH_TILE * GLYPH_TILE);
 
 describe("glyph atlas fallback list", () => {
     it("draws plain Latin, Greek, Cyrillic and CJK words from the atlas", () => {
-        for (const text of ["AVATAR", "Node 42", "alpha beta", "Αθήνα", "Москва", "東京"]) {
+        for (const text of [
+            "AVATAR",
+            "Node 42",
+            "alpha beta",
+            "\u0391\u03B8\u03AE\u03BD\u03B1",
+            "\u041C\u043E\u0441\u043A\u0432\u0430",
+            "\u6771\u4EAC",
+        ]) {
             assert.isNull(scriptFallback(text), text);
         }
     });
 
     it("sends right-to-left, Indic, emoji and combining marks to RichTextLabel", () => {
-        assert.strictEqual(scriptFallback("القاهرة"), "right-to-left"); // Arabic
-        assert.strictEqual(scriptFallback("שלום"), "right-to-left"); // Hebrew
-        assert.strictEqual(scriptFallback("दिल्ली"), "complex-script"); // Devanagari
-        assert.strictEqual(scriptFallback("กรุงเทพ"), "complex-script"); // Thai
+        assert.strictEqual(scriptFallback("\u0627\u0644\u0642\u0627\u0647\u0631\u0629"), "right-to-left"); // Arabic
+        assert.strictEqual(scriptFallback("\u05E9\u05DC\u05D5\u05DD"), "right-to-left"); // Hebrew
+        assert.strictEqual(scriptFallback("\u0926\u093F\u0932\u094D\u0932\u0940"), "complex-script"); // Devanagari
+        assert.strictEqual(scriptFallback("\u0E01\u0E23\u0E38\u0E07\u0E40\u0E17\u0E1E"), "complex-script"); // Thai
         assert.strictEqual(scriptFallback("hub \u{1F680}"), "emoji");
         assert.strictEqual(scriptFallback("\u{1F1EF}\u{1F1F5}"), "emoji"); // a flag
-        assert.strictEqual(scriptFallback("café"), "combining-mark");
-        assert.strictEqual(scriptFallback("mixed ا text"), "right-to-left");
+        assert.strictEqual(scriptFallback("cafe\u0301"), "combining-mark");
+        assert.strictEqual(scriptFallback("mixed \u0627 text"), "right-to-left");
     });
 });
 
@@ -48,13 +57,12 @@ describe("glyph placement", () => {
 
     it("puts each glyph at the width through it less its own, keeping kerning", () => {
         const placed = placeGlyphs("AVATAR", kern);
-        assert.notStrictEqual(placed, "ligature");
         assert.deepEqual(
-            (placed as { x: number }[]).map((g) => g.x),
+            placed.map((g) => g.x),
             [0, 27, 54, 84, 112, 142],
         );
         // the last glyph ends where the measured line ends
-        assert.strictEqual((placed as { x: number }[])[5].x + widths.R, kern("AVATAR"));
+        assert.strictEqual(placed[5].x + widths.R, kern("AVATAR"));
     });
 
     it("leaves spaces out but keeps their advance", () => {
@@ -64,12 +72,34 @@ describe("glyph placement", () => {
             { glyph: "A", x: 40 },
         ]);
     });
+});
 
-    it("reports a ligature font, whose two glyphs draw as one", () => {
-        // "fi" draws as one glyph no wider than "f"
-        const ligature = (s: string): number => kern(s.replace("fi", "f"));
-        assert.strictEqual(placeGlyphs("fit", ligature), "ligature");
-        assert.notStrictEqual(placeGlyphs("fit", kern), "ligature");
+describe("glyph atlas ligature fonts", () => {
+    // A fake raster: each drawn run inks one cell per character, at the cell its x falls on, with
+    // the character's code as the ink. A ligature font shapes "fi" in one run into one glyph whose
+    // ink differs from "f" and "i" apart -- what Chromium does with DejaVu Sans and DejaVu Serif,
+    // whose advance widths ("fi" as wide as "f" plus "i") show nothing.
+    const width = (s: string): number => 10 * s.length; // every test string is one code unit per glyph
+    const raster =
+        (ligates: boolean) =>
+        (runs: readonly PlacedGlyph[]): number[] => {
+            const cells = new Array<number>(64).fill(0);
+            for (const run of runs) {
+                const shaped = ligates ? run.glyph.replaceAll("fi", "\uFB01 ") : run.glyph;
+                for (let i = 0; i < shaped.length; i++) {
+                    cells[run.x / 10 + i] += shaped[i] === " " ? 0 : shaped.charCodeAt(i) % 251;
+                }
+            }
+            return cells;
+        };
+
+    it("finds a font that draws a ligature, whose advance widths match its parts", () => {
+        assert.strictEqual(width("fi"), width("f") + width("i"));
+        assert.isTrue(ligatureFont(width, raster(true)));
+    });
+
+    it("passes a font whose glyphs draw the same one by one as in a run", () => {
+        assert.isFalse(ligatureFont(width, raster(false)));
     });
 });
 

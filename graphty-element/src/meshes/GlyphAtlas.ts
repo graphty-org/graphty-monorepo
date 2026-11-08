@@ -31,7 +31,7 @@ const RIGHT_TO_LEFT =
 const COMPLEX_SCRIPT =
     /[\p{Script=Devanagari}\p{Script=Bengali}\p{Script=Gurmukhi}\p{Script=Gujarati}\p{Script=Oriya}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Kannada}\p{Script=Malayalam}\p{Script=Sinhala}\p{Script=Thai}\p{Script=Lao}\p{Script=Tibetan}\p{Script=Myanmar}\p{Script=Khmer}]/u;
 // Pictographs, flags (regional indicators), joiners and the emoji variation selector.
-const EMOJI = /\p{Extended_Pictographic}|\p{Regional_Indicator}|‍|️/u;
+const EMOJI = /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u200D|\uFE0F/u;
 // A mark sits on the glyph before it at a place only the font's positioning table knows.
 const COMBINING_MARK = /\p{M}/u;
 
@@ -64,30 +64,56 @@ export interface PlacedGlyph {
 
 /**
  * Where each inked glyph of one line goes. A glyph sits at the width of the text through it less
- * its own width, so kerning between it and the glyph before it is kept. A glyph whose advance is
- * under half its own width was merged into a ligature with the one before: the font shapes these
- * words, so they are not placed.
+ * its own width, so kerning between it and the glyph before it is kept. Widths cannot show a
+ * ligature (a font keeps a ligature as wide as its parts); `ligatureFont` finds those by their ink.
  * @param text - One line of a label, in one style.
  * @param measure - The width of a string in the label's font (Canvas `measureText(...).width`).
- * @returns The inked glyphs, left to right, or "ligature".
+ * @returns The inked glyphs, left to right.
  */
-export function placeGlyphs(text: string, measure: (s: string) => number): PlacedGlyph[] | "ligature" {
+export function placeGlyphs(text: string, measure: (s: string) => number): PlacedGlyph[] {
     const placed: PlacedGlyph[] = [];
     let through = "";
-    let before = 0;
     for (const glyph of text) {
         through += glyph;
-        const end = measure(through);
-        const own = measure(glyph);
-        if (own > 0 && end - before < own / 2) {
-            return "ligature";
-        }
         if (glyph.trim() !== "") {
-            placed.push({ glyph, x: end - own });
+            const own = measure(glyph);
+            placed.push({ glyph, x: measure(through) - own });
         }
-        before = end;
     }
     return placed;
+}
+
+/** Pairs fonts most often draw as one glyph: typographic ligatures and programming ligatures. */
+export const LIGATURE_PROBES = ["fi", "fl", "ff", "ffi", "ffl", "->", "=>", "!=", "==", "<=", ">=", "www"] as const;
+// The share of a probe's ink that may differ between one run and its glyphs drawn one by one.
+// Chromium draws a font without ligatures identically both ways (0.000); DejaVu Sans and DejaVu
+// Serif "fi" differ by 0.065 and 0.112 at 48 px.
+const LIGATURE_INK_TOLERANCE = 0.005;
+
+/**
+ * Whether a font draws a ligature, so its labels go to `RichTextLabel`: each probe is drawn as one
+ * run and glyph by glyph where `placeGlyphs` puts them, and any probe whose ink differs is one.
+ * ponytail: per font over a fixed probe list, so a ligature outside it is missed; compare each
+ * label's own ink the same way if one turns up.
+ * @param measure - The width of a string in the font (Canvas `measureText(...).width`).
+ * @param raster - The ink (alpha per pixel) of runs drawn in the font, each with `fillText` at its x.
+ * @returns True when the font draws at least one probe as a ligature.
+ */
+export function ligatureFont(
+    measure: (s: string) => number,
+    raster: (runs: readonly PlacedGlyph[]) => ArrayLike<number>,
+): boolean {
+    return LIGATURE_PROBES.some((probe) => {
+        const whole = raster([{ glyph: probe, x: 0 }]);
+        const parts = raster(placeGlyphs(probe, measure));
+        let ink = 0;
+        let differs = 0;
+        for (let i = 0; i < whole.length; i++) {
+            ink += whole[i];
+            differs += Math.abs(whole[i] - (parts[i] ?? 0));
+        }
+        return differs > ink * LIGATURE_INK_TOLERANCE;
+    });
 }
 
 /** Where one glyph's tile sits in the atlas, in texels from the top left. */

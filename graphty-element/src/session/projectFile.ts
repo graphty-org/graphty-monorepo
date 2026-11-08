@@ -694,8 +694,9 @@ export function dataMember(
     const nodes = session.data
         .nodes({ scope: "graph" })
         .map((node) => withLoads(node, session.data.sourcesOf(node.id)));
+    // The whole graph, as the nodes are: the file is the original, not what a filter shows.
     const edges = session.data
-        .edges()
+        .edges({ scope: "graph" })
         .map((edge) => withLoads(edge, session.data.sourcesOf(edge.id, { kind: "edge" })));
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
     const source = session.data.source();
@@ -1452,7 +1453,7 @@ async function importInto(
         },
     });
     const edgeIds = tx.data
-        .edges()
+        .edges({ scope: "graph" })
         .slice(before)
         .map((edge) => edge.id);
     if (isObject(source)) {

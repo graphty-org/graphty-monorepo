@@ -2630,11 +2630,13 @@ export class SessionData implements SessionDataApi {
             return memo.found;
         }
 
-        const nodes = this.nodes();
+        // The whole graph: an issue is a fact about the original, which a fix edits, so what a
+        // filter hides is still checked (and the memo, keyed by the snapshot, stays right).
+        const nodes = this.nodes({ scope: "graph" });
         const found = findIssues({
             columns,
             nodes,
-            edges: this.edges(),
+            edges: this.edges({ scope: "graph" }),
             directed: snapshot.directed,
             state,
             places: placeRows(columns, nodes, known),
@@ -2994,7 +2996,9 @@ export class SessionData implements SessionDataApi {
                 nodes: new Set(nodes.filter((each) => others(index.nodes.get(each.id))).map((each) => each.id)),
                 edges: new Set(edges.filter((each) => others(index.edges.get(each.id))).map((each) => each.id)),
             },
-            graphPairs: new Set(this.edges().map((each) => pairKey(each.source, each.target, snapshot.directed))),
+            graphPairs: new Set(
+                this.edges({ scope: "graph" }).map((each) => pairKey(each.source, each.target, snapshot.directed)),
+            ),
             hasNode: (id) => rowOfEitherSpelling(snapshot.ids, id) !== INVALID_INDEX,
             directed: snapshot.directed,
             held,

@@ -326,3 +326,6 @@ view rebuild on a 200 ms pause instead, and the counts update then (decisions 13
 72. **A degree read over the view is labeled "Degree showing"** (the Overview's degree section,
     a node's and a selection's Degree row) while anything is hidden.
 73. **A filter's matches list each node's whole-graph degree**, the degree its card tests.
+74. **`data.issues()` reads the whole graph**: an issue is a fact about the original, which every
+    fix edits, so a filter neither hides an issue nor leaves a stale answer when it changes. A
+    source replace's plan reads the whole graph's edge pairs for the same reason.

@@ -216,7 +216,13 @@ const MEMBERS: Readonly<
     "data.ignoreIssue()": "writes",
     "data.ignoreIssues()": "writes",
     "data.import()": "writes",
-    "data.issues()": "not the graph",
+    // What is wrong with the data is a fact about the original, which every fix edits (agreed point 2).
+    "data.issues()": {
+        wholeByDefault: async (s) => {
+            await s.data.addEdges([{ source: "a", target: "x" }]);
+            return s.data.issues();
+        },
+    },
     "data.joins()": "not the graph",
     "data.lastImport()": "not the graph",
     "data.listSource()": "not the graph",
@@ -363,7 +369,8 @@ const MEMBERS: Readonly<
     "project.name": "not the graph",
     "project.open()": "writes",
     "project.rename()": "writes",
-    "project.save()": "writes",
+    // The project file holds the whole graph (agreed point 5): what the file's data member writes.
+    "project.save()": { wholeByDefault: async (s) => savedGraph((await s.project.save()).text) },
     "recipe()": "not the graph",
     "recommendLayout()": { view: (s) => s.recommendLayout() },
     "redo()": "writes",
@@ -597,6 +604,25 @@ const MEMBERS: Readonly<
     workingGraph: "not the graph",
 };
 
+/**
+ * The graph a saved project file holds: its `graphty-data` member's nodes and links.
+ * @param text - The file's text.
+ * @returns The graph, or undefined when the file has none.
+ */
+function savedGraph(text: string): unknown {
+    const find = (value: unknown): unknown => {
+        if (Array.isArray(value)) {
+            return value.map(find).find((each) => each !== undefined);
+        }
+        if (value === null || typeof value !== "object") {
+            return undefined;
+        }
+        const record = value as Record<string, unknown>;
+        return record.kind === "graphty-data" ? record.graph : find(Object.values(record));
+    };
+    return find(JSON.parse(text));
+}
+
 /** A run that answers nothing; no probe starts one. */
 function executeNothing(context: RunExecutionContext): Promise<RunOutcome> {
     const result = createRunResult({
@@ -806,10 +832,12 @@ describe("a reader of both answers each over its own graph", () => {
     }
 });
 
-describe("a style reader that is whole by default paints hidden nodes as they are", () => {
+describe("a reader that is whole by default reads hidden nodes as they are", () => {
     // Design section 4, "Styling, Whole by default": a hidden node keeps its style (agreed point 4),
     // so what a layer paints, and the legend's painted count, are the whole graph's. A rule's
     // `within: "visible"` is how a layer reads only what is shown; it is named, not listed.
+    // The project file (agreed point 5) and the data's issues, which fixes edit in the original
+    // (point 2), read the whole graph too.
     for (const [member, kind] of Object.entries(MEMBERS)) {
         if (typeof kind !== "object" || !("wholeByDefault" in kind)) {
             continue;

@@ -22,6 +22,7 @@ import {
     type XrCapability,
 } from "../acceleration";
 import { sessionColumns } from "../algorithms/input/columns";
+import { shareInputs } from "../algorithms/input/ScopedInput";
 import type { CameraState } from "../camera/types";
 import { arrangedDimension } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
@@ -231,6 +232,7 @@ import {
 } from "./visibility";
 import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 import type { SlideCounts } from "./visibility/slide";
+import { createWorkingGraph, type WorkingGraph } from "./working/view";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -417,6 +419,8 @@ interface SessionParts {
     readonly time: TimeApi;
     /** Whether the timeline experiment is on. */
     readonly timelineOn: () => boolean;
+    /** The working graph: the view of what is shown, which readers naming no scope read while on. */
+    readonly working: WorkingGraph;
     /** Stops playback, for `dispose()`. */
     readonly stopTime: () => void;
     /** What the renderer fades edges by age with; see {@link ElementSession.edgeAges}. */
@@ -595,6 +599,8 @@ class Session implements ElementSession {
     private readonly settledFeatures: () => EnabledFeatures;
     /** Whether the timeline experiment is on, for a command that has no `session.time` to ask. */
     private readonly timelineOn: () => boolean;
+    /** See {@link SessionParts.working}. */
+    private readonly working: WorkingGraph;
 
     /**
      * Assemble the session from parts the factory has already decided the ownership of.
@@ -610,6 +616,7 @@ class Session implements ElementSession {
         this.catalog = parts.catalog;
         this.settledFeatures = parts.features;
         this.timelineOn = parts.timelineOn;
+        this.working = parts.working;
         this.controller = parts.controller;
         this.ownedAcceleration = parts.ownedAcceleration;
         this.sessionRuns = parts.runs;
@@ -1091,6 +1098,24 @@ class Session implements ElementSession {
     }
 
     /**
+     * Whether a reader that names no scope reads the working graph -- what the filter and the time
+     * window leave shown -- rather than the whole graph.
+     * @returns True when on; false unless it was asked for.
+     */
+    get workingGraph(): boolean {
+        return this.working.enabled;
+    }
+
+    /**
+     * Switches the working graph on or off; the change applies to the next read. A session
+     * setting: it records no undo step and is not saved in a project file.
+     * @param value - True for the working graph.
+     */
+    set workingGraph(value: boolean) {
+        this.working.enabled = value;
+    }
+
+    /**
      * Attach an accelerator the caller built, or detach the current one with `null`.
      *
      * An injected accelerator is never replaced by a probed one, and the session does not dispose
@@ -1279,6 +1304,7 @@ class Session implements ElementSession {
         this.unwatchController();
         this.unwatchXr();
         this.unfollowStore();
+        shareInputs(this.store, null);
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
         this.sessionRuns.dispose();
@@ -2514,7 +2540,7 @@ function repaintAgainstCurrentData(
 export function createGraphSession(options: CreateGraphSessionOptions = {}): GraphSession {
     // Only the published options, even from a caller the types did not check: a store or a record
     // source handed in would make that caller a second writer of the graph.
-    const { config, acceleration, runs, features } = options;
+    const { config, acceleration, runs, features, workingGraph } = options;
     // Copied now, as documented: a later setDefaultFeatures, or a change to the caller's array,
     // must not reach a session that already exists.
     const requested = Object.freeze([...(features ?? pageDefaultFeatures())]);
@@ -2522,6 +2548,7 @@ export function createGraphSession(options: CreateGraphSessionOptions = {}): Gra
         ...(config === undefined ? {} : { config }),
         ...(acceleration === undefined ? {} : { acceleration }),
         ...(runs === undefined ? {} : { runs }),
+        ...(workingGraph === undefined ? {} : { workingGraph }),
         features: () => requested,
     });
 }
@@ -4155,7 +4182,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, event, detail);
         },
     });
+    const working = createWorkingGraph(
+        { snapshot, masks: visibility.masks, store: store.store },
+        options.workingGraph === true,
+    );
+    shareInputs(store.store, working.shared);
     const session = new Session({
+        working,
         store: store.store,
         ownedStore: store.owned,
         unfollowStore: store.unfollow,
@@ -4205,6 +4238,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);
+    sessionWorking.set(session, working);
     sessionNotifiers.set(session, notifier);
     sessionHostUsers.set(session, hostUsers);
 
@@ -4436,6 +4470,25 @@ export function setsNotifierOfSession(session: GraphSession): SetsNotifier {
 
 /** Each session's input counters, beside it rather than on it so the published type gains nothing. */
 const sessionInputs = new WeakMap<GraphSession, InputCounters>();
+
+/** Each session's working graph, for the internal readers of its view. */
+const sessionWorking = new WeakMap<GraphSession, WorkingGraph>();
+
+/**
+ * A session's working graph: the view of what is shown, which every reader naming no scope reads
+ * while `workingGraph` is on. Internal.
+ * @param session - a session this module built
+ * @returns its working graph
+ * @throws An Error for a session this module did not build.
+ */
+export function workingGraphOfSession(session: GraphSession): WorkingGraph {
+    const working = sessionWorking.get(session);
+    if (working === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return working;
+}
 
 /** Each session's scope resolver, for the internal readers that want its bitmaps. */
 const sessionScopes = new WeakMap<GraphSession, ScopeResolver>();

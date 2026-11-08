@@ -291,7 +291,7 @@ function chained(previous: DerivedInput, next: DerivedGraph): DerivedInput {
  * @param declared - The declared snapshot.
  * @returns The intermediate.
  */
-function intermediateOf(membership: InputMembership, declared: GraphSnapshot): DerivedInput {
+export function intermediateOf(membership: InputMembership, declared: GraphSnapshot): DerivedInput {
     const induced = counted(declared.inducedSubgraph({ mask: membership.nodes }));
     const remap = induced.edgeRemap;
     const keep = makeMask(induced.snapshot.edgeCount);
@@ -347,6 +347,7 @@ function scopedInput(
     }
 
     const base =
+        sharedInputOf(membership, declared) ??
         inputs.get(holder, membership, "declared", "none") ??
         inputs.put(holder, membership, "declared", "none", intermediateOf(membership, declared), declared);
     let current = base;
@@ -359,6 +360,39 @@ function scopedInput(
     }
 
     return current === base ? base : inputs.put(holder, membership, orientation, simplify, current, declared);
+}
+
+/**
+ * Finds a declared intermediate another reader already derived for a membership over a snapshot,
+ * or answers undefined. See {@link shareInputs}.
+ */
+export type SharedInputLookup = (membership: InputMembership, declared: GraphSnapshot) => DerivedInput | undefined;
+
+const sharedInputs = new WeakMap<object, SharedInputLookup>();
+
+/**
+ * Hand runs over one store a declared intermediate derived outside the run cache -- the session's
+ * working graph view (design/working-graph/design.md section 6) -- so a run over the same
+ * membership takes it instead of deriving its own. The lookup confirms the membership itself.
+ * @param store - The store the runs' scopes are resolved against.
+ * @param lookup - The lookup, or null to stop sharing.
+ */
+export function shareInputs(store: object, lookup: SharedInputLookup | null): void {
+    if (lookup === null) {
+        sharedInputs.delete(store);
+    } else {
+        sharedInputs.set(store, lookup);
+    }
+}
+
+/**
+ * The shared intermediate for a membership, when its store shares one that covers it.
+ * @param membership - The scope's bitmaps.
+ * @param declared - The declared snapshot.
+ * @returns The intermediate, or undefined.
+ */
+function sharedInputOf(membership: InputMembership, declared: GraphSnapshot): DerivedInput | undefined {
+    return membership.store === null ? undefined : sharedInputs.get(membership.store)?.(membership, declared);
 }
 
 /** The dtypes whose `data` is one number per component per row, so it can be handed on as is. */

@@ -4109,6 +4109,19 @@ export interface GraphSession {
      */
     acceleration: AccelerationPolicy;
     /**
+     * Whether readers read the working graph: the part of the graph the visibility filter and the
+     * time window leave shown. The graph itself is unchanged -- edits, undo and the project file act
+     * on all of it, and hidden nodes keep their positions, styles and results -- and a reader that
+     * names the whole graph (`scope: "graph"`) still reads all of it.
+     *
+     * Off by default, which keeps every reader on the whole graph. Settable; a session setting that
+     * records no undo step and is not saved in a project file. Set it when creating the session with
+     * `createGraphSession({ workingGraph: true })`, or on the element with the `working-graph`
+     * attribute.
+     * @since 3.36.0
+     */
+    workingGraph: boolean;
+    /**
      * Attach an accelerator the caller built, or detach the current one with `null`.
      *
      * For tests and third parties. An injected accelerator is never replaced by a probed one and
@@ -4351,6 +4364,12 @@ export interface CreateGraphSessionOptions {
      * `setDefaultFeatures`. Unknown ids are listed in `features.unknown`, never thrown.
      */
     readonly features?: readonly string[];
+    /**
+     * Start with the working graph on: readers that name no scope read what the filter and the time
+     * window leave shown. Default false. See `GraphSession.workingGraph`.
+     * @since 3.36.0
+     */
+    readonly workingGraph?: boolean;
 }
 
 /**

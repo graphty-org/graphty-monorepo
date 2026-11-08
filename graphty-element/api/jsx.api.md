@@ -262,6 +262,7 @@ export interface GraphtyElementJSXProps {
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
     "view-mode"?: string;
+    "working-graph"?: boolean;
     "zoom-to-pointer"?: boolean;
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
@@ -317,6 +318,7 @@ export interface GraphtyElementJSXProps {
     startingCameraDistance?: Graphty["startingCameraDistance"];
     viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];
+    workingGraph?: Graphty["workingGraph"];
     xr?: Graphty["xr"];
     zoomToPointer?: Graphty["zoomToPointer"];
 }

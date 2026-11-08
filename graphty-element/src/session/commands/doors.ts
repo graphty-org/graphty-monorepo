@@ -732,6 +732,9 @@ const HISTORY = exempt("Moves through the history or groups commands into a step
 const INPUT = exempt("Input handling and input preferences; the gestures it drives are doors of their own.");
 const IN_FLIGHT = exempt("Stops or pauses work in flight; work in flight is not saved.");
 const VIEW_SETTING = exempt("A rendering preference of this view, not saved in a project file.");
+const WORKING_GRAPH = exempt(
+    "Which part of the graph readers read when they name none; a session setting, not saved in a project file.",
+);
 const HOST_HOOK = exempt("A function the host supplies; a project file cannot save it.");
 const AUTOSAVE_SETTING = exempt("Where and how this browser keeps the work; not part of the work a project saves.");
 const ASSISTANT = exempt(
@@ -865,6 +868,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     capabilities: READ,
     acceleration: MACHINE,
     setAccelerator: MACHINE,
+    workingGraph: WORKING_GRAPH,
     // Its coordinate and pin columns are copies, so a write there moves nothing.
     snapshot: READ,
     fingerprint: READ,
@@ -1583,6 +1587,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isVoiceActive: READ,
             acceleration: MACHINE,
             accelerationMinNodes: MACHINE,
+            workingGraph: WORKING_GRAPH,
             renderer: MACHINE,
             rendererStatus: READ,
             renderPath: MACHINE,

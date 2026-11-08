@@ -6025,6 +6025,36 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the graph's readers read only what is shown: the part of the graph the visibility
+     * filter and the time window leave visible.
+     * @remarks
+     * Off by default: every reader reads the whole graph, as before this option existed. On, a
+     * reader that names no scope reads the working graph instead. The graph itself is not copied or
+     * changed -- edits, undo and the project file act on all of it, hidden nodes keep their
+     * positions, styles and results, and a reader that names the whole graph still reads all of it.
+     * A session setting, the same one as `session.workingGraph`: it records no undo step and is not
+     * saved in a project file.
+     * @returns True when on.
+     * @since 3.36.0
+     * @example HTML attribute
+     * ```html
+     * <graphty-element working-graph></graphty-element>
+     * ```
+     */
+    @property({ attribute: "working-graph", type: Boolean })
+    get workingGraph(): boolean {
+        return this.#graph.getSession().workingGraph;
+    }
+    /**
+     * Switches the working graph on or off.
+     */
+    set workingGraph(value: boolean) {
+        const oldValue = this.workingGraph;
+        this.#graph.getSession().workingGraph = value;
+        this.requestUpdate("workingGraph", oldValue);
+    }
+
+    /**
      * Which renderer draws the graph: `"webgl"` (the default), `"webgpu"`, or `"auto"` for WebGPU
      * where the browser has it.
      *

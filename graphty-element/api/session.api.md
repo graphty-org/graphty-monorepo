@@ -745,6 +745,7 @@ export interface CreateGraphSessionOptions {
     };
     readonly features?: readonly string[];
     readonly runs?: SessionRunsOptions;
+    readonly workingGraph?: boolean;
 }
 
 export { Credential_2 as Credential }
@@ -1534,6 +1535,7 @@ export interface GraphSession {
     undo(): Promise<HistoryOutcome>;
     readonly views: SessionViews;
     readonly visibility: VisibilityApi;
+    workingGraph: boolean;
 }
 
 // @public

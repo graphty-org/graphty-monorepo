@@ -3548,6 +3548,8 @@ export class Graphty extends LitElement {
     waitForStableFrame(options?: {
         timeoutMs?: number;
     }): Promise<void>;
+    get workingGraph(): boolean;
+    set workingGraph(value: boolean);
     worldToScreen(worldPos: {
         x: number;
         y: number;

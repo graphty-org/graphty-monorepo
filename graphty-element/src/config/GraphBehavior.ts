@@ -81,6 +81,19 @@ const LabelBehaviorOpts = z
          * were built.
          */
         sampleCell: z.number().positive().optional(),
+        /*
+         * How node labels draw their words.
+         *
+         * UNSET BY DEFAULT, which is "canvas": every label is drawn on its own canvas, as it always was. "glyphs"
+         * draws every plain label (words in one style, with no panel, pointer, badge, table, close
+         * button, animation or depth fade) from one shared atlas of glyphs in one draw, which keeps
+         * thousands of labels cheap to build and draw; its letters are drawn from a distance field,
+         * so their edges differ slightly from the canvas's. A label the atlas cannot draw --
+         * right-to-left and Indic scripts, emoji, combining marks, a font with ligatures, or a
+         * glyph that no longer fits in the atlas -- is drawn on its own canvas, label by label.
+         * Applies to labels built after it is set.
+         */
+        labelText: z.enum(["canvas", "glyphs"]).optional(),
     })
     .prefault({});
 

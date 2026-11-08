@@ -13,13 +13,15 @@
 /** The atlas texture's side, in texels. */
 export const ATLAS_SIZE = 4096;
 /** The font size each glyph's distance field is drawn at, in pixels. */
-const SDF_FONT_PX = 56;
+export const SDF_FONT_PX = 56;
 /** How far the distance field reaches past a glyph's ink, in texels. */
-const SDF_RADIUS = 12;
+export const SDF_RADIUS = 12;
 /** One tile's side: the font size and the field's reach on both sides. 51 x 51 = 2,601 tiles. */
 export const GLYPH_TILE = SDF_FONT_PX + 2 * SDF_RADIUS;
 /** The distance, as a fraction of the reach, that sits on a glyph's edge (texel value 191). */
 const SDF_CUTOFF = 0.25;
+/** The field's value on a glyph's edge, from 0 to 1: the draw's threshold. */
+export const GLYPH_EDGE = 1 - SDF_CUTOFF;
 
 /** Why a label's words cannot be drawn from the atlas; `RichTextLabel` draws that label. */
 export type GlyphFallback = "right-to-left" | "complex-script" | "emoji" | "combining-mark" | "ligature" | "atlas-full";
@@ -65,7 +67,7 @@ export interface PlacedGlyph {
 /**
  * Where each inked glyph of one line goes. A glyph sits at the width of the text through it less
  * its own width, so kerning between it and the glyph before it is kept. Widths cannot show a
- * ligature (a font keeps a ligature as wide as its parts); `ligatureFont` finds those by their ink.
+ * ligature (a font keeps a ligature as wide as its parts); `fontLigatures` finds those by their ink.
  * @param text - One line of a label, in one style.
  * @param measure - The width of a string in the label's font (Canvas `measureText(...).width`).
  * @returns The inked glyphs, left to right.
@@ -91,19 +93,20 @@ const LIGATURE_PROBES = ["fi", "fl", "ff", "ffi", "ffl", "->", "=>", "!=", "==",
 const LIGATURE_INK_TOLERANCE = 0.005;
 
 /**
- * Whether a font draws a ligature, so its labels go to `RichTextLabel`: each probe is drawn as one
- * run and glyph by glyph where `placeGlyphs` puts them, and any probe whose ink differs is one.
- * ponytail: per font over a fixed probe list, so a ligature outside it is missed; compare each
- * label's own ink the same way if one turns up.
+ * Which pairs a font draws as one ligature, so a label holding one of them goes to
+ * `RichTextLabel`: each probe is drawn as one run and glyph by glyph where `placeGlyphs` puts
+ * them, and a probe whose ink differs is one.
+ * ponytail: over a fixed probe list, so a ligature outside it is missed; compare each label's own
+ * ink the same way if one turns up.
  * @param measure - The width of a string in the font (Canvas `measureText(...).width`).
  * @param raster - The ink (alpha per pixel) of runs drawn in the font, each with `fillText` at its x.
- * @returns True when the font draws at least one probe as a ligature.
+ * @returns The probes the font draws as ligatures; empty for a font with none.
  */
-export function ligatureFont(
+export function fontLigatures(
     measure: (s: string) => number,
     raster: (runs: readonly PlacedGlyph[]) => ArrayLike<number>,
-): boolean {
-    return LIGATURE_PROBES.some((probe) => {
+): string[] {
+    return LIGATURE_PROBES.filter((probe) => {
         const whole = raster([{ glyph: probe, x: 0 }]);
         const parts = raster(placeGlyphs(probe, measure));
         let ink = 0;

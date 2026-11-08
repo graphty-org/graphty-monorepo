@@ -139,6 +139,26 @@ element.layoutBehavior = { labels: { sampleCell: undefined } }; // back to every
 - `labelOf(id)` returns undefined for a node whose label was not built.
 - A preference of the view, like `declutter`: not an undo step, and a saved project does not keep it.
 
+### Drawing many labels in one draw
+
+Set `layoutBehavior.labels.labelText` to `"glyphs"` and the element draws every plain node label
+from one shared atlas of glyphs, all of them in a single draw, instead of drawing each label on a
+canvas of its own. Thousands of labels then cost little more to draw than one.
+
+```typescript
+element.layoutBehavior = { labels: { labelText: "glyphs" } }; // "canvas" by default
+```
+
+- Its letters are drawn from a distance field, so their edges differ slightly from the canvas's.
+  Where each glyph sits, and how lines wrap and align, are the same.
+- A label the atlas cannot draw is drawn on its own canvas as before, label by label: one with a
+  panel, border, pointer, badge, table, close button, shadow, outline, animation, depth fade or
+  `onTop`; words in a right-to-left or Indic script, emoji or combining marks; a pair its font
+  draws as a ligature (such as "fi" in DejaVu Sans); a glyph that no longer fits in the atlas; or a
+  web font that has not loaded yet.
+- `declutter`, `avoidNodesAndEdges` and `sampleCell` work on glyph labels as on any other.
+- It applies to labels built after it is set. A preference of the view, like `declutter`.
+
 ## Label markup
 
 A label's words may carry markup tags, each closed by its own end tag: `<bold>`, `<italic>`,

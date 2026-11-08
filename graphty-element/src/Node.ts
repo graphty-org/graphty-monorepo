@@ -4037,6 +4037,7 @@ export class Node implements ModelUser {
         LabelDeclutter.track(scene, this.context, this);
         // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
+        labelOptions.glyphs = this.context.getStyles().config.behavior.labels.labelText === "glyphs";
         const label = new RichTextLabel(scene, labelOptions);
         // The plane is pickable either way (Babylon's default), so unset it takes a click and
         // answers no node; `pickable` makes `pickNodeId` read this node's id off it.

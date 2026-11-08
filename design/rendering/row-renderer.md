@@ -497,6 +497,22 @@ As built (stage 10): `render/NodeIdTarget.ts`, created and disposed with the `"b
   named it: at 100,000 nodes in the benchmark (radius 0.32 px) no hover ever came. Hover over such a row may therefore name it, or a
   neighbor drawn later, up to 1.5 px from its center, where the scan names nothing.
 
+As built (stage 18, first pull request): `render/EdgeIdTarget.ts`, created and disposed with the node target. The pointer-move
+cursor test, the one edge hover there is, reads it through `hoverEdgeAt`; press, release and `elementAt` still walk every edge
+until the stage's second pull request makes that walk typed. Four things differ from the text above:
+
+- The target draws no edge mesh. Each straight edge is one 1-pixel line from its two nodes' rows in `rowPosition`, so moving
+  nodes moves the lines with no upload, and its id is its place in a list of the visible edges. The list is rebuilt when
+  `edgeDrawChanges` moved: an edge painted, shown or hidden, added or removed, turned between straight and bent, or a node
+  renumbered. An edge the target cannot draw (a curve, a route, a loop, an end drawn as a group) is measured on every hover.
+- The window is `2 * (ceil(6 / scaling) + 1) + 1` pixels a side, 15 x 15 at a scaling of 1, not 13 x 13: a line 6 CSS pixels
+  from the pointer can be rasterized half a pixel further out. The edges it names, with the ones it cannot draw, go to
+  today's exact distance test, in walk order, so ties settle as before.
+- Where two lines cover the same pixels in the window (an edge and its reverse, lines that run on from each other) the target
+  names only the one drawn last, so hover may miss the other. `edge-id-target.test.ts` lists each such point.
+- A move over empty canvas measures only the edges the target cannot draw, and over a line only those near it
+  (`edgePickWork.measured`); on `"objects"` every move still measures every edge.
+
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by
 `raySelectionPredicate`; while hidden proxies exist (stages 8 to 10) the predicate alone serves. `XRInputHandler`'s direct `pickWithRay`

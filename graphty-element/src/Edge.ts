@@ -67,6 +67,7 @@ import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from ".
 import { isPositive } from "./meshes/shapeOutlines";
 import { SUPPORT_DEFAULTS, type SupportEdge } from "./meshes/supportPoints";
 import { Node, NodeIdType, XLABEL_UNSHARED } from "./Node";
+import { edgeDrawChanges } from "./render/EdgeIdTarget";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
 
@@ -1280,6 +1281,7 @@ export class Edge {
         const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
         const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
         const lift = this.liftDrawn();
+        const bentBefore = this.bundled || this.lifted;
         this.lifted = lift !== 0 && this.laysRoute();
         let bent = this.lifted;
         if (this.lifted) {
@@ -1287,6 +1289,10 @@ export class Edge {
             this.placeLifted(this.lineBatch, src, dst, lift);
         } else {
             bent = this.placeLine(src, dst, lnk.bends, lnk.lineEnds);
+        }
+
+        if (bentBefore !== (this.bundled || this.lifted)) {
+            edgeDrawChanges.count++;
         }
 
         // the layout's place (Graphviz's `lp` and `xlp`) is the label's center
@@ -1624,6 +1630,7 @@ export class Edge {
      * @param paint - The paint the style stack resolved.
      */
     private paintMarked(paint: EdgePaint): void {
+        edgeDrawChanges.count++;
         this.paintFrom(paint.meshKey, paint.style);
         this.paintHalo(paint.style);
         this.syncShading(paint.style);
@@ -2891,6 +2898,7 @@ export class Edge {
         }
 
         this.disposed = true;
+        edgeDrawChanges.count++;
 
         this.releaseLine();
         this.releaseHalo();
@@ -3035,6 +3043,7 @@ export class Edge {
             return;
         }
 
+        edgeDrawChanges.count++;
         const drawn = this.isRenderVisible();
         let back = true;
         if (drawn) {

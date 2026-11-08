@@ -857,7 +857,7 @@ export class NodeShaderDrawing {
         this.resolving.add(id);
         void trackOnScene(
             this.scene,
-            "shader",
+            "node-shader",
             "a node shader is still loading",
             Promise.all([controller.drawable(id), this.load(host)]),
         ).then(
@@ -996,7 +996,7 @@ export class NodeShaderDrawing {
         this.waitOn(shader.id, node);
         // Held as pending work: the nodes it draws change their mesh when it is ready, so neither
         // the final framing nor a stable frame is taken before then (issue #6284).
-        void trackOnScene(this.scene, "shader", "a node shader is still compiling", batch.ready).then((ready) => {
+        void trackOnScene(this.scene, "node-shader", "a node shader is still compiling", batch.ready).then((ready) => {
             entry.ready = ready;
             runtime.noteDrawn([shader.hash]);
             const known = this.known.get(shader.id);

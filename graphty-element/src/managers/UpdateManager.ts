@@ -3558,17 +3558,19 @@ export class UpdateManager implements Manager {
     /**
      * Whether paint can still change the box a framing measures: a style pass on its way, paint
      * that has arrived and is not applied to every element yet (`syncStyles` applies it in batches),
-     * or a shader still loading or compiling. A shader drawn in place of its node (`replace`) swaps
+     * or a node shader still loading or compiling. A shader drawn in place of its node (`replace`) swaps
      * the node's mesh for a proxy of another size once it is ready, after its paint was applied;
      * framed before that, the camera fitted the node's unshaded mesh and nothing framed the swap,
-     * so whether the shader compiled first decided the zoom (issue #6284).
+     * so whether the shader compiled first decided the zoom (issue #6284). Only node shaders count
+     * (kind `node-shader`): a material's shader variant arriving draws a mesh that was skipped but
+     * never changes its size, so it holds the final picture, not the framing.
      * @returns True while some element is still to be drawn with paint it does not have yet.
      */
     private paintIsOutstanding(): boolean {
         return (
             this.graphContext.getStylePainter?.()?.hasPending === true ||
             this.styleIsPainting() ||
-            this.pending.isPending("shader")
+            this.pending.isPending("node-shader")
         );
     }
 

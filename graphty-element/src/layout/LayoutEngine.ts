@@ -2213,23 +2213,32 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
                 : toPositionColumn(this.result, this.scalingFactor, null);
         this.#laidOut = loaded?.element ?? null;
 
-        // A held row is dropped from the answer rather than skipped at publish time, so that a
-        // later publish of the same answer cannot move it either: NaN is never written.
+        this.#dropKept(loaded);
+        this.publishComputed();
+    }
+
+    /**
+     * Take the rows an add keeps out of the answer. A held row is dropped from the answer rather
+     * than skipped at publish time, so that a later publish of the same answer cannot move it
+     * either: NaN is never written.
+     * @param loaded - the graph the answer arranges, or null
+     */
+    #dropKept(loaded: LoadedGraph | null): void {
         const keep = loaded === null ? null : this.#keptRows(loaded);
         this.#keep = null;
-        if (keep !== null && loaded?.positions) {
+        if (keep === null) {
+            return;
+        }
+
+        if (loaded?.positions) {
             alignToHeld(this.#column, loaded.positions, keep);
         }
 
-        if (keep !== null) {
-            for (let row = 0; row < this.#column.length / 3; row++) {
-                if (maskTest(keep, row)) {
-                    this.#column.fill(Number.NaN, 3 * row, 3 * row + 3);
-                }
+        for (let row = 0; row < this.#column.length / 3; row++) {
+            if (maskTest(keep, row)) {
+                this.#column.fill(Number.NaN, 3 * row, 3 * row + 3);
             }
         }
-
-        this.publishComputed();
     }
 
     /**

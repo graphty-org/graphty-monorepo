@@ -204,6 +204,21 @@ describe("the view", () => {
         assert.strictEqual(scopedInputCounters.derivations, 2, "the induce, then the edge filter");
         harness.session.dispose();
     });
+
+    it("maps its rows when a filter hides only edges, so readers read the view, not nothing", async () => {
+        const harness = harnessOf();
+        await harness.session.visibility.set({ kind: "threshold", path: "data.strength", above: 2 });
+        assert.strictEqual(harness.session.visibility.summary.visibleNodes, 5, "every node is still shown");
+        const view = workingGraphOfSession(harness.session).view();
+
+        assert.isFalse(view.whole);
+        assert.deepStrictEqual([...(view.nodeOrigin ?? [])], [0, 1, 2, 3, 4], "each row is its own");
+        assert.deepStrictEqual([...(view.nodeRows ?? [])], [0, 1, 2, 3, 4]);
+        // b's edge to c is hidden, so b has one edge in the view and two in the graph.
+        assert.strictEqual(harness.session.data.structureValue("b", "graphty.degree"), 1);
+        assert.strictEqual(harness.session.data.structureValue("b", "graphty.degree", { scope: "graph" }), 2);
+        harness.session.dispose();
+    });
 });
 
 describe("a run over what is shown", () => {

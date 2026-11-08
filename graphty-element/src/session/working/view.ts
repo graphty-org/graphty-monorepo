@@ -46,7 +46,7 @@ export interface WorkingView {
     readonly nodeCount: number;
     /** How many edges are shown. */
     readonly edgeCount: number;
-    /** View node row -> `graph` node row; null when whole. */
+    /** View node row -> `graph` node row (every row, even when only edges are hidden); null when whole. */
     readonly nodeOrigin: U32 | null;
     /** `graph` node row -> view node row, INVALID_INDEX for a hidden node; null when whole. */
     readonly nodeRows: U32 | null;
@@ -91,6 +91,15 @@ interface State {
     readonly nodeCount: number;
     readonly edgeCount: number;
     view: (WorkingView & { readonly input: DerivedInput }) | null;
+}
+
+/**
+ * A row map that keeps every row where it is.
+ * @param length - The row count.
+ * @returns Row -> the same row.
+ */
+function identityRows(length: number): U32 {
+    return Uint32Array.from({ length }, (_value, row) => row);
 }
 
 /**
@@ -227,7 +236,10 @@ export function createWorkingGraph(sources: WorkingGraphSources, enabled = false
         workingViewCounters.builds++;
         const membership: InputMembership = { nodes: at.nodes, edges: at.edges, serial: 0, store: sources.store };
         const input = intermediateOf(membership, at.graph);
-        const { snapshot, nodeOrigin, edgeRemap } = input;
+        const { snapshot, edgeRemap } = input;
+        // A filter that hides only edges keeps every node's row, which the derivation spells as no
+        // map; the view spells it out, so a reader never takes "no map" for "nothing shown".
+        const nodeOrigin = input.nodeOrigin ?? identityRows(at.graph.nodeCount);
         at.view = {
             graph: at.graph,
             snapshot,
@@ -237,9 +249,9 @@ export function createWorkingGraph(sources: WorkingGraphSources, enabled = false
             nodeCount: at.nodeCount,
             edgeCount: at.edgeCount,
             nodeOrigin,
-            nodeRows: nodeOrigin === null ? null : inverseOf(nodeOrigin, at.graph.nodeCount),
-            edgeOrigin: edgeRemap === null ? null : originOf(edgeRemap, snapshot.edgeCount),
-            edgeRows: edgeRemap,
+            nodeRows: inverseOf(nodeOrigin, at.graph.nodeCount),
+            edgeOrigin: edgeRemap === null ? identityRows(snapshot.edgeCount) : originOf(edgeRemap, snapshot.edgeCount),
+            edgeRows: edgeRemap ?? identityRows(at.graph.edgeCount),
             input,
         };
 

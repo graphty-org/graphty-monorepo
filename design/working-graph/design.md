@@ -171,8 +171,9 @@ Each applies only with the option on; with it off, today's behavior holds.
   layout: nodes that left are removed, nodes that came back enter at their last positions, a
   simulation restarts, a one-pass layout runs again. A data edit does not re-lay out the graph: an
   added node is placed as today.
-- **Named layout scopes.** `"graph"` lays out the whole graph even with the option on (it names
-  the whole graph); every other named scope is intersected with the view.
+- **Named layout scopes.** Every layout runs over the view (agreed point 7): `"graph"` means no
+  narrowing beyond it, as naming no scope does, and every other named scope is intersected with
+  the view.
 
 ## 8. Time window (agreed point 8)
 
@@ -202,8 +203,8 @@ off and before any filter (decision 77).
 - **`graphty-element/working-graph-whole-readers.json`** lists the readers that read the whole graph
   with no scope named, each naming its agreed case (section 4's Whole rows), or the case
   `"not agreed"` for one the owner has not seen (`data.issues()`, decision 74); every whole reader
-  the test probes is listed, so none escapes the ratchet. `within` defaults and
-  the `"graph"` layout scope are named, not listed. The test fails on a stale row.
+  the test probes is listed, so none escapes the ratchet. `within` defaults are
+  named, not listed. The test fails on a stale row.
   **`tools/check-working-graph.mjs`** (in `check:quick` and CI's Checks job) fails when the list
   gains a row against the merge base or a row is malformed. The list only shrinks.
 
@@ -249,8 +250,8 @@ off and before any filter (decision 77).
    changes animate.
 9. **Framing after a filter re-layout** is today's auto-framing.
 10. **Simulations drop hidden nodes**, not hold them inert.
-11. **Layout scope `"graph"` lays out the whole graph** with the option on, so a saved `"graph"`
-    scope moves hidden nodes; the app names none.
+11. **Layout scope `"graph"` lays out the view** with the option on, as naming no scope does: a
+    layout never moves a hidden node (agreed point 7).
 12. **Context nodes (`showContext`) are not in the view**, so with the option on they are not
     drawn (decision 7).
 13. **The pause rule** (section 8); playback steps rebuild as they land.
@@ -317,8 +318,8 @@ off and before any filter (decision 77).
 60. **An API select of a node hidden by a filter drops it**; one hidden only by the window stays.
 61. **Opening a draft pauses a running simulation**, so nothing moves while editing; cancel
     resumes it, commit re-lays out.
-62. **The whole-readers list names `within` defaults and the `"graph"` layout scope without
-    listing them**, so its only-shrinks rule does not cover them.
+62. **The whole-readers list names `within` defaults without listing them**, so its only-shrinks
+    rule does not cover them.
 63. **Snapshot layouts get `stored`, `fixed` and `scope` in view rows**: a pinned or fixed hidden
     node drops out of the layout input.
 64. **`catalog.optionsFor` is computed over the view.**

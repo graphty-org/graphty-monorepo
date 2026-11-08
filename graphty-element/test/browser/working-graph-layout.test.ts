@@ -237,6 +237,50 @@ describe("a one-pass layout over the working graph", () => {
         const spread = Math.max(...xs) - Math.min(...xs);
         assert.isAbove(spread, 0, "every shown node got a slot of its own");
     });
+
+    it("hands a snapshot layout only the shown edges when a filter hides edges and no node", async () => {
+        const seen: { nodes: number; edges: number }[] = [];
+        registerSnapshotLayout({
+            descriptor: {
+                id: "test-working-edges",
+                plainName: "Working edges",
+                technicalName: "Working edges",
+                description: "Records what it is handed and puts each node on a line by row.",
+                family: "geometric",
+                kind: "batch",
+                maxDimensions: 2,
+                sizeRating: "any",
+                structuralInputs: [],
+                engine: "test-working-edges",
+                options: [],
+            },
+            compute: (input: SnapshotLayoutInput) => {
+                seen.push({ nodes: input.graph.nodeCount, edges: input.graph.edgeCount });
+                const out = new Float32Array(input.dimensions * input.graph.nodeCount);
+                for (let row = 0; row < input.graph.nodeCount; row++) {
+                    out[input.dimensions * row] = 10 * row;
+                }
+                return out;
+            },
+        });
+        const { graph: weighted, container: box } = await emptyGraph(true);
+        try {
+            await weighted.addNodes(FIVE.map((id) => ({ id })));
+            // The path's middle edge is weak; the filter hides it and keeps every node.
+            await weighted.addEdges(
+                FIVE.slice(1).map((id, index) => ({ src: FIVE[index], dst: id, w: index === 1 ? 1 : 5 })),
+            );
+            await operationQueueOf(weighted).waitForCompletion();
+            await weighted.getSession().visibility.set({ kind: "threshold", path: "data.w", above: 2 });
+            await weighted.setLayout("test-working-edges");
+            await weighted.waitForSettled();
+            assert.strictEqual(weighted.getSession().visibility.summary.visibleNodes, 5, "every node is shown");
+            assert.deepEqual(seen.at(-1), { nodes: 5, edges: 3 }, "five nodes and the three edges shown");
+        } finally {
+            weighted.dispose();
+            box.remove();
+        }
+    });
 });
 
 describe("the working graph option off", () => {

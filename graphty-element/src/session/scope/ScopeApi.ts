@@ -1107,11 +1107,10 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         assertRule: (tree) => {
             parseScope({ define: { kind: "rule", where: tree, reading: "clipped" } });
         },
-        // What is shown is part of a whole-graph reading (`total.shown`), so a filter change is heard
-        // too; a reading over what is shown already hears it, and a window step re-reads no other.
+        // What is shown is part of every reading (`total.shown`), so a filter change is heard too.
         signature: (leaf) => {
             const own = scopeSignature({ define: { kind: "rule", where: leaf, reading: "clipped" } }, context());
-            return own === null || visibility === undefined || leaf.within !== "graph"
+            return own === null || visibility === undefined
                 ? own
                 : `${own}\n${String(visibility.nodes().version)}:${String(visibility.edges().version)}`;
         },

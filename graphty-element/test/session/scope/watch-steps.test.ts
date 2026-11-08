@@ -155,6 +155,22 @@ describe("watchSteps", () => {
         session.dispose();
     });
 
+    it("counts what a filter condition leaves shown, for a whole-graph reading beside it", async () => {
+        const session = await lesMis();
+        await session.visibility.addCondition({ effect: "keep", rule: { kind: "degree", min: 6 } });
+        const shownIds = new Set([...session.visibility.nodes].map(String));
+        assert.isBelow(shownIds.size, IDS.length, "the condition hides some nodes");
+        const staff = IDS.filter((_, at) => ROLE(at) === "staff");
+        const watch = session.scope.watchSteps(STAFF, () => undefined, { side: "nodes", within: "graph" });
+        assert.deepStrictEqual(watch.current.total, {
+            count: staff.length,
+            of: IDS.length,
+            shown: staff.filter((id) => shownIds.has(id)).length,
+        });
+        watch.end();
+        session.dispose();
+    });
+
     it("reads every branch and step: counts, ids, colors, the base and the order icon", async () => {
         const session = await lesMis();
         const rule: UnionLeaf = {

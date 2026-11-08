@@ -2567,7 +2567,7 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles";
 
 // @public
 export interface FindAtLeastRow {
@@ -5227,6 +5227,8 @@ class Node_2 implements ModelUser {
     // @internal
     get walksEachFrame(): boolean;
     // @internal
+    get wholeScale(): number;
+    // @internal
     get wordedLabel(): RichTextLabel | null;
     xlabelLabel?: RichTextLabel;
 }
@@ -5377,29 +5379,6 @@ export const NodeShapes: z.ZodEnum<{
     cross: "cross";
     star: "star";
     sphere: "sphere";
-    ellipse: "ellipse";
-    rectangle: "rectangle";
-    triangle: "triangle";
-    pentagon: "pentagon";
-    hexagon: "hexagon";
-    octagon: "octagon";
-    parallelogram: "parallelogram";
-    trapezoid: "trapezoid";
-    house: "house";
-    man: "man";
-    woman: "woman";
-    "round-triangle": "round-triangle";
-    "round-diamond": "round-diamond";
-    "round-pentagon": "round-pentagon";
-    "round-hexagon": "round-hexagon";
-    "round-octagon": "round-octagon";
-    polygon: "polygon";
-    "round-polygon": "round-polygon";
-    "round-rectangle": "round-rectangle";
-    "top-round-rectangle": "top-round-rectangle";
-    "bottom-round-rectangle": "bottom-round-rectangle";
-    barrel: "barrel";
-    database: "database";
     cylinder: "cylinder";
     cone: "cone";
     capsule: "capsule";
@@ -5423,6 +5402,29 @@ export const NodeShapes: z.ZodEnum<{
     goldberg: "goldberg";
     icosphere: "icosphere";
     geodesic: "geodesic";
+    rectangle: "rectangle";
+    "round-rectangle": "round-rectangle";
+    "top-round-rectangle": "top-round-rectangle";
+    "bottom-round-rectangle": "bottom-round-rectangle";
+    ellipse: "ellipse";
+    triangle: "triangle";
+    pentagon: "pentagon";
+    hexagon: "hexagon";
+    octagon: "octagon";
+    parallelogram: "parallelogram";
+    trapezoid: "trapezoid";
+    polygon: "polygon";
+    house: "house";
+    man: "man";
+    woman: "woman";
+    "round-triangle": "round-triangle";
+    "round-diamond": "round-diamond";
+    "round-pentagon": "round-pentagon";
+    "round-hexagon": "round-hexagon";
+    "round-octagon": "round-octagon";
+    "round-polygon": "round-polygon";
+    barrel: "barrel";
+    database: "database";
 }>;
 
 // @public
@@ -5440,12 +5442,12 @@ export const NodeStyle: z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             scale: "scale";
-            diameter: "diameter";
             uniform: "uniform";
+            diameter: "diameter";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
-            low: "low";
             full: "full";
+            low: "low";
         }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
@@ -5455,29 +5457,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
-            rectangle: "rectangle";
-            triangle: "triangle";
-            pentagon: "pentagon";
-            hexagon: "hexagon";
-            octagon: "octagon";
-            parallelogram: "parallelogram";
-            trapezoid: "trapezoid";
-            house: "house";
-            man: "man";
-            woman: "woman";
-            "round-triangle": "round-triangle";
-            "round-diamond": "round-diamond";
-            "round-pentagon": "round-pentagon";
-            "round-hexagon": "round-hexagon";
-            "round-octagon": "round-octagon";
-            polygon: "polygon";
-            "round-polygon": "round-polygon";
-            "round-rectangle": "round-rectangle";
-            "top-round-rectangle": "top-round-rectangle";
-            "bottom-round-rectangle": "bottom-round-rectangle";
-            barrel: "barrel";
-            database: "database";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5501,6 +5480,29 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         width: z.ZodOptional<z.ZodNumber>;
         height: z.ZodOptional<z.ZodNumber>;
@@ -5545,8 +5547,8 @@ export const NodeStyle: z.ZodObject<{
         modelTurn: z.ZodOptional<z.ZodNumber>;
         modelTint: z.ZodOptional<z.ZodUnion<readonly [z.ZodBoolean, z.ZodLiteral<"replace">]>>;
         modelFit: z.ZodOptional<z.ZodEnum<{
-            stretch: "stretch";
             contain: "contain";
+            stretch: "stretch";
         }>>;
         modelCenter: z.ZodOptional<z.ZodEnum<{
             bounds: "bounds";
@@ -5659,29 +5661,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
-            rectangle: "rectangle";
-            triangle: "triangle";
-            pentagon: "pentagon";
-            hexagon: "hexagon";
-            octagon: "octagon";
-            parallelogram: "parallelogram";
-            trapezoid: "trapezoid";
-            house: "house";
-            man: "man";
-            woman: "woman";
-            "round-triangle": "round-triangle";
-            "round-diamond": "round-diamond";
-            "round-pentagon": "round-pentagon";
-            "round-hexagon": "round-hexagon";
-            "round-octagon": "round-octagon";
-            polygon: "polygon";
-            "round-polygon": "round-polygon";
-            "round-rectangle": "round-rectangle";
-            "top-round-rectangle": "top-round-rectangle";
-            "bottom-round-rectangle": "bottom-round-rectangle";
-            barrel: "barrel";
-            database: "database";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5705,6 +5684,29 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
@@ -5720,29 +5722,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
-            rectangle: "rectangle";
-            triangle: "triangle";
-            pentagon: "pentagon";
-            hexagon: "hexagon";
-            octagon: "octagon";
-            parallelogram: "parallelogram";
-            trapezoid: "trapezoid";
-            house: "house";
-            man: "man";
-            woman: "woman";
-            "round-triangle": "round-triangle";
-            "round-diamond": "round-diamond";
-            "round-pentagon": "round-pentagon";
-            "round-hexagon": "round-hexagon";
-            "round-octagon": "round-octagon";
-            polygon: "polygon";
-            "round-polygon": "round-polygon";
-            "round-rectangle": "round-rectangle";
-            "top-round-rectangle": "top-round-rectangle";
-            "bottom-round-rectangle": "bottom-round-rectangle";
-            barrel: "barrel";
-            database: "database";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5766,6 +5745,29 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
@@ -5860,9 +5862,9 @@ export const NodeStyle: z.ZodObject<{
         paddingRatio: z.ZodOptional<z.ZodNumber>;
         paddingOf: z.ZodOptional<z.ZodEnum<{
             width: "width";
-            height: "height";
             min: "min";
             max: "max";
+            height: "height";
             average: "average";
         }>>;
         minWidth: z.ZodOptional<z.ZodNumber>;

@@ -792,7 +792,7 @@ describe("fillDefaults", () => {
 });
 
 describe("batchableOf", () => {
-    const plain = { scaled: false, flatOutline: false };
+    const plain = { flatOutline: false };
     const style = (over: object): NodeStyleConfig =>
         defaultsDeep({}, over, NodeStyle.parse(defaultNodeStyle)) as NodeStyleConfig;
 
@@ -809,10 +809,16 @@ describe("batchableOf", () => {
             { texture: { color: { colorType: "solid", value: "#f00", opacity: 0.5 } } },
             true,
         ],
-        ["a gradient", { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } }, false],
-        ["an image", { texture: { image: "a.png" } }, false],
+        [
+            "a gradient, in its source's material",
+            { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } },
+            true,
+        ],
+        ["a radial gradient", { texture: { color: { colorType: "radial-gradient", colors: ["#f00", "#00f"] } } }, true],
+        ["a picture, in its source's material", { texture: { image: "a.png" } }, true],
         ["an icon", { texture: { icon: "star" } }, false],
         ["a glow", { effect: { glow: { color: "#ff0000", strength: 1 } } }, false],
+        ["a z order, baked into the source's vertices", { shape: { zIndex: -3, drawOrder: 20 } }, true],
         ["a shape option no batch draws", { shape: { width: 2 } }, false],
         ["a label, which hangs from the row's anchor", { label: { enabled: true } }, true],
         ["a tooltip", { tooltip: { enabled: true } }, true],
@@ -821,10 +827,7 @@ describe("batchableOf", () => {
         assert.equal(batchableOf({ style: style(over) }, plain), batchable);
     });
 
-    it.each([
-        ["a size that follows the view", { scaled: true, flatOutline: false }],
-        ["a flat outline", { scaled: false, flatOutline: true }],
-    ])("%s keeps every row an object", (_name, view) => {
-        assert.isFalse(batchableOf({ style: style({}) }, view));
+    it("a flat outline keeps every row an object", () => {
+        assert.isFalse(batchableOf({ style: style({}) }, { flatOutline: true }));
     });
 });

@@ -457,6 +457,8 @@ export class Node implements ModelUser {
     #anchor!: TransformNode;
     /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
     #meshHeld = false;
+    /** The view's scale on this node (`depthIndependentSize`, a map's `nodeScale: "screen"`), a shrink left out. */
+    #wholeScale = 1;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
 
@@ -1672,7 +1674,21 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnInstanceColor(): Rgba | null {
-        return this.drawnColor;
+        return this.instanceColorOf(this.drawnColor);
+    }
+
+    /**
+     * The color an instance draws for a painted color: a picture replaces the shape's color, and
+     * `node.modelTint` multiplies the node's color in.
+     * @param color - The painted color, or null.
+     * @returns The instance's color, or null.
+     */
+    private instanceColorOf(color: Rgba | null): Rgba | null {
+        if (color === null || this.drawnImage === null || modelTinted(this.drawnStyle?.shape)) {
+            return color;
+        }
+
+        return { ...color, r: 255, g: 255, b: 255 };
     }
 
     /**
@@ -1690,7 +1706,6 @@ export class Node implements ModelUser {
             (this.#mesh === null || this.#mesh instanceof InstancedMesh) &&
             !this.drawnAsGroup &&
             this.drawnModel === null &&
-            this.drawnImage === null &&
             this.shaderPath === null &&
             batchableOf({ style }, view)
         );
@@ -1704,7 +1719,14 @@ export class Node implements ModelUser {
      */
     get batchLook(): string {
         const style = this.drawnStyle;
-        return JSON.stringify([style?.shape?.type, style?.shape?.detail, style?.texture, style?.effect]);
+        // Whether the picture is drawn too: while it loads, or when it failed, the row draws the plain shape's material.
+        return JSON.stringify([
+            style?.shape?.type,
+            style?.shape?.detail,
+            style?.texture,
+            style?.effect,
+            this.drawnImage !== null,
+        ]);
     }
 
     /**
@@ -1826,8 +1848,17 @@ export class Node implements ModelUser {
      * @internal
      */
     set drawnScale(scale: number) {
-        this.#anchor.scaling.setAll(scale);
-        this.measureRow();
+        this.drawScaled(scale, scale);
+    }
+
+    /**
+     * The scale a batch draws this row at against its source, before a shrink, which the row
+     * table's w carries: what the view scales the node by.
+     * @returns The scale.
+     * @internal
+     */
+    get wholeScale(): number {
+        return this.#wholeScale;
     }
 
     /**
@@ -1838,7 +1869,21 @@ export class Node implements ModelUser {
      */
     drawShrunk(scale: number, whole: number): void {
         this.rowTable?.shrink(this.row, whole === 0 ? 1 : scale / whole);
-        this.drawnScale = scale;
+        this.drawScaled(scale, whole);
+    }
+
+    /**
+     * Scale the node's anchor, and a batched row's matrix with it.
+     * @param scale - The scale it is drawn at.
+     * @param whole - Its scale when it is not shrunk.
+     */
+    private drawScaled(scale: number, whole: number): void {
+        this.#anchor.scaling.setAll(scale);
+        this.measureRow();
+        if (this.#wholeScale !== whole) {
+            this.#wholeScale = whole;
+            this.context.getNodeBatches?.()?.rescale(this);
+        }
     }
 
     /**
@@ -2071,11 +2116,7 @@ export class Node implements ModelUser {
             return;
         }
 
-        if (this.drawnImage !== null && !modelTinted(this.drawnStyle?.shape)) {
-            // A picture replaces the shape's color; `node.modelTint` multiplies the node's color in.
-            color = color === null ? null : { ...color, r: 255, g: 255, b: 255 };
-        }
-
+        color = this.instanceColorOf(color);
         if (color === null || !(this.#mesh instanceof InstancedMesh)) {
             return;
         }
@@ -3130,8 +3171,15 @@ export class Node implements ModelUser {
         // painted over the whole node instead of around it. The halo's OWN look: a layer's
         // halo is drawn even while the selection's own halo is hidden at opacity 0.
         if (!wanted || (kind === "halo" && look.opacity === 0)) {
+            // Only a drawn overlay makes the node walk each frame (`walksEachFrame`), so hiding one
+            // that is not drawn changes nothing the batch needs to hear: a time window that hides
+            // 40,000 plain nodes asked it 80,000 times (issue #6025).
+            const drawn = existing?.isEnabled() === true;
             this.hideOverlay(kind, existing);
-            this.context.getNodeBatches?.()?.rewalk(this);
+            if (drawn) {
+                this.context.getNodeBatches?.()?.rewalk(this);
+            }
+
             return;
         }
 
@@ -3972,7 +4020,11 @@ export class Node implements ModelUser {
      * been hovered is a texture per node, which is the cost the hover-only rule exists to avoid.
      */
     hideTooltip(): void {
-        this.tooltip?.dispose();
+        if (this.tooltip === undefined) {
+            return;
+        }
+
+        this.tooltip.dispose();
         this.tooltip = undefined;
         this.context.getNodeBatches?.()?.rewalk(this);
     }
@@ -4021,6 +4073,7 @@ export class Node implements ModelUser {
         LabelDeclutter.track(scene, this.context, this);
         // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
+        labelOptions.glyphs = this.context.getStyles().config.behavior.labels.labelText === "glyphs";
         const label = new RichTextLabel(scene, labelOptions);
         // The plane is pickable either way (Babylon's default), so unset it takes a click and
         // answers no node; `pickable` makes `pickNodeId` read this node's id off it.

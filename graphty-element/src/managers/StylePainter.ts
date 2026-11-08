@@ -65,14 +65,15 @@ export interface EdgePaint {
 
 /** The scene state a node batch depends on that a paint does not hold. */
 export interface BatchView {
-    /** A node's size follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`). */
-    readonly scaled: boolean;
     /** 3D `flat` lighting: an outline renderer draws round every node, which has no batch path. */
     readonly flatOutline: boolean;
 }
 
-/** The shape options a batch draws: everything else about a shape waits for a wider batch. */
-const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail"]);
+/**
+ * The shape options a batch draws: everything else about a shape waits for a wider batch. A z order
+ * (`zIndex`, `drawOrder`) is baked into the source's vertices in 2D, which the batch's geometry copy keeps.
+ */
+const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail", "zIndex", "drawOrder"]);
 /** The effects a batch draws: both are in the geometry or the material. */
 const BATCHABLE_EFFECT_KEYS: ReadonlySet<string> = new Set(["wireframe", "flatShaded", "unlit"]);
 /** The style keys a plain row may set. Anything new stays an object row until a batch can draw it. */
@@ -94,7 +95,8 @@ const BATCHABLE_STYLE_KEYS: ReadonlySet<string> = new Set([
  */
 export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): boolean {
     const { style } = paint;
-    if (view.scaled || view.flatOutline) {
+    // A size that follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`) is in the row's matrix.
+    if (view.flatOutline) {
         return false;
     }
 
@@ -102,16 +104,15 @@ export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): b
         Object.entries(bag ?? {})
             .filter(([, value]) => value !== undefined)
             .map(([key]) => key);
-    const color = style.texture?.color;
+    // Any color, opacity or picture is in the source's material (its mesh key carries it), so each is
+    // a look of its own and its batch shares that material: a gradient is a texture there and its row
+    // paints no instance color, a picture replaces the color.
+    // A label or tooltip hangs from the row's geometry-free anchor (`Node.labelTarget`), so it keeps the row batched.
     return (
         set(style).every((key) => BATCHABLE_STYLE_KEYS.has(key)) &&
         set(style.shape).every((key) => BATCHABLE_SHAPE_KEYS.has(key)) &&
         set(style.effect).every((key) => BATCHABLE_EFFECT_KEYS.has(key)) &&
-        set(style.texture).every((key) => key === "color") &&
-        // A plain color, or a solid one at any opacity: an opacity is in the source's material (its
-        // mesh key carries it), so each opacity is a look of its own and its batch shares that material.
-        // A label or tooltip hangs from the row's geometry-free anchor (`Node.labelTarget`), so it keeps the row batched.
-        (typeof color !== "object" || color.colorType === "solid")
+        set(style.texture).every((key) => key === "color" || key === "image")
     );
 }
 

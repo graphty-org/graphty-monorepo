@@ -16,6 +16,9 @@ import { assert, describe, it, vi } from "vitest";
 import { createGraphSession, type GraphSession, type NodeId } from "../../session";
 import { NGRAPH_SETTLED_SPACING } from "../../src/constants/layoutConstants";
 import { dispatcherOf } from "../../src/session/GraphSession";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** A Cytoscape.js document: nodes 40 across with a border 2 wide and labels 20 high, edges 2 wide, nodes 400 apart. */
 const DOC = JSON.stringify({

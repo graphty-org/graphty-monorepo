@@ -460,6 +460,7 @@ export const READ_ONLY: readonly string[] = [
     "CatalogApi.algorithms",
     "CatalogApi.applicable",
     "CatalogApi.cameras",
+    "CatalogApi.channels",
     "CatalogApi.datasets",
     "CatalogApi.formats",
     "CatalogApi.functions",

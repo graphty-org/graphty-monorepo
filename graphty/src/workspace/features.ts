@@ -40,4 +40,3 @@ export function fileStylesOn(session: GraphSession | null | undefined): boolean 
     const features = new Set<string>(session?.features.enabled ?? []);
     return features.has("file-styles");
 }
-

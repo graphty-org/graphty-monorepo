@@ -391,7 +391,8 @@ describe("talking to the Assistant", () => {
         const steps = await screen.findByRole("button", { name: "1 step" });
         assert.strictEqual(steps.getAttribute("aria-expanded"), "false");
         await userEvent.click(steps);
-        await screen.findByText("Read the graph summary");
+        // The graph is empty: the summary read says so.
+        await screen.findByText("Read the graph summary: 0 nodes");
         await screen.findByText(/^\d+ ms$/);
         const log = screen.getByRole("region", { name: "Chat" });
         assert.notInclude(log.textContent, "overview");
@@ -551,7 +552,7 @@ describe("talking to the Assistant", () => {
             assert.isTrue(model.held);
         });
         await waitFor(() => {
-            assert.lengthOf(within(turn).getAllByText("Read the graph summary"), 2);
+            assert.lengthOf(within(turn).getAllByText(/^Read the graph summary/), 2);
         });
         assert.strictEqual(steps.getAttribute("aria-label"), "2 steps");
         assert.strictEqual(document.activeElement, steps);
@@ -564,7 +565,7 @@ describe("talking to the Assistant", () => {
         const ended = within(turn).getByRole("button", { name: "2 steps" });
         assert.lengthOf(screen.getAllByRole("button", { name: "2 steps" }), 2);
         assert.strictEqual(ended.getAttribute("aria-expanded"), "true");
-        assert.lengthOf(within(turn).getAllByText("Read the graph summary"), 2);
+        assert.lengthOf(within(turn).getAllByText(/^Read the graph summary/), 2);
         await waitFor(() => {
             assert.strictEqual(document.activeElement, ended);
         });

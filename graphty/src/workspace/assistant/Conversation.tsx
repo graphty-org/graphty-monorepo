@@ -158,7 +158,7 @@ function StepRow({ step }: Readonly<{ step: Step }>): React.JSX.Element {
     return (
         <li>
             <UnstyledButton
-                className="ws-assistant-step"
+                className="ws-assistant-step cm-focus-inside"
                 aria-expanded={open}
                 onClick={() => {
                     setOpen(!open);
@@ -373,7 +373,7 @@ function stepsOf(session: GraphSession | null, turn: Turn, status: AiStatus | nu
             name: stepLine(session, { ...call, tool: call.command }),
             detail: stepDetail(session, { ...call, tool: call.command }),
             ...(call.durationMs === undefined ? {} : { ms: call.durationMs }),
-            ...(index === reply.calls.length - 1 ? { results: (reply.effects ?? []).filter(isNamedResult) } : {}),
+            ...(index === reply.calls.length - 1 ? { results: (reply.effects ?? []).filter(isResult) } : {}),
         })),
     );
 }
@@ -462,15 +462,6 @@ const changesGraph = (effect: AiEffect): boolean =>
     effect.code !== "AI_EFFECT_SELECTION" &&
     !(effect.code === "AI_EFFECT_RUN" && Number(effect.params.painted ?? 0) === 0);
 
-/**
- * Whether a result has chips to show: it found nothing, or named some elements. A read of the whole
- * graph (its summary) names them all, and its counts are in its step's line.
- * @param effect - the effect.
- * @returns true for a result row.
- */
-const isNamedResult = (effect: AiEffect): boolean =>
-    isResult(effect) && !(effect.target !== undefined && "scope" in effect.target);
-
 /** Props for TurnEffects. */
 interface TurnEffectsProps {
     readonly turn: Turn;
@@ -493,8 +484,7 @@ interface TurnEffectsProps {
  */
 function TurnEffects({ turn, effects, onMore, actions }: Readonly<TurnEffectsProps>): React.JSX.Element {
     const changes = effects.filter(isChange);
-    const results = effects.filter(isNamedResult);
-    const found = results.findLast((effect) => effect.code === "AI_EFFECT_FOUND") ?? results.at(-1);
+    const found = effects.findLast((effect) => effect.code === "AI_EFFECT_FOUND") ?? effects.findLast(isResult);
     const result = changes.some(changesGraph) ? undefined : found;
     const resultShown = result !== undefined && (result.code === "AI_EFFECT_EMPTY" || result.target !== undefined);
     const changesShown = changes.length > 0;

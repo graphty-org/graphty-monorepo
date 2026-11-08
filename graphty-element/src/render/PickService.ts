@@ -39,8 +39,11 @@ import { ID_NONE, ID_OBJECT, type NodeIdTarget } from "./NodeIdTarget";
  */
 export const pickWork = { meshPicks: 0, rowScans: 0 };
 
-/** How many edges the exact edge test measured on screen, each with a `worldToScreen` per point. */
-export const edgePickWork = { measured: 0 };
+/**
+ * How many edges the exact edge test measured: `measured` on screen, each with a `worldToScreen`
+ * per point, and `fromRows` with both ends read from the rows on the `"batched"` path.
+ */
+export const edgePickWork = { measured: 0, fromRows: 0 };
 
 /** How far from a drawn edge's line, in CSS pixels, a click still lands on the edge. */
 const EDGE_PICK_TOLERANCE_PX = 6;
@@ -760,6 +763,7 @@ export function pickEdgeAt(
 
         const ends = rowEnds?.(edge) ?? null;
         if (ends !== null) {
+            edgePickWork.fromRows++;
             segment(edge.id, ends[0], ends[1], project);
             continue;
         }

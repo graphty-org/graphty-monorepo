@@ -282,19 +282,27 @@ describe("the edge ID target", () => {
         await hover(element, { x: 1, y: 1 });
         await element.waitForStableFrame();
         const empty = edgePickWork.measured;
+        const emptyRows = edgePickWork.fromRows;
         await hover(element, { x: 2, y: 2 });
         assert.strictEqual(
             edgePickWork.measured - empty,
             1,
             "over empty canvas only the loop the target cannot draw is measured",
         );
+        // The target names no edge there, so no straight edge is read from the rows either.
+        assert.strictEqual(edgePickWork.fromRows - emptyRows, 0, "over empty canvas no edge is read from the rows");
         assert.strictEqual(canvas?.style.cursor, "", "empty canvas");
 
         const before = edgePickWork.measured;
+        const beforeRows = edgePickWork.fromRows;
         await hover(element, mid);
         assert.strictEqual(canvas?.style.cursor, "pointer", "a line");
         // The edges near the pointer are measured from the rows; only the loop goes through worldToScreen.
         assert.strictEqual(edgePickWork.measured - before, 1, "only the loop is measured point by point");
+        // A full walk would read all EDGES straight edges from the rows; the target names only those near.
+        const rows = edgePickWork.fromRows - beforeRows;
+        assert.isAbove(rows, 0, "the edge under the pointer is read from the rows");
+        assert.isBelow(rows, EDGES / 4, "only the edges near the pointer are read from the rows");
     });
 
     it.skipIf(ADAPTER === "")("hovers an edge with a real pointer on WebGPU", async () => {

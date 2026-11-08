@@ -633,6 +633,8 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
 
         assert.notEqual(graph.getNode(0)?.drawnScale, scale, "the orbit scaled the nodes");
         assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        // Still one draw for the shape: each row's view scale is in its matrix.
+        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 1);
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 

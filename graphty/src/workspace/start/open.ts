@@ -299,16 +299,6 @@ export function openUrl(workspace: WorkspaceStore, url: string): void {
 }
 
 /**
- * Takes in the graph file at a web address (see {@link addSource}): from the start screen as a new
- * project, in a project as its next source.
- * @param ctx - the command context.
- * @param url - the address.
- */
-export function addUrl(ctx: CommandContext, url: string): void {
-    addSource(ctx, urlSource(url));
-}
-
-/**
  * Loads a source the reader brought by any door (drop, File..., Paste, Samples): from the start
  * screen as a new project named after it; into an empty project as its first source; into a graph
  * that holds data as a replacement or a join.

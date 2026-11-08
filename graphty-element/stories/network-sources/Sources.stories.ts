@@ -237,8 +237,8 @@ await data.removeNodes(data.nodes().filter((n) => n["_source.stub"] === true).ma
 });
 
 /**
- * STRING's functional partners of TP53: the `rest` source's catalog sample, loaded by its id, with
- * the mapping the sample carries, so no code knows STRING's response shape.
+ * STRING's functional partners of TP53: the `rest` source's catalog example, loaded by its id, with
+ * the mapping the example carries, so no code knows STRING's response shape.
  */
 export const StringTp53 = sourceStory({
     text: {
@@ -248,15 +248,15 @@ export const StringTp53 = sourceStory({
         description:
             "STRING (string-db.org) collects known and predicted protein-protein interactions. This is its " +
             "network for TP53, the tumor suppressor p53, with its 20 closest functional partners in humans " +
-            "(species 9606). It is the `rest` source's catalog sample, loaded by its id with " +
-            '`session.data.loadSample("string-tp53")`: the sample carries the REST mapping, so no code ' +
+            "(species 9606). It is the `rest` source's catalog example, loaded by its id with " +
+            '`session.data.loadExample("rest", "string-tp53")`: the example carries the REST mapping, so no code ' +
             "here knows STRING's response shape. Each protein is labelled by its gene name, and each edge's " +
             "width is STRING's combined score, its confidence that the two proteins work together.",
         use:
-            "To load one of the samples a source lists in the catalog, by its id, with its parameters, " +
+            "To load one of the examples a source lists in the catalog, by its id, with its parameters, " +
             "address and published login filled in for you.",
         code: `const graph = document.querySelector("graphty-element");
-await graph.session.data.loadSample("string-tp53");`,
+await graph.session.data.loadExample("rest", "string-tp53");`,
     },
     layers: [
         labelLayer("name"),
@@ -275,7 +275,7 @@ await graph.session.data.loadSample("string-tp53");`,
         },
     ],
     recordings: stringRecordings,
-    load: (element, options) => element.session.data.loadSample("string-tp53", options),
+    load: (element, options) => element.session.data.loadExample("rest", "string-tp53", options),
 });
 
 /** A third party's 15-line source, registered on the page and loaded by its id. */

@@ -61,6 +61,7 @@ import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } 
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { batchUploadFrames } from "./meshes/FrameRoster";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { curveSpan } from "./meshes/pulledCurve";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -123,7 +124,16 @@ const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
 const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
 
 /** Line keys a pulled line draws exactly as the plain line does. */
-const PULLED_LINE_KEYS = new Set(["type", "animationSpeed", "width", "color", "opacity", "minScreenWidth"]);
+const PULLED_LINE_KEYS = new Set([
+    "type",
+    "animationSpeed",
+    "width",
+    "color",
+    "opacity",
+    "minScreenWidth",
+    "bezier",
+    "fanned",
+]);
 
 /**
  * Whether every key set on a style block is one of the keys named.
@@ -665,6 +675,10 @@ export class Edge {
         /** The look's name and visibility, as a batch of its own would carry them ({@link Edge.drawnLine}). */
         name: string;
         visibility: number;
+        /** A lone curve's further pieces, after `piece`: as many as its longest cut so far ({@link Edge.pullCurve}). */
+        run: number[] | null;
+        /** The look its pieces are given, for the pieces a curve takes later. */
+        look: { color: Color3; opacity: number; width: number };
     } | null = null;
 
     /**
@@ -1295,7 +1309,10 @@ export class Edge {
 
         this._lastVia = via;
 
+        // a fanned curve is pulled only while it is alone between its nodes (`Edge.pullsLine`)
+        this.repullLine(edgeVersion);
         this.bundleVersion = edgeVersion;
+
         // a placed end that moves is a move; a first placement, or one after invalidatePositionCache, is at rest
         this.endsMoving = (srcMoved && this._lastSrcPos !== null) || (dstMoved && this._lastDstPos !== null);
 
@@ -1362,6 +1379,7 @@ export class Edge {
         laid?: readonly number[],
         laidEnds?: EdgePosition["lineEnds"],
     ): boolean {
+        this.pullCurve(src, dst);
         const lays = this.laysRoute();
         const batch = lays ? this.lineBatch : null;
         const stored = this.lineRoute;
@@ -2487,8 +2505,11 @@ export class Edge {
      * Whether this edge's line is pulled from the row table (`PulledLineBatch`): on the `"batched"`
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
-     * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). Read when the
-     * line is built.
+     * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
+     * too when it does not fan (`line.fanned: false`), with no `arcRadius`, `supportModel` or gap: its
+     * shape is then its two centres' alone (`meshes/pulledCurve.ts`). So is a curve that fans while
+     * no other edge joins its two nodes, which draws the same curve. Read when the line is built, and
+     * again for a fanned curve when the edge set changes ({@link Edge.repullLine}).
      * @param style - The resolved style.
      * @returns True when it is pulled.
      */
@@ -2503,6 +2524,7 @@ export class Edge {
             setsOnly(style, PULLED_STYLE_KEYS) &&
             setsOnly(line, PULLED_LINE_KEYS) &&
             (line.type ?? "solid") === "solid" &&
+            (line.bezier !== true || line.fanned === false || this.aloneBetween()) &&
             !line.animationSpeed &&
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
@@ -2511,6 +2533,40 @@ export class Edge {
             this.route === "straight" &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
+    }
+
+    /**
+     * Whether no other edge joins this edge's two nodes, in either direction: a fanned curve then draws
+     * the curve of one that does not fan. Asked of the store, as an edge is built, rather than of
+     * `DataManager.drawnBundle`, which works the bundles out over the whole edge set once per change.
+     * @returns True when it is alone.
+     */
+    private aloneBetween(): boolean {
+        const data = this.context.getDataManager();
+        const { id: a } = this.srcNode;
+        const { id: b } = this.dstNode;
+        return [...data.getEdgesBetween(a, b), ...data.getEdgesBetween(b, a)].every((edge) => edge === this);
+    }
+
+    /**
+     * Move a fanned curve's line between a pulled piece and placed slots when the edge set changed
+     * whether it is alone between its nodes. It draws no caps (`Edge.pullsLine` takes none either way),
+     * so only the line is built again; the placement that follows lays it.
+     * @param edgeVersion - The edge set (`DataManager.edgeVersion`) this placement is against.
+     */
+    private repullLine(edgeVersion: number): void {
+        const style = this.drawnStyle;
+        if (
+            edgeVersion === this.bundleVersion ||
+            !this.fans ||
+            style === null ||
+            this.wantsPull(style) === (this.pulled !== null)
+        ) {
+            return;
+        }
+
+        this.releaseLine();
+        this.mesh = this.createLine(this.meshKey, style);
     }
 
     /**
@@ -2542,7 +2598,14 @@ export class Edge {
         const piece = batch.acquire();
         // As `createStaticLine` hands the plain line's material its look.
         const opacity = EdgeMesh.opacityOf(style);
-        batch.setLook(piece, Color3.FromHexString(options.color), opacity, options.width * 20);
+        const look = { color: Color3.FromHexString(options.color), opacity, width: options.width * 20 };
+        batch.setLook(piece, look.color, look.opacity, look.width);
+        const curve = style.line?.bezier === true;
+        if (curve) {
+            // nothing drawn until the first placement writes the span
+            batch.setCurve(piece, 0, null);
+        }
+
         this.pulled = {
             batch,
             piece,
@@ -2551,9 +2614,40 @@ export class Edge {
             drawn: true,
             name: `edge-style-${options.styleId}-pulled`,
             visibility: Math.min(opacity, 1),
+            run: curve ? [] : null,
+            look,
         };
         this.pullRows();
         return batch.mesh;
+    }
+
+    /**
+     * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there, taking
+     * pieces while the cut needs more than it holds. A curve the object path would draw another way
+     * (`curveSpan` null: its nodes overlap, or a centre is outside its own node) draws nothing.
+     * @param src - The source node's centre.
+     * @param dst - The target node's centre.
+     */
+    private pullCurve(src: Vector3, dst: Vector3): void {
+        const run = this.pulled?.run ?? null;
+        if (this.pulled === null || run === null) {
+            return;
+        }
+
+        const { pulled } = this;
+        const { batch, look } = pulled;
+        const span = curveSpan(src, dst, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst));
+        while (run.length + 1 < (span?.pieces ?? 0)) {
+            const piece = batch.acquire();
+            batch.setLook(piece, look.color, look.opacity, look.width);
+            batch.setRows(piece, pulled.source, pulled.target);
+            run.push(piece);
+        }
+
+        batch.setCurve(pulled.piece, 0, span);
+        run.forEach((piece, i) => {
+            batch.setCurve(piece, i + 1, span);
+        });
     }
 
     /** Write this edge's rows to its pulled piece when they changed: its nodes', or none while hidden. */
@@ -2567,6 +2661,10 @@ export class Edge {
         const target = pulled.drawn ? this.dstNode.index : -1;
         if (source !== pulled.source || target !== pulled.target) {
             pulled.batch.setRows(pulled.piece, source, target);
+            for (const piece of pulled.run ?? []) {
+                pulled.batch.setRows(piece, source, target);
+            }
+
             pulled.source = source;
             pulled.target = target;
         }
@@ -2646,6 +2744,10 @@ export class Edge {
     private releaseLine(): void {
         if (this.pulled) {
             this.pulled.batch.release(this.pulled.piece);
+            for (const piece of this.pulled.run ?? []) {
+                this.pulled.batch.release(piece);
+            }
+
             this.pulled = null;
             return;
         }

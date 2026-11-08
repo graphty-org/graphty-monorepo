@@ -1,7 +1,7 @@
 [
     {
         "method": "GET",
-        "url": "https://string-db.org/api/json/network?identifiers=TP53&species=9606&add_nodes=20",
+        "url": "https://version-12-5.string-db.org/api/json/network?identifiers=TP53&species=9606&add_nodes=20",
         "status": 200,
         "headers": {
             "content-type": "text/json; charset=utf-8"

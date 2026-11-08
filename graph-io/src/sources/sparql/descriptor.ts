@@ -4,16 +4,34 @@
 
 import { type SourceDescriptor } from "../types.js";
 
-/** A small Wikidata query: physics Nobel laureates and their doctoral advisors. */
-const WIKIDATA_ADVISORS = `PREFIX wd: <http://www.wikidata.org/entity/>
-PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+/** UniProt: the interactions of the human protein TP53 (P04637) and their participants. */
+const UNIPROT_TP53 = `PREFIX up: <http://purl.uniprot.org/core/>
+PREFIX uniprotkb: <http://purl.uniprot.org/uniprot/>
+CONSTRUCT { ?p up:interaction ?i . ?i up:participant ?q . }
+WHERE { BIND(uniprotkb:P04637 AS ?p) ?p up:interaction ?i . ?i up:participant ?q . }`;
+
+/** DBpedia: which philosophers influenced which, with their English names; its own LIMIT. */
+const DBPEDIA_PHILOSOPHERS = `PREFIX dbo: <http://dbpedia.org/ontology/>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-CONSTRUCT { ?person wdt:P184 ?advisor . ?person rdfs:label ?name . ?advisor rdfs:label ?advisorName . }
+CONSTRUCT { ?a dbo:influencedBy ?b . ?a rdfs:label ?la . }
+WHERE { ?a a dbo:Philosopher ; dbo:influencedBy ?b ; rdfs:label ?la . FILTER(lang(?la) = "en") }
+LIMIT 2000`;
+
+/**
+ * Wikidata: what Albert Einstein (Q937) links to, with English names; its own LIMIT keeps it one
+ * fast request, well inside the query service's 60 s limit and its per-client budget.
+ */
+const WIKIDATA_EINSTEIN = `PREFIX wd: <http://www.wikidata.org/entity/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+CONSTRUCT { ?s ?p ?o . ?s rdfs:label ?sl . ?o rdfs:label ?ol . }
 WHERE {
-  ?person wdt:P166 wd:Q38104 ; wdt:P184 ?advisor ; rdfs:label ?name .
-  ?advisor rdfs:label ?advisorName .
-  FILTER(lang(?name) = "en" && lang(?advisorName) = "en")
-}`;
+  VALUES ?s { wd:Q937 }
+  ?s rdfs:label ?sl . FILTER(lang(?sl) = "en")
+  ?s ?p ?o .
+  FILTER(STRSTARTS(STR(?p), "http://www.wikidata.org/prop/direct/") && isIRI(?o))
+  OPTIONAL { ?o rdfs:label ?ol . FILTER(lang(?ol) = "en") }
+}
+LIMIT 500`;
 
 /**
  * The descriptor of the `sparql` source. Experimental.
@@ -51,17 +69,28 @@ export const SPARQL_DESCRIPTOR: SourceDescriptor = Object.freeze({
             advanced: true,
         },
     ],
-    samples: [
+    // No login. Each sets its own LIMIT or is small, so it is one request (scripts/live-examples.ts).
+    examples: [
         {
-            id: "wikidata-physics-advisors",
-            plainName: "Wikidata: physics Nobel laureates and their advisors",
+            id: "uniprot-tp53",
+            plainName: "UniProt: TP53's protein interactions",
+            endpoint: "https://sparql.uniprot.org/sparql",
+            params: { query: UNIPROT_TP53 },
+            counts: { nodes: 375, edges: 746 },
+        },
+        {
+            id: "dbpedia-philosophers",
+            plainName: "DBpedia: philosophers and who influenced them",
+            endpoint: "https://dbpedia.org/sparql",
+            params: { query: DBPEDIA_PHILOSOPHERS, pageSize: 2000 },
+            counts: { nodes: 575, edges: 669 },
+        },
+        {
+            id: "wikidata-einstein",
+            plainName: "Wikidata: what Albert Einstein links to",
             endpoint: "https://query.wikidata.org/sparql",
-            params: {
-                query: WIKIDATA_ADVISORS,
-                pageSize: 100,
-                language: "en",
-                predicates: ["http://www.wikidata.org/prop/direct/"], // NOSONAR(S5332): an RDF namespace IRI, never fetched; Wikidata's IRIs are http
-            },
+            params: { query: WIKIDATA_EINSTEIN, language: "en" },
+            counts: { nodes: 232, edges: 246 },
         },
     ],
 });

@@ -55,6 +55,7 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
+import type { FeatureId } from "../features/registry";
 import { type EnabledFeatures, featureOff, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
@@ -134,7 +135,13 @@ import {
 import { createStepRuns, type StepRuns } from "./scope/stepRuns";
 import { freezeLiveReferences, mapUnions } from "./scope/steps";
 import { sealedSet } from "./sealed";
-import { createSelectionApi, type RuleCheck, type SelectionOwner, type SelectionTextMode } from "./selection";
+import {
+    createSelectionApi,
+    type RuleCheck,
+    type SelectionOwner,
+    type SelectionSources,
+    type SelectionTextMode,
+} from "./selection";
 import { createMaterialiser } from "./sets/algebra";
 import { outcomeOf, SetsCache } from "./sets/cache";
 import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
@@ -286,6 +293,8 @@ export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "
     readonly records?: SessionRecordSource;
     /** What VR and AR can do on the renderer this session draws through. */
     readonly xr?: XrSource;
+    /** The drawn nodes inside a polygon on the canvas, for a `region` selection target. */
+    readonly region?: SelectionSources["region"];
     /** The configuration; `data` may be a function, read on every use. */
     readonly config?: Omit<NonNullable<CreateGraphSessionOptions["config"]>, "data"> & {
         readonly data?: SessionDataConfigInput | (() => SessionDataConfig);
@@ -769,8 +778,8 @@ class Session implements ElementSession {
                 this.network.projectChanged();
             },
             sources: {
-                restore: (read) => {
-                    this.sessionData.restoreSourceMember(read);
+                restore: (read, autosave) => {
+                    this.sessionData.restoreSourceMember(read, autosave);
                 },
             },
         });
@@ -2585,20 +2594,22 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Asked without settling, as an element's attributes may still be arriving, and on every
     // timeline move: resolved again only when the ids asked for are a new array.
     let askedFor: readonly string[] | null = null;
-    let askedOn = false;
-    const timelineOn = (): boolean => {
+    let askedOn: readonly FeatureId[] = [];
+    const featureOn = (id: FeatureId): boolean => {
         if (settledFeatures !== undefined) {
-            return settledFeatures.enabled.includes("timeline");
+            return settledFeatures.enabled.includes(id);
         }
 
         const asked = requested() ?? pageDefaultFeatures();
         if (asked !== askedFor) {
             askedFor = asked;
-            askedOn = resolveFeatures(asked).enabled.includes("timeline");
+            askedOn = resolveFeatures(asked).enabled;
         }
 
-        return askedOn;
+        return askedOn.includes(id);
     };
+    const timelineOn = (): boolean => featureOn("timeline");
+    const networkOn = (): boolean => featureOn("network-data");
     const fileStylesOn = (): boolean =>
         (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
     const runsOptions = options.runs ?? {};
@@ -2621,6 +2632,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
     dispatcher.services.timeline = timelineOn;
+    dispatcher.services.network = networkOn;
     dispatcher.services.fileStyles = fileStylesOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
@@ -2771,6 +2783,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // Read through calls: the timeline and the visibility are built below.
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeline: () => timelineOn(),
+            network: () => networkOn(),
             fileStyles: () => fileStylesOn(),
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
@@ -3416,6 +3429,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         scope,
         results,
+        ...(options.region === undefined ? {} : { region: options.region }),
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
         // A rule reads a file column by its bare name ("minutes"); the published path is the

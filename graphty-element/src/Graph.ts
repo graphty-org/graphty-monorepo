@@ -113,6 +113,7 @@ import type {
     ElementAtResult,
     FormatId,
     GroupOutlineAtResult,
+    NodeId,
     Scope,
     ScopeInput,
 } from "./catalog/types";
@@ -148,6 +149,7 @@ import {
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
+import { attachRegionGesture } from "./input/RegionSelectGesture";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import {
     type AddEdgesOptions,
@@ -187,6 +189,7 @@ import { layoutManagerInternals } from "./managers/LayoutManager";
 import type { PendingWork } from "./managers/PendingWork";
 import { RecoveringWebGPUEngine } from "./managers/RecoveringWebGPUEngine";
 import {
+    type LayoutDevice,
     openWebGPUEngine,
     type PixelRatio,
     RENDERER_REQUESTS,
@@ -212,13 +215,18 @@ import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./No
 import { EdgeIdTarget } from "./render/EdgeIdTarget";
 import { NodeIdTarget } from "./render/NodeIdTarget";
 import {
+    type CanvasPoint,
     hoverEdgeAt,
+    insidePolygon,
     openRowScan,
     pickAsDrawn,
     pickCloseLabel,
-    pickEdgeAt,
+    pickEdgeId,
     pickNodeId,
     pickWorldPoint,
+    regionWork,
+    rowScanOf,
+    screenProjector,
     useEdgeIdTarget,
     useNodeIdTarget,
 } from "./render/PickService";
@@ -1048,6 +1056,7 @@ export class Graph implements GraphContext {
             {
                 acceleration: this.acceleration,
                 xr: this.xrAvailability,
+                region: (polygon) => this.nodesInRegion(polygon),
                 store: laneStoreOf(this.dataManager),
                 features: () => requestedFeatures.get(this)?.(),
                 runs: {
@@ -2082,6 +2091,7 @@ export class Graph implements GraphContext {
                 active: "webgl",
                 reason: null,
                 drawing: !(this.engine instanceof NullEngine),
+                layoutDevice: this.layoutDeviceFor(false),
             };
             return;
         }
@@ -2134,6 +2144,7 @@ export class Graph implements GraphContext {
                 active: "webgl",
                 reason: opened,
                 drawing: !(this.engine instanceof NullEngine),
+                layoutDevice: this.layoutDeviceFor(false),
             };
             return;
         }
@@ -2197,7 +2208,26 @@ export class Graph implements GraphContext {
         );
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
-        this.#rendererStatus = { requested, active: "webgpu", reason: null, drawing: true };
+        this.#rendererStatus = {
+            requested,
+            active: "webgpu",
+            reason: null,
+            drawing: true,
+            layoutDevice: this.layoutDeviceFor(opened.sharesDevice),
+        };
+    }
+
+    /**
+     * Where an accelerated layout will run, as the renderer opens.
+     * @param shared - Whether the renderer opened its device for the accelerator too.
+     * @returns The device, or null when no accelerator is offered.
+     */
+    private layoutDeviceFor(shared: boolean): LayoutDevice | null {
+        if (!this.acceleration.offersAccelerator) {
+            return null;
+        }
+
+        return shared ? "shared" : "separate";
     }
 
     /**
@@ -4922,6 +4952,52 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The drawn nodes whose centers lie inside a polygon on the canvas: the `{ region }` selection
+     * target. With a row table open it is one typed walk over `rowBounds`; otherwise each node is
+     * placed as `nodeScreenPosition` places it.
+     * @param polygon - The polygon, in CSS pixels from the canvas's top-left corner.
+     * @returns The nodes' ids.
+     */
+    private nodesInRegion(polygon: readonly CanvasPoint[]): NodeId[] {
+        const ids: NodeId[] = [];
+        const scan = rowScanOf(this.scene);
+        if (scan !== undefined) {
+            for (const row of scan.rowsInRegion(polygon)) {
+                const node = this.dataManager.nodeAtRow(row);
+                if (node !== undefined) {
+                    ids.push(node.id);
+                }
+            }
+
+            return ids;
+        }
+
+        const camera = this.scene.activeCamera;
+        if (!camera) {
+            return ids;
+        }
+
+        const project = screenProjector(this.scene);
+        const view = this.scene.getViewMatrix().m;
+        for (const node of this.dataManager.nodes.values()) {
+            regionWork.nodes++;
+            if (node.getRenderState() !== "visible") {
+                continue;
+            }
+
+            node.drawnWorldMatrix(true);
+            const centre = node.drawnWorldPosition;
+            const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
+            const { x, y } = project(centre);
+            if (depth >= camera.minZ && insidePolygon(polygon, x, y)) {
+                ids.push(node.id);
+            }
+        }
+
+        return ids;
+    }
+
+    /**
      * Set up a scene pointer observer to handle background clicks for deselection.
      * When the user clicks on an area with no node, the current selection is cleared.
      */
@@ -4959,6 +5035,23 @@ export class Graph implements GraphContext {
                     this.handleBackgroundClick(pointerInfo.event);
                 }
             }
+        });
+
+        // Shift and a drag on empty canvas, when `selection.region` turns it on.
+        attachRegionGesture({
+            scene: this.scene,
+            shape: () => this.styles.config.behavior.selection.region,
+            onNode: (x, y) => pickNodeId(this.scene, x, y) !== undefined,
+            holdCamera: (held) => {
+                if (held) {
+                    this.camera.temporarilyDisableInput();
+                } else {
+                    this.camera.temporarilyEnableInput();
+                }
+            },
+            select: (polygon) => {
+                this.session.selection.applyNow({ region: { polygon } }, "add", "user");
+            },
         });
 
         // The nodes' shared observer goes in right after this one, where the first node's own
@@ -6089,29 +6182,11 @@ export class Graph implements GraphContext {
      * @returns Screen coordinates {x, y}
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
-        const engine = this.scene.getEngine();
-        const viewport = this.scene.activeCamera?.viewport;
-        const view = this.scene.getViewMatrix();
-        const projection = this.scene.getProjectionMatrix();
-
-        if (!viewport) {
+        if (!this.scene.activeCamera?.viewport) {
             return { x: 0, y: 0 };
         }
 
-        // Create transformation matrix manually
-        const viewProjection = view.multiply(projection);
-        const worldVec = new Vector3(worldPos.x, worldPos.y, worldPos.z);
-
-        // Transform to clip space
-        const clipSpace = Vector3.TransformCoordinates(worldVec, viewProjection);
-
-        // Convert to screen space, in CSS pixels: the canvas may be drawn at a higher pixel ratio
-        // (`pixelRatio`), which the hardware scaling level undoes.
-        const css = engine.getHardwareScalingLevel();
-        const screenX = (clipSpace.x + 1) * 0.5 * engine.getRenderWidth() * css;
-        const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight() * css;
-
-        return { x: screenX, y: screenY };
+        return screenProjector(this.scene)(worldPos);
     }
 
     /**
@@ -6251,7 +6326,7 @@ export class Graph implements GraphContext {
      * @returns The edge's id, or `undefined` when no drawn edge is that close.
      */
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
-        return pickEdgeAt(this.scene, this.dataManager.edges.values(), x, y, (point) => this.worldToScreen(point));
+        return pickEdgeId(this.scene, this.dataManager.edges.values(), x, y, (point) => this.worldToScreen(point));
     }
 
     /**

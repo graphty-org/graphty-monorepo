@@ -39,8 +39,11 @@ import { ID_NONE, ID_OBJECT, type NodeIdTarget } from "./NodeIdTarget";
  */
 export const pickWork = { meshPicks: 0, rowScans: 0 };
 
-/** How many edges the exact edge test measured on screen, each with a `worldToScreen` per point. */
-export const edgePickWork = { measured: 0 };
+/**
+ * How many edges the exact edge test measured: `measured` on screen, each with a `worldToScreen`
+ * per point, and `fromRows` with both ends read from the rows on the `"batched"` path.
+ */
+export const edgePickWork = { measured: 0, fromRows: 0 };
 
 /** How far from a drawn edge's line, in CSS pixels, a click still lands on the edge. */
 const EDGE_PICK_TOLERANCE_PX = 6;
@@ -341,6 +344,82 @@ export class RowScan {
     }
 
     /**
+     * {@link RowScan.worldCenter} into a vector it is given, for a walk that must not allocate.
+     * @param row - The row.
+     * @param root - {@link RowScan.rootMatrix}.
+     * @param out - Where to write the point.
+     * @returns `out`.
+     */
+    worldCenterToRef(row: number, root: Matrix, out: Vector3): Vector3 {
+        const { rowBounds: bounds } = this.table;
+        const at = row * 4;
+        return Vector3.TransformCoordinatesFromFloatsToRef(bounds[at], bounds[at + 1], bounds[at + 2], root, out);
+    }
+
+    /**
+     * The drawn rows whose centers lie inside a polygon on the canvas, in one typed walk: a row
+     * that is hidden or not placed has a bound of 0 and is skipped, a row behind the camera is
+     * skipped, and a row drawn behind another is kept.
+     * @param polygon - The polygon, in CSS pixels from the canvas's top-left corner.
+     * @returns The rows, in row order.
+     */
+    rowsInRegion(polygon: readonly CanvasPoint[]): number[] {
+        const camera = this.scene.activeCamera;
+        const found: number[] = [];
+        if (!camera) {
+            return found;
+        }
+
+        regionWork.rows += this.table.rows;
+        const root = this.rootMatrix();
+        // Root, then view (for the depth) and view and projection (for the screen), as
+        // `screenProjector` and `pickEdgeAt` take them.
+        const view = root.multiply(this.scene.getViewMatrix()).m;
+        const clip = root.multiply(this.scene.getViewMatrix().multiply(this.scene.getProjectionMatrix())).m;
+        const engine = this.scene.getEngine();
+        const css = engine.getHardwareScalingLevel();
+        const halfWidth = 0.5 * engine.getRenderWidth() * css;
+        const halfHeight = 0.5 * engine.getRenderHeight() * css;
+        const box = polygonBox(polygon);
+        const { rowBounds: bounds, rows } = this.table;
+        for (let row = 0, at = 0; row < rows; row++, at += 4) {
+            if ((bounds[at + 3] ?? 0) <= 0) {
+                continue;
+            }
+
+            const x = bounds[at] ?? 0;
+            const y = bounds[at + 1] ?? 0;
+            const z = bounds[at + 2] ?? 0;
+            if (x * view[2] + y * view[6] + z * view[10] + view[14] < camera.minZ) {
+                continue;
+            }
+
+            const w = x * clip[3] + y * clip[7] + z * clip[11] + clip[15];
+            const sx = ((x * clip[0] + y * clip[4] + z * clip[8] + clip[12]) / w + 1) * halfWidth;
+            const sy = (1 - (x * clip[1] + y * clip[5] + z * clip[9] + clip[13]) / w) * halfHeight;
+            if (
+                sx >= box.minX &&
+                sx <= box.maxX &&
+                sy >= box.minY &&
+                sy <= box.maxY &&
+                insidePolygon(polygon, sx, sy)
+            ) {
+                found.push(row);
+            }
+        }
+
+        return found;
+    }
+
+    /**
+     * What places every row in the world.
+     * @returns The root's world matrix, or identity when rows are in the world.
+     */
+    rootMatrix(): Matrix {
+        return this.root?.computeWorldMatrix() ?? this.identity;
+    }
+
+    /**
      * {@link pickAsDrawn} with rows answered by the scan and everything else by Babylon.
      * @param x - X in CSS pixels.
      * @param y - Y in CSS pixels.
@@ -494,6 +573,58 @@ export class RowScan {
         this.local.multiplyToRef(root, this.world);
         return node.drawnSourceMesh.intersects(rayFor(this.world), false, undefined, false, this.world, false);
     }
+}
+
+/** A point on the canvas, in CSS pixels from its top-left corner. */
+export interface CanvasPoint {
+    readonly x: number;
+    readonly y: number;
+}
+
+/** What region walks read: rows from a row table, and nodes one at a time off it. */
+export const regionWork = { rows: 0, nodes: 0 };
+
+/**
+ * A polygon's bounding box.
+ * @param polygon - The polygon.
+ * @returns Its least and greatest x and y.
+ */
+function polygonBox(polygon: readonly CanvasPoint[]): {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+} {
+    const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    for (const { x, y } of polygon) {
+        box.minX = Math.min(box.minX, x);
+        box.minY = Math.min(box.minY, y);
+        box.maxX = Math.max(box.maxX, x);
+        box.maxY = Math.max(box.maxY, y);
+    }
+
+    return box;
+}
+
+/**
+ * Whether a point lies inside a polygon, by the even-odd rule, so a lasso that crosses itself
+ * leaves out what it wound around twice.
+ * @param polygon - The polygon; its last point joins its first.
+ * @param x - The point's x.
+ * @param y - The point's y.
+ * @returns True inside.
+ */
+export function insidePolygon(polygon: readonly CanvasPoint[], x: number, y: number): boolean {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const a = polygon[i];
+        const b = polygon[j];
+        if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) {
+            inside = !inside;
+        }
+    }
+
+    return inside;
 }
 
 /** Each scene's scan, once its graph opened a row table. */
@@ -653,6 +784,29 @@ function distanceToSegment(x: number, y: number, a: { x: number; y: number }, b:
 }
 
 /**
+ * A scene's projection to screen as it stands now: a world point's place in CSS pixels from the
+ * canvas's top-left corner. `Graph.worldToScreen` is this; a walk takes it once so each point costs
+ * no matrix product.
+ * @param scene - The scene.
+ * @returns The projection.
+ */
+export function screenProjector(
+    scene: Scene,
+): (point: { x: number; y: number; z: number }) => { x: number; y: number } {
+    const engine = scene.getEngine();
+    const viewProjection = scene.getViewMatrix().multiply(scene.getProjectionMatrix());
+    // The canvas may be drawn at a higher pixel ratio (`pixelRatio`), which the hardware scaling level undoes.
+    const css = engine.getHardwareScalingLevel();
+    const width = engine.getRenderWidth();
+    const height = engine.getRenderHeight();
+    const clip = new Vector3();
+    return (point) => {
+        Vector3.TransformCoordinatesFromFloatsToRef(point.x, point.y, point.z, viewProjection, clip);
+        return { x: (clip.x + 1) * 0.5 * width * css, y: (1 - clip.y) * 0.5 * height * css };
+    };
+}
+
+/**
  * The drawn edge nearest a point, within {@link EDGE_PICK_TOLERANCE_PX} of its line.
  *
  * MEASURED ON SCREEN, not ray cast: every line is a thin instance of a shared, unpickable
@@ -662,6 +816,8 @@ function distanceToSegment(x: number, y: number, a: { x: number; y: number }, b:
  * @param x - X in CSS pixels from the canvas's left edge.
  * @param y - Y in CSS pixels from the canvas's top edge.
  * @param toScreen - A world point's place on screen, in render pixels.
+ * @param rowEnds - A straight edge's two ends read from the rows, or null to measure it with
+ *   `toScreen` point by point; such ends go through one {@link screenProjector}.
  * @returns The edge's id, or `undefined` when no drawn edge is that close.
  */
 export function pickEdgeAt(
@@ -670,6 +826,7 @@ export function pickEdgeAt(
     x: number,
     y: number,
     toScreen: (point: Vector3) => { x: number; y: number },
+    rowEnds?: (edge: Edge) => readonly [Vector3, Vector3] | null,
 ): EdgeId | undefined {
     const camera = scene.activeCamera;
     // Nothing is drawn before the first frame, and the scene's view matrix is unset until
@@ -687,6 +844,23 @@ export function pickEdgeAt(
     let found: EdgeId | undefined;
     const view = scene.getViewMatrix().m;
     const inFront = (p: Vector3): boolean => p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] >= camera.minZ;
+    const segment = (
+        id: EdgeId,
+        a: Vector3,
+        b: Vector3,
+        screen: (point: Vector3) => { x: number; y: number },
+    ): void => {
+        if (!inFront(a) || !inFront(b)) {
+            return;
+        }
+
+        const distance = distanceToSegment(px, py, screen(a), screen(b));
+        if (distance <= best) {
+            best = distance;
+            found = id;
+        }
+    };
+    const project = rowEnds === undefined ? toScreen : screenProjector(scene);
 
     // ponytail: a linear walk over every edge per pick; a spatial index if picking huge graphs on hover.
     for (const edge of edges) {
@@ -694,22 +868,59 @@ export function pickEdgeAt(
             continue;
         }
 
+        const ends = rowEnds?.(edge) ?? null;
+        if (ends !== null) {
+            edgePickWork.fromRows++;
+            segment(edge.id, ends[0], ends[1], project);
+            continue;
+        }
+
         edgePickWork.measured++;
         const points = edgeWorldPoints(edge);
         for (let i = 1; i < points.length; i++) {
-            if (!inFront(points[i - 1]) || !inFront(points[i])) {
-                continue;
-            }
-
-            const distance = distanceToSegment(px, py, toScreen(points[i - 1]), toScreen(points[i]));
-            if (distance <= best) {
-                best = distance;
-                found = edge.id;
-            }
+            segment(edge.id, points[i - 1], points[i], toScreen);
         }
     }
 
     return found;
+}
+
+/**
+ * {@link pickEdgeAt}, with every straight edge between two batched rows measured from the row
+ * table in one typed walk on the `"batched"` path: no `worldToScreen` and no new vector per edge.
+ * The ends it reads are the ones `Node.drawnWorldPosition` answers, so the answer is the same.
+ * Off the `"batched"` path it is {@link pickEdgeAt}.
+ * @param scene - The scene.
+ * @param edges - The edges to measure.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @param toScreen - A world point's place on screen, for the edges the rows cannot place.
+ * @returns The edge's id, or `undefined`.
+ */
+export function pickEdgeId(
+    scene: Scene,
+    edges: Iterable<Edge>,
+    x: number,
+    y: number,
+    toScreen: (point: Vector3) => { x: number; y: number },
+): EdgeId | undefined {
+    const scan = rowScanOf(scene);
+    if (!edgeIdTargets.has(scene) || scan === undefined) {
+        return pickEdgeAt(scene, edges, x, y, toScreen);
+    }
+
+    const root = scan.rootMatrix();
+    const ends: [Vector3, Vector3] = [new Vector3(), new Vector3()];
+    return pickEdgeAt(scene, edges, x, y, toScreen, (edge) => {
+        const { srcNode, dstNode } = edge;
+        if (!srcNode.drawnInBatch || !dstNode.drawnInBatch || edge.drawnCurve !== null) {
+            return null;
+        }
+
+        scan.worldCenterToRef(srcNode.index, root, ends[0]);
+        scan.worldCenterToRef(dstNode.index, root, ends[1]);
+        return ends;
+    });
 }
 
 /** Each scene's edge ID target, while its graph draws on the `"batched"` path. */
@@ -755,9 +966,9 @@ export function hoverEdgeAt(
     const radius = Math.ceil(EDGE_PICK_TOLERANCE_PX / scene.getEngine().getHardwareScalingLevel()) + 1;
     const near = target === undefined || transitionUnderWay(scene) ? null : target.candidates(x, y, radius);
     if (near === null) {
-        return pickEdgeAt(scene, edges(), x, y, toScreen);
+        return pickEdgeId(scene, edges(), x, y, toScreen);
     }
 
-    const measure = (candidates: Edge[]): EdgeId | undefined => pickEdgeAt(scene, candidates, x, y, toScreen);
+    const measure = (candidates: Edge[]): EdgeId | undefined => pickEdgeId(scene, candidates, x, y, toScreen);
     return Array.isArray(near) ? measure(near) : near.then(measure);
 }

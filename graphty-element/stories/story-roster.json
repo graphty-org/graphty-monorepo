@@ -368,13 +368,18 @@
         "Data/Network sources/Click to expand::StartFromOneNode",
         "Data/Network sources/Click to expand::ExpandTwice",
         "Data/Network sources/Click to expand::Collapse",
-        "Data/Network sources/Source chooser::Samples",
+        "Data/Network sources/Source chooser::Examples",
         "Data/Network sources/Errors::Blocked",
         "Data/Network sources/Errors::RefusedHttp",
         "Data/Network sources/Errors::Cancelled",
         "Data/Network sources/Errors::MissingCredential"
     ],
     "retired": [
+        {
+            "id": "Data/Network sources/Source chooser::Samples",
+            "why": "Renamed with the catalog field it lists: a source's public servers are its descriptor's examples, loaded with session.data.loadExample(source, id). graph-samples' datasets are no longer a network source (they load with session.data.loadDataset), so the chooser no longer offers them.",
+            "replacedBy": "Data/Network sources/Source chooser::Examples"
+        },
         {
             "id": "Data/Click To Expand::BeforeExpanding",
             "why": "It drew the seed node alone before any expansion and checked that it was the only node: the same picture and the same check as the click-to-expand start story, which it duplicated under a second Data title. DoubleClickToExpand, kept as a hidden regression story, still loads this recorded seed before it expands it.",

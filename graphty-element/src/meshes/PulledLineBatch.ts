@@ -12,6 +12,7 @@ import {
 import { JOIN_TEMPLATE_INDICES, JOIN_TEMPLATE_VERTICES } from "./edgeJoinShader";
 import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
+import type { CurveSpan } from "./pulledCurve";
 
 /**
  * @file Straight edges drawn from the row table: a piece is two row numbers, not twenty floats.
@@ -27,6 +28,11 @@ import { batchUploadFrames } from "./FrameRoster";
  *
  * A piece also carries its own look -- color, opacity and width -- so edges that differ only in those
  * share one batch and one draw (stage 19): a thousand colors are one draw, not a thousand.
+ *
+ * A CURVE batch (stage 21, `EDGE_PULLED_CURVE`) draws lone curves (`line.bezier`, `line.fanned: false`):
+ * an edge takes a run of pieces, each naming its point along the cut path, and the shader works out
+ * the path from the two rows' places and the span the edge writes (`meshes/pulledCurve.ts`). Its pieces
+ * take two more texels: (samples, first, pieces, startAt), then (endAt, unused, unused, unused).
  */
 
 /**
@@ -39,20 +45,18 @@ export const pulledEdgesDefault: { value: boolean } = { value: false };
 /** Texels across the edge table, as across the row table: texel `i` is at `(i % 1024, i / 1024)`. */
 const TABLE_WIDTH = 1024;
 
-/** Texels a piece takes: (source row, target row, width, opacity), then (red, green, blue, unused). */
+/**
+ * Texels a piece takes: (source row, target row, width, opacity), then (red, green, blue, point);
+ * a curve's piece two more (see the file comment).
+ */
 const TEXELS_PER_PIECE = 2;
-
-/** Pieces in one line of the edge table. */
-const PIECES_PER_LINE = TABLE_WIDTH / TEXELS_PER_PIECE;
+const TEXELS_PER_CURVE_PIECE = 4;
 
 /** Indices in the join template, drawn once per piece. */
 const TEMPLATE_INDICES = JOIN_TEMPLATE_INDICES.length;
 
 /** Floats in one texel. */
 const TEXEL_FLOATS = 4;
-
-/** Floats a piece takes in the table. */
-const PIECE_FLOATS = TEXELS_PER_PIECE * TEXEL_FLOATS;
 
 /** A row number no row has: the piece draws nothing. */
 const NO_ROW = -1;
@@ -65,7 +69,7 @@ export class PulledLineBatch {
     /** Bytes of the edge table sent to the card so far: tables built and rows written, never a move. */
     uploadedBytes = 0;
 
-    /** The edge table's CPU copy: each piece's two rows and its look, {@link PIECE_FLOATS} floats. */
+    /** The edge table's CPU copy: each piece's two rows and its look, {@link PulledLineBatch.pieceFloats} floats. */
     private rows: Float32Array<ArrayBuffer>;
 
     private table: RawTexture;
@@ -81,6 +85,12 @@ export class PulledLineBatch {
 
     private readonly stopFlush: () => void;
 
+    /** Floats a piece takes in the table. */
+    private readonly pieceFloats: number;
+
+    /** Pieces in one line of the edge table. */
+    private readonly piecesPerLine: number;
+
     /**
      * Start a batch on a joined line mesh made with `pulled: true`.
      * @param mesh - The mesh (`CustomLineRenderer.createJoinedLineMesh`), parented as the rows'
@@ -88,18 +98,23 @@ export class PulledLineBatch {
      * @param scene - The scene whose frames upload the table.
      * @param rowPositions - The `rowPosition` texture, asked each frame: the row table replaces it
      *     when it grows.
+     * @param curve - Whether its pieces are curves' (a mesh made with `pulledCurve: true`).
      */
     constructor(
         mesh: Mesh,
         private readonly scene: Scene,
         private readonly rowPositions: () => BaseTexture,
+        curve = false,
     ) {
         this.mesh = mesh;
+        const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
+        this.pieceFloats = texels * TEXEL_FLOATS;
+        this.piecesPerLine = TABLE_WIDTH / texels;
         markEdgeLineBatchMesh(mesh);
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;
-        this.rows = PulledLineBatch.emptyTable(PIECES_PER_LINE);
+        this.rows = this.emptyTable(this.piecesPerLine);
         this.table = this.build();
         this.index();
         this.stopFlush = batchUploadFrames.join(scene, () => {
@@ -125,7 +140,7 @@ export class PulledLineBatch {
             return reused;
         }
 
-        if (this.highWater === this.rows.length / PIECE_FLOATS) {
+        if (this.highWater === this.rows.length / this.pieceFloats) {
             this.grow();
         }
 
@@ -151,8 +166,8 @@ export class PulledLineBatch {
      * @param target - The target node's row.
      */
     setRows(piece: number, source: number, target: number): void {
-        this.rows[piece * PIECE_FLOATS] = source;
-        this.rows[piece * PIECE_FLOATS + 1] = target;
+        this.rows[piece * this.pieceFloats] = source;
+        this.rows[piece * this.pieceFloats + 1] = target;
         this.touch(piece);
     }
 
@@ -168,7 +183,7 @@ export class PulledLineBatch {
      * @param width - Its width, in the units the material's `width` takes.
      */
     setLook(piece: number, look: { r: number; g: number; b: number }, opacity: number, width: number): void {
-        const at = piece * PIECE_FLOATS;
+        const at = piece * this.pieceFloats;
         this.rows[at + 2] = width;
         this.rows[at + 3] = opacity;
         this.rows[at + 4] = look.r;
@@ -178,11 +193,29 @@ export class PulledLineBatch {
     }
 
     /**
+     * Give a curve batch's piece its point along its edge's cut path and the edge's span: written when
+     * the edge is placed, which its nodes moving does, but never more than its own pieces.
+     * @param piece - The piece.
+     * @param point - Which piece of the path it draws: from point `point` to `point + 1`.
+     * @param span - The span (`curveSpan`), or null to draw nothing.
+     */
+    setCurve(piece: number, point: number, span: CurveSpan | null): void {
+        const at = piece * this.pieceFloats;
+        this.rows[at + 7] = point;
+        this.rows[at + 8] = span?.samples ?? 0;
+        this.rows[at + 9] = span?.first ?? 0;
+        this.rows[at + 10] = span?.pieces ?? 0;
+        this.rows[at + 11] = span?.startAt ?? 0;
+        this.rows[at + 12] = span?.endAt ?? 0;
+        this.touch(piece);
+    }
+
+    /**
      * Mark a piece's table line to be sent with the next frame.
      * @param piece - The piece.
      */
     private touch(piece: number): void {
-        const line = Math.floor(piece / PIECES_PER_LINE);
+        const line = Math.floor(piece / this.piecesPerLine);
         this.dirtyFirst = this.dirtyFirst < 0 ? line : Math.min(this.dirtyFirst, line);
         this.dirtyLast = Math.max(this.dirtyLast, line);
     }
@@ -240,9 +273,9 @@ export class PulledLineBatch {
      * @param pieces - Pieces it holds.
      * @returns The table.
      */
-    private static emptyTable(pieces: number): Float32Array<ArrayBuffer> {
-        const table = new Float32Array(pieces * PIECE_FLOATS);
-        for (let at = 0; at < table.length; at += PIECE_FLOATS) {
+    private emptyTable(pieces: number): Float32Array<ArrayBuffer> {
+        const table = new Float32Array(pieces * this.pieceFloats);
+        for (let at = 0; at < table.length; at += this.pieceFloats) {
             table[at] = NO_ROW;
             table[at + 1] = NO_ROW;
         }
@@ -252,7 +285,7 @@ export class PulledLineBatch {
 
     /** Double the table, keeping every piece where it is. */
     private grow(): void {
-        const grown = PulledLineBatch.emptyTable((this.rows.length / PIECE_FLOATS) * 2);
+        const grown = this.emptyTable((this.rows.length / this.pieceFloats) * 2);
         grown.set(this.rows);
         this.rows = grown;
         this.table.dispose();
@@ -264,7 +297,7 @@ export class PulledLineBatch {
 
     /** The join template once per piece the table has room for, numbered so `gl_VertexID / 14` is the piece. */
     private index(): void {
-        const capacity = this.rows.length / PIECE_FLOATS;
+        const capacity = this.rows.length / this.pieceFloats;
         const indices = new Uint32Array(capacity * TEMPLATE_INDICES);
         for (let piece = 0; piece < capacity; piece++) {
             for (let i = 0; i < TEMPLATE_INDICES; i++) {

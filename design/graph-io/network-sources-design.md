@@ -2,10 +2,34 @@
 
 > The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
 
-Status: design, 2026-10-17. Nothing here is implemented. Tracking issue: #2907. Browser and Node
-behavior was measured on 2026-10-17 (section 7 says how), the Cypher path was run against a live
-Memgraph 2.22.1 (section 12.3), OpenAlex was checked live (section 13.3) and every sample source in
-section 12.5 was read from a browser page; everything marked unverified was not.
+Status (2026-11-07): implemented and experimental, behind graphty-element's `network-data`
+experiment (issue #6211; off by default, on at canary.graphty.app). Built: graph-io's source
+contract, registry and built-in sources NDEx, Cypher (with the `neo4j` and `neptune` presets, over
+the Neo4j Query API, Bolt, Neptune Database and Neptune Analytics), SPARQL, and REST (with the
+`openalex` preset); graphty-element's source verbs on `session.data` (`import` with a `source`,
+`testSource`, `listSource`, `previewSource`, `checkSource`, `refresh`, `more`, `expand`,
+`collapse`, `loadExample`, `pendingSourceLoads`, `runPendingSourceLoad`), the credential store and
+the `graphty-sources` project member; the graphty app's Network data form. Not built: the Gremlin
+source (#6212), a file-host source (#6213), more REST presets (#6214), and Memgraph run locally
+(#3408). Tracking issue: #2907. Each built-in source's examples are loaded live every week
+(section 12.5, "Live check").
+
+Samples and network data are separate (section 12.5): a sample is a graph-samples dataset, shown
+as a thumbnail on the graphty app's start page and loaded with `session.data.loadDataset`; it is
+not a network source and never creates a load that waits for approval. Network data is reached
+only through the Network data form, whose Example row lists each source's public `examples`.
+Reopening: a project opened with `session.project.open(file, { ownWork: true })` (the reader's
+own autosave or a project kept in this browser) keeps its loads live, and only the loads its
+`graphty-sources` member lists as `waiting` wait for approval; any other project file waits for
+every load. With the `network-data` experiment off, every source verb rejects with
+`E_FEATURE_OFF` (`{ feature, key }`), `pendingSourceLoads()` is empty, a project's
+`graphty-sources` member is kept unchanged, and the graphty app shows no network entry point.
+
+The rest of this document is the design as written on 2026-10-17, kept for its reasoning. Browser
+and Node behavior was measured then (section 7 says how), the Cypher path was run against a live
+Memgraph 2.22.1 (section 12.3), OpenAlex was checked live (section 13.3) and every example source
+in section 12.5 was read from a browser page; everything marked unverified was not. Where it says
+"sample" for a source's public servers, read "example" (section 12.5).
 
 ## The problem in one paragraph
 
@@ -180,7 +204,7 @@ export interface SourceDescriptor {
     readonly rateLimit?: { requests: number; perMs: number; concurrent?: number }; // paces ctx.fetch
     readonly features?: readonly SourceFeature[]; // default: from the methods present
     readonly migrateParams?: (params: Record<string, unknown>, fromVersion: number) => Record<string, unknown>;
-    readonly samples?: readonly SourceSample[]; // public examples to offer (section 12.5)
+    readonly examples?: readonly SourceExample[]; // public servers to offer (section 12.5)
 }
 
 export interface SourceParamDescriptor {
@@ -1024,15 +1048,50 @@ endpoint ignores `bindings`). Neptune SPARQL goes through the SPARQL source, fro
 Neptune exists to sample; AWS's examples load air-routes, a GraphML file graph-io reads straight
 from `raw.githubusercontent.com/krlawrence/graph/master/sample-data/air-routes.graphml` (CORS `*`).
 
-### 12.5 Sample sources for each adapter
+### 12.5 Example servers for each adapter
 
-Each was read from an `http://localhost` page in Chromium 143 on 2026-10-17 (Firefox and Safari
-unverified). A source lists its samples on its descriptor (`samples?: readonly SourceSample[]`,
-catalog data), so `listSources()` and the element's `sourceDescriptors()` offer them beside
-graph-samples' datasets (section 20) without loading code:
+**Samples and examples are separate.** A _sample_ is one of graph-samples' datasets: a file
+graphty.app hosts, loaded with `session.data.loadDataset` and shown as a thumbnail on the graphty
+app's start page and in its Samples dialog. A sample never creates a network load, so it is never
+saved in `graphty-sources` and never waits for approval. An _example_ is a public server and the
+params that load a known graph from it, listed on its source's descriptor (`examples`), loaded with
+`session.data.loadExample(source, id)` (which applies the endpoint, the published login and the
+first page) and offered only in the network form's Example row. Example ids are unique within
+their source.
+
+**The dependable set (2026-11-07).** Every one loaded live that day with the counts shown, from
+Node (`scripts/live-examples.ts`) and from the graphty app in Chromium through
+`session.data.loadExample` (another origin, so CORS was exercised; the Bolt examples over
+`wss://`); none needs a secret:
+
+| Source     | Example                                                                                                | Server (login)                                                         | Nodes / edges                  |
+| ---------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------ |
+| `ndex`     | `ndex-wp5483`, `ndex-nci-pid`, `ndex-huri`, `ndex-signor`, `ndex-dgidb`, `ndex-wikipathways-landscape` | `https://www.ndexbio.org/` (none)                                      | 57 / 34 up to 32,077 / 74,109  |
+| `neo4j`    | `neo4j-movies`, `neo4j-northwind`, `neo4j-gameofthrones`, `neo4j-fincen` (`mode: "all"`)               | `https://demo.neo4jlabs.com:7473` (database name as user and password) | 171 / 253 up to 7,524 / 40,835 |
+| `neo4j`    | `neo4j-movies-bolt`                                                                                    | `bolt+s://demo.neo4jlabs.com:7687` (movies)                            | 171 / 253                      |
+| `neo4j`    | `hetionet` (end-of-life Neo4j 3.5; Metformin's neighbors)                                              | `bolt+s://neo4j.het.io:7687` (none)                                    | 230 / 229                      |
+| `sparql`   | `uniprot-tp53`                                                                                         | `https://sparql.uniprot.org/sparql` (none)                             | 375 / 746                      |
+| `sparql`   | `dbpedia-philosophers`                                                                                 | `https://dbpedia.org/sparql` (none)                                    | 575 / 669                      |
+| `sparql`   | `wikidata-einstein` (Q937's links, LIMIT 500)                                                          | `https://query.wikidata.org/sparql` (none)                             | 232 / 246                      |
+| `rest`     | `string-tp53` (pinned to STRING 12.5), `deps-dev-webpack`                                              | `https://version-12-5.string-db.org`, `https://api.deps.dev` (none)    | 21 / 113, 84 / 121             |
+| `openalex` | `openalex-watts-strogatz` (first page)                                                                 | `https://api.openalex.org` (optional free key)                         | about 16,000 / 24,000          |
+
+Amazon Neptune has no public server, so it has no example; its source is tested against recorded
+answers. Dropped from the 2026-10-17 list: PCNet (cannot load whole; its summary recording stays
+for the size cap test) and the Wikidata advisors query (near the query service's 60 s limit, and
+it used up the per-client budget).
+
+**Live check.** `graph-io/scripts/live-examples.ts` loads every example from its server and fails
+on an error or an empty graph (a count that drifts is a warning). The `network-examples` job of
+`.github/workflows/links-weekly.yml` runs it weekly and keeps one issue labelled
+`dead-network-examples` open while any example fails. `test/sources/examples.test.ts` checks every
+example's catalog data offline and loads the SPARQL examples from recordings.
+
+The rest of this section is the 2026-10-17 survey. Each was read from an `http://localhost` page in
+Chromium 143 (Firefox and Safari unverified). The shape it proposed, now `SourceExample`:
 
 ```ts
-export interface SourceSample {
+export interface SourceExample {
     readonly id: string; // "neo4j-movies"
     readonly plainName: string;
     readonly params: Readonly<Record<string, unknown>>;
@@ -1645,11 +1704,14 @@ against the effort ("Browser" is CORS, checked 2026-10-17):
 
 `fetchDataset(name, { baseUrl, fetch, signal })` downloads a wire file from graphty.app. It needs
 no importer, auth, paging or query, from a fixed trusted host; folding it into the registry would
-make graph-samples depend on graph-io for nothing. Decision: **two mechanisms, one catalogue.**
-graphty-element, which depends on both, registers a `graph-samples` source built with the public
-`defineSource`, so its catalogue lists datasets and sources together and the dataset source is the
-dogfood third-party source. It maps `fetchDataset`'s plain `Error` to `E_FETCH` /
-`E_SOURCE_NOT_FOUND`; graph-samples adopting codes is a separate additive change.
+make graph-samples depend on graph-io for nothing.
+
+Decision (revised 2026-11-07): **two mechanisms, two catalogues.** graph-samples' datasets are
+samples, loaded with `session.data.loadDataset` and listed by the element's `DATASET_DESCRIPTORS`;
+they are not a network source. The `graph-samples` source the first build registered made every
+dataset load a network load, saved in `graphty-sources` and offered for approval on reopen, and put
+datasets beside servers in the network form, which mixed two things readers keep apart. It is
+removed; no capability went with it, since `loadDataset` loads every dataset.
 
 ---
 
@@ -1686,7 +1748,13 @@ dependencies for graph-io are fine"). These still publish contracts that are har
 
 ---
 
-## Appendix A. Sub-issues (drafted, not filed)
+## Appendix A. Sub-issues (drafted, not filed; built)
+
+Status (2026-11-07): A.1 to A.9 are built under the `network-data` experiment (#6211) and were
+never filed as separate issues. What remains is filed: the Gremlin source (#6212), a file-host
+source (#6213), more REST presets (#6214), Cypher neighborhoods without `idProperty` (#6215),
+`neo4j+s://` endpoints (#6216), a default User-Agent in Node (#6217), graduating the experiment
+(#6211) and local Memgraph (#3408). The drafts below are kept for their scope.
 
 One framework issue, one per initial source, one per further source. All carry `enhancement`, a
 priority and an effort, and say `Refs #2907`.

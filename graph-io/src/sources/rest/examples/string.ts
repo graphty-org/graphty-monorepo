@@ -1,7 +1,8 @@
 /**
- * A sample mapping: STRING's functional partners of a protein (https://string-db.org). Each
- * interaction record names both proteins, so both are embedded nodes and the record itself is only
- * the edge. Catalog data for the `rest` source's samples.
+ * An example mapping: STRING's functional partners of a protein. Each interaction record names
+ * both proteins, so both are embedded nodes and the record itself is only the edge. Pinned to
+ * STRING 12.5's versioned address, which never changes, so a new STRING release cannot change
+ * what it loads. Catalog data for the `rest` source's examples.
  */
 
 import { type RestMapping } from "../params.js";
@@ -9,7 +10,7 @@ import { type RestMapping } from "../params.js";
 /** The STRING network mapping: `identifiers`, `species` (NCBI taxon) and `add_nodes`. */
 export const STRING_MAPPING: RestMapping = Object.freeze<RestMapping>({
     version: 1,
-    endpoint: "https://string-db.org",
+    endpoint: "https://version-12-5.string-db.org",
     load: "network",
     directed: false,
     requests: {

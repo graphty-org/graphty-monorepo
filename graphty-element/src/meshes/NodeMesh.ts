@@ -360,37 +360,71 @@ export class NodeMesh {
         createOptions: NodeMeshCreateOptions,
         scene?: Scene,
     ): AbstractMesh {
-        const cacheKey = `node-style-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
+        return cache.get(this.cacheKeyOf(options), () => this.createSource(options, createOptions, scene));
+    }
 
-        return cache.get(cacheKey, () => {
-            const mesh = this.createMeshWithoutCache(options, createOptions, scene);
-            placeByZIndex(mesh, createOptions.shape, options.is2D);
+    /**
+     * The source mesh {@link NodeMesh.create} instances, with no instance of it: what a row with
+     * no `Node` is drawn from by its batch.
+     * @param cache - The mesh cache.
+     * @param options - As for {@link NodeMesh.create}.
+     * @param createOptions - As for {@link NodeMesh.create}.
+     * @param scene - The scene.
+     * @returns The source mesh.
+     */
+    static source(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        scene?: Scene,
+    ): Mesh {
+        return cache.sourceFor(this.cacheKeyOf(options), () => this.createSource(options, createOptions, scene));
+    }
 
-            // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
-            // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
-            // every node sharing this style id shares the faceted geometry; `node.flat` is a mesh
-            // column in the style interner, so flat and smooth nodes never share a source mesh.
-            // An unindexed mesh (only a registered shape can be one) has no faces to split.
-            if (createOptions.effect?.flatShaded && !mesh.isUnIndexed && mesh.getTotalIndices() > 0) {
-                mesh.convertToFlatShadedMesh();
-            }
+    /**
+     * The cache key of a node's source mesh.
+     * @param options - Its style id and view.
+     * @returns The key.
+     */
+    private static cacheKeyOf(options: NodeMeshOptions): string {
+        return `node-style-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
+    }
 
-            const material = this.createMaterial(createOptions, options.is2D, scene);
-            mesh.material = material;
-            if (isNodeMaterial(material)) {
-                outlineNodeMesh(mesh, sceneLighting(scene));
-            }
+    /**
+     * Build a node's source mesh and its material.
+     * @param options - As for {@link NodeMesh.create}.
+     * @param createOptions - As for {@link NodeMesh.create}.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static createSource(options: NodeMeshOptions, createOptions: NodeMeshCreateOptions, scene?: Scene): Mesh {
+        const mesh = this.createMeshWithoutCache(options, createOptions, scene);
+        placeByZIndex(mesh, createOptions.shape, options.is2D);
 
-            if (
-                createOptions.texture?.color &&
-                typeof createOptions.texture.color === "object" &&
-                "opacity" in createOptions.texture.color
-            ) {
-                mesh.visibility = createOptions.texture.color.opacity ?? 1;
-            }
+        // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
+        // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
+        // every node sharing this style id shares the faceted geometry; `node.flat` is a mesh
+        // column in the style interner, so flat and smooth nodes never share a source mesh.
+        // An unindexed mesh (only a registered shape can be one) has no faces to split.
+        if (createOptions.effect?.flatShaded && !mesh.isUnIndexed && mesh.getTotalIndices() > 0) {
+            mesh.convertToFlatShadedMesh();
+        }
 
-            return mesh;
-        });
+        const material = this.createMaterial(createOptions, options.is2D, scene);
+        mesh.material = material;
+        if (isNodeMaterial(material)) {
+            outlineNodeMesh(mesh, sceneLighting(scene));
+        }
+
+        if (
+            createOptions.texture?.color &&
+            typeof createOptions.texture.color === "object" &&
+            "opacity" in createOptions.texture.color
+        ) {
+            mesh.visibility = createOptions.texture.color.opacity ?? 1;
+        }
+
+        return mesh;
     }
 
     /**

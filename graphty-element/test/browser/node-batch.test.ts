@@ -21,6 +21,7 @@ import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
 import { drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
+import { nextModelEvent } from "./models/helpers";
 
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
 const RENDERERS = ADAPTER === "" ? (["webgl"] as const) : (["webgl", "webgpu"] as const);
@@ -312,6 +313,72 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             { "node.drawOrder": 40 },
         );
         await layer(element, [2, 5], { "node.drawOrder": 90 });
+        await element.waitForStableFrame();
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        assert.equal(overBar(objects, batched), 0);
+    });
+
+    it.each(["3d", "2d"] as const)("draw rows with a picture in %s as the object rows draw them", async (view) => {
+        const element = await mounted(renderer);
+        await loaded(element, view);
+        // Four colored pixels, one clear: a 2D row cuts it out, a 3D row keeps it white.
+        const canvas = new OffscreenCanvas(2, 2);
+        canvas
+            .getContext("2d")
+            ?.putImageData(
+                new ImageData(
+                    Uint8ClampedArray.from([255, 200, 0, 255, 0, 120, 255, 255, 40, 40, 40, 255, 0, 0, 0, 0]),
+                    2,
+                    2,
+                ),
+                0,
+                0,
+            );
+        const png = new Uint8Array(await (await canvas.convertToBlob({ type: "image/png" })).arrayBuffer());
+        const picture = await element.session.assets.add({ files: new Map([["four.png", png]]) });
+        const drawn = nextModelEvent(element, (change) => change.ref === picture.id && change.state === "drawn");
+        // On the batch while the picture loads, so its rows move from the plain shape's batch to their own.
+        element.graph.setRenderPath("batched");
+        // Both sizes and every color: a picture replaces the color, so the colored rows draw white under it.
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 !== 2).map((node) => node.id),
+            { "node.texture": picture.id },
+        );
+        await drawn;
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const { graph } = element;
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        // One draw for the plain rows and one for the pictured ones, across both sizes.
+        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 2);
+        assert.equal(overBar(await frameOn(graph, "objects"), batched), 0);
+        // And the same built afresh.
+        assert.equal(overBar(await frameOn(graph, "objects"), await frameOn(graph, "batched")), 0);
+        // One draw for the plain rows and one for the pictured ones, across both sizes.
+        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 2);
+    });
+
+    it.each(["3d", "2d"] as const)("draw rows with a gradient in %s as the object rows draw them", async (view) => {
+        const element = await mounted(renderer);
+        await loaded(element, view);
+        // Both sizes and every color: a gradient starts at the row's color, so each color is a ramp of its own.
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 0).map((node) => node.id),
+            { "node.gradientColor": "#00ff00", "node.gradientDirection": 90 },
+        );
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 1).map((node) => node.id),
+            { "node.gradientColors": "#ff00ff #ffff00 #0000ff", "node.gradientKind": "radial" },
+        );
         await element.waitForStableFrame();
         const { graph } = element;
         const objects = await frameOn(graph, "objects");

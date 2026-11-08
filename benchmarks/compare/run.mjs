@@ -1,4 +1,4 @@
-// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [no-still] [no-move]
+// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [no-still] [no-move]
 // lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
 // unset, the element keeps its default. See RUNBOOK.md for the other variables.
@@ -27,6 +27,8 @@ const skip = flags.includes("skip-layout"),
     labels = flags.includes("labels"),
     // label sampling on (layoutBehavior.labels.sampleCell), only with labels
     sampled = flags.includes("sampled"),
+    // labels drawn from the glyph atlas (layoutBehavior.labels.labelText "glyphs"), only with labels
+    glyphs = flags.includes("glyphs"),
     noStill = flags.includes("no-still"),
     noMove = flags.includes("no-move");
 const N = Number(n),
@@ -175,6 +177,7 @@ try {
                     dpr: DPR,
                     labels,
                     sampled,
+                    glyphs,
                     renderPath: RENDER_PATH,
                     renderer: RENDERER,
                     onDemand: !!process.env.LAYOUT_ONLY,

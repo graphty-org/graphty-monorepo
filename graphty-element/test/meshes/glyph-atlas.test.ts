@@ -3,10 +3,10 @@ import { assert, describe, it } from "vitest";
 import {
     ATLAS_SIZE,
     distanceField,
+    fontLigatures,
     GLYPH_TILE,
     GlyphAtlas,
     glyphKey,
-    ligatureFont,
     type PlacedGlyph,
     placeGlyphs,
     scriptFallback,
@@ -95,11 +95,11 @@ describe("glyph atlas ligature fonts", () => {
 
     it("finds a font that draws a ligature, whose advance widths match its parts", () => {
         assert.strictEqual(width("fi"), width("f") + width("i"));
-        assert.isTrue(ligatureFont(width, raster(true)));
+        assert.deepEqual(fontLigatures(width, raster(true)), ["fi", "ffi"]);
     });
 
     it("passes a font whose glyphs draw the same one by one as in a run", () => {
-        assert.isFalse(ligatureFont(width, raster(false)));
+        assert.deepEqual(fontLigatures(width, raster(false)), []);
     });
 });
 

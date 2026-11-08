@@ -20,6 +20,9 @@ import {
 } from "../../session";
 import { formatDescriptor } from "../../src/catalog/formats";
 import { type ExportLoss, exportSession } from "../../src/data/export";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** The formats that keep layers, and the options that pick each. */
 const FORMATS: readonly [string, string, Readonly<Record<string, unknown>>][] = [

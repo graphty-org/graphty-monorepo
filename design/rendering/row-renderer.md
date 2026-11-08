@@ -260,6 +260,21 @@ one factor maps its baked vertices exactly, and otherwise gets a family of its o
 different levels differ in depth, so no draw-order tie arises. This brings file styles' nodes onto the
 batch: every imported file but graphty's own gives each node a `node.drawOrder` level.
 
+As built (stage 14, fifth pull request: pictures): `batchableOf` takes `texture.image` (`node.texture`, a
+picture on a built-in shape). The picture is in its source's material, as a color is, so the batch draws it
+by sharing that material; `Node.drawnInstanceColor` gives a pictured row white, as `applyInstanceColor`
+gives its instance, since a picture replaces the shape's color. `batchLook` adds whether the picture is
+drawn: while it loads (or after it fails) the row's source is the plain shape's, with the same geometry, so
+without that flag a loaded row joined the plain family and drew the plain material (42,864 pixels off).
+`texture.icon` (which draws nothing) and the face picture `node.image` stay object rows.
+
+As built (stage 14, sixth pull request: gradients): `batchableOf` takes any `texture.color`, linear and
+radial gradients included. A gradient is a ramp texture in its source's material, and its start color is in
+the mesh key (`StylePainter`), so each gradient is a source and a look of its own and its batch shares that
+material. A gradient row paints no instance color (`paint.color` is null), so the batch writes white, which
+leaves the ramp as the object row draws it. Nothing else changed: `batchLook` already carries the
+gradient inside `texture`.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.
@@ -533,10 +548,17 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
     - Correction from stage 33 (`meshes/GlyphAtlas.ts`): no regular expression can see a ligature font, and widths cannot either (a
       font keeps a ligature as wide as its parts: DejaVu Serif "fi" is 29.32 px at 48 px, "f" plus "i" the same). A ligature font is found
       by its ink: each of a few probes ("fi", "fl", "ff", "ffi", "ffl", "->", "=>", "!=", "==", "<=", ">=", "www") is drawn as one run and
-      glyph by glyph at the placed x; any difference over 0.5% of the ink is a ligature, and that font's labels fall back. In Chromium a
+      glyph by glyph at the placed x; any difference over 0.5% of the ink is a ligature, and a label holding that probe falls back
+      (not every label in the font: DejaVu Sans, the Linux fallback for Verdana, draws "fi" as one, which sent every label back). In Chromium a
       font without ligatures draws identically both ways (0.000); DejaVu Sans and Serif "fi" differ by 0.065 and 0.112. Combining marks (`\p{M}`) fall back too, since only the font's positioning table places
       them; "Indic" covers the other Brahmic scripts (Thai, Lao, Tibetan, Myanmar, Khmer). Tiles are 80 texels (56 px glyphs, a 12-texel
       reach): 2,601 to the page. A label falls back whole when its glyphs do not all fit.
+    - Correction from stage 33 (`meshes/GlyphLabels.ts`): "plain" is not judged from the style. The label's own painting runs on a
+      recording canvas context, and a label is plain when that painting inks nothing but `fillText` (a transparent panel path is
+      fine; a fill, stroke, shadow or alpha is not). Runs in several fonts and colors (markup) are therefore glyph-drawn too. Each
+      label keeps its plane for placement, declutter and picking, with layer mask 0 so it draws nothing; the one draw rebuilds its
+      glyph instances from each shown plane's world matrix every frame. A web font not yet loaded falls back, so no tile is drawn
+      in a fallback font.
 - **Sampling**, off by default with its cell size a setting (`layoutBehavior.labels.sampleCell`, CSS pixels; unset is off). When the view
   settles, one label per screen cell is picked (selected, then degree, then id); only the winners get built, and
   `nodeLabelCounts.hiddenBySampling` (present only while it is on) counts the rest.

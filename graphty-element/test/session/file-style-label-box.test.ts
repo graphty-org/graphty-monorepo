@@ -7,6 +7,9 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const att = (name: string, value: string): string => `<att name="${name}" value="${value}" type="string"/>`;
 const box = (shape: string): string =>

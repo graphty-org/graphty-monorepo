@@ -20,6 +20,7 @@ import { siteConfig } from "../../siteConfig";
 import { putModelOnNodes } from "../canvas/models";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
+import { fileStylesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
@@ -213,13 +214,15 @@ async function drawFirst(
     const lone = draft.tables.length === 1 && !ready;
     const mapping = lone ? { rowsAre: "nodes" as const } : draft.mapping;
     // A graph file keeps the roles its format sets.
+    const styled = fileStylesOn(session);
     await draft.load({
-        styles: fileStylesChoice(),
-        styleOptions: FILE_STYLE_OPTIONS,
+        ...(styled ? { styles: fileStylesChoice(), styleOptions: FILE_STYLE_OPTIONS } : {}),
         ...(fixed ? {} : { mapping }),
         ...(fresh ? { history: "start" as const } : {}),
     });
-    noticeFileStyles(workspace, session);
+    if (styled) {
+        noticeFileStyles(workspace, session);
+    }
     const load = session.data.sources().at(-1);
     if (lone && load !== undefined) {
         workspace.set({ ends: { load: load.key, source: null, target: null } });

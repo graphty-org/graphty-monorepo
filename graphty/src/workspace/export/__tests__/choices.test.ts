@@ -80,6 +80,20 @@ describe("the Export dialog's choices", () => {
         assert.strictEqual(options.sanitizeIds, "mangle");
     });
 
+    it("asks for no styles where the element's catalog offers no styles option (file styles off)", () => {
+        const graphml = formatDescriptor("graphml");
+        assert.isDefined(graphml);
+        if (graphml === undefined) {
+            return;
+        }
+        // What session.catalog.formats() hands over with the file styles experiment off.
+        const { styles: _styles, ...plain } = graphml;
+        const off = { ...plain, writerOptions: (graphml.writerOptions ?? []).filter((o) => o.name !== "styles") };
+        const [row] = formatRows([off]);
+        assert.isFalse(row.options.some((option) => option.name === "styles"));
+        assert.notProperty(writerOptions(row, {}), "styles");
+    });
+
     it("offers no Include styles for CSV, which writes the same file with it on (R14)", () => {
         const csv = formatDescriptor("csv");
         assert.isDefined(csv);

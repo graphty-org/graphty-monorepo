@@ -253,6 +253,7 @@
         "Styles/Label::FontSize",
         "Styles/Label::FontType",
         "Styles/Label::FontWeight",
+        "Styles/Label::GlyphText",
         "Styles/Label::KeepInView",
         "Styles/Label::LineHeight",
         "Styles/Label::Location",

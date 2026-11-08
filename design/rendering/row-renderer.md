@@ -511,10 +511,17 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
     - Correction from stage 33 (`meshes/GlyphAtlas.ts`): no regular expression can see a ligature font, and widths cannot either (a
       font keeps a ligature as wide as its parts: DejaVu Serif "fi" is 29.32 px at 48 px, "f" plus "i" the same). A ligature font is found
       by its ink: each of a few probes ("fi", "fl", "ff", "ffi", "ffl", "->", "=>", "!=", "==", "<=", ">=", "www") is drawn as one run and
-      glyph by glyph at the placed x; any difference over 0.5% of the ink is a ligature, and that font's labels fall back. In Chromium a
+      glyph by glyph at the placed x; any difference over 0.5% of the ink is a ligature, and a label holding that probe falls back
+      (not every label in the font: DejaVu Sans, the Linux fallback for Verdana, draws "fi" as one, which sent every label back). In Chromium a
       font without ligatures draws identically both ways (0.000); DejaVu Sans and Serif "fi" differ by 0.065 and 0.112. Combining marks (`\p{M}`) fall back too, since only the font's positioning table places
       them; "Indic" covers the other Brahmic scripts (Thai, Lao, Tibetan, Myanmar, Khmer). Tiles are 80 texels (56 px glyphs, a 12-texel
       reach): 2,601 to the page. A label falls back whole when its glyphs do not all fit.
+    - Correction from stage 33 (`meshes/GlyphLabels.ts`): "plain" is not judged from the style. The label's own painting runs on a
+      recording canvas context, and a label is plain when that painting inks nothing but `fillText` (a transparent panel path is
+      fine; a fill, stroke, shadow or alpha is not). Runs in several fonts and colors (markup) are therefore glyph-drawn too. Each
+      label keeps its plane for placement, declutter and picking, with layer mask 0 so it draws nothing; the one draw rebuilds its
+      glyph instances from each shown plane's world matrix every frame. A web font not yet loaded falls back, so no tile is drawn
+      in a fallback font.
 - **Sampling**, off by default with its cell size a setting (`layoutBehavior.labels.sampleCell`, CSS pixels; unset is off). When the view
   settles, one label per screen cell is picked (selected, then degree, then id); only the winners get built, and
   `nodeLabelCounts.hiddenBySampling` (present only while it is on) counts the rest.

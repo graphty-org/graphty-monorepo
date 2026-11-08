@@ -2,7 +2,6 @@ import { ModalFooter } from "@graphty/compact-mantine";
 import { Badge, Button, Group, Text } from "@mantine/core";
 import React, { useState } from "react";
 
-import { askAssetChoices } from "../project/actions";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { fileName, saveBlob, slug } from "./choices";
 
@@ -39,7 +38,7 @@ interface Contents {
  * @returns The output's body and footer
  */
 export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutputProps>): React.JSX.Element {
-    const { element, session, store } = useWorkspace();
+    const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
     const [contents] = useState((): Contents | null => {
         if (session === null) {
@@ -77,12 +76,7 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
 
     const save = async (): Promise<void> => {
         if (kind === "project") {
-            // The node models experiment first asks how to keep each model named by web address.
-            const assets = session === null ? {} : await askAssetChoices(store, session);
-            if (assets === null) {
-                return;
-            }
-            await element?.downloadProject({ fileName: name, ...(Object.keys(assets).length === 0 ? {} : { assets }) });
+            await element?.downloadProject({ fileName: name });
         } else if (contents?.text !== undefined) {
             saveBlob(new Blob([contents.text], { type: "application/json" }), name);
         }

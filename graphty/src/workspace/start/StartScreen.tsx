@@ -15,6 +15,7 @@ import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
+import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
@@ -36,11 +37,11 @@ import { NETWORK_DIALOG } from "./NetworkDataDialog";
 import {
     copyOf,
     openDataset,
+    openFiles,
     openGenerated,
-    openOnStart,
+    openModel,
     openSample,
     OWN_COPIES,
-    pickFiles,
     pictureOf,
     samplePicture,
 } from "./open";
@@ -708,6 +709,7 @@ export function StartScreen(): React.JSX.Element {
     const workspace = useWorkspace();
     const scheme = useComputedColorScheme("dark");
     const recent = useRecentProjects();
+    const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
     const [session, setSession] = useState<GraphSession | null>(null);
     const onSession = useCallback((next: GraphSession) => {
@@ -728,14 +730,16 @@ export function StartScreen(): React.JSX.Element {
     // says whether it is a model before it is read as graph data.
     const onDrop = useCallback(
         (files: File[]) => {
-            void openOnStart(workspace, files, session);
+            void holdsModel(files).then((model) => {
+                if (model) {
+                    openModel(workspace.store, files[0]?.name ?? "Model", files);
+                } else {
+                    openFiles(workspace, files);
+                }
+            });
         },
-        [workspace, session],
+        [workspace],
     );
-    // Open a file is the drop's Choose: the same files open the same way.
-    const choose = (): void => {
-        void pickFiles().then((files) => openOnStart(workspace, files, session));
-    };
     const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
@@ -754,7 +758,7 @@ export function StartScreen(): React.JSX.Element {
     const openButton = (variant: "primary" | "tint"): React.JSX.Element => (
         <Button
             className={variant === "primary" ? "ws-land-go ws-land-xl" : "ws-land-tint"}
-            onClick={choose}
+            onClick={openDoor?.run}
             leftSection={variant === "tint" ? <GLYPHS.openFile size={16} aria-hidden /> : undefined}
         >
             {variant === "primary" ? (

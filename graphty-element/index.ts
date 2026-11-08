@@ -195,9 +195,7 @@ export type {
 
 // The project file: the whole session as one graphty document, as `element.session.project`
 export type {
-    AssetStorage,
     ProjectApi,
-    ProjectAssetChoice,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,

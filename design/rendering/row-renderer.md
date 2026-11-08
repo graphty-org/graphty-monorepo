@@ -380,6 +380,12 @@ between a pulled piece and a placed slot both ways. `test/browser/pulled-edges-b
 `"objects"` picture, 0 pixels, at rest, after a mouse drag and across a live switch each way, on WebGL and WebGPU. `repeatPerVertex`
 and the 1M-edge SwiftShader load are the stage's second pull request.
 
+Correction from stage 16: this pull request cannot move the stage's targets, because the harness pulls no edge. `lean` is 2D, and a
+2D solid line is a flat rectangle (`Simple2DLineRenderer`), which `Edge.pullsLine` refuses; `default` is 3D but every edge has a
+head, which waits for stage 17. One `lean-m` run each under `"batched"`, RTX, interleaved: before (`benchmarks/results/stage-16-before`,
+load average 5.4) moving 87.6 ms (p99 90.6), layout frame 942 ms; after (`benchmarks/results/stage-16`, 4.2) moving 86.9 ms (p99 89.5),
+layout frame 997 ms, `rowCounts.pulledEdges` 0 in both. The 2D targets need a pulled 2D line, which no stage yet builds.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

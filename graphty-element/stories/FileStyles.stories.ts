@@ -167,6 +167,7 @@ async function drewArrows(
 function fileArgs(dataSource: string, source: { readonly url: string }, placedOnce = false): Story["args"] {
     return {
         dataSource,
+        features: ["file-styles"],
         dataSourceConfig: { ...source, styles: "file" },
         ...(placedOnce ? { layout: "circular" } : { layout: "ngraph", layoutConfig: { seed: 42 } }),
         setup: storySetup({ preSteps: 1000 }),
@@ -181,6 +182,7 @@ function fileArgs(dataSource: string, source: { readonly url: string }, placedOn
 export const Gexf: Story = {
     args: {
         dataSource: "gexf",
+        features: ["file-styles"],
         dataSourceConfig: { url: absolute(miserablesUrl), styles: "file" },
         layout: "ngraph",
         layoutConfig: { seed: 42 },

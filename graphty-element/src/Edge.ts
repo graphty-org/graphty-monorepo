@@ -59,6 +59,7 @@ import {
 import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } from "./meshes/EdgeShaderDrawing";
 import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
+import { batchUploadFrames } from "./meshes/FrameRoster";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
@@ -309,6 +310,83 @@ function widensLine(style: EdgeStyleConfig | null): boolean {
 }
 
 /**
+ * A style with the colour and the opacity of its line and its end caps left out: what two looks
+ * that share their batches' geometry have in common. See `Edge.restyleInPlace`.
+ * @param style - The resolved style.
+ * @returns A shallow copy without those six values.
+ */
+function withoutColours(style: EdgeStyleConfig): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...style };
+    for (const part of ["line", "arrowHead", "arrowTail"] as const) {
+        const value = style[part];
+        if (value !== undefined) {
+            out[part] = { ...value, color: undefined, opacity: undefined };
+        }
+    }
+
+    return out;
+}
+
+/** What {@link differsOnlyInColour} found for each pair of styles it was asked about. */
+const colourOnlyPairs = new WeakMap<EdgeStyleConfig, WeakMap<EdgeStyleConfig, boolean>>();
+
+/** What {@link sameStyle} found for each pair of styles it was asked about. */
+const equalPairs = new WeakMap<EdgeStyleConfig, WeakMap<EdgeStyleConfig, boolean>>();
+
+/**
+ * A comparison of two styles, remembered per pair.
+ *
+ * Edges painted by their key alone share their paint (`StylePainter.edgePaint`), so a pass that
+ * moves thousands of edges between two looks asks about the same two objects every time, and a
+ * deep comparison of two whole styles per edge cost more than the rebuild it decides on (#6026).
+ * @param cache - Where this comparison's answers are kept.
+ * @param a - One look.
+ * @param b - The other.
+ * @param compare - The comparison, run once per pair.
+ * @returns Its answer.
+ */
+function rememberedPair(
+    cache: WeakMap<EdgeStyleConfig, WeakMap<EdgeStyleConfig, boolean>>,
+    a: EdgeStyleConfig,
+    b: EdgeStyleConfig,
+    compare: () => boolean,
+): boolean {
+    let row = cache.get(a);
+    if (row === undefined) {
+        row = new WeakMap();
+        cache.set(a, row);
+    }
+
+    let known = row.get(b);
+    if (known === undefined) {
+        known = compare();
+        row.set(b, known);
+    }
+
+    return known;
+}
+
+/**
+ * Whether two looks are deep-equal.
+ * @param a - One look.
+ * @param b - The other, or null for none.
+ * @returns True when they say the same thing.
+ */
+function sameStyle(a: EdgeStyleConfig, b: EdgeStyleConfig | null): boolean {
+    return a === b || (b !== null && rememberedPair(equalPairs, a, b, () => isEqual(a, b)));
+}
+
+/**
+ * Whether two looks differ at most in the colour and the opacity of their line and end caps.
+ * @param a - One look.
+ * @param b - The other.
+ * @returns True when nothing else differs.
+ */
+function differsOnlyInColour(a: EdgeStyleConfig, b: EdgeStyleConfig): boolean {
+    return rememberedPair(colourOnlyPairs, a, b, () => isEqual(withoutColours(a), withoutColours(b)));
+}
+
+/**
  * A stable 0..1 random per edge id.
  * @param id - The edge id.
  * @returns The seed.
@@ -392,6 +470,66 @@ function boxReach(mesh: AbstractMesh, direction: Vector3): number {
     }
 
     return Number.isFinite(reach) ? reach : 0;
+}
+
+/**
+ * Visit some slots of one batch, every one of them.
+ * @param batch - The batch.
+ * @param slots - The slots.
+ * @param visit - Called with each.
+ * @returns True when every visit returned true.
+ */
+function everySlotOf(
+    batch: EdgeLineBatch,
+    slots: readonly number[],
+    visit: (batch: EdgeLineBatch, slot: number) => boolean,
+): boolean {
+    let all = true;
+    for (const slot of slots) {
+        all = visit(batch, slot) && all;
+    }
+
+    return all;
+}
+
+/**
+ * Park one edge batch slot; see `Edge.parkPieces`.
+ * @param batch - The batch.
+ * @param slot - The slot.
+ * @returns True, always.
+ */
+function parkSlot(batch: EdgeLineBatch, slot: number): boolean {
+    batch.park(slot);
+    return true;
+}
+
+/**
+ * Put one parked edge batch slot back; see `Edge.unparkPieces`.
+ * @param batch - The batch.
+ * @param slot - The slot.
+ * @returns Whether it was put back.
+ */
+function unparkSlot(batch: EdgeLineBatch, slot: number): boolean {
+    return batch.unpark(slot);
+}
+
+/**
+ * Park one arrow cap.
+ * @param cap - The cap.
+ * @returns True, always.
+ */
+function parkCap(cap: ArrowCap): boolean {
+    cap.park();
+    return true;
+}
+
+/**
+ * Put one parked arrow cap back.
+ * @param cap - The cap.
+ * @returns Whether it was put back.
+ */
+function unparkCap(cap: ArrowCap): boolean {
+    return cap.unpark();
 }
 
 /**
@@ -1021,40 +1159,10 @@ export class Edge {
         }
 
         // create arrow mesh if needed
-        this.arrowCap = EdgeMesh.createArrowHead(
-            this.context.getMeshCache(),
-            paint.meshKey,
-            {
-                type: style.arrowHead?.type ?? "none",
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF",
-                size: style.arrowHead?.size,
-                breadth: style.arrowHead?.width,
-                side: style.arrowHead?.side,
-                opacity: style.arrowHead?.opacity,
-                image: style.arrowHead?.image,
-                outline: style.arrowHead?.outlineWidth,
-            },
-            this.context.getScene(),
-        );
+        this.arrowCap = this.createEndCap(paint.meshKey, style, "arrowHead");
 
         // create arrow tail mesh if needed
-        this.arrowTailCap = EdgeMesh.createArrowHead(
-            this.context.getMeshCache(),
-            `${paint.meshKey}-tail`,
-            {
-                type: style.arrowTail?.type ?? "none",
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.arrowTail?.color ?? style.line?.color ?? "#FFFFFF",
-                size: style.arrowTail?.size,
-                breadth: style.arrowTail?.width,
-                side: style.arrowTail?.side,
-                opacity: style.arrowTail?.opacity,
-                image: style.arrowTail?.image,
-                outline: style.arrowTail?.outlineWidth,
-            },
-            this.context.getScene(),
-        );
+        this.arrowTailCap = this.createEndCap(paint.meshKey, style, "arrowTail");
 
         this.createMidCaps(paint.meshKey, style);
 
@@ -1641,13 +1749,15 @@ export class Edge {
             (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
             EdgeMesh.drawsAsPattern(style, this.srcNode === this.dstNode) &&
             !asSurface;
-        const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh;
+        // A line moves between a pulled piece and a placed slot when the render path changes.
+        const samePull = this.wantsPull(style) === (this.pulled !== null);
+        const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
         const sameFlavor = flavorOf(style) === this.lineWanted;
-        const sameGeometry = sameRoute && sameFlavor && (meshKey === this.meshKey || isEqual(style, this.drawnStyle));
+        const sameGeometry = sameRoute && sameFlavor && (meshKey === this.meshKey || sameStyle(style, this.drawnStyle));
 
-        if (sameGeometry && !meshDisposed) {
+        if (!meshDisposed && (sameGeometry || (sameRoute && sameFlavor && this.restyleInPlace(meshKey, style)))) {
             this.meshKey = meshKey;
             this.drawnStyle = style;
             this.syncContent(style, false);
@@ -1671,44 +1781,14 @@ export class Edge {
             this.arrowCap.dispose();
         }
 
-        this.arrowCap = EdgeMesh.createArrowHead(
-            this.context.getMeshCache(),
-            meshKey,
-            {
-                type: style.arrowHead?.type ?? "none",
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.arrowHead?.color ?? style.line?.color ?? "#FFFFFF",
-                size: style.arrowHead?.size,
-                breadth: style.arrowHead?.width,
-                side: style.arrowHead?.side,
-                opacity: style.arrowHead?.opacity,
-                image: style.arrowHead?.image,
-                outline: style.arrowHead?.outlineWidth,
-            },
-            this.context.getScene(),
-        );
+        this.arrowCap = this.createEndCap(meshKey, style, "arrowHead");
 
         // recreate arrow tail mesh if needed
         if (this.arrowTailCap && !this.arrowTailCap.isDisposed()) {
             this.arrowTailCap.dispose();
         }
 
-        this.arrowTailCap = EdgeMesh.createArrowHead(
-            this.context.getMeshCache(),
-            `${meshKey}-tail`,
-            {
-                type: style.arrowTail?.type ?? "none",
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.arrowTail?.color ?? style.line?.color ?? "#FFFFFF",
-                size: style.arrowTail?.size,
-                breadth: style.arrowTail?.width,
-                side: style.arrowTail?.side,
-                opacity: style.arrowTail?.opacity,
-                image: style.arrowTail?.image,
-                outline: style.arrowTail?.outlineWidth,
-            },
-            this.context.getScene(),
-        );
+        this.arrowTailCap = this.createEndCap(meshKey, style, "arrowTail");
 
         this.createMidCaps(meshKey, style);
 
@@ -1730,6 +1810,147 @@ export class Edge {
         // Every mesh above is new, so whatever the visibility mask said about this edge has to be
         // said again -- otherwise a restyle silently puts a filtered-out edge back on screen.
         this.applyRenderState();
+    }
+
+    /**
+     * Build one end cap a resolved style asks for.
+     * @param meshKey - Which source mesh the edge is drawn from.
+     * @param style - The resolved style.
+     * @param end - The head or the tail.
+     * @returns The cap, or null for none.
+     */
+    private createEndCap(meshKey: string, style: EdgeStyleConfig, end: "arrowHead" | "arrowTail"): ArrowCap | null {
+        const arrow = style[end];
+        return EdgeMesh.createArrowHead(
+            this.context.getMeshCache(),
+            end === "arrowHead" ? meshKey : `${meshKey}-tail`,
+            {
+                type: arrow?.type ?? "none",
+                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                color: arrow?.color ?? style.line?.color ?? "#FFFFFF",
+                size: arrow?.size,
+                breadth: arrow?.width,
+                side: arrow?.side,
+                opacity: arrow?.opacity,
+                image: arrow?.image,
+                outline: arrow?.outlineWidth,
+            },
+            this.context.getScene(),
+        );
+    }
+
+    /**
+     * Whether this edge draws only a plain batched line and its end caps, which
+     * {@link Edge.restyleInPlace} knows how to move: no outline, gradient, band, middle cap, cap
+     * stack or arrow caption.
+     * @returns True for one.
+     */
+    private drawsPlainLine(): boolean {
+        return (
+            this.lineBatch !== null &&
+            this.pulled === null &&
+            this.lineBuilt === "plain" &&
+            this.lineWanted === "plain" &&
+            this.outlineBatch === null &&
+            this.gradientPieces.length === 0 &&
+            this.haloBands.length === 0 &&
+            this.arrowMiddleHeadCap === null &&
+            this.arrowMiddleTailCap === null &&
+            this.headStack.length === 0 &&
+            this.tailStack.length === 0 &&
+            this.arrowHeadText === null &&
+            this.arrowTailText === null
+        );
+    }
+
+    /**
+     * Move a plain line and its end caps to the batches of a look that differs from the one they
+     * are drawn with only in colour and opacity, copying where each is drawn rather than building
+     * and placing them again.
+     *
+     * WHY THIS EXISTS (#6026). Colour and opacity are a batch's, folded into the mesh key, so a
+     * look that changes only them -- the Ghost row, as a time window slides past thousands of
+     * edges a frame -- took the whole rebuild in `paintFrom` for every edge: release the line,
+     * dispose and rebuild every cap, rebuild the content, and place everything again on the next
+     * frame. Nothing about where the edge is drawn moved, so the slots are copied instead.
+     * Anything but the common case (see {@link Edge.drawsPlainLine}) takes the rebuild.
+     * @param meshKey - The new look's mesh key.
+     * @param style - The new look.
+     * @returns True when the edge now draws the new look; false, having changed nothing, when it
+     *     must be rebuilt.
+     */
+    private restyleInPlace(meshKey: string, style: EdgeStyleConfig): boolean {
+        const old = this.lineBatch;
+        const width = style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+        if (
+            old === null ||
+            width <= 0 ||
+            flavorOf(style) !== "plain" ||
+            !this.drawsPlainLine() ||
+            this.drawnStyle === null ||
+            !differsOnlyInColour(style, this.drawnStyle)
+        ) {
+            return false;
+        }
+
+        const next = EdgeMesh.lineBatch(
+            this.context.getMeshCache(),
+            { styleId: meshKey, width, color: style.line?.color ?? "#FFFFFF" },
+            style,
+            this.context.getScene(),
+            false,
+            this.srcNode === this.dstNode,
+        );
+        if (next === null) {
+            return false;
+        }
+
+        // Every slot is copied before any is released: the last release takes the old batch with it.
+        let placed = true;
+        const slots = this.lineSlots.map((slot) => {
+            const moved = next.adopt(old, slot, this);
+            placed &&= moved.copied;
+            return moved.slot;
+        });
+        for (const slot of this.lineSlots) {
+            old.release(slot);
+        }
+
+        this.lineBatch = next;
+        this.lineSlots = slots;
+        this.mesh = next.mesh;
+        placed = this.moveEndCaps(meshKey, style) && placed;
+
+        // Whatever could not be copied is placed by the next update.
+        if (!placed) {
+            this.invalidatePositionCache();
+        }
+
+        return true;
+    }
+
+    /**
+     * Rebuild both end caps in a new look, each standing where its old cap stood.
+     * @param meshKey - The new look's mesh key.
+     * @param style - The new look.
+     * @returns False when a cap could not take its old cap's place and must be placed again.
+     */
+    private moveEndCaps(meshKey: string, style: EdgeStyleConfig): boolean {
+        let placed = true;
+        const move = (cap: ArrowCap | null, end: "arrowHead" | "arrowTail"): ArrowCap | null => {
+            const made = this.createEndCap(meshKey, style, end);
+            const live = cap !== null && !cap.isDisposed();
+            if (live) {
+                placed = (made?.takePlaceOf(cap) ?? false) && placed;
+                cap.dispose();
+            }
+
+            return made;
+        };
+        this.arrowCap = move(this.arrowCap, "arrowHead");
+        this.arrowTailCap = move(this.arrowTailCap, "arrowTail");
+
+        return placed;
     }
 
     /**
@@ -2123,7 +2344,7 @@ export class Edge {
             options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
 
         this.lineWanted = flavorOf(style);
-        const pulled = options.width > 0 && this.pullsLine(style) ? this.pullLine(options, style) : null;
+        const pulled = this.wantsPull(style) ? this.pullLine(options, style) : null;
         if (pulled) {
             this.lineBatch = null;
             this.lineSlots = [];
@@ -2167,17 +2388,32 @@ export class Edge {
     }
 
     /**
-     * Whether this edge's line is pulled from the row table (`PulledLineBatch`, behind the internal
-     * switch `pulledEdgesDefault`): a plain solid straight line between two node centres -- no
-     * cap, gap, group, bend, loop, label, band or any other line key -- in 3D. Read when the line is
-     * built.
+     * Whether this edge's line is to be pulled from the row table: it {@link Edge.pullsLine}, it
+     * draws a line at all, and the graph keeps a row table to pull from.
+     * @param style - The resolved style.
+     * @returns True when it is to be pulled.
+     */
+    private wantsPull(style: EdgeStyleConfig): boolean {
+        return (
+            (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
+            this.pullsLine(style) &&
+            (this.context.getRowTable?.() ?? null) !== null
+        );
+    }
+
+    /**
+     * Whether this edge's line is pulled from the row table (`PulledLineBatch`): on the `"batched"`
+     * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
+     * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
+     * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). Read when the
+     * line is built.
      * @param style - The resolved style.
      * @returns True when it is pulled.
      */
     private pullsLine(style: EdgeStyleConfig): boolean {
         const line = style.line ?? {};
         return (
-            pulledEdgesDefault.value &&
+            (pulledEdgesDefault.value || (this.context.getNodeBatches?.() ?? null) !== null) &&
             this.srcNode !== this.dstNode &&
             !this.srcNode.isDrawnAsGroup &&
             !this.dstNode.isDrawnAsGroup &&
@@ -2190,7 +2426,8 @@ export class Edge {
             noCap(style.arrowHead) &&
             noCap(style.arrowTail) &&
             style.band?.color === undefined &&
-            this.route === "straight"
+            this.route === "straight" &&
+            !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
     }
 
@@ -2737,9 +2974,9 @@ export class Edge {
      * Say whether the renderer should draw this edge.
      *
      * HIDING IS NOT DELETION: the edge keeps its row in the store, its dense index, its endpoints
-     * and its style. Showing it again re-enables the meshes it already has and invalidates the
-     * endpoint cache so the next frame recomputes where the line meets the two node surfaces --
-     * which is a ray cast, not a layout.
+     * and its style. Showing it again puts back the slots it was hidden from as they were (see
+     * `applyRenderState`), and the next frame re-places it only if its endpoint cache says
+     * something moved while it was hidden.
      * @param visible - What the visibility mask says about this edge.
      * @returns True when this changed the state.
      */
@@ -2781,10 +3018,17 @@ export class Edge {
     /**
      * Enable or disable every mesh this edge owns, to match {@link Edge.renderVisible}.
      *
-     * The arrowheads are only ever DISABLED here. Whether an edge has an arrowhead at all, and
-     * where it sits, is decided while the endpoints are recomputed, so re-enabling one from here
-     * would show a cap on an edge whose style asks for none. Invalidating the endpoint cache hands
-     * that decision back to the next update, which is the code that owns it.
+     * HIDING PARKS, SHOWING PUTS BACK (issue #6025). Every slot this edge holds in a batch is parked
+     * when it is hidden: a joined line and a billboarded cap set the slot's hidden flag, one float
+     * the shader reads, and leave its placement where it is; any other batch zeroes the slot and
+     * keeps what it held aside. Showing it puts each slot back as it was and keeps the endpoint cache, so the next update re-places the edge only if an end moved
+     * (or anything else its cache answers for) while it was hidden. A time window that jumps shows
+     * tens of thousands of edges whose nodes did not move, and placing each again was most of the
+     * jump. A slot that cannot be put back -- taken anew by a restyle, or written since -- drops the
+     * cache, so the edge is placed as before.
+     *
+     * The arrowheads come back only as they were parked: whether an edge has one at all is decided
+     * while its endpoints are recomputed, and a cap that placement hid was parked hidden.
      */
     private applyRenderState(): void {
         if (this.disposed) {
@@ -2792,35 +3036,129 @@ export class Edge {
         }
 
         const drawn = this.isRenderVisible();
-
-        for (const slot of this.haloSlots) {
-            this.haloBatch?.setDrawn(slot, drawn);
-        }
-
-        for (const run of this.effectRuns.values()) {
-            for (const slot of run.slots) {
-                run.batch.setDrawn(slot, drawn);
-            }
-        }
-
-        this.setBatchedPiecesDrawn(drawn);
-        this.setLineDrawn(drawn);
-
-        if (!drawn) {
-            this.arrowCap?.setDrawn(false);
-            this.arrowTailCap?.setDrawn(false);
-            this.arrowMiddleHeadCap?.setDrawn(false);
-            this.arrowMiddleTailCap?.setDrawn(false);
-            for (const cap of this.stackCaps()) {
-                cap.setDrawn(false);
-            }
+        let back = true;
+        if (drawn) {
+            back = this.unparkPieces();
+        } else {
+            this.parkPieces();
         }
 
         this.setTextsDrawn(drawn);
 
-        if (drawn) {
+        if (!back) {
             this.invalidatePositionCache();
         }
+    }
+
+    /**
+     * Visit every slot this edge holds in an edge batch: its line, halo, effects, outline, bands and gradient.
+     * @param visit - Called with each batch and slot; a module-level function, so a visit allocates nothing.
+     * @returns True when every visit returned true.
+     */
+    private everySlot(visit: (batch: EdgeLineBatch, slot: number) => boolean): boolean {
+        let all = true;
+        if (this.lineBatch && !this.pulled) {
+            all = everySlotOf(this.lineBatch, this.lineSlots, visit);
+        }
+
+        if (this.haloBatch) {
+            all = everySlotOf(this.haloBatch, this.haloSlots, visit) && all;
+        }
+
+        for (const run of this.effectRuns.values()) {
+            all = everySlotOf(run.batch, run.slots, visit) && all;
+        }
+
+        if (this.outlineBatch) {
+            all = everySlotOf(this.outlineBatch, this.outlineSlots, visit) && all;
+        }
+
+        for (const { batch, slots } of this.haloBands) {
+            all = everySlotOf(batch, slots, visit) && all;
+        }
+
+        for (const { batch, slot } of this.gradientPieces) {
+            all = visit(batch, slot) && all;
+        }
+
+        return all;
+    }
+
+    /**
+     * Visit every arrow cap this edge holds: head, tail, the mid caps and the stacked caps.
+     * @param visit - Called with each cap; a module-level function, so a visit allocates nothing.
+     * @returns True when every visit returned true.
+     */
+    private everyCap(visit: (cap: ArrowCap) => boolean): boolean {
+        let all = true;
+        if (this.arrowCap) {
+            all = visit(this.arrowCap) && all;
+        }
+
+        if (this.arrowTailCap) {
+            all = visit(this.arrowTailCap) && all;
+        }
+
+        if (this.arrowMiddleHeadCap) {
+            all = visit(this.arrowMiddleHeadCap) && all;
+        }
+
+        if (this.arrowMiddleTailCap) {
+            all = visit(this.arrowMiddleTailCap) && all;
+        }
+
+        for (const { cap } of this.headStack) {
+            all = visit(cap) && all;
+        }
+
+        for (const { cap } of this.tailStack) {
+            all = visit(cap) && all;
+        }
+
+        return all;
+    }
+
+    /** Stop drawing every piece of this edge, keeping each batch slot's place to put back. */
+    private parkPieces(): void {
+        this.everySlot(parkSlot);
+        this.everyCap(parkCap);
+
+        if (this.pulled) {
+            this.pulled.drawn = false;
+            this.pullRows();
+        } else if (this.lineBatch) {
+            // parked with the slots above
+        } else if (this.mesh instanceof PatternedLineMesh) {
+            this.mesh.park();
+        } else if (!this.mesh.isDisposed()) {
+            // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
+            // isPickable here would lose whatever the edge style asked for on the way back.
+            this.mesh.setEnabled(false);
+        }
+    }
+
+    /**
+     * Draw every piece of this edge again as it was parked.
+     * @returns True when every piece is back as it was; false when one must be placed again.
+     */
+    private unparkPieces(): boolean {
+        let back = this.everySlot(unparkSlot);
+        back = this.everyCap(unparkCap) && back;
+
+        if (this.pulled) {
+            // a pulled piece is drawn from its nodes' rows, and placed by its next update
+            this.pulled.drawn = true;
+            this.pullRows();
+            back = false;
+        } else if (this.lineBatch) {
+            // put back with the slots above
+        } else if (this.mesh instanceof PatternedLineMesh) {
+            back = this.mesh.unpark() && back;
+        } else if (!this.mesh.isDisposed()) {
+            this.mesh.setEnabled(true);
+        }
+
+        return back;
     }
 
     /**
@@ -2828,62 +3166,57 @@ export class Edge {
      * @param drawn - Whether the edge is drawn.
      */
     private setTextsDrawn(drawn: boolean): void {
+        for (const [labelMesh, part] of this.textMeshes()) {
+            labelMesh.setEnabled(drawn && !this.leftOutLabels.includes(part));
+        }
+    }
+
+    /**
+     * The meshes of the edge's texts that exist: its label, external label and end captions.
+     * @returns Each mesh with the part it draws.
+     */
+    private textMeshes(): [AbstractMesh, "label" | "xlabel" | "headLabel" | "tailLabel"][] {
         const texts = [
             [this.label, "label"],
             [this.xlabelLabel, "xlabel"],
             [this.arrowHeadText, "headLabel"],
             [this.arrowTailText, "tailLabel"],
         ] as const;
+        const meshes: [AbstractMesh, "label" | "xlabel" | "headLabel" | "tailLabel"][] = [];
         for (const [text, part] of texts) {
             const labelMesh = text?.labelMesh;
-
             if (labelMesh && !labelMesh.isDisposed()) {
-                labelMesh.setEnabled(drawn && !this.leftOutLabels.includes(part));
+                meshes.push([labelMesh, part]);
             }
         }
+
+        return meshes;
     }
 
     /**
-     * Show or hide the outline, halo and gradient pieces this edge holds in shared batches.
-     * @param drawn - Whether they are drawn.
+     * Whether showing or hiding this edge enables or disables a mesh of its own -- a line drawn as
+     * a mesh of its own, or a text -- rather than only writing slots of shared batches. A scene
+     * whose list of what is drawn is frozen draws the meshes it listed, so only a change of this
+     * kind needs the list read again; a slot write is drawn from the batch's buffer as it is.
+     * @returns True when {@link Edge.setRenderVisible} reaches a mesh's enabled state.
+     * @internal
      */
-    private setBatchedPiecesDrawn(drawn: boolean): void {
-        if (this.outlineBatch) {
-            for (const slot of this.outlineSlots) {
-                this.outlineBatch.setDrawn(slot, drawn);
-            }
-        }
-
-        for (const { batch, slots } of this.haloBands) {
-            for (const slot of slots) {
-                batch.setDrawn(slot, drawn);
-            }
-        }
-
-        for (const { batch, slot } of this.gradientPieces) {
-            batch.setDrawn(slot, drawn);
-        }
+    togglesOwnMeshes(): boolean {
+        return this.lineIsOwnMesh() || this.textMeshes().length > 0;
     }
 
     /**
-     * Show or hide the line itself, however it is drawn: batched slots, a patterned line or a mesh.
-     * @param drawn - Whether it is drawn.
+     * Whether the line is drawn as a mesh of its own, which hiding disables, rather than from a
+     * batch, a patterned line's caps or the row table.
+     * @returns True for a line mesh of its own.
      */
-    private setLineDrawn(drawn: boolean): void {
-        if (this.pulled) {
-            this.pulled.drawn = drawn;
-            this.pullRows();
-        } else if (this.lineBatch) {
-            for (const slot of this.lineSlots) {
-                this.lineBatch.setDrawn(slot, drawn);
-            }
-        } else if (this.mesh instanceof PatternedLineMesh) {
-            this.mesh.setDrawn(drawn);
-        } else if (!this.mesh.isDisposed()) {
-            // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
-            // isPickable here would lose whatever the edge style asked for on the way back.
-            this.mesh.setEnabled(drawn);
-        }
+    private lineIsOwnMesh(): boolean {
+        return (
+            this.pulled === null &&
+            this.lineBatch === null &&
+            !(this.mesh instanceof PatternedLineMesh) &&
+            !this.mesh.isDisposed()
+        );
     }
 
     /**
@@ -3114,9 +3447,10 @@ export class Edge {
      * @returns The distance.
      */
     private static boxReachOf(node: Node, direction: Vector3): number {
-        return node.surfaceIsBox || node.drawnInBatch
+        const mesh = node.drawnPickMesh;
+        return node.surfaceIsBox || mesh === null
             ? surfaceReach(direction, node.drawnHalfExtents, null)
-            : boxReach(node.drawnPickMesh, direction);
+            : boxReach(mesh, direction);
     }
 
     /**
@@ -4193,12 +4527,11 @@ export class Edge {
      * @returns Intersection points for source, destination, and adjusted endpoint
      */
     getInterceptPoints(): InterceptPoint {
-        if (this.srcNode.drawnInBatch || this.dstNode.drawnInBatch) {
-            return this.interceptPointsFromRows();
-        }
-
         const srcMesh = this.srcNode.drawnPickMesh;
         const dstMesh = this.dstNode.drawnPickMesh;
+        if (this.srcNode.drawnInBatch || this.dstNode.drawnInBatch || srcMesh === null || dstMesh === null) {
+            return this.interceptPointsFromRows();
+        }
 
         let srcPoint: Vector3 | null = null;
         let dstPoint: Vector3 | null = null;
@@ -4278,7 +4611,7 @@ export class Edge {
                 }
 
                 return node.shapeType === "none" || node.surfaceIsBox
-                    ? this.leaveNode(node, node.drawnPickMesh.position, toward.drawnPickMesh.position)
+                    ? this.leaveNode(node, node.drawnPosition, toward.drawnPosition)
                     : null;
             };
 

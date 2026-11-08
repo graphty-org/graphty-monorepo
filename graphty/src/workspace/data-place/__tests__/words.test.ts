@@ -13,6 +13,7 @@ import {
     leftOutRow,
     leftOutSentence,
     loadIndexOf,
+    namesOnce,
     noNodeRow,
     sourceRowOf,
     sourceRows,
@@ -352,5 +353,15 @@ describe("a Sources row's count and join words", () => {
         assert.isNull(
             joinMatch(load({ nodes: 0, edges: 0 }, { join: { matched: 19, rows: 19 } } as Partial<LoadedSource>)),
         );
+    });
+});
+
+describe("what uses a result", () => {
+    it("names each user once, a repeat counted", () => {
+        assert.strictEqual(
+            namesOnce(["Shortest route", "Shortest route", "Connections"]),
+            "Shortest route x2, Connections",
+        );
+        assert.strictEqual(namesOnce(["Filter"]), "Filter");
     });
 });

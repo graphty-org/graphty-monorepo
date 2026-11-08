@@ -24,6 +24,7 @@ import {
     labelPatchOf,
     toColorValue,
 } from "../session/styles/channels";
+import { channelRole } from "../session/styles/intern";
 import type { SelectorTarget } from "../session/styles/predicate";
 import type { ElementPaint, ResolvedStyle } from "../session/styles/repaint";
 
@@ -64,14 +65,15 @@ export interface EdgePaint {
 
 /** The scene state a node batch depends on that a paint does not hold. */
 export interface BatchView {
-    /** A node's size follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`). */
-    readonly scaled: boolean;
     /** 3D `flat` lighting: an outline renderer draws round every node, which has no batch path. */
     readonly flatOutline: boolean;
 }
 
-/** The shape options a batch draws: everything else about a shape waits for a wider batch. */
-const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail"]);
+/**
+ * The shape options a batch draws: everything else about a shape waits for a wider batch. A z order
+ * (`zIndex`, `drawOrder`) is baked into the source's vertices in 2D, which the batch's geometry copy keeps.
+ */
+const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail", "zIndex", "drawOrder"]);
 /** The effects a batch draws: both are in the geometry or the material. */
 const BATCHABLE_EFFECT_KEYS: ReadonlySet<string> = new Set(["wireframe", "flatShaded", "unlit"]);
 /** The style keys a plain row may set. Anything new stays an object row until a batch can draw it. */
@@ -93,7 +95,8 @@ const BATCHABLE_STYLE_KEYS: ReadonlySet<string> = new Set([
  */
 export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): boolean {
     const { style } = paint;
-    if (view.scaled || view.flatOutline) {
+    // A size that follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`) is in the row's matrix.
+    if (view.flatOutline) {
         return false;
     }
 
@@ -101,16 +104,15 @@ export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): b
         Object.entries(bag ?? {})
             .filter(([, value]) => value !== undefined)
             .map(([key]) => key);
-    const color = style.texture?.color;
+    // Any color, opacity or picture is in the source's material (its mesh key carries it), so each is
+    // a look of its own and its batch shares that material: a gradient is a texture there and its row
+    // paints no instance color, a picture replaces the color.
+    // A label or tooltip hangs from the row's geometry-free anchor (`Node.labelTarget`), so it keeps the row batched.
     return (
         set(style).every((key) => BATCHABLE_STYLE_KEYS.has(key)) &&
         set(style.shape).every((key) => BATCHABLE_SHAPE_KEYS.has(key)) &&
         set(style.effect).every((key) => BATCHABLE_EFFECT_KEYS.has(key)) &&
-        set(style.texture).every((key) => key === "color") &&
-        // A plain color, or a solid one with no transparency: alpha waits for a wider batch.
-        (typeof color !== "object" || (color.colorType === "solid" && (color.opacity ?? 1) >= 1)) &&
-        style.label?.enabled !== true &&
-        style.tooltip?.enabled !== true
+        set(style.texture).every((key) => key === "color" || key === "image")
     );
 }
 
@@ -122,6 +124,9 @@ const NODE_BASE: NodeStyleConfig = NodeStyle.parse(defaultNodeStyle);
 
 /** The edge style every painted edge is filled out from, parsed once. */
 const EDGE_BASE: EdgeStyleConfig = EdgeStyle.parse(defaultEdgeStyle);
+
+/** How many edge looks {@link StylePainter.edgePaint} keeps before it starts again. */
+const EDGE_PAINT_CACHE_LIMIT = 4096;
 
 /**
  * The same, with the head a directed graph draws when no layer chose one. NO COLOUR in the head:
@@ -680,22 +685,63 @@ function edgePaintOf(
         writeChannel(bag, name as Channel, value, plainText(name as Channel));
     }
 
-    // See EdgePaint: the edge renderer has no per-instance state, so the two channels the interner
-    // left out of the key have to go back into the renderer's own. Read in a fixed order rather
-    // than as the loop above happens to meet them, or two edges painted alike would key two meshes
-    // whenever their columns were filled in a different order.
-    const color = asColorValue(resolved["edge.color"]);
-    const opacity = resolved["edge.opacity"];
-    // A reader's own head type wins in either direction. The default head is in the key, so a
-    // graph whose direction changed rebuilds its caps rather than adopting the old key.
-    const headed = directed && resolved["edge.arrowHead"] === undefined;
-    const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}${headed ? "|>" : ""}`;
+    const headed = edgeHeaded(resolved, directed);
     const base = headed ? EDGE_BASE_DIRECTED : EDGE_BASE;
 
     return {
-        meshKey: identity,
+        meshKey: edgeIdentity(resolved, meshKey, directed),
         style: foldEdgeAlpha(spellEdgeColours(fillDefaults(bag, base))),
     };
+}
+
+/**
+ * Whether an edge draws the head a directed graph gives one no layer chose. A reader's own head
+ * type wins in either direction.
+ * @param resolved - Everything the stack painted this edge.
+ * @param directed - Whether the graph is directed.
+ * @returns True when the default head is drawn.
+ */
+function edgeHeaded(resolved: ResolvedStyle, directed: boolean): boolean {
+    return directed && resolved["edge.arrowHead"] === undefined;
+}
+
+/**
+ * The key an edge's paint is drawn from: its interned mesh key, with the colour and the opacity
+ * folded back in.
+ *
+ * See EdgePaint: the edge renderer has no per-instance state, so the two channels the interner
+ * left out of the key have to go back into the renderer's own. Read in a fixed order rather than
+ * as the columns happen to be met, or two edges painted alike would key two meshes whenever their
+ * columns were filled in a different order. The default head is in the key, so a graph whose
+ * direction changed rebuilds its caps rather than adopting the old key.
+ * @param resolved - Everything the stack painted this edge.
+ * @param meshKey - The key the interner gave this edge's geometry.
+ * @param directed - Whether the graph is directed.
+ * @returns The key.
+ */
+function edgeIdentity(resolved: ResolvedStyle, meshKey: number, directed: boolean): string {
+    const color = asColorValue(resolved["edge.color"]);
+    const opacity = resolved["edge.opacity"];
+    const head = edgeHeaded(resolved, directed) ? "|>" : "";
+
+    return `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}${head}`;
+}
+
+/**
+ * Whether an edge's paint follows from its key alone: every channel it carries keys its mesh, or
+ * is the colour or the opacity the key folds back in. Content (a label, a bend) and the visible
+ * flag are per edge and are not in the key.
+ * @param resolved - Everything the stack painted this edge.
+ * @returns True when two edges with the same key are painted the same.
+ */
+function paintedByKeyAlone(resolved: ResolvedStyle): boolean {
+    for (const channel in resolved) {
+        if (channel !== "edge.color" && channel !== "edge.opacity" && channelRole(channel as Channel) !== "mesh") {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -916,6 +962,9 @@ export class StylePainter {
     /** What the last pass painted, or null while no session is bound. */
     private paint: ElementPaint | null = null;
 
+    /** The paint of each edge key, for edges painted by their key alone; see {@link StylePainter.edgePaint}. */
+    private readonly edgePaints = new Map<string, { mesh: ResolvedStyle | undefined; paint: EdgePaint }>();
+
     /** The nodes whose paint the renderer has not applied yet. */
     private readonly pendingNodes = new PendingRows();
 
@@ -949,6 +998,7 @@ export class StylePainter {
         this.stopListening?.();
         this.stopListening = null;
         this.paint = paint;
+        this.edgePaints.clear();
         this.pendingNodes.clear();
         this.pendingEdges.clear();
         this.nodesRowsOnly = false;
@@ -1162,12 +1212,37 @@ export class StylePainter {
             return null;
         }
 
-        return edgePaintOf(
-            paint.styleOf("edge", index),
-            paint.meshKeyOf("edge", index),
-            (channel) => paint.plainText("edge", index, channel),
-            this.directed(),
-        );
+        const resolved = paint.styleOf("edge", index);
+        const meshKey = paint.meshKeyOf("edge", index);
+        const directed = this.directed();
+        const make = (): EdgePaint =>
+            edgePaintOf(resolved, meshKey, (channel) => paint.plainText("edge", index, channel), directed);
+
+        if (!paintedByKeyAlone(resolved)) {
+            return make();
+        }
+
+        // ONE PAINT PER KEY. Edges painted by their key alone share one paint object, so a pass that
+        // moves thousands of edges between two looks (a time window's Ghost row) builds two paints,
+        // not thousands, and an edge handed the paint it is already drawn from skips by reference.
+        // The interned mesh style is held beside it because a released mesh key is minted again
+        // for another style.
+        const identity = edgeIdentity(resolved, meshKey, directed);
+        const mesh = paint.meshStyleOf("edge", meshKey);
+        const known = this.edgePaints.get(identity);
+
+        if (known !== undefined && known.mesh === mesh) {
+            return known.paint;
+        }
+
+        if (this.edgePaints.size >= EDGE_PAINT_CACHE_LIMIT) {
+            this.edgePaints.clear();
+        }
+
+        const made = make();
+        this.edgePaints.set(identity, { mesh, paint: made });
+
+        return made;
     }
 
     /**

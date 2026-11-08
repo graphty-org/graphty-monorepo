@@ -1959,11 +1959,15 @@ export interface LoadDraft {
     /**
      * Whether the file carries styles a load with `styles: "file"` would draw, and how many rules
      * they hold per kind; null when the format cannot carry styles or the file holds none.
+     * @experimental file-styles
      */
     readonly styles: { readonly declared: boolean; readonly summary: FileStyleSummary } | null;
 }
 
-/** How many rules a file's styles hold, and the program whose defaults fill in the rest. */
+/**
+ * How many rules a file's styles hold, and the program whose defaults fill in the rest.
+ * @experimental file-styles
+ */
 export interface FileStyleSummary {
     /** The rules for nodes. */
     readonly nodeRules: number;
@@ -1976,7 +1980,10 @@ export interface FileStyleSummary {
     readonly tool: FileStyleTool | null;
 }
 
-/** The program whose defaults a file's styles take: graph-io's tool ids. Open union. */
+/**
+ * The program whose defaults a file's styles take: graph-io's tool ids. Open union.
+ * @experimental file-styles
+ */
 export type FileStyleTool = StyleTool;
 
 /** One table of a draft. */
@@ -2206,9 +2213,13 @@ export interface LoadChoices extends ImportOptions {
      * `catalog.formats()` says which formats can carry styles (`styles.read`).
      *
      * OPEN UNION: later releases may add choices.
+     * @experimental file-styles
      */
     readonly styles?: "file" | "none";
-    /** How a file's styles are turned into layers, when `styles` is `"file"`. */
+    /**
+     * How a file's styles are turned into layers, when `styles` is `"file"`.
+     * @experimental file-styles
+     */
     readonly styleOptions?: FileStyleOptions;
 }
 

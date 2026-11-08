@@ -1593,6 +1593,10 @@ interface Opening {
     readonly restored: Set<ProjectSlice>;
     /** The timeline settings the session held before this open, which it clears. */
     readonly playback?: unknown;
+    /** The dispatcher's services, which let this open restore saved file style values. */
+    readonly services: Dispatcher["services"];
+    /** Marks a restored run as one whose id the element minted. */
+    readonly restoreDerived: (id: RunId) => void;
 }
 
 /**
@@ -1714,9 +1718,16 @@ async function readProject(
     // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
     if (Array.isArray(state.fileStyles)) {
         const loads = state.fileStyles as unknown[];
-        await attempt(opening, "graph", () =>
-            tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
-        );
+        // ponytail: a flag, not a per-command grant; a command another caller sends while this one
+        // awaits is let through too. Pass a grant through the dispatch if that ever matters.
+        opening.services.restoringFileStyles = true;
+        try {
+            await attempt(opening, "graph", () =>
+                tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
+            );
+        } finally {
+            opening.services.restoringFileStyles = false;
+        }
     }
 
     const layout = state.layout as
@@ -1820,7 +1831,7 @@ async function readProject(
                 canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
                 const { algorithm, params, scope, seed, sample, exact } = remap(run);
                 try {
-                    await tx.runs.start(algorithm, params, {
+                    const restoring = tx.runs.start(algorithm, params, {
                         as: run.id,
                         style: false,
                         ...(scope === undefined ? {} : { scope }),
@@ -1828,6 +1839,12 @@ async function readProject(
                         ...(sample === undefined ? {} : { sample }),
                         ...(exact === undefined ? {} : { exact }),
                     });
+                    // Before it is recorded: a minted id stays minted, so a later start of the
+                    // same question answers to it rather than minting a second one (#6227).
+                    if (run.derived === true) {
+                        opening.restoreDerived(run.id);
+                    }
+                    await restoring;
                 } finally {
                     canned.delete(run.id);
                 }
@@ -2079,6 +2096,8 @@ function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId |
 /** One finished run as a results member keeps it. */
 interface SavedRun {
     readonly id: RunId;
+    /** Whether the element minted the id rather than the author naming it. */
+    readonly derived?: boolean;
     readonly algorithm: string;
     readonly params?: Readonly<Record<string, unknown>>;
     readonly scope?: never;
@@ -2208,6 +2227,7 @@ function projectIdOf(value: unknown): string | undefined {
  * @param hooks - What the session lends it.
  * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
+ * @param hooks.restoreDerived - Marks a restored run's id as minted by the element.
  * @param hooks.sources - Writes and restores the loads from network sources.
  * @param hooks.projectChanged - Called once an open has read the project's id, before anything is
  *     fetched, and again once its source loads are restored.
@@ -2220,11 +2240,12 @@ export function projectOf(
     hooks: {
         readonly announce: (change: ProjectStatus) => void;
         readonly isDerived: (id: RunId) => boolean;
+        readonly restoreDerived: (id: RunId) => void;
         readonly sources?: NetworkSourceRecords;
         readonly projectChanged?: () => void;
     },
 ): ProjectApi {
-    const { announce, isDerived, sources: networkSources, projectChanged } = hooks;
+    const { announce, isDerived, restoreDerived, sources: networkSources, projectChanged } = hooks;
     let id = newProjectId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
@@ -2357,7 +2378,11 @@ export function projectOf(
             fact: { code: "project.open", params: { name: name ?? null } },
             starts: true,
         };
-        const networkOff = dispatcher.services.network?.() === false && member !== undefined;
+        // Only a member that holds a server load: file and inline loads are recorded there too.
+        const holdsServerLoad =
+            Array.isArray(member?.loads) &&
+            member.loads.some((entry: unknown) => (entry as { kind?: unknown } | null)?.kind === "source");
+        const networkOff = dispatcher.services.network?.() === false && holdsServerLoad;
         // With the network-data experiment off, the member is kept exactly as the file held it.
         const loads: SourcesRead = networkOff
             ? {
@@ -2390,7 +2415,14 @@ export function projectOf(
                 "Open project",
                 (tx) =>
                     readProject(
-                        { tx, problems, restored, playback: dispatcher.state.visibility.playback },
+                        {
+                            tx,
+                            problems,
+                            restored,
+                            playback: dispatcher.state.visibility.playback,
+                            services: dispatcher.services,
+                            restoreDerived,
+                        },
                         doc,
                         graph,
                         name,
@@ -2434,7 +2466,7 @@ export function projectOf(
         await session.transaction(
             "Open document",
             async (tx) => {
-                const opening = { tx, problems, restored };
+                const opening = { tx, problems, restored, services: dispatcher.services, restoreDerived };
                 if (graph !== undefined) {
                     await importInto(tx, graph, data?.source, data?.sources);
                     restored.add("graph");

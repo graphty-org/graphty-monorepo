@@ -238,6 +238,7 @@
         "Styles/Graph::Layers",
         "Styles/Graph::Skybox",
         "Styles/Label::Animation",
+        "Styles/Label::AtlasText",
         "Styles/Label::AttachOffset",
         "Styles/Label::BackgroundColor",
         "Styles/Label::BackgroundGradient",

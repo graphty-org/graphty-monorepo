@@ -39,7 +39,7 @@ them are experimental. `listSources()` lists them with their descriptors and exa
 | `signal`        | cancels the load; it rejects with the signal's reason                                                |
 | `onProgress`    | `(done, total?, unit)`: bytes for a downloaded file, items otherwise                                 |
 | `fetch`         | a `fetch` to use instead of the global one, such as `replayFetch(recordings)` in tests               |
-| `userAgent`     | sent as `User-Agent` in Node (browsers do not allow setting it)                                      |
+| `userAgent`     | sent as `User-Agent` in Node (not browsers); default `graphty-graph-io (+https://graphty.app)`       |
 
 Every cap is off unless you set it. Under `onLimit: "stop"` (the default) a load keeps what came
 first, warns `W_SOURCE_LIMIT` and gives `report.source.next`; under `"error"` it fails with

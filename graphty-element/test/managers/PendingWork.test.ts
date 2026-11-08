@@ -21,6 +21,20 @@ describe("PendingWork", () => {
         assert.isTrue(work.idle);
     });
 
+    it("says whether work of one kind is pending, from a token or a watch", () => {
+        const work = new PendingWork();
+        let loading = false;
+        work.watch("basemap", "the map is loading", () => loading);
+        const release = work.begin("shader", "a node shader is still compiling");
+        assert.isTrue(work.isPending("shader"));
+        assert.isFalse(work.isPending("basemap"), "a watch that says nothing is on its way");
+
+        loading = true;
+        assert.isTrue(work.isPending("basemap"));
+        release();
+        assert.isFalse(work.isPending("shader"));
+    });
+
     it("moves the picture counter when work lands, once per token", () => {
         const work = new PendingWork();
         let heard = 0;

@@ -25,7 +25,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
-import { yedGradientAngle } from "../../styles/canon/yed-gradient.js";
+import { putYedRamp, yedGradientAngle, yedGradientRamp } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
     YED_LABEL_PADDING,
@@ -42,7 +42,7 @@ import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { svgPicture } from "./styles-yed-live-drawing.js";
+import { type BpmnDrawing, svgPicture, yedBpmnPicture } from "./styles-yed-live-drawing.js";
 
 // ============================================================ the kept trees
 
@@ -1392,12 +1392,26 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
         put("fillOpacity", 0);
         return;
     }
-    readColor(treeAttr(fill, "color"), "fill", "fillOpacity", put, at);
+    const read = new Map<string, StyleValue | null>();
+    readColor(
+        treeAttr(fill, "color"),
+        "fill",
+        "fillOpacity",
+        (property, value) => {
+            read.set(property, value);
+            put(property, value);
+        },
+        at,
+    );
     const second = yedDefaultPainted(real) ? null : canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
     const angle = second === null ? null : realizerGradientAngle(real);
     if (second !== null && angle !== null) {
         put("fillGradient", second.color);
         put("fillGradientAngle", angle);
+        // a shape node's left-to-right ramp mirrors back over its left third, and color2's alpha is its stop's
+        const shape = treeAttr(treeChild(real.r, "Shape"), "type") ?? "rectangle";
+        const run = real.type === "ShapeNode" && shape !== "diamond" ? "across" : "corner";
+        putYedRamp(put, run, { color: read.get("fill"), alpha: read.get("fillOpacity") }, second, shape);
     }
 }
 
@@ -1557,9 +1571,8 @@ function yedResourceUrl(r: unknown): string | null {
 
 /**
  * The picture an image or SVG node realizer draws (`y:Image refid`, `y:SVGModel/y:SVGContent refid`), stretched over
- * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`. The realizer's own fill and border are kept beneath it,
- * though yEd paints neither (`graphml-stm32-func`): draw.io, the stand-in for `yed-graphml-specimen-images-charts`,
- * paints both, and that sheet waits for a drawing by yEd itself (ISSUES.md).
+ * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`: the picture alone, without the realizer's own fill or
+ * border, which yEd does not paint (`graphml-stm32-func`, `graphml-synthetic-nodes`, `yed-graphml-specimen-images-charts`).
  * @param real - the realizer
  * @param resources - the graph's shared pictures
  * @param put - receives the values
@@ -1576,6 +1589,8 @@ function readPicture(real: Realizer, resources: ReadonlyMap<string, string>, put
     put("image", src);
     put("imageFit", "fill");
     put("imageClip", "none");
+    // no body under it, as yEd Live's image node with no background is read (`readPictureStyle`)
+    put("shape", "none");
 }
 
 /**
@@ -1748,11 +1763,69 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
 }
 
 /**
- * Writes what yEd strokes over a node beside its outline (`realizerOverlay`) as the node's picture.
+ * Writes a picture drawn over a node, which may reach past its box, as the node's picture.
+ * @param drawing - the picture, its size and its reach
+ * @param put - receives the values
+ */
+export function putNodeDrawing(drawing: BpmnDrawing, put: PutValue): void {
+    put("image", drawing.picture);
+    put("imageClip", "none");
+    const { left, top, right, bottom } = drawing.reach;
+    if (left + top + right + bottom === 0) {
+        put("imageFit", "fill");
+        return;
+    }
+    put("imageFit", "none");
+    put("imageWidth", drawing.width);
+    put("imageHeight", drawing.height);
+    put("imageOffsetX", (right - left) / 2);
+    put("imageOffsetY", (bottom - top) / 2);
+}
+
+/** A `#rrggbb` color. */
+const HEX_COLOR = /^#[\da-f]{6}$/;
+
+/**
+ * The symbols yEd draws over a BPMN GenericNode (`yedBpmnPicture`), in its `com.yworks.bpmn.icon.*` colors, unset the
+ * node's own.
  * @param real - the realizer
  * @param width - the node's width
  * @param height - its height
- * @param painted - the border values written for it
+ * @param paint - its border
+ * @param fill - its fill, or null where it has none
+ * @returns the picture, or null where it is no BPMN node or yEd draws nothing over it
+ */
+function genericBpmnDrawing(
+    real: Realizer,
+    width: number,
+    height: number,
+    paint: NodePaint,
+    fill: string | null,
+): BpmnDrawing | null {
+    const conf = (treeAttr(real.r, "configuration") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
+    if (real.type !== "GenericNode" || !conf.startsWith("com.yworks.bpmn.")) {
+        return null;
+    }
+    const color = (name: string): string | undefined => {
+        const value = bpmnProperty(real.r, name);
+        return value !== undefined && HEX_COLOR.test(value) ? value : undefined;
+    };
+    const face = color("icon.fill") ?? fill ?? "none";
+    const kind = conf.replace(/^com\.yworks\.bpmn\./, "").replace(/\.withshadow$/, "");
+    return yedBpmnPicture(kind, (name) => bpmnProperty(real.r, name), { width, height }, paint.width, {
+        line: color("icon.line.color") ?? paint.line,
+        fill: face,
+        shade: face === "none" ? paint.line : javaDarker(face),
+    });
+}
+
+/**
+ * Writes what yEd strokes over a node beside its outline (`realizerOverlay`, or a BPMN node's symbols) as the node's
+ * picture.
+ * @param real - the realizer
+ * @param width - the node's width
+ * @param height - its height
+ * @param painted - the border and fill values written for it
  * @param put - receives the values
  */
 function putOverlay(
@@ -1767,6 +1840,12 @@ function putOverlay(
         line: line > 0 && typeof color === "string" ? color : "none",
         width: Math.max(line, 0),
     };
+    const fill = painted.get("fill");
+    const bpmn = genericBpmnDrawing(real, width, height, paint, typeof fill === "string" ? fill : null);
+    if (bpmn !== null) {
+        putNodeDrawing(bpmn, put);
+        return;
+    }
     const overlay = realizerOverlay(real, width, height, paint);
     if (overlay === null) {
         return;
@@ -1790,7 +1869,7 @@ function putOverlay(
  * @param real - the realizer
  * @param width - the node's width, or null
  * @param height - its height, or null
- * @param painted - the border values written for it
+ * @param painted - the border and fill values written for it
  * @param put - receives the values
  * @param at - the sites
  * @param resources - the graph's shared pictures, for image and SVG nodes
@@ -1861,6 +1940,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     if (outline?.bevelInset !== undefined) {
         putBevel(outline, unfilled(fill) ? null : color, outline.bevelInset, hasLine(border), put);
     }
+    painted.set("fill", unfilled(fill) ? null : color);
     readFace(real, width, height, painted, put, at, resources);
     const header = readEntityHeader(real, height, put, at);
     const labelPut: PutValue = (property, value) => {
@@ -2346,6 +2426,8 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
         "fillOpacity",
         "fillGradient",
         "fillGradientAngle",
+        "fillGradientColors",
+        "fillGradientStops",
         "borderColor",
         "borderWidth",
         "borderStyle",
@@ -2590,6 +2672,9 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
 function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, approximate: Approximate): Tree {
     const node: Tree = {};
     node["y:Geometry"] = geometryTree(get, at);
+    const shape = get("shape");
+    const nearest = shape === "vee" ? "triangle" : "rectangle";
+    const yedShape = typeof shape === "string" ? yedSpelled(YED_SHAPES, shape, nearest, "shape", approximate) : null;
     const fill = get("fill");
     const fillOpacity = get("fillOpacity");
     if (typeof fill === "string") {
@@ -2599,6 +2684,7 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
             (node["y:Fill"] as Tree)["@_color2"] = second.toUpperCase();
             noteGradientAngle(get, approximate);
         }
+        noteGradientRamp(get, { fill, second, shape: yedShape ?? "rectangle" }, approximate);
     } else if (fillOpacity === 0) {
         node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
     }
@@ -2610,11 +2696,8 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
     if (label !== null) {
         node["y:NodeLabel"] = label;
     }
-    const shape = get("shape");
-    if (typeof shape === "string") {
-        node["y:Shape"] = {
-            "@_type": yedSpelled(YED_SHAPES, shape, shape === "vee" ? "triangle" : "rectangle", "shape", approximate),
-        };
+    if (yedShape !== null) {
+        node["y:Shape"] = { "@_type": yedShape };
     }
     return { "y:ShapeNode": node };
 }
@@ -2635,6 +2718,35 @@ function noteGradientAngle(get: GetValue, approximate: Approximate): void {
     const angle = get("fillGradientAngle") ?? 0;
     if (typeof angle !== "number" || Math.abs(angle - drawn) > 0.01) {
         approximate("fillGradientAngle", angle);
+    }
+}
+
+/**
+ * Records a gradient's colors and stops as approximated unless they are the ones yEd paints for the y:ShapeNode
+ * written (`yedGradientRamp`): a left-to-right ramp mirrored over its left third, or none.
+ * @param get - the node's values
+ * @param written - what the y:ShapeNode holds
+ * @param written.fill - its `color`
+ * @param written.second - its `color2` (opaque), or the node's `fillGradient` when it has none
+ * @param written.shape - its yEd shape type
+ * @param approximate - records approximations
+ */
+function noteGradientRamp(
+    get: GetValue,
+    written: { fill: string; second: unknown; shape: string },
+    approximate: Approximate,
+): void {
+    const { fill, second, shape } = written;
+    const run = shape === "diamond" ? "corner" : "across";
+    const drawn = typeof second === "string" ? yedGradientRamp(run, fill, second.toLowerCase(), 1, 1, shape) : null;
+    for (const [property, value] of [
+        ["fillGradientColors", drawn?.colors],
+        ["fillGradientStops", drawn?.stops],
+    ] as const) {
+        const had = get(property) ?? undefined;
+        if (had !== value) {
+            approximate(property, had ?? "none");
+        }
     }
 }
 

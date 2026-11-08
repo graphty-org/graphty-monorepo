@@ -170,7 +170,10 @@ export const EdgeLineTypes = z.enum([
     "contiguous-arrow", // A line with chevrons along it, pointing to the target (Cytoscape CONTIGUOUS_ARROW)
 ]);
 
-/** The patterns an edge's outline band (`line.outline.type`) can be drawn in. */
+/**
+ * The patterns an edge's outline band (`line.outline.type`) can be drawn in.
+ * @experimental file-styles
+ */
 export const EdgeOutlineTypes = z.enum(["solid", "dash", "dot", "dash-dot"]);
 
 const LineStyle = z.strictObject({

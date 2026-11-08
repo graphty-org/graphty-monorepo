@@ -67,6 +67,103 @@ export function rampAngleOnScreen(v: Pt, [a, b, c, d]: readonly [number, number,
     return (Math.atan2(y, x) * 180) / Math.PI;
 }
 
+/**
+ * The stops a reflected or repeated ramp paints across its shape, from where the shape starts along the ramp to where
+ * it ends: an SVG gradient's `spreadMethod="reflect"` or `"repeat"` runs its stops again past their ends, so its
+ * colors across the shape are not its stops. yEd's shape-node ramp from a third of the way across to the right side,
+ * reflected, paints the color halfway along it at the left side, its first color a third across and its last at the
+ * right (t from -0.5 to 1). `pad` keeps its stops: both sides read a padded ramp along its own vector.
+ * @param stops - the ramp's stops, offsets 0 to 1
+ * @param spread - the gradient's spreadMethod
+ * @param start - where the shape starts along the ramp (0 its first stop, 1 its last)
+ * @param end - where the shape ends
+ * @returns the stops across the shape, offsets 0 to 1, or the stops themselves when nothing repeats over the shape
+ */
+export function spreadStops(stops: readonly PStop[], spread: string, start: number, end: number): PStop[] {
+    const sorted = [...stops].sort((a, b) => a.offset - b.offset);
+    const eps = 1e-6;
+    if ((spread !== "reflect" && spread !== "repeat") || sorted.length === 0 || end - start < eps) {
+        return sorted;
+    }
+    if (start >= -eps && end <= 1 + eps) {
+        return sorted;
+    }
+    // ponytail: places are rounded to 1e-9, so a corner a float's width off a stop is that stop
+    const near = (t: number): number => Math.round(t * 1e9) / 1e9;
+    const [t0, t1] = [near(start), near(end)];
+    // every place a stop, run again either way, falls or a run ends
+    const at = new Set([t0, t1]);
+    for (let k = Math.floor(t0) - 1; k <= Math.ceil(t1) + 1; k++) {
+        for (const t of [k, ...sorted.flatMap((st) => [near(k + st.offset), near(k + 1 - st.offset)])]) {
+            if (t > t0 && t < t1) {
+                at.add(t);
+            }
+        }
+    }
+    const out: PStop[] = [];
+    for (const t of [...at].sort((a, b) => a - b)) {
+        const offset = Math.round(((t - t0) / (t1 - t0)) * 1e6) / 1e6;
+        const [left, right] = spreadSides(spread, t).map(([u, above]) => ({ ...stopAlong(sorted, u, above), offset }));
+        // a seam or a hard stop is two colors at one place; the shape's own ends show only the side inside it
+        if (t !== t0) {
+            out.push(left);
+        }
+        if (t !== t1 && (t === t0 || right.color !== left.color || right.opacity !== left.opacity)) {
+            out.push(right);
+        }
+    }
+    return out;
+}
+
+/**
+ * Where along its stops a reflected or repeated ramp is just before a place and just after it, and whether it is read
+ * from above that place along its stops: a repeat jumps from its end back to its start at each whole place, a
+ * reflection runs back down its stops on every other run.
+ * @param spread - `reflect` or `repeat`
+ * @param t - the place
+ * @returns `[u, above]` just before it and just after it
+ */
+function spreadSides(spread: string, t: number): [[number, boolean], [number, boolean]] {
+    if (spread === "repeat") {
+        const u = t - Math.floor(t);
+        return [
+            [u === 0 ? 1 : u, false],
+            [u, true],
+        ];
+    }
+    const m = t - 2 * Math.floor(t / 2);
+    return [m > 0 && m <= 1 ? [m, false] : [m === 0 ? 0 : 2 - m, true], m < 1 ? [m, true] : [2 - m, false]];
+}
+
+/**
+ * A ramp's color and opacity at a place along its sorted stops, read from below the place or above it: at a hard stop
+ * (two stops at one place) the first stop's below and the last's above.
+ * @param stops - the stops, sorted
+ * @param u - the place, 0 to 1
+ * @param above - read from above
+ * @returns the color and opacity
+ */
+function stopAlong(stops: readonly PStop[], u: number, above: boolean): { color: string; opacity: number } {
+    const last = stops.length - 1;
+    const next = stops.findIndex((s) => s.offset >= u);
+    const k = above ? stops.filter((s) => s.offset <= u).length - 1 : (next < 0 ? stops.length : next) - 1;
+    if (k < 0 || k >= last) {
+        const s = stops[k < 0 ? 0 : last];
+        return { color: s.color, opacity: s.opacity };
+    }
+    const [a, b] = [stops[k], stops[k + 1]];
+    const f = b.offset > a.offset ? (u - a.offset) / (b.offset - a.offset) : 1;
+    const hex = (h: string, i: number): number => Number.parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+    const color = `#${[0, 1, 2]
+        .map((i) =>
+            Math.round(hex(a.color, i) + f * (hex(b.color, i) - hex(a.color, i)))
+                .toString(16)
+                .padStart(2, "0"),
+        )
+        .join("")}`;
+    return { color, opacity: Math.round((a.opacity + f * (b.opacity - a.opacity)) * 1000) / 1000 };
+}
+
 /** A fill: a flat color, or a gradient (its first stop is also its `color`). */
 export interface PFill {
     /** `#rrggbb`. */
@@ -315,6 +412,11 @@ export interface PNode {
      * later node is drawn in front of an earlier one).
      */
     order?: number;
+    /**
+     * The oracle's side only: the document order of the primitive that paints its fill, which says what its fill hides
+     * (what it draws after its fill, a chart's slices, is drawn over it).
+     */
+    fillOrder?: number;
     /**
      * A figure's own outline, where it is neither its box nor the ellipse its box holds (a shape with a dent: Pajek's
      * man, woman and cross, a star): its edges, in halves of the node's width and height from its center, y down, so

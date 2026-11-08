@@ -334,6 +334,12 @@ export interface SessionRunsApi extends RunsApi {
      */
     isDerivedId(id: RunId): boolean;
     /**
+     * Mark a run a project open brought back under its saved id as one whose id the element
+     * minted, as it was when saved.
+     * @param id - The run id.
+     */
+    restoreDerived(id: RunId): void;
+    /**
      * Start one algorithm through a dispatch of the caller's: a transaction's, so the run joins
      * its step, or the one a command hands its deferred members.
      * @param dispatch - Where the run's command is dispatched.
@@ -1179,6 +1185,24 @@ class Runs implements SessionRunsApi {
      */
     isDerivedId(id: RunId): boolean {
         return this.derivedIds.has(id);
+    }
+
+    /**
+     * Mark a run a project open brought back under its saved id as one the element minted, as it
+     * was when saved (#6227). Without this a later unnamed start of the same question -- Analyze
+     * again, or a filter step reading the result -- found no minted run answering it and minted a
+     * second id beside the restored one.
+     * @param id - The run id.
+     */
+    restoreDerived(id: RunId): void {
+        const run = this.runs.get(id);
+
+        if (run === undefined) {
+            return;
+        }
+
+        this.derivedIds.add(id);
+        this.names.set(id, suggestRunName(this.descriptorFor(run.algorithm), run.params));
     }
 
     heldOf(id: RunId): HeldCaptures {

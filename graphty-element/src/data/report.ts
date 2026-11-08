@@ -152,6 +152,7 @@ export interface LoadReport extends ImportReport {
      * What the load did with the file's styles, when it was asked to read them (`styles: "file"`):
      * the layers they made, bottom first, and what reading and translating them met, as codes and
      * facts. Absent when the load was not asked to read styles.
+     * @experimental file-styles
      */
     readonly styles?: LoadStyleReport;
     /**

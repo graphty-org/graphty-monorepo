@@ -71,8 +71,9 @@ await graph.loadFromUrl("https://example.com/proteins.cx2", { styles: "file" });
 
 `loadFromFile`, the element's `dataSourceConfig` (`{ url, styles: "file" }`) and
 `session.data.import(source, { styles: "file" })` take the same choice. Without it, the default
-`"none"`, a load reads the data alone. See [Styles from Files](./file-styles) for what the layers
-look like, the choices that shape them and how to save them back into a file.
+`"none"`, a load reads the data alone. Styles from files are the `file-styles` experiment, off
+unless the page switches it on. See [Styles from Files](./file-styles) for what the layers look
+like, the choices that shape them and how to save them back into a file.
 
 ## Text or Bytes
 

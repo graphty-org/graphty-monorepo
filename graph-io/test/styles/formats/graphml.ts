@@ -67,6 +67,8 @@ registerStyleFormat({
         // with mangled ids and the originals beside them, which the import restores
         options: { sanitizeIds: "mangle" },
         editNative: editGraphmlNodeFill,
+        // yEd paints a shape node's ramp through its color (`yedGradientRamp`)
+        editDerives: { fill: { fillGradientColors: "fillGradient" } },
         replaceBlock: replaceGraphmlBlock,
     },
 });

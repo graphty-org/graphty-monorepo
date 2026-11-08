@@ -53,7 +53,7 @@ const EDGE_PICK_TOLERANCE_PX = 6;
  * @param y - Y in CSS pixels from the canvas's top edge.
  * @returns The mesh, or null when the point lands on nothing.
  */
-export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
+export function pickAsDrawn(scene: Scene, x: number, y: number): TransformNode | null {
     // While a layout transition moves the nodes, a click reads the layout's answer, not the
     // moving picture: what is selected is where the node is going.
     return pickAtLayout(scene, () => {
@@ -201,7 +201,8 @@ export interface ScannedTable {
 /** What the scan reads of a row's node, for a candidate only. */
 export interface ScannedRow {
     readonly index: number;
-    readonly drawnPickMesh: AbstractMesh;
+    readonly drawnPickMesh: AbstractMesh | null;
+    readonly drawnAnchor: TransformNode;
     readonly drawnSourceMesh: AbstractMesh;
     readonly drawnScaling: Readonly<Vector3>;
     readonly drawnByRowScan: boolean;
@@ -217,7 +218,7 @@ export interface RowHit {
 
 /** A mesh or row a ray landed on. */
 export interface DrawnHit {
-    readonly mesh: AbstractMesh | null;
+    readonly mesh: TransformNode | null;
     readonly point: Vector3 | null;
 }
 
@@ -341,7 +342,7 @@ export class RowScan {
      * @param y - Y in CSS pixels.
      * @returns The mesh, or null.
      */
-    pickPoint(x: number, y: number): AbstractMesh | null {
+    pickPoint(x: number, y: number): TransformNode | null {
         const { info, onTop } = pickMeshes(this.scene, x, y, (mesh) => drawnPickable(mesh) && !this.covers(mesh));
         return onTop ? info.pickedMesh : this.nearer(info, this.shapeRayHit(x, y)).mesh;
     }
@@ -374,7 +375,7 @@ export class RowScan {
      */
     private nearer(info: PickingInfo | null, row: RowHit | null): DrawnHit {
         if (row !== null && (info?.hit !== true || row.distance <= info.distance)) {
-            return { mesh: this.nodeAt(row.row)?.drawnPickMesh ?? null, point: row.point };
+            return { mesh: this.nodeAt(row.row)?.drawnAnchor ?? null, point: row.point };
         }
 
         return { mesh: info?.pickedMesh ?? null, point: info?.pickedPoint ?? null };

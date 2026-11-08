@@ -207,7 +207,14 @@ export function FiltersSection(): React.JSX.Element {
         // What held focus when the card was asked for, not whatever holds it a render later.
         const from = takeDraftOpener();
         if (asked === PLUS) {
-            openRef.current("node", undefined, from);
+            // The toolbar's Filters edits the one filter there is, shows two or more where they are
+            // listed, and starts one only when there is none.
+            const saved = session.visibility.conditions;
+            if (saved.length === 1) {
+                setOpenId(saved[0].id);
+            } else if (saved.length === 0) {
+                openRef.current("node", undefined, from);
+            }
             return;
         }
         const at = asked.indexOf(":");
@@ -266,10 +273,14 @@ export function FiltersSection(): React.JSX.Element {
                       ],
                   },
               ];
-    const cards = [
-        ...conditions.map((condition) => ({ id: condition.id, condition, draft: undefined })),
-        ...waiting.map((each) => ({ id: each.id, condition: undefined, draft: each })),
-    ];
+    const written = conditions.map((condition) => ({ id: condition.id, condition, draft: undefined }));
+    const fresh = waiting.map((each) => ({ id: each.id, condition: undefined, draft: each }));
+    // In the selection workspace the newest filter is on top, a new one's row first, as Figma lists
+    // layers; it stays there once written.
+    const cards =
+        session !== null && selectionWorkspaceOn(session)
+            ? [...fresh, ...written.toReversed()]
+            : [...written, ...fresh];
     const empty = cards.length === 0 && !timed;
     // What the cards together leave, on the header: "Passes none" when they empty the picture.
     const { summary } = session?.visibility ?? { summary: null };
@@ -297,7 +308,13 @@ export function FiltersSection(): React.JSX.Element {
             empty={empty}
         >
             {empty || session === null ? null : (
-                <Stack component="ul" role="list" aria-label="Filters" gap={6} className="dp-filters">
+                <Stack
+                    component="ul"
+                    role="list"
+                    aria-label="Filters"
+                    gap={selectionWorkspaceOn(session) ? 2 : 6}
+                    className="dp-filters"
+                >
                     {cards.map((each) => (
                         // One list, keyed by id: a draft written keeps its card (and focus) as the condition.
                         <FilterCard
@@ -541,14 +558,17 @@ function FilterCard({
         void writeCondition(store, () => session.visibility.updateCondition(id, change));
     };
     // The on box, named as the group eye is ("Use A"). In the open card it takes no Tab stop of its
-    // own: Space on the title row switches it, and the title row says when it is off.
+    // own: Space on the title row switches it, and the title row says when it is off. On a resting
+    // row in the selection workspace the row's group says the filter once, so its controls go by
+    // short names (Use, Edit, More).
+    const short = cards && !open;
     const onBox = (inEditor: boolean): React.ReactNode =>
         draft ? null : (
             <Tooltip label={inEditor ? `Use ${title} (Space)` : `Use ${title}`}>
                 <Checkbox
                     size="xs"
                     className="dp-filter-on"
-                    aria-label={`Use ${title}`}
+                    aria-label={short && !inEditor ? "Use" : `Use ${title}`}
                     tabIndex={inEditor ? -1 : undefined}
                     checked={on}
                     onChange={(event) => {
@@ -608,6 +628,7 @@ function FilterCard({
                 aria-label={total === undefined ? name : `${name}, ${total} ${things}`}
                 className="ws-card dp-filter"
                 data-off={on ? undefined : ""}
+                data-open={open ? "" : undefined}
             >
                 {open && selection !== null ? (
                     <FilterSelection
@@ -652,7 +673,8 @@ function FilterCard({
                         // Only on arrival: a side switch keeps focus on Nodes | Edges, the picker shut
                         // and nothing said, so the arrows go on switching (WCAG 3.2.2, ws-polish 3).
                         openPicker={draft && stepless && !switched}
-                        openTitle={(draft && switched) || switchIn.current}
+                        // A saved filter opened from its row or its Edit opens the workspace on it at once.
+                        openTitle={(draft && switched) || switchIn.current || (cards && !draft)}
                         switchedSide={draft && switched}
                         hostPicks={timePick(() => {
                             if (draft) {
@@ -711,11 +733,15 @@ function FilterCard({
                         {!(cards && renaming) && (
                             <UnstyledButton
                                 className="dp-filter-name"
-                                aria-label={[
-                                    title,
-                                    ...(total === undefined ? [] : [`${total} ${things}`]),
-                                    ...(on ? [] : ["off"]),
-                                ].join(", ")}
+                                aria-label={
+                                    short
+                                        ? ["Edit", ...(on ? [] : ["off"])].join(", ")
+                                        : [
+                                              title,
+                                              ...(total === undefined ? [] : [`${total} ${things}`]),
+                                              ...(on ? [] : ["off"]),
+                                          ].join(", ")
+                                }
                                 aria-expanded={open}
                                 onClick={() => {
                                     focusOnOpen.current = !open;
@@ -723,9 +749,19 @@ function FilterCard({
                                     onOpen(!open);
                                 }}
                             >
-                                <Text size="sm" fw={600} truncate span className="dp-filter-title">
-                                    {title}
-                                </Text>
+                                {/* A long description wraps to two lines, then is cut short; its tooltip says it whole. */}
+                                <Tooltip label={title} openDelay={500} multiline maw={280}>
+                                    <Text
+                                        size="sm"
+                                        fw={cards ? undefined : 600}
+                                        truncate={cards ? undefined : true}
+                                        lineClamp={cards ? 2 : undefined}
+                                        span
+                                        className="dp-filter-title"
+                                    >
+                                        {title}
+                                    </Text>
+                                </Tooltip>
                                 <span className="sel-spacer" />
                                 {!editing && total === undefined && (
                                     <CountChips count={count} effect={condition?.effect} />
@@ -741,13 +777,23 @@ function FilterCard({
                             // The card's commands, Rename first (Figma's layer row menu).
                             <Menu position="bottom-end" withinPortal>
                                 <Menu.Target>
-                                    <ActionIcon variant="subtle" size="sm" aria-label={`More for ${title}`}>
+                                    <ActionIcon variant="subtle" size="sm" className="dp-filter-more" aria-label="More">
                                         <GLYPHS.more size={14} aria-hidden />
                                     </ActionIcon>
                                 </Menu.Target>
                                 <Menu.Dropdown>
                                     <SelectionMenuItems
                                         items={[
+                                            {
+                                                id: "edit",
+                                                label: "Edit",
+                                                icon: "filter",
+                                                group: "edit",
+                                                key: "Enter",
+                                                onRun: () => {
+                                                    onOpen(true);
+                                                },
+                                            },
                                             {
                                                 id: "rename",
                                                 label: "Rename",

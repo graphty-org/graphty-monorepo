@@ -25,6 +25,7 @@ import {
 } from "../../../src/styles/internal.js";
 import type { StyleProperty } from "../../../src/styles/types.js";
 import { editGraphmlNodeFill, replaceGraphmlBlock } from "../../styles/formats/graphml.js";
+import { checkOutsideEdit, importForStyles } from "../../styles/harness.js";
 
 const registry = createRegistry();
 const CORPUS = resolve(import.meta.dirname, "../../corpus/styles/graphml");
@@ -418,6 +419,9 @@ describe("GraphML styles: yEd", () => {
         // a shape node's gradient runs left to right
         expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n1")]).toBe("#0000ff");
         expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[at("n1")]).toBe(0);
+        // from a third of the way across, mirrored back over the left third: the left side halfway between
+        expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at("n1")]).toBe("#800080 #ff0000 #0000ff");
+        expect(resolveStyles(styles, "node", "fillGradientStops", snapshot)[at("n1")]).toBe("0 0.333333 1");
         expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n0")]).toBeNull();
         expect(opacity[at("n2")]).toBe(0);
         expect(opacity[at("n3")]).toBe(0);
@@ -578,6 +582,27 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "imageFit", snapshot)).toEqual(["fill", "fill", null]);
     });
 
+    it("draws a yEd image or SVG node as its picture alone, without the realizer's fill or border", async () => {
+        // yEd's own drawing of yed-graphml-specimen-images-charts and graphml-synthetic-nodes paints neither
+        const head = YED_HEAD.replace(
+            '<graph edgedefault="directed" id="G">',
+            '<key for="graphml" id="d7" yfiles.type="resources"/><graph edgedefault="directed" id="G">',
+        );
+        const geometry = '<y:Geometry height="36" width="36" x="0" y="0"/>';
+        const paint =
+            '<y:Fill color="#C8C8C8" transparent="false"/><y:BorderStyle color="#505050" type="line" width="1.0"/>';
+        const doc = [
+            head,
+            `<node id="a"><data key="d6"><y:SVGNode>${geometry}${paint}<y:SVGModel svgBoundsPolicy="0"><y:SVGContent refid="1"/></y:SVGModel></y:SVGNode></data></node>`,
+            "</graph>",
+            '<data key="d7"><y:Resources>',
+            '<y:Resource id="1" type="java.lang.String">&lt;svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/&gt;</y:Resource>',
+            "</y:Resources></data></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["none"]);
+    });
+
     describe("as yEd's own drawings show them", () => {
         const values = async (nodes: string, property: StyleProperty): Promise<readonly unknown[]> => {
             const { snapshot, styles } = await load(`${YED_HEAD}${nodes}</graph></graphml>`, false);
@@ -651,6 +676,63 @@ describe("GraphML styles: yEd", () => {
             expect(svg).toContain("L50,42");
             expect(await values(nodes, "imageWidth")).toEqual([61, null]);
             expect(await values(nodes, "imageOffsetX")).toEqual([3, null]);
+        });
+
+        it("draws the symbols inside BPMN nodes, in the icon colors where the node sets them", async () => {
+            const square = '<y:Geometry height="36" width="36" x="0" y="0"/>';
+            const nodes =
+                generic("a", "bpmn.Event", prop("type", "EVENT_TYPE_MESSAGE"), square) +
+                generic(
+                    "b",
+                    "bpmn.Event",
+                    prop("type", "EVENT_TYPE_MESSAGE") +
+                        prop("icon.fill", "#ff0000") +
+                        prop("icon.line.color", '"/><script/>'),
+                    square,
+                ) +
+                generic("c", "bpmn.Event", prop("type", "EVENT_TYPE_PLAIN"), square) +
+                generic("d", "bpmn.Activity", prop("taskType", "TASK_TYPE_BUSINESS_RULE"));
+            const [message, red, plain, rule] = (await values(nodes, "image")).map((url) =>
+                typeof url === "string" ? decodeURIComponent(url) : null,
+            );
+            // the envelope in the node's fill and line, where yEd draws it on an event 36 across
+            expect(message).toContain('fill="#c8c8c8" stroke="#505050"');
+            expect(message).toContain("translate(8.22 11.48)");
+            // an icon color that is no color is not read
+            expect(red).toContain('fill="#ff0000" stroke="#505050"');
+            expect(red).not.toContain("script");
+            expect(plain).toBeNull();
+            // the header of the rule's table in the darker fill
+            expect(rule).toContain('fill="#8c8c8c"');
+            expect(await values(nodes, "imageFit")).toEqual(["fill", "fill", null, "fill"]);
+        });
+
+        it("draws an activity's markers side by side along its bottom, past its sides where they do not fit", async () => {
+            const marker = (i: number, name: string): string => prop(`marker${String(i)}`, `BPMN_MARKER_${name}`);
+            const nodes =
+                generic("a", "bpmn.Activity", prop("type", "ACTIVITY_TYPE_SUBPROCESS_LOOP")) +
+                generic(
+                    "b",
+                    "bpmn.Activity",
+                    [marker(1, "LOOP"), marker(2, "PARALLEL"), marker(3, "AD_HOC")].join(""),
+                ) +
+                generic(
+                    "c",
+                    "bpmn.Activity",
+                    [marker(1, "LOOP"), marker(2, "PARALLEL"), marker(3, "COMPENSATION"), marker(4, "AD_HOC")].join(""),
+                );
+            const [loop, three, four] = (await values(nodes, "image")).map((url) =>
+                typeof url === "string" ? decodeURIComponent(url) : "",
+            );
+            // a loop, then a subprocess's plus, each 15 across, 5 apart, about the middle, 4 above the bottom
+            expect(loop).toContain("translate(10.5 17) scale(0.15 0.15)");
+            expect(loop).toContain("translate(30.5 17) scale(0.15 0.15)");
+            expect(three).toContain("translate(0.5 17)");
+            // four are 75 across: 9.5 past each side of a node 56 across
+            expect(four).toContain("translate(-9.5 17)");
+            expect(await values(nodes, "imageFit")).toEqual(["fill", "fill", "none"]);
+            expect(await values(nodes, "imageWidth")).toEqual([null, null, 74]);
+            expect(await values(nodes, "imageOffsetX")).toEqual([null, null, 0]);
         });
 
         it("draws an event, a gateway and the round flowchart and SBGN nodes in the largest square of their box", async () => {
@@ -1097,11 +1179,61 @@ describe("GraphML styles: writing", () => {
             losses
                 .filter((l) => l.code === "W_STYLE_APPROXIMATED")
                 .map((l) => [l.style?.target, l.style?.property, l.count]),
-        ).toEqual([["node", "fillGradientAngle", 1]]);
+        ).toEqual([
+            // yEd paints a shape node's ramp mirrored over its left third, not as its two colors
+            ["node", "fillGradientColors", 2],
+            ["node", "fillGradientStops", 2],
+            ["node", "fillGradientAngle", 1],
+        ]);
         const text = await registry.exportGraphToString(snapshot, "graphml", { styles });
         expect(text).toContain('<y:Fill color="#E8EEF7" transparent="false" color2="#B7C9E3"/>');
         expect(text).toContain('modelName="internal" modelPosition="tr"');
         expect(text).toContain('modelName="eight_pos" modelPosition="n"');
+    });
+
+    it("an outside edit of a yEd color comes back as its fill and ramp only; any other new exception fails", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        b.addNode("b");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: {
+                    values: {
+                        fill: ["#e8eef7", "#e8eef7"],
+                        fillGradient: ["#b7c9e3", "#b7c9e3"],
+                        fillGradientAngle: [0, 0],
+                        borderColor: ["#505050", "#505050"],
+                    },
+                },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        );
+        const written = await registry.exportGraphToBytes(snapshot, "graphml", { styles });
+        const back = (await importForStyles(registry, "graphml", written)).imported;
+        if (back === null || back === undefined) {
+            throw new Error("no styles");
+        }
+        const derives = { fill: { fillGradientColors: "fillGradient" } };
+        const fillEdited = editGraphmlNodeFill(written);
+        if (fillEdited === null) {
+            throw new Error("no fill to edit");
+        }
+        // the edited color is node a's fill and the ramp yEd paints through it
+        expect(await checkOutsideEdit(registry, "graphml", fillEdited, back, derives)).toEqual([]);
+        expect(await checkOutsideEdit(registry, "graphml", fillEdited, back)).toEqual([
+            "an outside edit gave new exceptions fill, fillGradientColors on one element, not one edited value",
+        ]);
+        // the same edit and node a's border color too: an unrelated exception on the edited element fails
+        const text = new TextDecoder().decode(fillEdited);
+        const border = text.indexOf('<y:BorderStyle color="#505050"');
+        expect(border).toBeGreaterThan(0);
+        const both = text.slice(0, border) + text.slice(border).replace('color="#505050"', 'color="#FF0000"');
+        expect(await checkOutsideEdit(registry, "graphml", new TextEncoder().encode(both), back, derives)).toEqual([
+            "an outside edit gave new exceptions borderColor, fill, fillGradientColors on one element, not one edited value",
+        ]);
     });
 
     it("replaces a yFiles 3 file's drawing state by yEd graphics in yEd's namespace", async () => {

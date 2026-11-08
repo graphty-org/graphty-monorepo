@@ -342,6 +342,7 @@ export interface CatalogApi {
     applicable(): readonly MetricAvailability[];
     // (undocumented)
     cameras(): readonly CameraDescriptor[];
+    channels(target: "node" | "edge"): readonly ChannelDescriptor[];
     datasets(): readonly DatasetMeta[];
     // (undocumented)
     formats(): readonly FormatDescriptor[];
@@ -390,6 +391,7 @@ export interface ChannelDescriptor {
     readonly channel: Channel;
     readonly default?: string | number | boolean;
     readonly exclusiveMin?: boolean;
+    readonly feature?: "file-styles";
     readonly follows?: Channel;
     readonly group: ChannelGroup;
     readonly max?: number;
@@ -555,7 +557,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];

@@ -732,3 +732,16 @@ export function columnGlyph(session: GraphSession, column: AttributeDescriptor):
         .find((value) => value.on === column.kind && value.path === column.path);
     return typeOf(column.measurement, column.type, readable?.kind).glyph;
 }
+
+/**
+ * Names, each once, a repeat counted: "Shortest route x2, Connections".
+ * @param names - the names, in order.
+ * @returns the words.
+ */
+export function namesOnce(names: readonly string[]): string {
+    const counts = new Map<string, number>();
+    for (const name of names) {
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return [...counts].map(([name, count]) => (count > 1 ? `${name} x${String(count)}` : name)).join(", ");
+}

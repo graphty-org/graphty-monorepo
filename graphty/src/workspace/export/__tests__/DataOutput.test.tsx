@@ -220,7 +220,8 @@ describe("the Data output", () => {
         await waitFor(() => {
             assert.deepEqual(exportGraph.mock.calls.at(-1), [
                 "csv",
-                { dialect: "gephi", delimiter: ";", table: "edges" },
+                // All names the whole graph, since no scope writes the working graph.
+                { dialect: "gephi", delimiter: ";", table: "edges", scope: "all" },
             ] as unknown as []);
         });
     });

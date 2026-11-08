@@ -108,6 +108,9 @@ describe("the network-data experiment, off", () => {
                 config: { data: JSON.stringify({ nodes: [{ id: "x" }], edges: [] }) },
             });
             assert.strictEqual(session.data.nodes().length, 1);
+            // No refused load holds the load line: a clear after them settles too.
+            await session.data.clear();
+            assert.strictEqual(session.data.nodes().length, 0);
         });
     });
 

@@ -359,6 +359,49 @@ function crossingAlong(inside: Xyz, outside: Xyz, isOutside: (x: number, y: numb
 }
 
 /**
+ * The shape and sample count of the path {@link curveSpan} cuts.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param path - {@link curveSpan}'s path.
+ * @param path.bow - The bow.
+ * @param path.radius - The radius.
+ * @param path.height - The height.
+ * @param path.globe - Whether the height lifts a great-circle arc.
+ * @returns The shape and the pieces it is sampled with.
+ */
+function pathShape(
+    src: Xyz,
+    dst: Xyz,
+    path: { bow?: number | null; radius?: number | null; height?: number | null; globe?: boolean },
+): { shape: Shape; samples: number } {
+    const { bow = null, radius = null, height = null, globe = false } = path;
+    const none: Shape = { bow: null, radius: null, turn: null, height: null, angle: null, ends: null };
+    if (height !== null && globe) {
+        // `greatCircleArc`: a straight route is its two ends
+        const sphere = greatCircle(src, dst, height);
+        return { shape: { ...none, height, angle: sphere?.angle ?? 0 }, samples: sphere?.pieces ?? 1 };
+    }
+
+    if (height !== null) {
+        // `raisedArc`: a flat route is its two ends
+        const chord = Math.hypot(dst.x - src.x, dst.y - src.y);
+        return { shape: { ...none, height }, samples: height * chord > 0 ? fanArcPieces(chord, height * chord) : 1 };
+    }
+
+    if (radius !== null) {
+        const circle = centerCircle(src, dst, radius);
+        return { shape: { ...none, radius, turn: circle?.turn ?? 0 }, samples: circle?.pieces ?? 1 };
+    }
+
+    if (bow !== null) {
+        const chord = Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
+        return { shape: { ...none, bow }, samples: fanArcPieces(chord, bow) };
+    }
+
+    return { shape: none, samples: curvePieces(src, dst) };
+}
+
+/**
  * Where the drawn path of a curve starts and stops, cut where its samples leave each node as
  * `Edge.placeRoute` cuts it.
  * @param src - The source center.
@@ -396,32 +439,8 @@ export function curveSpan(
     } = {},
     bareEnds: (() => readonly [Xyz, Xyz]) | null = null,
 ): CurveSpan | null {
-    const { bow = null, radius = null, height = null, globe = false, straight = false } = path;
-    const circle = radius === null || height !== null ? null : centerCircle(src, dst, radius);
-    const sphere = globe && height !== null ? greatCircle(src, dst, height) : null;
-    let shape: Shape = { bow, radius: null, turn: null, height: null, angle: null, ends: null };
-    if (globe && height !== null) {
-        shape = { bow: null, radius: null, turn: null, height, angle: sphere?.angle ?? 0, ends: null };
-    } else if (height !== null) {
-        shape = { bow: null, radius: null, turn: null, height, angle: null, ends: null };
-    } else if (radius !== null) {
-        shape = { bow: null, radius, turn: circle?.turn ?? 0, height: null, angle: null, ends: null };
-    }
-
-    let samples = curvePieces(src, dst);
-    if (shape.angle !== null) {
-        // `greatCircleArc`: a straight route is its two ends
-        samples = sphere?.pieces ?? 1;
-    } else if (height !== null) {
-        // `raisedArc`: a flat route is its two ends
-        const chord = Math.hypot(dst.x - src.x, dst.y - src.y);
-        samples = height * chord > 0 ? fanArcPieces(chord, height * chord) : 1;
-    } else if (radius !== null) {
-        samples = circle?.pieces ?? 1;
-    } else if (shape.bow !== null) {
-        samples = fanArcPieces(Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z), shape.bow);
-    }
-
+    const { straight = false } = path;
+    const { shape, samples } = pathShape(src, dst, path);
     const flat: number[] = [];
     for (let i = 0; i <= samples; i++) {
         const p = pathSampleAt(src, dst, i, samples, shape);

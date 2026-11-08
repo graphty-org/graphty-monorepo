@@ -378,6 +378,39 @@ switched-on third: on WebGL 325 stories pass, but only 4 of them draw a pulled e
 edge. Found building it: a pulled line follows the row table, which takes the layout's places, so a place written to the layout
 engine and not yet to the node's mesh moves the line before the node; the update loop writes both in one frame.
 
+As built (stage 16, first pull request): `Edge.pullsLine` passes on the `"batched"` path, read as the graph keeping node batches,
+so `pulledEdgesDefault` is needed only to pull on `"objects"`. A line's rebuild test (`Edge.paintFrom`) compares whether it is
+pulled with whether it should be, and `Graph` repaints every edge, then walks them, when the path changes live, so an edge moves
+between a pulled piece and a placed slot both ways. `test/browser/pulled-edges-batched.test.ts` holds `"batched"` to the
+`"objects"` picture, 0 pixels, at rest, after a mouse drag and across a live switch each way, on WebGL and WebGPU. `repeatPerVertex`
+and the 1M-edge SwiftShader load are the stage's second pull request.
+
+Correction from stage 16: this pull request cannot move the stage's targets, because the harness pulls no edge. `lean` is 2D, and a
+2D solid line is a flat rectangle (`Simple2DLineRenderer`), which `Edge.pullsLine` refuses; `default` is 3D but every edge has a
+head, which waits for stage 17. One `lean-m` run each under `"batched"`, RTX, interleaved: before (`benchmarks/results/stage-16-before`,
+load average 5.4) moving 87.6 ms (p99 90.6), layout frame 942 ms; after (`benchmarks/results/stage-16`, 4.2) moving 86.9 ms (p99 89.5),
+layout frame 997 ms, `rowCounts.pulledEdges` 0 in both. The 2D targets need a pulled 2D line, which no stage yet builds.
+
+Also fixed in stage 16 (a `"batched"`-only defect already on master): a node source mesh whose batch group lost its last member
+stayed in `MeshCache.batchedSources` until the next flush, but the cache prunes right after the repaint, before that flush, so a
+toggled node size left one mesh and one material behind per look (`session-style-paint.test.ts` under the `forced-batched`
+project). `NodeBatches.leave` now drops an emptied group's source from `batchedSources` at once.
+
+Correction from stage 16: a pulled piece carries no age, so `Edge.pullsLine` also refuses while the scene's lines fade by age (the
+timeline's `ageFade`), and `UpdateManager.followAgeFade` repaints every edge when the fade turns on or off while node batches exist.
+Without it, `"batched"` drew every plain edge unfaded (`edge-age-fade.test.ts` under `forced-batched`).
+
+As built (stage 16, second pull request): `EdgeLineBatch`'s expanded form (`drawsExpandedLines`, `forceExpandedLines`,
+`repeatPerVertex`) is deleted, so every renderer draws a placed batch's pieces as instances. This changes no pixel on
+either path, but object lines on SwiftShader draw slower again (the #3095 table in `design/edges/sharp-corners.md`).
+`test/browser/million-edge-lines.test.ts` places a million pieces in one `EdgeLineBatch` and pulls a million in one
+`PulledLineBatch`, and holds both to no GL error and the millionth piece drawn on whatever renderer the browser has.
+Before the deletion it failed on SwiftShader with `GL_INVALID_OPERATION` (1282) on the placed batch. Correction: a
+frame of a million lines that each cross the canvas takes about 45 s on SwiftShader, from fill rather than from the
+draw, so the test draws all but the last as specks. `test/browser/million-edge-element.test.ts` holds the bar through the
+element: a `"batched"` element loads a million edges (all pulled) on 1,416 nodes and draws the millionth with no
+GL error, about 55 s on SwiftShader, almost all of it the load.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

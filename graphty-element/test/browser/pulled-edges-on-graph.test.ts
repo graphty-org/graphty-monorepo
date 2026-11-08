@@ -60,6 +60,8 @@ async function loaded(renderer: "webgl" | "webgpu", pulled: boolean, view: "2d" 
     pulledEdgesDefault.value = pulled;
     const element = document.createElement("graphty-element");
     element.renderer = renderer;
+    // The placed lines are the objects path's: "batched" pulls them whatever the switch says.
+    element.renderPath = "objects";
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";

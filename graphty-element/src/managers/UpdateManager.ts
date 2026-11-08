@@ -819,17 +819,26 @@ export class UpdateManager implements Manager {
         this.pending.changed();
         const fade = UpdateManager.ageFadeOf(masks);
         const state = batchUploadFrames.edgeAges(this.graphContext.getScene());
-        if (fade === null) {
-            state.on = false;
-            return;
+        const was = state.on;
+        state.on = fade !== null;
+        if (fade !== null) {
+            state.ages = fade.ages;
+            state.window[0] = fade.from;
+            state.window[1] = fade.to;
+            state.window[2] = fade.fade;
+            state.switched = this.ageSwitched;
         }
 
-        state.on = true;
-        state.ages = fade.ages;
-        state.window[0] = fade.from;
-        state.window[1] = fade.to;
-        state.window[2] = fade.fade;
-        state.switched = this.ageSwitched;
+        // A pulled line carries no age (`Edge.pullsLine`): on "batched", turning the fade on or
+        // off moves the plain edges between the pulled and the placed line.
+        if (state.on !== was && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+            for (const edge of this.dataManager.edges.values()) {
+                edge.updateStyle();
+            }
+
+            this.forceEdgeWalk();
+            this.meshesAdded();
+        }
     }
 
     /**
@@ -3556,12 +3565,22 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether paint can still change the box a framing measures: a style pass on its way, or paint
-     * that has arrived and is not applied to every element yet (`syncStyles` applies it in batches).
+     * Whether paint can still change the box a framing measures: a style pass on its way, paint
+     * that has arrived and is not applied to every element yet (`syncStyles` applies it in batches),
+     * or a node shader still loading or compiling. A shader drawn in place of its node (`replace`) swaps
+     * the node's mesh for a proxy of another size once it is ready, after its paint was applied;
+     * framed before that, the camera fitted the node's unshaded mesh and nothing framed the swap,
+     * so whether the shader compiled first decided the zoom (issue #6284). Only node shaders count
+     * (kind `node-shader`): a material's shader variant arriving draws a mesh that was skipped but
+     * never changes its size, so it holds the final picture, not the framing.
      * @returns True while some element is still to be drawn with paint it does not have yet.
      */
     private paintIsOutstanding(): boolean {
-        return this.graphContext.getStylePainter?.()?.hasPending === true || this.styleIsPainting();
+        return (
+            this.graphContext.getStylePainter?.()?.hasPending === true ||
+            this.styleIsPainting() ||
+            this.pending.isPending("node-shader")
+        );
     }
 
     /**

@@ -61,7 +61,7 @@ if [ -z "$LYCHEE" ]; then
         fi
         mkdir -p "$CACHE"
         TARBALL="$CACHE/lychee.tar.gz"
-        curl -sSfL -o "$TARBALL" \
+        curl -sSfL --retry 4 --retry-delay 5 --retry-all-errors --connect-timeout 20 -o "$TARBALL" \
             "https://github.com/lycheeverse/lychee/releases/download/lychee-v$LYCHEE_VERSION/lychee-x86_64-unknown-linux-musl.tar.gz" || exit 2
         echo "$LYCHEE_SHA256  $TARBALL" | sha256sum -c --quiet - || { rm -f "$TARBALL"; exit 2; }
         tar -xzf "$TARBALL" -C "$CACHE" --strip-components=1 lychee-x86_64-unknown-linux-musl/lychee || exit 2

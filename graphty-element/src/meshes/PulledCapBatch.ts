@@ -16,6 +16,14 @@ import { batchUploadFrames } from "./FrameRoster";
  * cap, no image, no stack, no cap part-way along.
  */
 
+/**
+ * The internal switch that lets a pulled cap batch be built. Off: pulled caps place in float32 on the
+ * GPU and differ from the placed (objects) cap by one anti-aliasing sample, a picture change the owner
+ * has not reviewed (design section 10), so every edge, on every render path, keeps drawing its caps
+ * as objects. Only the proving test turns it on.
+ */
+export const pulledCapsOn: { value: boolean } = { value: false };
+
 /** Slots a new batch starts with, before the first doubling. */
 const INITIAL_SLOTS = 32;
 
@@ -74,12 +82,17 @@ export class PulledCapBatch {
      * @param scene - The scene whose frames upload the buffers.
      * @param rowTextures - The row table's `rowPosition` and `rowExtent` textures, asked each frame:
      *     the row table replaces them when it grows.
+     * @throws {Error} While {@link pulledCapsOn} is off.
      */
     constructor(
         mesh: Mesh,
         scene: Scene,
         private readonly rowTextures: () => { position: BaseTexture; extent: BaseTexture },
     ) {
+        if (!pulledCapsOn.value) {
+            throw new Error("pulled caps are switched off (pulledCapsOn)");
+        }
+
         this.mesh = mesh;
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;

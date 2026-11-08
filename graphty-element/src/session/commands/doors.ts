@@ -1737,6 +1737,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             openRowTable: RENDER,
             getNodeBatches: READ,
             getNodeIdTarget: READ,
+            getEdgeIdTarget: READ,
             renderPath: READ,
             setRenderPath: MACHINE,
             rowCounts: READ,
@@ -1831,6 +1832,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ),
             getNode: READ,
             getNodes: READ,
+            getEdges: READ,
             render: RENDER,
             enableAiControl: ASSISTANT,
             disableAiControl: ASSISTANT,
@@ -2450,6 +2452,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     {
         name: "NodeIdTarget",
         file: "src/render/NodeIdTarget.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "EdgeIdTarget",
+        file: "src/render/EdgeIdTarget.ts",
         half: "renderer",
         whole: RENDER,
     },

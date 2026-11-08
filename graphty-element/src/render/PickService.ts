@@ -30,6 +30,7 @@ import { isCloseLabel } from "../meshes/labelClose";
 import { ON_TOP_RENDERING_GROUP } from "../meshes/RichTextLabel";
 import type { NodeIdType } from "../Node";
 import { pickAtLayout, transitionUnderWay } from "../transitions/LayoutTransitionRunner";
+import type { EdgeIdTarget } from "./EdgeIdTarget";
 import { ID_NONE, ID_OBJECT, type NodeIdTarget } from "./NodeIdTarget";
 
 /**
@@ -37,6 +38,9 @@ import { ID_NONE, ID_OBJECT, type NodeIdTarget } from "./NodeIdTarget";
  * `meshPicks` for Babylon's pick over `scene.meshes`, `rowScans` for a walk over the rows.
  */
 export const pickWork = { meshPicks: 0, rowScans: 0 };
+
+/** How many edges the exact edge test measured on screen, each with a `worldToScreen` per point. */
+export const edgePickWork = { measured: 0 };
 
 /** How far from a drawn edge's line, in CSS pixels, a click still lands on the edge. */
 const EDGE_PICK_TOLERANCE_PX = 6;
@@ -690,6 +694,7 @@ export function pickEdgeAt(
             continue;
         }
 
+        edgePickWork.measured++;
         const points = edgeWorldPoints(edge);
         for (let i = 1; i < points.length; i++) {
             if (!inFront(points[i - 1]) || !inFront(points[i])) {
@@ -705,4 +710,54 @@ export function pickEdgeAt(
     }
 
     return found;
+}
+
+/** Each scene's edge ID target, while its graph draws on the `"batched"` path. */
+const edgeIdTargets = new WeakMap<Scene, EdgeIdTarget>();
+
+/**
+ * Let an edge hover read a scene's edge ID target, or stop.
+ * @param scene - The scene.
+ * @param target - The target, or null to stop.
+ */
+export function useEdgeIdTarget(scene: Scene, target: EdgeIdTarget | null): void {
+    if (target === null) {
+        edgeIdTargets.delete(scene);
+    } else {
+        edgeIdTargets.set(scene, target);
+    }
+}
+
+/**
+ * The drawn edge a hover at a canvas point is over: {@link pickEdgeAt}'s answer. On the `"batched"`
+ * path only the edges the edge ID target draws near the point, and those it cannot draw, are
+ * measured, at once on WebGL and once read back on WebGPU; a layout transition, a target not ready
+ * yet, or no target, measures every edge at once.
+ *
+ * Where two lines cover the same pixels the target names the one drawn last, so hover may miss
+ * an edge a press would find under it (design/rendering/row-renderer.md 4.4).
+ * @param scene - The scene.
+ * @param edges - The graph's edges, for the full walk.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @param toScreen - A world point's place on screen, in render pixels.
+ * @returns The edge's id or `undefined`, now or once read.
+ */
+export function hoverEdgeAt(
+    scene: Scene,
+    edges: () => Iterable<Edge>,
+    x: number,
+    y: number,
+    toScreen: (point: Vector3) => { x: number; y: number },
+): EdgeId | undefined | Promise<EdgeId | undefined> {
+    const target = edgeIdTargets.get(scene);
+    // The window must hold every pixel within the tolerance of the pointer's pixel center.
+    const radius = Math.ceil(EDGE_PICK_TOLERANCE_PX / scene.getEngine().getHardwareScalingLevel()) + 1;
+    const near = target === undefined || transitionUnderWay(scene) ? null : target.candidates(x, y, radius);
+    if (near === null) {
+        return pickEdgeAt(scene, edges(), x, y, toScreen);
+    }
+
+    const measure = (candidates: Edge[]): EdgeId | undefined => pickEdgeAt(scene, candidates, x, y, toScreen);
+    return Array.isArray(near) ? measure(near) : near.then(measure);
 }

@@ -454,6 +454,17 @@ function materialColor(material: Material | null): { rgb: Color3; alpha: number;
     return null;
 }
 
+/**
+ * The color and opacity a line batch draws one slot in, for a batch that keeps them per slot.
+ * @param batch - the batch
+ * @param slot - the slot
+ * @returns its color and opacity as {@link materialColor} reads a material's, or null when the material holds them
+ */
+function slotColor(batch: EdgeLineBatch, slot: number): { rgb: Color3; alpha: number; texture: boolean } | null {
+    const rgba = batch.colorOf(slot);
+    return rgba === null ? null : { rgb: new Color3(rgba[0], rgba[1], rgba[2]), alpha: rgba[3], texture: false };
+}
+
 const runsText = (runs: readonly (readonly TextSegment[])[]): string =>
     runs.map((line) => line.map((run) => run.text).join("")).join("\n");
 
@@ -1671,7 +1682,8 @@ function readBand(batch: EdgeLineBatch | null, slots: readonly number[], p: Proj
     }
     const [a, b] = batch.endsOf(slots[0]);
     const mid = a.add(b).scale(0.5);
-    const m = materialColor(batch.mesh.material);
+    const own = slotColor(batch, slots[0]);
+    const m = own ?? materialColor(batch.mesh.material);
     const meta = batch.mesh.metadata as {
         lineOpacity?: number;
         joinedLine?: boolean;
@@ -1684,7 +1696,7 @@ function readBand(batch: EdgeLineBatch | null, slots: readonly number[], p: Proj
         ? null
         : {
               color: hex(m.rgb),
-              opacity: (meta?.lineOpacity ?? m.alpha) * visibility,
+              opacity: (own?.alpha ?? meta?.lineOpacity ?? m.alpha) * visibility,
               width: lineThickness(batch.mesh, mid, p),
               ...(pattern === undefined ? {} : { pattern }),
           };
@@ -1724,7 +1736,9 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
         thicknessPx = lineThickness(batch.mesh, mid, p);
         screenFloored = thicknessPx > 0 && thicknessPx <= screenFloorOf(batch.mesh);
-        const m = materialColor(batch.mesh.material);
+        // a batch keyed by shape draws each slot in its own color and opacity
+        const own = slots.length > 0 ? slotColor(batch, slots[0]) : null;
+        const m = own ?? materialColor(batch.mesh.material);
         color = m ? hex(m.rgb) : null;
         // A flat line's style opacity, not its material's alpha: a sub-pixel line is drawn one pixel
         // wide with its alpha scaled by its width, the same ink as its own width at full opacity.
@@ -1736,7 +1750,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         // a dashed or dotted line through bends or round a loop is a joined line that draws its own pattern
         pattern = meta?.pattern?.kind ?? null;
         dashPx = joinedDashes(batch, slots, meta?.pattern, mid, p);
-        const styled = meta?.lineOpacity;
+        const styled = own?.alpha ?? meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
         const visibility = meta?.joinedLine === true ? 1 : batch.mesh.visibility;

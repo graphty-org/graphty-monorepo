@@ -128,7 +128,43 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.fade === undefined ? [] : ["#define EDGE_FADE"]),
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
+        ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
     ];
+}
+
+/**
+ * What a joined line's mesh says about how its batch draws it (`EdgeLineMeta`).
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @param color - The look's color.
+ * @returns The metadata.
+ */
+function joinedLineMeta(options: JoinedLineOptions, widened: boolean, color: Color3): Record<string, unknown> {
+    const { pattern } = options;
+    const opaque = options.opaque === true;
+    return {
+        joinedLine: true,
+        pattern: pattern
+            ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
+            : undefined,
+        ...(widened ? { widened: true } : {}),
+        ...(opaque ? { opaque: true } : {}),
+        // What a new slot is drawn in until its edge writes its own (`EdgeLineBatch.setColor`).
+        ...(drawsSlotColor(options, widened)
+            ? { color: [color.r, color.g, color.b, opaque ? 1 : (options.opacity ?? 1)] as const }
+            : {}),
+    };
+}
+
+/**
+ * Whether a look's batch reads each piece's color and opacity from its slot (`edgeJoinShader`'s
+ * `EDGE_SLOT_COLOR`) rather than from the material: every joined line but a widened or pulled one.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns True when the color is per slot.
+ */
+function drawsSlotColor(options: JoinedLineOptions, widened: boolean): boolean {
+    return !widened && options.pulled !== true;
 }
 
 /**
@@ -153,6 +189,7 @@ function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): str
         "pNext2",
         "run",
         "edgeHidden",
+        ...(drawsSlotColor(options, widened) ? ["edgeColor"] : []),
         ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
     ];
 }
@@ -505,6 +542,7 @@ void main(void) {
 
         const { program, fade } = options;
         const opaque = options.opaque === true;
+        const pulledTranslucent = options.pulled === true && (options.opacity ?? 1) < 1;
         const widened = options.widened === true || program !== undefined || fade !== undefined;
         const defines = joinedLineDefines(options, widened);
         const material = new ShaderMaterial(
@@ -535,8 +573,12 @@ void main(void) {
                 uniformBuffers: [...(program?.uniformBuffers ?? [])],
                 defines,
                 // A faded line is translucent whatever its opacity: in the opaque pass it would
-                // write depth, and hide what is drawn behind it after it.
-                ...((program === undefined && fade === undefined) || opaque ? {} : { needAlphaBlending: true }),
+                // write depth, and hide what is drawn behind it after it. A pulled translucent
+                // batch is too: its pieces carry their own opacity, so its mesh's visibility
+                // cannot put it in the transparent pass.
+                ...(opaque || !(program !== undefined || fade !== undefined || pulledTranslucent)
+                    ? {}
+                    : { needAlphaBlending: true }),
             },
         );
         if (widened) {
@@ -584,7 +626,10 @@ void main(void) {
 
         // A translucent line is drawn in the transparent pass, as every line renderer before this
         // one put it there; an opaque one blends in place, so a sub-pixel line's coverage shows.
-        if (opacity < 1 && !opaque) {
+        // A pulled batch's mesh is shared by every edge in it, each with its own opacity in its
+        // piece (EDGE_PULLED), so the first edge's opacity must not become the whole mesh's: an
+        // opacity of 0 would stop Babylon drawing the mesh at all.
+        if (opacity < 1 && !opaque && options.pulled !== true) {
             mesh.visibility = opacity;
         }
 
@@ -593,14 +638,7 @@ void main(void) {
             this.blendInPlace(mesh, options.blend);
         }
 
-        mesh.metadata = {
-            joinedLine: true,
-            pattern: pattern
-                ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
-                : undefined,
-            ...(widened ? { widened: true } : {}),
-            ...(opaque ? { opaque: true } : {}),
-        };
+        mesh.metadata = joinedLineMeta(options, widened, colorObj);
 
         return mesh;
     }

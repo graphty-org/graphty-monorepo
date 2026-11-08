@@ -160,6 +160,7 @@ import type {
     SourceRefreshReport,
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
+import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
 import type {
@@ -322,6 +323,11 @@ interface PageSources {
      * @returns true when it is
      */
     timeline?(): boolean;
+    /**
+     * Whether the file styles experiment is on; absent reads on.
+     * @returns true when it is
+     */
+    fileStyles?(): boolean;
     /**
      * The visible masks, for statistics over the visible graph.
      * @returns The node and edge masks, 1 for visible.
@@ -939,6 +945,11 @@ export class SessionData implements SessionDataApi {
      */
     async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
+        // Refused before anything is read, a network source's fetch included.
+        if (asksFileStyles({ ...options, source }) && this.pages.fileStyles?.() === false) {
+            throw featureOff("file-styles", "styles");
+        }
+
         // A network source's read honours the signal, so its wait for its turn does too.
         const turn = this.loadLine.join(source.source === undefined ? undefined : options.signal);
         try {
@@ -1652,7 +1663,8 @@ export class SessionData implements SessionDataApi {
             (change) => this.writes.progress?.(change),
             this.pages.timeline?.() === true,
         );
-        const styles = await draftStyles(read, options.signal);
+        // With the file styles experiment off a draft does not say what styles the file carries.
+        const styles = this.pages.fileStyles?.() === false ? null : await draftStyles(read, options.signal);
         const draft = new Draft(
             read,
             {

@@ -161,6 +161,8 @@ export interface RepaintSources {
     readonly measured?: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /** Whether the file styles experiment is on, which decides the values a binding spreads over; absent reads on. */
+    readonly fileStyles?: () => boolean;
     /**
      * Whether an element no enabled layer paints anything on is drawn hidden (`visible: false`),
      * read at the start of every pass. The project setting `editableBase` turns it on, so hiding
@@ -1414,6 +1416,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     channel: name as Channel,
                     binding,
                     scales,
+                    fileStyles: sources.fileStyles?.() !== false,
                     order: indexOrder(layer.id, name),
                     columnOf: (read) => readWholeColumn(store, read).values,
                     ...(column === undefined ? {} : { column: column.values, unmeasured: column.unmeasured }),

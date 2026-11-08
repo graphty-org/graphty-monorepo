@@ -391,6 +391,10 @@ stayed in `MeshCache.batchedSources` until the next flush, but the cache prunes 
 toggled node size left one mesh and one material behind per look (`session-style-paint.test.ts` under the `forced-batched`
 project). `NodeBatches.leave` now drops an emptied group's source from `batchedSources` at once.
 
+Correction from stage 16: a pulled piece carries no age, so `Edge.pullsLine` also refuses while the scene's lines fade by age (the
+timeline's `ageFade`), and `UpdateManager.followAgeFade` repaints every edge when the fade turns on or off while node batches exist.
+Without it, `"batched"` drew every plain edge unfaded (`edge-age-fade.test.ts` under `forced-batched`).
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

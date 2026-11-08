@@ -211,10 +211,10 @@ describe("a paint that changes only an edge's colour moves it without placing it
         return { edge, normal, ghost: { meshKey: "s0|#9e9e9e|0.15|>", style } };
     }
 
-    it("copies the line and the head into the new look's batches, where they were drawn", () => {
+    it("recolors the line and the head in their own batches, where they are drawn", () => {
         const { edge, ghost } = ghostable();
         const line = edge.mesh;
-        const { batch } = lineOf(edge);
+        const { batch, slots } = lineOf(edge);
         const head = edge.arrowCap;
         const ends = endsOf(edge);
         const headAt = head?.position.asArray();
@@ -222,12 +222,16 @@ describe("a paint that changes only an edge's colour moves it without placing it
 
         edge.applySessionPaint(ghost);
 
-        assert.isFalse(edge.mesh === line, "the line moved to another batch");
-        assert.isTrue(batch.disposed, "and the batch it left, now empty, is gone");
+        // A plain line's batch is keyed by its shape, and its slots carry the color (issue #6026).
+        assert.isTrue(edge.mesh === line, "the line stays in its batch");
+        assert.deepStrictEqual(lineOf(edge).slots, slots, "in the same slots");
         assert.deepStrictEqual(endsOf(edge), ends, "drawn between the same two points");
-        assert.isFalse(edge.arrowCap === head, "the head moved to another batch");
-        assert.isTrue(head?.isDisposed(), "and the old head is given up");
-        assert.deepStrictEqual(edge.arrowCap?.position.asArray(), headAt, "drawn where the old one was");
+        const [r, g, b, a] = batch.colorOf(slots[0]) ?? [];
+        const grey = Math.fround(0x9e / 255);
+        assert.deepStrictEqual([r, g, b, a], [grey, grey, grey, Math.fround(0.15)], "in the new color and opacity");
+        assert.strictEqual(edge.drawnLine?.visibility, 0.15, "read back at the new opacity");
+        assert.isTrue(edge.arrowCap === head, "the head stays in its batch too");
+        assert.deepStrictEqual(edge.arrowCap?.position.asArray(), headAt, "drawn where it was");
         assert.strictEqual(edge.arrowCap?.visibility, 0.15, "at the new opacity");
     });
 

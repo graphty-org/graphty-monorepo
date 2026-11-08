@@ -183,13 +183,33 @@ describe("the scene grows with styles and nodes, not with edges", () => {
             name: "half the edges",
             target: "edge",
             selector: { match: "expression", where: "data.half == 'b'" },
-            set: { "edge.color": "#ff00ff" },
+            set: { "edge.width": 3 },
         });
         await frame();
 
         const batches = new Set(edges().map((edge) => edge.mesh));
         assert.equal(batches.size, 2, "the second style draws its edges from a second batch");
         assert.equal(graph.scene.meshes.length, oneStyle + 1, "and that batch is the one mesh it adds");
+    });
+
+    it("adds no line batch for a second edge style that changes only the color", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        await frame();
+        const oneStyle = graph.scene.meshes.length;
+
+        await addStyleLayer(graph, {
+            name: "half the edges",
+            target: "edge",
+            selector: { match: "expression", where: "data.half == 'b'" },
+            set: { "edge.color": "#ff00ff", "edge.opacity": 0.4 },
+        });
+        await frame();
+
+        // A plain line's color and opacity are its slot's (issue #6026).
+        const batches = new Set(edges().map((edge) => edge.mesh));
+        assert.equal(batches.size, 1, "both looks draw from one batch");
+        assert.equal(graph.scene.meshes.length, oneStyle, "and it adds no mesh");
+        assert.sameMembers([...new Set(edges().map((edge) => edge.drawnLine?.visibility))], [1, 0.4]);
     });
 
     it("draws a few hundred arrow caps of one shape as one batch", async () => {

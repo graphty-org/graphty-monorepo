@@ -47,6 +47,15 @@ const TEMPLATE_INDICES = JOIN_TEMPLATE_INDICES.length;
 /** Renderer strings of the software rasterizers a browser falls back to without a usable GPU. */
 const SOFTWARE_RENDERER = /swiftshader|llvmpipe|softpipe|lavapipe|basic render driver|software/i;
 
+/** Floats in one slot's color: red, green, blue and the opacity. */
+const FLOATS_PER_COLOR = 4;
+
+/**
+ * What a batch's mesh is set to while any of its slots is translucent, which puts the batch in the
+ * alpha-blended pass. The join shader never reads the mesh's visibility, so this is not ink.
+ */
+const TRANSPARENT_PASS = 0.5;
+
 /** Set by a test or a benchmark to choose how joined lines are drawn; null follows the renderer. */
 let expandedOverride: boolean | null = null;
 
@@ -117,6 +126,7 @@ const scratchRotation = new Quaternion();
 const scratchMatrix = new Matrix();
 const scratchA = new Vector3();
 const scratchB = new Vector3();
+const scratchColor = new Float32Array(FLOATS_PER_COLOR);
 
 /**
  * What a batch's mesh says about how it is drawn, in `mesh.metadata`.
@@ -137,6 +147,11 @@ export interface EdgeLineMeta {
     widened?: boolean;
     /** A line drawn without alpha blending (`line.blending` false), which never fades by age. */
     opaque?: boolean;
+    /**
+     * The color and opacity a new slot is drawn in, for a batch whose shader reads them per slot
+     * (`edgeJoinShader`'s `EDGE_SLOT_COLOR`); absent when the material holds them.
+     */
+    color?: readonly [number, number, number, number];
 }
 
 /**
@@ -225,6 +240,31 @@ export class EdgeLineBatch {
     private readonly hiddenRuns = new DirtyRuns();
 
     /**
+     * Per slot, its color and opacity (the shader's `edgeColor`), for a batch whose shader reads
+     * them per slot; null when the material holds them. Edges that differ only in color share
+     * such a batch, and recoloring one writes these four floats (issue #6026).
+     */
+    private colors: Float32Array | null;
+
+    /** What a slot is drawn in until its edge writes its own; see {@link EdgeLineMeta.color}. */
+    private readonly defaultColor: readonly number[] | null;
+
+    /** The GPU buffer {@link EdgeLineBatch.colors} is read from. */
+    private colorBuffer: Buffer | null = null;
+
+    /** Which colors have been written since the last upload. */
+    private readonly colorRuns = new DirtyRuns();
+
+    /** Slots in use drawn at an opacity under 1, which put the whole batch in the transparent pass. */
+    private translucent = 0;
+
+    /** Whether this batch draws without alpha blending, where an opacity is never translucent. */
+    private readonly opaque: boolean;
+
+    /** The visibility the batch's mesh was built with: below 1 for a look made translucent. */
+    private readonly baseVisibility: number;
+
+    /**
      * A widened batch's static values, {@link EDGE_STATIC_FLOATS} per slot, uploaded only when one
      * is written (a repaint), never because an edge moved; null for a plain batch.
      */
@@ -251,6 +291,7 @@ export class EdgeLineBatch {
         statics: Float32Array | null;
         ages: Float32Array | null;
         hidden: Float32Array | null;
+        colors: Float32Array | null;
     } | null = null;
 
     /** The scene's fade by age; see {@link batchUploadFrames}. */
@@ -335,11 +376,15 @@ export class EdgeLineBatch {
         this.stride = widened ? WIDENED_FLOATS_PER_PIECE : FLOATS_PER_SLOT;
         this.parking = meta.joinedLine === true ? null : new ParkedSlots(this.stride);
         this.hidden = new Float32Array(INITIAL_SLOTS);
+        this.opaque = meta.opaque === true;
+        this.defaultColor = meta.joinedLine === true && !widened ? (meta.color ?? null) : null;
+        this.colors = this.defaultColor === null ? null : this.colorRows(INITIAL_SLOTS);
+        this.baseVisibility = mesh.visibility;
         this.statics = widened ? new Float32Array(INITIAL_SLOTS * EDGE_STATIC_FLOATS) : null;
         this.slots = new Float32Array(INITIAL_SLOTS * this.stride);
         this.matrices = meta.joinedLine === true ? null : new Float32Array(INITIAL_SLOTS * FLOATS_PER_MATRIX);
         if (meta.joinedLine === true && drawsExpandedLines(scene.getEngine())) {
-            this.expanded = { slots: new Float32Array(0), statics: null, ages: null, hidden: null };
+            this.expanded = { slots: new Float32Array(0), statics: null, ages: null, hidden: null, colors: null };
         }
 
         this.ageState = batchUploadFrames.edgeAges(scene);
@@ -467,6 +512,15 @@ export class EdgeLineBatch {
         }
 
         this.forget(index);
+        if (this.colors !== null && this.defaultColor !== null) {
+            // Live again with the color it last held (a new slot holds the default), then given
+            // the default, which writes nothing when it already holds it.
+            if (this.colors[index * FLOATS_PER_COLOR + 3] < 1) {
+                this.countTranslucent(1);
+            }
+            const [r, g, b, a] = this.defaultColor;
+            this.setColor(index, r, g, b, a);
+        }
 
         // ponytail: slots taken while the timeline is off record no edge, so a timeline switched
         // on later fades them as the newest until they are rebuilt. Record always if that matters.
@@ -532,6 +586,71 @@ export class EdgeLineBatch {
     }
 
     /**
+     * Draw one slot in a color and an opacity, in place: one row of four floats uploaded with the
+     * next frame. A no-op on a batch whose material holds the color.
+     * @param index - The slot.
+     * @param r - Red, 0 to 1.
+     * @param g - Green, 0 to 1.
+     * @param b - Blue, 0 to 1.
+     * @param a - The opacity, 0 to 1.
+     */
+    setColor(index: number, r: number, g: number, b: number, a: number): void {
+        const c = this.colors;
+        if (c === null || this.gone) {
+            return;
+        }
+
+        const at = index * FLOATS_PER_COLOR;
+        // Compared as the floats the array holds, so a value that rounds the same writes nothing.
+        scratchColor[0] = r;
+        scratchColor[1] = g;
+        scratchColor[2] = b;
+        scratchColor[3] = a;
+        if (
+            c[at] !== scratchColor[0] ||
+            c[at + 1] !== scratchColor[1] ||
+            c[at + 2] !== scratchColor[2] ||
+            c[at + 3] !== scratchColor[3]
+        ) {
+            this.writeColor(index, scratchColor);
+        }
+    }
+
+    /**
+     * Draw one slot in the color another slot of this batch is drawn in: what a run of pieces takes
+     * for a piece it grows by. A no-op on a batch whose material holds the color.
+     * @param index - The slot.
+     * @param from - The slot whose color it takes.
+     */
+    copyColor(index: number, from: number): void {
+        const c = this.colors;
+        if (c !== null && index !== from) {
+            this.setColor(
+                index,
+                c[from * FLOATS_PER_COLOR],
+                c[from * FLOATS_PER_COLOR + 1],
+                c[from * FLOATS_PER_COLOR + 2],
+                c[from * FLOATS_PER_COLOR + 3],
+            );
+        }
+    }
+
+    /**
+     * The color and opacity one slot is drawn in.
+     * @param index - The slot.
+     * @returns Red, green, blue and the opacity, or null for a batch whose material holds them.
+     */
+    colorOf(index: number): [number, number, number, number] | null {
+        const c = this.colors;
+        if (c === null) {
+            return null;
+        }
+
+        const at = index * FLOATS_PER_COLOR;
+        return [c[at], c[at + 1], c[at + 2], c[at + 3]];
+    }
+
+    /**
      * Hand a slot back, and stop drawing it.
      *
      * ponytail: the free list never shrinks and the slots are never compacted, so a graph that
@@ -547,6 +666,12 @@ export class EdgeLineBatch {
         this.hide(index);
         if (this.ageable && this.ageState.track) {
             this.owners[index] = undefined;
+        }
+
+        // A free slot draws nothing and counts for no pass. It keeps its color, as the GPU does,
+        // until `acquire` takes it again.
+        if (this.colors !== null && this.colors[index * FLOATS_PER_COLOR + 3] < 1) {
+            this.countTranslucent(-1);
         }
 
         this.free.push(index);
@@ -798,6 +923,7 @@ export class EdgeLineBatch {
             this.slotRuns.whole();
             this.ageRuns.whole();
             this.hiddenRuns.whole();
+            this.colorRuns.whole();
             if (this.statics !== null) {
                 this.staticRuns.whole();
             }
@@ -823,6 +949,11 @@ export class EdgeLineBatch {
         if (shown) {
             const runs = this.hiddenRuns.take(uploads.on);
             this.send(runs, this.hidden, expanded?.hidden ?? null, this.hiddenBuffer, 1);
+        }
+
+        if (this.colorRuns.dirty && this.colors !== null) {
+            const runs = this.colorRuns.take(uploads.on);
+            this.send(runs, this.colors, expanded?.colors ?? null, this.colorBuffer, FLOATS_PER_COLOR);
         }
 
         const placed = this.slotRuns.dirty;
@@ -875,6 +1006,8 @@ export class EdgeLineBatch {
         this.ageBuffer = null;
         this.hiddenBuffer?.dispose();
         this.hiddenBuffer = null;
+        this.colorBuffer?.dispose();
+        this.colorBuffer = null;
     }
 
     /**
@@ -996,6 +1129,86 @@ export class EdgeLineBatch {
         if (this.expanded && this.hidden.includes(1)) {
             this.hiddenRuns.whole();
         }
+    }
+
+    /** Hand the colors to the mesh as their own attribute, sized to the slots' capacity. */
+    private bindColors(): void {
+        if (this.colors === null) {
+            return;
+        }
+
+        this.colorBuffer?.dispose();
+        const instanced = this.expanded === null;
+        let data = this.colors;
+        if (this.expanded) {
+            // Filled here, so the new buffer starts from every slot's color as an instanced one does.
+            data = new Float32Array(this.colors.length * TEMPLATE_VERTICES);
+            repeatPerVertex(this.colors, data, 0, this.colors.length / FLOATS_PER_COLOR, FLOATS_PER_COLOR);
+            this.expanded.colors = data;
+        }
+
+        const buffer = new Buffer(this.mesh.getEngine(), data, true, FLOATS_PER_COLOR, false, instanced);
+        this.mesh.setVerticesBuffer(
+            buffer.createVertexBuffer("edgeColor", 0, FLOATS_PER_COLOR, FLOATS_PER_COLOR, instanced),
+        );
+        this.colorBuffer = buffer;
+    }
+
+    /**
+     * Rows of colors for a number of slots, each the default, so a slot never taken draws in it
+     * and taking one writes nothing.
+     * @param count - The slots.
+     * @returns The rows.
+     */
+    private colorRows(count: number): Float32Array {
+        const rows = new Float32Array(count * FLOATS_PER_COLOR);
+        for (let at = 0; at < rows.length; at += FLOATS_PER_COLOR) {
+            rows.set(this.defaultColor ?? [], at);
+        }
+
+        return rows;
+    }
+
+    /**
+     * Write one slot's color and note it for upload, keeping count of the translucent slots.
+     * @param index - The slot.
+     * @param rgba - Red, green, blue and the opacity.
+     */
+    private writeColor(index: number, rgba: ArrayLike<number>): void {
+        const c = this.colors;
+        if (c === null) {
+            return;
+        }
+
+        const at = index * FLOATS_PER_COLOR;
+        const was = c[at + 3] < 1;
+        c.set(rgba, at);
+        this.colorRuns.mark(index, this.uploads.on, this.highWater);
+        const is = c[at + 3] < 1;
+        if (was !== is) {
+            this.countTranslucent(is ? 1 : -1);
+        }
+    }
+
+    /**
+     * Count a slot into or out of the translucent ones, and draw the batch in the pass they ask for.
+     *
+     * ONE BATCH, ONE PASS. Edges that differ only in color and opacity share a batch, so a batch may
+     * hold opaque and translucent edges at once (a time window's Ghost row beside the edges inside
+     * it). While any slot is translucent the whole batch is drawn in the alpha-blended pass, after
+     * the opaque meshes, as a batch of translucent edges always was; the opaque edges in it lose
+     * nothing there, since every joined line blends its anti-aliased edge in place in either pass.
+     * A line drawn without blending (`line.blending` false) is never translucent.
+     * @param by - 1 for a slot that turned translucent, -1 for one that stopped.
+     */
+    private countTranslucent(by: number): void {
+        if (this.opaque) {
+            return;
+        }
+
+        this.translucent += by;
+        const base = this.baseVisibility;
+        this.mesh.visibility = this.translucent > 0 && base >= 1 ? TRANSPARENT_PASS : base;
     }
 
     /**
@@ -1243,6 +1456,7 @@ export class EdgeLineBatch {
 
             this.bindAges();
             this.bindHidden();
+            this.bindColors();
         }
 
         // Rebuilding the buffer resets the instance count, so the high-water mark is written back.
@@ -1264,6 +1478,12 @@ export class EdgeLineBatch {
         const hidden = new Float32Array(this.hidden.length * 2);
         hidden.set(this.hidden);
         this.hidden = hidden;
+
+        if (this.colors !== null) {
+            const colors = this.colorRows((this.colors.length / FLOATS_PER_COLOR) * 2);
+            colors.set(this.colors);
+            this.colors = colors;
+        }
 
         if (this.ages !== null) {
             const ages = new Float32Array(this.ages.length * 2);
@@ -1302,7 +1522,7 @@ export class EdgeLineBatch {
         const slots = new Float32Array(capacity * TEMPLATE_VERTICES * this.stride);
         const statics =
             this.statics === null ? null : new Float32Array(capacity * TEMPLATE_VERTICES * EDGE_STATIC_FLOATS);
-        this.expanded = { slots, statics, ages: null, hidden: null };
+        this.expanded = { slots, statics, ages: null, hidden: null, colors: null };
         this.slotRuns.whole();
         if (statics !== null) {
             this.staticRuns.whole();

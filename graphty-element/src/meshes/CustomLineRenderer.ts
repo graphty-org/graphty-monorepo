@@ -128,7 +128,19 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.fade === undefined ? [] : ["#define EDGE_FADE"]),
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
+        ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
     ];
+}
+
+/**
+ * Whether a look's batch reads each piece's color and opacity from its slot (`edgeJoinShader`'s
+ * `EDGE_SLOT_COLOR`) rather than from the material: every joined line but a widened or pulled one.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns True when the color is per slot.
+ */
+function drawsSlotColor(options: JoinedLineOptions, widened: boolean): boolean {
+    return !widened && options.pulled !== true;
 }
 
 /**
@@ -153,6 +165,7 @@ function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): str
         "pNext2",
         "run",
         "edgeHidden",
+        ...(drawsSlotColor(options, widened) ? ["edgeColor"] : []),
         ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
     ];
 }
@@ -600,6 +613,10 @@ void main(void) {
                 : undefined,
             ...(widened ? { widened: true } : {}),
             ...(opaque ? { opaque: true } : {}),
+            // What a new slot is drawn in until its edge writes its own (`EdgeLineBatch.setColor`).
+            ...(drawsSlotColor(options, widened)
+                ? { color: [colorObj.r, colorObj.g, colorObj.b, opaque ? 1 : opacity] as const }
+                : {}),
         };
 
         return mesh;

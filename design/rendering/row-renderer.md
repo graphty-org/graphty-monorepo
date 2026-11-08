@@ -526,6 +526,19 @@ Corrections, from the code:
   curve is rewritten (16 floats a piece, against the object path's slot plus its matrix), and the CPU still samples the
   curve to find its cut. The measurement on 100,000 curves waits for a curve scenario in `benchmarks/compare`.
 
+As built (stage 21, second pull request): a fanned curve alone between its two nodes is pulled too, on `"batched"`.
+`Edge.pullsLine` takes `line.bezier: true` with `line.fanned` unset or true when no other edge joins the two nodes in
+either direction (`Edge.aloneBetween`, asked of the store through `DataManager.getEdgesBetween`, since
+`DataManager.drawnBundle` works its answer out over the whole edge set once per change and an edge built during a load
+would pay that per edge). Such a curve draws `EdgeMesh.createBezierLine`'s curve, as a lone curve does. A change to the
+edge set already re-places every edge; on that placement a fanned curve whose answer changed is built again
+(`Edge.repullLine`): a pulled curve that gains a parallel edge becomes an object edge and fans, and one whose parallel
+edge goes is pulled again. Neither draws caps, so only the line is rebuilt. `test/browser/pulled-curves-batched.test.ts`
+adds and removes a parallel edge on a pulled fanned curve: 0 pixels against `"objects"` with it and after, the bundle's two
+edges object edges while it is there, every curve pulled after, on WebGL and WebGPU (SwiftShader). Still object edges: a
+curve in a bundle of two or more, a curve with caps, `arcRadius`, `supportModel`, `fanSpacing` or a gap, routes
+(`line.route`), bends, and self-loops.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

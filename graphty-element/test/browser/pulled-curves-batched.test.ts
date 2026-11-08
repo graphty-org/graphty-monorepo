@@ -7,7 +7,8 @@
  * circle (`line.arcRadius`) follows a new radius. A curve stopped short of its nodes by a gap (`line.nodeGap`,
  * `sourceNodeGap`, `targetNodeGap`) is pulled too, and follows a new gap, one wide enough that a curve clears
  * neither gapped node and is drawn uncut between its bare ends. A curve raised off the map (`line.route` "arc") is
- * pulled too, and follows a new height (`line.arcHeight`).
+ * pulled too, and follows a new height (`line.arcHeight`), and so is a curve or a straight line on the great-circle
+ * route (`line.route` "great-circle").
  * Stage 21 of design/rendering/row-renderer.md; the bar is its section 7.
  */
 
@@ -421,30 +422,34 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.equal(overBar(before.flat, after.flat), 0, "height 0, drawn straight");
     });
 
-    it("leave a pulled straight line restyled to the great-circle route to the object path, drawing its picture", async () => {
+    it("pull curves and straight lines on the great-circle route, and follow a new height, drawing the objects path's picture", async () => {
         /**
-         * Straighten every edge, then give each the route.
+         * Put every edge on the great-circle route, drag a node, raise them higher, straighten them, then flatten them.
+         * Node 4 starts at the globe's center and edge 2 to 6 runs through it, so some are drawn straight.
          * @param element - The element.
-         * @returns The rows before the route, and the picture after it.
+         * @returns The pulled rows after the route, and the pictures.
          */
-        async function routed(element: Graphty): Promise<{ pulledBefore: number; frame: Frame }> {
+        async function routed(
+            element: Graphty,
+        ): Promise<{ pulled: number; low: Frame; dragged: Frame; high: Frame; straight: Frame; flat: Frame }> {
             const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
-            await element.session.styles.add({
-                name: "straight",
-                target: "edge",
-                selector: { match: "ids", edges },
-                set: { "edge.curvature": false },
-            } as never);
-            await settled(element);
-            const pulledBefore = element.graph.rowCounts.pulledEdges;
-            await element.session.styles.add({
-                name: "routed",
-                target: "edge",
-                selector: { match: "ids", edges },
-                set: { "edge.route": "great-circle" },
-            } as never);
-            await settled(element);
-            return { pulledBefore, frame: await readCanvas(element.graph) };
+            const restyle = async (name: string, set: Record<string, unknown>): Promise<Frame> => {
+                await element.session.styles.add({
+                    name,
+                    target: "edge",
+                    selector: { match: "ids", edges },
+                    set,
+                } as never);
+                await settled(element);
+                return readCanvas(element.graph);
+            };
+            const low = await restyle("routed", { "edge.route": "great-circle" });
+            const { pulledEdges: pulled } = element.graph.rowCounts;
+            const dragged = await moved(element);
+            const high = await restyle("higher", { "edge.arcHeight": 0.6 });
+            const straight = await restyle("straight", { "edge.curvature": false });
+            const flat = await restyle("flat", { "edge.arcHeight": 0 });
+            return { pulled, low, dragged, high, straight, flat };
         }
 
         const objects = await loaded(renderer, "objects");
@@ -453,8 +458,13 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
 
         const batched = await loaded(renderer, "batched");
         const after = await routed(batched);
-        assert.equal(after.pulledBefore, EDGES.length, "the straight lines are pulled first");
-        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: 0, objectEdges: EDGES.length });
-        assert.equal(overBar(before.frame, after.frame), 0, "the routed picture");
+        assert.equal(after.pulled, EDGES.length, "the routed curves are pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.low, before.high), 0, "the new height moves the arcs");
+        assert.equal(overBar(before.low, after.low), 0, "the default height");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.high, after.high), 0, "height 0.6");
+        assert.equal(overBar(before.straight, after.straight), 0, "straight lines at height 0.6");
+        assert.equal(overBar(before.flat, after.flat), 0, "height 0, drawn straight");
     });
 });

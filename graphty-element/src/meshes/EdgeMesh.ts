@@ -626,12 +626,13 @@ void main() {
 
     /**
      * Whether a pulled line is drawn from the curve batch: a curve (`line.bezier`), or a line its own style raises
-     * off the map (`line.route` "arc"), straight or not.
+     * off the map or a globe (`line.route` "arc" or "great-circle"), straight or not.
      * @param style - The resolved style.
      * @returns True for a pulled curve.
      */
     static pullsCurve(style: EdgeStyleConfig): boolean {
-        return style.line?.bezier === true || style.line?.route === "arc";
+        const route = style.line?.route;
+        return style.line?.bezier === true || route === "arc" || route === "great-circle";
     }
 
     /**

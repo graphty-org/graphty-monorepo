@@ -647,6 +647,24 @@ by about 6 ms. Under `"batched"` a moving frame costs what a still one does, so 
 not by the camera. The pulled path holds 2.3 GB more, which a curve's pieces (one per sample of its longest cut, four
 texels each) and its per-piece vertices would explain but no profile has yet confirmed.
 
+As built (stage 21, tenth pull request): a line on the great-circle route its own style asks for (`line.route`
+"great-circle", `edgeRoute.greatCircleArc`), curve or straight, is pulled too, on `"batched"`, from the curve batch:
+`EdgeMesh.pullsCurve` takes either style route, `Edge.pullsLine` any route the style sets, and `Edge.pullCurve` hands
+`curveSpan` the height (`line.arcHeight`, else `DEFAULT_ARC_HEIGHT["great-circle"]`) with `globe`. `edgeRoute.greatCircle`
+is `greatCircleArc`'s circle, split out unchanged so the mirror samples it the same way; the span gains `angle`, the
+angle between the two centers' directions from the origin (0 where the arc is the straight line: a center at the
+origin, or the centers in one direction from it or opposite ones), null for the other kinds, and the fourth texel of a
+curve piece is (endAt, height, 5, angle). As for the center arc, the shader takes the angle rather than working it out
+with `acos`, and takes each sine from the Taylor series of its half angle (`pulledSin`): with SwiftShader's built-in
+`sin` the GLSL test's farthest point is 6.3e-3 off, against the 1e-4 bar. Where no sample clears both nodes the line
+is drawn as a raised one is (the uncut lone curve, or for a straight line the straight line between the bare ends).
+`test/pulled-curve.test.ts` holds the mirror to the object path within 1e-9 on 400 seeded edges, curved and straight,
+gapped, flat and straight-drawn among them; `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` puts every curve on the route (node 4 at the origin and one edge through
+it, so some are drawn straight), drags a node, raises them to 0.6, straightens them and flattens them to 0, at 0 pixels
+against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or
+`supportModel`, a raised route the layout picks, bends and self-loops.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

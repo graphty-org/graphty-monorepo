@@ -503,6 +503,7 @@ export class Node implements ModelUser {
 
     /** The shared mesh a batch draws this node from, or null while it has its own. */
     private batchSource: AbstractMesh | null = null;
+    private batchOpacity = 1;
     label?: RichTextLabel;
 
     /** The further texts on screen (`shape.texts`), one label each. */
@@ -1504,9 +1505,11 @@ export class Node implements ModelUser {
     /**
      * Say a batch draws this node, or that it no longer does. Call it again when the row's source changes.
      * @param source - The shared mesh the batch draws from, or null.
+     * @param opacity - The opacity the batch draws it at (its source's own, which a batched source gives up).
      * @internal
      */
-    drawInBatch(source: AbstractMesh | null): void {
+    drawInBatch(source: AbstractMesh | null, opacity = 1): void {
+        this.batchOpacity = opacity;
         // Leaving the batch, the row takes its anchor's place with it: bring it to the table first.
         if (source === null) {
             this.followRow();
@@ -1745,6 +1748,15 @@ export class Node implements ModelUser {
      */
     get drawnPickMesh(): AbstractMesh | null {
         return this.#mesh;
+    }
+
+    /**
+     * The opacity the node is drawn at: its mesh's visibility, or for a row a batch draws, the batch's.
+     * @returns The opacity.
+     * @internal
+     */
+    get drawnOpacity(): number {
+        return this.#mesh?.visibility ?? this.batchOpacity;
     }
 
     /**

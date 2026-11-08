@@ -272,6 +272,31 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         },
     );
 
+    it.each(["3d", "2d"] as const)("draw translucent rows in %s as the object rows draw them", async (view) => {
+        const element = await mounted(renderer);
+        await loaded(element, view);
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 0).map((node) => node.id),
+            { "node.opacity": 0.4 },
+        );
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 1).map((node) => node.id),
+            { "node.opacity": 0.7 },
+        );
+        await element.waitForStableFrame();
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        // An opacity is in the source's material, so each opacity is a look of its own, and a translucent
+        // look keeps one batch per size, as Babylon orders translucent sources back to front: 1 + 2 + 2.
+        assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled(false)).length, 5);
+        assert.equal(overBar(objects, batched), 0);
+    });
+
     it("measure a batched row's radius again after a repaint changes its size", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");

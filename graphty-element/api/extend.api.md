@@ -2147,7 +2147,7 @@ class Node_2 implements ModelUser {
     get dragHandler(): NodeDragHandler | undefined;
     set dragHandler(handler: NodeDragHandler | undefined);
     // @internal
-    drawInBatch(source: AbstractMesh | null): void;
+    drawInBatch(source: AbstractMesh | null, opacity?: number): void;
     // @internal
     get drawnAnchor(): TransformNode;
     // @internal
@@ -2170,6 +2170,8 @@ class Node_2 implements ModelUser {
     get drawnInBatch(): boolean;
     // @internal
     get drawnInstanceColor(): Rgba | null;
+    // @internal
+    get drawnOpacity(): number;
     // @internal
     get drawnPickMesh(): AbstractMesh | null;
     // @internal

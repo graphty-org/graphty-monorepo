@@ -1,6 +1,6 @@
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import { Mesh, type RawTexture, type TransformNode, VertexBuffer } from "@babylonjs/core";
+import { type AbstractMesh, Mesh, type RawTexture, type TransformNode, VertexBuffer } from "@babylonjs/core";
 
 import type { Rgba } from "../catalog/types";
 import type { BatchView } from "../managers/StylePainter";
@@ -472,9 +472,10 @@ export class NodeBatches {
      * Say whether a batch draws a node, and keep the roster with it.
      * @param node - The node.
      * @param source - The batch's source mesh, or null for its own mesh.
+     * @param opacity - The opacity the batch draws it at.
      */
-    private draw(node: Node, source: Mesh | null): void {
-        node.drawInBatch(source);
+    private draw(node: Node, source: Mesh | null, opacity = 1): void {
+        node.drawInBatch(source, opacity);
         this.rewalk(node);
     }
 
@@ -523,7 +524,7 @@ export class NodeBatches {
         if (group.batched && !object) {
             group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale);
             // A row the table does not hold yet keeps its mesh until the flush settles its group.
-            this.draw(node, node.index < this.host.places.rows ? group.source : null);
+            this.draw(node, node.index < this.host.places.rows ? group.source : null, group.restVisibility);
             this.dirty.add(group);
         } else {
             this.draw(node, null);
@@ -715,7 +716,7 @@ export class NodeBatches {
         // Each member trades its mesh for an anchor, or back: together, or it costs the scene's size each (#3247).
         const source = batched ? group.source : null;
         handOverTogether(group.source.getScene(), this.host.root(), group.members, (node) => {
-            this.draw(node, source);
+            this.draw(node, source, group.restVisibility);
         });
 
         group.source.visibility = batched ? 0 : group.restVisibility;
@@ -742,10 +743,12 @@ export class NodeBatches {
             source.hasVertexAlpha,
             source.useVertexColors,
         ].join("|");
-        const shared = this.families.get(look);
+        // A translucent look keeps a batch per source: Babylon orders translucent meshes back to
+        // front, one source against another, and one batch across sizes would draw them in row order.
+        const shared = group.restVisibility < 1 ? undefined : this.families.get(look);
         const scale = shared === undefined ? 1 : scaleAgainst(source, shared.canonical);
         // ponytail: a source whose geometry is no scale of the canonical one gets a family of its own.
-        const key = scale === null ? `${look}#${String(source.uniqueId)}` : look;
+        const key = scale === null || group.restVisibility < 1 ? `${look}#${String(source.uniqueId)}` : look;
         let family = this.families.get(key);
         if (family === undefined) {
             family = { key, canonical: source, groups: new Set(), batch: null };
@@ -765,8 +768,11 @@ export class NodeBatches {
     private refill(family: RowFamily): boolean {
         family.batch?.clear();
         const rows: { node: Node; scale: number }[] = [];
+        let restVisibility = 1;
         for (const group of family.groups) {
             if (group.batched) {
+                // A look's opacity is its source's visibility, which a batched source gives up for 0.
+                ({ restVisibility } = group);
                 for (const node of group.members) {
                     rows.push({ node, scale: group.scale });
                 }
@@ -774,7 +780,13 @@ export class NodeBatches {
         }
 
         if (rows.length > 0) {
+            const made = family.batch === null;
             family.batch ??= this.host.cache.batchFor(family.canonical, this.host.places, this.host.root());
+            family.batch.mesh.visibility = restVisibility;
+            if (made && restVisibility < 1) {
+                this.orderTranslucent(family.batch.mesh, family.canonical.uniqueId);
+            }
+
             rows.sort((a, b) => a.node.index - b.node.index);
             for (const { node, scale } of rows) {
                 family.batch.put(node.index, node.drawnInstanceColor, scale);
@@ -782,6 +794,34 @@ export class NodeBatches {
         }
 
         return family.batch?.flush() ?? false;
+    }
+
+    /**
+     * Put a new translucent batch among the other translucent batches in `scene.meshes` in the
+     * order their sources were made. Every source sits at one place and every batch at another, so
+     * Babylon's back-to-front sort ties them all and draws them in the order they reach it: a
+     * source's when its first instance is met in `scene.meshes`, a batch's when it is.
+     * ponytail: source creation order stands in for the objects path's instance order, which
+     * repaint history can reorder; a translucent row's order would need tracking per instance.
+     * @param mesh - The new batch.
+     * @param sourceId - Its source's unique id.
+     */
+    private orderTranslucent(mesh: Mesh, sourceId: number): void {
+        const later = new Set<AbstractMesh>();
+        for (const other of this.families.values()) {
+            if (other.batch !== null && other.batch.mesh !== mesh && other.batch.mesh.visibility < 1) {
+                if (other.canonical.uniqueId > sourceId) {
+                    later.add(other.batch.mesh);
+                }
+            }
+        }
+
+        const { meshes } = mesh.getScene();
+        const at = meshes.findIndex((candidate) => later.has(candidate));
+        if (at !== -1) {
+            meshes.splice(meshes.indexOf(mesh), 1);
+            meshes.splice(at, 0, mesh);
+        }
     }
 
     /**

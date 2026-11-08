@@ -28,7 +28,11 @@ function outsideOf(c: Xyz, radius: number): (x: number, y: number, z: number) =>
     };
 }
 
-/** The object path's cut curve, as `Edge.placeRoute` lays it, or null when it draws none that way. */
+/**
+ * The object path's cut curve, as `Edge.placeRoute` lays it; the lone curve from center to center, uncut,
+ * that `Edge.placeCurve` draws in its place when no point of the route is outside both nodes; or null when
+ * a center is outside its own node, which the object path draws another way.
+ */
 function objectPath(
     src: Vector3,
     dst: Vector3,
@@ -39,7 +43,16 @@ function objectPath(
     const outSrc = outsideOf(src, rSrc);
     const outDst = outsideOf(dst, rDst);
     const span = routeOutside(route, outSrc, outDst);
-    if (span === null || span.first === 0 || span.last === route.length / 3 - 1) {
+    if (span === null) {
+        const lone = EdgeMesh.createBezierLine(src, dst);
+        return Array.from({ length: lone.length / 3 }, (_, i) => ({
+            x: lone[3 * i],
+            y: lone[3 * i + 1],
+            z: lone[3 * i + 2],
+        }));
+    }
+
+    if (span.first === 0 || span.last === route.length / 3 - 1) {
         return null;
     }
 
@@ -86,6 +99,7 @@ describe("a pulled curve's path", () => {
 
     it("puts every point where the object path's cut curve has it", () => {
         let drawn = 0;
+        let uncut = 0;
         for (const { src, dst, rSrc, rDst } of cases()) {
             const want = objectPath(src, dst, rSrc, rDst);
             const span = curveSpan(src, dst, outsideOf(src, rSrc), outsideOf(dst, rDst));
@@ -95,6 +109,7 @@ describe("a pulled curve's path", () => {
             }
 
             drawn++;
+            uncut += want[0].x === src.x && want[0].y === src.y && want[0].z === src.z ? 1 : 0;
             assert.strictEqual(span.pieces, want.length - 1);
             want.forEach((p, j) => {
                 const q = curvePathPoint(src, dst, span, j);
@@ -104,11 +119,13 @@ describe("a pulled curve's path", () => {
         }
 
         assert.isAtLeast(drawn, 200, "most cases draw a cut curve");
+        assert.isAbove(uncut, 0, "some curves clear neither node and are drawn uncut");
     });
 
     it("puts every point of a fanned arc where the object path's cut arc has it, drawn either way round", () => {
         const random = seeded(21);
         let drawn = 0;
+        let uncut = 0;
         for (const [i, { src, dst, rSrc, rDst }] of cases().entries()) {
             // a bow of 0 is the middle of an evenly spread bundle: the straight line through the midpoint
             const offset = i % 7 === 0 ? 0 : (random() - 0.5) * 4 * Vector3.Distance(src, dst);
@@ -123,6 +140,7 @@ describe("a pulled curve's path", () => {
             }
 
             drawn++;
+            uncut += want[0].x === src.x && want[0].y === src.y && want[0].z === src.z ? 1 : 0;
             assert.strictEqual(span.pieces, want.length - 1);
             want.forEach((p, j) => {
                 const q = curvePathPoint(src, dst, span, j);
@@ -132,5 +150,6 @@ describe("a pulled curve's path", () => {
         }
 
         assert.isAtLeast(drawn, 150, "most cases draw a cut arc");
+        assert.isAbove(uncut, 0, "some arcs clear neither node and are drawn as the lone curve, uncut");
     });
 });

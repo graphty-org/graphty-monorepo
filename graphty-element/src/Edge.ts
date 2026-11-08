@@ -2586,8 +2586,9 @@ export class Edge {
     /**
      * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there -- a lone
      * curve, or the arc it fans out of its bundle on ({@link Edge.fanOf}) -- taking pieces while the cut
-     * needs more than it holds. A curve the object path would draw another way
-     * (`curveSpan` null: its nodes overlap, or a centre is outside its own node) draws nothing.
+     * needs more than it holds. A curve no point of which clears both nodes is drawn as the lone
+     * curve from centre to centre, uncut, as the object path draws it (`placeCurve`); one it would draw another way (`curveSpan` null: a
+     * centre outside its own node) draws nothing.
      * @param src - The source node's centre.
      * @param dst - The target node's centre.
      */

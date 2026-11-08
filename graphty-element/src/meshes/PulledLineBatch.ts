@@ -27,9 +27,8 @@ import { batchUploadFrames } from "./FrameRoster";
  */
 
 /**
- * The internal switch that routes qualifying edges here (`Edge.createLine`) on any render path. The
- * `"batched"` path pulls them without it; off by default, only the test projects that prove the
- * path on `"objects"` write it.
+ * The internal switch that routes qualifying edges here (`Edge.createLine`). Off by default: only the
+ * test projects that prove the path write it, until pulled lines join the `"batched"` path.
  */
 export const pulledEdgesDefault: { value: boolean } = { value: false };
 

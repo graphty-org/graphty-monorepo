@@ -32,7 +32,6 @@ import {
     Engine,
     FreeCamera,
     Matrix,
-    type Mesh,
     Scene,
     ShaderMaterial,
     Vector3,
@@ -133,8 +132,6 @@ const LINE_WIDTH = 8;
 interface LineInternals {
     lineBatch: EdgeLineBatch | null;
     lineSlots: number[];
-    /** A pulled line's batch ("batched" pulls a plain straight line from the row table). */
-    pulled: { batch: { mesh: Mesh } } | null;
 }
 
 /**
@@ -208,24 +205,17 @@ function drawnThicknessPx(graph: Graph, edge: Edge): number {
         );
     }
 
-    const { lineBatch: batch, lineSlots, pulled } = edge as unknown as LineInternals;
-    const mesh = pulled?.batch.mesh ?? batch?.mesh;
-    assert(mesh, "the line is a run of slots in a batch, or a pulled piece");
-    const { material } = mesh;
+    const { lineBatch: batch, lineSlots } = edge as unknown as LineInternals;
+    assert(batch, "the line is a run of slots in a batch");
+    const { material } = batch.mesh;
     assert(material instanceof ShaderMaterial, "a batched line is drawn by the joined line shader");
     const { floats } = material.serialize() as { floats: Record<string, number> };
     const worldWidth = material.options.defines.includes("#define WORLD_WIDTH");
 
-    // A pulled piece runs between its two node centres; a placed line's slots carry their ends.
-    const ends = pulled
-        ? [[edge.srcNode.mesh.position, edge.dstNode.mesh.position]]
-        : lineSlots.map((slot) => {
-              assert(batch, "a placed line is a run of slots in a batch");
-              return batch.endsOf(slot);
-          });
     return Math.max(
-        ...ends.map(([from, to]) => {
-            const centre = Vector3.TransformCoordinates(from.add(to).scale(0.5), mesh.getWorldMatrix());
+        ...lineSlots.map((slot) => {
+            const [from, to] = batch.endsOf(slot);
+            const centre = Vector3.TransformCoordinates(from.add(to).scale(0.5), batch.mesh.getWorldMatrix());
             const clip = Vector4.TransformCoordinates(centre, scene.getTransformMatrix());
             // The shader's own arithmetic (edgeJoinShader): a world width projected at the
             // centre's depth, or the 3D line's screen width, which tapers with clip w.

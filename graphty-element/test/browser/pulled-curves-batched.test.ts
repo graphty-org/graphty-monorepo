@@ -1,9 +1,8 @@
 /**
- * @file Under `renderPath: "batched"` a lone curve (`line.bezier` with `line.fanned: false`, or a fanned
- * curve alone between its two nodes) is pulled from the row table (`PulledLineBatch` with curve texels,
+ * @file Under `renderPath: "batched"` a curve (`line.bezier`), lone or fanned out of a bundle of edges
+ * between the same two nodes, is pulled from the row table (`PulledLineBatch` with curve texels,
  * `meshes/pulledCurve.ts`) and draws the picture the `"objects"` path draws, at rest and after a drag.
- * A fanned curve that gains a parallel edge goes back to an object edge, and is pulled again once the
- * parallel edge is removed.
+ * A fanned curve that gains a parallel edge fans out beside it, and draws as before once it goes.
  * Stage 21 of design/rendering/row-renderer.md; the bar is its section 7.
  */
 
@@ -127,7 +126,7 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.equal(overBar(objectsMoved, await moved(batched)), 0, "after a drag");
     });
 
-    it("draw a fanned curve as an object edge while a parallel edge joins it, and pull it again after", async () => {
+    it("fan a pulled curve out beside a parallel edge, and draw it as before once the edge goes", async () => {
         const parallel = { src: 1, dst: 0 };
         /**
          * Add the parallel edge, fan it, and read the frame; then remove it and read again.
@@ -157,13 +156,53 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
 
         const batched = await loaded(renderer, "batched");
         const after = await bundled(batched);
-        assert.deepInclude(
-            after.counts,
-            { pulledEdges: EDGES.length - 1, objectEdges: 2 },
-            "the bundle is drawn as objects",
-        );
-        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 }, "pulled again");
+        assert.deepInclude(after.counts, { pulledEdges: EDGES.length + 1, objectEdges: 0 }, "the bundle is pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 }, "still pulled");
         assert.equal(overBar(before.joined, after.joined), 0, "with the parallel edge");
         assert.equal(overBar(before.left, after.left), 0, "after it is removed");
+    });
+
+    it("pull a mixed bundle drawn both ways round and draw the objects path's picture, at rest and after a drag", async () => {
+        /**
+         * Join nodes 3 and 4 with three more fanned curves, one drawn against the others, and a straight edge,
+         * beside the ring's curve between them that does not fan.
+         * @param element - The element.
+         */
+        async function bundled(element: Graphty): Promise<void> {
+            await element.session.data.addEdges([
+                { src: 4, dst: 3 },
+                { src: 3, dst: 4 },
+                { src: 3, dst: 4 },
+                { src: 3, dst: 4 },
+            ]);
+            const data = element.graph.getDataManager();
+            const added = [...data.getEdgesBetween(3, 4).slice(1), ...data.getEdgesBetween(4, 3)];
+            assert.lengthOf(added, 4);
+            await element.session.styles.add({
+                name: "bundle",
+                target: "edge",
+                selector: { match: "ids", edges: added.map((edge) => edge.id) },
+                set: { "edge.arrowHead": "none" },
+            } as never);
+            await element.session.styles.add({
+                name: "bundle curves",
+                target: "edge",
+                selector: { match: "ids", edges: added.slice(1).map((edge) => edge.id) },
+                set: { "edge.curvature": true },
+            } as never);
+            await settled(element);
+        }
+
+        const objects = await loaded(renderer, "objects");
+        await bundled(objects);
+        const objectsRest = await readCanvas(objects.graph);
+        const objectsMoved = await moved(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        await bundled(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length + 4, objectEdges: 0 });
+        assert.equal(overBar(objectsRest, await readCanvas(batched.graph)), 0, "at rest");
+        assert.equal(overBar(objectsMoved, await moved(batched)), 0, "after a drag");
     });
 });

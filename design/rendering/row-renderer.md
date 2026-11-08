@@ -539,6 +539,23 @@ edges object edges while it is there, every curve pulled after, on WebGL and Web
 curve in a bundle of two or more, a curve with caps, `arcRadius`, `supportModel`, `fanSpacing` or a gap, routes
 (`line.route`), bends, and self-loops.
 
+As built (stage 21, third pull request): a curve fanned out of a bundle is pulled too, on `"batched"`, so every curve
+(`line.bezier`) with no caps, `arcRadius`, `supportModel`, `fanSpacing` or gap is pulled, whatever shares its two nodes.
+A fanned curve's shape is `edgeRoute.fanArc`'s quadratic, which is set by the two centers and one signed number: how far
+its middle bows to the left of its own chord in the x-y plane (`fanOffset`, negated for an edge drawn against its
+bundle's first). `Edge.pullCurve` works that bow out on each placement (`Edge.fanOf`, the code `Edge.bundleRoute` uses),
+and `curveSpan` cuts the arc as it cuts a lone curve, so the span gains `bow`, null for a lone curve. The fourth texel
+of a curve piece is (endAt, bow, 1 for an arc, unused), and the shader samples a quadratic or the lone cubic by that
+flag. The middle of an evenly spread bundle (bow 0) is the 2-piece arc through the midpoint, the object path's route
+there. Since the bundle no longer decides whether a curve is pulled, `Edge.aloneBetween` and `Edge.repullLine` are gone:
+a change to the edge set re-places every edge, and that placement writes the new bow. `test/pulled-curve.test.ts` holds
+the arc mirror to `fanArc`'s cut within 1e-9 on 400 seeded edges, both ways round, bow 0 among them;
+`test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4; `test/browser/pulled-curves-batched.test.ts`
+pulls a bundle of five between two nodes (a curve that does not fan, three fanned curves one drawn the other way, and a
+straight edge) at 0 pixels against `"objects"`, at rest and after a mouse drag, and a fanned curve that gains and loses
+a parallel edge, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, `arcRadius`, `supportModel`,
+`fanSpacing` or a gap, routes (`line.route`), bends and self-loops.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

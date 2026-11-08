@@ -1,6 +1,6 @@
 /**
  * @file `PULLED_CURVE_GLSL` puts a curve's path points where its mirror, `curvePathPoint`, puts them
- * (design/rendering/row-renderer.md, stage 21): every point of 200 cut curves, read back through
+ * (design/rendering/row-renderer.md, stage 21): every point of 200 cut curves, lone and fanned, read back through
  * transform feedback on WebGL2, within 1e-4 of the mirror, edges moved to the origin as the trim test
  * moves them, since a float's spacing grows with the coordinate.
  */
@@ -15,11 +15,12 @@ precision highp float;
 in vec3 src;
 in vec3 dst;
 in vec4 span;
-in vec3 cutAndPoint;
+in vec4 cutAndPoint;
 out vec3 outPoint;
 ${PULLED_CURVE_GLSL}
 void main() {
-    outPoint = pulledCurvePoint(src, dst, span, cutAndPoint.xy, int(cutAndPoint.z + 0.5));
+    vec4 cut = vec4(cutAndPoint.xy, span.w, cutAndPoint.z);
+    outPoint = pulledCurvePoint(src, dst, vec4(span.xyz, 0.0), cut, int(cutAndPoint.w + 0.5));
     gl_Position = vec4(0.0);
 }
 `;
@@ -65,8 +66,8 @@ function shaderPoints(asks: Ask[]): Float32Array {
     const floats = asks.flatMap(({ src, dst, span, j }) => [
         ...[src.x, src.y, src.z, 0],
         ...[dst.x, dst.y, dst.z, 0],
-        ...[span.samples, span.first, span.pieces, 0],
-        ...[span.startAt, span.endAt, j, 0],
+        ...[span.samples, span.first, span.pieces, span.bow ?? 0],
+        ...[span.startAt, span.endAt, span.bow === null ? 0 : 1, j],
     ]);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(floats), gl.STATIC_DRAW);
@@ -74,7 +75,14 @@ function shaderPoints(asks: Ask[]): Float32Array {
         const location = gl.getAttribLocation(program, name);
         assert.isAtLeast(location, 0, `${name} is read`);
         gl.enableVertexAttribArray(location);
-        gl.vertexAttribPointer(location, name === "span" ? 4 : 3, gl.FLOAT, false, 64, i * 16);
+        gl.vertexAttribPointer(
+            location,
+            name === "span" || name === "cutAndPoint" ? 4 : 3,
+            gl.FLOAT,
+            false,
+            64,
+            i * 16,
+        );
     });
 
     const captured = gl.createBuffer();
@@ -91,7 +99,7 @@ function shaderPoints(asks: Ask[]): Float32Array {
     return out;
 }
 
-/** Every point of 200 cut curves between spheres, the source at the origin. */
+/** Every point of 200 cut curves between spheres, the source at the origin; every other one a fanned arc. */
 function asks(): Ask[] {
     let s = 3251;
     const random = (): number => {
@@ -110,7 +118,8 @@ function asks(): Ask[] {
             const d = Math.hypot(x - c.x, y - c.y, z - c.z);
             return d > 0 && d > r;
         };
-        const span = curveSpan(src, dst, radius(src, random() * scale * 0.3), radius(dst, random() * scale * 0.3));
+        const bow = out.length % 2 === 0 ? null : (random() - 0.5) * 2 * scale;
+        const span = curveSpan(src, dst, radius(src, random() * scale * 0.3), radius(dst, random() * scale * 0.3), bow);
         for (let j = 0; span !== null && j <= span.pieces; j++) {
             out.push({ src, dst, span, j });
         }

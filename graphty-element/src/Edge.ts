@@ -1308,9 +1308,6 @@ export class Edge {
         }
 
         this._lastVia = via;
-
-        // a fanned curve is pulled only while it is alone between its nodes (`Edge.pullsLine`)
-        this.repullLine(edgeVersion);
         this.bundleVersion = edgeVersion;
 
         // a placed end that moves is a move; a first placement, or one after invalidatePositionCache, is at rest
@@ -2506,10 +2503,9 @@ export class Edge {
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
      * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
-     * too when it does not fan (`line.fanned: false`), with no `arcRadius`, `supportModel` or gap: its
-     * shape is then its two centres' alone (`meshes/pulledCurve.ts`). So is a curve that fans while
-     * no other edge joins its two nodes, which draws the same curve. Read when the line is built, and
-     * again for a fanned curve when the edge set changes ({@link Edge.repullLine}).
+     * too, with no `arcRadius`, `supportModel`, `fanSpacing` or gap: its shape is its two centres' and,
+     * for one that fans out of a bundle, how far it bows, which each placement writes
+     * (`meshes/pulledCurve.ts`, {@link Edge.pullCurve}). Read when the line is built.
      * @param style - The resolved style.
      * @returns True when it is pulled.
      */
@@ -2524,7 +2520,6 @@ export class Edge {
             setsOnly(style, PULLED_STYLE_KEYS) &&
             setsOnly(line, PULLED_LINE_KEYS) &&
             (line.type ?? "solid") === "solid" &&
-            (line.bezier !== true || line.fanned === false || this.aloneBetween()) &&
             !line.animationSpeed &&
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
@@ -2533,40 +2528,6 @@ export class Edge {
             this.route === "straight" &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
-    }
-
-    /**
-     * Whether no other edge joins this edge's two nodes, in either direction: a fanned curve then draws
-     * the curve of one that does not fan. Asked of the store, as an edge is built, rather than of
-     * `DataManager.drawnBundle`, which works the bundles out over the whole edge set once per change.
-     * @returns True when it is alone.
-     */
-    private aloneBetween(): boolean {
-        const data = this.context.getDataManager();
-        const { id: a } = this.srcNode;
-        const { id: b } = this.dstNode;
-        return [...data.getEdgesBetween(a, b), ...data.getEdgesBetween(b, a)].every((edge) => edge === this);
-    }
-
-    /**
-     * Move a fanned curve's line between a pulled piece and placed slots when the edge set changed
-     * whether it is alone between its nodes. It draws no caps (`Edge.pullsLine` takes none either way),
-     * so only the line is built again; the placement that follows lays it.
-     * @param edgeVersion - The edge set (`DataManager.edgeVersion`) this placement is against.
-     */
-    private repullLine(edgeVersion: number): void {
-        const style = this.drawnStyle;
-        if (
-            edgeVersion === this.bundleVersion ||
-            !this.fans ||
-            style === null ||
-            this.wantsPull(style) === (this.pulled !== null)
-        ) {
-            return;
-        }
-
-        this.releaseLine();
-        this.mesh = this.createLine(this.meshKey, style);
     }
 
     /**
@@ -2622,8 +2583,9 @@ export class Edge {
     }
 
     /**
-     * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there, taking
-     * pieces while the cut needs more than it holds. A curve the object path would draw another way
+     * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there -- a lone
+     * curve, or the arc it fans out of its bundle on ({@link Edge.fanOf}) -- taking pieces while the cut
+     * needs more than it holds. A curve the object path would draw another way
      * (`curveSpan` null: its nodes overlap, or a centre is outside its own node) draws nothing.
      * @param src - The source node's centre.
      * @param dst - The target node's centre.
@@ -2636,7 +2598,13 @@ export class Edge {
 
         const { pulled } = this;
         const { batch, look } = pulled;
-        const span = curveSpan(src, dst, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst));
+        const fan = this.fanOf(src, dst);
+        // `fanArc` bows to the left of the bundle's first edge; the span's bow is to the left of this one
+        let bow: number | null = null;
+        if (fan !== null) {
+            bow = fan.forward ? fan.offset : -fan.offset;
+        }
+        const span = curveSpan(src, dst, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst), bow);
         while (run.length + 1 < (span?.pieces ?? 0)) {
             const piece = batch.acquire();
             batch.setLook(piece, look.color, look.opacity, look.width);
@@ -3510,8 +3478,8 @@ export class Edge {
      * @returns The route, flat x, y, z, or null.
      */
     private bundleRoute(src: Vector3, dst: Vector3): number[] | null {
-        const { rank, count, first, members } = this.context.getDataManager().drawnBundle(this);
         if (this.srcNode === this.dstNode) {
+            const { rank, count } = this.context.getDataManager().drawnBundle(this);
             return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
         }
 
@@ -3531,9 +3499,38 @@ export class Edge {
             return bezierThroughControls([src.x, src.y, src.z, via.x, via.y, via.z, dst.x, dst.y, dst.z]);
         }
 
-        if (count < 2 || !this.fans) {
+        const fan = this.fanOf(src, dst);
+        if (fan === null) {
             const arc = this.drawnStyle?.line?.arcRadius;
             return arc === undefined ? EdgeMesh.createBezierLine(src, dst) : centerArc(src, dst, arc);
+        }
+
+        const { offset, forward } = fan;
+        if (offset === 0) {
+            // the middle of an evenly spread bundle keeps the line, curved or not; its middle point
+            // is outside both nodes, so the route is drawn rather than handed to the curve
+            const mid = Vector3.Center(src, dst);
+            return [src.x, src.y, src.z, mid.x, mid.y, mid.z, dst.x, dst.y, dst.z];
+        }
+
+        return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
+    }
+
+    /**
+     * How far this curve bows out of its bundle of edges between the same two nodes at its middle
+     * (`fanOffset`), and whether it runs the way of the bundle's first edge, whose left it bows to.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @returns The fan, or null for an edge that does not fan or is alone between its nodes.
+     */
+    private fanOf(src: Vector3, dst: Vector3): { offset: number; forward: boolean } | null {
+        if (!this.fans) {
+            return null;
+        }
+
+        const { rank, count, first, members } = this.context.getDataManager().drawnBundle(this);
+        if (count < 2) {
+            return null;
         }
 
         const slot = fanSlot(
@@ -3542,15 +3539,7 @@ export class Edge {
         );
         const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
         const offset = fanOffset(slot, count, radius, Vector3.Distance(src, dst), this.drawnStyle?.line?.fanSpacing);
-        if (offset === 0) {
-            // the middle of an evenly spread bundle keeps the line, curved or not; its middle point
-            // is outside both nodes, so the route is drawn rather than handed to the curve
-            const mid = Vector3.Center(src, dst);
-            return [src.x, src.y, src.z, mid.x, mid.y, mid.z, dst.x, dst.y, dst.z];
-        }
-
-        const forward = first.srcNode === this.srcNode;
-        return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
+        return { offset, forward: first.srcNode === this.srcNode };
     }
 
     /**

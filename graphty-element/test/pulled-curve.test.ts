@@ -8,7 +8,7 @@ import { Vector3 } from "@babylonjs/core";
 import { assert, describe, it } from "vitest";
 
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
-import { crossingOf, routeOutside, type Xyz } from "../src/meshes/edgeRoute";
+import { crossingOf, fanArc, routeOutside, type Xyz } from "../src/meshes/edgeRoute";
 import { bezierSamples, curvePathPoint, curveSpan } from "../src/meshes/pulledCurve";
 
 /** A seeded generator, so a failure names a case that comes back. */
@@ -29,8 +29,13 @@ function outsideOf(c: Xyz, radius: number): (x: number, y: number, z: number) =>
 }
 
 /** The object path's cut curve, as `Edge.placeRoute` lays it, or null when it draws none that way. */
-function objectPath(src: Vector3, dst: Vector3, rSrc: number, rDst: number): Xyz[] | null {
-    const route = EdgeMesh.createBezierLine(src, dst);
+function objectPath(
+    src: Vector3,
+    dst: Vector3,
+    rSrc: number,
+    rDst: number,
+    route: readonly number[] = EdgeMesh.createBezierLine(src, dst),
+): Xyz[] | null {
     const outSrc = outsideOf(src, rSrc);
     const outDst = outsideOf(dst, rDst);
     const span = routeOutside(route, outSrc, outDst);
@@ -99,5 +104,33 @@ describe("a pulled curve's path", () => {
         }
 
         assert.isAtLeast(drawn, 200, "most cases draw a cut curve");
+    });
+
+    it("puts every point of a fanned arc where the object path's cut arc has it, drawn either way round", () => {
+        const random = seeded(21);
+        let drawn = 0;
+        for (const [i, { src, dst, rSrc, rDst }] of cases().entries()) {
+            // a bow of 0 is the middle of an evenly spread bundle: the straight line through the midpoint
+            const offset = i % 7 === 0 ? 0 : (random() - 0.5) * 4 * Vector3.Distance(src, dst);
+            const forward = i % 2 === 0;
+            const [left, right] = forward ? [src, dst] : [dst, src];
+            const want = objectPath(src, dst, rSrc, rDst, fanArc(src, dst, left, right, offset));
+            const bow = forward ? offset : -offset;
+            const span = curveSpan(src, dst, outsideOf(src, rSrc), outsideOf(dst, rDst), bow);
+            assert.strictEqual(span === null, want === null, "a span exactly when the object path cuts an arc");
+            if (span === null || want === null) {
+                continue;
+            }
+
+            drawn++;
+            assert.strictEqual(span.pieces, want.length - 1);
+            want.forEach((p, j) => {
+                const q = curvePathPoint(src, dst, span, j);
+                const off = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+                assert.isAtMost(off, 1e-9 * (1 + Math.hypot(p.x, p.y, p.z)), `case ${String(i)} point ${String(j)}`);
+            });
+        }
+
+        assert.isAtLeast(drawn, 150, "most cases draw a cut arc");
     });
 });

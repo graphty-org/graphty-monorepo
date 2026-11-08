@@ -6,6 +6,7 @@ import type { Rgba } from "../catalog/types";
 import type { BatchView } from "../managers/StylePainter";
 import type { Node } from "../Node";
 import { batchUploadFrames } from "./FrameRoster";
+import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
 import { attachRowPull } from "./RowPullPlugin";
 
@@ -711,9 +712,11 @@ export class NodeBatches {
         }
 
         group.batched = batched;
-        for (const node of group.members) {
-            this.draw(node, batched ? group.source : null);
-        }
+        // Each member trades its mesh for an anchor, or back: together, or it costs the scene's size each (#3247).
+        const source = batched ? group.source : null;
+        handOverTogether(group.source.getScene(), this.host.root(), group.members, (node) => {
+            this.draw(node, source);
+        });
 
         group.source.visibility = batched ? 0 : group.restVisibility;
         return true;

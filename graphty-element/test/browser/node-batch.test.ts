@@ -11,7 +11,7 @@
 
 import "../../src/graphty-element";
 
-import { Matrix, Mesh, type Scene, Vector3 } from "@babylonjs/core";
+import { Matrix, Mesh, type Scene, TransformNode, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -605,6 +605,78 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             assert.isDefined(node.tooltip, "the hovered row draws its tooltip");
         });
         assert.equal(graph.rowCounts.objectNodes, 0, "a hovered tooltip row stays batched");
+    });
+
+    it("keep no disposed mesh reachable from a node after handing it over, either way", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "objects");
+        // Fill the memos keyed on the node's mesh, as an edge's endpoint reads do.
+        const measured = graph.getNodes().map((node) => [node.drawnHalfExtents.x, node.roundRadius]);
+        assert.lengthOf(measured, NODES.length);
+
+        /**
+         * The node fields that hold a disposed scene node.
+         * @returns Their names.
+         */
+        const stale = (): string[] =>
+            graph.getNodes().flatMap((node) =>
+                Object.entries(node)
+                    .filter(([, value]) => value instanceof TransformNode && value.isDisposed())
+                    .map(([name]) => name),
+            );
+        await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.deepEqual(stale(), [], "a batched node keeps no mesh it disposed");
+
+        await frameOn(graph, "objects");
+        assert.deepEqual(stale(), [], "an object node keeps no anchor it disposed");
+    });
+
+    it("hand a group over to its batch and back in work linear in its size", async () => {
+        const element = await mounted(renderer);
+        const count = 400;
+        await element.session.data.addNodes(
+            Array.from({ length: count }, (_, id) => ({ id, position: { x: id % 20, y: Math.floor(id / 20), z: 0 } })),
+        );
+        await element.graph.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(element.graph).waitForCompletion();
+        const { graph } = element;
+        await frameOn(graph, "objects");
+        const scene = graph.getScene();
+        const root = scene.getTransformNodeByName("graph-root");
+        assert.isNotNull(root);
+        const children = (root as unknown as { _children: unknown[] })._children;
+
+        // Every removal from these lists scans them: count the entries scanned.
+        let scanned = 0;
+        for (const list of [scene.meshes, children] as unknown[][]) {
+            const { indexOf, some } = list;
+            Object.assign(list, {
+                indexOf(this: unknown[], ...args: Parameters<typeof indexOf>) {
+                    scanned += this.length;
+                    return indexOf.apply(this, args);
+                },
+                some(this: unknown[], ...args: Parameters<typeof some>) {
+                    scanned += this.length;
+                    return some.apply(this, args);
+                },
+            });
+            cleanups.push(() => {
+                Object.assign(list, { indexOf, some });
+            });
+        }
+
+        scanned = 0;
+        await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, count);
+        // One at a time, each removal scanned the whole graph: about count * count / 2.
+        assert.isBelow(scanned, 10 * count, "handing over scans a constant amount per node");
+
+        scanned = 0;
+        await frameOn(graph, "objects");
+        assert.isBelow(scanned, 10 * count, "taking back scans a constant amount per node");
     });
 
     it("stops drawing a batch when the graph leaves the path", async () => {

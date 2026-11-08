@@ -756,6 +756,22 @@ lands as one (the stale skip). The methods are optional members of `GpuLayoutSim
 The element's copy at landing follows; `copyBufferToTexture` needs `bytesPerRow` a multiple of 256, which the `rowPosition`
 texture's width must allow.
 
+As built (stage 25, third pull request): the element fills the table on the card under renderPath "batched" on a shared
+device, and only there (`Graph.getDrawnTarget`, internal). At each load the engine seeds the ring from `rowPosition`
+(4 slots: two batches in flight, the one the frame's step submits, and the landed one, copied at the publish after
+it). Every write `RowTable` makes other than a repack from the lane (`place`, w changes) is mirrored into the ring
+through `writeDrawn`. Each publish sends the skip mask (no row, a held fixed row, a follower, a row the table keeps
+itself) and writes a row that joins it as the table holds it. It copies the landed slot into the texture
+(1024-texel rows are 16384 bytes, so the alignment holds) and sends the next transform. The next repack then sends
+none of those rows. A settling batch still goes up by upload.
+Correction to the text above: the envelope cannot be a single uniform the next batch reads. A batch's commands are
+recorded across awaits, so a transform set at a publish reached a batch the frame before had already submitted, and
+the texture parted from the lane by 2.5% on every row. So each ring slot has its own transform and skip mask, written
+when a batch is recorded into it. The simulation reports the transform of the landed batch
+(`landedDrawnTransform`), and the element publishes that landing with it, so the lane and the texture hold the same
+rows. A row the owner writes while an earlier batch in a slot is still to run is written into that slot again before
+its next batch. The one landing already recorded over it can still show the kernel's value for that row once.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,

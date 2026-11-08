@@ -34,6 +34,20 @@ const NODES = Array.from({ length: 48 }, (_, id) => {
 });
 
 /**
+ * An edge's opacity: the first is 0, so it is the edge that builds the translucent batch, and a
+ * batch that took its first edge's opacity for the whole mesh would hide every translucent edge.
+ * @param i - The edge's index.
+ * @returns Its opacity.
+ */
+function opacityOf(i: number): number {
+    if (i === 0) {
+        return 0;
+    }
+
+    return i % 5 === 0 ? 0.5 : 1;
+}
+
+/**
  * The first edges between distinct node pairs, each with a color, width and opacity of its own.
  */
 const EDGES = (() => {
@@ -42,7 +56,7 @@ const EDGES = (() => {
         for (let b = a + 1; b < NODES.length && edges.length < EDGE_COUNT; b++) {
             const i = edges.length;
             const color = `#${((i * 2654435761) >>> 8).toString(16).padStart(6, "0").slice(-6)}`;
-            edges.push({ src: a, dst: b, color, width: 0.5 + (i % 4) * 0.5, opacity: i % 5 === 0 ? 0.5 : 1 });
+            edges.push({ src: a, dst: b, color, width: 0.5 + (i % 4) * 0.5, opacity: opacityOf(i) });
         }
     }
 

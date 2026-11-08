@@ -505,6 +505,7 @@ void main(void) {
 
         const { program, fade } = options;
         const opaque = options.opaque === true;
+        const pulledTranslucent = options.pulled === true && (options.opacity ?? 1) < 1;
         const widened = options.widened === true || program !== undefined || fade !== undefined;
         const defines = joinedLineDefines(options, widened);
         const material = new ShaderMaterial(
@@ -535,8 +536,12 @@ void main(void) {
                 uniformBuffers: [...(program?.uniformBuffers ?? [])],
                 defines,
                 // A faded line is translucent whatever its opacity: in the opaque pass it would
-                // write depth, and hide what is drawn behind it after it.
-                ...((program === undefined && fade === undefined) || opaque ? {} : { needAlphaBlending: true }),
+                // write depth, and hide what is drawn behind it after it. A pulled translucent
+                // batch is too: its pieces carry their own opacity, so its mesh's visibility
+                // cannot put it in the transparent pass.
+                ...(opaque || !(program !== undefined || fade !== undefined || pulledTranslucent)
+                    ? {}
+                    : { needAlphaBlending: true }),
             },
         );
         if (widened) {
@@ -584,7 +589,10 @@ void main(void) {
 
         // A translucent line is drawn in the transparent pass, as every line renderer before this
         // one put it there; an opaque one blends in place, so a sub-pixel line's coverage shows.
-        if (opacity < 1 && !opaque) {
+        // A pulled batch's mesh is shared by every edge in it, each with its own opacity in its
+        // piece (EDGE_PULLED), so the first edge's opacity must not become the whole mesh's: an
+        // opacity of 0 would stop Babylon drawing the mesh at all.
+        if (opacity < 1 && !opaque && options.pulled !== true) {
             mesh.visibility = opacity;
         }
 

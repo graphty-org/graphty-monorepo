@@ -599,14 +599,29 @@ void main() {
         scene: Scene,
         rowPositions: () => BaseTexture,
     ): PulledLineBatch {
-        const translucent = this.opacityOf(style) < 1;
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${translucent ? "translucent" : "opaque"}`;
+        // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
+        // line (blending false) neither blends in place nor goes in the transparent pass.
+        const pass = this.pulledPass(style);
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}`;
         return cache.getPulledBatch(key, () => {
             const mesh = this.createStaticLine(options, style, scene, cache, false, true);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
             return new PulledLineBatch(mesh, scene, rowPositions);
         });
+    }
+
+    /**
+     * The pass a pulled edge's batch draws in, which its mesh, not its piece, decides.
+     * @param style - The resolved style.
+     * @returns The pass.
+     */
+    private static pulledPass(style: EdgeStyleConfig): "unblended" | "translucent" | "opaque" {
+        if (this.drawsOpaque(style)) {
+            return "unblended";
+        }
+
+        return this.opacityOf(style) < 1 ? "translucent" : "opaque";
     }
 
     /**

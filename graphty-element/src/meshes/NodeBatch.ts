@@ -1,6 +1,6 @@
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import { Mesh, type RawTexture, type TransformNode } from "@babylonjs/core";
+import { Mesh, type RawTexture, type TransformNode, VertexBuffer } from "@babylonjs/core";
 
 import type { Rgba } from "../catalog/types";
 import type { BatchView } from "../managers/StylePainter";
@@ -64,6 +64,7 @@ export class NodeBatch {
     private unsorted = false;
     private rowsDirty = false;
     private colorsDirty = false;
+    private matricesDirty = false;
 
     /**
      * Build the mesh: a sibling of the source, since a mesh with thin instances ignores ordinary
@@ -103,11 +104,12 @@ export class NodeBatch {
     }
 
     /**
-     * Give a row a slot, or a new color in the one it has.
+     * Give a row a slot, or a new color or size in the one it has.
      * @param row - The row.
      * @param color - Its color, or null for white.
+     * @param scale - Its size against the source the batch was built from.
      */
-    put(row: number, color: Rgba | null): void {
+    put(row: number, color: Rgba | null, scale = 1): void {
         let slot = this.slotOf.get(row);
         if (slot === undefined) {
             slot = this.slots;
@@ -137,6 +139,12 @@ export class NodeBatch {
         if (!same) {
             colors.set([r, g, b, 1], at);
             this.colorsDirty = true;
+        }
+
+        const m = slot * MATRIX_FLOATS;
+        if (this.matrices[m] !== Math.fround(scale)) {
+            this.matrices[m] = this.matrices[m + 5] = this.matrices[m + 10] = scale;
+            this.matricesDirty = true;
         }
     }
 
@@ -181,12 +189,13 @@ export class NodeBatch {
             this.mesh.thinInstanceBufferUpdated("color");
         }
 
-        if (whole) {
+        if (this.matricesDirty || whole) {
             this.mesh.thinInstanceBufferUpdated("matrix");
         }
 
         this.rowsDirty = false;
         this.colorsDirty = false;
+        this.matricesDirty = false;
         const drawing = this.slots > 0;
         const changed = drawing !== this.mesh.isEnabled(false);
         if (changed) {
@@ -203,21 +212,26 @@ export class NodeBatch {
 
     /** Take the holes out and put the rows in ascending order, which keeps depth ties as they were. */
     private compact(): void {
-        const live: { row: number; at: number }[] = [];
+        const live: { row: number; from: number }[] = [];
         for (let slot = 0; slot < this.slots; slot++) {
             const row = this.rows[slot] ?? HOLE;
             if (row !== HOLE) {
-                live.push({ row, at: slot * COLOR_FLOATS });
+                live.push({ row, from: slot });
             }
         }
 
         live.sort((a, b) => a.row - b.row);
-        const { colors } = this;
+        const { colors, matrices } = this;
         this.colors = new Float32Array(colors.length);
+        this.matrices = identities(this.rows.length);
         this.slotOf.clear();
-        live.forEach(({ row, at }, slot) => {
+        live.forEach(({ row, from }, slot) => {
             this.rows[slot] = row;
-            this.colors.set(colors.subarray(at, at + COLOR_FLOATS), slot * COLOR_FLOATS);
+            this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
+            this.matrices.set(
+                matrices.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS),
+                slot * MATRIX_FLOATS,
+            );
             this.slotOf.set(row, slot);
         });
         this.slots = live.length;
@@ -242,7 +256,9 @@ export class NodeBatch {
         this.rows.set(rows);
         this.colors = new Float32Array(next * COLOR_FLOATS);
         this.colors.set(colors);
+        const { matrices } = this;
         this.matrices = identities(next);
+        this.matrices.set(matrices);
         this.setBuffers();
     }
 
@@ -269,6 +285,77 @@ function identities(count: number): Float32Array<ArrayBuffer> {
     return matrices;
 }
 
+/**
+ * The size of one source mesh against another of the same shape, read from their geometry: the
+ * factor every vertex of `canonical` is multiplied by to give `mesh`'s, or null when no single
+ * factor does (another shape, or a creator whose geometry does not follow its size).
+ * @param mesh - The source to draw scaled.
+ * @param canonical - The source the batch is built from.
+ * @returns The factor, or null.
+ */
+function scaleAgainst(mesh: Mesh, canonical: Mesh): number | null {
+    if (mesh === canonical) {
+        return 1;
+    }
+
+    const from = canonical.getVerticesData(VertexBuffer.PositionKind);
+    const to = mesh.getVerticesData(VertexBuffer.PositionKind);
+    const fromNormals = canonical.getVerticesData(VertexBuffer.NormalKind) ?? [];
+    const toNormals = mesh.getVerticesData(VertexBuffer.NormalKind) ?? [];
+    const fromIndices = canonical.getIndices() ?? [];
+    const toIndices = mesh.getIndices() ?? [];
+    if (
+        from === null ||
+        to?.length !== from.length ||
+        fromNormals.length !== toNormals.length ||
+        fromIndices.length !== toIndices.length
+    ) {
+        return null;
+    }
+
+    let far = 0;
+    let at = 0;
+    for (let i = 0; i < from.length; i++) {
+        const value = Math.abs(from[i] ?? 0);
+        if (value > far) {
+            far = value;
+            at = i;
+        }
+    }
+
+    const scale = (to[at] ?? 0) / (from[at] ?? 1);
+    if (far === 0 || !Number.isFinite(scale) || scale <= 0) {
+        return null;
+    }
+
+    const within = (a: ArrayLike<number>, b: ArrayLike<number>, by: number, tolerance: number): boolean => {
+        for (let i = 0; i < a.length; i++) {
+            if (Math.abs((b[i] ?? 0) - (a[i] ?? 0) * by) > tolerance) {
+                return false;
+            }
+        }
+
+        return true;
+    };
+    return within(from, to, scale, far * scale * 1e-5) &&
+        within(fromNormals, toNormals, 1, 1e-4) &&
+        within(fromIndices, toIndices, 1, 0)
+        ? scale
+        : null;
+}
+
+/**
+ * The groups one batch draws: sources of one shape and look that differ only in size, each row
+ * scaled in its matrix, so a size ramp is one draw per shape (design/rendering/row-renderer.md 4.2).
+ */
+interface RowFamily {
+    readonly key: string;
+    /** The source the batch is built from; every member's geometry is a scale of its own. */
+    readonly canonical: Mesh;
+    readonly groups: Set<RowGroup>;
+    batch: NodeBatch | null;
+}
+
 /** The rows of one source mesh. */
 interface RowGroup {
     readonly source: Mesh;
@@ -277,7 +364,10 @@ interface RowGroup {
     objects: number;
     /** The highest row seen, which must be in the table before the batch can place it. */
     highest: number;
-    batch: NodeBatch | null;
+    /** The batch family it joins once it is batched. */
+    family: RowFamily | null;
+    /** Its size against the family's canonical source. */
+    scale: number;
     /** Drawn by the batch, its source hidden. */
     batched: boolean;
     /** The rows moved: refill. */
@@ -303,6 +393,9 @@ export interface NodeBatchHost {
 /** Decides which rows are batched and keeps the batches up to date, once a frame. */
 export class NodeBatches {
     private readonly groups = new Map<Mesh, RowGroup>();
+    private readonly families = new Map<string, RowFamily>();
+    /** Families whose batch is rebuilt at this flush. */
+    private readonly refills = new Set<RowFamily>();
     private readonly groupOf = new Map<Node, RowGroup>();
     private readonly objectRows = new Set<Node>();
     /** The nodes a frame's walk still visits: every member a batch does not draw, and any with an overlay. */
@@ -427,7 +520,7 @@ export class NodeBatches {
         }
 
         if (group.batched && !object) {
-            group.batch?.put(node.index, node.drawnInstanceColor);
+            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale);
             // A row the table does not hold yet keeps its mesh until the flush settles its group.
             this.draw(node, node.index < this.host.places.rows ? group.source : null);
             this.dirty.add(group);
@@ -454,7 +547,7 @@ export class NodeBatches {
         }
 
         if (group.batched) {
-            group.batch?.free(node.index);
+            group.family?.batch?.free(node.index);
         }
 
         this.dirty.add(group);
@@ -473,7 +566,10 @@ export class NodeBatches {
         this.stopFlush();
         for (const group of this.groups.values()) {
             this.settle(group, false);
-            group.batch?.flush();
+        }
+
+        for (const family of this.families.values()) {
+            this.refill(family);
         }
 
         this.host.meshesChanged();
@@ -487,6 +583,25 @@ export class NodeBatches {
             this.syncAll();
         }
 
+        for (const family of this.families.values()) {
+            if (family.canonical.isDisposed()) {
+                this.dissolve(family);
+            }
+        }
+
+        const flushes = new Set<RowFamily>();
+        const changed = this.settleDirty(flushes);
+        if (this.drain(flushes) || changed) {
+            this.host.meshesChanged();
+        }
+    }
+
+    /**
+     * Settle every dirty group, and note which families need a rebuild or only an upload.
+     * @param flushes - Takes the families whose batch only uploads.
+     * @returns Whether some source changed.
+     */
+    private settleDirty(flushes: Set<RowFamily>): boolean {
         let changed = false;
         for (const group of this.dirty) {
             if (group.source.isDisposed()) {
@@ -499,14 +614,39 @@ export class NodeBatches {
             }
 
             const batched = group.objects === 0 && group.members.size > 0 && group.highest < this.host.places.rows;
-            changed = this.settle(group, batched) || changed;
-            changed = (group.batch?.flush() ?? false) || changed;
+            if (this.settle(group, batched)) {
+                changed = true;
+                if (group.family !== null) {
+                    this.refills.add(group.family);
+                }
+            } else if (group.family !== null) {
+                flushes.add(group.family);
+            }
         }
 
         this.dirty.clear();
-        if (changed) {
-            this.host.meshesChanged();
+        return changed;
+    }
+
+    /**
+     * Rebuild the families that need it and upload the rest.
+     * @param flushes - The families whose batch only uploads.
+     * @returns Whether some batch started or stopped drawing.
+     */
+    private drain(flushes: Set<RowFamily>): boolean {
+        let changed = false;
+        for (const family of this.refills) {
+            changed = this.refill(family) || changed;
         }
+
+        for (const family of flushes) {
+            if (!this.refills.has(family)) {
+                changed = (family.batch?.flush() ?? false) || changed;
+            }
+        }
+
+        this.refills.clear();
+        return changed;
     }
 
     /**
@@ -535,7 +675,8 @@ export class NodeBatches {
                 members: new Set(),
                 objects: 0,
                 highest: -1,
-                batch: null,
+                family: null,
+                scale: 1,
                 batched: false,
                 stale: false,
                 restVisibility: source.visibility,
@@ -562,13 +703,11 @@ export class NodeBatches {
         }
 
         group.stale = false;
-        group.batch?.clear();
         if (batched) {
-            group.batch ??= this.host.cache.batchFor(group.source, this.host.places, this.host.root());
-            const rows = [...group.members].sort((a, b) => a.index - b.index);
-            for (const node of rows) {
-                group.batch.put(node.index, node.drawnInstanceColor);
-            }
+            this.joinFamily(group);
+            this.host.cache.batchedSources.add(group.source);
+        } else {
+            this.host.cache.batchedSources.delete(group.source);
         }
 
         group.batched = batched;
@@ -581,15 +720,98 @@ export class NodeBatches {
     }
 
     /**
+     * Put a group in the family of its shape and look, or start one, by its geometry.
+     * @param group - The group, with at least one member.
+     */
+    private joinFamily(group: RowGroup): void {
+        if (group.family !== null) {
+            return;
+        }
+
+        const { source } = group;
+        const [first] = group.members;
+        const look = [
+            first?.batchLook ?? "",
+            source.getTotalVertices(),
+            source.getTotalIndices(),
+            source.renderingGroupId,
+            source.sideOrientation,
+            source.hasVertexAlpha,
+            source.useVertexColors,
+        ].join("|");
+        const shared = this.families.get(look);
+        const scale = shared === undefined ? 1 : scaleAgainst(source, shared.canonical);
+        // ponytail: a source whose geometry is no scale of the canonical one gets a family of its own.
+        const key = scale === null ? `${look}#${String(source.uniqueId)}` : look;
+        let family = this.families.get(key);
+        if (family === undefined) {
+            family = { key, canonical: source, groups: new Set(), batch: null };
+            this.families.set(key, family);
+        }
+
+        group.family = family;
+        group.scale = scale ?? 1;
+        family.groups.add(group);
+    }
+
+    /**
+     * Rebuild a family's batch from every batched row of its groups, in row order.
+     * @param family - The family.
+     * @returns Whether the batch started or stopped drawing.
+     */
+    private refill(family: RowFamily): boolean {
+        family.batch?.clear();
+        const rows: { node: Node; scale: number }[] = [];
+        for (const group of family.groups) {
+            if (group.batched) {
+                for (const node of group.members) {
+                    rows.push({ node, scale: group.scale });
+                }
+            }
+        }
+
+        if (rows.length > 0) {
+            family.batch ??= this.host.cache.batchFor(family.canonical, this.host.places, this.host.root());
+            rows.sort((a, b) => a.node.index - b.node.index);
+            for (const { node, scale } of rows) {
+                family.batch.put(node.index, node.drawnInstanceColor, scale);
+            }
+        }
+
+        return family.batch?.flush() ?? false;
+    }
+
+    /**
+     * The cache disposed a family's canonical source, and its batch with it: every group finds a
+     * family again at this flush.
+     * @param family - The family.
+     */
+    private dissolve(family: RowFamily): void {
+        this.families.delete(family.key);
+        this.refills.delete(family);
+        for (const group of family.groups) {
+            group.family = null;
+            group.stale = true;
+            this.dirty.add(group);
+        }
+    }
+
+    /**
      * The cache disposed a source: its nodes are about to be painted onto a new one.
      * @param group - The group.
      */
     private forget(group: RowGroup): void {
         this.groups.delete(group.source);
+        this.host.cache.batchedSources.delete(group.source);
         for (const node of group.members) {
             this.groupOf.delete(node);
             this.draw(node, null);
             this.objectRows.delete(node);
+        }
+
+        if (group.family !== null) {
+            group.family.groups.delete(group);
+            this.refills.add(group.family);
         }
     }
 }

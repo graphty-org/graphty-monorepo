@@ -1682,6 +1682,17 @@ export class Node implements ModelUser {
     }
 
     /**
+     * What a batch's material is built from, with the size left out: rows whose looks match share
+     * one batch across sizes, each scaled in its matrix.
+     * @returns The look, as a key.
+     * @internal
+     */
+    get batchLook(): string {
+        const style = this.drawnStyle;
+        return JSON.stringify([style?.shape?.type, style?.shape?.detail, style?.texture, style?.effect]);
+    }
+
+    /**
      * The source mesh this node's instance draws from.
      * @returns The source, or the mesh itself when it is not an instance.
      * @internal

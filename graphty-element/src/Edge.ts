@@ -1810,7 +1810,10 @@ export class Edge {
             EdgeMesh.drawsAsPattern(style, this.srcNode === this.dstNode) &&
             !asSurface;
         // A line moves between a pulled piece and a placed slot when the render path changes.
-        const samePull = this.wantsPull(style) === (this.pulled !== null);
+        // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
+        const samePull =
+            this.wantsPull(style) === (this.pulled !== null) &&
+            (this.pulled === null || (this.pulled.run !== null) === EdgeMesh.pullsCurve(style));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
@@ -2512,7 +2515,8 @@ export class Edge {
      * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
      * too, with no `supportModel`, and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centres' and, for one that fans out of a
      * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
-     * radius (`arcRadius`), or for one raised off the map (`line.route` "arc", which wins over both), its height
+     * radius (`arcRadius`), or for one raised off the map (`line.route` "arc", which wins over both, and pulls a
+     * straight line as a curve too, `EdgeMesh.pullsCurve`), its height
      * (`arcHeight`; a route the layout picks keeps it an object edge), which each placement writes
      * (`meshes/pulledCurve.ts`, {@link Edge.pullCurve}). Read when the line is built.
      * @param style - The resolved style.
@@ -2528,14 +2532,14 @@ export class Edge {
             !EdgeMesh.drawsFlat(this.context.getScene()) &&
             setsOnly(style, PULLED_STYLE_KEYS) &&
             setsOnly(line, PULLED_LINE_KEYS) &&
-            (line.bezier === true || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
+            (EdgeMesh.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (line.type ?? "solid") === "solid" &&
             !line.animationSpeed &&
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
             noCap(style.arrowTail) &&
             style.band?.color === undefined &&
-            (this.routeOf(style) === "straight" || (line.route === "arc" && line.bezier === true)) &&
+            (this.routeOf(style) === "straight" || line.route === "arc") &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
     }
@@ -2571,7 +2575,7 @@ export class Edge {
         const opacity = EdgeMesh.opacityOf(style);
         const look = { color: Color3.FromHexString(options.color), opacity, width: options.width * 20 };
         batch.setLook(piece, look.color, look.opacity, look.width);
-        const curve = style.line?.bezier === true;
+        const curve = EdgeMesh.pullsCurve(style);
         if (curve) {
             // nothing drawn until the first placement writes the span
             batch.setCurve(piece, 0, null);
@@ -2627,7 +2631,8 @@ export class Edge {
             dst,
             Edge.outside(this.srcNode, src, this.gapAt("source")),
             Edge.outside(this.dstNode, dst, this.gapAt("target")),
-            { bow, radius, height },
+            // a straight line raised off the map that clears neither node is drawn straight (`placeLine`)
+            { bow, radius, height, straight: this.drawnStyle?.line?.bezier !== true },
             () => [this.bareEnd("source", src, dst), this.bareEnd("target", dst, src)],
         );
         while (run.length + 1 < (span?.pieces ?? 0)) {

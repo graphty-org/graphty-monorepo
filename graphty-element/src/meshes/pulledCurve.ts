@@ -323,6 +323,8 @@ function crossingAlong(inside: Xyz, outside: Xyz, isOutside: (x: number, y: numb
  * @param path.bow - The bow.
  * @param path.radius - The radius.
  * @param path.height - The height.
+ * @param path.straight - Whether the line is straight (no `line.bezier`): a route no sample of which clears both
+ *     nodes is then the straight line between the bare ends, not the lone curve.
  * @param bareEnds - Where the line starts and stops when it is not cut (`Edge.bareEnd`: the centers, or with a gap,
  *     off the nodes along the chord), asked only when no sample is outside both nodes; unset, the centers.
  * @returns The span; the lone curve between the bare ends, uncut, when no sample is outside both nodes, as
@@ -335,10 +337,10 @@ export function curveSpan(
     dst: Xyz,
     outsideSrc: (x: number, y: number, z: number) => boolean,
     outsideDst: (x: number, y: number, z: number) => boolean,
-    path: { bow?: number | null; radius?: number | null; height?: number | null } = {},
+    path: { bow?: number | null; radius?: number | null; height?: number | null; straight?: boolean } = {},
     bareEnds: (() => readonly [Xyz, Xyz]) | null = null,
 ): CurveSpan | null {
-    const { bow = null, radius = null, height = null } = path;
+    const { bow = null, radius = null, height = null, straight = false } = path;
     const circle = radius === null || height !== null ? null : centerCircle(src, dst, radius);
     let shape: Shape = { bow, radius: null, turn: null, height: null, ends: null };
     if (height !== null) {
@@ -367,8 +369,8 @@ export function curveSpan(
     const span = routeOutside(flat, outsideSrc, outsideDst);
     if (span === null) {
         // a route no point of which clears both nodes is drawn as the lone curve between its bare ends, uncut
-        // (`Edge.placeCurve`), a fanned arc's too
-        return uncutSpan(src, dst, bareEnds?.() ?? null);
+        // (`Edge.placeCurve`), a fanned arc's too; a straight line's as the straight line between them
+        return straight ? straightSpan(src, dst, bareEnds?.() ?? null) : uncutSpan(src, dst, bareEnds?.() ?? null);
     }
 
     if (span.first === 0 || span.last === samples) {
@@ -384,6 +386,24 @@ export function curveSpan(
         endAt: crossingAlong(at(span.last + 1), at(span.last), outsideDst),
         ...shape,
     };
+}
+
+/**
+ * The span of the straight line drawn between a line's bare ends in place of a raised route that clears neither
+ * node, as `Edge.transformEdgeMesh` draws it: a flat raised arc of one piece, cut at the two ends.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param bareEnds - The bare ends, both on the chord, or null for the centers.
+ * @returns The span, or null when the ends are within 0.01 on every axis, where the line has no length to draw.
+ */
+function straightSpan(src: Xyz, dst: Xyz, bareEnds: readonly [Xyz, Xyz] | null): CurveSpan | null {
+    const lone = uncutSpan(src, dst, bareEnds);
+    if (lone === null) {
+        return null;
+    }
+
+    const [from, to] = lone.ends ?? [0, 1];
+    return { ...lone, samples: 1, first: 1, pieces: 1, startAt: from, endAt: 1 - to, height: 0, ends: null };
 }
 
 /**

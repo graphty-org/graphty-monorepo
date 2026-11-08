@@ -42,7 +42,8 @@ function bareEnd(centre: Vector3, toward: Vector3, radius: number, gap: number):
 /**
  * The object path's cut curve, as `Edge.placeRoute` lays it; the lone curve between the line's bare ends
  * (the centers, without a gap), uncut, that `Edge.placeCurve` draws in its place when no point of the route
- * is outside both nodes; or null when a center is outside its own node, or the bare ends meet and
+ * is outside both nodes (for a straight line, `straight`, the straight line between them that
+ * `Edge.transformEdgeMesh` draws); or null when a center is outside its own node, or the bare ends meet and
  * `createBezierLine` draws a self-loop there, which the object path draws another way.
  */
 function objectPath(
@@ -53,6 +54,7 @@ function objectPath(
     route: readonly number[] = EdgeMesh.createBezierLine(src, dst),
     gSrc = 0,
     gDst = 0,
+    straight = false,
 ): Xyz[] | null {
     const outSrc = outsideOf(src, rSrc + gSrc);
     const outDst = outsideOf(dst, rDst + gDst);
@@ -62,6 +64,10 @@ function objectPath(
         const to = bareEnd(dst, src, rDst, gDst);
         if (from.equalsWithEpsilon(to, 0.01)) {
             return null;
+        }
+
+        if (straight) {
+            return [from, to];
         }
 
         const lone = EdgeMesh.createBezierLine(from, to);
@@ -227,6 +233,49 @@ describe("a pulled curve's path", () => {
 
         assert.isAtLeast(drawn, 150, "most cases draw a cut arc");
         assert.isAbove(uncut, 0, "some arcs clear neither node and are drawn as the lone curve, uncut");
+    });
+
+    it("puts every point of a straight line raised in an arc where the object path has it, gaps and all", () => {
+        const random = seeded(6359);
+        let drawn = 0;
+        let straight = 0;
+        for (const [i, { src, dst, rSrc, rDst }] of cases().entries()) {
+            // a flat route, and gaps wide enough that no sample clears both nodes, draw the straight line between
+            // the bare ends (`Edge.transformEdgeMesh`), not the lone curve a curve draws there
+            const height = i % 11 === 0 ? 0 : random() * 1.5;
+            const length = Vector3.Distance(src, dst);
+            const gSrc = i % 3 === 0 ? random() * length * 0.6 : 0;
+            const gDst = i % 3 === 0 ? random() * length * 0.6 : 0;
+            const want = objectPath(src, dst, rSrc, rDst, raisedArc(src, dst, height), gSrc, gDst, true);
+            const span = curveSpan(
+                src,
+                dst,
+                outsideOf(src, rSrc + gSrc),
+                outsideOf(dst, rDst + gDst),
+                { height, straight: true },
+                () => [bareEnd(src, dst, rSrc, gSrc), bareEnd(dst, src, rDst, gDst)],
+            );
+            assert.strictEqual(
+                span === null,
+                want === null,
+                `case ${String(i)}: a span exactly when the object path has one`,
+            );
+            if (span === null || want === null) {
+                continue;
+            }
+
+            drawn++;
+            straight += want.length === 2 ? 1 : 0;
+            assert.strictEqual(span.pieces, want.length - 1);
+            want.forEach((p, j) => {
+                const q = curvePathPoint(src, dst, span, j);
+                const off = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+                assert.isAtMost(off, 1e-9 * (1 + Math.hypot(p.x, p.y, p.z)), `case ${String(i)} point ${String(j)}`);
+            });
+        }
+
+        assert.isAtLeast(drawn, 150, "most cases draw a line");
+        assert.isAbove(straight, 20, "many clear neither node and are drawn straight between the bare ends");
     });
 
     it("puts every point of a curve stopped short of its nodes by a gap where the object path has it", () => {

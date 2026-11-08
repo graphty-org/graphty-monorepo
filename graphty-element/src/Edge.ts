@@ -669,6 +669,9 @@ export class Edge {
      */
     private lineOpacity = 1;
 
+    /** The color {@link Edge.colorLine} last wrote into the line's slots, as the style spelled it. */
+    private lineColor = "#FFFFFF";
+
     /** The batch this edge's outline (`line.outline`, a band under the line) is drawn from, or null for none. */
     private outlineBatch: EdgeLineBatch | null = null;
 
@@ -945,17 +948,17 @@ export class Edge {
 
         const batch = this.lineBatch;
 
+        const ownColor = this.lineSlots.length > 0 && batch.colorOf(this.lineSlots[0]) !== null;
         return {
-            name: batch.name,
+            // A batch keyed by shape draws every color, so the look it draws this edge in is named
+            // with the color and opacity the edge wrote into its slots.
+            name: ownColor ? `${batch.name}|${this.lineColor}|${String(this.lineOpacity)}` : batch.name,
             // A curve's length is its whole run's.
             length: this.lineSlots.reduce((sum, slot) => sum + batch.lengthOf(slot), 0),
             // The width `createLine` built the batch with, from the same style.
             width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
             // A batch keyed by shape draws each slot at the opacity this edge wrote into it.
-            visibility:
-                this.lineSlots.length > 0 && batch.colorOf(this.lineSlots[0]) !== null
-                    ? this.lineOpacity
-                    : batch.mesh.visibility,
+            visibility: ownColor ? this.lineOpacity : batch.mesh.visibility,
             centre: this.curveMiddle(batch),
         };
     }
@@ -1866,7 +1869,8 @@ export class Edge {
             return;
         }
 
-        const rgb = Color3.FromHexString(style.line?.color ?? "#FFFFFF");
+        this.lineColor = style.line?.color ?? "#FFFFFF";
+        const rgb = Color3.FromHexString(this.lineColor);
         const opacity = EdgeMesh.opacityOf(style);
         this.lineOpacity = opacity;
         for (const slot of this.lineSlots) {

@@ -621,6 +621,20 @@ to 0.6, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftSha
 each of those two routes and holds that they leave the pull and match `"objects"` at 0 pixels. Still object edges: a curve with
 caps or `supportModel`, those routes, bends and self-loops.
 
+As built (stage 21, eighth pull request): a straight line raised off the map by its own style (`line.route` "arc"
+with no `line.bezier`) is pulled too, on `"batched"`, from the curve batch: `EdgeMesh.pullsCurve` (a curve, or a
+style-raised route) picks the batch, takes the line's pieces and lets it carry a gap, as `placeRoute` cuts any route
+alike. The one difference from a raised curve is where no sample clears both nodes (height 0, or wide gaps): the
+object path then draws the straight line between the bare ends (`placeLine`, `transformEdgeMesh`), not the lone
+curve, so `curveSpan` takes `straight` and answers a flat raised arc of one piece cut at the two bare ends. A pulled
+line that becomes a curve or stops being one rebuilds (`Edge.paintFrom` compares `EdgeMesh.pullsCurve` with whether
+the pulled piece has a run): `line.route` keys no mesh, so without it a pulled straight line restyled to "arc" kept
+its straight piece. `test/pulled-curve.test.ts` holds the mirror to the object path within 1e-9 on 400 seeded edges,
+gapped and flat among them; `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` straightens every edge, raises it, drags a node, raises it to 0.6 and
+flattens it to 0, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a
+curve with caps or `supportModel`, a great-circle route, a raised route the layout picks, bends and self-loops.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

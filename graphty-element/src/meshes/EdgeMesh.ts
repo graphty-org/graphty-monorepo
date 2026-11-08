@@ -614,11 +614,22 @@ void main() {
     }
 
     /**
+     * Whether a pulled line is drawn from the curve batch: a curve (`line.bezier`), or a line its own style raises
+     * off the map (`line.route` "arc"), straight or not.
+     * @param style - The resolved style.
+     * @returns True for a pulled curve.
+     */
+    static pullsCurve(style: EdgeStyleConfig): boolean {
+        return style.line?.bezier === true || style.line?.route === "arc";
+    }
+
+    /**
      * The batch a plain straight line between node centres is pulled into, drawn from the row table
      * (`PulledLineBatch`). A piece carries its color, width and opacity itself
      * (`PulledLineBatch.setLook`), so they key no batch: one batch per minimum screen width and
      * per pass (translucent lines draw in the transparent pass, as the plain line's do). A lone curve
-     * (`line.bezier`) is pulled into a curve batch of its own, whose pieces are points of its path.
+     * (`line.bezier`), or a line its style raises off the map (`line.route` "arc"), is pulled into a curve batch
+     * of its own, whose pieces are points of its path ({@link EdgeMesh.pullsCurve}).
      * @param cache - The cache that keeps the batches.
      * @param options - The line's look.
      * @param style - The resolved style.
@@ -636,7 +647,7 @@ void main() {
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
-        const curve = style.line?.bezier === true;
+        const curve = this.pullsCurve(style);
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${curve ? "|curve" : ""}`;
         return cache.getPulledBatch(key, () => {
             const mesh = this.createStaticLine(options, style, scene, cache, false, curve ? "curve" : true);

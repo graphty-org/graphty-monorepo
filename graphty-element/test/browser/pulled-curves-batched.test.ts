@@ -377,43 +377,84 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.equal(overBar(before.high, after.high), 0, "height 0.6");
     });
 
-    it.each(["great-circle", "arc"] as const)(
-        "leave a pulled straight line restyled to the %s route to the object path, drawing its picture",
-        async (route) => {
-            /**
-             * Straighten every edge, then give each the route.
-             * @param element - The element.
-             * @returns The rows before the route, and the picture after it.
-             */
-            async function routed(element: Graphty): Promise<{ pulledBefore: number; frame: Frame }> {
-                const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+    it("pull straight lines raised in arcs, and follow a new height down to flat, drawing the objects path's picture", async () => {
+        /**
+         * Straighten and raise every edge, drag a node, raise them higher, then flatten them.
+         * @param element - The element.
+         * @returns The pulled rows after the raise, and the pictures.
+         */
+        async function raised(
+            element: Graphty,
+        ): Promise<{ pulled: number; low: Frame; dragged: Frame; high: Frame; flat: Frame }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            const restyle = async (name: string, set: Record<string, unknown>): Promise<Frame> => {
                 await element.session.styles.add({
-                    name: "straight",
+                    name,
                     target: "edge",
                     selector: { match: "ids", edges },
-                    set: { "edge.curvature": false },
+                    set,
                 } as never);
                 await settled(element);
-                const pulledBefore = element.graph.rowCounts.pulledEdges;
-                await element.session.styles.add({
-                    name: "routed",
-                    target: "edge",
-                    selector: { match: "ids", edges },
-                    set: { "edge.route": route },
-                } as never);
-                await settled(element);
-                return { pulledBefore, frame: await readCanvas(element.graph) };
-            }
+                return readCanvas(element.graph);
+            };
+            await restyle("straight", { "edge.curvature": false });
+            const low = await restyle("raised", { "edge.route": "arc" });
+            const { pulledEdges: pulled } = element.graph.rowCounts;
+            const dragged = await moved(element);
+            const high = await restyle("higher", { "edge.arcHeight": 0.6 });
+            const flat = await restyle("flat", { "edge.arcHeight": 0 });
+            return { pulled, low, dragged, high, flat };
+        }
 
-            const objects = await loaded(renderer, "objects");
-            const before = await routed(objects);
-            objects.remove();
+        const objects = await loaded(renderer, "objects");
+        const before = await raised(objects);
+        objects.remove();
 
-            const batched = await loaded(renderer, "batched");
-            const after = await routed(batched);
-            assert.equal(after.pulledBefore, EDGES.length, "the straight lines are pulled first");
-            assert.deepInclude(batched.graph.rowCounts, { pulledEdges: 0, objectEdges: EDGES.length });
-            assert.equal(overBar(before.frame, after.frame), 0, "the routed picture");
-        },
-    );
+        const batched = await loaded(renderer, "batched");
+        const after = await raised(batched);
+        assert.equal(after.pulled, EDGES.length, "the raised straight lines are pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.low, before.high), 0, "the new height moves the arcs");
+        assert.equal(overBar(before.low, after.low), 0, "the default height");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.high, after.high), 0, "height 0.6");
+        assert.equal(overBar(before.flat, after.flat), 0, "height 0, drawn straight");
+    });
+
+    it("leave a pulled straight line restyled to the great-circle route to the object path, drawing its picture", async () => {
+        /**
+         * Straighten every edge, then give each the route.
+         * @param element - The element.
+         * @returns The rows before the route, and the picture after it.
+         */
+        async function routed(element: Graphty): Promise<{ pulledBefore: number; frame: Frame }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            await element.session.styles.add({
+                name: "straight",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.curvature": false },
+            } as never);
+            await settled(element);
+            const pulledBefore = element.graph.rowCounts.pulledEdges;
+            await element.session.styles.add({
+                name: "routed",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.route": "great-circle" },
+            } as never);
+            await settled(element);
+            return { pulledBefore, frame: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await routed(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await routed(batched);
+        assert.equal(after.pulledBefore, EDGES.length, "the straight lines are pulled first");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: 0, objectEdges: EDGES.length });
+        assert.equal(overBar(before.frame, after.frame), 0, "the routed picture");
+    });
 });

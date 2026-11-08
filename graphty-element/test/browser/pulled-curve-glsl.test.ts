@@ -115,14 +115,20 @@ function asks(): Ask[] {
             return d > 0 && d > r;
         };
         // a lone curve, a fanned arc, a center arc (`line.arcRadius`), a gapped lone curve and a raised arc
-        // (`line.route` "arc") in turn
-        const kind = Math.floor(random() * 5);
+        // (`line.route` "arc"), and a gapped straight line raised in an arc, flat at times, in turn
+        const kind = Math.floor(random() * 6);
         const bow = kind === 1 ? (random() - 0.5) * 2 * scale : null;
         // a half circle (radius 0.5) among them, whose way round is a float's noise
         const arc = kind === 2 ? Math.max(0.5, random() * 3.5 - 0.5) : null;
         const [rSrc, rDst] = [random() * scale * 0.3, random() * scale * 0.3];
-        const height = kind === 4 ? random() * 1.5 : null;
-        const [gSrc, gDst] = kind === 3 ? [random() * scale * 0.4, random() * scale * 0.4] : [0, 0];
+        let height: number | null = null;
+        if (kind === 4) {
+            height = random() * 1.5;
+        } else if (kind === 5) {
+            height = random() < 0.3 ? 0 : random() * 1.5;
+        }
+        const gapped = kind === 3 || kind === 5;
+        const [gSrc, gDst] = gapped ? [random() * scale * 0.4, random() * scale * 0.4] : [0, 0];
         const length = Math.hypot(dst.x, dst.y, dst.z);
         const bare = (from: Xyz, to: Xyz, reach: number): Xyz => {
             const t = Math.min(reach, length) / length;
@@ -137,8 +143,8 @@ function asks(): Ask[] {
             dst,
             radius(src, rSrc + gSrc),
             radius(dst, rDst + gDst),
-            { bow, radius: arc, height },
-            kind === 3 ? () => [bare(src, dst, rSrc + gSrc), bare(dst, src, rDst + gDst)] : null,
+            { bow, radius: arc, height, straight: kind === 5 },
+            gapped ? () => [bare(src, dst, rSrc + gSrc), bare(dst, src, rDst + gDst)] : null,
         );
         for (let j = 0; span !== null && j <= span.pieces; j++) {
             out.push({ src, dst, span, j });
@@ -155,6 +161,11 @@ describe("the pulled curve's GLSL", () => {
             all.filter((a) => a.span.ends !== null).length,
             0,
             "some gapped curves are drawn uncut between their bare ends",
+        );
+        assert.isAbove(
+            all.filter((a) => a.span.samples === 1 && a.span.height === 0).length,
+            0,
+            "some raised straight lines are drawn straight between their bare ends",
         );
         const got = shaderPoints(all);
         let worst = 0;

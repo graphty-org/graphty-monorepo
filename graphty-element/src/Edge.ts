@@ -853,6 +853,12 @@ export class Edge {
     // Dirty tracking: Cache last node positions to skip unnecessary updates
     private _lastSrcPos: Vector3 | null = null;
     private _lastDstPos: Vector3 | null = null;
+
+    /**
+     * Whether the placement under way follows a moved end. A batched end only a ray reaches then takes its node's
+     * bounding radius, and `UpdateManager` places the edge again, measured, once the move rests (design section 4.3).
+     */
+    private endsMoving = false;
     /** Where the line's support point was when the line was last placed (`line.supportModel`). */
     private _lastVia: Xyz | null = null;
 
@@ -1268,11 +1274,14 @@ export class Edge {
         this._lastVia = via;
 
         this.bundleVersion = edgeVersion;
+        // a placed end that moves is a move; a first placement, or one after invalidatePositionCache, is at rest
+        this.endsMoving = (srcMoved && this._lastSrcPos !== null) || (dstMoved && this._lastDstPos !== null);
 
         this.context.getStatsManager().startMeasurement("Edge.update");
 
         const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
         if (!lnk) {
+            this.endsMoving = false;
             this.context.getStatsManager().endMeasurement("Edge.update");
             return;
         }
@@ -1306,6 +1315,7 @@ export class Edge {
         // Cache positions for next frame
         this._lastSrcPos = srcPos.clone();
         this._lastDstPos = dstPos.clone();
+        this.endsMoving = false;
 
         this.context.getStatsManager().endMeasurement("Edge.update");
     }
@@ -4666,6 +4676,13 @@ export class Edge {
         const reach = (end: TrimEnd, node: Node, from: Vector3, to: Vector3): number => {
             if (end.measured !== TRIM_NO_HIT || worldSpan === 0) {
                 return end.measured;
+            }
+
+            if (this.endsMoving && node.drawnInBatch) {
+                // ponytail: the box's bounding sphere, so a figure's end floats off it while it moves; a GPU
+                // pass over the shared shape (design section 4.3) would give the exact end at no ray
+                this.context.getUpdateManager?.().endsByRadius(this);
+                return Math.hypot(end.half.x, end.half.y, end.half.z);
             }
 
             ray.origin.copyFrom(from);

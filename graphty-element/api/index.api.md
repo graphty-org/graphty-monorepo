@@ -7962,6 +7962,8 @@ export class UpdateManager implements Manager {
     drawArrivedPaint(frameMs?: number): void;
     enableZoomToFit(explicit?: boolean): void;
     // @internal
+    endsByRadius(edge: Edge): void;
+    // @internal
     fitAnnotations: (() => void) | null;
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;

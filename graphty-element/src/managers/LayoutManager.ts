@@ -43,6 +43,7 @@ import {
 import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
+import { layoutDiag, snapshotId, viewSummary } from "../logging/layoutDiagnostics.js";
 import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
@@ -899,6 +900,17 @@ export class LayoutManager implements Manager {
         const resting = !next && this._running;
         this._running = next;
         if (resting) {
+            if (layoutDiag.isDebugEnabled()) {
+                const engine = this.layoutEngine;
+                layoutDiag.debug("rest", {
+                    engine: engine?.type,
+                    engineClass: engine?.constructor.name,
+                    engineNodes: engine === undefined ? null : [...engine.nodes].length,
+                    shown: viewSummary(this.shownNow()),
+                    totalNodes: this.dataManager.nodes.size,
+                    dimension: this.engineDimension,
+                });
+            }
             this.onRest?.();
         }
 
@@ -988,7 +1000,8 @@ export class LayoutManager implements Manager {
 
         this.unsubscribeAcceleration?.();
         this.unsubscribeAcceleration =
-            this.acceleration?.onChange(() => {
+            this.acceleration?.onChange((status) => {
+                layoutDiag.debug("acceleration changed", { status });
                 this.onAccelerationChange();
             }) ?? null;
     }
@@ -1202,6 +1215,14 @@ export class LayoutManager implements Manager {
      * @param event - The freeze, carrying the snapshot every consumer must switch to.
      */
     private onSnapshotReplaced(event: GraphSnapshotReplacedEvent): void {
+        layoutDiag.debug("onSnapshotReplaced", {
+            next: snapshotId(event.next),
+            nextNodes: event.next.nodeCount,
+            engine: this.layoutEngine?.type,
+            engineView:
+                this.layoutEngine === undefined ? null : viewSummary(layoutEngineInternals.view(this.layoutEngine)),
+            shown: viewSummary(this.shownNow()),
+        });
         // A FREEZE IS WHERE THE GRAPH GETS ITS SIZE. The element's default layout is set before any
         // data arrives, over an empty graph, so this -- not `setLayout` -- is where a graph crosses
         // the size at which the default force arrangement is worth accelerating, in either
@@ -1367,6 +1388,17 @@ export class LayoutManager implements Manager {
         if (!driverClass) {
             throw unknownLayout(driver);
         }
+        layoutDiag.debug("setLayout", {
+            layout,
+            type,
+            driver,
+            driverClass: driverClass.name,
+            dimension: how.dimension,
+            transition: how.transition === true,
+            shown: viewSummary(shown),
+            totalNodes: this.dataManager.nodes.size,
+            acceleration: this.acceleration?.status ?? null,
+        });
 
         // Which engines accept a scope is a fact of the class. Only a scope named in THIS call is
         // refused; a carried one is inactive under an engine that cannot hold nodes still.
@@ -2431,6 +2463,11 @@ export class LayoutManager implements Manager {
     private followShownRows(engine: LayoutEngine): void {
         const before = layoutEngineInternals.view(engine);
         const now = this.shownNow();
+        layoutDiag.debug("followShownRows", {
+            engine: engine.type,
+            before: viewSummary(before),
+            now: viewSummary(now),
+        });
         layoutEngineInternals.setView(engine, now);
         if ((before === null && now === null) || engine instanceof SimulationLayoutEngine) {
             return;
@@ -2469,6 +2506,18 @@ export class LayoutManager implements Manager {
      */
     followView(): Promise<void> {
         const engine = this.layoutEngine;
+        if (layoutDiag.isDebugEnabled()) {
+            const built = engine === undefined ? null : layoutEngineInternals.view(engine);
+            const now = this.shownNow();
+            layoutDiag.debug("followView entered", {
+                engine: engine?.type,
+                built: viewSummary(built),
+                now: viewSummary(now),
+                sameGraph: built !== null && now !== null ? built.graph === now.graph : null,
+                sameShown: sameShown(built, now),
+                willRelayout: engine !== undefined && !sameShown(built, now),
+            });
+        }
         if (engine === undefined || sameShown(layoutEngineInternals.view(engine), this.shownNow())) {
             return Promise.resolve();
         }
@@ -2478,8 +2527,14 @@ export class LayoutManager implements Manager {
         const rebuild = this.#applying.then(async () => {
             const running = this.layoutEngine;
             if (running === undefined || sameShown(layoutEngineInternals.view(running), this.shownNow())) {
+                layoutDiag.debug("followView queued rebuild skipped", {
+                    engine: running?.type,
+                    built: running === undefined ? null : viewSummary(layoutEngineInternals.view(running)),
+                    now: viewSummary(this.shownNow()),
+                });
                 return;
             }
+            layoutDiag.debug("followView rebuilding", { engine: running.type, dimension: this.engineDimension ?? 3 });
 
             await this._setLayoutInternal(running.type, this.driverOptions, {
                 dimension: this.engineDimension ?? 3,

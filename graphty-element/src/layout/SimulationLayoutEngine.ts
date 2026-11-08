@@ -66,6 +66,7 @@ import { asStrength } from "../algorithms/input/weight";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
+import { layoutDiag, snapshotId, viewSummary } from "../logging/layoutDiagnostics.js";
 import type { DataManager } from "../managers/DataManager";
 import type { Node } from "../Node";
 import { readCommunities, sameCommunities } from "./clusterForce";
@@ -1600,6 +1601,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#precision = decision.accelerated ? decision.precision : CPU_PRECISION;
         this.#failed = false;
         this.#iterationsDone = 0;
+        layoutDiag.debug("bridge build", {
+            engine: this.type,
+            simulation: this.simulationType,
+            simNodes: snapshot.nodeCount,
+            elementNodes: this.#elementGraph?.nodeCount ?? null,
+            accelerated: decision.accelerated,
+            reason: decision.accelerated ? null : decision.reason,
+            dim: this.#options.model.dim ?? this.#options.dim ?? 3,
+        });
 
         // The simulations require an undirected graph, and the bridge -- not its caller -- is
         // what knows that: callers pass the snapshot `getSnapshot()` handed them.
@@ -1769,6 +1779,24 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #adopt(snapshot: GraphSnapshot): GraphSnapshot {
         this.#elementGraph = snapshot;
         const view = this.shownView;
+        if (layoutDiag.isDebugEnabled()) {
+            let used = "view";
+            if (view === null || view === undefined) {
+                used = "whole: no view";
+            } else if (view.graph !== snapshot) {
+                used = "whole: view.graph !== snapshot";
+            } else if (view.nodeOrigin === null || view.nodeRows === null) {
+                used = "whole: view has no row maps";
+            }
+            layoutDiag.debug("bridge adopt", {
+                engine: this.type,
+                simulation: this.simulationType,
+                snapshot: snapshotId(snapshot),
+                snapshotNodes: snapshot.nodeCount,
+                view: viewSummary(view),
+                used,
+            });
+        }
         if (view?.graph === snapshot && view.nodeOrigin !== null && view.nodeRows !== null) {
             this.#origin = view.nodeOrigin;
             this.#simRows = view.nodeRows;

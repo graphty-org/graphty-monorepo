@@ -288,6 +288,7 @@ import { attachTransitions, LayoutTransitionRunner, transitionsOf } from "./tran
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
+import { layoutDiag } from "./logging/layoutDiagnostics.js";
 import { createLazyShaderHost } from "./shaders/chunk";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
@@ -1658,6 +1659,7 @@ export class Graph implements GraphContext {
         // the session reads the working graph, the running layout follows it once
         // (design/working-graph/design.md, section 7); queued, so `waitForSettled` waits for it.
         this.session.on("visibility:changed", () => {
+            layoutDiag.debug("visibility changed", { workingGraph: working.enabled, viewMode: this.getViewMode() });
             if (!working.enabled) {
                 return;
             }

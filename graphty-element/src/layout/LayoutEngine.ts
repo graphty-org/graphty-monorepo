@@ -22,6 +22,7 @@ import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
+import { layoutDiag, snapshotId, viewSummary } from "../logging/layoutDiagnostics.js";
 import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
 import type { WorkingView } from "../session/working/view";
@@ -2280,6 +2281,14 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             // element holds now; one left behind by a freeze arranges the whole graph.
             const view = this.shownView;
             const { nodeOrigin, nodeRows } = view ?? {};
+            layoutDiag.debug("engine load", {
+                engine: this.type,
+                store: snapshotId(store),
+                storeNodes: store.nodeCount,
+                view: viewSummary(view),
+                usedView: Boolean(view?.graph === store && nodeOrigin && nodeRows),
+                sameGraph: view === null ? null : view.graph === store,
+            });
             if (view?.graph === store && nodeOrigin && nodeRows) {
                 const { snapshot } = source.undirected(view.snapshot);
                 const lane = writableLane(manager);

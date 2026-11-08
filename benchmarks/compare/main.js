@@ -417,7 +417,7 @@ function labelBehavior(sampled, glyphs) {
     return b;
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, renderPath, renderer }) {
+async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, curves, renderPath, renderer }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
     const el = document.createElement("graphty-element");
@@ -431,7 +431,8 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
     }
     if (renderer) el.renderer = renderer;
     el.layout = "fixed";
-    el.viewMode = mode === "lean" ? "2d" : "3d";
+    // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode.
+    el.viewMode = mode === "lean" && !curves ? "2d" : "3d";
     el.acceleration = accel === "off" ? "off" : "auto";
     if (onDemand) el.renderOnDemand = true;
     if (dpr !== 1) el.setAttribute("pixel-ratio", "device");
@@ -461,6 +462,13 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
             set: { "edge.arrowHead": "none" },
         });
     }
+    if (curves)
+        await el.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none", "edge.curvature": true },
+        });
     if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({

@@ -589,7 +589,7 @@ export const regionWork = { rows: 0, nodes: 0 };
  * @param polygon - The polygon.
  * @returns Its least and greatest x and y.
  */
-export function polygonBox(polygon: readonly CanvasPoint[]): {
+function polygonBox(polygon: readonly CanvasPoint[]): {
     minX: number;
     minY: number;
     maxX: number;

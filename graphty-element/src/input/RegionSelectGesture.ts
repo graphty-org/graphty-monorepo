@@ -14,7 +14,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import type { CanvasPoint } from "../render/PickService";
 
 /** Which region a Shift-drag draws, or `"off"` for none. */
-export type RegionShape = "off" | "rectangle" | "lasso";
+type RegionShape = "off" | "rectangle" | "lasso";
 
 /** A drag shorter than this, in CSS pixels, is a click and is left to the click handlers. */
 const REGION_MIN_DRAG_PX = 5;
@@ -38,7 +38,7 @@ export interface RegionGestureHost {
  * @param points - The pointer's places, the press first.
  * @returns The polygon's corners.
  */
-export function regionPolygon(shape: Exclude<RegionShape, "off">, points: readonly CanvasPoint[]): CanvasPoint[] {
+function regionPolygon(shape: Exclude<RegionShape, "off">, points: readonly CanvasPoint[]): CanvasPoint[] {
     if (shape === "lasso") {
         return [...points];
     }

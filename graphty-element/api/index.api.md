@@ -4765,6 +4765,9 @@ export interface LayoutChangedEvent {
 }
 
 // @public
+export type LayoutDevice = "shared" | "separate";
+
+// @public
 export abstract class LayoutEngine {
     // (undocumented)
     protected abstract addEdge(e: Edge): void;
@@ -7016,6 +7019,7 @@ export type RendererRequest = "webgl" | "webgpu" | "auto";
 export interface RendererStatus {
     readonly active: ActiveRenderer;
     readonly drawing: boolean;
+    readonly layoutDevice: LayoutDevice | null;
     readonly reason: string | null;
     readonly requested: RendererRequest;
 }

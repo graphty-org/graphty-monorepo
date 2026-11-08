@@ -187,6 +187,7 @@ import { layoutManagerInternals } from "./managers/LayoutManager";
 import type { PendingWork } from "./managers/PendingWork";
 import { RecoveringWebGPUEngine } from "./managers/RecoveringWebGPUEngine";
 import {
+    type LayoutDevice,
     openWebGPUEngine,
     type PixelRatio,
     RENDERER_REQUESTS,
@@ -2082,6 +2083,7 @@ export class Graph implements GraphContext {
                 active: "webgl",
                 reason: null,
                 drawing: !(this.engine instanceof NullEngine),
+                layoutDevice: this.layoutDeviceFor(false),
             };
             return;
         }
@@ -2134,6 +2136,7 @@ export class Graph implements GraphContext {
                 active: "webgl",
                 reason: opened,
                 drawing: !(this.engine instanceof NullEngine),
+                layoutDevice: this.layoutDeviceFor(false),
             };
             return;
         }
@@ -2197,7 +2200,26 @@ export class Graph implements GraphContext {
         );
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
-        this.#rendererStatus = { requested, active: "webgpu", reason: null, drawing: true };
+        this.#rendererStatus = {
+            requested,
+            active: "webgpu",
+            reason: null,
+            drawing: true,
+            layoutDevice: this.layoutDeviceFor(opened.sharesDevice),
+        };
+    }
+
+    /**
+     * Where an accelerated layout will run, as the renderer opens.
+     * @param shared - Whether the renderer opened its device for the accelerator too.
+     * @returns The device, or null when no accelerator is offered.
+     */
+    private layoutDeviceFor(shared: boolean): LayoutDevice | null {
+        if (!this.acceleration.offersAccelerator) {
+            return null;
+        }
+
+        return shared ? "shared" : "separate";
     }
 
     /**

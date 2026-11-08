@@ -505,6 +505,15 @@ export class AccelerationController {
     }
 
     /**
+     * Whether any accelerator could be built: acceleration is not off and a backend is registered.
+     * @returns True when one could.
+     * @internal
+     */
+    get offersAccelerator(): boolean {
+        return this.#policy !== "off" && this.#registry.list().length > 0;
+    }
+
+    /**
      * Whether a registered backend would run on the device a renderer opens on this adapter.
      * @param adapter - The `GPUAdapter`, opaque here.
      * @returns True when the renderer should open a device fit for both. A registration that throws

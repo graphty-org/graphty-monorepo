@@ -642,6 +642,11 @@ needs its own measurement, in stage 30.
 A settling batch repacks from the lane, so the rest picture matches the upload path. The new coded field
 `rendererStatus.layoutDevice: "shared" | "separate" | null` is detection before the run, never a fallback during one.
 
+As built (stage 25, first pull request): `layoutDevice` is set when the renderer opens, from the engine's own `sharesDevice` answer:
+`"shared"`, `"separate"` under WebGL and on a software adapter, and null when no accelerator is offered (policy `"off"`, or nothing
+registered before the renderer opened). The type is exported as `LayoutDevice`. `to_drawn`, the ring and the copy at landing follow in
+later pull requests of the stage.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,

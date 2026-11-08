@@ -50,6 +50,21 @@ describe("exportGraph scope", () => {
         h.session.dispose();
     });
 
+    it("with the working graph on, writes what is shown with no scope, and the whole graph with all", async () => {
+        const h = chain();
+        h.session.workingGraph = true;
+        await h.session.visibility.set(FIRST_140);
+
+        const shown = rowsOf(await exportSession(h.session, "csv", { table: "nodes" }).text());
+        const edges = rowsOf(await exportSession(h.session, "csv").text());
+        const all = rowsOf(await exportSession(h.session, "csv", { table: "nodes", scope: "all" }).text());
+
+        assert.strictEqual(shown.length, 140, "no scope writes the working graph");
+        assert.strictEqual(edges.length, 139);
+        assert.strictEqual(all.length, 900, "all writes the whole graph");
+        h.session.dispose();
+    });
+
     it("writes the selection, a kept set and a rule tree", async () => {
         const h = chain();
         await h.session.selection.apply({ nodes: ["n1", "n2", "n500"] });

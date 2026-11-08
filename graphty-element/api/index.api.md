@@ -2559,7 +2559,7 @@ export interface ExportResult {
 }
 
 // @public
-export type ExportScope = RuleTree | "shown" | "selection" | {
+export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
     readonly set: SetId;
 };
 

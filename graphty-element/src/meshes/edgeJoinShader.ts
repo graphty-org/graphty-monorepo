@@ -54,6 +54,13 @@
  * thousands of edges writes and uploads one float each instead of zeroing and restoring twenty
  * (issue #6025). A pulled line has no such attribute: its rows say whether it is drawn.
  *
+ * COLOR AND OPACITY PER PIECE (`EDGE_SLOT_COLOR`, `edgeColor`). A plain batch -- not widened, not
+ * pulled -- reads its color and opacity from one more instanced vec4 per piece instead of from the
+ * `color` and `opacity` uniforms, so edges that differ only in color share one batch and a restyle
+ * between two such looks (a time window's Ghost row) writes four floats in place rather than moving
+ * the edge to another batch (issue #6026). A widened batch has no varying row left for it and keeps
+ * the uniforms.
+ *
  * DASHES FOLLOW THE WHOLE EDGE. A fragment's distance is measured along its own piece from the
  * edge's start; in the overlap on the inside of a bend it is drawn when either piece's dash covers
  * it, which is what dashing the centre line and then stroking each dash would draw.
@@ -252,6 +259,12 @@ attribute vec2 run;
 attribute float edgeHidden;
 #endif
 
+#ifdef EDGE_SLOT_COLOR
+// The piece's color and, in alpha, its opacity.
+attribute vec4 edgeColor;
+varying vec4 vEdgeColor;
+#endif
+
 uniform mat4 world;
 uniform mat4 viewProjection;
 uniform mat4 projection;
@@ -415,6 +428,9 @@ void main() {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         return;
     }
+#endif
+#ifdef EDGE_SLOT_COLOR
+    vEdgeColor = edgeColor;
 #endif
     bool atB = position.x > 0.5;
     float side = position.y;
@@ -645,6 +661,10 @@ varying float vEdgeTotal;
 uniform float edgeReach;
 #endif
 
+#ifdef EDGE_SLOT_COLOR
+varying vec4 vEdgeColor;
+#endif
+
 #ifdef EDGE_SHADED
 // Defined after this text by the shader runtime: the shader's color for one pixel of the line.
 vec4 graphty_edgeShade(float t, float side, float lengthPx, float widthPx, float coverage);
@@ -831,6 +851,8 @@ void main() {
     float sideS = clamp(dot(uS, vec2(-vOwn.w, vOwn.z)) / hwLine, -edgeReach, edgeReach);
     float pxPerWorld = vOwn2.y > 0.0 ? 1.0 / vOwn2.y : 0.0;
     gl_FragColor = graphty_edgeShade(tS, sideS, vEdgeTotal * pxPerWorld, 2.0 * hwLine, vWidth.z);
+#elif defined(EDGE_SLOT_COLOR)
+    gl_FragColor = vec4(vEdgeColor.rgb, vEdgeColor.a * vWidth.z);
 #else
 #ifdef EDGE_PULLED
     gl_FragColor = vec4(vLook.rgb, vLook.a * vWidth.z);

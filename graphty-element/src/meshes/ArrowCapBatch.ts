@@ -22,8 +22,16 @@ const INITIAL_SLOTS = 32;
  * arrays, so a red cap and a blue cap at two different sizes are one draw call. The fourth, the
  * clip, is only ever set on a pattern segment (see `PatternedLineMesh`); a cap is never clipped.
  * The fifth, the hidden flag, is 1 while the visibility mask hides the cap (`ArrowCapBatch.park`).
+ * The colour carries the opacity in its fourth float, so caps of one shape share a batch whatever
+ * their look and a restyle between two looks writes one row in place (issue #6026).
  */
-const BILLBOARD_BUFFERS = { arrowDirection: 3, arrowSize: 1, arrowColor: 3, arrowClip: 1, arrowHidden: 1 } as const;
+const BILLBOARD_BUFFERS = { arrowDirection: 3, arrowSize: 1, arrowColor: 4, arrowClip: 1, arrowHidden: 1 } as const;
+
+/**
+ * What a billboarded batch's mesh is set to while any of its caps is translucent, which puts the
+ * batch in the alpha-blended pass. The billboard shader never reads the mesh's visibility.
+ */
+const TRANSPARENT_PASS = 0.5;
 
 /** One of the {@link BILLBOARD_BUFFERS}. */
 type BillboardBuffer = keyof typeof BILLBOARD_BUFFERS;
@@ -45,6 +53,26 @@ const NO_ROTATION = Quaternion.Identity();
  * into the XY plane a 2D graph is drawn in.
  */
 const INTO_XY_PLANE = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
+
+/** Scratch: one row of a billboard buffer as the floats it is stored as, to compare before writing. */
+const scratchRow = new Float32Array(4);
+
+/**
+ * Colour rows for a number of caps, opaque from a slot on, so a cap that is never given an
+ * opacity of its own draws at its batch's (a zero alpha would draw nothing).
+ * @param count - The caps.
+ * @param from - The first slot made opaque; the ones before it are copied over by the caller.
+ * @returns The rows.
+ */
+function opaqueRows(count: number, from: number): Float32Array {
+    const stride = BILLBOARD_BUFFERS.arrowColor;
+    const rows = new Float32Array(count * stride);
+    for (let slot = from; slot < count; slot++) {
+        rows[slot * stride + 3] = 1;
+    }
+
+    return rows;
+}
 
 /** The identity matrix, copied into a slot that only ever carries a translation. */
 const IDENTITY = Matrix.Identity();
@@ -115,6 +143,12 @@ export class ArrowCapBatch {
      */
     private billboard: Record<BillboardBuffer, Float32Array> | null;
 
+    /** The visibility the batch's mesh was built with: the opacity its material holds for every cap. */
+    private readonly baseVisibility: number;
+
+    /** Caps in use drawn at an opacity of their own under 1, which put the batch in the transparent pass. */
+    private translucent = 0;
+
     /** Slots handed out so far. Slots at or past this index have never been used. */
     private highWater = 0;
 
@@ -158,6 +192,7 @@ export class ArrowCapBatch {
         this.shape = mesh.name;
         this.is2D = key.startsWith("2d|");
         this.billboarded = billboard;
+        this.baseVisibility = mesh.visibility;
         this.parking = billboard ? null : new ParkedSlots(FLOATS_PER_MATRIX);
         this.uploads = batchUploadFrames.rangedUploads(scene);
         this.matrices = new Float32Array(INITIAL_SLOTS * FLOATS_PER_MATRIX);
@@ -209,7 +244,7 @@ export class ArrowCapBatch {
             this.billboard = {
                 arrowDirection: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowDirection),
                 arrowSize: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowSize),
-                arrowColor: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowColor),
+                arrowColor: opaqueRows(INITIAL_SLOTS, 0),
                 arrowClip: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowClip),
                 arrowHidden: new Float32Array(INITIAL_SLOTS * BILLBOARD_BUFFERS.arrowHidden),
             };
@@ -248,11 +283,17 @@ export class ArrowCapBatch {
     }
 
     /**
-     * How see-through every cap in this batch is drawn.
-     * @returns The opacity, which is what puts the batch in the alpha queue below 1.
+     * How see-through one cap is drawn: the batch's opacity times the cap's own.
+     * @param index - The slot.
+     * @param own - The cap's own opacity as it was given, read in place of the float its slot holds.
+     * @returns The opacity, 0 to 1.
      */
-    get visibility(): number {
-        return this.mesh.visibility;
+    visibilityOf(index: number, own?: number): number {
+        if (this.billboard === null) {
+            return this.mesh.visibility;
+        }
+
+        return this.baseVisibility * (own ?? this.billboard.arrowColor[index * BILLBOARD_BUFFERS.arrowColor + 3]);
     }
 
     /**
@@ -281,10 +322,15 @@ export class ArrowCapBatch {
         IDENTITY.copyToArray(this.matrices, index * FLOATS_PER_MATRIX);
         this.written("matrix", index);
 
-        // Unclipped. A zero here would cut the shape off at its own origin.
+        // Unclipped. A zero here would cut the shape off at its own origin. Opaque, until the cap
+        // is given its look: a zero alpha would draw nothing.
         if (this.billboard) {
             this.billboard.arrowClip[index] = -1;
             this.written("arrowClip", index);
+            // Live again at the opacity it last held (a new slot is opaque); its look comes next.
+            if (this.billboard.arrowColor[index * BILLBOARD_BUFFERS.arrowColor + 3] < 1) {
+                this.countTranslucent(1);
+            }
         }
 
         return index;
@@ -306,6 +352,11 @@ export class ArrowCapBatch {
         this.hide(index);
         this.free.push(index);
         this.live--;
+        // A free slot draws nothing and counts for no pass. It keeps its opacity, as the GPU does,
+        // until `acquire` takes it again.
+        if (this.billboard !== null && this.billboard.arrowColor[index * BILLBOARD_BUFFERS.arrowColor + 3] < 1) {
+            this.countTranslucent(-1);
+        }
 
         // The last cap takes the batch with it, so a cleared dataset leaves nothing in the scene.
         if (this.live === 0) {
@@ -335,26 +386,75 @@ export class ArrowCapBatch {
     }
 
     /**
-     * Give one slot the size and colour the billboard shader draws it at. A no-op on a batch
-     * whose caps hold both on their material.
+     * Give one slot the size, colour and opacity the billboard shader draws it at, writing only
+     * what changed. A no-op on a batch whose caps hold them on their material.
      * @param index - The slot.
      * @param size - The cap's length in world units.
      * @param colour - The cap's colour, as a hex string.
+     * @param opacity - The cap's own opacity, multiplying the batch's.
      */
-    setAppearance(index: number, size: number, colour: string): void {
-        if (this.gone || !this.billboard) {
+    setAppearance(index: number, size: number, colour: string, opacity = 1): void {
+        const { billboard } = this;
+        if (this.gone || !billboard) {
             return;
         }
 
-        this.billboard.arrowSize[index] = size;
-        this.written("arrowSize", index);
+        scratchRow[0] = size;
+        if (billboard.arrowSize[index] !== scratchRow[0]) {
+            billboard.arrowSize[index] = size;
+            this.written("arrowSize", index);
+        }
 
         const rgb = Color3.FromHexString(colour);
         const at = index * BILLBOARD_BUFFERS.arrowColor;
-        this.billboard.arrowColor[at] = rgb.r;
-        this.billboard.arrowColor[at + 1] = rgb.g;
-        this.billboard.arrowColor[at + 2] = rgb.b;
+        const colours = billboard.arrowColor;
+        scratchRow[0] = rgb.r;
+        scratchRow[1] = rgb.g;
+        scratchRow[2] = rgb.b;
+        if (colours[at] !== scratchRow[0] || colours[at + 1] !== scratchRow[1] || colours[at + 2] !== scratchRow[2]) {
+            colours.set(scratchRow.subarray(0, 3), at);
+            this.written("arrowColor", index);
+        }
+
+        this.setOpacity(index, opacity);
+    }
+
+    /**
+     * Give one billboarded slot its own opacity, keeping count of the translucent caps.
+     * @param index - The slot.
+     * @param opacity - The opacity, 0 to 1.
+     */
+    private setOpacity(index: number, opacity: number): void {
+        if (this.billboard === null) {
+            return;
+        }
+
+        const at = index * BILLBOARD_BUFFERS.arrowColor + 3;
+        const colours = this.billboard.arrowColor;
+        scratchRow[3] = opacity;
+        if (colours[at] === scratchRow[3]) {
+            return;
+        }
+
+        const was = colours[at] < 1;
+        colours[at] = opacity;
         this.written("arrowColor", index);
+        const is = colours[at] < 1;
+        if (was !== is) {
+            this.countTranslucent(is ? 1 : -1);
+        }
+    }
+
+    /**
+     * Count a cap into or out of the translucent ones, and draw the batch in the pass they ask for:
+     * the alpha-blended one while any cap is translucent, as a batch of translucent caps always
+     * was, or the one its material's own opacity asks for (`baseVisibility`).
+     * @param by - 1 for a cap that turned translucent, -1 for one that stopped.
+     */
+    private countTranslucent(by: number): void {
+        this.translucent += by;
+        const base = this.baseVisibility;
+        this.mesh.visibility = this.translucent > 0 && base >= 1 ? TRANSPARENT_PASS : base;
     }
 
     /**
@@ -772,7 +872,10 @@ export class ArrowCapBatch {
 
         for (const [kind, stride] of Object.entries(BILLBOARD_BUFFERS)) {
             const name = kind as BillboardBuffer;
-            const widened = new Float32Array(this.billboard[name].length * 2);
+            const widened =
+                name === "arrowColor"
+                    ? opaqueRows((this.billboard[name].length / stride) * 2, this.billboard[name].length / stride)
+                    : new Float32Array(this.billboard[name].length * 2);
             widened.set(this.billboard[name]);
             this.billboard[name] = widened;
             this.mesh.thinInstanceSetBuffer(kind, widened, stride, false);
@@ -805,6 +908,9 @@ export class ArrowCap {
      * size on screen, or drawn at one depth's size): 1 unless {@link setScale} said otherwise.
      */
     private scale = 1;
+
+    /** The opacity of its own the billboard shader was last given for this cap. */
+    private opacity = 1;
 
     /** The length the billboard shader was given at scale 1, or null before it was given one. */
     private billboardLength: number | null = null;
@@ -845,12 +951,17 @@ export class ArrowCap {
     }
 
     /**
-     * How see-through this cap is drawn, which is its batch's, because opacity is part of a
-     * batch's key.
+     * How see-through this cap is drawn: its batch's opacity times its own.
      * @returns The visibility, 0 to 1.
      */
     get visibility(): number {
-        return this.batch?.visibility ?? 0;
+        const { batch } = this;
+        if (batch === null) {
+            return 0;
+        }
+
+        // A billboarded cap's own opacity as it was given, not as the 32-bit float its slot holds.
+        return batch.billboarded ? batch.visibilityOf(this.slot, this.opacity) : batch.visibilityOf(this.slot);
     }
 
     /**
@@ -996,10 +1107,23 @@ export class ArrowCap {
      * Give this cap the size and colour the billboard shader draws it at.
      * @param size - Its length in world units.
      * @param colour - Its colour, as a hex string.
+     * @param opacity - Its own opacity, multiplying its batch's.
      */
-    setAppearance(size: number, colour: string): void {
+    setAppearance(size: number, colour: string, opacity = 1): void {
         this.billboardLength = size;
-        this.batch?.setAppearance(this.slot, size * this.scale, colour);
+        this.opacity = opacity;
+        this.batch?.setAppearance(this.slot, size * this.scale, colour, opacity);
+    }
+
+    /**
+     * Whether this cap is drawn by a batch at a size: what lets a restyle that keeps both recolor
+     * it in place rather than build another.
+     * @param batch - The batch.
+     * @param size - The size.
+     * @returns True when it is live in that batch at that size.
+     */
+    drawsIn(batch: ArrowCapBatch, size: number): boolean {
+        return this.batch === batch && !batch.disposed && this.size === size;
     }
 
     /**

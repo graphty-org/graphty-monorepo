@@ -22,6 +22,7 @@ describe("the device a graph opens", () => {
 
         assert.isTrue(layoutOf(graph).isAccelerated);
         assert.strictEqual(devices(), 1);
+        assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
     });
 
     it("is one device for an element, which looks for its accelerator before it opens a renderer", async () => {
@@ -80,6 +81,20 @@ describe("the device a graph opens", () => {
 
         assert.isFalse((graph.engine as RecoveringWebGPUEngine).sharesDevice);
         assert.strictEqual(devices(), 2);
+        assert.strictEqual(graph.rendererStatus?.layoutDevice, "separate");
+    });
+
+    it("is the accelerator's own under WebGL, which shares no device", async () => {
+        adapterSays("test-hardware");
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const graph = new Graph(container);
+        mounted.push({ graph, container });
+        graph.setRenderer("webgl");
+
+        await graph.init();
+
+        assert.strictEqual(graph.rendererStatus?.layoutDevice, "separate");
     });
 
     it("is the renderer's own when acceleration is off", async () => {
@@ -94,5 +109,6 @@ describe("the device a graph opens", () => {
         await graph.init();
 
         assert.isFalse((graph.engine as RecoveringWebGPUEngine).sharesDevice);
+        assert.isNull(graph.rendererStatus?.layoutDevice);
     });
 });

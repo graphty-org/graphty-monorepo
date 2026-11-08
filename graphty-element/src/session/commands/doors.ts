@@ -3821,6 +3821,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        name: "LabelSampler",
+        file: "src/managers/LabelSampler.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "Layer",
         file: "src/session/styles/Layer.ts",
         half: "session",

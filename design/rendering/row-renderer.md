@@ -470,6 +470,24 @@ Correction: the plan cached the two floats at rest for a shader to read; nothing
 measured end is placed straight into the cap and line, and keeping the floats waits for their reader. An end that
 moves while another drag rests is measured with the rest of the set: one quiet stretch of passes measures them all.
 
+As built (stage 21, first pull request): `meshes/pulledCurve.ts` holds a lone curve's path (`line.bezier`) in plain numbers and
+as `PULLED_CURVE_GLSL`, for the pulled curve to come. No edge draws with it yet; every curve is still an object edge.
+`bezierSamples` is `EdgeMesh.createBezierLine`'s samples, `curveSpan` the numbers `Edge.placeRoute`'s cut leaves (samples,
+first sample outside the source, pieces, and how far along each cut chord the path starts and stops), and `curvePathPoint`
+any point of the cut path from the two centers and those numbers. `test/pulled-curve.test.ts` holds the mirror to the object
+path's cut curve within 1e-9 on 400 seeded edges between spheres, chords along z among them; `test/browser/pulled-curve-glsl.test.ts`
+holds the GLSL to the mirror within 1e-4 through transform feedback on WebGL2. WebGPU was not run. Corrections to the table, from the code:
+
+- A curve's ends are not points of the cubic at a `t` range. `Edge.placeRoute` keeps the samples outside both nodes and cuts
+  on the straight chord between the last sample inside and the first outside (`crossingOf`), so what is kept per edge is a
+  sample index and a fraction along that chord at each end, plus the sample count (from 10 to 64 by length). The pieces a curve
+  draws with change as its nodes move, so a pulled curve holds a run as long as its longest cut.
+- A fanned curve's shape depends on the other edges between its two nodes (`DataManager.drawnBundle`), which change without
+  the curve being rebuilt, and `Edge.pullsLine` is read only when a line is built. So the first kind pulled is a curve that
+  does not fan (`line.fanned: false`), or a lone fanned curve once a bundle change rebuilds its members.
+- A curve whose center lies outside its own node (`span.first` 0) leaves from `Edge.leaveNode`, which the mirror does not
+  cover: `curveSpan` answers null and such an edge stays an object edge.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

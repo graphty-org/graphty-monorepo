@@ -269,4 +269,61 @@ describe("a filter lays out what it shows", () => {
             assert.deepEqual(after.get(id), before.get(id), `hidden ${id} stayed where it was`);
         }
     });
+
+    it("a Louvain-groups filter keeps showing its groups after Done (the owner's path)", async () => {
+        const { element, session } = await openGraph();
+        const modal = await openFilters();
+        await userEvent.click(within(modal).getByRole("button", { name: /^Value$/ }));
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.keyboard("Louvain");
+        await userEvent.keyboard("{Enter}");
+        await userEvent.click(await within(modal).findByRole("checkbox", { name: /^Group 1\b/u }));
+        const kept = await waitFor(() => {
+            const shown = session.runs.list().find((run) => run.algorithm === "louvain");
+            assert.strictEqual(shown?.status, "succeeded", "the card's Louvain run finished");
+            return shown?.id;
+        });
+        await done(element, modal);
+        const { shown } = shownAndHidden(session);
+        assert.isAbove(shown.length, 0, "the filter shows its group, not nothing");
+        assert.isBelow(shown.length, 77, "and hides the rest");
+        assert.include(
+            session.runs.list().map((run) => run.id),
+            kept,
+            "the run the filter reads is kept",
+        );
+        // Adding a second filter does not change what the first one shows.
+        const second = await openFilters();
+        await waitFor(() => {
+            assert.deepEqual(shownAndHidden(session).shown, shown);
+        });
+        await userEvent.click(within(second).getByRole("button", { name: /^Cancel/ }));
+    });
+
+    it("a second filter's matches show each node's degree in the whole graph", async () => {
+        const { element, session } = await openGraph();
+        await filterDegree(element, "6");
+        const whole = session.data.structureValue("Valjean", "graphty.degree", { scope: "graph" });
+        const among = session.data.structureValue("Valjean", "graphty.degree");
+        assert.notStrictEqual(whole, among, "the first filter changes Valjean's degree among what is shown");
+        // A new filter: the matches strip lists Valjean with the degree the filter tests.
+        await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        const modal = await ws();
+        await userEvent.click(within(modal).getByRole("button", { name: /^Value$/ }));
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.keyboard("Degree");
+        await userEvent.keyboard("{Enter}");
+        await degreeFrom("30");
+        const strip = await within(modal).findByRole("region", { name: "Matches" });
+        const row = await waitFor(() => {
+            const found = within(strip)
+                .getAllByRole("row")
+                .find((each) => each.textContent?.includes("Valjean"));
+            assert.isDefined(found, "Valjean matches Degree 30+");
+            return found;
+        });
+        assert.include(row.textContent ?? "", String(whole));
+        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+    });
 });

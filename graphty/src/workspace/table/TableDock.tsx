@@ -551,7 +551,7 @@ function dockScope(session: GraphSession, tab: string, { members, all }: Arrange
     const { summary } = session.visibility;
     const shownCount = kind === "node" ? summary.visibleNodes : summary.visibleEdges;
     const filtered = shownCount < (kind === "node" ? summary.totalNodes : summary.totalEdges);
-    const narrowed: ScopeInput = filtered && !all ? "visible" : "graph";
+    const narrowed: ScopeInput = all ? "graph" : "visible";
     const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
     return { groups, hasEdges, active, kind, groupRun, shownMembers, shownCount, filtered, scope };
 }

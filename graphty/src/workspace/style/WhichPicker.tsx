@@ -65,6 +65,7 @@ import {
     type Side,
     spanOf,
     startWords,
+    styleLeafOf,
     TEXT_WORDS,
     type TextMode,
 } from "./cards";
@@ -227,7 +228,7 @@ function patchesOf(
                 // node card cleared for a moment leaves the edges on every edge, and they follow
                 // the node cards again once there are some.
                 const own = edgeCards(session, row.edge.selector, edgeFields).filter((c) => c.type !== "ends");
-                const leaves = cards.flatMap((card) => leafOf(card) ?? []);
+                const leaves = cards.flatMap((card) => styleLeafOf(card) ?? []);
                 const edge = selectorOf([{ type: "ends", key: "ends", reading }, ...own], leaves);
                 patches.push({ id: row.edge.id, patch: { selector: edge, ...named(row.edge) } });
             }
@@ -259,7 +260,7 @@ function unionRule(rows: readonly PickRow[]): RuleTree | null {
         if (row.cards.some((card) => card.type === "ends" || (card.type === "fixed" && card.leaf === null))) {
             return null;
         }
-        const leaves = row.cards.flatMap((card) => leafOf(card) ?? []);
+        const leaves = row.cards.flatMap((card) => styleLeafOf(card) ?? []);
         if (leaves.length === 0) {
             return null;
         }
@@ -299,7 +300,7 @@ function useLeafCount(
  * @returns the rule.
  */
 function allOf(cards: readonly Card[]): RuleTree | null {
-    const leaves = cards.flatMap((card) => leafOf(card) ?? []);
+    const leaves = cards.flatMap((card) => styleLeafOf(card) ?? []);
     if (leaves.length === 0) {
         return null;
     }
@@ -316,7 +317,7 @@ function allOf(cards: readonly Card[]): RuleTree | null {
  * @returns the words.
  */
 function useHead(session: GraphSession, rows: readonly PickRow[], side: Side, held?: readonly Card[]): string {
-    const stats = session.data.statistics();
+    const stats = session.data.statistics({ scope: "all" });
     // A layer paints only what is showing, and its row counts over that (4 of 15 under a filter):
     // said over the same base, never the whole graph's.
     const { summary } = session.visibility;
@@ -539,7 +540,8 @@ function WhichRow({
     regionId: string;
     onOpen: (key?: string) => void;
 }>): React.JSX.Element {
-    const stats = session.data.statistics();
+    // "All N nodes" names the whole graph.
+    const stats = session.data.statistics({ scope: "all" });
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const head = useHead(session, rows, side, held);
     const words = shown.map((each) => chipWords(session, each, rows.length));
@@ -695,7 +697,7 @@ function Chip({
 }>): React.JSX.Element {
     const { card } = shown;
     // A card picked by hand says its count in its words.
-    const count = useLeafCount(session, shown.shared && !isPicked(card) ? leafOf(card) : null, side);
+    const count = useLeafCount(session, shown.shared && !isPicked(card) ? styleLeafOf(card) : null, side);
     useEffect(() => {
         onCount(count);
     }, [count, onCount]);
@@ -2496,11 +2498,12 @@ function NumberCard({
         () =>
             given ??
             (within === undefined
-                ? session.data.valueCounts(path, { kind: side }).missing
+                ? session.data.valueCounts(path, { kind: side, scope: "graph" }).missing
                 : session.scope.histogram(path, { within }).missing),
         [session, path, side, within, given],
     );
-    const stats = session.data.statistics();
+    // Over the card's base: the whole graph, named, unless it has one.
+    const stats = session.data.statistics({ scope: within === "visible" ? "visible" : "all" });
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
     const parse = useNumberParser();
     const { store } = useWorkspace();
@@ -2907,7 +2910,7 @@ function DateCard({
     const [drafts, setDrafts] = useState<Partial<Record<DateBox, string>>>({});
     const [refused, setRefused] = useState<DateBox | null>(null);
     const messageId = useId();
-    const counts = useMemo(() => session.data.valueCounts(path, { kind: on }), [session, path, on]);
+    const counts = useMemo(() => session.data.valueCounts(path, { kind: on, scope: "graph" }), [session, path, on]);
     // The column's dates as the table writes them, each once, in time order.
     const dates = useMemo(() => {
         const days = counts.values
@@ -3087,7 +3090,7 @@ function categoryCounts(
     _version: number,
 ): { values: readonly { value: unknown; count: number }[]; missing: number } {
     if (over === undefined) {
-        return session.data.valueCounts(path, { kind: side });
+        return session.data.valueCounts(path, { kind: side, scope: "graph" });
     }
     // Counted over the selection's base (or a narrowing step's input), so a value only elements
     // outside it hold reads 0.
@@ -3432,7 +3435,7 @@ function TextCard({
                 : [
                       ...new Set(
                           session.data
-                              .valueCounts(card.field.path, { kind: card.field.on })
+                              .valueCounts(card.field.path, { kind: card.field.on, scope: "graph" })
                               .values.map((each) => String(each.value)),
                       ),
                   ].sort(NATURAL.compare),
@@ -3687,7 +3690,7 @@ function LayerLine({
     side: Side;
     onPick: () => void;
 }>): React.JSX.Element {
-    const count = useLeafCount(session, card === undefined ? null : leafOf(card), side);
+    const count = useLeafCount(session, card === undefined ? null : styleLeafOf(card), side);
     const words = card === undefined ? "no card" : withoutField(cardWords(session, card), field);
     return (
         <div // NOSONAR(S6819): a list item of an ARIA list drawn as a stack; an li would draw a bullet and indent

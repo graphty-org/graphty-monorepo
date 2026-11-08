@@ -5,7 +5,7 @@ import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
 import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
 import { togglePopover } from "./popover";
-import { nothingDrawn } from "./useSessionVersion";
+import { noGraph, nothingDrawn } from "./useSessionVersion";
 
 /**
  * Why Neighborhood cannot run: it acts on a selected node.
@@ -248,7 +248,7 @@ export const registration = defineRegistration({
             id: "filters.open",
             label: "Filters",
             group: "Data",
-            disabled: ({ session }) => nothingDrawn(session),
+            disabled: ({ session }) => noGraph(session),
             run: ({ workspace }) => {
                 openFilterDraft(workspace, PLUS);
             },

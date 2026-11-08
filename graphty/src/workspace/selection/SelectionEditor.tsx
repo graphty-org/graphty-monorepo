@@ -127,8 +127,6 @@ interface SelectionEditorProps {
     readonly ownerName?: string;
     /** Selects the first step on arrival (a filter card opened on a value). */
     readonly openFirst?: boolean;
-    /** A filter condition being edited: what it would remove stays drawn, faint, while picking (spec 9). */
-    readonly hold?: string;
     /** The title row's name: a filter card's name; "Which nodes" when absent. */
     readonly title?: string;
     /** Opens the value picker on the first group at once (a new filter card). */
@@ -208,7 +206,6 @@ function afterPaint(work: () => void): void {
  * @param props.onChange - takes the next rule, which the host writes
  * @param props.onDone - the workspace closed, or Escape on the sidebar outline: the host may fold it
  * @param props.openFirst - opens the workspace on the first step on arrival
- * @param props.hold - the filter condition being edited
  * @param props.title - the title row's name
  * @param props.ownerName - what the selection belongs to, after its name in the workspace's title
  * @param props.openPicker - opens the workspace with the value picker on the first group at once
@@ -232,7 +229,6 @@ export function SelectionEditor({
     onChange: handOn,
     onDone,
     openFirst = false,
-    hold,
     title,
     ownerName,
     openPicker = false,
@@ -660,17 +656,13 @@ export function SelectionEditor({
                 edges: true,
                 rule: JSON.parse(viewKey) as UnionLeaf,
                 rest: "faint",
-                // A filter card counts on the full graph, so it is drawn there: the other cards'
-                // removals are lifted, and drawn faint, while it is edited.
-                // With the working graph on, the card is a draft and only what is shown is drawn.
-                ...(host === "filter" && !session.workingGraph ? { base: "full" as const } : {}),
-                ...(hold === undefined ? {} : { hold }),
+                // Only what is shown is drawn: the working graph draws no node outside it.
             });
         } else {
             view.current?.end();
             view.current = null;
         }
-    }, [previewing, viewKey, session, hold, host]);
+    }, [previewing, viewKey, session]);
     useEffect(
         () => () => {
             view.current?.end();

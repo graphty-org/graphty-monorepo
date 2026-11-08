@@ -417,6 +417,19 @@ export function leafOf(card: Card): RuleTree | null {
     }
 }
 
+/**
+ * The rule leaf a card makes in a style layer: a Highest or a percentile ranks among what is
+ * shown, so the layer picks the top of what the reader sees (owner decision C,
+ * design/working-graph/design.md). A filter's and a selection's cards keep `leafOf`'s whole-graph
+ * ranking.
+ * @param card - the card.
+ * @returns the leaf, or null while it is unfinished.
+ */
+export function styleLeafOf(card: Card): RuleTree | null {
+    const leaf = leafOf(card);
+    return leaf?.kind === "threshold" && card.type !== "fixed" ? { ...leaf, within: "visible" } : leaf;
+}
+
 /** A card of one type. */
 type CardOf<T extends Card["type"]> = Extract<Card, { type: T }>;
 
@@ -920,7 +933,7 @@ export function selectorOf(cards: readonly Card[], ends: readonly RuleTree[] = [
         return whole.selector;
     }
     const endsCard = cards.find((card) => card.type === "ends");
-    const own = cards.flatMap((card) => leafOf(card) ?? []);
+    const own = cards.flatMap((card) => styleLeafOf(card) ?? []);
     const leaves = endsCard === undefined ? own : [...ends, ...own];
     if (leaves.length === 0) {
         return { match: "everything" };
@@ -1036,8 +1049,9 @@ function numberWords(session: GraphSession, card: CardOf<"number">, name: string
         if (card.percent === true) {
             return `${end} ${num(card.top)}% by ${name}`;
         }
-        // A count of every element there is keeps them all, and says so.
-        const stats = session.data.statistics();
+        // A count of every element there is keeps them all, and says so: every element of the
+        // card's base, the whole graph unless it has one.
+        const stats = session.data.statistics({ scope: card.field.within === "visible" ? "visible" : "all" });
         const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
         return card.top >= total ? `${name}: all ${String(total)}` : `${end} ${String(card.top)} by ${name}`;
     }

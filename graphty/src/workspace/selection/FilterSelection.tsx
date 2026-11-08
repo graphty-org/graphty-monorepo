@@ -104,12 +104,12 @@ export function FilterSelection({
                   }),
               )
             : writeCondition(store, () => session.visibility.updateCondition(id, keepChange(next, effect)));
-    // IN THE SELECTION WORKSPACE, WHILE THE ELEMENT READS THE WORKING GRAPH, the card is edited as a
+    // IN THE SELECTION WORKSPACE the card is edited as a
     // draft: nothing that is shown changes and nothing is laid out again until the workspace closes,
     // when the draft is written as one step (graphty-element's `visibility.draft`;
     // design/working-graph/design.md, section 3). A new card is written only once it has a step, as
     // before. The outline-and-pane editor has no Done, so it writes each edit as it always has.
-    const drafting = session.workingGraph && selectionWorkspaceOn(session);
+    const drafting = selectionWorkspaceOn(session);
     const draft = useRef<FilterDraft | null>(null);
     const toDraft = (next: UnionLeaf): void => {
         if (draft.current?.open !== true) {
@@ -172,8 +172,6 @@ export function FilterSelection({
             switchedSide={switchedSide}
             openPicker={openPicker}
             hostPicks={hostPicks}
-            // With the working graph on, only what is shown is drawn: nothing is held as a ghost.
-            {...(session.workingGraph ? {} : { hold: id })}
             title={title}
             lead={lead}
             titleMenu={titleMenu}

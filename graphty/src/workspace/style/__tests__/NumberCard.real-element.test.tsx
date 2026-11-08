@@ -327,6 +327,19 @@ describe("number card", () => {
         assert.include(row.getAttribute("aria-label") ?? "", `top 10 by ${name}, ${String(kept)} nodes`);
     });
 
+    it("ranks a Highest style rule among what is shown, so a filter changes who is on top", async () => {
+        const { session, id, card, name } = await openCard();
+        await userEvent.click(within(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }));
+        await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
+        await waitFor(() => {
+            assert.strictEqual(topOf(session, id), 10);
+        });
+        // graphty-element ranks the whole column unless told otherwise; the app ranks what is drawn.
+        const selector = session.styles.get(id)?.selector;
+        const leaf: RuleTree | undefined = selector?.match === "rule" ? selector.where : undefined;
+        assert.strictEqual(leaf?.kind === "threshold" ? leaf.within : undefined, "visible");
+    });
+
     it("says a from above its to was the reason when the card closes on it", async () => {
         const { session, store, id, card, name } = await openCard();
         const from = within(card).getByRole("textbox", { name: `${name} from, number` });

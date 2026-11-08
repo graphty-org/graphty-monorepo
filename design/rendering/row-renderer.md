@@ -585,6 +585,23 @@ it within 1e-4; `test/browser/pulled-curves-batched.test.ts` draws every curve a
 the radius to 2, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve
 with caps, `supportModel` or a gap, routes (`line.route`), bends and self-loops.
 
+As built (stage 21, sixth pull request): a curve stopped short of its nodes by a gap (`line.nodeGap`, `sourceNodeGap`,
+`targetNodeGap`) is pulled too, on `"batched"`; a straight line with a gap stays an object edge. The cut needs nothing
+new: `Edge.placeRoute` cuts the route where it clears each node grown by its gap, so `Edge.pullCurve` hands `curveSpan`
+the same gapped outside tests. Correction to the fourth pull request's, from the code: the uncut lone curve drawn when
+no sample clears both nodes runs between the line's bare ends (`Edge.bareEnd`), which a gap moves off the centers to
+where the chord leaves the gapped node (`Edge.leaveNode`, never past the other center), not from center to center. So
+`curveSpan` takes the bare ends, asked only for that case, and the span gains `ends`: the shares of the chord where
+that curve starts and stops, null when they are the centers. The fourth texel of a curve piece is (endAt, start share,
+3, stop share) for it, and the shader draws the lone cubic between those two points of the chord. Bare ends within
+0.01 of each other on every axis are drawn by `createBezierLine` as a self-loop; `curveSpan` answers null there, and
+such a pulled curve draws nothing while its nodes stay that close. `test/pulled-curve.test.ts` holds the mirror to the
+object path within 1e-9 on 400 seeded lone curves, fanned arcs and center arcs with a gap at one end or both (many drawn
+uncut); `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4; `test/browser/pulled-curves-batched.test.ts`
+stops every curve 0.15 short of its nodes, drags a node, then widens three source gaps to 1.2, at 0 pixels against
+`"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or `supportModel`, routes
+(`line.route`), bends and self-loops.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

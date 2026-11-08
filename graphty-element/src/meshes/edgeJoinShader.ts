@@ -189,7 +189,7 @@ void pullEdge() {
         int j = int(tint.a + 0.5);
         int pieces = int(span.z + 0.5);
         if (a.w * b.w != 0.0 && j < pieces) {
-            vec4 counts = vec4(span.xyz, 0.0);
+            vec4 counts = vec4(span.xyz, end.w);
             vec4 cut = vec4(span.w, end.xyz);
             int prev = j == 0 ? 0 : j - 1;
             int prev2 = j < 2 ? prev : j - 2;

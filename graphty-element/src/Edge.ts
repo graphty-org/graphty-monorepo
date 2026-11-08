@@ -135,6 +135,9 @@ const PULLED_LINE_KEYS = new Set([
     "fanned",
     "fanSpacing",
     "arcRadius",
+    "nodeGap",
+    "sourceNodeGap",
+    "targetNodeGap",
 ]);
 
 /**
@@ -2505,7 +2508,7 @@ export class Edge {
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
      * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
-     * too, with no `supportModel` or gap: its shape is its two centres' and, for one that fans out of a
+     * too, with no `supportModel`, and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centres' and, for one that fans out of a
      * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
      * radius (`arcRadius`), which each placement writes
      * (`meshes/pulledCurve.ts`, {@link Edge.pullCurve}). Read when the line is built.
@@ -2522,6 +2525,7 @@ export class Edge {
             !EdgeMesh.drawsFlat(this.context.getScene()) &&
             setsOnly(style, PULLED_STYLE_KEYS) &&
             setsOnly(line, PULLED_LINE_KEYS) &&
+            (line.bezier === true || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (line.type ?? "solid") === "solid" &&
             !line.animationSpeed &&
             drawnText(style.label) === undefined &&
@@ -2588,9 +2592,9 @@ export class Edge {
     /**
      * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there -- a lone
      * curve, the arc it fans out of its bundle on ({@link Edge.fanOf}), or its circle (`line.arcRadius`) -- taking pieces while the cut
-     * needs more than it holds. A curve no point of which clears both nodes is drawn as the lone
-     * curve from centre to centre, uncut, as the object path draws it (`placeCurve`); one it would draw another way (`curveSpan` null: a
-     * centre outside its own node) draws nothing.
+     * needs more than it holds, each node grown by its gap (`line.nodeGap`). A curve no point of which clears both nodes is drawn as the lone
+     * curve between its bare ends ({@link Edge.bareEnd}), uncut, as the object path draws it (`placeCurve`); one it would draw another way
+     * (`curveSpan` null: a centre outside its own node, or bare ends that meet) draws nothing.
      * @param src - The source node's centre.
      * @param dst - The target node's centre.
      */
@@ -2610,7 +2614,15 @@ export class Edge {
         }
         // a curve that does not fan is drawn on its circle when it has a radius, as `bundleRoute` draws it
         const radius = fan === null ? (this.drawnStyle?.line?.arcRadius ?? null) : null;
-        const span = curveSpan(src, dst, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst), bow, radius);
+        const span = curveSpan(
+            src,
+            dst,
+            Edge.outside(this.srcNode, src, this.gapAt("source")),
+            Edge.outside(this.dstNode, dst, this.gapAt("target")),
+            bow,
+            radius,
+            () => [this.bareEnd("source", src, dst), this.bareEnd("target", dst, src)],
+        );
         while (run.length + 1 < (span?.pieces ?? 0)) {
             const piece = batch.acquire();
             batch.setLook(piece, look.color, look.opacity, look.width);

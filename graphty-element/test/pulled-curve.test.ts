@@ -29,9 +29,21 @@ function outsideOf(c: Xyz, radius: number): (x: number, y: number, z: number) =>
 }
 
 /**
- * The object path's cut curve, as `Edge.placeRoute` lays it; the lone curve from center to center, uncut,
- * that `Edge.placeCurve` draws in its place when no point of the route is outside both nodes; or null when
- * a center is outside its own node, which the object path draws another way.
+ * Where a line with no cap starts at a node, as `Edge.bareEnd` has it: the center, or with a gap, where it
+ * leaves the node and the gap along the chord (`Edge.leaveNode`), never past the other center.
+ */
+function bareEnd(centre: Vector3, toward: Vector3, radius: number, gap: number): Vector3 {
+    const span = Vector3.Distance(centre, toward);
+    return gap > 0 && span > 0
+        ? centre.add(toward.subtract(centre).scale(Math.min(radius + gap, span) / span))
+        : centre.clone();
+}
+
+/**
+ * The object path's cut curve, as `Edge.placeRoute` lays it; the lone curve between the line's bare ends
+ * (the centers, without a gap), uncut, that `Edge.placeCurve` draws in its place when no point of the route
+ * is outside both nodes; or null when a center is outside its own node, or the bare ends meet and
+ * `createBezierLine` draws a self-loop there, which the object path draws another way.
  */
 function objectPath(
     src: Vector3,
@@ -39,12 +51,20 @@ function objectPath(
     rSrc: number,
     rDst: number,
     route: readonly number[] = EdgeMesh.createBezierLine(src, dst),
+    gSrc = 0,
+    gDst = 0,
 ): Xyz[] | null {
-    const outSrc = outsideOf(src, rSrc);
-    const outDst = outsideOf(dst, rDst);
+    const outSrc = outsideOf(src, rSrc + gSrc);
+    const outDst = outsideOf(dst, rDst + gDst);
     const span = routeOutside(route, outSrc, outDst);
     if (span === null) {
-        const lone = EdgeMesh.createBezierLine(src, dst);
+        const from = bareEnd(src, dst, rSrc, gSrc);
+        const to = bareEnd(dst, src, rDst, gDst);
+        if (from.equalsWithEpsilon(to, 0.01)) {
+            return null;
+        }
+
+        const lone = EdgeMesh.createBezierLine(from, to);
         return Array.from({ length: lone.length / 3 }, (_, i) => ({
             x: lone[3 * i],
             y: lone[3 * i + 1],
@@ -179,5 +199,57 @@ describe("a pulled curve's path", () => {
 
         assert.isAtLeast(drawn, 150, "most cases draw a cut arc");
         assert.isAbove(uncut, 0, "some arcs clear neither node and are drawn as the lone curve, uncut");
+    });
+
+    it("puts every point of a curve stopped short of its nodes by a gap where the object path has it", () => {
+        const random = seeded(6353);
+        let drawn = 0;
+        let uncut = 0;
+        for (const [i, { src, dst, rSrc, rDst }] of cases().entries()) {
+            // a gap at one end, the other or both, often wide enough that no point clears both gapped nodes
+            const length = Vector3.Distance(src, dst);
+            const gSrc = i % 3 === 1 ? 0 : random() * length * 0.6;
+            const gDst = i % 3 === 2 ? 0 : random() * length * 0.6;
+            const kind = i % 3;
+            const offset = (random() - 0.5) * 2 * length;
+            const radius = 0.5 + random() * 3;
+            let route = EdgeMesh.createBezierLine(src, dst);
+            if (kind === 1) {
+                route = fanArc(src, dst, src, dst, offset);
+            } else if (kind === 2) {
+                route = centerArc(src, dst, radius);
+            }
+
+            const want = objectPath(src, dst, rSrc, rDst, route, gSrc, gDst);
+            const span = curveSpan(
+                src,
+                dst,
+                outsideOf(src, rSrc + gSrc),
+                outsideOf(dst, rDst + gDst),
+                kind === 1 ? offset : null,
+                kind === 2 ? radius : null,
+                () => [bareEnd(src, dst, rSrc, gSrc), bareEnd(dst, src, rDst, gDst)],
+            );
+            assert.strictEqual(
+                span === null,
+                want === null,
+                `case ${String(i)}: a span exactly when the object path has one`,
+            );
+            if (span === null || want === null) {
+                continue;
+            }
+
+            drawn++;
+            uncut += span.ends === null ? 0 : 1;
+            assert.strictEqual(span.pieces, want.length - 1);
+            want.forEach((p, j) => {
+                const q = curvePathPoint(src, dst, span, j);
+                const off = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+                assert.isAtMost(off, 1e-9 * (1 + Math.hypot(p.x, p.y, p.z)), `case ${String(i)} point ${String(j)}`);
+            });
+        }
+
+        assert.isAtLeast(drawn, 150, "most cases draw a curve");
+        assert.isAbove(uncut, 20, "many clear neither gapped node and are drawn uncut between the bare ends");
     });
 });

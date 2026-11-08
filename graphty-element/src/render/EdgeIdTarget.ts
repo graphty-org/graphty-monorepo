@@ -82,6 +82,8 @@ export class EdgeIdTarget {
     private builtAt = -1;
     private drawnIn = -1;
     private drawnRequested = false;
+    /** The frame the lines were last rebuilt in. */
+    private builtIn = -1;
     private readonly waiting: (() => void)[] = [];
     private pixels = new Uint8Array(0);
     private disposed = false;
@@ -142,14 +144,18 @@ export class EdgeIdTarget {
                     this.target.resetRefreshCounter();
                 }
             }),
+            // The target's own observer clears drawnRequested while the frame draws, so this one
+            // settles on waiters alone.
             observe(scene.onAfterRenderObservable, () => {
-                if (this.drawnRequested && this.waiting.length > 0) {
+                if (this.waiting.length > 0) {
                     this.settle();
                 }
             }),
         );
         this.target.onAfterRenderObservable.add(() => {
-            if (this.material.isReady(this.mesh)) {
+            // On WebGPU the draw in the frame that replaced the lines' vertex buffer comes out
+            // empty (measured on SwiftShader), so only a later frame's draw counts.
+            if (this.material.isReady(this.mesh) && !(engine.isWebGPU && this.builtIn === scene.getFrameId())) {
                 this.drawnIn = scene.getFrameId();
                 this.drawnRequested = false;
                 this.counts.draws++;
@@ -222,6 +228,7 @@ export class EdgeIdTarget {
     /** Take the visible edges again, and give each straight one its line. */
     private rebuild(): void {
         this.builtAt = edgeDrawChanges.count;
+        this.builtIn = this.scene.getFrameId();
         this.counts.rebuilds++;
         const edges: Edge[] = [];
         const loose: number[] = [];
@@ -277,6 +284,7 @@ export class EdgeIdTarget {
                 resolve();
             }
         } else {
+            this.drawnRequested = true;
             this.host.requestFrame();
         }
     }
@@ -304,32 +312,35 @@ export class EdgeIdTarget {
         const h = Math.min(height, cy + radius + 1) - bottom;
         const texture = this.target.getInternalTexture();
         if (this.disposed || texture === null || w <= 0 || h <= 0) {
-            return now ? this.named(0) : Promise.resolve(this.named(0));
-        }
-
-        if (this.pixels.length < w * h * 4) {
-            this.pixels = new Uint8Array(w * h * 4);
+            return now ? this.named(this.pixels, 0) : Promise.resolve(this.named(this.pixels, 0));
         }
 
         this.counts.reads++;
         if (now) {
+            if (this.pixels.length < w * h * 4) {
+                this.pixels = new Uint8Array(w * h * 4);
+            }
+
             engine._readTexturePixelsSync(texture, w, h, -1, 0, this.pixels, true, false, left, bottom);
-            return this.named(w * h);
+            return this.named(this.pixels, w * h);
         }
 
+        // A buffer of its own, since a later move's read can land first. WebGPU copies rows padded
+        // to 256 bytes into it, then packs them at its front.
+        const pixels = new Uint8Array(h * Math.ceil((w * 4) / 256) * 256);
         return engine
-            ._readTexturePixels(texture, w, h, -1, 0, this.pixels, true, false, left, bottom)
-            .then(() => this.named(w * h));
+            ._readTexturePixels(texture, w, h, -1, 0, pixels, true, false, left, bottom)
+            .then(() => this.named(pixels, w * h));
     }
 
     /**
      * The edges the pixels just read name, with the loose ones, in walk order.
+     * @param pixels - The pixels read.
      * @param count - How many pixels were read.
      * @returns The edges.
      */
-    private named(count: number): Edge[] {
+    private named(pixels: Uint8Array, count: number): Edge[] {
         const at = new Set<number>(this.loose);
-        const { pixels } = this;
         for (let i = 0; i < count && !this.disposed; i++) {
             const id = pixels[i * 4] + pixels[i * 4 + 1] * 256 + pixels[i * 4 + 2] * 65536;
             if (pixels[i * 4 + 3] !== 0 && id > 0) {

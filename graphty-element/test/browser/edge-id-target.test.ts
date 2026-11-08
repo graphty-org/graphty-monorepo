@@ -24,6 +24,8 @@ const WIDTH = 500;
 const HEIGHT = 400;
 /** The window's half-width hover reads, in render pixels, at a scaling of 1. */
 const WINDOW = 7;
+/** The adapter the browser project was launched with; empty when it has no WebGPU. */
+const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
 
 interface Point {
     x: number;
@@ -57,10 +59,16 @@ function seeded(seed: number): () => number {
  * A graph of crossing edges in a view, drawn.
  * @param viewMode - The view.
  * @param path - The render path.
+ * @param renderer - The engine.
  * @returns The element.
  */
-async function edgeGraph(viewMode: "2d" | "3d", path: "batched" | "objects" = "batched"): Promise<Graphty> {
+async function edgeGraph(
+    viewMode: "2d" | "3d",
+    path: "batched" | "objects" = "batched",
+    renderer: "webgl" | "webgpu" = "webgl",
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    element.renderer = renderer;
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
     element.style.height = `${String(HEIGHT)}px`;
@@ -192,60 +200,71 @@ function overdrawn(element: Graphty, missed: Edge, shown: Edge, x: number, y: nu
 }
 
 describe("the edge ID target", () => {
-    for (const viewMode of ["2d", "3d"] as const) {
-        it(`names the edge the full walk names, in ${viewMode}`, async () => {
-            const element = await edgeGraph(viewMode);
-            const { graph } = element;
-            const target = graph.getEdgeIdTarget();
-            assert.isNotNull(target, "the batched path keeps an edge target");
-            // The material compiles on its own; until then a read answers null.
-            while (target?.candidates(0, 0, 1) === null) {
-                await nextFrame();
-            }
+    const cases = [
+        { viewMode: "2d", renderer: "webgl" },
+        { viewMode: "3d", renderer: "webgl" },
+        // WebGPU reads back after a frame, and pads each row it reads to 256 bytes.
+        { viewMode: "2d", renderer: "webgpu" },
+    ] as const;
+    for (const { viewMode, renderer } of cases) {
+        it.skipIf(renderer === "webgpu" && ADAPTER === "")(
+            `names the edge the full walk names, in ${viewMode} on ${renderer}`,
+            async () => {
+                const element = await edgeGraph(viewMode, "batched", renderer);
+                const { graph } = element;
+                assert.strictEqual(graph.engine.isWebGPU, renderer === "webgpu");
+                const target = graph.getEdgeIdTarget();
+                assert.isNotNull(target, "the batched path keeps an edge target");
+                // The material compiles on its own; until then a read answers null.
+                while (target?.candidates(0, 0, 1) === null) {
+                    await nextFrame();
+                }
 
-            let hits = 0;
-            const overlaps: string[] = [];
-            const differ: string[] = [];
-            for (const { x, y } of nearEdges(element, 11)) {
-                const read = hoverEdgeAt(
-                    graph.scene,
-                    () => edgesOf(element),
-                    x,
-                    y,
-                    (p) => graph.worldToScreen(p),
+                let hits = 0;
+                const overlaps: string[] = [];
+                const differ: string[] = [];
+                for (const { x, y } of nearEdges(element, 11)) {
+                    const answer = hoverEdgeAt(
+                        graph.scene,
+                        () => edgesOf(element),
+                        x,
+                        y,
+                        (p) => graph.worldToScreen(p),
+                    );
+                    assert.strictEqual(answer instanceof Promise, renderer === "webgpu", "WebGL answers at once");
+                    const read = await answer;
+                    const expected = walked(element, x, y);
+                    hits += expected === undefined ? 0 : 1;
+                    if (read === expected) {
+                        continue;
+                    }
+
+                    // Two lines over the same pixels: the target keeps only the one drawn last. A line
+                    // whose nearest point to the pointer is its end at a node another line also ends at
+                    // is drawn over there by that line.
+                    const where = `${x.toFixed(1)},${y.toFixed(1)}: hover ${String(read)}, walk ${String(expected)}`;
+                    const all = edgesOf(element);
+                    const one = all.find((e) => e.id === expected);
+                    const other = all.find((e) => e.id === read);
+                    if (one !== undefined && other !== undefined && overdrawn(element, one, other, x, y)) {
+                        overlaps.push(where);
+                    } else {
+                        differ.push(where);
+                    }
+                }
+
+                if (overlaps.length > 0) {
+                    console.info(`lines drawn over, ${viewMode}:`, overlaps);
+                }
+
+                assert.deepEqual(
+                    differ.slice(0, 5),
+                    [],
+                    `${String(differ.length)} differ: ${differ.slice(0, 5).join("; ")}`,
                 );
-                assert.notInstanceOf(read, Promise, "WebGL answers at once");
-                const expected = walked(element, x, y);
-                hits += expected === undefined ? 0 : 1;
-                if (read === expected) {
-                    continue;
-                }
-
-                // Two lines over the same pixels: the target keeps only the one drawn last. A line
-                // whose nearest point to the pointer is its end at a node another line also ends at
-                // is drawn over there by that line.
-                const where = `${x.toFixed(1)},${y.toFixed(1)}: hover ${String(read)}, walk ${String(expected)}`;
-                const all = edgesOf(element);
-                const one = all.find((e) => e.id === expected);
-                const other = all.find((e) => e.id === read);
-                if (one !== undefined && other !== undefined && overdrawn(element, one, other, x, y)) {
-                    overlaps.push(where);
-                } else {
-                    differ.push(where);
-                }
-            }
-
-            if (overlaps.length > 0) {
-                console.info(`lines drawn over, ${viewMode}:`, overlaps);
-            }
-
-            assert.deepEqual(
-                differ.slice(0, 5),
-                [],
-                `${String(differ.length)} differ: ${differ.slice(0, 5).join("; ")}`,
-            );
-            assert.isAbove(hits, POINTS / 2, "enough points are on an edge");
-        });
+                assert.isAbove(hits, POINTS / 2, "enough points are on an edge");
+            },
+        );
     }
 
     it("hovers with a real pointer and measures only the edges near it", async () => {
@@ -277,6 +296,29 @@ describe("the edge ID target", () => {
         const measured = edgePickWork.measured - before;
         assert.isAbove(measured, 0, "the edge under the pointer is measured");
         assert.isBelow(measured, EDGES / 4, "only the edges near the pointer are measured");
+    });
+
+    it.skipIf(ADAPTER === "")("hovers an edge with a real pointer on WebGPU", async () => {
+        const element = await edgeGraph("2d", "batched", "webgpu");
+        const { graph } = element;
+        assert.isTrue(graph.engine.isWebGPU);
+        const canvas = graph.scene.getEngine().getInputElement();
+        assert.isNotNull(canvas);
+        const scaling = graph.scene.getEngine().getHardwareScalingLevel();
+        const [edge] = edgesOf(element);
+        const a = graph.worldToScreen(edge.srcNode.drawnWorldPosition);
+        const b = graph.worldToScreen(edge.dstNode.drawnWorldPosition);
+        // Below the middle of the window, where rows past the first few of an unpadded read were lost.
+        const mid = { x: ((a.x + b.x) / 2) * scaling, y: ((a.y + b.y) / 2) * scaling - 3 };
+        await hover(element, { x: 1, y: 1 });
+        await element.waitForStableFrame();
+        await hover(element, mid);
+        // The answer comes back after a frame draws the target.
+        while (canvas?.style.cursor !== "pointer") {
+            await nextFrame();
+        }
+
+        assert.strictEqual(canvas.style.cursor, "pointer", "a line");
     });
 
     it("measures every edge on a move on the objects path, as before", async () => {

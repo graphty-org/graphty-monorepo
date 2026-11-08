@@ -512,6 +512,11 @@ until the stage's second pull request makes that walk typed. Four things differ 
   names only the one drawn last, so hover may miss the other. `edge-id-target.test.ts` lists each such point.
 - A move over empty canvas measures only the edges the target cannot draw, and over a line only those near it
   (`edgePickWork.measured`); on `"objects"` every move still measures every edge.
+- On WebGPU the read is asynchronous and takes three things the text above does not say. Babylon's readback pads each row to
+  256 bytes inside the buffer it is given, so the buffer is `h * align(w * 4, 256)` bytes; each read gets its own buffer,
+  because a later move's read can land first; and the draw in the frame that rebuilt the lines' vertex buffer comes out
+  empty (measured on SwiftShader), so a read waits for a draw in a later frame. `edge-id-target.test.ts` runs the agreement
+  test and a real-pointer hover on WebGPU when `GRAPHTY_BROWSER_GPU` is set.
 
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by

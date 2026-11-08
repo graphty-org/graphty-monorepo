@@ -8,7 +8,17 @@ import {
     type GeneratorDescriptor,
 } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
+import {
+    Anchor,
+    Button,
+    Loader,
+    Paper,
+    Stack,
+    Text,
+    TextInput,
+    UnstyledButton,
+    useComputedColorScheme,
+} from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
@@ -36,15 +46,16 @@ import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
+import NETWORK_SAMPLES from "./network-samples.json";
 import {
     copyOf,
     openDataset,
     openFiles,
     openGenerated,
     openModel,
+    openNetworkSample,
     openSample,
     openUrl,
-    openWithStylePanel,
     OWN_COPIES,
     pictureOf,
     samplePicture,
@@ -110,17 +121,6 @@ const GENERATED = "Generated";
 
 /** The field of every network sample, for the field filter. */
 const NETWORK = "Network";
-
-/**
- * The public example each kind of network source shows on the start page, by source id and example
- * id: small and quick to draw. Neptune has no public server; OpenAlex is one named service.
- */
-const NETWORK_SAMPLES: readonly (readonly [source: string, example: string])[] = [
-    ["ndex", "ndex-wp5483"],
-    ["neo4j", "neo4j-movies"],
-    ["sparql", "uniprot-tp53"],
-    ["rest", "deps-dev-webpack"],
-];
 
 /** A short title that says what each dataset is good for; the dataset's own name is the subline. */
 const HOOKS: Readonly<Record<string, string>> = {
@@ -189,6 +189,8 @@ interface LibraryActions {
     readonly ask: (dataset: DatasetMeta) => void;
     /** Shows a generator's parameters. */
     readonly configure: (generator: GeneratorDescriptor) => void;
+    /** Reads a network sample, and opens the app once it is read. */
+    readonly read: (tile: string, source: string, example: string, name: string) => void;
 }
 
 /**
@@ -224,12 +226,13 @@ function firstSentence(text: string): string {
 }
 
 /**
- * The network samples: one public example of each kind of network source, from the catalog. Its
- * load is graphty-element's; a kind or example the catalog lacks is left out.
+ * The network samples: one public example of each kind of network source (network-samples.json,
+ * small and quick to draw; Neptune has no public server and OpenAlex is one named service), from
+ * the catalog. Its load is graphty-element's; a kind or example the catalog lacks is left out.
  * @returns The tiles.
  */
 function networkTiles(): SampleTile[] {
-    return NETWORK_SAMPLES.flatMap(([source, id]) => {
+    return NETWORK_SAMPLES.flatMap(({ source, example: id }) => {
         const entry = serverKinds().find((each) => each.id === source);
         const example = entry?.descriptor.examples?.find((each) => each.id === id);
         const { nodes, edges } = example?.counts ?? {};
@@ -250,10 +253,8 @@ function networkTiles(): SampleTile[] {
                 picture: () => `${import.meta.env.BASE_URL}samples/network-${source}.webp`,
                 note: undefined,
                 words: `${example.plainName} ${hook} ${NETWORK} ${sentence}`.toLowerCase(),
-                open: ({ store }: LibraryActions) => {
-                    openWithStylePanel(store, example.plainName, (session) =>
-                        session.data.loadExample(source, id, { history: "start" }),
-                    );
+                open: ({ read }: LibraryActions) => {
+                    read(`network-${source}`, source, id, example.plainName);
                 },
             },
         ];
@@ -525,16 +526,24 @@ function TilePicture({ address }: Readonly<{ address: () => string | undefined }
  * @param props.tile - The tile
  * @param props.label - What it is called for a screen reader
  * @param props.onClick - What a click does
+ * @param props.reading - Its server is being read
  * @returns The tile
  */
 function LibraryTile({
     tile,
     label,
     onClick,
-}: Readonly<{ tile: SampleTile; label: string; onClick: () => void }>): React.JSX.Element {
+    reading = false,
+}: Readonly<{ tile: SampleTile; label: string; onClick: () => void; reading?: boolean }>): React.JSX.Element {
     const generated = tile.field === GENERATED;
     return (
-        <UnstyledButton className="ws-land-sample" aria-label={label} title={tile.sentence} onClick={onClick}>
+        <UnstyledButton
+            className="ws-land-sample"
+            aria-label={label}
+            aria-busy={reading || undefined}
+            title={tile.sentence}
+            onClick={onClick}
+        >
             <TilePicture address={tile.picture} />
             <span className="ws-land-sample-tag">
                 {generated ? <GLYPHS.generated size={11} aria-hidden /> : null}
@@ -543,6 +552,7 @@ function LibraryTile({
             <span className="ws-land-sample-t">{tile.hook}</span>
             <span className="ws-land-sample-m">{generated ? tile.sentence : `${tile.name} -- ${tile.size}`}</span>
             {tile.note === undefined ? null : <span className="ws-land-sample-note">{tile.note}</span>}
+            {reading ? <Loader size={12} aria-hidden /> : null}
         </UnstyledButton>
     );
 }
@@ -559,7 +569,24 @@ function SampleLibrary(): React.JSX.Element {
     const [view, setView] = useState<"grid" | "list">("grid");
     const [asking, setAsking] = useState<DatasetMeta | null>(null);
     const [configuring, setConfiguring] = useState<GeneratorDescriptor | null>(null);
-    const actions: LibraryActions = { store: workspace.store, ask: setAsking, configure: setConfiguring };
+    const [reading, setReading] = useState<string | null>(null);
+    const stopRead = useRef<AbortController | null>(null);
+    useEffect(() => () => stopRead.current?.abort(), []);
+    const read: LibraryActions["read"] = (tile, source, example, name) => {
+        if (tile === reading) {
+            return;
+        }
+        stopRead.current?.abort();
+        const stop = new AbortController();
+        stopRead.current = stop;
+        setReading(tile);
+        void openNetworkSample(workspace.store, name, source, example, stop.signal).finally(() => {
+            if (stopRead.current === stop) {
+                setReading(null);
+            }
+        });
+    };
+    const actions: LibraryActions = { store: workspace.store, ask: setAsking, configure: setConfiguring, read };
     const query = text.trim().toLowerCase();
     // The first paint does not wait for the site's configuration.
     const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
@@ -661,6 +688,7 @@ function SampleLibrary(): React.JSX.Element {
                                 key={tile.id}
                                 tile={tile}
                                 label={`Load network data: ${tile.name}`}
+                                reading={tile.id === reading}
                                 onClick={() => {
                                     tile.open(actions);
                                 }}
@@ -787,7 +815,7 @@ function useScrolledPast(lockup: React.RefObject<HTMLElement | null>): boolean {
  * The start page, shown whenever no project is open: the graphty lockup, the headline and the
  * launcher over a live graph drawn by graphty-element, and a bar of facts at the foot. A first visit
  * gets Open a file, Open network data, Samples and New project; a returning reader gets Resume, their
- * recent projects, Open a file and New project. A file dropped anywhere on it opens.
+ * recent projects, Open a file, New project and Open network data. A file dropped anywhere on it opens.
  * @returns The start page
  */
 function StartPage(): React.JSX.Element {
@@ -861,6 +889,13 @@ function StartPage(): React.JSX.Element {
             )}
         </Button>
     );
+    const networkButton = network ? (
+        <OpenNetworkData>
+            <Button className="ws-land-tint" leftSection={<GLYPHS.data size={16} aria-hidden />}>
+                Open network data
+            </Button>
+        </OpenNetworkData>
+    ) : null;
     const newButton = (
         <Button
             variant="default"
@@ -961,6 +996,7 @@ function StartPage(): React.JSX.Element {
                                 <div className="ws-land-more">
                                     {openButton("tint")}
                                     {newButton}
+                                    {network ? <div className="ws-land-wide">{networkButton}</div> : null}
                                 </div>
                                 {privacy}
                             </Paper>
@@ -976,16 +1012,7 @@ function StartPage(): React.JSX.Element {
                             <Paper className="ws-land-launcher" withBorder>
                                 {openButton("primary")}
                                 <div className="ws-land-more">
-                                    {network ? (
-                                        <OpenNetworkData>
-                                            <Button
-                                                className="ws-land-tint"
-                                                leftSection={<GLYPHS.data size={16} aria-hidden />}
-                                            >
-                                                Open network data
-                                            </Button>
-                                        </OpenNetworkData>
-                                    ) : null}
+                                    {networkButton}
                                     <Button
                                         className="ws-land-tint"
                                         leftSection={<GLYPHS.gridView size={16} aria-hidden />}

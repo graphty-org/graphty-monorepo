@@ -13,7 +13,13 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type { AssetSource, DataSourceInput, GraphSession, LoadDraft } from "@graphty/graphty-element/session";
+import {
+    type AssetSource,
+    createGraphSession,
+    type DataSourceInput,
+    type GraphSession,
+    type LoadDraft,
+} from "@graphty/graphty-element/session";
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
@@ -24,6 +30,7 @@ import { refusalFor } from "../data-page/words";
 import { fileStylesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
+import { notReadWords } from "../project/words";
 import { routeToReplace } from "../replace/commands";
 import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
 import { newProjectId, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
@@ -51,6 +58,8 @@ export function openProject(
         place: "graph",
         inspected: null,
         dialog: null,
+        // A failure of an earlier try says nothing about this one.
+        notice: null,
         // The name is the project's in graphty-element too, so its autosave entry carries it. Set
         // before the load, which starts the history, so Undo never takes the name back.
         ...startOpening({
@@ -84,6 +93,39 @@ export function openWithStylePanel(
         await load(session, element);
         workspace.set({ inspected: { ...labelRow(session, null).inspected, tab: "style" } });
     });
+}
+
+/**
+ * Reads one of a network source's examples with no project open, and only then opens the app on
+ * it with the Style panel up. A refused read leaves the reader on the start page with a notice.
+ * @param workspace - the workspace store.
+ * @param name - the project's name.
+ * @param source - the source id.
+ * @param example - the example's id within that source.
+ * @param signal - stops the read; a stopped read opens nothing and says nothing.
+ * @returns settles once the read has opened the app or failed.
+ */
+export async function openNetworkSample(
+    workspace: WorkspaceStore,
+    name: string,
+    source: string,
+    example: string,
+    signal: AbortSignal,
+): Promise<void> {
+    workspace.set({ notice: null });
+    const scratch = createGraphSession({ features: [...siteConfig().features] });
+    try {
+        const read = await scratch.data.readExample(source, example, { signal });
+        openWithStylePanel(workspace, name, async (session) => {
+            await session.data.import(read, { history: "start" });
+        });
+    } catch (error) {
+        if (!signal.aborted) {
+            workspace.set({ notice: { message: notReadWords(name, error, "opened"), error: true } });
+        }
+    } finally {
+        scratch.dispose();
+    }
 }
 
 /**

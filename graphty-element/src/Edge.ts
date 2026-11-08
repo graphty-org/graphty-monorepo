@@ -133,6 +133,7 @@ const PULLED_LINE_KEYS = new Set([
     "minScreenWidth",
     "bezier",
     "fanned",
+    "fanSpacing",
 ]);
 
 /**
@@ -2503,8 +2504,8 @@ export class Edge {
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
      * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
-     * too, with no `arcRadius`, `supportModel`, `fanSpacing` or gap: its shape is its two centres' and,
-     * for one that fans out of a bundle, how far it bows, which each placement writes
+     * too, with no `arcRadius`, `supportModel` or gap: its shape is its two centres' and, for one that
+     * fans out of a bundle, how far it bows (spread by `fanSpacing` when set), which each placement writes
      * (`meshes/pulledCurve.ts`, {@link Edge.pullCurve}). Read when the line is built.
      * @param style - The resolved style.
      * @returns True when it is pulled.
@@ -2585,8 +2586,9 @@ export class Edge {
     /**
      * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there -- a lone
      * curve, or the arc it fans out of its bundle on ({@link Edge.fanOf}) -- taking pieces while the cut
-     * needs more than it holds. A curve the object path would draw another way
-     * (`curveSpan` null: its nodes overlap, or a centre is outside its own node) draws nothing.
+     * needs more than it holds. A curve no point of which clears both nodes is drawn as the lone
+     * curve from centre to centre, uncut, as the object path draws it (`placeCurve`); one it would draw another way (`curveSpan` null: a
+     * centre outside its own node) draws nothing.
      * @param src - The source node's centre.
      * @param dst - The target node's centre.
      */

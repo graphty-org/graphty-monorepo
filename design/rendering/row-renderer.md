@@ -519,9 +519,8 @@ drag, on WebGL and on WebGPU (SwiftShader).
 
 Corrections, from the code:
 
-- A curve whose span is null on a later placement (its nodes come to overlap, so no sample is outside both) draws nothing
-  when pulled, where the object path draws a straight line between the cut ends; the edge is not moved back to an object
-  edge, since `Edge.pullsLine` is read only when the line is built.
+- A curve whose route has no sample outside both nodes (its nodes come close or overlap) drew nothing when pulled; the
+  object path draws the lone curve from center to center there. The fourth pull request draws that curve (below).
 - Moving a node still writes edge bytes for a pulled curve: its span changes with its length, so every piece of a moved
   curve is rewritten (16 floats a piece, against the object path's slot plus its matrix), and the CPU still samples the
   curve to find its cut. The measurement on 100,000 curves waits for a curve scenario in `benchmarks/compare`.
@@ -555,6 +554,20 @@ pulls a bundle of five between two nodes (a curve that does not fan, three fanne
 straight edge) at 0 pixels against `"objects"`, at rest and after a mouse drag, and a fanned curve that gains and loses
 a parallel edge, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, `arcRadius`, `supportModel`,
 `fanSpacing` or a gap, routes (`line.route`), bends and self-loops.
+
+As built (stage 21, fourth pull request): a curve spread by `line.fanSpacing` is pulled too, on `"batched"`. `fanSpacing`
+joins `PULLED_LINE_KEYS` in `Edge.ts`; `Edge.fanOf` already read it for the bow, and a change to it already re-places the edge.
+Correction to the first pull request's, from the code: when no sample of a curve's route is outside both nodes,
+`routeOutside` is null and `Edge.placeLine` falls back to `transformEdgeMesh`, which for a curved line is `Edge.placeCurve`:
+the lone curve (`EdgeMesh.createBezierLine`) from center to center, uncut, whatever the route was, never a straight line.
+A pulled curve drew nothing there, which showed where that uncut curve leaves a node's silhouette (a fanned arc of bow
+-0.25 between two default nodes 1.52 apart missed a 29-pixel sliver beside its target). `curveSpan` now answers that case
+with the lone curve's span (its sample count, first 1, as many pieces, no cut at either end, bow null), so the pulled
+curve draws the same uncut curve; it answers null only for a center outside its own node, as before.
+`test/pulled-curve.test.ts` holds the mirror to that fallback on the seeded edges and arcs (some of each fall back);
+`test/browser/pulled-curves-batched.test.ts` pulls a bundle of three fanned curves at `fanSpacing` 0.25, then 0.5, at 0
+pixels against `"objects"`, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, `arcRadius`,
+`supportModel` or a gap, routes (`line.route`), bends and self-loops.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.

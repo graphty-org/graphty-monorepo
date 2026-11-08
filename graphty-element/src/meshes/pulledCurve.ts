@@ -200,8 +200,9 @@ function crossingAlong(inside: Xyz, outside: Xyz, isOutside: (x: number, y: numb
  * @param outsideSrc - Whether a point is outside the source node.
  * @param outsideDst - Whether a point is outside the target node.
  * @param bow - A fanned arc's bow ({@link CurveSpan.bow}), or null for a lone curve.
- * @returns The span, or null when the object path draws the curve another way: no sample outside both
- *     nodes, or a center outside its own node (the line then leaves from the center, `Edge.leaveNode`).
+ * @returns The span; the lone curve from center to center, uncut, when no sample is outside both nodes, as
+ *     the object path then draws it; or null when it draws the curve another way: a center outside its own node
+ *     (the line then leaves from the center, `Edge.leaveNode`).
  */
 export function curveSpan(
     src: Xyz,
@@ -221,7 +222,14 @@ export function curveSpan(
     }
 
     const span = routeOutside(flat, outsideSrc, outsideDst);
-    if (span === null || span.first === 0 || span.last === samples) {
+    if (span === null) {
+        // a route no point of which clears both nodes is drawn as the lone curve from center to center, uncut
+        // (`Edge.placeCurve`), a fanned arc's too
+        const lone = curvePieces(src, dst);
+        return { samples: lone, first: 1, pieces: lone, startAt: 0, endAt: 0, bow: null };
+    }
+
+    if (span.first === 0 || span.last === samples) {
         return null;
     }
 

@@ -148,8 +148,12 @@ export interface BranchReading {
 export interface StepsReading {
     /** The rule as the element holds it: ids and colors filled. */
     readonly rule: UnionLeaf;
-    /** The elements in a ready branch that is on, out of the base. */
-    readonly total: { readonly count: number; readonly of: number };
+    /**
+     * The elements in a ready branch that is on, out of the base, and how many of them are shown
+     * now (`shown`): those the filter and the time window leave drawn. A rule read over the whole
+     * graph (a filter's own) can count elements that are hidden; `shown` says how many are not.
+     */
+    readonly total: { readonly count: number; readonly of: number; readonly shown: number };
     /** The ids of the branches that are on and wait on a run. */
     readonly pending: readonly string[];
     /** Everything in a ready branch that is on. */
@@ -623,6 +627,12 @@ interface ReadingSources {
      * @returns The histogram, or null.
      */
     valuesOf?(step: UnionStep, input: Bytes): ValueHistogram | null;
+    /**
+     * Whether an element of a side is shown now; absent: everything is.
+     * @param side - The side.
+     * @returns The test, by dense index.
+     */
+    shownOn?(side: UnionLeaf["side"]): (index: number) => boolean;
 }
 
 /**
@@ -636,6 +646,24 @@ function ones(bytes: Bytes): number {
         count += byte;
     }
 
+    return count;
+}
+
+/**
+ * How many members are shown.
+ * @param bytes - The members.
+ * @param shown - Whether an index is shown; absent: all are.
+ * @returns The count.
+ */
+function shownOf(bytes: Bytes, shown: ((index: number) => boolean) | undefined): number {
+    if (shown === undefined) {
+        return ones(bytes);
+    }
+
+    let count = 0;
+    bytes.forEach((byte, index) => {
+        count += byte === 1 && shown(index) ? 1 : 0;
+    });
     return count;
 }
 
@@ -724,7 +752,7 @@ function stepsReadingOf(
 
     return {
         rule: leaf,
-        total: { count: ones(read.total), of: ones(read.base) },
+        total: { count: ones(read.total), of: ones(read.base), shown: shownOf(read.total, sources.shownOn?.(side)) },
         pending: read.branches.flatMap((branch, at) =>
             branch.state === "pending" ? [leaf.branches[at].id ?? ""] : [],
         ),

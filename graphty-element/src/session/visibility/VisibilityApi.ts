@@ -207,6 +207,12 @@ export interface FilterConditionMatches {
     readonly matched: number;
     /** How many the graph holds, for every condition. */
     readonly total: number;
+    /**
+     * How many of `matched` are shown now: those the filter conditions that are on and the time
+     * window leave drawn. A condition's own count reads the whole graph, so beside other filters
+     * it can match more than is shown; this says how many of its matches a reader can see.
+     */
+    readonly shown: number;
 }
 
 /**
@@ -2191,22 +2197,27 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             test: ((index: number) => boolean) | null,
             count: number,
             among: ElementMask<NodeId> | ElementMask<EdgeId> | undefined,
+            visible: ElementMask<NodeId> | ElementMask<EdgeId>,
         ): FilterConditionMatches | null => {
             if (test === null) {
                 return null;
             }
 
             let matched = 0;
+            let shown = 0;
             for (let at = 0; at < count; at++) {
-                matched += (among === undefined || among.has(at)) && test(at) ? 1 : 0;
+                if ((among === undefined || among.has(at)) && test(at)) {
+                    matched++;
+                    shown += visible.has(at) ? 1 : 0;
+                }
             }
 
             // One basis for every condition: the whole graph's count, so a Select card and a Filter
             // to card beside it are read against the same number.
-            return Object.freeze({ matched, total: count });
+            return Object.freeze({ matched, total: count, shown });
         };
-        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes);
-        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges);
+        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes, nodeMaskValue);
+        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges, edgeMaskValue);
 
         return Object.freeze({ nodes, edges, unresolved: compiled.unresolvedPaths() });
     };
@@ -2235,10 +2246,12 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                     ? conditions
                     : conditions.map((each) => (each === condition ? { ...each, on: true } : each)),
             );
+        // Every count says how many of its matches are shown, so the live masks' version is part
+        // of every key.
         const pictureSignature = `${nodeMaskValue.version}:${edgeMaskValue.version}`;
         const each = conditions.map((condition) => {
             const own = signatureOf(condition.rule);
-            return own === null || !inPicture(condition) ? own : `${own}\n${pictureSignature}`;
+            return own === null ? own : `${own}\n${inPicture(condition) ? "picture" : "graph"}\n${pictureSignature}`;
         });
         const signatures = JSON.stringify(each);
         if (

@@ -56,7 +56,7 @@ describe("a filter draft", () => {
         assert.lengthOf(session.visibility.conditions, 0, "nothing is written while it is open");
         assert.deepEqual(shown(session), ["a", "b", "c", "d", "e"], "and nothing that is shown changes");
         assert.strictEqual(session.history.steps.length, steps, "and no step is recorded");
-        assert.deepEqual(draft.counts().nodes, { matched: 2, total: 5 }, "counted over the whole graph");
+        assert.deepEqual(draft.counts().nodes, { matched: 2, total: 5, shown: 2 }, "counted over the whole graph");
 
         const { id } = await draft.commit();
         assert.strictEqual(id, draft.condition.id);
@@ -77,7 +77,8 @@ describe("a filter draft", () => {
         const draft = session.visibility.draft("f");
         draft.update({ rule: HIGH });
         assert.deepEqual(shown(session), ["a", "b", "e"], "the condition still filters as written");
-        assert.deepEqual(draft.counts().nodes, { matched: 2, total: 5 });
+        // a and c match; only a is shown under the condition as written.
+        assert.deepEqual(draft.counts().nodes, { matched: 2, total: 5, shown: 1 });
 
         await draft.commit();
         assert.deepEqual(shown(session), ["a", "c"]);

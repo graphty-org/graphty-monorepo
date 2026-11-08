@@ -1309,6 +1309,7 @@ export type FilterConditionInput = Omit<FilterCondition, "id" | "on"> & {
 // @beta
 export interface FilterConditionMatches {
     readonly matched: number;
+    readonly shown: number;
     readonly total: number;
 }
 
@@ -6312,6 +6313,7 @@ export interface StepsReading {
     readonly total: {
         readonly count: number;
         readonly of: number;
+        readonly shown: number;
     };
 }
 

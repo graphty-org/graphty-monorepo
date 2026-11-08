@@ -2619,32 +2619,40 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         draft(target: FilterConditionInput | string): FilterDraft {
             const list = conditionsNow();
             const editing = typeof target === "string";
-            let held: FilterCondition = editing
-                ? list[indexOfCondition(list, target)]
-                : admitConditions([target], list)[0];
+            // An existing condition is read live and the draft holds only its edits, so a write that
+            // lands meanwhile (a rename, its on box) is kept by the commit; a new one is admitted now,
+            // which fixes its id.
+            const base: FilterCondition | null = editing ? null : admitConditions([target], list)[0];
+            const id = editing ? list[indexOfCondition(list, target)].id : (base?.id ?? "");
+            let edits: Partial<Omit<FilterCondition, "id">> = {};
             let open = true;
+            const held = (): FilterCondition => {
+                const now = conditionsNow();
+                const from = base ?? now[indexOfCondition(now, id)];
+                return Object.freeze({ ...from, ...edits, id });
+            };
             const requireOpen = (): void => {
                 if (!open) {
                     throw new GraphtyError({
                         code: "E_BAD_COMMAND",
-                        message: `the draft of filter condition "${held.id}" is closed`,
+                        message: `the draft of filter condition "${id}" is closed`,
                         source: "data",
                     });
                 }
             };
             return {
                 get condition(): FilterCondition {
-                    return held;
+                    return held();
                 },
                 get open(): boolean {
                     return open;
                 },
                 update(change: Partial<Omit<FilterCondition, "id">>): void {
                     requireOpen();
-                    held = Object.freeze({ ...held, ...change, id: held.id });
+                    edits = { ...edits, ...change };
                 },
                 counts(): FilterConditionCount {
-                    return Object.freeze({ id: held.id, ...countRule(upToDate(), held.rule, null) });
+                    return Object.freeze({ id, ...countRule(upToDate(), held().rule, null) });
                 },
                 commit(options: RunOptions = {}): Run<FilterResult & { readonly id: string }> {
                     requireOpen();
@@ -2652,14 +2660,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                     // One step, as `updateCondition` or `addCondition` writes it, against the
                     // conditions as they stand now.
                     const now = conditionsNow();
-                    const { id } = held;
+                    const condition = held();
                     if (editing) {
                         const at = indexOfCondition(now, id);
-                        const next = now.map((each, index) => (index === at ? conditionOf(held, held.rule) : each));
+                        const next = now.map((each, index) =>
+                            index === at ? conditionOf(condition, condition.rule) : each,
+                        );
                         return editConditions(admitConditions(next), options, { id });
                     }
 
-                    const [added] = admitConditions([held], now);
+                    const [added] = admitConditions([condition], now);
                     return editConditions(admitConditions([...now, added]), options, { id: added.id });
                 },
                 cancel(): void {

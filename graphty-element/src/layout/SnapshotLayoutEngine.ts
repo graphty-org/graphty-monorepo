@@ -398,13 +398,12 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         // A scope's hold, or a group that follows its members: either way the row is not arranged.
         // The hold is in the element's rows; a working graph is arranged in its own.
         const held = this.holdsAny;
-        const view = this.shownView;
-        const origin = view !== null && view.snapshot === stored ? view.nodeOrigin : null;
+        const origin = this.#originFor(stored);
         const scope = held ? makeMask(n) : null;
         const rows = makeMask(n);
         const fixedAt = new Float32Array(dim * n).fill(Number.NaN);
         for (let row = 0; row < n; row++) {
-            const isHeld = held && this.isHeld(origin === null ? row : origin[row]);
+            const isHeld = held && this.isHeld(origin?.[row] ?? row);
             if (scope !== null && !isHeld) {
                 maskSet(scope, row, true);
             }
@@ -500,6 +499,16 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 }
             },
         };
+    }
+
+    /**
+     * The element row of each row of the graph being arranged, when it is a working graph's.
+     * @param stored - The graph being arranged, as stored.
+     * @returns View row -> element row, or null when the rows are the element's own.
+     */
+    #originFor(stored: GraphSnapshot): Uint32Array | null {
+        const view = this.shownView;
+        return view?.snapshot === stored ? view.nodeOrigin : null;
     }
 
     /**

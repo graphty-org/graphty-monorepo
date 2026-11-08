@@ -104,11 +104,12 @@ export function FilterSelection({
                   }),
               )
             : writeCondition(store, () => session.visibility.updateCondition(id, keepChange(next, effect)));
-    // WHILE THE ELEMENT READS THE WORKING GRAPH, the card is edited as a draft: nothing that is
-    // shown changes and nothing is laid out again until the editor closes, when the draft is
-    // written as one step (graphty-element's `visibility.draft`; design/working-graph/design.md,
-    // section 3). A new card is written only once it has a step, as before.
-    const drafting = session.workingGraph;
+    // IN THE SELECTION WORKSPACE, WHILE THE ELEMENT READS THE WORKING GRAPH, the card is edited as a
+    // draft: nothing that is shown changes and nothing is laid out again until the workspace closes,
+    // when the draft is written as one step (graphty-element's `visibility.draft`;
+    // design/working-graph/design.md, section 3). A new card is written only once it has a step, as
+    // before. The outline-and-pane editor has no Done, so it writes each edit as it always has.
+    const drafting = session.workingGraph && selectionWorkspaceOn(session);
     const draft = useRef<FilterDraft | null>(null);
     const toDraft = (next: UnionLeaf): void => {
         if (draft.current?.open !== true) {
@@ -127,6 +128,10 @@ export function FilterSelection({
             return;
         }
         const saved = session.visibility.conditions.find((each) => each.id === id);
+        // A new card's name, typed in the title bar while it was edited, goes with it.
+        if (saved === undefined && name !== undefined) {
+            open.update({ name });
+        }
         const { rule: held } = open.condition;
         const stepless = held.kind === "union" && held.branches.every((branch) => branch.steps.length === 0);
         const unchanged = saved === undefined ? stepless : JSON.stringify(saved) === JSON.stringify(open.condition);
@@ -138,13 +143,22 @@ export function FilterSelection({
     };
     const finishRef = useRef(finish);
     finishRef.current = finish;
-    // Leaving the card open (a switch of place, a side switch) closes it as Done.
-    useEffect(
-        () => () => {
+    // Leaving the card open (a switch of place, a side switch) closes it as Done; an element that
+    // has gone (the app closing) takes nothing more.
+    useEffect(() => {
+        let gone = false;
+        const unwatch = session.on("session:disposed", () => {
+            gone = true;
+        });
+        return () => {
+            unwatch();
+            if (gone) {
+                draft.current?.cancel();
+                draft.current = null;
+            }
             finishRef.current();
-        },
-        [],
-    );
+        };
+    }, [session]);
     // The full-screen workspace is an experiment; off, the outline-and-pane editor is drawn.
     const Editor = selectionWorkspaceOn(session) ? SelectionEditor : SelectionEditorInline;
     return (
@@ -158,8 +172,8 @@ export function FilterSelection({
             switchedSide={switchedSide}
             openPicker={openPicker}
             hostPicks={hostPicks}
-            // The draft writes nothing until Done, so there is no condition to hold.
-            {...(drafting ? {} : { hold: id })}
+            // With the working graph on, only what is shown is drawn: nothing is held as a ghost.
+            {...(session.workingGraph ? {} : { hold: id })}
             title={title}
             lead={lead}
             titleMenu={titleMenu}

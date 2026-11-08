@@ -232,7 +232,7 @@ describe("a filter lays out what it shows", () => {
 
         // (1) Editing it again: nothing moves, and no node the filter hides is drawn, faint or not.
         const before = positionsOf(session);
-        await openFilters();
+        const modal = await openFilters();
         await degreeFrom("8");
         await waitFor(() => {
             assert.isTrue(session.styles.showingBranches, "the edit is previewed");
@@ -246,6 +246,13 @@ describe("a filter lays out what it shows", () => {
             [],
             "no node the filter hides is drawn while it is edited",
         );
+        // Cancel writes nothing, so nothing moves either.
+        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"), "Cancel closes it");
+        });
+        await element.waitForSettled();
+        assert.deepEqual(positionsOf(session), before, "Cancel lays nothing out");
     });
 
     it("a layout chosen after the filter lays out only what it shows, hidden nodes where they were", async () => {

@@ -313,6 +313,11 @@ export const layoutEngineInternals = {} as {
     takesNode(engine: LayoutEngine, n: Node): boolean;
     /** Whether the engine lays out this edge: always, unless its working graph hides it or an end. */
     takesEdge(engine: LayoutEngine, e: Edge): boolean;
+    /**
+     * Where a node is: the engine's answer, or for a node its working graph hides -- which the
+     * engine never held -- the element's array. Undefined for a hidden node nothing has placed.
+     */
+    positionOf(engine: LayoutEngine, n: Node): Position | undefined;
 };
 
 /**
@@ -409,6 +414,14 @@ export abstract class LayoutEngine {
         layoutEngineInternals.view = (engine) => engine.shown;
         layoutEngineInternals.takesNode = (engine, n) => engine.takesNode(n);
         layoutEngineInternals.takesEdge = (engine, e) => engine.takesEdge(e);
+        layoutEngineInternals.positionOf = (engine, n) => {
+            if (engine.takesNode(n)) {
+                return engine.getNodePosition(n);
+            }
+
+            const out = { x: 0, y: 0, z: 0 };
+            return engine.readNodePosition(n, out) ? out : undefined;
+        };
         layoutEngineInternals.removeNode = (engine, n) => {
             engine.removeNode(n);
         };

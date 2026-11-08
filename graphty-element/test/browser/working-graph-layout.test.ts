@@ -280,6 +280,26 @@ describe("a force layout over the working graph", () => {
         });
     }
 
+    it("answers where a hidden node is, from where it was, though the engine never held it", async () => {
+        const { graph, container } = await emptyGraph(true);
+        try {
+            await addPath(graph);
+            await graph.setLayout("ngraph", { seed: 3 });
+            await graph.waitForStableFrame();
+            const before = positionsOf(graph);
+            await show(graph, FIVE);
+            const hidden = graph.getDataManager().getNode("n10");
+            assert.isDefined(hidden);
+            if (hidden === undefined) {
+                return;
+            }
+            assert.deepEqual(graph.getLayoutManager().getNodePosition(hidden), before.get("n10"));
+        } finally {
+            graph.dispose();
+            container.remove();
+        }
+    });
+
     it("leaves a hidden node where it was while a simulation lays out the rest", async () => {
         const { graph, container } = await emptyGraph(true);
         try {

@@ -2900,7 +2900,8 @@ export class LayoutManager implements Manager {
      * @returns Node position as [x, y, z] or undefined if not available
      */
     getNodePosition(node: Node): [number, number, number] | undefined {
-        const position = this.layoutEngine?.getNodePosition(node);
+        const engine = this.layoutEngine;
+        const position = engine === undefined ? undefined : layoutEngineInternals.positionOf(engine, node);
         if (!position) {
             return undefined;
         }

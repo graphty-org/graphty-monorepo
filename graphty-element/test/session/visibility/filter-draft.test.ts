@@ -85,6 +85,17 @@ describe("a filter draft", () => {
         assert.strictEqual(session.history.steps.length, steps + 1);
     });
 
+    it("keeps a write that lands on the condition while its draft is open", async () => {
+        const session = await graph();
+        await session.visibility.addCondition({ id: "f", effect: "keep", rule: HOSTS });
+        const draft = session.visibility.draft("f");
+        draft.update({ rule: HIGH });
+        await session.visibility.updateCondition("f", { name: "Busy" });
+        await draft.commit();
+        assert.strictEqual(session.visibility.conditions[0]?.name, "Busy", "the rename is kept");
+        assert.deepEqual(session.visibility.conditions[0]?.rule, HIGH, "and the draft's edit lands");
+    });
+
     it("writes nothing on cancel, and refuses edits once closed", async () => {
         const session = await graph();
         const steps = session.history.steps.length;

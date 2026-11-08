@@ -286,7 +286,7 @@ describe("the workspace's cards, as the approved prototype", () => {
         );
     });
 
-    it("renames a filter in the workspace's title bar, one undo step, and keeps it", async () => {
+    it("renames a filter in the workspace's title bar, and Done writes it with its name as one undo step", async () => {
         const { session } = await openApp();
         await userEvent.click(await screen.findByRole("button", { name: /^Data/u }));
         await userEvent.click(await screen.findByRole("button", { name: /Add filter/u }));
@@ -296,16 +296,18 @@ describe("the workspace's cards, as the approved prototype", () => {
             return found;
         });
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Degree");
-        await waitFor(() => {
-            assert.lengthOf(session.visibility.conditions, 1);
-        });
         const before = session.history.steps.length;
         await userEvent.click(within(modal).getByRole("button", { name: /, rename$/u }));
         await userEvent.keyboard("{Control>}a{/Control}Busy people{Enter}");
         await waitFor(() => {
+            assert.match(modal.querySelector(".sel-ws-title")?.textContent ?? "", /Busy people/u);
+        });
+        // A draft of graphty-element's working graph until Done (design/working-graph/design.md, section 3).
+        assert.lengthOf(session.visibility.conditions, 0, "nothing is written while the filter is edited");
+        await userEvent.click(within(modal).getByRole("button", { name: /^Done/u }));
+        await waitFor(() => {
             assert.strictEqual(session.visibility.conditions[0]?.name, "Busy people");
         });
         assert.strictEqual(session.history.steps.length, before + 1, "one undo step");
-        assert.match(modal.querySelector(".sel-ws-title")?.textContent ?? "", /Busy people/u);
     });
 });

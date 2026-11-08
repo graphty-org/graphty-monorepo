@@ -4,7 +4,9 @@
  * `meshes/pulledCurve.ts`) and draws the picture the `"objects"` path draws, at rest and after a drag.
  * A fanned curve that gains a parallel edge fans out beside it, and draws as before once it goes.
  * A bundle spread by `line.fanSpacing` is pulled too, and follows a new spacing, and a curve drawn as an arc of a
- * circle (`line.arcRadius`) follows a new radius.
+ * circle (`line.arcRadius`) follows a new radius. A curve stopped short of its nodes by a gap (`line.nodeGap`,
+ * `sourceNodeGap`, `targetNodeGap`) is pulled too, and follows a new gap, one wide enough that a curve clears
+ * neither gapped node and is drawn uncut between its bare ends.
  * Stage 21 of design/rendering/row-renderer.md; the bar is its section 7.
  */
 
@@ -292,5 +294,46 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.equal(overBar(before.tight, after.tight), 0, "radius 0.6");
         assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
         assert.equal(overBar(before.wide, after.wide), 0, "radius 2");
+    });
+
+    it("pull curves stopped short of their nodes by a gap, and follow a new gap, drawing the objects path's picture", async () => {
+        /**
+         * Stop every curve 0.15 short of its nodes, read the frame, drag, then widen one end's gap and read again.
+         * @param element - The element.
+         * @returns The frames at each gap.
+         */
+        async function gaps(element: Graphty): Promise<{ narrow: Frame; dragged: Frame; wide: Frame }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            await element.session.styles.add({
+                name: "gaps",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.nodeGap": 0.15 },
+            } as never);
+            await settled(element);
+            const narrow = await readCanvas(element.graph);
+            const dragged = await moved(element);
+            // a source gap past the next node: no point of those curves clears both, so each is drawn uncut
+            await element.session.styles.add({
+                name: "wide source gaps",
+                target: "edge",
+                selector: { match: "ids", edges: edges.slice(0, 3) },
+                set: { "edge.sourceNodeGap": 1.2 },
+            } as never);
+            await settled(element);
+            return { narrow, dragged, wide: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await gaps(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await gaps(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.narrow, before.wide), 0, "the wide gaps move the curves");
+        assert.equal(overBar(before.narrow, after.narrow), 0, "a gap of 0.15");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.wide, after.wide), 0, "wide source gaps");
     });
 });

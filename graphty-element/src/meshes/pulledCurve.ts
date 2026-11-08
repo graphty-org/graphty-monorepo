@@ -54,6 +54,12 @@ export interface CurveSpan {
      * radius alone, so the shader needs no arc tangent and turns a half circle the way `centerArc` did; null otherwise.
      */
     readonly turn: number | null;
+    /**
+     * For the lone curve drawn uncut in place of a route no sample of which clears both nodes, how far along the
+     * chord from source to target it starts and stops, when a gap (`line.nodeGap`) moves those ends off the centers
+     * (`Edge.bareEnd`); null otherwise. The curve is then the lone curve between those two points of the chord.
+     */
+    readonly ends: readonly [number, number] | null;
 }
 
 /**
@@ -172,7 +178,7 @@ function circleSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, radius: 
 }
 
 /** Which path a span samples: a lone curve, a fanned arc (`bow`) or a center arc (`radius`). */
-type Shape = Pick<CurveSpan, "bow" | "radius" | "turn">;
+type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "ends">;
 
 /**
  * One sample of the path a span's shape names.
@@ -184,6 +190,11 @@ type Shape = Pick<CurveSpan, "bow" | "radius" | "turn">;
  * @returns The point.
  */
 function pathSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, shape: Shape): Xyz {
+    const { ends } = shape;
+    if (ends !== null) {
+        return sampleAt(along(src, dst, ends[0]), along(src, dst, ends[1]), i, samples);
+    }
+
     if (shape.radius !== null) {
         return circleSampleAt(src, dst, i, samples, shape.radius);
     }
@@ -192,19 +203,36 @@ function pathSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, shape: Sha
 }
 
 /**
- * The span's shape as the shader's two numbers: (bow or turn, 0 for a lone curve, 1 for a fanned arc, 2 for a
- * center arc), the last two of a curve piece's fourth texel.
- * @param span - The span, or null.
- * @returns The two numbers.
+ * The point a share of the way along the chord from one center to the other.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param t - The share.
+ * @returns The point.
  */
-export function curveShape(span: Shape | null): [number, number] {
+function along(src: Xyz, dst: Xyz, t: number): Xyz {
+    return { x: src.x + (dst.x - src.x) * t, y: src.y + (dst.y - src.y) * t, z: src.z + (dst.z - src.z) * t };
+}
+
+/**
+ * The span's shape as the shader's three numbers: (bow, turn or where an uncut curve starts; 0 for a lone curve,
+ * 1 for a fanned arc, 2 for a center arc, 3 for a lone curve between two points of the chord; where that curve
+ * stops), the last three of a curve piece's fourth texel.
+ * @param span - The span, or null.
+ * @returns The three numbers.
+ */
+export function curveShape(span: Shape | null): [number, number, number] {
+    const ends = span?.ends ?? null;
+    if (ends !== null) {
+        return [ends[0], 3, ends[1]];
+    }
+
     const turn = span?.turn ?? null;
     if (turn !== null) {
-        return [turn, 2];
+        return [turn, 2, 0];
     }
 
     const bow = span?.bow ?? null;
-    return bow === null ? [0, 0] : [bow, 1];
+    return bow === null ? [0, 0, 0] : [bow, 1, 0];
 }
 
 /**
@@ -261,9 +289,12 @@ function crossingAlong(inside: Xyz, outside: Xyz, isOutside: (x: number, y: numb
  * @param outsideDst - Whether a point is outside the target node.
  * @param bow - A fanned arc's bow ({@link CurveSpan.bow}), or null for a lone curve.
  * @param radius - A center arc's radius ({@link CurveSpan.radius}), or null; it wins over `bow`.
- * @returns The span; the lone curve from center to center, uncut, when no sample is outside both nodes, as
+ * @param bareEnds - Where the line starts and stops when it is not cut (`Edge.bareEnd`: the centers, or with a gap,
+ *     off the nodes along the chord), asked only when no sample is outside both nodes; unset, the centers.
+ * @returns The span; the lone curve between the bare ends, uncut, when no sample is outside both nodes, as
  *     the object path then draws it; or null when it draws the curve another way: a center outside its own node
- *     (the line then leaves from the center, `Edge.leaveNode`).
+ *     (the line then leaves from the center, `Edge.leaveNode`), or bare ends that meet, where `createBezierLine`
+ *     draws a self-loop.
  */
 export function curveSpan(
     src: Xyz,
@@ -272,11 +303,12 @@ export function curveSpan(
     outsideDst: (x: number, y: number, z: number) => boolean,
     bow: number | null = null,
     radius: number | null = null,
+    bareEnds: (() => readonly [Xyz, Xyz]) | null = null,
 ): CurveSpan | null {
     const circle = radius === null ? null : centerCircle(src, dst, radius);
-    let shape: Shape = { bow, radius: null, turn: null };
+    let shape: Shape = { bow, radius: null, turn: null, ends: null };
     if (radius !== null) {
-        shape = { bow: null, radius, turn: circle?.turn ?? 0 };
+        shape = { bow: null, radius, turn: circle?.turn ?? 0, ends: null };
     }
 
     let samples = curvePieces(src, dst);
@@ -294,10 +326,9 @@ export function curveSpan(
 
     const span = routeOutside(flat, outsideSrc, outsideDst);
     if (span === null) {
-        // a route no point of which clears both nodes is drawn as the lone curve from center to center, uncut
+        // a route no point of which clears both nodes is drawn as the lone curve between its bare ends, uncut
         // (`Edge.placeCurve`), a fanned arc's too
-        const lone = curvePieces(src, dst);
-        return { samples: lone, first: 1, pieces: lone, startAt: 0, endAt: 0, bow: null, radius: null, turn: null };
+        return uncutSpan(src, dst, bareEnds?.() ?? null);
     }
 
     if (span.first === 0 || span.last === samples) {
@@ -312,6 +343,39 @@ export function curveSpan(
         startAt: crossingAlong(at(span.first - 1), at(span.first), outsideSrc),
         endAt: crossingAlong(at(span.last + 1), at(span.last), outsideDst),
         ...shape,
+    };
+}
+
+/**
+ * The span of the lone curve drawn uncut between a line's bare ends, as `EdgeMesh.createBezierLine` draws it.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param bareEnds - The bare ends, both on the chord, or null for the centers.
+ * @returns The span, or null when the ends are within 0.01 on every axis, where `createBezierLine` draws a self-loop.
+ */
+function uncutSpan(src: Xyz, dst: Xyz, bareEnds: readonly [Xyz, Xyz] | null): CurveSpan | null {
+    const [from, to] = bareEnds ?? [src, dst];
+    if (Math.abs(from.x - to.x) <= 0.01 && Math.abs(from.y - to.y) <= 0.01 && Math.abs(from.z - to.z) <= 0.01) {
+        return null;
+    }
+
+    const chord = { x: dst.x - src.x, y: dst.y - src.y, z: dst.z - src.z };
+    const square = chord.x * chord.x + chord.y * chord.y + chord.z * chord.z;
+    const share = (p: Xyz): number =>
+        ((p.x - src.x) * chord.x + (p.y - src.y) * chord.y + (p.z - src.z) * chord.z) / square;
+    const ends: [number, number] = [share(from), share(to)];
+    const moved = ends[0] !== 0 || ends[1] !== 1;
+    const lone = curvePieces(from, to);
+    return {
+        samples: lone,
+        first: 1,
+        pieces: lone,
+        startAt: 0,
+        endAt: 0,
+        bow: null,
+        radius: null,
+        turn: null,
+        ends: moved ? ends : null,
     };
 }
 
@@ -344,7 +408,7 @@ export function curvePathPoint(src: Xyz, dst: Xyz, span: CurveSpan, j: number): 
 
 /**
  * {@link curvePathPoint} for a shader: `pulledCurvePoint(src, dst, span, cut, j)`, where `span` is
- * (samples, first, pieces, unused) and `cut` is (startAt, endAt, then {@link curveShape}'s two numbers).
+ * (samples, first, pieces, then {@link curveShape}'s third number) and `cut` is (startAt, endAt, then its first two).
  */
 export const PULLED_CURVE_GLSL = `
 vec3 pulledArcSample(vec3 src, vec3 dst, float i, float samples, float bow) {
@@ -409,6 +473,13 @@ vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut) {
 }
 
 vec3 pulledCurvePoint(vec3 src, vec3 dst, vec4 span, vec4 cut, int j) {
+    if (cut.w > 2.5) {
+        // the lone curve between two points of the chord, where a gap moves an uncut curve's ends
+        vec3 start = mix(src, dst, cut.z);
+        dst = mix(src, dst, span.w);
+        src = start;
+        cut = vec4(cut.xy, 0.0, 0.0);
+    }
     float samples = span.x;
     float first = span.y;
     int pieces = int(span.z + 0.5);

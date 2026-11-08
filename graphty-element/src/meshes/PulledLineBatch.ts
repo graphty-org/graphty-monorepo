@@ -207,7 +207,7 @@ export class PulledLineBatch {
         this.rows[at + 10] = span?.pieces ?? 0;
         this.rows[at + 11] = span?.startAt ?? 0;
         this.rows[at + 12] = span?.endAt ?? 0;
-        [this.rows[at + 13], this.rows[at + 14]] = curveShape(span);
+        [this.rows[at + 13], this.rows[at + 14], this.rows[at + 15]] = curveShape(span);
         this.touch(piece);
     }
 

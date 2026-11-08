@@ -12,7 +12,7 @@ import { curvePathPoint, curveShape, type CurveSpan, curveSpan, PULLED_CURVE_GLS
 
 const VERTEX = `#version 300 es
 precision highp float;
-in vec3 src;
+in vec4 srcAndEnd;
 in vec3 dst;
 in vec4 span;
 in vec4 cutAndPoint;
@@ -20,7 +20,7 @@ out vec3 outPoint;
 ${PULLED_CURVE_GLSL}
 void main() {
     vec4 cut = vec4(cutAndPoint.xy, span.w, cutAndPoint.z);
-    outPoint = pulledCurvePoint(src, dst, vec4(span.xyz, 0.0), cut, int(cutAndPoint.w + 0.5));
+    outPoint = pulledCurvePoint(srcAndEnd.xyz, dst, vec4(span.xyz, srcAndEnd.w), cut, int(cutAndPoint.w + 0.5));
     gl_Position = vec4(0.0);
 }
 `;
@@ -64,25 +64,18 @@ function shaderPoints(asks: Ask[]): Float32Array {
     gl.useProgram(program);
 
     const floats = asks.flatMap(({ src, dst, span, j }) => [
-        ...[src.x, src.y, src.z, 0],
+        ...[src.x, src.y, src.z, curveShape(span)[2]],
         ...[dst.x, dst.y, dst.z, 0],
         ...[span.samples, span.first, span.pieces, curveShape(span)[0]],
         ...[span.startAt, span.endAt, curveShape(span)[1], j],
     ]);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(floats), gl.STATIC_DRAW);
-    ["src", "dst", "span", "cutAndPoint"].forEach((name, i) => {
+    ["srcAndEnd", "dst", "span", "cutAndPoint"].forEach((name, i) => {
         const location = gl.getAttribLocation(program, name);
         assert.isAtLeast(location, 0, `${name} is read`);
         gl.enableVertexAttribArray(location);
-        gl.vertexAttribPointer(
-            location,
-            name === "span" || name === "cutAndPoint" ? 4 : 3,
-            gl.FLOAT,
-            false,
-            64,
-            i * 16,
-        );
+        gl.vertexAttribPointer(location, name === "dst" ? 3 : 4, gl.FLOAT, false, 64, i * 16);
     });
 
     const captured = gl.createBuffer();
@@ -99,7 +92,10 @@ function shaderPoints(asks: Ask[]): Float32Array {
     return out;
 }
 
-/** Every point of 200 cut curves between spheres, the source at the origin; every other one a fanned arc. */
+/**
+ * Every point of 200 cut curves between spheres, the source at the origin: lone curves, fanned arcs, center arcs,
+ * and lone curves stopped short of their nodes by a gap, often wide enough that the curve is drawn uncut.
+ */
 function asks(): Ask[] {
     let s = 3251;
     const random = (): number => {
@@ -118,18 +114,30 @@ function asks(): Ask[] {
             const d = Math.hypot(x - c.x, y - c.y, z - c.z);
             return d > 0 && d > r;
         };
-        // a lone curve, a fanned arc, and a center arc (`line.arcRadius`) in turn
-        const kind = Math.floor(random() * 3);
+        // a lone curve, a fanned arc, a center arc (`line.arcRadius`) and a gapped lone curve in turn
+        const kind = Math.floor(random() * 4);
         const bow = kind === 1 ? (random() - 0.5) * 2 * scale : null;
         // a half circle (radius 0.5) among them, whose way round is a float's noise
         const arc = kind === 2 ? Math.max(0.5, random() * 3.5 - 0.5) : null;
+        const [rSrc, rDst] = [random() * scale * 0.3, random() * scale * 0.3];
+        const [gSrc, gDst] = kind === 3 ? [random() * scale * 0.4, random() * scale * 0.4] : [0, 0];
+        const length = Math.hypot(dst.x, dst.y, dst.z);
+        const bare = (from: Xyz, to: Xyz, reach: number): Xyz => {
+            const t = Math.min(reach, length) / length;
+            return {
+                x: from.x + (to.x - from.x) * t,
+                y: from.y + (to.y - from.y) * t,
+                z: from.z + (to.z - from.z) * t,
+            };
+        };
         const span = curveSpan(
             src,
             dst,
-            radius(src, random() * scale * 0.3),
-            radius(dst, random() * scale * 0.3),
+            radius(src, rSrc + gSrc),
+            radius(dst, rDst + gDst),
             bow,
             arc,
+            kind === 3 ? () => [bare(src, dst, rSrc + gSrc), bare(dst, src, rDst + gDst)] : null,
         );
         for (let j = 0; span !== null && j <= span.pieces; j++) {
             out.push({ src, dst, span, j });
@@ -142,6 +150,11 @@ function asks(): Ask[] {
 describe("the pulled curve's GLSL", () => {
     it("puts every path point within 1e-4 of its mirror", () => {
         const all = asks();
+        assert.isAbove(
+            all.filter((a) => a.span.ends !== null).length,
+            0,
+            "some gapped curves are drawn uncut between their bare ends",
+        );
         const got = shaderPoints(all);
         let worst = 0;
         all.forEach(({ src, dst, span, j }, i) => {

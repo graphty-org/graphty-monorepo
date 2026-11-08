@@ -616,8 +616,10 @@ function FilterCard({
     ];
     // A card that removes its matches shows none of them; only the others say how many are shown.
     const shownSuffix = condition?.effect === "exclude" ? "" : shownWords(reading.total);
-    const total =
-        selection === null ? undefined : `${formatNumber(matched)} of ${formatNumber(reading.total.of)}${shownSuffix}`;
+    const ofAll = `${formatNumber(matched)} of ${formatNumber(reading.total.of)}`;
+    const total = selection === null ? undefined : `${ofAll}${shownSuffix}`;
+    // Spoken, the kind of thing counted follows the count, before what is shown: "12 of 77 nodes, 0 shown".
+    const spoken = selection === null ? undefined : `${ofAll} ${things}${shownSuffix}`;
     // While a card's workspace is open the other cards keep their rows but drop their counts.
     const editing = useWorkspaceState((state) => state.selectionWorkspace?.host === "filter");
 
@@ -628,7 +630,7 @@ function FilterCard({
                 role="group"
                 data-id={id}
                 tabIndex={-1}
-                aria-label={total === undefined ? name : `${name}, ${total} ${things}`}
+                aria-label={spoken === undefined ? name : `${name}, ${spoken}`}
                 className="ws-card dp-filter"
                 data-off={on ? undefined : ""}
                 data-open={open ? "" : undefined}
@@ -741,7 +743,7 @@ function FilterCard({
                                         ? ["Edit", ...(on ? [] : ["off"])].join(", ")
                                         : [
                                               title,
-                                              ...(total === undefined ? [] : [`${total} ${things}`]),
+                                              ...(spoken === undefined ? [] : [spoken]),
                                               ...(on ? [] : ["off"]),
                                           ].join(", ")
                                 }

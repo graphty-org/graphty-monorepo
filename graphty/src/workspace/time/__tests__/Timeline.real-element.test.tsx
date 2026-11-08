@@ -679,7 +679,8 @@ describe("the Overview and the import of time", () => {
         const graph = session.data.snapshot();
         const ghostLayer = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
         assert.isDefined(ghostLayer);
-        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").matched;
+        // Ghosts are outside the working graph the app reads, so counting them names the whole graph.
+        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "", { scope: "graph" }).matched;
         assert.equal(ghosts(), 0, "hidden, not ghosted, by default");
 
         await userEvent.click(within(outside).getByText("Ghost"));

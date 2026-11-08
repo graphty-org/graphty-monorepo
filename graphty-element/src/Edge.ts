@@ -2476,7 +2476,7 @@ export class Edge {
             target: -1,
             drawn: true,
             name: `edge-style-${options.styleId}-pulled`,
-            visibility: opacity < 1 ? opacity : 1,
+            visibility: Math.min(opacity, 1),
         };
         this.pullRows();
         return batch.mesh;

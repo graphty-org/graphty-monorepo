@@ -813,6 +813,7 @@ describe("batchableOf", () => {
         ["an image", { texture: { image: "a.png" } }, false],
         ["an icon", { texture: { icon: "star" } }, false],
         ["a glow", { effect: { glow: { color: "#ff0000", strength: 1 } } }, false],
+        ["a z order, baked into the source's vertices", { shape: { zIndex: -3, drawOrder: 20 } }, true],
         ["a shape option no batch draws", { shape: { width: 2 } }, false],
         ["a label, which hangs from the row's anchor", { label: { enabled: true } }, true],
         ["a tooltip", { tooltip: { enabled: true } }, true],

@@ -297,6 +297,30 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(objects, batched), 0);
     });
 
+    it.each(["3d", "2d"] as const)("draw rows in z order in %s as the object rows draw them", async (view) => {
+        const element = await mounted(renderer);
+        await loaded(element, view);
+        // Overlapping rows on both kinds of level: behind the edges' plane, and flattened in front of it.
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 0).map((node) => node.id),
+            { "node.zIndex": -2 },
+        );
+        await layer(
+            element,
+            NODES.filter((node) => node.id % 3 === 1).map((node) => node.id),
+            { "node.drawOrder": 40 },
+        );
+        await layer(element, [2, 5], { "node.drawOrder": 90 });
+        await element.waitForStableFrame();
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        assert.equal(overBar(objects, batched), 0);
+    });
+
     it("measure a batched row's radius again after a repaint changes its size", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");

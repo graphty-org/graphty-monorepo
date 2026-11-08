@@ -2309,6 +2309,8 @@ class Node_2 implements ModelUser {
     // @internal
     get walksEachFrame(): boolean;
     // @internal
+    get wholeScale(): number;
+    // @internal
     get wordedLabel(): RichTextLabel | null;
     xlabelLabel?: RichTextLabel;
 }

@@ -522,12 +522,24 @@ export class NodeBatches {
         }
 
         if (group.batched && !object) {
-            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale);
+            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale);
             // A row the table does not hold yet keeps its mesh until the flush settles its group.
             this.draw(node, node.index < this.host.places.rows ? group.source : null, group.restVisibility);
             this.dirty.add(group);
         } else {
             this.draw(node, null);
+        }
+    }
+
+    /**
+     * The view scaled a node (`Node.wholeScale`): its batched row's matrix follows.
+     * @param node - The node.
+     */
+    rescale(node: Node): void {
+        const group = this.groupOf.get(node);
+        if (group?.batched === true && !this.objectRows.has(node)) {
+            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale);
+            this.dirty.add(group);
         }
     }
 
@@ -580,7 +592,7 @@ export class NodeBatches {
     /** Bring every batch up to date before a frame. */
     private flush(): void {
         const view = this.host.view();
-        if (view.scaled !== this.view.scaled || view.flatOutline !== this.view.flatOutline) {
+        if (view.flatOutline !== this.view.flatOutline) {
             this.view = view;
             this.syncAll();
         }
@@ -774,7 +786,7 @@ export class NodeBatches {
                 // A look's opacity is its source's visibility, which a batched source gives up for 0.
                 ({ restVisibility } = group);
                 for (const node of group.members) {
-                    rows.push({ node, scale: group.scale });
+                    rows.push({ node, scale: group.scale * node.wholeScale });
                 }
             }
         }

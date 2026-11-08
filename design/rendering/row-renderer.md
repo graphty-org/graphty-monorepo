@@ -523,7 +523,7 @@ Corrections, from the code:
   object path draws the lone curve from center to center there. The fourth pull request draws that curve (below).
 - Moving a node still writes edge bytes for a pulled curve: its span changes with its length, so every piece of a moved
   curve is rewritten (16 floats a piece, against the object path's slot plus its matrix), and the CPU still samples the
-  curve to find its cut. The measurement on 100,000 curves waits for a curve scenario in `benchmarks/compare`.
+  curve to find its cut. The measurement on 100,000 curves is in the ninth pull request's paragraph below.
 
 As built (stage 21, second pull request): a fanned curve alone between its two nodes is pulled too, on `"batched"`.
 `Edge.pullsLine` takes `line.bezier: true` with `line.fanned` unset or true when no other edge joins the two nodes in
@@ -634,6 +634,18 @@ gapped and flat among them; `test/browser/pulled-curve-glsl.test.ts` holds the G
 `test/browser/pulled-curves-batched.test.ts` straightens every edge, raises it, drags a node, raises it to 0.6 and
 flattens it to 0, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a
 curve with caps or `supportModel`, a great-circle route, a raised route the layout picks, bends and self-loops.
+
+As built (stage 21, ninth pull request): `benchmarks/compare` has the curve scenario, key `lean-s-curves`: 10,000 boxes
+and 100,000 curves (`edge.curvature`, no caps) in 3D, which under `"batched"` fails if any edge is an object edge. Its
+moving stage orbits the 3D camera, and a run fails if the camera state after that stage equals the state before it, so
+a camera move the view ignores cannot time a still view as a moving one. On the RTX at commit cd1a676863, three runs a
+path interleaved, one-minute load average 1.4 to 2.0: under `"batched"` all 100,000 curves are pulled and the moving
+frame is 46.0 ms median (runs 44.7 to 46.3, p99 49.3), still frame 46.6 ms, drag frame 47.6 ms, renderer and GPU
+processes 5,184 MB (`benchmarks/results/stage-21-curves-batched`); under `"objects"` moving 60.7 ms (60.3 to 62.3, p99
+77.7), still 58.9 ms, drag 124 ms, 2,839 MB (`benchmarks/results/stage-21-curves-objects`). The 40 ms target is missed
+by about 6 ms. Under `"batched"` a moving frame costs what a still one does, so the frame is bound by drawing the curves,
+not by the camera. The pulled path holds 2.3 GB more, which a curve's pieces (one per sample of its longest cut, four
+texels each) and its per-piece vertices would explain but no profile has yet confirmed.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.

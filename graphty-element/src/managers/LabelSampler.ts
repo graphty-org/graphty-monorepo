@@ -185,7 +185,6 @@ export class LabelSampler {
             this.transform.copyFrom(toClip);
         }
 
-        const { m } = this.transform;
         const dataManager = this.context.getDataManager();
         const best = new Map<number, Node>();
         for (const node of this.candidates) {
@@ -194,30 +193,44 @@ export class LabelSampler {
                 continue;
             }
 
-            if (!node.isDrawn) {
-                continue;
-            }
-
-            const { x, y, z } = node.drawnPosition;
-            // Behind the camera: clip w at or below zero.
-            if (x * m[3] + y * m[7] + z * m[11] + m[15] <= 0) {
-                continue;
-            }
-
-            const ndc = Vector3.TransformCoordinatesFromFloatsToRef(x, y, z, this.transform, this.point);
-            if (ndc.x < -1 || ndc.x > 1 || ndc.y < -1 || ndc.y > 1) {
-                continue;
-            }
-
-            const key =
-                Math.floor((((ndc.x + 1) / 2) * width) / size) * rows + Math.floor((((1 - ndc.y) / 2) * height) / size);
+            const key = node.isDrawn ? this.cellOf(node, width, height, size, rows) : -1;
             const held = best.get(key);
-            if (held === undefined || beats(node, held, degrees)) {
+            if (key >= 0 && (held === undefined || beats(node, held, degrees))) {
                 best.set(key, node);
             }
         }
 
         this.winners = new Set(best.values());
+        this.build();
+    }
+
+    /**
+     * The screen cell a node's center is in, through {@link transform}.
+     * @param node - The node.
+     * @param width - The canvas width, in render pixels.
+     * @param height - The canvas height, in render pixels.
+     * @param size - The cell size, in render pixels.
+     * @param rows - Cells down the canvas.
+     * @returns The cell's key, or -1 when the node is behind the camera or outside the view.
+     */
+    private cellOf(node: Node, width: number, height: number, size: number, rows: number): number {
+        const { m } = this.transform;
+        const { x, y, z } = node.drawnPosition;
+        // Behind the camera: clip w at or below zero.
+        if (x * m[3] + y * m[7] + z * m[11] + m[15] <= 0) {
+            return -1;
+        }
+
+        const ndc = Vector3.TransformCoordinatesFromFloatsToRef(x, y, z, this.transform, this.point);
+        if (ndc.x < -1 || ndc.x > 1 || ndc.y < -1 || ndc.y > 1) {
+            return -1;
+        }
+
+        return Math.floor((((ndc.x + 1) / 2) * width) / size) * rows + Math.floor((((1 - ndc.y) / 2) * height) / size);
+    }
+
+    /** Build each winner's label and drop each other candidate's, and count what is left unbuilt. */
+    private build(): void {
         let unbuilt = 0;
         let hidden = 0;
         for (const node of this.candidates) {

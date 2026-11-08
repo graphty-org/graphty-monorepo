@@ -134,11 +134,13 @@ export function stepDetail(session: GraphSession | null, call: StepCall): string
     const args = Object.entries(call.arguments ?? {}).map(
         ([key, value]) => `${key} ${valueWords(session, key, value)}`,
     );
-    const lines = [args.length === 0 ? `Tool ${call.tool}` : `Tool ${call.tool}: ${args.join("; ")}`];
-    lines.push(...(call.effects ?? []).map((effect) => effectFacts(session, effect)));
+    const lines = [
+        args.length === 0 ? `Tool ${call.tool}` : `Tool ${call.tool}: ${args.join("; ")}`,
+        ...(call.effects ?? []).map((effect) => effectFacts(session, effect)),
+    ];
     if (call.code !== undefined && call.code !== "AI_COMPLETED") {
-        const cause = call.params?.cause;
-        lines.push(`Ended ${call.code}${cause === undefined ? "" : `, cause ${cause}`}`);
+        const cause = call.params?.cause === undefined ? "" : `, cause ${call.params.cause}`;
+        lines.push(`Ended ${call.code}${cause}`);
     }
     return lines;
 }
@@ -165,14 +167,6 @@ function stamp(at: Date): string {
     const two = (n: number): string => String(n).padStart(2, "0");
     return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())} ${two(at.getHours())}:${two(at.getMinutes())}`;
 }
-
-/**
- * Text set off under its head, each line indented.
- * @param text - the text.
- * @param indent - the indent.
- * @returns the lines.
- */
-const indented = (text: string, indent: string): string[] => text.split("\n").map((line) => `${indent}${line}`);
 
 /**
  * The ids a result names, read from the element as the result's chips read them.
@@ -218,6 +212,109 @@ export interface ChatWaiting {
     readonly questions: readonly AiQuestionRequest[];
 }
 
+/** A reader's or the assistant's message, as the chat holds it. */
+type Message = AiConversationSnapshot["messages"][number];
+type ReaderMessage = Extract<Message, { role: "reader" }>;
+type AssistantMessage = Extract<Message, { role: "assistant" }>;
+
+/**
+ * Words in parentheses after a head, or nothing with none.
+ * @param parts - the words, "" for none.
+ * @returns such as " (answer, spoken)".
+ */
+function aside(parts: readonly string[]): string {
+    const said = parts.filter((part) => part !== "");
+    return said.length === 0 ? "" : ` (${said.join(", ")})`;
+}
+
+/**
+ * A reader's message: how it was said, then its words.
+ * @param message - the message.
+ * @returns the lines.
+ */
+function readerLines(message: ReaderMessage): string[] {
+    const { scope } = message;
+    const how = aside([
+        // A message the reader starts carries its own provenance; an answer goes on with the one asked.
+        message.provenance === undefined ? "answer" : "",
+        message.via === "voice" ? "spoken" : "",
+        scope?.kind === "selection" ? `about the selection, ${scope.nodes} nodes` : "",
+        message.undone === true ? "undone" : "",
+    ]);
+    return [`## You${how}`, ...message.text.split("\n")];
+}
+
+/**
+ * A reply's steps, each with its details under it.
+ * @param session - the session.
+ * @param message - the reply.
+ * @returns the lines.
+ */
+function stepLines(session: GraphSession | null, message: AssistantMessage): string[] {
+    if (message.calls.length === 0) {
+        return [];
+    }
+    return [
+        "Steps:",
+        ...message.calls.flatMap((record, index) => {
+            const call: StepCall = { ...record, tool: record.command };
+            const ms = record.durationMs === undefined ? "" : ` (${durationWords(record.durationMs)})`;
+            return [
+                `${index + 1}. ${stepLine(session, call)}${ms}`,
+                ...stepDetail(session, call).map((line) => `   - ${line}`),
+            ];
+        }),
+    ];
+}
+
+/**
+ * A reply's results, each with the ids it names.
+ * @param session - the session.
+ * @param effects - the reply's effects.
+ * @returns the lines.
+ */
+async function resultLines(session: GraphSession | null, effects: readonly AiEffect[]): Promise<string[]> {
+    const results = effects.filter(isResult);
+    const lines = await Promise.all(
+        results.map(async (effect) => {
+            const ids = await namedIds(session, effect.target);
+            const named = ids === null ? "" : ` -- ${ids}`;
+            return `- ${effectFacts(session, effect)}${named}`;
+        }),
+    );
+    return lines.length === 0 ? [] : ["Results:", ...lines];
+}
+
+/**
+ * The assistant's message: its words, its steps, its changes, its results and how it ended.
+ * @param session - the session.
+ * @param message - the message.
+ * @param provider - the provider's name.
+ * @returns the lines.
+ */
+async function replyLines(
+    session: GraphSession | null,
+    message: AssistantMessage,
+    provider: string,
+): Promise<string[]> {
+    const effects = message.effects ?? [];
+    const changes = changeLines(session, effects.filter(isChange));
+    const lines = [
+        `## Assistant${aside([message.agent ?? ""])}`,
+        ...(message.text === "" ? [] : message.text.split("\n")),
+        ...(message.saidWhileHeld === true ? [heldWords(message.calls.map((call) => call.code))] : []),
+        ...stepLines(session, message),
+        ...(changes.length === 0 ? [] : ["Changes:", ...changes.map((line) => `- ${line}`)]),
+        ...(await resultLines(session, effects)),
+    ];
+    if (message.outcome !== undefined) {
+        const { code, params } = message.outcome;
+        const words = endWords(code, params, provider, false);
+        lines.push(words === null ? `Ended: ${code}` : `Ended: ${words.line} (${code})`);
+    }
+    return lines;
+}
+
 /**
  * The whole chat as plain text, for a developer to see what the reader saw: a heading, then each
  * message, each reply's steps with their details, its changes and results, and how it ended.
@@ -241,52 +338,9 @@ export async function chatText(
         `Copied: ${stamp(heading.at)}`,
     ];
     for (const message of chat.messages) {
-        out.push("");
-        if (message.role === "reader") {
-            const how = [
-                // A message the reader starts carries its own provenance; an answer goes on with the one asked.
-                message.provenance === undefined ? "answer" : "",
-                message.via === "voice" ? "spoken" : "",
-                message.scope?.kind === "selection" ? `about the selection, ${message.scope.nodes} nodes` : "",
-                message.undone === true ? "undone" : "",
-            ].filter((part) => part !== "");
-            out.push(`## You${how.length === 0 ? "" : ` (${how.join(", ")})`}`, ...indented(message.text, ""));
-            continue;
-        }
-        out.push(`## Assistant${message.agent === undefined ? "" : ` (${message.agent})`}`);
-        if (message.text !== "") {
-            out.push(...indented(message.text, ""));
-        }
-        if (message.saidWhileHeld === true) {
-            out.push(heldWords(message.calls.map((call) => call.code)));
-        }
-        if (message.calls.length > 0) {
-            out.push("Steps:");
-            message.calls.forEach((record, index) => {
-                const call: StepCall = { ...record, tool: record.command };
-                const ms = record.durationMs === undefined ? "" : ` (${durationWords(record.durationMs)})`;
-                out.push(`${index + 1}. ${stepLine(session, call)}${ms}`);
-                out.push(...stepDetail(session, call).map((line) => `   - ${line}`));
-            });
-        }
-        const effects = message.effects ?? [];
-        const changes = changeLines(session, effects.filter(isChange));
-        if (changes.length > 0) {
-            out.push("Changes:", ...changes.map((line) => `- ${line}`));
-        }
-        const results = effects.filter(isResult);
-        if (results.length > 0) {
-            out.push("Results:");
-            for (const effect of results) {
-                const ids = await namedIds(session, effect.target);
-                out.push(`- ${effectFacts(session, effect)}${ids === null ? "" : ` -- ${ids}`}`);
-            }
-        }
-        if (message.outcome !== undefined) {
-            const words = endWords(message.outcome.code, message.outcome.params, heading.provider, false);
-            const { code } = message.outcome;
-            out.push(words === null ? `Ended: ${code}` : `Ended: ${words.line} (${code})`);
-        }
+        const lines =
+            message.role === "reader" ? readerLines(message) : await replyLines(session, message, heading.provider);
+        out.push("", ...lines);
     }
     for (const request of waiting.approvals) {
         out.push("", `Waiting for you: ${approvalWords(request).title}`);

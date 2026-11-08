@@ -486,7 +486,17 @@ void main() {
      * - everything else is the straight solid 3D line
      *
      * A slot is sixteen floats; the mesh and the material are the batch's, so the colour, the
-     * width and the opacity stay folded into the key, and there is one batch per appearance.
+     * width and the opacity stay folded into the key, and there is one batch per appearance --
+     * except with `byShape`, below.
+     *
+     * ONE BATCH PER SHAPE, WHATEVER THE COLOR (`byShape`, issue #6026). A plain joined line -- not
+     * widened, not animated -- reads its color and opacity from its slot, so its batch is keyed by
+     * what its mesh is built from (the line type, width, minimum screen width, blending and dash
+     * count) and not by the look's key, and the edge writes its own color into each of its slots
+     * (`EdgeLineBatch.setColor`). Edges that differ only in color then share a batch, and a restyle
+     * between two such looks recolors the slots where they are. Only the edge's own line asks for
+     * it: a selection band, an outline or a gradient's piece keeps a batch of its own look, whose
+     * material a caller may change (the selection band's depth offset).
      * @param cache - The mesh cache, which owns the batches so that they die when it does.
      * @param options - Edge mesh options including styleId, width, and color.
      * @param style - Full edge style configuration.
@@ -495,6 +505,8 @@ void main() {
      *     static attributes (`EdgeLineBatch`), in a batch of its own. An animated line is drawn
      *     still when widened.
      * @param loop - Whether the edge is a self-loop (see {@link EdgeMesh.drawsAsPattern}).
+     * @param byShape - Share the batch with every line of the same shape, whatever its color (see
+     *     above); the caller then colors each slot it takes.
      * @returns The batch to take a slot in, or null for a patterned line.
      */
     static lineBatch(
@@ -504,9 +516,14 @@ void main() {
         scene: Scene,
         widened = false,
         loop = false,
+        byShape = false,
     ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
-        const key = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
+        const styleKey = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
+        const key =
+            byShape && !widened
+                ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${String(this.drawsOpaque(style))}|${String(style.line?.patternCount ?? "")}`
+                : styleKey;
         const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache, widened);
         const curve = style.line?.bezier === true;
         // Only a widened batch knows the whole edge's length, and a band or a gradient's piece,
@@ -573,17 +590,20 @@ void main() {
             );
         }
 
+        // An animated line is drawn from thin-instance matrices, with its color on its material.
         if (!curve && !widened && style.line?.animationSpeed) {
-            return cache.getBatch(key, () => this.createAnimatedLine(options, style, scene), scene);
+            return cache.getBatch(styleKey, () => this.createAnimatedLine(options, style, scene), scene);
         }
 
         return cache.getBatch(key, staticLine, scene);
     }
 
     /**
-     * The batch a plain straight line between node centres is pulled into: the plain line's own
-     * look (`createStaticLine`), drawn from the row table (`PulledLineBatch`).
-     * @param cache - The cache that keeps one batch per look.
+     * The batch a plain straight line between node centres is pulled into, drawn from the row table
+     * (`PulledLineBatch`). A piece carries its color, width and opacity itself
+     * (`PulledLineBatch.setLook`), so they key no batch: one batch per minimum screen width and
+     * per pass (translucent lines draw in the transparent pass, as the plain line's do).
+     * @param cache - The cache that keeps the batches.
      * @param options - The line's look.
      * @param style - The resolved style.
      * @param scene - The scene.
@@ -597,12 +617,29 @@ void main() {
         scene: Scene,
         rowPositions: () => BaseTexture,
     ): PulledLineBatch {
-        return cache.getPulledBatch(`edge-style-${options.styleId}-pulled`, () => {
+        // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
+        // line (blending false) neither blends in place nor goes in the transparent pass.
+        const pass = this.pulledPass(style);
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}`;
+        return cache.getPulledBatch(key, () => {
             const mesh = this.createStaticLine(options, style, scene, cache, false, true);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
             return new PulledLineBatch(mesh, scene, rowPositions);
         });
+    }
+
+    /**
+     * The pass a pulled edge's batch draws in, which its mesh, not its piece, decides.
+     * @param style - The resolved style.
+     * @returns The pass.
+     */
+    private static pulledPass(style: EdgeStyleConfig): "unblended" | "translucent" | "opaque" {
+        if (this.drawsOpaque(style)) {
+            return "unblended";
+        }
+
+        return this.opacityOf(style) < 1 ? "translucent" : "opaque";
     }
 
     /**
@@ -624,6 +661,9 @@ void main() {
      * @param _styleId - Style ID (currently unused, kept for API compatibility)
      * @param options - Arrow head options including type, width, color, size, and opacity
      * @param scene - Babylon.js scene
+     * @param reuse - A cap the edge draws now: handed back recolored when the new cap would be
+     *     drawn by its batch (a billboarded cap of the same shape and size), so a restyle that
+     *     changes only color and opacity writes the cap in place.
      * @returns The created arrow mesh, or null if type is "none" or undefined
      */
     static createArrowHead(
@@ -631,6 +671,7 @@ void main() {
         _styleId: string,
         options: ArrowHeadOptions,
         scene: Scene,
+        reuse: ArrowCap | null = null,
     ): ArrowCap | null {
         // A SIZE OF 0 IS NO CAP (#2067), the same as type "none": a zero-scale slot would still be
         // drawn, and the line runs as it would with no cap at that end.
@@ -756,6 +797,7 @@ void main() {
                 opacity,
             },
             scene,
+            reuse,
         );
     }
 

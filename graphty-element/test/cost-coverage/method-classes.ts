@@ -614,6 +614,7 @@ export const READ_ONLY: readonly string[] = [
     "Graph.getNodeCount",
     "Graph.getNodeMesh",
     "Graph.getNodes",
+    "Graph.getEdges",
     "Graph.getScene",
     "Graph.getSelectedNode",
     "Graph.getSelectionManager",

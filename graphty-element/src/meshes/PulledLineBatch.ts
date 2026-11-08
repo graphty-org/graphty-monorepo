@@ -24,6 +24,9 @@ import { batchUploadFrames } from "./FrameRoster";
  *
  * Only a straight piece between node centres is pulled: a plain solid line, no cap, gap, group,
  * bend or loop (the first row of the trim table).
+ *
+ * A piece also carries its own look -- color, opacity and width -- so edges that differ only in those
+ * share one batch and one draw (stage 19): a thousand colors are one draw, not a thousand.
  */
 
 /**
@@ -36,17 +39,20 @@ export const pulledEdgesDefault: { value: boolean } = { value: false };
 /** Texels across the edge table, as across the row table: texel `i` is at `(i % 1024, i / 1024)`. */
 const TABLE_WIDTH = 1024;
 
-/** Pieces in one texel: x, y for the even piece's rows, z, w for the odd one's. */
-const PIECES_PER_TEXEL = 2;
+/** Texels a piece takes: (source row, target row, width, opacity), then (red, green, blue, unused). */
+const TEXELS_PER_PIECE = 2;
 
 /** Pieces in one line of the edge table. */
-const PIECES_PER_LINE = TABLE_WIDTH * PIECES_PER_TEXEL;
+const PIECES_PER_LINE = TABLE_WIDTH / TEXELS_PER_PIECE;
 
 /** Indices in the join template, drawn once per piece. */
 const TEMPLATE_INDICES = JOIN_TEMPLATE_INDICES.length;
 
 /** Floats in one texel. */
 const TEXEL_FLOATS = 4;
+
+/** Floats a piece takes in the table. */
+const PIECE_FLOATS = TEXELS_PER_PIECE * TEXEL_FLOATS;
 
 /** A row number no row has: the piece draws nothing. */
 const NO_ROW = -1;
@@ -59,7 +65,7 @@ export class PulledLineBatch {
     /** Bytes of the edge table sent to the card so far: tables built and rows written, never a move. */
     uploadedBytes = 0;
 
-    /** The edge table's CPU copy: two row numbers a piece. */
+    /** The edge table's CPU copy: each piece's two rows and its look, {@link PIECE_FLOATS} floats. */
     private rows: Float32Array<ArrayBuffer>;
 
     private table: RawTexture;
@@ -93,7 +99,7 @@ export class PulledLineBatch {
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;
-        this.rows = new Float32Array(PIECES_PER_LINE * 2).fill(NO_ROW);
+        this.rows = PulledLineBatch.emptyTable(PIECES_PER_LINE);
         this.table = this.build();
         this.index();
         this.stopFlush = batchUploadFrames.join(scene, () => {
@@ -119,7 +125,7 @@ export class PulledLineBatch {
             return reused;
         }
 
-        if (this.highWater === this.rows.length / PIECES_PER_TEXEL) {
+        if (this.highWater === this.rows.length / PIECE_FLOATS) {
             this.grow();
         }
 
@@ -145,8 +151,37 @@ export class PulledLineBatch {
      * @param target - The target node's row.
      */
     setRows(piece: number, source: number, target: number): void {
-        this.rows[piece * PIECES_PER_TEXEL] = source;
-        this.rows[piece * PIECES_PER_TEXEL + 1] = target;
+        this.rows[piece * PIECE_FLOATS] = source;
+        this.rows[piece * PIECE_FLOATS + 1] = target;
+        this.touch(piece);
+    }
+
+    /**
+     * Give a piece its look, as the plain line's material takes it: written when an edge joins or
+     * restyles, never because a node moved.
+     * @param piece - The piece.
+     * @param look - Its look.
+     * @param look.r - Red, 0 to 1.
+     * @param look.g - Green, 0 to 1.
+     * @param look.b - Blue, 0 to 1.
+     * @param opacity - Its opacity, 0 to 1.
+     * @param width - Its width, in the units the material's `width` takes.
+     */
+    setLook(piece: number, look: { r: number; g: number; b: number }, opacity: number, width: number): void {
+        const at = piece * PIECE_FLOATS;
+        this.rows[at + 2] = width;
+        this.rows[at + 3] = opacity;
+        this.rows[at + 4] = look.r;
+        this.rows[at + 5] = look.g;
+        this.rows[at + 6] = look.b;
+        this.touch(piece);
+    }
+
+    /**
+     * Mark a piece's table line to be sent with the next frame.
+     * @param piece - The piece.
+     */
+    private touch(piece: number): void {
         const line = Math.floor(piece / PIECES_PER_LINE);
         this.dirtyFirst = this.dirtyFirst < 0 ? line : Math.min(this.dirtyFirst, line);
         this.dirtyLast = Math.max(this.dirtyLast, line);
@@ -200,9 +235,24 @@ export class PulledLineBatch {
         return texture;
     }
 
+    /**
+     * A table of pieces that draw nothing.
+     * @param pieces - Pieces it holds.
+     * @returns The table.
+     */
+    private static emptyTable(pieces: number): Float32Array<ArrayBuffer> {
+        const table = new Float32Array(pieces * PIECE_FLOATS);
+        for (let at = 0; at < table.length; at += PIECE_FLOATS) {
+            table[at] = NO_ROW;
+            table[at + 1] = NO_ROW;
+        }
+
+        return table;
+    }
+
     /** Double the table, keeping every piece where it is. */
     private grow(): void {
-        const grown = new Float32Array(this.rows.length * 2).fill(NO_ROW);
+        const grown = PulledLineBatch.emptyTable((this.rows.length / PIECE_FLOATS) * 2);
         grown.set(this.rows);
         this.rows = grown;
         this.table.dispose();
@@ -214,7 +264,7 @@ export class PulledLineBatch {
 
     /** The join template once per piece the table has room for, numbered so `gl_VertexID / 14` is the piece. */
     private index(): void {
-        const capacity = this.rows.length / PIECES_PER_TEXEL;
+        const capacity = this.rows.length / PIECE_FLOATS;
         const indices = new Uint32Array(capacity * TEMPLATE_INDICES);
         for (let piece = 0; piece < capacity; piece++) {
             for (let i = 0; i < TEMPLATE_INDICES; i++) {

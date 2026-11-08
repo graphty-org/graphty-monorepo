@@ -2600,7 +2600,10 @@ export class Edge {
         const { batch, look } = pulled;
         const fan = this.fanOf(src, dst);
         // `fanArc` bows to the left of the bundle's first edge; the span's bow is to the left of this one
-        const bow = fan === null ? null : fan.offset * (fan.forward ? 1 : -1);
+        let bow: number | null = null;
+        if (fan !== null) {
+            bow = fan.forward ? fan.offset : -fan.offset;
+        }
         const span = curveSpan(src, dst, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst), bow);
         while (run.length + 1 < (span?.pieces ?? 0)) {
             const piece = batch.acquire();

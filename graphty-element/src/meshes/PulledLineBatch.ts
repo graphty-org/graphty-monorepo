@@ -208,7 +208,7 @@ export class PulledLineBatch {
         this.rows[at + 11] = span?.startAt ?? 0;
         this.rows[at + 12] = span?.endAt ?? 0;
         this.rows[at + 13] = span?.bow ?? 0;
-        this.rows[at + 14] = span === null || span.bow === null ? 0 : 1;
+        this.rows[at + 14] = (span?.bow ?? null) === null ? 0 : 1;
         this.touch(piece);
     }
 

@@ -2,21 +2,23 @@ import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@g
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Collapse, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { AssistantChoice } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { ChangeRows, ResultRow } from "./Checks";
 import { scopeKind, send } from "./connection";
-import { stepDetail } from "./transcript";
 import { isRunning } from "./useAssistantView";
 import {
-    durationWords,
+    type AskedRow,
+    askedRows,
     type EndWords,
     endWords,
     isChange,
+    isLookup,
     isResult,
+    resultRows,
     runningWords,
     stepLine,
     stepName,
@@ -49,13 +51,13 @@ interface Ending {
     readonly params: AiResultParams;
 }
 
-/** One step, as a row shows it: what it did in one line, and its details under it. */
+/** One step, as a row shows it: its line, and what it asked for and came to when opened. */
 interface Step {
-    readonly name: string;
-    readonly detail: readonly string[];
-    readonly ms?: number;
-    /** What it found, on the last step of its reply. */
-    readonly results?: readonly AiEffect[];
+    readonly line: string;
+    readonly asked: readonly AskedRow[];
+    readonly result: readonly string[];
+    /** Whether it only looked something up: drawn lighter, and not counted. */
+    readonly lookup: boolean;
 }
 
 /**
@@ -111,121 +113,114 @@ function useLate(running: boolean): boolean {
     return late;
 }
 
-/** Props for StepsButton. */
-interface StepsButtonProps {
-    readonly count: number;
-    readonly open: boolean;
-    readonly onToggle: () => void;
-    readonly buttonRef: React.RefCallback<HTMLButtonElement>;
-}
-
 /**
- * The list glyph that opens a turn's steps in place, named and tipped with how many.
- * @param props - Component props
- * @param props.count - how many steps
- * @param props.open - whether they show
- * @param props.onToggle - opens or closes them
- * @param props.buttonRef - hands focus from the running row's button to the ended row's
- * @returns The button
- */
-function StepsButton({ count, open, onToggle, buttonRef }: Readonly<StepsButtonProps>): React.JSX.Element {
-    const name = stepsWords(count);
-    return (
-        <Tooltip label={name}>
-            <ActionIcon
-                ref={buttonRef}
-                variant="subtle"
-                color="gray"
-                aria-label={name}
-                aria-expanded={open}
-                onClick={onToggle}
-            >
-                <GLYPHS.steps size={14} aria-hidden />
-            </ActionIcon>
-        </Tooltip>
-    );
-}
-
-/**
- * One step: its line and time as a button that opens its details (the tool, what the model passed,
- * what it did) in small secondary text, and any chips.
+ * One step: its line as a disclosure button, and when open what it asked for and what came of it.
+ * A step still running has nothing to open.
  * @param props - Component props
  * @param props.step - the step
  * @returns The row
  */
 function StepRow({ step }: Readonly<{ step: Step }>): React.JSX.Element {
     const [open, setOpen] = useState(false);
+    const opens = step.asked.length > 0 || step.result.length > 0;
+    const line = (
+        <Text span size="xs" c={step.lookup ? "dimmed" : undefined}>
+            {step.line}
+        </Text>
+    );
     return (
-        <li>
-            <UnstyledButton
-                className="ws-assistant-step cm-focus-inside"
-                aria-expanded={open}
-                onClick={() => {
-                    setOpen(!open);
-                }}
-            >
-                <Text span size="xs">
-                    {step.name}
-                </Text>
-                {step.ms === undefined ? null : (
-                    <Text span size="xs" c="dimmed">
-                        {durationWords(step.ms)}
-                    </Text>
-                )}
-            </UnstyledButton>
+        <li className="ws-assistant-step-item" data-lookup={step.lookup ? "" : undefined}>
+            {opens ? (
+                <UnstyledButton
+                    className="ws-assistant-step cm-focus-inside"
+                    aria-expanded={open}
+                    onClick={() => {
+                        setOpen(!open);
+                    }}
+                >
+                    <GLYPHS.expand size={12} aria-hidden className="ws-assistant-chevron" />
+                    {line}
+                </UnstyledButton>
+            ) : (
+                <div className="ws-assistant-step">{line}</div>
+            )}
             <Collapse in={open}>
                 {open ? (
-                    <div className="ws-assistant-step-detail">
-                        {step.detail.map((line, at) => (
-                            // A step's details never reorder.
-                            <Text
-                                key={at} // NOSONAR(S6479): a detail line has no id to key by
-                                size="xs"
-                                c="dimmed"
-                            >
-                                {line}
-                            </Text>
-                        ))}
-                    </div>
+                    <dl className="ws-assistant-step-detail">
+                        {step.asked.length === 0 ? null : (
+                            <>
+                                <Text component="dt" size="xs" c="dimmed">
+                                    {WORDS["assistant.step.asked"]}
+                                </Text>
+                                {step.asked.map((row) => (
+                                    <Text component="dd" size="xs" key={row.label}>
+                                        {row.label}: {row.value}
+                                    </Text>
+                                ))}
+                            </>
+                        )}
+                        {step.result.length === 0 ? null : (
+                            <>
+                                <Text component="dt" size="xs" c="dimmed">
+                                    {WORDS["assistant.step.result"]}
+                                </Text>
+                                {step.result.map((sentence) => (
+                                    <Text component="dd" size="xs" key={sentence}>
+                                        {sentence}
+                                    </Text>
+                                ))}
+                            </>
+                        )}
+                    </dl>
                 ) : null}
             </Collapse>
-            {step.results?.map((effect, at) => (
-                // A reply's results never reorder.
-                <ResultRow
-                    key={at} // NOSONAR(S6479): an effect has no id to key by
-                    effect={effect}
-                />
-            ))}
         </li>
     );
 }
 
+/** Props for StepGroup. */
+interface StepGroupProps {
+    readonly steps: readonly Step[];
+    readonly open: boolean;
+    readonly onToggle: () => void;
+}
+
 /**
- * A turn's steps, while open: one row each. They grow as a run adds them.
+ * A reply's steps as one group: a header saying what happened, with a chevron, that opens the
+ * steps, one row each. They grow as a run adds them.
  * @param props - Component props
  * @param props.steps - the steps
  * @param props.open - whether they show
- * @returns The list, or nothing with no steps
+ * @param props.onToggle - opens or closes them
+ * @returns The group, or nothing with no steps
  */
-function StepList({ steps, open }: Readonly<{ steps: readonly Step[]; open: boolean }>): React.JSX.Element | null {
+function StepGroup({ steps, open, onToggle }: Readonly<StepGroupProps>): React.JSX.Element | null {
     if (steps.length === 0) {
         return null;
     }
-    // Drawn only while open, like their chips: a closed list's lines would repeat the change lines.
+    const lookups = steps.filter((step) => step.lookup).length;
     return (
-        <Collapse in={open}>
-            {open ? (
-                <ul className="ws-assistant-steps">
-                    {steps.map((step, index) => (
-                        // A step has no id of its own, and a turn's steps only ever grow at the end.
-                        <StepRow
-                            key={index} // NOSONAR(S6479): a step has no id to key by
-                            step={step}
-                        />
-                    ))}
-                </ul>
-            ) : null}
-        </Collapse>
+        <div className="ws-assistant-steps-group">
+            <UnstyledButton className="ws-assistant-step cm-focus-inside" aria-expanded={open} onClick={onToggle}>
+                <GLYPHS.expand size={12} aria-hidden className="ws-assistant-chevron" />
+                <Text span size="xs" c="dimmed">
+                    {stepsWords(steps.length - lookups, lookups)}
+                </Text>
+            </UnstyledButton>
+            <Collapse in={open}>
+                {open ? (
+                    <ul className="ws-assistant-steps">
+                        {steps.map((step, index) => (
+                            // A step has no id of its own, and a turn's steps only ever grow at the end.
+                            <StepRow
+                                key={index} // NOSONAR(S6479): a step has no id to key by
+                                step={step}
+                            />
+                        ))}
+                    </ul>
+                ) : null}
+            </Collapse>
+        </div>
     );
 }
 
@@ -354,8 +349,8 @@ function EndRow({ words, unchanged, onAgain, alert }: Readonly<EndRowProps>): Re
 }
 
 /**
- * A turn's steps, each said by what it did: the running calls while it runs, then what its replies
- * recorded.
+ * A turn's steps: the running calls while it runs, said by the model's own words for each, then
+ * what its replies recorded.
  * @param session - the session, to name columns and formats.
  * @param turn - the turn.
  * @param status - the status, on the newest turn.
@@ -364,17 +359,25 @@ function EndRow({ words, unchanged, onAgain, alert }: Readonly<EndRowProps>): Re
 function stepsOf(session: GraphSession | null, turn: Turn, status: AiStatus | null): readonly Step[] {
     if (isRunning(status)) {
         return (status?.toolCalls ?? []).map((call) => {
-            const running = { tool: call.name, arguments: call.arguments };
-            return { name: stepLine(session, running), detail: stepDetail(session, running) };
+            const intent = call.arguments?.intent;
+            const running = {
+                tool: call.name,
+                arguments: call.arguments,
+                ...(typeof intent === "string" ? { intent } : {}),
+            };
+            return { line: stepLine(session, running), asked: [], result: [], lookup: false };
         });
     }
     return turn.replies.flatMap((reply) =>
-        reply.calls.map((call, index) => ({
-            name: stepLine(session, { ...call, tool: call.command }),
-            detail: stepDetail(session, { ...call, tool: call.command }),
-            ...(call.durationMs === undefined ? {} : { ms: call.durationMs }),
-            ...(index === reply.calls.length - 1 ? { results: (reply.effects ?? []).filter(isResult) } : {}),
-        })),
+        reply.calls.map((record): Step => {
+            const call = { ...record, tool: record.command };
+            return {
+                line: stepLine(session, call),
+                asked: askedRows(session, call),
+                result: resultRows(session, call),
+                lookup: isLookup(call),
+            };
+        }),
     );
 }
 
@@ -467,22 +470,19 @@ interface TurnEffectsProps {
     readonly turn: Turn;
     readonly effects: readonly AiEffect[];
     readonly onMore: () => void;
-    /** The reply's own icons (Steps), on the last row of icons. */
-    readonly actions: React.ReactNode;
 }
 
 /**
  * What a turn did: its changes, and unless one of them changed the graph (a selection or an
  * unpainted run does not) what it found: its last result that found something, else its last empty
- * one. The reply's own icons go on the last row that has icons, else on a row of their own.
+ * one.
  * @param props - Component props
  * @param props.turn - the turn
  * @param props.effects - what its calls did
  * @param props.onMore - called as the reader opens the rest of the change lines
- * @param props.actions - the reply's own icons
  * @returns The rows
  */
-function TurnEffects({ turn, effects, onMore, actions }: Readonly<TurnEffectsProps>): React.JSX.Element {
+function TurnEffects({ turn, effects, onMore }: Readonly<TurnEffectsProps>): React.JSX.Element {
     const changes = effects.filter(isChange);
     const found = effects.findLast((effect) => effect.code === "AI_EFFECT_FOUND") ?? effects.findLast(isResult);
     const result = changes.some(changesGraph) ? undefined : found;
@@ -496,15 +496,10 @@ function TurnEffects({ turn, effects, onMore, actions }: Readonly<TurnEffectsPro
                     provenance={turn.provenance}
                     undone={turn.undone}
                     onMore={onMore}
-                    actions={resultShown ? null : actions}
+                    actions={null}
                 />
             ) : null}
-            {resultShown ? <ResultRow effect={result} table actions={actions} /> : null}
-            {resultShown || changesShown || actions === null ? null : (
-                <Group gap={2} justify="flex-end">
-                    {actions}
-                </Group>
-            )}
+            {resultShown ? <ResultRow effect={result} table actions={null} /> : null}
         </>
     );
 }
@@ -532,21 +527,8 @@ function ReplyRows({
     const { session } = useWorkspace();
     const lastEnded = useWorkspaceState((state) => state.assistantEnded);
     const news = useWorkspaceState((state) => state.assistantEnded?.news === true);
-    const [stepsOpen, setStepsOpen] = useState(false);
-    // The running row's Steps and the ended row's are two buttons: one that held focus as it went
-    // hands it to the other, so a reader watching steps arrive keeps their place as the run ends.
-    // A ref is let go before its button leaves the page, so focus can still be read then.
-    const stepsHeld = useRef<HTMLButtonElement | null>(null);
-    const stepsFocused = useRef(false);
-    const stepsRef = useCallback((button: HTMLButtonElement | null) => {
-        if (button === null) {
-            stepsFocused.current = stepsHeld.current !== null && document.activeElement === stepsHeld.current;
-        } else if (stepsFocused.current) {
-            stepsFocused.current = false;
-            button.focus();
-        }
-        stepsHeld.current = button;
-    }, []);
+    // Open while it runs, so steps show as they happen; then closed, unless the reader chose.
+    const [chosen, setChosen] = useState<boolean | null>(null);
     const running = isRunning(status);
     const prose = proseOf(turn, status);
     const steps = stepsOf(session, turn, status);
@@ -557,43 +539,24 @@ function ReplyRows({
     if (!running && prose === "" && steps.length === 0 && words === null) {
         return null;
     }
-    const stepsButton =
-        steps.length === 0 ? null : (
-            <StepsButton
-                count={steps.length}
-                open={stepsOpen}
-                buttonRef={stepsRef}
-                onToggle={() => {
-                    onHold();
-                    setStepsOpen(!stepsOpen);
-                }}
-            />
-        );
+    const stepsOpen = chosen ?? running;
     return (
         <>
             <h3 className="ws-assistant-who">{WORDS["assistant.turn.assistant"]}</h3>
+            <StepGroup
+                steps={steps}
+                open={stepsOpen}
+                onToggle={() => {
+                    onHold();
+                    setChosen(!stepsOpen);
+                }}
+            />
             {prose === "" ? null : (
                 <Text size="sm" className="ws-assistant-prose">
                     {prose}
                 </Text>
             )}
-            {running && status !== null && (late || stepsButton !== null) ? (
-                <Group gap={4} wrap="nowrap" className="ws-assistant-working">
-                    {/* The dots are named with what they stand for; each step is also announced. */}
-                    <span // NOSONAR(S6819): three CSS dots named as one picture; there is no image file for an img
-                        role="img"
-                        aria-label={workingLine(status, provider)}
-                        className="ws-assistant-dots"
-                    >
-                        <span />
-                        <span />
-                        <span />
-                    </span>
-                    {stepsButton}
-                </Group>
-            ) : null}
-            {running ? null : <TurnEffects turn={turn} effects={effects} onMore={onHold} actions={stepsButton} />}
-            <StepList steps={steps} open={stepsOpen} />
+            {running ? null : <TurnEffects turn={turn} effects={effects} onMore={onHold} />}
             {words === null ? null : (
                 <EndRow
                     words={words}
@@ -608,6 +571,21 @@ function ReplyRows({
                     }
                 />
             )}
+            {running && status !== null && (late || steps.length > 0) ? (
+                // Last of all while it runs: nothing comes after the dots.
+                <div className="ws-assistant-working">
+                    {/* The dots are named with what they stand for; each step is also announced. */}
+                    <span // NOSONAR(S6819): three CSS dots named as one picture; there is no image file for an img
+                        role="img"
+                        aria-label={workingLine(status, provider)}
+                        className="ws-assistant-dots"
+                    >
+                        <span />
+                        <span />
+                        <span />
+                    </span>
+                </div>
+            ) : null}
         </>
     );
 }

@@ -183,7 +183,25 @@
 }
 
 .ws-assistant-steps li {
-    padding-left: 8px;
+    padding-left: 12px;
+}
+
+/* A disclosure's chevron: ">" while closed, turning down as it opens. */
+.ws-assistant-chevron {
+    flex: none;
+    color: var(--cm-icon-secondary);
+    transform: rotate(-90deg);
+    transition: transform 120ms ease;
+}
+
+[aria-expanded="true"] > .ws-assistant-chevron {
+    transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ws-assistant-chevron {
+        transition: none;
+    }
 }
 
 /* The key field's help: numbered steps, numbers inside the popover's edge. */
@@ -194,18 +212,23 @@
 
 .ws-assistant-step {
     display: flex;
-    justify-content: space-between;
-    gap: 8px;
+    align-items: center;
+    gap: 4px;
     width: 100%;
     text-align: left;
 }
 
-/* A step's details: under its line, indented past it. */
+/* A step's Asked for and Result: under its line, indented past its chevron. */
 .ws-assistant-step-detail {
-    padding: 0 0 2px 8px;
+    margin: 0;
+    padding: 0 0 2px 16px;
     overflow-wrap: anywhere;
     -webkit-user-select: text;
     user-select: text;
+}
+
+.ws-assistant-step-detail dd {
+    margin: 0 0 0 8px;
 }
 
 .ws-assistant-chips {

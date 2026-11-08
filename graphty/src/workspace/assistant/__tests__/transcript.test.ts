@@ -1,7 +1,7 @@
 import type { AiConversationSnapshot } from "@graphty/graphty-element/ai";
 import { assert, describe, it } from "vitest";
 
-import { chatText, stepDetail } from "../transcript";
+import { chatText } from "../transcript";
 
 const HEADING = {
     title: "Color hubs",
@@ -36,11 +36,17 @@ const CHAT: AiConversationSnapshot = {
                     code: "AI_COMPLETED",
                     params: {},
                     durationMs: 91,
+                    intent: "Coloring the hubs",
+                    inputs: [
+                        { name: "values", plainName: "Set", kind: "values", value: { "node.color": "red" } },
+                        { name: "where", plainName: "Which", kind: "rule", value: "degree > `10`" },
+                    ],
                     effects: [
                         {
                             code: "AI_EFFECT_STYLE",
                             params: { channel: "node.color", nodes: 3, hidden: 0, layer: "l1" },
                             target: { layer: "l1" },
+                            rule: { join: "all", terms: [{ column: "degree", op: ">", values: [10] }] },
                         },
                     ],
                 },
@@ -64,27 +70,8 @@ const CHAT: AiConversationSnapshot = {
     ],
 };
 
-describe("stepDetail", () => {
-    it("lists the tool and what the model passed, what it did, and how it ended when it failed", () => {
-        assert.deepEqual(
-            stepDetail(null, {
-                tool: "style",
-                arguments: { where: "degree > `10`", values: { "node.color": "red" }, ids: ["1", "2"] },
-                code: "AI_TOOL_FAILED",
-                params: { cause: "E_BAD_LAYER" },
-                effects: [{ code: "AI_EFFECT_EMPTY", params: { tool: "style", searched: "degree > `10`" } }],
-            }),
-            [
-                'Tool style: where degree > `10`; values {"node.color":"red"}; ids 1, 2',
-                "Matched nothing: tool style, searched degree > `10`",
-                "Ended AI_TOOL_FAILED, cause E_BAD_LAYER",
-            ],
-        );
-    });
-});
-
 describe("chatText", () => {
-    it("copies the heading, every message, each step with its details, changes, ending and what waits", async () => {
+    it("copies the heading, every message, each step as the panel says it, the calls as they ran, and what waits", async () => {
         const text = await chatText(null, CHAT, HEADING, {
             approvals: [],
             questions: [{ id: "q", question: "Which nodes?", choices: ["Hubs", "All"], multiple: false }],
@@ -103,14 +90,18 @@ describe("chatText", () => {
                 "## Assistant",
                 "Colored the 3 nodes with degree above 10.",
                 "Steps:",
-                "1. Colored 3 nodes with degree > 10 (91 ms)",
-                '   - Tool style: action add; values {"node.color":"red"}; where degree > `10`',
-                "   - Style: channel node.color, nodes 3, hidden 0, layer l1",
+                "1. Coloring the hubs",
+                "   - Asked for: Set: color red; Which: degree > 10",
+                "   - Result: Colored 3 nodes with degree above 10",
                 "2. Query data failed: its rule could not be read",
-                "   - Tool query: action count",
-                "   - Ended AI_TOOL_FAILED, cause AI_BAD_SELECTOR",
+                "   - Result: Query data failed: its rule could not be read",
                 "Changes:",
                 "- Colored 3 nodes",
+                "For support:",
+                '1. style {"action":"add","values":{"node.color":"red"},"where":"degree > `10`"}',
+                '   -> AI_COMPLETED {} [{"code":"AI_EFFECT_STYLE","params":{"channel":"node.color","nodes":3,"hidden":0,"layer":"l1"},"target":{"layer":"l1"},"rule":{"join":"all","terms":[{"column":"degree","op":">","values":[10]}]}}]',
+                '2. query {"action":"count"}',
+                '   -> AI_TOOL_FAILED {"tool":"query","cause":"AI_BAD_SELECTOR"}',
                 "Ended: AI_COMPLETED",
                 "",
                 "## You (answer, spoken)",

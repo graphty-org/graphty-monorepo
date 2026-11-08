@@ -1,43 +1,27 @@
 /**
- * A chat as plain text, for Copy chat, and each step's details: what the model asked for and what
- * came of it. Everything here words what graphty-element reported; nothing is computed about the graph.
+ * A chat as plain text, for Copy chat: each step as the panel says it, then every call exactly as it
+ * ran. Everything here words what graphty-element reported; nothing is computed about the graph.
  */
 
 import type { AiApprovalRequest, AiConversationSnapshot, AiQuestionRequest } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiTarget } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
-import { shownRule } from "../style/words";
 import {
     approvalWords,
+    askedRows,
     changeLines,
-    durationWords,
+    effectSentence,
     endWords,
     isChange,
     isResult,
+    resultRows,
     type StepCall,
     stepLine,
 } from "./words";
 
-/** The longest an argument's value is said in a step's details. */
-const VALUE_MAX = 300;
-/** How many ids a step's details or a copied result lists before "and N more". */
+/** How many ids a copied result lists before "and N more". */
 const IDS_MAX = 20;
-
-/** What an effect's details are headed with. */
-const EFFECT_HEADS: Readonly<Record<string, string>> = {
-    AI_EFFECT_STYLE: "Style",
-    AI_EFFECT_LAYOUT: "Layout",
-    AI_EFFECT_FILTER: "Filter",
-    AI_EFFECT_RUN: "Run",
-    AI_EFFECT_RUN_REMOVED: "Run removed",
-    AI_EFFECT_DATA: "Data",
-    AI_EFFECT_SELECTION: "Selection",
-    AI_EFFECT_VIEW: "View",
-    AI_EFFECT_FOUND: "Found",
-    AI_EFFECT_EMPTY: "Matched nothing",
-    AI_EFFECT_OTHER: "Changed",
-};
 
 /**
  * Ids as a list, cut short past a few.
@@ -47,102 +31,6 @@ const EFFECT_HEADS: Readonly<Record<string, string>> = {
 function idList(ids: readonly (string | number)[]): string {
     const shown = ids.slice(0, IDS_MAX).map(String).join(", ");
     return ids.length > IDS_MAX ? `${shown} and ${ids.length - IDS_MAX} more` : shown;
-}
-
-/**
- * A rule as the details say it: columns by their shown names.
- * @param session - the session, or null to say it as written.
- * @param rule - the rule.
- * @returns the words.
- */
-const ruleWords = (session: GraphSession | null, rule: string): string =>
-    session === null ? rule : shownRule(session, rule);
-
-/**
- * One argument's value in words: text as it is, a rule by shown names, anything else as JSON.
- * @param session - the session.
- * @param key - the argument's name.
- * @param value - its value.
- * @returns the words, cut short when long.
- */
-function valueWords(session: GraphSession | null, key: string, value: unknown): string {
-    let words: string;
-    if (typeof value === "string") {
-        words = key === "where" ? ruleWords(session, value) : value;
-    } else if (Array.isArray(value) && value.every((each) => typeof each !== "object")) {
-        words = value.map(String).join(", ");
-    } else {
-        words = JSON.stringify(value);
-    }
-    return words.length > VALUE_MAX ? `${words.slice(0, VALUE_MAX - 3)}...` : words;
-}
-
-/**
- * What an effect names, in words.
- * @param session - the session.
- * @param target - what it names.
- * @returns the words.
- */
-function targetWords(session: GraphSession | null, target: AiTarget): string {
-    if ("where" in target) {
-        return `rule ${ruleWords(session, target.where)}`;
-    }
-    if ("text" in target) {
-        return `text "${target.text}"`;
-    }
-    if ("layer" in target) {
-        return `layer ${target.layer}`;
-    }
-    if ("range" in target) {
-        return `run ${target.range.run}`;
-    }
-    if ("top" in target) {
-        return `top ${target.top.n} of run ${target.top.run}`;
-    }
-    if ("ids" in target) {
-        return `ids ${idList(target.ids)}`;
-    }
-    return `the ${target.scope} graph`;
-}
-
-/**
- * One effect's facts, as the details list them: "Style: channel node.color, layer l1, nodes 3".
- * @param session - the session.
- * @param effect - the effect.
- * @returns the line.
- */
-function effectFacts(session: GraphSession | null, effect: AiEffect): string {
-    const facts = Object.entries(effect.params).map(([key, value]) =>
-        key === "searched" && typeof value === "string" ? `${key} ${ruleWords(session, value)}` : `${key} ${value}`,
-    );
-    const named = effect.target === undefined ? undefined : targetWords(session, effect.target);
-    if (named !== undefined && !facts.includes(named)) {
-        facts.push(named);
-    }
-    const head = EFFECT_HEADS[effect.code] ?? effect.code;
-    return facts.length === 0 ? head : `${head}: ${facts.join(", ")}`;
-}
-
-/**
- * A step's details, under its line: the tool and what the model passed, what it did, and how it
- * ended when not as planned.
- * @param session - the session, to name columns.
- * @param call - the call.
- * @returns the lines.
- */
-export function stepDetail(session: GraphSession | null, call: StepCall): string[] {
-    const args = Object.entries(call.arguments ?? {}).map(
-        ([key, value]) => `${key} ${valueWords(session, key, value)}`,
-    );
-    const lines = [
-        args.length === 0 ? `Tool ${call.tool}` : `Tool ${call.tool}: ${args.join("; ")}`,
-        ...(call.effects ?? []).map((effect) => effectFacts(session, effect)),
-    ];
-    if (call.code !== undefined && call.code !== "AI_COMPLETED") {
-        const cause = call.params?.cause === undefined ? "" : `, cause ${call.params.cause}`;
-        lines.push(`Ended ${call.code}${cause}`);
-    }
-    return lines;
 }
 
 /** What a copied chat says above its turns. */
@@ -245,7 +133,7 @@ function readerLines(message: ReaderMessage): string[] {
 }
 
 /**
- * A reply's steps, each with its details under it.
+ * A reply's steps, each with what it asked for and what came of it, as the panel says them.
  * @param session - the session.
  * @param message - the reply.
  * @returns the lines.
@@ -258,12 +146,33 @@ function stepLines(session: GraphSession | null, message: AssistantMessage): str
         "Steps:",
         ...message.calls.flatMap((record, index) => {
             const call: StepCall = { ...record, tool: record.command };
-            const ms = record.durationMs === undefined ? "" : ` (${durationWords(record.durationMs)})`;
+            const asked = askedRows(session, call).map((row) => `${row.label}: ${row.value}`);
+            const result = resultRows(session, call);
             return [
-                `${index + 1}. ${stepLine(session, call)}${ms}`,
-                ...stepDetail(session, call).map((line) => `   - ${line}`),
+                `${index + 1}. ${stepLine(session, call)}`,
+                ...(asked.length === 0 ? [] : [`   - Asked for: ${asked.join("; ")}`]),
+                ...(result.length === 0 ? [] : [`   - Result: ${result.join("; ")}`]),
             ];
         }),
+    ];
+}
+
+/**
+ * A reply's calls exactly as they ran, for whoever reads a pasted chat to help: each tool, its
+ * arguments, and its outcome with what it did.
+ * @param message - the reply.
+ * @returns the lines.
+ */
+function supportLines(message: AssistantMessage): string[] {
+    if (message.calls.length === 0) {
+        return [];
+    }
+    return [
+        "For support:",
+        ...message.calls.flatMap((record, index) => [
+            `${index + 1}. ${record.command} ${JSON.stringify(record.arguments)}`,
+            `   -> ${record.code} ${JSON.stringify(record.params)}${record.effects === undefined ? "" : ` ${JSON.stringify(record.effects)}`}`,
+        ]),
     ];
 }
 
@@ -279,7 +188,7 @@ async function resultLines(session: GraphSession | null, effects: readonly AiEff
         results.map(async (effect) => {
             const ids = await namedIds(session, effect.target);
             const named = ids === null ? "" : ` -- ${ids}`;
-            return `- ${effectFacts(session, effect)}${named}`;
+            return `- ${effectSentence(session, effect)}${named}`;
         }),
     );
     return lines.length === 0 ? [] : ["Results:", ...lines];
@@ -306,6 +215,7 @@ async function replyLines(
         ...stepLines(session, message),
         ...(changes.length === 0 ? [] : ["Changes:", ...changes.map((line) => `- ${line}`)]),
         ...(await resultLines(session, effects)),
+        ...supportLines(message),
     ];
     if (message.outcome !== undefined) {
         const { code, params } = message.outcome;

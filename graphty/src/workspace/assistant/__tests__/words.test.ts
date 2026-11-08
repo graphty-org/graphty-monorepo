@@ -1,8 +1,19 @@
-import { AI_RESULT_CODES, type AiEffect } from "@graphty/graphty-element/catalog";
+import { AI_EFFECT_CODES, AI_RESULT_CODES, type AiEffect } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { changeLines, effectLine, endWords, type StepCall, stepLine, voiceWords, workingLine } from "../words";
+import {
+    askedRows,
+    changeLines,
+    effectLine,
+    endWords,
+    isLookup,
+    resultRows,
+    type StepCall,
+    stepLine,
+    voiceWords,
+    workingLine,
+} from "../words";
 
 const AGAIN = { action: "again", failed: true } as const;
 const PROVIDER = { action: "provider", failed: true } as const;
@@ -182,251 +193,162 @@ describe("workingLine", () => {
 });
 
 describe("stepLine", () => {
-    const found = (params: AiEffect["params"], target?: AiEffect["target"]): readonly AiEffect[] => [
-        { code: "AI_EFFECT_FOUND", params, ...(target === undefined ? {} : { target }) },
-    ];
-    // Every tool family: what it did when it says, else what the model asked for, else its name.
-    const ROWS: readonly (readonly [StepCall, string])[] = [
-        [
-            {
-                tool: "query",
-                arguments: { action: "count", where: "degree >= `3`" },
-                effects: found({ nodes: 22 }, { where: "degree >= `3`" }),
-            },
-            "Counted 22 nodes with degree >= 3",
-        ],
-        [{ tool: "query", arguments: { action: "count", where: "degree >= `3`" } }, "Counted nodes with degree >= 3"],
-        [{ tool: "query", arguments: { action: "nodes", sort: "-degree", limit: 5 } }, "Read top 5 nodes by degree"],
-        [{ tool: "query", arguments: { action: "nodes", sort: "degree", limit: 5 } }, "Read bottom 5 nodes by degree"],
-        [{ tool: "query", arguments: { action: "edges" } }, "Read edges"],
-        [
-            {
-                tool: "query",
-                arguments: { action: "nodes" },
-                effects: found({ nodes: 5 }, { top: { run: "degree-1", n: 5 } }),
-            },
-            "Found top 5 nodes by degree-1",
-        ],
-        [{ tool: "query", arguments: { action: "overview" } }, "Read the graph summary"],
-        [{ tool: "query", arguments: { action: "statistics" } }, "Read graph statistics"],
-        [{ tool: "query", arguments: { action: "attributes" } }, "Read the columns"],
-        [{ tool: "query", arguments: { action: "histogram", column: "weight" } }, "Read values of weight"],
-        [{ tool: "query", arguments: { action: "node", ids: ["Valjean"] } }, "Read Valjean"],
-        [{ tool: "query", arguments: { action: "neighbors", ids: ["Valjean"] } }, "Read neighbors of Valjean"],
-        [
-            {
-                tool: "query",
-                arguments: { action: "find", text: "Val" },
-                effects: found({ nodes: 2 }, { text: "Val" }),
-            },
-            "Found 2 nodes matching Val",
-        ],
-        [
-            {
-                tool: "query",
-                arguments: { action: "count", where: "x == `1`" },
-                effects: [{ code: "AI_EFFECT_EMPTY", params: { tool: "query", searched: "x == `1`" } }],
-            },
-            "No matches for x == 1",
-        ],
-        [
-            {
+    it("is the model's own words for the step, cut short when long", () => {
+        assert.strictEqual(
+            stepLine(null, { tool: "style", intent: "Coloring the hubs", code: "AI_COMPLETED" }),
+            "Coloring the hubs",
+        );
+        const long = stepLine(null, { tool: "style", intent: "x".repeat(80) });
+        assert.isAtMost(long.length, 60);
+        assert.isTrue(long.endsWith("..."));
+    });
+
+    it("falls back to what the step came to, then to the tool's name", () => {
+        const colored: StepCall = {
+            tool: "style",
+            code: "AI_COMPLETED",
+            effects: [{ code: "AI_EFFECT_STYLE", params: { channel: "node.color", nodes: 12, hidden: 0, layer: "l" } }],
+        };
+        assert.strictEqual(stepLine(null, colored), "Colored 12 nodes");
+        assert.strictEqual(stepLine(null, { tool: "query" }), "Query data");
+        assert.strictEqual(stepLine(null, { tool: "something_new" }), "A step");
+    });
+
+    it("says what failed whatever the model meant", () => {
+        assert.strictEqual(
+            stepLine(null, {
                 tool: "style",
-                arguments: { action: "add" },
-                effects: [
-                    { code: "AI_EFFECT_STYLE", params: { channel: "node.color", nodes: 12, hidden: 0, layer: "l" } },
-                ],
-            },
-            "Colored 12 nodes",
-        ],
-        [
-            {
-                tool: "layout",
-                arguments: { action: "set" },
-                effects: [{ code: "AI_EFFECT_LAYOUT", params: { layout: "circular" } }],
-            },
-            "Arranged as Ring",
-        ],
-        [
-            {
-                tool: "filter",
-                arguments: { action: "hide" },
-                effects: [{ code: "AI_EFFECT_FILTER", params: { kept: 4, total: 10 } }],
-            },
-            "Filtered to 4 of 10 nodes",
-        ],
-        [{ tool: "filter", arguments: { action: "clear" } }, "Cleared the filter"],
-        [{ tool: "select", arguments: { action: "clear" } }, "Cleared the selection"],
-        [{ tool: "run_algorithm", arguments: { name: "louvain" } }, "Ran Communities"],
-        [
-            {
-                tool: "edit_data",
-                arguments: { action: "add_nodes" },
-                effects: [{ code: "AI_EFFECT_DATA", params: { addedNodes: 3 } }],
-            },
-            "Added 3 nodes",
-        ],
-        [{ tool: "export_graph", arguments: { action: "export", format: "graphml" } }, "Exported as graphml"],
-        [{ tool: "catalog", arguments: { action: "search", text: "export" } }, "Searched tools for export"],
-        [{ tool: "catalog", arguments: { action: "describe", name: "louvain" } }, "Looked up louvain"],
-        [{ tool: "undo", arguments: { action: "undo" } }, "Undid the last change"],
-        [{ tool: "undo", arguments: { action: "redo" } }, "Redid the last change"],
-        [{ tool: "ask_reader", arguments: { question: "Which?" } }, "Asked you"],
-        [{ tool: "view", arguments: { action: "zoom" } }, "View"],
-        [{ tool: "something_new" }, "A step"],
-        [
-            {
-                tool: "query",
-                arguments: { action: "count" },
+                intent: "Coloring",
                 code: "AI_TOOL_FAILED",
-                params: { cause: "AI_BAD_SELECTOR" },
-            },
-            "Query data failed: its rule could not be read",
-        ],
-        [
-            {
+                params: { cause: "E_BAD_LAYER" },
+            }),
+            "Style failed: the style it made was not valid",
+        );
+        assert.strictEqual(
+            stepLine(null, { tool: "style", code: "AI_APPROVAL_DENIED", params: {} }),
+            "Style not run: you declined",
+        );
+    });
+});
+
+describe("askedRows", () => {
+    it("words each argument by its kind, labeled by the schema, with no JSON, ids or hex", () => {
+        const rows = askedRows(null, {
+            tool: "style",
+            inputs: [
+                {
+                    name: "where",
+                    plainName: "Which",
+                    kind: "rule",
+                    value: "value == `0` || value == `1`",
+                    rule: { join: "all", terms: [{ column: "value", op: "==", values: [0, 1] }] },
+                },
+                {
+                    name: "values",
+                    plainName: "Set",
+                    kind: "values",
+                    value: { "node.color": "#e41a1c", "node.size": 2 },
+                },
+                { name: "name", plainName: "Name", kind: "text", value: "East Coast Schools" },
+                { name: "layer", plainName: "Layer", kind: "layer", value: "east-coast-schools_1" },
+                { name: "limit", plainName: "Limit", kind: "number", value: 5 },
+                { name: "sort", plainName: "Sort by", kind: "column", value: "-data.weight" },
+                { name: "ids", plainName: "Which", kind: "ids", value: ["1", "2", "3", "4", "5", "6", "7"] },
+                { name: "options", plainName: "Options", kind: "other", value: { seed: 1 } },
+            ],
+        });
+        assert.deepEqual(rows, [
+            { label: "Which", value: "value 0 or 1" },
+            { label: "Set", value: "color red, size 2" },
+            { label: "Name", value: "East Coast Schools" },
+            { label: "Limit", value: "5" },
+            { label: "Sort by", value: "weight, highest first" },
+            { label: "Which", value: "1, 2, 3, 4, 5 and 2 more" },
+        ]);
+    });
+});
+
+describe("resultRows", () => {
+    it("says each effect once, its rule in words and its layer by name, with no zero counts", () => {
+        const style: AiEffect = {
+            code: "AI_EFFECT_STYLE",
+            params: { channel: "node.color", nodes: 17, hidden: 0, layer: "l1", layerName: "East Coast Schools" },
+            rule: { join: "all", terms: [{ column: "value", op: "==", values: [0, 1] }] },
+        };
+        assert.deepEqual(resultRows(null, { tool: "style", code: "AI_COMPLETED", effects: [style, style] }), [
+            "Colored 17 nodes with value 0 or 1, in East Coast Schools",
+        ]);
+        assert.deepEqual(
+            resultRows(null, {
                 tool: "query",
-                arguments: { action: "statistics" },
-                effects: found({ nodes: 34, edges: 78 }, { scope: "graph" }),
-            },
-            "Read graph statistics: 34 nodes, 78 edges",
-        ],
-        [
-            {
-                tool: "query",
-                arguments: { action: "overview" },
-                effects: found({ nodes: 34, edges: 78 }, { scope: "graph" }),
-            },
-            "Read the graph summary: 34 nodes, 78 edges",
-        ],
-        [
-            {
-                tool: "query",
-                arguments: { action: "count", result: { op: "largest", run: "louvain", field: "group" } },
-                effects: found({ nodes: 12 }, { where: "results.louvain.group == `0`" }),
-            },
-            "Counted 12 nodes in the largest group of Communities",
-        ],
-        [
-            {
-                tool: "style",
-                arguments: { action: "add", values: { "node.color": "red" }, where: "degree > `10`" },
-                effects: [
-                    { code: "AI_EFFECT_STYLE", params: { channel: "node.color", nodes: 3, hidden: 0, layer: "l" } },
-                ],
-            },
-            "Colored 3 nodes with degree > 10",
-        ],
-        [
-            {
-                tool: "run_algorithm",
-                arguments: { name: "louvain", style: true },
+                code: "AI_COMPLETED",
                 effects: [
                     {
-                        code: "AI_EFFECT_RUN",
-                        params: { run: "louvain", algorithm: "louvain", nodes: 34, painted: 1, groups: 4, largest: 12 },
+                        code: "AI_EFFECT_FOUND",
+                        params: { nodes: 22 },
+                        target: { where: "degree >= `3`" },
+                        rule: { join: "all", terms: [{ column: "degree", op: ">=", values: [3] }] },
                     },
                 ],
-            },
-            "Computed Communities: 4 groups, largest 12 nodes, colored by it",
-        ],
-        [
-            {
-                tool: "layout",
-                arguments: { action: "set", name: "circular" },
-                effects: [{ code: "AI_EFFECT_LAYOUT", params: { layout: "circular", nodes: 34 } }],
-            },
-            "Arranged 34 nodes as Ring",
-        ],
-        [
-            {
-                tool: "filter",
-                arguments: { action: "show_only", where: "degree >= `3`" },
-                effects: [{ code: "AI_EFFECT_FILTER", params: { kept: 22, total: 34 } }],
-            },
-            "Filtered to nodes with degree >= 3: 22 of 34 nodes shown",
-        ],
-        [
-            {
-                tool: "filter",
-                arguments: { action: "clear" },
-                effects: [{ code: "AI_EFFECT_FILTER", params: { kept: 33, total: 33 } }],
-            },
-            "Cleared the filter: 33 nodes shown",
-        ],
-        [
-            {
-                tool: "edit_data",
-                arguments: { action: "remove_nodes", where: "degree <= `2`" },
-                effects: [{ code: "AI_EFFECT_DATA", params: { removedNodes: 12, removedEdges: 23 } }],
-            },
-            "Removed 12 nodes and 23 edges, nodes with degree <= 2",
-        ],
-        [
-            {
-                tool: "select",
-                arguments: { action: "set", ids: ["1"] },
-                effects: [{ code: "AI_EFFECT_SELECTION", params: { nodes: 1, edges: 0 } }],
-            },
-            "Selected 1 node: 1",
-        ],
-        [
-            {
-                tool: "select",
-                arguments: { action: "neighborhood", hops: 1 },
-                effects: [{ code: "AI_EFFECT_SELECTION", params: { nodes: 17, edges: 0 } }],
-            },
-            "Selected 17 nodes within 1 hop",
-        ],
-        [
-            {
-                tool: "select",
-                arguments: { action: "remove", ids: ["1"] },
-                effects: [{ code: "AI_EFFECT_SELECTION", params: { nodes: 16, edges: 0 } }],
-            },
-            "Deselected 1: 16 nodes left",
-        ],
-        [
-            {
-                tool: "view",
-                arguments: { action: "fit" },
-                effects: [{ code: "AI_EFFECT_VIEW", params: {} }],
-            },
-            "Fit the graph in view",
-        ],
-        [
-            {
-                tool: "undo",
-                arguments: { action: "undo" },
-                effects: [{ code: "AI_EFFECT_OTHER", params: { tool: "undo", action: "undo" } }],
-            },
-            "Undid the last change",
-        ],
-        [
-            { tool: "export_graph", arguments: { format: "graphml", whole: true } },
-            "Exported the whole graph as graphml",
-        ],
-        [
-            { tool: "style", code: "AI_TOOL_FAILED", params: { cause: "E_BAD_LAYER" } },
-            "Style failed: the style it made was not valid",
-        ],
-        [{ tool: "style", code: "AI_TOOL_FAILED", params: { cause: "E_SOMETHING_NEW" } }, "Style failed"],
-        [
-            { tool: "style", code: "AI_TOOL_INVALID_ARGUMENTS", params: { cause: "AI_ARG_INVALID" } },
-            "Style failed: the assistant passed values it does not take",
-        ],
-        [{ tool: "style", code: "AI_APPROVAL_DENIED", params: {} }, "Style not run: you declined"],
-    ];
+            }),
+            ["Found 22 nodes with degree at least 3"],
+        );
+        assert.deepEqual(
+            resultRows(null, {
+                tool: "style",
+                code: "AI_COMPLETED",
+                effects: [{ code: "AI_EFFECT_READ", params: { tool: "style", action: "list" } }],
+            }),
+            ["Used Style"],
+        );
+    });
 
-    for (const [call, line] of ROWS) {
-        it(`words ${call.tool} as "${line}"`, () => {
-            assert.strictEqual(stepLine(null, call), line);
-        });
-    }
+    it("has a sentence for every effect code graphty-element lists", () => {
+        for (const code of AI_EFFECT_CODES) {
+            const [sentence] = resultRows(null, {
+                tool: "style",
+                code: "AI_COMPLETED",
+                effects: [
+                    {
+                        code,
+                        params: {
+                            tool: "style",
+                            action: "list",
+                            channel: "node.color",
+                            nodes: 1,
+                            layout: "circular",
+                            kept: 1,
+                            total: 2,
+                            algorithm: "degree",
+                            run: "r",
+                        },
+                    },
+                ],
+            });
+            assert.isString(sentence, code);
+            assert.notMatch(sentence, /AI_|undefined|NaN/, code);
+        }
+    });
+});
 
-    it("cuts the model's own long words short", () => {
-        const line = stepLine(null, { tool: "catalog", arguments: { action: "search", text: "x".repeat(80) } });
-        assert.isAtMost(line.length, "Searched tools for ".length + 32);
-        assert.isTrue(line.endsWith("..."));
+describe("isLookup", () => {
+    it("is a step that ran and changed nothing", () => {
+        const read: StepCall = {
+            tool: "style",
+            code: "AI_COMPLETED",
+            effects: [{ code: "AI_EFFECT_READ", params: { tool: "style", action: "list" } }],
+        };
+        assert.isTrue(isLookup(read));
+        assert.isFalse(
+            isLookup({
+                tool: "style",
+                code: "AI_COMPLETED",
+                effects: [
+                    { code: "AI_EFFECT_STYLE", params: { channel: "node.color", nodes: 1, hidden: 0, layer: "l" } },
+                ],
+            }),
+        );
+        assert.isFalse(isLookup({ tool: "style", code: "AI_TOOL_FAILED", params: {} }));
+        assert.isFalse(isLookup({ tool: "style" }), "a running step is not yet anything");
     });
 });

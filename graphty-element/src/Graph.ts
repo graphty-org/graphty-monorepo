@@ -4864,7 +4864,9 @@ export class Graph implements GraphContext {
         }
 
         const device = engine.sharesDevice ? engine.deviceNow() : null;
-        return device === null ? null : { table, device };
+        // A transition draws its movers off their lanes, every frame, so the ring would only be overwritten.
+        const suspended = transitionsOf(this.layoutManager)?.active === true;
+        return device === null ? null : { table, device, suspended };
     }
 
     // ============================================================================

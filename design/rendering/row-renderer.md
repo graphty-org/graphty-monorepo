@@ -806,6 +806,14 @@ A second correction: a repack from the lane also changes w, when a row the layou
 settled. A repack that changes a row's w now mirrors that row into the ring and uploads it once, since the landing
 already copied holds the old w.
 
+As built (stage 25, fourth pull request): a loss needed no code of its own. The controller's rebuild on the engine's
+new device goes through `replaceSimulation`, whose load attaches a new ring seeded from `rowPosition`, and the
+table's texture is re-uploaded with the engine's restore; `#drawnRun` drops a run whose device is no longer the
+target's. A test destroys the device mid-run and checks that copies resume with no uploads and the texture equals
+the CPU copy. A layout transition suspends the copy: while the transition runner is active, `getDrawnTarget` says
+`suspended`, and each landing goes up by upload, while the skip mask and the transform are still sent, so the copy
+resumes at the first landing after the move ends.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,

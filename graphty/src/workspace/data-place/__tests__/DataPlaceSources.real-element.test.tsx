@@ -74,7 +74,55 @@ async function opened(section: HTMLElement): Promise<void> {
     }
 }
 
+/**
+ * College football alone in the workspace on the Data place.
+ * @returns the session.
+ */
+async function openFootball(): Promise<GraphSession> {
+    await page.viewport(1440, 1000);
+    const store = createWorkspaceStore({ project: { name: "One", id: 1 }, place: "data" });
+    render(<Workspace store={store} registrations={REGISTRATIONS} />);
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
+    if (session === undefined) {
+        throw new Error("the element never came up");
+    }
+    await session.data.import({ type: "gml", name: "football.gml", config: { data: football } });
+    return session;
+}
+
 describe("the Sources tab with two loads", () => {
+    it("draws the loads' sections in the Data sources list's order when a second is added", async () => {
+        const session = await openFootball();
+        const place = await screen.findByRole("region", { name: "Data place" });
+        await userEvent.click(within(place).getByRole("button", { name: "Add source" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Samples/ }));
+        const dialog = await screen.findByRole("dialog");
+        await userEvent.click(within(dialog).getAllByText("Les Miserables", { exact: true })[0]);
+        await userEvent.click(await screen.findByRole("button", { name: "Add as rows" }));
+        const loads = await waitFor(() => {
+            const found = session.data.sources();
+            assert.lengthOf(found, 2);
+            return found;
+        });
+        const names = loads.map((each) => sourceName(each));
+        // The Data sources list, then the sections, in one order.
+        const list = within(place).getByRole("list", { name: "Data sources" });
+        const rows = await waitFor(() => names.map((name) => within(list).getByRole("listitem", { name })));
+        assert.isTrue(
+            Boolean(rows[0].compareDocumentPosition(rows[1]) & Node.DOCUMENT_POSITION_FOLLOWING),
+            "the list holds the loads in order",
+        );
+        const sections = await waitFor(() => names.map((name) => within(place).getByRole("group", { name })));
+        assert.isTrue(
+            Boolean(sections[0].compareDocumentPosition(sections[1]) & Node.DOCUMENT_POSITION_FOLLOWING),
+            `${names[0]}'s section comes before ${names[1]}'s, as in Data sources`,
+        );
+    });
+
     it("gives each load its own section with its node and edge rows, its own columns and its own Filters", async () => {
         const { football: cf, miserables: lm } = await openTwo();
         for (const load of [cf, lm]) {

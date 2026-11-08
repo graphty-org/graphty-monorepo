@@ -953,14 +953,18 @@ export function Fields({
         }
     }
     const groups = useRef<HTMLDivElement>(null);
+    const sourcesRef = useRef(sources);
+    sourcesRef.current = sources;
     const drawn = useRef(false);
     useEffect(() => {
         // Not on the first drawing: only a new pick scrolls the panel.
         if (drawn.current) {
-            groups.current?.firstElementChild?.scrollIntoView({ block: "nearest" });
+            // The picked load's group: first under Attributes, at its own place as a section.
+            const at = filters ? sourcesRef.current.findIndex((each) => each.key === selected?.key) : 0;
+            groups.current?.children.item(Math.max(at, 0))?.scrollIntoView({ block: "nearest" });
         }
         drawn.current = true;
-    }, [selected?.key]);
+    }, [selected?.key, filters]);
     if (session === null) {
         return null;
     }
@@ -974,7 +978,10 @@ export function Fields({
             </ControlSection>
         );
     }
-    const ordered = selected === undefined ? sources : [selected, ...sources.filter((each) => each !== selected)];
+    // As their own sections, the loads keep the Data sources list's order; as groups under
+    // Attributes, the selected one comes first.
+    const ordered =
+        filters || selected === undefined ? sources : [selected, ...sources.filter((each) => each !== selected)];
     const list = (
         <div ref={groups} className={filters ? "dp-source-sections" : "dp-field-groups"}>
             {ordered.map((source) => (

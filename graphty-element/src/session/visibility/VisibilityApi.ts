@@ -2251,7 +2251,12 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const pictureSignature = `${nodeMaskValue.version}:${edgeMaskValue.version}`;
         const each = conditions.map((condition) => {
             const own = signatureOf(condition.rule);
-            return own === null ? own : `${own}\n${inPicture(condition) ? "picture" : "graph"}\n${pictureSignature}`;
+            if (own === null) {
+                return own;
+            }
+
+            const where = inPicture(condition) ? "picture" : "graph";
+            return `${own}\n${where}\n${pictureSignature}`;
         });
         const signatures = JSON.stringify(each);
         if (

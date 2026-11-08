@@ -1801,93 +1801,12 @@ async function readProject(
     // the rest after it, so a run over what the file shows comes back current. A file written
     // before runs saved their counts restores them all before the filter, as it always did. A
     // filter naming a set that waits for a run's result waits with it.
-    const restoreVisibility = async (): Promise<void> => {
-        const visibility = state.visibility as Record<string, unknown> | undefined;
-        if (visibility === undefined) {
-            return;
-        }
-
-        await attempt(opening, "visibility", async () => {
-            if (visibility.filter !== null && visibility.filter !== undefined) {
-                await tx.visibility.set(remap(visibility.filter) as never);
-            }
-
-            if (visibility.window !== null && visibility.window !== undefined) {
-                await (tx.visibility as SessionVisibilityApi).restoreWindow(
-                    visibility.window as TimeWindow,
-                    visibility.windowRaw === true,
-                );
-            }
-
-            await readFilterConditions(opening, visibility, remap);
-        });
-        // Read on their own, so a filter that cannot be read never loses them.
-        await attempt(opening, "visibility", async () => {
-            if (typeof visibility.playback === "object" && visibility.playback !== null) {
-                await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
-            }
-
-            tx.visibility.showContext = visibility.showContext === true;
-        });
-    };
+    const restoreVisibility = (): Promise<void> => restoreVisibilityOf(opening, state, remap);
 
     const results = first("graphty-results");
     const sameData = results.fingerprint === tx.data.fingerprint();
-    const restoreRun = async (run: SavedRun): Promise<void> => {
-        await attempt(
-            opening,
-            "runs",
-            async () => {
-                if (!sameData) {
-                    problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
-                }
-
-                // A file written before caveats carried facts has none to read back.
-                const caveats: Caveats = { facts: [], ...run.caveats };
-                const result = createRunResult({
-                    runId: run.id,
-                    shape: run.shape,
-                    fields: run.fields,
-                    measured: run.measured,
-                    graph: run.graph,
-                    nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
-                    // Edges are keyed by position in the data; data that differs leaves them out.
-                    edges: sameData
-                        ? rowsOf(
-                              edgeIds.map((_, at) => at),
-                              run.edges.columns,
-                              (at) => edgeIds[at],
-                          )
-                        : [],
-                    caveats,
-                    durationMs: run.durationMs,
-                });
-                // The summary too, as a fresh execution hands it over: the run's record (its count,
-                // its groups) is read from it.
-                canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
-                const { algorithm, params, scope, seed, sample, exact } = remap(run);
-                try {
-                    const restoring = tx.runs.start(algorithm, params, {
-                        as: run.id,
-                        style: false,
-                        ...(scope === undefined ? {} : { scope }),
-                        ...(seed === undefined ? {} : { seed }),
-                        ...(sample === undefined ? {} : { sample }),
-                        ...(exact === undefined ? {} : { exact }),
-                    });
-                    // Before it is recorded: a minted id stays minted, so a later start of the
-                    // same question answers to it rather than minting a second one (#6227).
-                    if (run.derived === true) {
-                        opening.restoreDerived(run.id);
-                    }
-                    await restoring;
-                } finally {
-                    canned.delete(run.id);
-                }
-            },
-            run.id,
-        );
-    };
+    const restoreRun = (run: SavedRun): Promise<void> =>
+        restoreRunOf(opening, run, { nodeIds, edgeIds, sameData, canned, remap });
     const ranBefore = (run: SavedRun): boolean =>
         run.ranOn === undefined || sameCount(run.ranOn, opening.scopeCountOf(remap(run).scope));
     const after: SavedRun[] = [];
@@ -1935,6 +1854,126 @@ async function readProject(
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
     }
+}
+
+/**
+ * Restore the filter, the time window and the filter conditions a `graphty-session` member holds.
+ * @param opening - The open.
+ * @param state - The `graphty-session` member.
+ * @param remap - Rewrites the set ids a rule names to the ones this session gave.
+ */
+async function restoreVisibilityOf(
+    opening: Opening,
+    state: Readonly<Record<string, unknown>>,
+    remap: <T>(value: T) => T,
+): Promise<void> {
+    const { tx } = opening;
+    const visibility = state.visibility as Record<string, unknown> | undefined;
+    if (visibility === undefined) {
+        return;
+    }
+
+    await attempt(opening, "visibility", async () => {
+        if (visibility.filter !== null && visibility.filter !== undefined) {
+            await tx.visibility.set(remap(visibility.filter) as never);
+        }
+
+        if (visibility.window !== null && visibility.window !== undefined) {
+            await (tx.visibility as SessionVisibilityApi).restoreWindow(
+                visibility.window as TimeWindow,
+                visibility.windowRaw === true,
+            );
+        }
+
+        await readFilterConditions(opening, visibility, remap);
+    });
+    // Read on their own, so a filter that cannot be read never loses them.
+    await attempt(opening, "visibility", async () => {
+        if (typeof visibility.playback === "object" && visibility.playback !== null) {
+            await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
+        }
+
+        tx.visibility.showContext = visibility.showContext === true;
+    });
+}
+
+/**
+ * Restore one saved run under its saved id, its saved result answering its execution.
+ * @param opening - The open.
+ * @param run - The saved run.
+ * @param read - What the open has read so far.
+ * @param read.nodeIds - The node ids the session holds.
+ * @param read.edgeIds - The edge ids the session gave, by position in the file.
+ * @param read.sameData - Whether the data is the data the run was saved over.
+ * @param read.canned - Where the saved results wait for their runs.
+ * @param read.remap - Rewrites the set ids a run names to the ones this session gave.
+ */
+async function restoreRunOf(
+    opening: Opening,
+    run: SavedRun,
+    read: {
+        readonly nodeIds: ReadonlySet<NodeId>;
+        readonly edgeIds: readonly (EdgeId | undefined)[];
+        readonly sameData: boolean;
+        readonly canned: CannedOutcomes;
+        readonly remap: <T>(value: T) => T;
+    },
+): Promise<void> {
+    const { tx, problems } = opening;
+    const { nodeIds, edgeIds, sameData, canned, remap } = read;
+    await attempt(
+        opening,
+        "runs",
+        async () => {
+            if (!sameData) {
+                problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
+            }
+
+            // A file written before caveats carried facts has none to read back.
+            const caveats: Caveats = { facts: [], ...run.caveats };
+            const result = createRunResult({
+                runId: run.id,
+                shape: run.shape,
+                fields: run.fields,
+                measured: run.measured,
+                graph: run.graph,
+                nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
+                // Edges are keyed by position in the data; data that differs leaves them out.
+                edges: sameData
+                    ? rowsOf(
+                          edgeIds.map((_, at) => at),
+                          run.edges.columns,
+                          (at) => edgeIds[at],
+                      )
+                    : [],
+                caveats,
+                durationMs: run.durationMs,
+            });
+            // The summary too, as a fresh execution hands it over: the run's record (its count,
+            // its groups) is read from it.
+            canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
+            const { algorithm, params, scope, seed, sample, exact } = remap(run);
+            try {
+                const restoring = tx.runs.start(algorithm, params, {
+                    as: run.id,
+                    style: false,
+                    ...(scope === undefined ? {} : { scope }),
+                    ...(seed === undefined ? {} : { seed }),
+                    ...(sample === undefined ? {} : { sample }),
+                    ...(exact === undefined ? {} : { exact }),
+                });
+                // Before it is recorded: a minted id stays minted, so a later start of the
+                // same question answers to it rather than minting a second one (#6227).
+                if (run.derived === true) {
+                    opening.restoreDerived(run.id);
+                }
+                await restoring;
+            } finally {
+                canned.delete(run.id);
+            }
+        },
+        run.id,
+    );
 }
 
 /**

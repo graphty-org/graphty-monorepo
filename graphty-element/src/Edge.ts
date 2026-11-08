@@ -1309,7 +1309,13 @@ export class Edge {
 
         this._lastVia = via;
 
+        const bundleChanged = edgeVersion !== this.bundleVersion;
         this.bundleVersion = edgeVersion;
+        // a fanned curve is pulled only while it is alone between its nodes (`Edge.pullsLine`)
+        if (bundleChanged && this.fans) {
+            this.repullLine();
+        }
+
         // a placed end that moves is a move; a first placement, or one after invalidatePositionCache, is at rest
         this.endsMoving = (srcMoved && this._lastSrcPos !== null) || (dstMoved && this._lastDstPos !== null);
 
@@ -2504,7 +2510,9 @@ export class Edge {
      * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
      * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
      * too when it does not fan (`line.fanned: false`), with no `arcRadius`, `supportModel` or gap: its
-     * shape is then its two centres' alone (`meshes/pulledCurve.ts`). Read when the line is built.
+     * shape is then its two centres' alone (`meshes/pulledCurve.ts`). So is a curve that fans while
+     * no other edge joins its two nodes, which draws the same curve. Read when the line is built, and
+     * again for a fanned curve when the edge set changes ({@link Edge.repullLine}).
      * @param style - The resolved style.
      * @returns True when it is pulled.
      */
@@ -2519,7 +2527,7 @@ export class Edge {
             setsOnly(style, PULLED_STYLE_KEYS) &&
             setsOnly(line, PULLED_LINE_KEYS) &&
             (line.type ?? "solid") === "solid" &&
-            (line.bezier !== true || line.fanned === false) &&
+            (line.bezier !== true || line.fanned === false || this.aloneBetween()) &&
             !line.animationSpeed &&
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
@@ -2528,6 +2536,34 @@ export class Edge {
             this.route === "straight" &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
+    }
+
+    /**
+     * Whether no other edge joins this edge's two nodes, in either direction: a fanned curve then draws
+     * the curve of one that does not fan. Asked of the store, as an edge is built, rather than of
+     * `DataManager.drawnBundle`, which works the bundles out over the whole edge set once per change.
+     * @returns True when it is alone.
+     */
+    private aloneBetween(): boolean {
+        const data = this.context.getDataManager();
+        const { id: a } = this.srcNode;
+        const { id: b } = this.dstNode;
+        return [...data.getEdgesBetween(a, b), ...data.getEdgesBetween(b, a)].every((edge) => edge === this);
+    }
+
+    /**
+     * Move a fanned curve's line between a pulled piece and placed slots when the edge set changed
+     * whether it is alone between its nodes. It draws no caps (`Edge.pullsLine` takes none either way),
+     * so only the line is built again; the placement that follows lays it.
+     */
+    private repullLine(): void {
+        const style = this.drawnStyle;
+        if (style === null || this.wantsPull(style) === (this.pulled !== null)) {
+            return;
+        }
+
+        this.releaseLine();
+        this.mesh = this.createLine(this.meshKey, style);
     }
 
     /**

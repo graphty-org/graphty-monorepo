@@ -384,6 +384,14 @@ function changedRows(before, after, rows) {
     return changed;
 }
 
+// layoutBehavior.labels for the sampled and glyphs flags
+function labelBehavior(sampled, glyphs) {
+    const b = {};
+    if (sampled) b.sampleCell = 96;
+    if (glyphs) b.labelText = "glyphs";
+    return b;
+}
+
 async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, renderPath, renderer }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
@@ -428,8 +436,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
             set: { "edge.arrowHead": "none" },
         });
     }
-    if (labels && sampled) el.layoutBehavior = { labels: { sampleCell: 96 } };
-    if (labels && glyphs) el.layoutBehavior = { labels: { labelText: "glyphs" } };
+    if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({
             name: "labels",

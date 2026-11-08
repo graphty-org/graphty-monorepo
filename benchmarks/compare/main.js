@@ -417,6 +417,31 @@ function labelBehavior(sampled, glyphs) {
     return b;
 }
 
+// the lean mode's boxes and capless edges, and the curves flag's curves
+async function addShapeStyles(el, mode, curves) {
+    if (mode === "lean") {
+        await el.session.styles.add({
+            name: "lean nodes",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": "box" },
+        });
+        await el.session.styles.add({
+            name: "lean edges",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        });
+    }
+    if (curves)
+        await el.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none", "edge.curvature": true },
+        });
+}
+
 async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, curves, renderPath, renderer }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
@@ -448,27 +473,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
     const graph = el.graph;
     const gl = graph.engine?._gl ?? null;
     let onFrame = null;
-    if (mode === "lean") {
-        await el.session.styles.add({
-            name: "lean nodes",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.shape": "box" },
-        });
-        await el.session.styles.add({
-            name: "lean edges",
-            target: "edge",
-            selector: { match: "everything" },
-            set: { "edge.arrowHead": "none" },
-        });
-    }
-    if (curves)
-        await el.session.styles.add({
-            name: "curves",
-            target: "edge",
-            selector: { match: "everything" },
-            set: { "edge.arrowHead": "none", "edge.curvature": true },
-        });
+    await addShapeStyles(el, mode, curves);
     if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({

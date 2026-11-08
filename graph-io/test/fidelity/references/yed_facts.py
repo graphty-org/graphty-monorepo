@@ -116,6 +116,14 @@ def fill_of(r):
     return (c[0], c[1]) if c else (None, 0.0)
 
 
+def gradient_of(r):
+    """Whether yEd paints the node's fill as a gradient from `color` to the Fill's `color2`: then `color` is not the
+    color drawn (the oracle judges the ramp against yEd's drawing), so the node is `paintedOver`, as yed_gml_ext.py
+    marks a GML `fill2`. The com.yjava nodes yEd draws flat whatever their color2 (yed_default_painted)."""
+    f = r.find(Y + "Fill")
+    return f is not None and f.get("color2") is not None and not yed_default_painted(r)
+
+
 def border_of(r):
     b = r.find(Y + "BorderStyle")
     if b is None or b.get("hasColor") == "false":
@@ -162,6 +170,8 @@ def scene(path):
                                    "border": border, "label": lab["text"] if lab else None})
                 else:
                     nodes.append(node(nid, x + w / 2, y + h / 2, w, h, shape, fill, alpha, border, bw, bs, lab, len(nodes) + len(groups)))
+                    if fill and gradient_of(r):
+                        nodes[-1]["paintedOver"] = True
                     for gi in ancestors:
                         groups[gi]["members"].append(nid)
             sub = n.find(G + "graph")

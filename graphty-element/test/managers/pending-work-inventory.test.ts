@@ -176,6 +176,10 @@ const INVENTORY: Record<string, Covered> = {
         kind: "shader",
         reason: "the node shader renderer modules, loaded inside the token a resolving node shader holds",
     },
+    "src/meshes/GlyphLabels.ts": {
+        count: 1,
+        reason: "document.fonts.check() is a synchronous test; a label whose font is not loaded yet is drawn by canvas meanwhile",
+    },
     "src/meshes/EdgeShaderDrawing.ts": {
         count: 1,
         kind: "shader",

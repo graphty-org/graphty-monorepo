@@ -582,6 +582,27 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "imageFit", snapshot)).toEqual(["fill", "fill", null]);
     });
 
+    it("draws a yEd image or SVG node as its picture alone, without the realizer's fill or border", async () => {
+        // yEd's own drawing of yed-graphml-specimen-images-charts and graphml-synthetic-nodes paints neither
+        const head = YED_HEAD.replace(
+            '<graph edgedefault="directed" id="G">',
+            '<key for="graphml" id="d7" yfiles.type="resources"/><graph edgedefault="directed" id="G">',
+        );
+        const geometry = '<y:Geometry height="36" width="36" x="0" y="0"/>';
+        const paint =
+            '<y:Fill color="#C8C8C8" transparent="false"/><y:BorderStyle color="#505050" type="line" width="1.0"/>';
+        const doc = [
+            head,
+            `<node id="a"><data key="d6"><y:SVGNode>${geometry}${paint}<y:SVGModel svgBoundsPolicy="0"><y:SVGContent refid="1"/></y:SVGModel></y:SVGNode></data></node>`,
+            "</graph>",
+            '<data key="d7"><y:Resources>',
+            '<y:Resource id="1" type="java.lang.String">&lt;svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/&gt;</y:Resource>',
+            "</y:Resources></data></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["none"]);
+    });
+
     describe("as yEd's own drawings show them", () => {
         const values = async (nodes: string, property: StyleProperty): Promise<readonly unknown[]> => {
             const { snapshot, styles } = await load(`${YED_HEAD}${nodes}</graph></graphml>`, false);

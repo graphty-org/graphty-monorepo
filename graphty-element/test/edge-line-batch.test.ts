@@ -216,6 +216,11 @@ describe("EdgeLineBatch", () => {
             return [...data.subarray(slot * JOIN_FLOATS_PER_PIECE, slot * JOIN_FLOATS_PER_PIECE + 14)];
         }
 
+        /** The GPU buffer a batch's hidden flags go up in. */
+        function hiddenBufferOf(drawn: EdgeLineBatch): Buffer | null {
+            return (drawn as unknown as { hiddenBuffer: Buffer | null }).hiddenBuffer;
+        }
+
         /** One slot's corners two pieces back and two ahead. */
         function twoAwayOf(drawn: EdgeLineBatch, slot: number): number[] {
             const data = (drawn as unknown as { slots: Float32Array }).slots;
@@ -304,6 +309,88 @@ describe("EdgeLineBatch", () => {
             assert.strictEqual(update.mock.calls.length, 1, "the frame uploads once");
             scene.render();
             assert.strictEqual(update.mock.calls.length, 1, "and a frame that moved nothing uploads nothing");
+        });
+
+        test("hiding a slot writes one flag and keeps its placement, and showing it clears the flag", () => {
+            const drawn = joined();
+            const slot = drawn.acquire();
+            drawn.place(slot, new Vector3(1, 2, 0), new Vector3(4, 6, 0));
+            scene.render();
+            const placed = slotOf(drawn, slot);
+            const sent: { kind: string; count: number }[] = [];
+            const upload = Buffer.prototype.updateDirectly;
+            vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (this: Buffer, ...args) {
+                const [, , count] = args;
+                sent.push({ kind: this === hiddenBufferOf(drawn) ? "hidden" : "other", count: count ?? 0 });
+                upload.apply(this, args);
+            });
+
+            drawn.park(slot);
+            assert.deepEqual(slotOf(drawn, slot), placed, "the placement stays where it is");
+            assert.strictEqual(drawn.lengthOf(slot), 0, "read as drawing nothing");
+            assert.isTrue(drawn.isParked(slot));
+            scene.render();
+            assert.deepEqual(sent, [{ kind: "hidden", count: 1 }], "only the slot's flag goes up");
+
+            sent.length = 0;
+            assert.isTrue(drawn.unpark(slot), "put back");
+            assert.strictEqual(drawn.lengthOf(slot), 5);
+            scene.render();
+            assert.deepEqual(sent, [{ kind: "hidden", count: 1 }], "and only its flag again");
+            assert.isFalse(drawn.unpark(slot), "a shown slot has nothing to put back");
+        });
+
+        test("a slot placed while hidden is drawn again, and no longer parked", () => {
+            const drawn = joined();
+            const slot = drawn.acquire();
+            drawn.place(slot, new Vector3(0, 0, 0), new Vector3(3, 4, 0));
+            drawn.park(slot);
+            drawn.place(slot, new Vector3(0, 0, 0), new Vector3(6, 8, 0));
+
+            assert.isFalse(drawn.isParked(slot));
+            assert.strictEqual(drawn.lengthOf(slot), 10);
+            assert.isFalse(drawn.unpark(slot));
+        });
+
+        /**
+         * A time window that jumps hides and shows tens of thousands of edges a frame. The work per
+         * edge is one flag: no slot float written and one float uploaded (issue #6025).
+         */
+        test("hiding n edges writes no slot and uploads n flags", async () => {
+            const collapses = vi.spyOn(EdgeLineBatch.prototype as unknown as { collapse: () => void }, "collapse");
+            const sent: number[] = [];
+            const upload = Buffer.prototype.updateDirectly;
+            await assertScalesLinearly(
+                (n) => {
+                    const drawn = joined();
+                    const slots = Array.from({ length: n }, (_, i) => {
+                        const slot = drawn.acquire();
+                        drawn.place(slot, new Vector3(i, 0, 0), new Vector3(i + 1, 0, 0));
+                        return slot;
+                    });
+                    scene.render();
+                    collapses.mockClear();
+                    sent.length = 0;
+                    const spy = vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (
+                        this: Buffer,
+                        ...args
+                    ) {
+                        sent.push((args[2] ?? 0) * this.byteStride);
+                        upload.apply(this, args);
+                    });
+                    for (const slot of slots) {
+                        drawn.park(slot);
+                    }
+
+                    scene.render();
+                    spy.mockRestore();
+                    assert.strictEqual(collapses.mock.calls.length, 0, "no slot is zeroed");
+                    const bytes = sent.reduce((sum, b) => sum + b, 0);
+                    assert.strictEqual(bytes, n * 4, "one float a slot");
+                    return bytes;
+                },
+                { sizes: [250, 1000], counter: "bytes uploaded" },
+            );
         });
 
         /**
@@ -452,6 +539,8 @@ describe("EdgeLineBatch", () => {
             }
 
             drawn.release(7);
+            // One hidden by the visibility mask, so its flag has something to repeat per vertex.
+            drawn.park(10);
             scene.render();
             return drawn;
         }
@@ -485,7 +574,7 @@ describe("EdgeLineBatch", () => {
             const drawn = build(true, true);
             const bytes = (floats: number): number => drawn.drawnCount * VERTICES * floats * 4;
 
-            assert.sameMembers(uploaded, [bytes(WIDENED_FLOATS_PER_PIECE), bytes(EDGE_STATIC_FLOATS)]);
+            assert.sameMembers(uploaded, [bytes(WIDENED_FLOATS_PER_PIECE), bytes(EDGE_STATIC_FLOATS), bytes(1)]);
         });
 
         for (const widened of [false, true]) {
@@ -513,7 +602,7 @@ describe("EdgeLineBatch", () => {
                     ]);
                 }
 
-                const kinds = ["pPrev", "pA", "pB", "pNext", "run", "pPrev2", "pNext2"];
+                const kinds = ["pPrev", "pA", "pB", "pNext", "run", "pPrev2", "pNext2", "edgeHidden"];
                 if (widened) {
                     kinds.push("runTotal", "edgeColorA", "edgeColorB", "edgeParams", "edgeMeta", "edgeTimes");
                 }

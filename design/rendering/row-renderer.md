@@ -217,6 +217,19 @@ frame is 88 ms against 95 before at similar load, the still frame 87 against 90,
 The 10,000-node still frame stays 26 ms, all of it the card drawing 100,000 edges, so its 8 ms target
 waits for the edge stages.
 
+As built (stage 14, first pull request: per-instance size): a source mesh is still built per size, and its rows still
+read their bounds, radius, edge ends and picks from it; what changed is which batch draws them. `NodeBatches` puts each
+source's group in a family keyed by its look without the size (`Node.batchLook`: shape type, detail, texture, effect)
+and its geometry's vertex and index counts, and the family's one batch is built from its first source. Every other
+source joins only if `scaleAgainst` finds one factor that maps every vertex of the first source onto its own (normals
+and indices equal), so a creator whose geometry does not follow its size gets a family of its own and draws as before;
+that factor goes into the row's `matrix` (uniform, so the normal rewrite above keeps it at 0 pixels). A change to which
+groups a family draws rebuilds its batch in row order at that flush. A size ramp of one shape is now one draw.
+`MeshCache.batchedSources` keeps a prune from taking a source whose rows a batch draws, since such a source has no
+instance and no batch of its own; when the first source is disposed, its family dissolves and its groups find a family
+again at the same flush. Nothing changes under `"objects"`: `NodeBatches` exists only under `"batched"`, and the prune
+guard's set is empty without it.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

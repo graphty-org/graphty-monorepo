@@ -415,10 +415,10 @@ describe("runShard", () => {
         const clock = deadlineClock(t, c.root);
         const first = [
             `printf '+ a.test.ts\\n+ a.test.ts > done\\n- a.test.ts > done\\n+ a.test.ts > stuck\\n' > "$GRAPHTY_RUNNING_TESTS"`,
-            // a stuck child that left the process group and ignores the TERM, holding the output pipes
-            `setsid sh -c 'trap "" TERM; sleep 600' & echo $! > survivor.pid`,
-            clock.ready,
-            "wait",
+            // a stuck child that left the process group and ignores the TERM, holding the output pipes. It says ready
+            // itself, once out of the group: said by the parent, the deadline's TERM to the group could reach the
+            // child before `setsid` ran and kill it (#6266).
+            `setsid sh -c "trap '' TERM; echo \\$\\$ > survivor.pid; ${clock.ready}; exec sleep 600" & wait`,
         ].join("; ");
         const running = run({ ...c, first }, clock.env);
         await clock.reachDeadline();

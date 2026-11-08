@@ -174,7 +174,7 @@ export function postFlaky(env, shard, family, flaky) {
  * land on CPUs about 2x apart, and the dashboard compares a result only with results of the same machine.
  * @param env the environment
  * @param source what measured them ("algorithms", "webgpu-graph-algorithms")
- * @param rows the results `{ name, value }`, milliseconds
+ * @param rows the results `{ name, value, input? }`, milliseconds
  * @returns whether it was sent
  */
 export function postBenchmarks(env, source, rows) {

@@ -1922,6 +1922,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnSourceMesh: RENDER,
             drawnInstanceColor: READ,
             batchableIn: READ,
+            batchLook: READ,
             drawnBoundingBox: READ,
             drawnWorldRadius: READ,
             drawnWorldScaling: READ,

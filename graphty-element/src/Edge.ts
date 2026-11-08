@@ -3000,8 +3000,9 @@ export class Edge {
      * Enable or disable every mesh this edge owns, to match {@link Edge.renderVisible}.
      *
      * HIDING PARKS, SHOWING PUTS BACK (issue #6025). Every slot this edge holds in a batch is parked
-     * when it is hidden: zeroed, with what it held kept aside. Showing it puts each slot back as it
-     * was and keeps the endpoint cache, so the next update re-places the edge only if an end moved
+     * when it is hidden: a joined line and a billboarded cap set the slot's hidden flag, one float
+     * the shader reads, and leave its placement where it is; any other batch zeroes the slot and
+     * keeps what it held aside. Showing it puts each slot back as it was and keeps the endpoint cache, so the next update re-places the edge only if an end moved
      * (or anything else its cache answers for) while it was hidden. A time window that jumps shows
      * tens of thousands of edges whose nodes did not move, and placing each again was most of the
      * jump. A slot that cannot be put back -- taken anew by a restyle, or written since -- drops the

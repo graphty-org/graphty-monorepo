@@ -205,8 +205,24 @@ export class EdgeLineBatch {
      */
     private readonly stride: number;
 
-    /** What the slots the visibility mask hid held, so showing one puts it back (see {@link ParkedSlots}). */
-    private readonly parking: ParkedSlots;
+    /**
+     * What the slots the visibility mask hid held, so showing one puts it back (see {@link ParkedSlots}):
+     * only for a batch drawn from thin-instance matrices. A joined line hides a slot with
+     * {@link EdgeLineBatch.hidden} instead and keeps its floats where they are.
+     */
+    private readonly parking: ParkedSlots | null;
+
+    /**
+     * Per slot, 1 while the visibility mask hides it (the shader's `edgeHidden`): hiding or showing
+     * a joined line's slot writes this one float and leaves the slot as placed (issue #6025).
+     */
+    private hidden: Float32Array;
+
+    /** The GPU buffer {@link EdgeLineBatch.hidden} is read from; null for a matrix batch. */
+    private hiddenBuffer: Buffer | null = null;
+
+    /** Which hidden flags have been written since the last upload. */
+    private readonly hiddenRuns = new DirtyRuns();
 
     /**
      * A widened batch's static values, {@link EDGE_STATIC_FLOATS} per slot, uploaded only when one
@@ -230,7 +246,12 @@ export class EdgeLineBatch {
      * An expanded batch's slots and static values repeated once per template vertex, so the
      * batch draws as one plain mesh ({@link drawsExpandedLines}); null for an instanced batch.
      */
-    private expanded: { slots: Float32Array; statics: Float32Array | null; ages: Float32Array | null } | null = null;
+    private expanded: {
+        slots: Float32Array;
+        statics: Float32Array | null;
+        ages: Float32Array | null;
+        hidden: Float32Array | null;
+    } | null = null;
 
     /** The scene's fade by age; see {@link batchUploadFrames}. */
     private readonly ageState: EdgeAgeState;
@@ -312,12 +333,13 @@ export class EdgeLineBatch {
         this.pattern = meta.pattern;
         const widened = meta.joinedLine === true && meta.widened === true;
         this.stride = widened ? WIDENED_FLOATS_PER_PIECE : FLOATS_PER_SLOT;
-        this.parking = new ParkedSlots(this.stride);
+        this.parking = meta.joinedLine === true ? null : new ParkedSlots(this.stride);
+        this.hidden = new Float32Array(INITIAL_SLOTS);
         this.statics = widened ? new Float32Array(INITIAL_SLOTS * EDGE_STATIC_FLOATS) : null;
         this.slots = new Float32Array(INITIAL_SLOTS * this.stride);
         this.matrices = meta.joinedLine === true ? null : new Float32Array(INITIAL_SLOTS * FLOATS_PER_MATRIX);
         if (meta.joinedLine === true && drawsExpandedLines(scene.getEngine())) {
-            this.expanded = { slots: new Float32Array(0), statics: null, ages: null };
+            this.expanded = { slots: new Float32Array(0), statics: null, ages: null, hidden: null };
         }
 
         this.ageState = batchUploadFrames.edgeAges(scene);
@@ -444,7 +466,7 @@ export class EdgeLineBatch {
             this.setCount();
         }
 
-        this.parking.forget(index);
+        this.forget(index);
 
         // ponytail: slots taken while the timeline is off record no edge, so a timeline switched
         // on later fades them as the newest until they are rebuilt. Record always if that matters.
@@ -483,13 +505,18 @@ export class EdgeLineBatch {
 
         // A slot the visibility mask parked stays parked, holding the placement it will be shown at.
         const { stride } = this;
-        const parked = from.parking.isParked(index);
-        this.slots.set(from.parking.placementOf(from.slots, index), slot * stride);
+        const parked = from.isParked(index);
+        this.slots.set(from.placementOf(index), slot * stride);
         if (this.statics !== null && from.statics !== null) {
             this.writeStatic(slot, from.statics.subarray(index * EDGE_STATIC_FLOATS, (index + 1) * EDGE_STATIC_FLOATS));
         }
 
         if (parked) {
+            if (this.parking === null) {
+                // A joined line's parked slot holds its placement, which goes up with its flag.
+                this.slotRuns.mark(slot, this.uploads.on, this.highWater);
+            }
+
             this.park(slot);
             return { slot, copied };
         }
@@ -599,7 +626,8 @@ export class EdgeLineBatch {
 
     /**
      * Stop drawing one slot because the visibility mask hid its edge, keeping what it held so
-     * {@link EdgeLineBatch.unpark} can put it back. See {@link ParkedSlots}.
+     * {@link EdgeLineBatch.unpark} can put it back. A joined line sets the slot's hidden flag and
+     * leaves its floats alone; a matrix batch stashes and zeroes them (see {@link ParkedSlots}).
      * @param index - The slot.
      */
     park(index: number): void {
@@ -607,8 +635,13 @@ export class EdgeLineBatch {
             return;
         }
 
-        this.parking.park(this.slots, index);
-        this.collapse(index);
+        if (this.parking !== null) {
+            this.parking.park(this.slots, index);
+            this.collapse(index);
+        } else if (this.hidden[index] !== 1) {
+            this.hidden[index] = 1;
+            this.hiddenRuns.mark(index, this.uploads.on, this.highWater);
+        }
     }
 
     /**
@@ -618,7 +651,21 @@ export class EdgeLineBatch {
      *     its edge has to place it.
      */
     unpark(index: number): boolean {
-        if (this.gone || !this.parking.unpark(this.slots, index)) {
+        if (this.gone) {
+            return false;
+        }
+
+        if (this.parking === null) {
+            if (this.hidden[index] !== 1) {
+                return false;
+            }
+
+            this.hidden[index] = 0;
+            this.hiddenRuns.mark(index, this.uploads.on, this.highWater);
+            return true;
+        }
+
+        if (!this.parking.unpark(this.slots, index)) {
             return false;
         }
 
@@ -629,11 +676,61 @@ export class EdgeLineBatch {
     }
 
     /**
+     * Whether the visibility mask hides a slot, its placement kept for {@link EdgeLineBatch.unpark}.
+     * @param index - The slot.
+     * @returns True while it is parked.
+     */
+    isParked(index: number): boolean {
+        return this.parking === null ? this.hidden[index] === 1 : this.parking.isParked(index);
+    }
+
+    /**
+     * What a slot is drawn as when it is shown: its placement, parked or not.
+     * @param index - The slot.
+     * @returns A view of its floats; copy it before the batch is written.
+     */
+    private placementOf(index: number): Float32Array {
+        if (this.parking !== null) {
+            return this.parking.placementOf(this.slots, index);
+        }
+
+        const at = index * this.stride;
+        return this.slots.subarray(at, at + this.stride);
+    }
+
+    /**
+     * Whether a slot keeps its placement while the shader draws nothing for it, so a read of what is
+     * drawn there reads nothing, as it does for a zeroed slot.
+     * @param index - The slot.
+     * @returns True for a parked slot of a joined line.
+     */
+    private hiddenInPlace(index: number): boolean {
+        return this.parking === null && this.hidden[index] === 1;
+    }
+
+    /**
+     * Forget that a slot is parked: something else wrote it.
+     * @param index - The slot.
+     */
+    private forget(index: number): void {
+        if (this.parking !== null) {
+            this.parking.forget(index);
+        } else if (this.hidden[index] !== 0) {
+            this.hidden[index] = 0;
+            this.hiddenRuns.mark(index, this.uploads.on, this.highWater);
+        }
+    }
+
+    /**
      * How long the line in one slot is drawn, in world units.
      * @param index - The slot.
      * @returns The length.
      */
     lengthOf(index: number): number {
+        if (this.hiddenInPlace(index)) {
+            return 0;
+        }
+
         const at = index * this.stride;
         const x = this.slots[at + 6] - this.slots[at + 3];
         const y = this.slots[at + 7] - this.slots[at + 4];
@@ -664,6 +761,10 @@ export class EdgeLineBatch {
      * @returns The two ends, as fresh vectors the caller may keep.
      */
     endsOf(index: number): [Vector3, Vector3] {
+        if (this.hiddenInPlace(index)) {
+            return [Vector3.Zero(), Vector3.Zero()];
+        }
+
         const at = index * this.stride;
 
         return [Vector3.FromArray(this.slots, at + 3), Vector3.FromArray(this.slots, at + 6)];
@@ -678,6 +779,10 @@ export class EdgeLineBatch {
      * @returns `out`.
      */
     protected pieceEndToRef(index: number, end: 0 | 1, out: Vector3): Vector3 {
+        if (this.hiddenInPlace(index)) {
+            return out.setAll(0);
+        }
+
         return out.fromArray(this.slots, index * this.stride + (end === 0 ? 3 : 6));
     }
 
@@ -692,6 +797,7 @@ export class EdgeLineBatch {
         if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
             this.slotRuns.whole();
             this.ageRuns.whole();
+            this.hiddenRuns.whole();
             if (this.statics !== null) {
                 this.staticRuns.whole();
             }
@@ -713,6 +819,12 @@ export class EdgeLineBatch {
             this.send(runs, this.statics, expanded?.statics ?? null, this.staticBuffer, EDGE_STATIC_FLOATS);
         }
 
+        const shown = this.hiddenRuns.dirty;
+        if (shown) {
+            const runs = this.hiddenRuns.take(uploads.on);
+            this.send(runs, this.hidden, expanded?.hidden ?? null, this.hiddenBuffer, 1);
+        }
+
         const placed = this.slotRuns.dirty;
         if (placed) {
             const runs = this.slotRuns.take(uploads.on);
@@ -723,7 +835,7 @@ export class EdgeLineBatch {
             }
         }
 
-        this.afterFlush(placed);
+        this.afterFlush(placed || shown);
     }
 
     /**
@@ -761,6 +873,8 @@ export class EdgeLineBatch {
         this.staticBuffer = null;
         this.ageBuffer?.dispose();
         this.ageBuffer = null;
+        this.hiddenBuffer?.dispose();
+        this.hiddenBuffer = null;
     }
 
     /**
@@ -864,6 +978,26 @@ export class EdgeLineBatch {
         this.ageRuns.whole();
     }
 
+    /** Hand the hidden flags to the mesh as their own attribute, sized to the slots' capacity. */
+    private bindHidden(): void {
+        this.hiddenBuffer?.dispose();
+        const instanced = this.expanded === null;
+        let data = this.hidden;
+        if (this.expanded) {
+            data = new Float32Array(this.hidden.length * TEMPLATE_VERTICES);
+            this.expanded.hidden = data;
+        }
+
+        const buffer = new Buffer(this.mesh.getEngine(), data, true, 1, false, instanced);
+        this.mesh.setVerticesBuffer(buffer.createVertexBuffer("edgeHidden", 0, 1, 1, instanced));
+        this.hiddenBuffer = buffer;
+        // An instanced buffer is made from the flags themselves; an expanded one starts at zero,
+        // which is right until a slot is hidden.
+        if (this.expanded && this.hidden.includes(1)) {
+            this.hiddenRuns.whole();
+        }
+    }
+
     /**
      * Send one buffer's rows to the GPU.
      *
@@ -949,7 +1083,7 @@ export class EdgeLineBatch {
         along: { readonly distance: number; readonly spacing: number; readonly total: number },
     ): void {
         const { distance, spacing, total } = along;
-        this.parking.forget(index);
+        this.forget(index);
         const at = index * this.stride;
         const s = this.slots;
         prev.toArray(s, at);
@@ -995,7 +1129,7 @@ export class EdgeLineBatch {
         const prev2 = piece < 2 ? prev : piece - 2;
         const next = piece === pieces - 1 ? piece + 1 : piece + 2;
         const next2 = piece >= pieces - 2 ? next : piece + 3;
-        this.parking.forget(index);
+        this.forget(index);
         const at = index * this.stride;
         const s = this.slots;
         for (let k = 0; k < 3; k++) {
@@ -1042,7 +1176,7 @@ export class EdgeLineBatch {
             return;
         }
 
-        this.parking.forget(index);
+        this.forget(index);
         this.collapse(index);
     }
 
@@ -1108,6 +1242,7 @@ export class EdgeLineBatch {
             }
 
             this.bindAges();
+            this.bindHidden();
         }
 
         // Rebuilding the buffer resets the instance count, so the high-water mark is written back.
@@ -1125,6 +1260,10 @@ export class EdgeLineBatch {
             statics.set(this.statics);
             this.statics = statics;
         }
+
+        const hidden = new Float32Array(this.hidden.length * 2);
+        hidden.set(this.hidden);
+        this.hidden = hidden;
 
         if (this.ages !== null) {
             const ages = new Float32Array(this.ages.length * 2);
@@ -1163,7 +1302,7 @@ export class EdgeLineBatch {
         const slots = new Float32Array(capacity * TEMPLATE_VERTICES * this.stride);
         const statics =
             this.statics === null ? null : new Float32Array(capacity * TEMPLATE_VERTICES * EDGE_STATIC_FLOATS);
-        this.expanded = { slots, statics, ages: null };
+        this.expanded = { slots, statics, ages: null, hidden: null };
         this.slotRuns.whole();
         if (statics !== null) {
             this.staticRuns.whole();

@@ -55,6 +55,7 @@ import {
     type NodeShaderState,
     type SurfacePath,
 } from "./meshes/NodeShaderDrawing";
+import { shareLabelBox } from "./meshes/NodeShapeGeometry";
 import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -1433,8 +1434,50 @@ export class Node implements ModelUser {
             this.batchSource === null ||
             this.halo?.isEnabled() === true ||
             this.contextPoint?.isEnabled() === true ||
-            this.batchTable?.isHeld(this.row) === true
+            this.batchTable?.isHeld(this.row) === true ||
+            // A label hangs from the anchor, which only a visit moves while the layout moves the row.
+            this.labels().length > 0
         );
+    }
+
+    /**
+     * Every label this node has on screen: its label, tooltip, external label and further texts.
+     * @returns They.
+     */
+    private labels(): RichTextLabel[] {
+        const all = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
+        return all.filter((label): label is RichTextLabel => label !== undefined);
+    }
+
+    /**
+     * Tell this node's labels the scene node they hang from was replaced by another at the same place.
+     * @param from - The old anchor.
+     * @param to - The new one.
+     */
+    private retargetLabels(from: TransformNode, to: TransformNode): void {
+        if (to instanceof AbstractMesh) {
+            for (const label of this.labels()) {
+                label.retarget(from, to);
+            }
+        }
+    }
+
+    /**
+     * A batched row's anchor that a label can hang from (design/rendering/row-renderer.md 4.7): a
+     * mesh with no geometry, boxed as its source, so `attachTo`, the label's box and the declutter
+     * read it as they read a node mesh. It draws nothing and takes no pick.
+     * @param name - Its name.
+     * @param scene - Its scene.
+     * @returns The anchor.
+     */
+    private boxAnchor(name: string, scene: Scene): Mesh {
+        const anchor = new Mesh(name, scene);
+        anchor.isPickable = false;
+        anchor.isVisible = false;
+        const { minimum, maximum } = this.#source.getBoundingInfo();
+        anchor.setBoundingInfo(new BoundingInfo(minimum, maximum));
+        shareLabelBox(this.#source as Mesh, anchor);
+        return anchor;
     }
 
     /** The table's `moves` when a batched row's anchor last followed its row. */
@@ -1477,8 +1520,13 @@ export class Node implements ModelUser {
             this.#mesh.sourceMesh === source &&
             !this.#meshHeld
         ) {
-            const anchor = new TransformNode(this.#anchor.name, this.#mesh.getScene());
+            const scene = this.#mesh.getScene();
+            const anchor =
+                this.labels().length > 0
+                    ? this.boxAnchor(this.#anchor.name, scene)
+                    : new TransformNode(this.#anchor.name, scene);
             Node.moveOnto(this.#mesh, anchor);
+            this.retargetLabels(this.#mesh, anchor);
             this.#mesh.dispose();
             this.#anchor = anchor;
             this.#mesh = null;
@@ -1486,6 +1534,7 @@ export class Node implements ModelUser {
             const anchor = this.#anchor;
             this.build(this.#fit.meshKey, this.#fit.style);
             Node.moveOnto(anchor, this.#anchor);
+            this.retargetLabels(anchor, this.#anchor);
             anchor.dispose();
             if (this.#actions !== null) {
                 this.makeDrawnPickable(this.#actions);
@@ -1630,6 +1679,17 @@ export class Node implements ModelUser {
             this.shaderPath === null &&
             batchableOf({ style }, view)
         );
+    }
+
+    /**
+     * What a batch's material is built from, with the size left out: rows whose looks match share
+     * one batch across sizes, each scaled in its matrix.
+     * @returns The look, as a key.
+     * @internal
+     */
+    get batchLook(): string {
+        const style = this.drawnStyle;
+        return JSON.stringify([style?.shape?.type, style?.shape?.detail, style?.texture, style?.effect]);
     }
 
     /**
@@ -3855,6 +3915,7 @@ export class Node implements ModelUser {
             ...this.createLabelOptions(text, this.wantedTooltip),
             onTop: true,
         });
+        this.context.getNodeBatches?.()?.rewalk(this);
     }
 
     /**
@@ -3867,20 +3928,34 @@ export class Node implements ModelUser {
     hideTooltip(): void {
         this.tooltip?.dispose();
         this.tooltip = undefined;
+        this.context.getNodeBatches?.()?.rewalk(this);
     }
 
     /**
-     * The mesh a label hangs from. A row a batch draws has none, and a label makes it an object row, so the batch is
-     * told first: a paint that keeps its mesh labels the node before it re-sorts it, which left the label hanging from
-     * nothing, at its own position.
-     * @returns The mesh, or undefined when the node is still drawn in a batch.
+     * The mesh a label hangs from: the node's own, or for a row a batch draws, its anchor made a
+     * geometry-free mesh ({@link Node.boxAnchor}), so the row stays batched. The batch is told
+     * first: a paint that keeps its mesh labels the node before it re-sorts it.
+     * @returns The mesh, or undefined for a removed node with no mesh.
      */
     private labelTarget(): AbstractMesh | undefined {
         if (this.#mesh === null && !this.disposed) {
             this.context.getNodeBatches?.()?.sync(this);
         }
 
-        return this.#mesh ?? undefined;
+        if (this.#mesh !== null || this.disposed) {
+            return this.#mesh ?? undefined;
+        }
+
+        const held = this.#anchor;
+        if (held instanceof AbstractMesh) {
+            return held;
+        }
+
+        const anchor = this.boxAnchor(held.name, held.getScene());
+        Node.moveOnto(held, anchor);
+        held.dispose();
+        this.#anchor = anchor;
+        return anchor;
     }
 
     /**

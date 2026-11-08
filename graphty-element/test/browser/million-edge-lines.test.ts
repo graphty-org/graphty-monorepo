@@ -7,7 +7,7 @@
  * section 4.3, stage 16.
  */
 
-import { Color4, Constants, Engine, FreeCamera, Logger, RawTexture, Scene, Vector3 } from "@babylonjs/core";
+import { Color3, Color4, Constants, Engine, FreeCamera, Logger, RawTexture, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
@@ -124,7 +124,9 @@ describe("a million edge lines", () => {
         );
         for (let e = 0; e < EDGES; e++) {
             const [a, b] = rowsOf(e);
-            pulled.setRows(pulled.acquire(), a, b);
+            const piece = pulled.acquire();
+            pulled.setRows(piece, a, b);
+            pulled.setLook(piece, Color3.FromHexString(LOOK.color), 1, LOOK.width);
         }
         const drawn = await frame();
         pulled.dispose();

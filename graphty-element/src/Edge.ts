@@ -1,4 +1,4 @@
-import { AbstractMesh, Ray, Vector3 } from "@babylonjs/core";
+import { AbstractMesh, Color3, Ray, Vector3 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
@@ -656,8 +656,16 @@ export class Edge {
      * The piece this edge's line is pulled into instead ({@link Edge.pullsLine}), with the rows last
      * written to it: -1 while hidden. Null for every other line.
      */
-    private pulled: { batch: PulledLineBatch; piece: number; source: number; target: number; drawn: boolean } | null =
-        null;
+    private pulled: {
+        batch: PulledLineBatch;
+        piece: number;
+        source: number;
+        target: number;
+        drawn: boolean;
+        /** The look's name and visibility, as a batch of its own would carry them ({@link Edge.drawnLine}). */
+        name: string;
+        visibility: number;
+    } | null = null;
 
     /**
      * Which slots of {@link Edge.lineBatch} draw this edge: one for a straight line, and one per
@@ -933,10 +941,10 @@ export class Edge {
             const src = this.srcNode.drawnPosition;
             const dst = this.dstNode.drawnPosition;
             return {
-                name: this.pulled.batch.mesh.name,
+                name: this.pulled.name,
                 length: Vector3.Distance(src, dst),
                 width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                visibility: this.pulled.batch.mesh.visibility,
+                visibility: this.pulled.visibility,
                 centre: Vector3.Center(src, dst),
             };
         }
@@ -2449,7 +2457,7 @@ export class Edge {
     }
 
     /**
-     * Take a piece of the pulled batch of this line's look.
+     * Take a piece of the pulled batch and give it this line's look.
      * @param options - The line's look.
      * @param options.styleId - The look's key.
      * @param options.width - Its width.
@@ -2474,7 +2482,19 @@ export class Edge {
             scene,
             () => rows.positionTexture,
         );
-        this.pulled = { batch, piece: batch.acquire(), source: -1, target: -1, drawn: true };
+        const piece = batch.acquire();
+        // As `createStaticLine` hands the plain line's material its look.
+        const opacity = EdgeMesh.opacityOf(style);
+        batch.setLook(piece, Color3.FromHexString(options.color), opacity, options.width * 20);
+        this.pulled = {
+            batch,
+            piece,
+            source: -1,
+            target: -1,
+            drawn: true,
+            name: `edge-style-${options.styleId}-pulled`,
+            visibility: Math.min(opacity, 1),
+        };
         this.pullRows();
         return batch.mesh;
     }

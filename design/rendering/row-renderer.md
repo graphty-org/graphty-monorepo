@@ -411,6 +411,22 @@ draw, so the test draws all but the last as specks. `test/browser/million-edge-e
 element: a `"batched"` element loads a million edges (all pulled) on 1,416 nodes and draws the millionth with no
 GL error, about 55 s on SwiftShader, almost all of it the load.
 
+As built (stage 19): a pulled piece carries its own look, so color, width and opacity key no batch.
+`EdgeMesh.pulledBatch` keys on the minimum screen width and the pass only (`edge-pulled|<minScreenWidth>|opaque`,
+`translucent` or `unblended`: a line under full opacity draws in the transparent pass, as the plain line's batch does,
+and a line with blending off neither blends in place nor goes there). A translucent batch reaches the transparent pass
+through its material's `needAlphaBlending`, never through its mesh's `visibility`: the mesh is shared, so the first
+edge's opacity would be every edge's, and an opacity of 0 would stop Babylon drawing the batch at all. The edge table
+takes two texels a piece, (source row, target row, width, opacity) then (red, green, blue), written by
+`PulledLineBatch.setRows` and `setLook` when an edge joins or restyles, never on a move. The shader reads them as
+`pieceWidth` and a flat varying `vLook` in place of the `width`, `color` and `opacity` uniforms, with the values
+`createStaticLine` would hand a material, so the pixels are the same. `Edge.drawnLine` keeps answering each edge's own
+look name and visibility. `test/browser/pulled-edge-look.test.ts` loads 1,000 edges of 1,000 colors, four widths and
+two opacities: the `"objects"` path draws at least 1,000 draws, `"batched"` at most 8, 0 pixels apart, and a restyled
+edge rewrites its piece with no draw more, on WebGL and WebGPU. Only `"batched"` (or the internal switch) pulls an edge,
+so `"objects"` is untouched. Correction: the edge table is 32 bytes a piece, not 8, so 32 MB at capacity 2^20, not 8 MB;
+a move still uploads no edge byte.
+
 As built (stage 20, first pull request): the GPU trim pass is measured, not built into the element.
 `test/browser/edge-trim-gpu.bench.test.ts` (`browser-bench`, skipped without `GRAPHTY_BROWSER_GPU`) runs it as a WebGL2
 fragment pass, one texel per edge holding both ends' reach (an RGBA32F target), each a ray from the node's center toward

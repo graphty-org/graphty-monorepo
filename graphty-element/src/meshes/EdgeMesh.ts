@@ -581,9 +581,11 @@ void main() {
     }
 
     /**
-     * The batch a plain straight line between node centres is pulled into: the plain line's own
-     * look (`createStaticLine`), drawn from the row table (`PulledLineBatch`).
-     * @param cache - The cache that keeps one batch per look.
+     * The batch a plain straight line between node centres is pulled into, drawn from the row table
+     * (`PulledLineBatch`). A piece carries its color, width and opacity itself
+     * (`PulledLineBatch.setLook`), so they key no batch: one batch per minimum screen width and
+     * per pass (translucent lines draw in the transparent pass, as the plain line's do).
+     * @param cache - The cache that keeps the batches.
      * @param options - The line's look.
      * @param style - The resolved style.
      * @param scene - The scene.
@@ -597,12 +599,29 @@ void main() {
         scene: Scene,
         rowPositions: () => BaseTexture,
     ): PulledLineBatch {
-        return cache.getPulledBatch(`edge-style-${options.styleId}-pulled`, () => {
+        // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
+        // line (blending false) neither blends in place nor goes in the transparent pass.
+        const pass = this.pulledPass(style);
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}`;
+        return cache.getPulledBatch(key, () => {
             const mesh = this.createStaticLine(options, style, scene, cache, false, true);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
             return new PulledLineBatch(mesh, scene, rowPositions);
         });
+    }
+
+    /**
+     * The pass a pulled edge's batch draws in, which its mesh, not its piece, decides.
+     * @param style - The resolved style.
+     * @returns The pass.
+     */
+    private static pulledPass(style: EdgeStyleConfig): "unblended" | "translucent" | "opaque" {
+        if (this.drawsOpaque(style)) {
+            return "unblended";
+        }
+
+        return this.opacityOf(style) < 1 ? "translucent" : "opaque";
     }
 
     /**

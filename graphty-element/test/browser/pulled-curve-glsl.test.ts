@@ -75,7 +75,14 @@ function shaderPoints(asks: Ask[]): Float32Array {
         const location = gl.getAttribLocation(program, name);
         assert.isAtLeast(location, 0, `${name} is read`);
         gl.enableVertexAttribArray(location);
-        gl.vertexAttribPointer(location, name === "span" || name === "cutAndPoint" ? 4 : 3, gl.FLOAT, false, 64, i * 16);
+        gl.vertexAttribPointer(
+            location,
+            name === "span" || name === "cutAndPoint" ? 4 : 3,
+            gl.FLOAT,
+            false,
+            64,
+            i * 16,
+        );
     });
 
     const captured = gl.createBuffer();
@@ -112,13 +119,7 @@ function asks(): Ask[] {
             return d > 0 && d > r;
         };
         const bow = out.length % 2 === 0 ? null : (random() - 0.5) * 2 * scale;
-        const span = curveSpan(
-            src,
-            dst,
-            radius(src, random() * scale * 0.3),
-            radius(dst, random() * scale * 0.3),
-            bow,
-        );
+        const span = curveSpan(src, dst, radius(src, random() * scale * 0.3), radius(dst, random() * scale * 0.3), bow);
         for (let j = 0; span !== null && j <= span.pieces; j++) {
             out.push({ src, dst, span, j });
         }

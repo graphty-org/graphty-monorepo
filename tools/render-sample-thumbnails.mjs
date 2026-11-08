@@ -60,13 +60,10 @@ const bundle = path.join(root, "graphty-element/dist/graphty.bundle.js");
 /** The graphty app's own samples that have no graph-samples dataset to take a picture from. */
 const appSamplesDir = path.join(root, "graphty/public/samples");
 const APP_SAMPLES = ["campus-contacts", "graph-research", "marvel-films", "paper-citations"];
-/** The start page's network samples: a source id and that source's example (StartScreen.tsx). */
-const NETWORK_SAMPLES = [
-    ["ndex", "ndex-wp5483"],
-    ["neo4j", "neo4j-movies"],
-    ["sparql", "uniprot-tp53"],
-    ["rest", "deps-dev-webpack"],
-];
+/** The start page's network samples: a source id and that source's example. */
+const NETWORK_SAMPLES = JSON.parse(
+    readFileSync(path.join(root, "graphty/src/workspace/start/network-samples.json"), "utf8"),
+);
 
 /** The picture's size in pixels: twice a 240 x 150 tile, for sharp screens. */
 const WIDTH = 480;
@@ -363,7 +360,7 @@ async function jobs(wanted) {
             layout: { id: "force", options: { seed: SEED } },
         });
     }
-    for (const [source, example] of NETWORK_SAMPLES.filter(([source]) => want(`network-${source}`))) {
+    for (const { source, example } of NETWORK_SAMPLES.filter(({ source }) => want(`network-${source}`))) {
         list.push({
             file: path.join(appSamplesDir, `network-${source}.webp`),
             name: `network-${source}`,

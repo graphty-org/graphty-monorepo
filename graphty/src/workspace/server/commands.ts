@@ -231,12 +231,9 @@ export function serverRequest(
     entry: SourceCatalogEntry,
     form: ServerFormState,
 ): { input: SourceInput; options: SourceLoadOptions } {
-    // A param the descriptor does not declare goes as it is.
-    const declared = new Map(entry.descriptor.params.map((param) => [param.name, param.type]));
     const config: Record<string, unknown> = {};
-    for (const [name, typed] of Object.entries(form.params)) {
-        const type = declared.get(name);
-        const value = type === undefined ? typed : paramValue(type, typed);
+    for (const { name, type } of entry.descriptor.params) {
+        const value = paramValue(type, form.params[name]);
         if (value !== undefined) {
             config[name] = value;
         }

@@ -15,6 +15,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { clearRecent, rememberRecent } from "../../project/recent";
 // What www.ndexbio.org answered for WikiPathways WP5483 (graph-io's scripts/record-ndex.ts).
 import ndexRecordings from "../../server/__tests__/ndex-wp5483.json";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -118,8 +119,9 @@ async function landedOnStylePanel(store: WorkspaceStore, session: GraphSession, 
 describe("network data from the start page", () => {
     withFeatures(["network-data"]);
 
-    afterEach(() => {
+    afterEach(async () => {
         vi.restoreAllMocks();
+        await clearRecent();
     });
 
     it("opens the form with no project and no samples in it, and closing leaves the start page", async () => {
@@ -199,7 +201,7 @@ describe("network data from the start page", () => {
         await typeWp5483(form);
         await pressLoad(form);
         await waitFor(() => {
-            assert.isNotNull(form.querySelector("[data-error]"));
+            assert.include(form.querySelector("[data-error]")?.textContent, "unreachable or blocked");
         });
         assert.isNull(store.get().project);
         assert.isNotNull(screen.getByRole("form", { name: "Network data" }));
@@ -225,6 +227,87 @@ describe("network data from the start page", () => {
         await waitFor(() => {
             assert.isTrue(signal?.aborted);
         });
+        assert.isNull(store.get().project);
+    });
+
+    it("opens nothing when the server answers after the form is closed", async () => {
+        let answer: (response: Response) => void = () => undefined;
+        let asked = false;
+        stubNdex(() => {
+            asked = true;
+            return new Promise((resolve) => {
+                answer = resolve;
+            });
+        });
+        const { store, form } = await openForm();
+        await typeWp5483(form);
+        await pressLoad(form);
+        await waitFor(() => {
+            assert.isTrue(asked);
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Close Network data" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
+        answer(new Response("{}", { status: 200 }));
+        // A real click, so everything the answer set off has run before the assertion.
+        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        await screen.findByRole("form", { name: "Network data" });
+        assert.isNull(store.get().project);
+    });
+
+    it("previews a network larger than the preview, and names the size past the Limit", async () => {
+        recordedNdex();
+        const { store, form } = await openForm();
+        await typeWp5483(form);
+        await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+        const preview = await within(form).findByRole("group", { name: "Preview" });
+        assert.include(preview.textContent, "25+");
+        assert.isNull(form.querySelector("[data-error]"));
+
+        const limit = within(form).getByLabelText("Limit");
+        await userEvent.clear(limit);
+        await userEvent.type(limit, "10");
+        await userEvent.click(within(form).getByRole("button", { name: "Test" }));
+        await waitFor(() => {
+            assert.strictEqual(form.querySelector("[data-error]")?.textContent, "57 nodes: over Limit");
+        });
+        assert.isNull(store.get().project);
+    });
+
+    it("closes only the dropdown on Escape, keeping what was typed", async () => {
+        const { form } = await openForm();
+        await typeWp5483(form);
+        await userEvent.click(within(form).getByRole("combobox", { name: "Kind" }));
+        await screen.findByRole("option", { name: "Start people" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("option", { name: "Start people" }));
+        });
+        assert.strictEqual(screen.getByRole<HTMLInputElement>("textbox", { name: "Network UUID" }).value, WP5483);
+
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
+    });
+
+    it("puts Database with the sign-in, above Limit", async () => {
+        const { form } = await openForm();
+        await userEvent.click(within(form).getByRole("combobox", { name: "Kind" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^Neo4j/ }));
+        const database = await within(form).findByRole("textbox", { name: "Database" });
+        const limit = within(form).getByLabelText("Limit");
+        assert.isTrue(Boolean(database.compareDocumentPosition(limit) & Node.DOCUMENT_POSITION_FOLLOWING));
+    });
+
+    it("offers Open network data to a returning reader", async () => {
+        await rememberRecent({ id: "a", name: "Trade routes", nodes: 40, at: 1 });
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+        await screen.findByRole("heading", { level: 1, name: "Welcome back." });
+        await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
+        await screen.findByRole("form", { name: "Network data" });
         assert.isNull(store.get().project);
     });
 
@@ -270,16 +353,74 @@ describe("network data from the start page", () => {
         assert.strictEqual(store.get().project?.name, "WikiPathways WP5483");
     });
 
-    it("goes back to the start page with a notice when a tile's server refuses", async () => {
-        stubNdex(() => Promise.resolve(new Response("{}", { status: 500 })));
+    it("reads a tile's server before anything opens, showing the tile as busy", async () => {
+        const replay = replayFetch(ndexRecordings);
+        let release: () => void = () => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        stubNdex(async (request) => {
+            await held;
+            return replay(request);
+        });
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+        const tile = await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" });
+        const session = await openBy(store, async () => {
+            await userEvent.click(tile);
+            await waitFor(() => {
+                assert.strictEqual(tile.getAttribute("aria-busy"), "true");
+            });
+            assert.isNull(store.get().project, "nothing opens while the server is read");
+            release();
+        });
+        await landedOnStylePanel(store, session, 57);
+    });
+
+    it("stops a tile's read when the reader opens something else", async () => {
+        let signal: AbortSignal | undefined;
+        stubNdex((request) => {
+            ({ signal } = request);
+            return new Promise((_resolve, reject) => {
+                request.signal.addEventListener("abort", () => {
+                    reject(new DOMException("Aborted", "AbortError"));
+                });
+            });
+        });
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
         await userEvent.click(await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" }));
         await waitFor(() => {
-            assert.isNull(store.get().project);
+            assert.isDefined(signal);
+        });
+        await openBy(store, () =>
+            userEvent.click(screen.getByRole("button", { name: /^Open the Zachary's karate club sample/ })),
+        );
+        await waitFor(() => {
+            assert.isTrue(signal?.aborted);
+        });
+        assert.strictEqual(store.get().project?.name, "Zachary's karate club");
+        assert.isNull(store.get().notice);
+    });
+
+    it("stays on the start page with a notice when a tile's server refuses, and a retry clears it", async () => {
+        const replay = replayFetch(ndexRecordings);
+        let refuse = true;
+        stubNdex((request) => (refuse ? Promise.resolve(new Response("{}", { status: 500 })) : replay(request)));
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+        const tile = await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" });
+        await userEvent.click(tile);
+        await waitFor(() => {
             assert.isTrue(store.get().notice?.error);
         });
-        assert.isNotNull(await screen.findByRole("button", { name: "Open network data" }));
+        assert.isNull(store.get().project);
+        assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
+
+        refuse = false;
+        const session = await openBy(store, () => userEvent.click(tile));
+        await landedOnStylePanel(store, session, 57);
+        assert.isNull(store.get().notice);
     });
 });
 

@@ -48,7 +48,7 @@ import { codeWords, failureOf, kindName } from "./words";
 const OWN_ROWS = new Set(["mode"]);
 
 /** Params few readers change, drawn after the main rows with the source's own advanced ones. */
-const RARE_PARAMS = new Set(["transport", "database"]);
+const RARE_PARAMS = new Set(["transport"]);
 
 /** The choice of a select that means none: an enum left unset. */
 const NONE = "";
@@ -419,6 +419,8 @@ function ServerForm({
         session.data
             .previewSource(input, {
                 maxNodes: 25,
+                // Load's cap: what Test refuses, Load would too.
+                ...(options.limits === undefined ? {} : { limits: options.limits }),
                 ...(options.endpoint === undefined ? {} : { endpoint: options.endpoint }),
                 ...(credential === undefined ? {} : { credential }),
             })
@@ -448,11 +450,18 @@ function ServerForm({
     };
 
     return (
-        <form
+        <form // NOSONAR(S6847): the handler only marks an Escape the dropdown inside already used
             aria-label="Network data"
             onSubmit={(event) => {
                 event.preventDefault();
                 void load();
+            }}
+            onKeyDown={(event) => {
+                // Escape in an open dropdown closes only the dropdown: the pop-over leaves a used
+                // Escape alone, and compact-mantine's select (Figma-locked) does not mark its own (#6356).
+                if (event.key === "Escape" && (event.target as HTMLElement).ariaExpanded === "true") {
+                    event.preventDefault();
+                }
             }}
         >
             <PanelLabelsProvider showLabels>
@@ -786,8 +795,6 @@ export function OpenNetworkData({ children }: Readonly<{ children: React.ReactEl
             ...request.options,
             signal: scratch.stop.signal,
         });
-        // Closed while the answer came in: it opens nothing.
-        scratch.stop.signal.throwIfAborted();
         openWithStylePanel(store, request.input.name ?? request.input.source, async (session, element) => {
             await rememberSignIn(element, request);
             await session.data.import(read, { history: "start" });

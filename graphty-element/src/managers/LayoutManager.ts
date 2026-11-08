@@ -904,7 +904,7 @@ export class LayoutManager implements Manager {
                 const engine = this.layoutEngine;
                 layoutDiag.debug("rest", {
                     engine: engine?.type,
-                    engineClass: engine?.constructor.name,
+                    bridge: engine instanceof SimulationLayoutEngine,
                     engineNodes: engine === undefined ? null : [...engine.nodes].length,
                     shown: viewSummary(this.shownNow()),
                     totalNodes: this.dataManager.nodes.size,
@@ -1392,7 +1392,8 @@ export class LayoutManager implements Manager {
             layout,
             type,
             driver,
-            driverClass: driverClass.name,
+            // Class names are minified in a build; the simulation type says whether the bridge runs it.
+            bridgeSimulation: (driverClass as { simulationType?: SimulationType }).simulationType ?? null,
             dimension: how.dimension,
             transition: how.transition === true,
             shown: viewSummary(shown),

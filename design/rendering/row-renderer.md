@@ -611,10 +611,14 @@ piece is (endAt, height, 4, unused). A height of 0 is `raisedArc`'s two ends, no
 is drawn as the uncut lone curve, as on the object path. A change to either key already rebuilds the line. Still object
 edges: a straight line with a raised route, a great-circle route, and a raised route the layout picks (`location-map`
 in 3D) rather than the style, since `Edge.pullsLine` is read only when the line is built and the layout's route can
-change without a rebuild. `test/pulled-curve.test.ts` holds the mirror to `raisedArc`'s cut within 1e-9 on 400 seeded
+change without a rebuild. `Edge.pullsLine` reads the route from the style it is handed (`Edge.routeOf`), not the
+one drawn now: `Edge.paintFrom` asks before it stores the new style, and `line.route` is a content channel that does
+not change the mesh key, so a pulled straight line restyled to "great-circle", or to "arc" with no curvature, would
+otherwise stay pulled and draw straight. `test/pulled-curve.test.ts` holds the mirror to `raisedArc`'s cut within 1e-9 on 400 seeded
 edges (height 0 among them); `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
 `test/browser/pulled-curves-batched.test.ts` raises every curve at the default height, drags a node, then raises them
-to 0.6, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with
+to 0.6, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). It also restyles pulled straight lines to
+each of those two routes and holds that they leave the pull and match `"objects"` at 0 pixels. Still object edges: a curve with
 caps or `supportModel`, those routes, bends and self-loops.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay

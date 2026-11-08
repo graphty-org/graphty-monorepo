@@ -2535,7 +2535,7 @@ export class Edge {
             noCap(style.arrowHead) &&
             noCap(style.arrowTail) &&
             style.band?.color === undefined &&
-            (this.route === "straight" || (line.route === "arc" && line.bezier === true)) &&
+            (this.routeOf(style) === "straight" || (line.route === "arc" && line.bezier === true)) &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
     }
@@ -3611,7 +3611,17 @@ export class Edge {
      * @returns The route.
      */
     private get route(): "straight" | "arc" | "great-circle" {
-        const asked = this.drawnStyle?.line?.route;
+        return this.routeOf(this.drawnStyle);
+    }
+
+    /**
+     * The path a style would have this edge take ({@link Edge.route}), read from that style rather
+     * than the one drawn now, so a restyle is judged by the route it asks for.
+     * @param style - The style to read, or null for none.
+     * @returns The route.
+     */
+    private routeOf(style: EdgeStyleConfig | null): "straight" | "arc" | "great-circle" {
+        const asked = style?.line?.route;
         if (asked !== undefined) {
             return asked;
         }

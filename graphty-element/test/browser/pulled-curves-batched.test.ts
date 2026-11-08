@@ -376,4 +376,44 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
         assert.equal(overBar(before.high, after.high), 0, "height 0.6");
     });
+
+    it.each(["great-circle", "arc"] as const)(
+        "leave a pulled straight line restyled to the %s route to the object path, drawing its picture",
+        async (route) => {
+            /**
+             * Straighten every edge, then give each the route.
+             * @param element - The element.
+             * @returns The rows before the route, and the picture after it.
+             */
+            async function routed(element: Graphty): Promise<{ pulledBefore: number; frame: Frame }> {
+                const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+                await element.session.styles.add({
+                    name: "straight",
+                    target: "edge",
+                    selector: { match: "ids", edges },
+                    set: { "edge.curvature": false },
+                } as never);
+                await settled(element);
+                const pulledBefore = element.graph.rowCounts.pulledEdges;
+                await element.session.styles.add({
+                    name: "routed",
+                    target: "edge",
+                    selector: { match: "ids", edges },
+                    set: { "edge.route": route },
+                } as never);
+                await settled(element);
+                return { pulledBefore, frame: await readCanvas(element.graph) };
+            }
+
+            const objects = await loaded(renderer, "objects");
+            const before = await routed(objects);
+            objects.remove();
+
+            const batched = await loaded(renderer, "batched");
+            const after = await routed(batched);
+            assert.equal(after.pulledBefore, EDGES.length, "the straight lines are pulled first");
+            assert.deepInclude(batched.graph.rowCounts, { pulledEdges: 0, objectEdges: EDGES.length });
+            assert.equal(overBar(before.frame, after.frame), 0, "the routed picture");
+        },
+    );
 });

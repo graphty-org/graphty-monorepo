@@ -16,7 +16,7 @@ import type { LiveHover } from "./predicate";
  * @param node - The node's dense index.
  * @returns The node, its neighbors and the edges that touch it.
  */
-export function hoverNeighborhood(graph: GraphSnapshot, node: number): LiveHover {
+function hoverNeighborhood(graph: GraphSnapshot, node: number): LiveHover {
     const neighbors = new Uint8Array(graph.nodeCount);
     const edges = new Uint8Array(graph.edgeCount);
     const { rowPtr, colIdx, arcToEdge } = graph;

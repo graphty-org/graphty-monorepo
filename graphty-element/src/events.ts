@@ -92,6 +92,7 @@ export type GraphEvent =
     | GraphStartedEvent
     | LayoutChangedEvent
     | LayoutWarningEvent
+    | LimitsWarningEvent
     | BasemapStatusEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
@@ -106,7 +107,7 @@ export type GraphEvent =
     | InputShortcutEvent;
 
 /** A graph event type that stays inside the element: see {@link INTERNAL_EVENT_TYPES}. */
-export type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
+type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
 
 /**
  * The unprefixed events `<graphty-element>` forwards to the DOM, by name: every graph and AI event
@@ -289,7 +290,11 @@ export interface GraphGenericEvent {
         // framing it, and a frame has been drawn in that state. `graph-settled` fires one pass
         // earlier -- the instant the layout stops, before the final framing has even been asked
         // for -- so anything that photographs, records or measures the view wants this one.
-        | "graph-frame-stable";
+        | "graph-frame-stable"
+        // Emitted when the first frame that shows the graph's nodes has been drawn: the moment a
+        // page can take its loading placeholder away. Fired again when a graph emptied of every
+        // node draws its next nodes. `frames` is the element's frame count.
+        | "graph-first-frame";
     [key: string]: unknown;
 }
 
@@ -470,6 +475,20 @@ export interface LayoutWarningEvent {
 }
 
 /**
+ * Emitted when the `limits` the element was given are not in force: under `render-path="objects"`
+ * the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`). A code and its
+ * parameters, never a sentence.
+ * @experimental cosmograph
+ */
+export interface LimitsWarningEvent {
+    type: "limits-warning";
+    /** What happened: `W_LIMITS_IGNORED`. */
+    code: GraphtyWarningCode;
+    /** The code's parameters, as the code's documentation lists them. */
+    params: Readonly<Record<string, unknown>>;
+}
+
+/**
  * Emitted when the map under the location map layout changes state: drawn, loading, or fallen
  * back to the bundled world image because its tiles failed (`error` then carries
  * `E_BASEMAP_UNREACHABLE` with `{ source, status }`, `status` being the HTTP status when the
@@ -498,8 +517,15 @@ export interface OperationCancelledEvent {
     /** The operation's id, as `operation-start` carried it. */
     id: string;
     /**
+     * Why it was aborted: `"queue-cleared"` when the whole queue was cleared, `"cancelled"` when
+     * this one operation was cancelled. Write the reader-facing words from this code.
+     */
+    code: "queue-cleared" | "cancelled";
+    /**
      * Why it was aborted, as the queue words it: `"Queue cleared"` when the whole queue was
      * cleared, `"Manual cancellation"` when this one operation was cancelled.
+     * @deprecated Read {@link OperationCancelledEvent.code} instead; this English text is removed
+     * in the next major release.
      */
     reason: string;
 }

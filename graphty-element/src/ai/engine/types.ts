@@ -22,7 +22,7 @@ import type {
 import type { ProviderState, SavedMessage, SavedPart } from "../conversation/formats/v1";
 
 // One definition of a saved message: the saved conversation format's (formats/v1.ts).
-export type { PartOrigin, ProviderState, SavedMessage, SavedPart } from "../conversation/formats/v1";
+export type { ProviderState, SavedMessage, SavedPart } from "../conversation/formats/v1";
 
 /** A JSON Schema object, as a provider's tool declaration takes it. */
 export type JsonSchema = Readonly<Record<string, unknown>>;
@@ -67,7 +67,7 @@ export function graphData(text: string): string {
  * @param text - The text.
  * @returns It, enveloped.
  */
-export function webContent(text: string): string {
+function webContent(text: string): string {
     return envelope("web-content", text);
 }
 
@@ -221,7 +221,7 @@ export type TurnEvent =
 export type TurnError = Extract<TurnEvent, { type: "error" }>;
 
 /** Whether something an engine might do is available, as a code. */
-export type EngineCapabilityStatus = "available" | "unsupported";
+type EngineCapabilityStatus = "available" | "unsupported";
 
 /** What an engine can do with one model. */
 export interface EngineCapabilities {
@@ -464,7 +464,7 @@ export interface AiEngine {
  * One host function a program written by the model calls as `await tools.<name>(input)`. What it
  * resolves with must survive `JSON.stringify`; a throw reaches the program as an `Error`.
  */
-export type ProgramBinding = (input: unknown) => Promise<unknown>;
+type ProgramBinding = (input: unknown) => Promise<unknown>;
 
 /** The host functions a program may call, by name (a JavaScript identifier). */
 export type ProgramBindings = Readonly<Record<string, ProgramBinding>>;

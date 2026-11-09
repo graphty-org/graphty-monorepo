@@ -6,14 +6,16 @@ Measures one build of graphty-element against cosmos.gl 3.5.1 with the same harn
 This directory is a standalone package with its own lockfile, outside the pnpm workspace, so cosmos.gl never
 reaches a published package. Install it once with `pnpm install --frozen-lockfile`.
 
-| Variable                     | Meaning                                                                                                                                                                  | Default                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `BENCH_URL`, `BENCH_RESULTS` | The page, and the file a run appends its row to                                                                                                                          | Required                                                     |
-| `BENCH_RENDER_PATH`          | graphty-element's `renderPath` option, recorded in the row as `renderPath`. A build without the option ends the run with a failure instead of measuring its default path | Unset: the element's default                                 |
-| `BENCH_RENDERER`             | graphty-element's `renderer` option, recorded in the row as `rendererRequest`                                                                                            | Unset: WebGL                                                 |
-| `BENCH_TOOLS`                | The checkout whose Playwright and `tools/with-browser.sh` run the browser                                                                                                | This checkout                                                |
-| `BENCH_EGL`                  | The directory of the extracted libEGL                                                                                                                                    | `tmp/egl/root/usr/lib/x86_64-linux-gnu` in the main checkout |
-| `BENCH_DEADLINE_S`           | Seconds before a run ends as `did not finish`                                                                                                                            | 570                                                          |
+| Variable                     | Meaning                                                                                                                                                                                                                                       | Default                                                      |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `BENCH_URL`, `BENCH_RESULTS` | The page, and the file a run appends its row to                                                                                                                                                                                               | Required                                                     |
+| `BENCH_RENDER_PATH`          | graphty-element's `renderPath` option, recorded in the row as `renderPath`. A build without the option ends the run with a failure instead of measuring its default path                                                                      | Unset: the element's default                                 |
+| `BENCH_LIMITS`               | JSON for graphty-element's `limits` option, e.g. `{"renderCeiling":2000000,"edgesDrawn":2000000}`; it applies only under `BENCH_RENDER_PATH=batched`. Recorded in the row as `limits`. A build without the option ends the run with a failure | Unset: the shipped limits                                    |
+| `BENCH_RENDERER`             | graphty-element's `renderer` option, recorded in the row as `rendererRequest`                                                                                                                                                                 | Unset: WebGL                                                 |
+| `BENCH_ANTIALIAS`            | `false` sets graphty-element's `antialias` to false, before any other option; recorded in the row as `antialias`. A build without the option ends the run with a failure                                                                      | Unset: the element's default (true)                          |
+| `BENCH_TOOLS`                | The checkout whose Playwright and `tools/with-browser.sh` run the browser                                                                                                                                                                     | This checkout                                                |
+| `BENCH_EGL`                  | The directory of the extracted libEGL                                                                                                                                                                                                         | `tmp/egl/root/usr/lib/x86_64-linux-gnu` in the main checkout |
+| `BENCH_DEADLINE_S`           | Seconds before a run ends as `did not finish`                                                                                                                                                                                                 | 570                                                          |
 
 The baseline ran in Chromium 143. To compare with it, run every build in that browser by pointing `BENCH_TOOLS`
 at a checkout of the commit it was measured on, from the repository root:
@@ -52,7 +54,7 @@ It answers with a URL. Then, in every Bash call below:
 
 To measure a render path, also export `BENCH_RENDER_PATH=batched` (or `objects`), and give each path its own
 `LABEL`: `summarize.mjs` pools the rows of a file, whatever their path. Under `batched` a graphty run records
-`rowCounts` after the load and fails if any node is not on a batch.
+`rowCounts` after the load (and `rowCounts-drag` after the drag) and fails if any node is not on a batch.
 
 ## 3. Measure
 
@@ -99,6 +101,22 @@ If a long run ends with `did not finish`, its later stages are missing. Run the 
 still-frame stage, and `summarize.mjs` pools rows per measure, so a measure reaches three runs. The baseline
 needed `lean-m-tail` three times and `lean-m-dpr2-tail` twice.
 
+To see where a frame's CPU goes, set `BENCH_PROFILE=<path prefix>`: the run also profiles 60 still and 60 moving
+frames, outside the timed stages, into `<prefix>-still.cpuprofile` and `<prefix>-orbit.cpuprofile`.
+
+The `3d` flag keeps the lean mode's straight edges in 3D, where `batched` pulls them (a 2D line is not pulled), and
+fails the run if any edge is an object edge: the million-edge line program (cosmos-gap.md G12) is measured with it.
+
+The curve target (100,000 curved edges moving) is `lean-s-curves`: 10,000 boxes and 100,000 curves with no caps,
+in 3D. Under `batched` it also fails if any edge is an object edge. Run it once per render path, interleaved:
+
+    BENCH_DEADLINE_S=190 ./matrix.sh lean-s-curves 3
+
+The frame floor, where a frame measures the loop's pacing rather than drawing, is `lean-10-few` (10 nodes, 10
+edges) beside `lean-s-few` and `lean-m-few`:
+
+    BENCH_DEADLINE_S=190 ./matrix.sh lean-10-few 3
+
 `./matrix.sh list` prints every key. To see why a browser died, run the configuration once with
 `DEBUG=pw:browser` and without the `grep` of `matrix.sh`:
 
@@ -118,8 +136,8 @@ Then call `servherd_stop` with the name `cosmos-bench-<LABEL>`.
 
 ## What a row holds
 
-`results.jsonl` has one line per run: `sha`, `source`, `dirty`, `renderPath` (absent when unset), `renderer`, `flags`, `loadavgBefore`, `floor` (the
-cost of the measurement itself), `load`, `canvas`, `still`, `orbit` (the moving frame), `drag` (a frame with one node moved, null for cosmos.gl), `memory`, `hover`,
+`results.jsonl` has one line per run: `sha`, `source`, `dirty`, `renderPath` (absent when unset), `renderer`, `flags`, `loadavgBefore`, `loadavgAfter` (the one-minute load average as the row was written), `floor` (the
+cost of the measurement itself), `load`, `canvas`, `still`, `gpuFrame` (the GPU time of 60 still frames from `EXT_disjoint_timer_query_webgl2`, null without the extension and for cosmos.gl; a serial still frame below it means the stamps ran early), `orbit` (the moving frame), `drag` (a frame with one node moved, null for cosmos.gl), `memory`, `hover`,
 `layoutFps`, `layoutSteps` (on the accelerated path also `publish`, one `publishPositions()`, `stepUndrawn`, the step with the frame loop stopped, and `repackUpload`, one row table repack and upload finished on the card, with `rowsCopied`, the fewest rows a timed flush really changed, which should be close to `rows`), and `failure` when it ended early. The order of the stages is fixed: still, moving, drag,
 memory, hover, layout. Hover comes before the layout so both libraries hover the same scene.
 

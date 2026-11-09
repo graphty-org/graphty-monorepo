@@ -7,7 +7,10 @@
  * A listed story reports as skipped, so a passed count is a count of stories compared.
  *
  * `VITE_PARITY_STORIES` narrows a run to files whose name matches it, and `VITE_PARITY_RENDERER`
- * says which engine draws: `webgl` unless it says `webgpu`.
+ * says which engine draws: `webgl` unless it says `webgpu`. `VITE_PARITY_PULLED=1` compares the
+ * object loads with a third that pulls edges from the row table (`pulledEdgesDefault`) instead of
+ * one on `"batched"`. `VITE_PARITY_ANTIALIAS=false` builds every load without multisampling, so the
+ * batched load draws straight pulled lines with the lean program (design/rendering/cosmos-gap.md, G12).
  */
 
 import "../../src/algorithms/index";
@@ -21,6 +24,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { renderPathDefault } from "../../src/meshes/NodeBatch";
+import { antialiasDefault, pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
 import { type CanvasFrame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
 import unstable from "./unstable.json";
 import unstableWebgpu from "./unstable-webgpu.json";
@@ -33,6 +37,10 @@ const narrowed = (import.meta.env as Record<string, string | undefined>).VITE_PA
 /** Which engine this run draws on. */
 const RENDERER = ((import.meta.env as Record<string, string | undefined>).VITE_PARITY_RENDERER ?? "webgl") as
     "webgl" | "webgpu";
+/** Whether the third load pulls edges rather than batching nodes. */
+const PULLED = (import.meta.env as Record<string, string | undefined>).VITE_PARITY_PULLED === "1";
+/** Whether every load multisamples. */
+const ANTIALIAS = (import.meta.env as Record<string, string | undefined>).VITE_PARITY_ANTIALIAS !== "false";
 const UNSTABLE: Readonly<Record<string, string>> =
     RENDERER === "webgpu" ? { ...unstable, ...unstableWebgpu } : unstable;
 
@@ -63,10 +71,14 @@ const ANNOTATIONS = {
     },
 };
 
+// Read when an element builds its engine, which a story's own bindings can do before the renderer is set.
+antialiasDefault.value = ANTIALIAS;
+
 const modules = import.meta.glob<Record<string, unknown>>("../../stories/**/*.stories.ts");
 
 afterEach(() => {
     renderPathDefault.value = "objects";
+    pulledEdgesDefault.value = false;
     document.body.replaceChildren();
 });
 
@@ -74,10 +86,12 @@ afterEach(() => {
  * Draw a story and read its whole canvas.
  * @param story - The story.
  * @param path - The render path.
+ * @param pulled - Whether edges are pulled from the row table.
  * @returns The bytes, or null for a story with no element.
  */
-async function picture(story: Composed, path: "objects" | "batched"): Promise<CanvasFrame | null> {
+async function picture(story: Composed, path: "objects" | "batched", pulled = false): Promise<CanvasFrame | null> {
     renderPathDefault.value = path;
+    pulledEdgesDefault.value = pulled;
     const host = document.createElement("div");
     host.style.width = "800px";
     host.style.height = "600px";
@@ -93,6 +107,11 @@ async function picture(story: Composed, path: "objects" | "batched"): Promise<Ca
 
     const frame = await readCanvas(element.graph);
     assert.equal(element.graph.renderPath, path);
+    assert.equal(
+        element.graph.leansLines(),
+        !ANTIALIAS && path === "batched",
+        `the lean program is not as set (antialias ${String(element.graph.antialias)})`,
+    );
     assert.equal(element.graph.engine.isWebGPU, RENDERER === "webgpu", "the story drew on the other engine");
     host.remove();
     return frame;
@@ -136,8 +155,12 @@ describe.each(files)("%s", async (file) => {
         const again = await picture(story, "objects");
         assert.isNotNull(again);
         assert.equal(overBar(objects, again), 0, `${id} is not stable between two loads`);
-        const batched = await picture(story, "batched");
-        assert.isNotNull(batched);
-        assert.equal(overBar(objects, batched), 0, `${id} differs on the batched path`);
+        const third = PULLED ? await picture(story, "objects", true) : await picture(story, "batched");
+        assert.isNotNull(third);
+        assert.equal(
+            overBar(objects, third),
+            0,
+            `${id} differs ${PULLED ? "with edges pulled" : "on the batched path"}`,
+        );
     });
 });

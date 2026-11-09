@@ -14,9 +14,14 @@ import { buildToolset, isAssistantTool } from "../../../src/ai/tools/toolset";
 import type { Reach } from "../../../src/ai/tools/types";
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { clearRegisteredAlgorithmsForTesting } from "../../../src/catalog/registry";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import { loadRecordedSeed } from "../../../stories/fixtures/expand/source";
 import { assistantSession, digest, ScriptedAssistant } from "../../helpers/assistant";
 import { ReachRecorder } from "./reach-recorder";
+
+// Every action runs, so the experiments that gate some of them are on: network sources
+// (network-data) and a file's own styles (file-styles).
+setDefaultFeatures(["network-data", "file-styles"]);
 
 /** A stand-in renderer: the camera, captures and XR answer as a renderer would. */
 const RENDERER = {
@@ -155,7 +160,7 @@ const withSample = (): void => {
                 descriptor: {
                     plainName: "Contract source",
                     params: [],
-                    samples: [{ id: "contract-sample", plainName: "Contract sample", params: {} }],
+                    examples: [{ id: "contract-sample", plainName: "Contract sample", params: {} }],
                 },
                 async *records() {
                     await Promise.resolve();
@@ -421,8 +426,8 @@ const ROWS: Record<string, Row> = {
         gate: false,
     },
     "sources.generate": { args: { action: "generate", name: "path", params: { n: 3 } } },
-    "sources.load_sample": {
-        args: { action: "load_sample", id: "contract-sample" },
+    "sources.load_example": {
+        args: { action: "load_example", source: "contract-source", id: "contract-sample" },
         setup: withSample,
         code: "AI_CONFIRM_REQUIRED",
     },
@@ -806,7 +811,7 @@ describe("every generated action", () => {
 
 /** More calls for an action whose reference call stops short of something it reaches: a held change, a refusal. */
 const MORE: Record<string, Row[]> = {
-    "sources.load_sample": [{ args: { action: "load_sample", id: "contract-sample" }, setup: withSample, gate: false }],
+    "sources.load_example": [{ args: { action: "load_example", source: "contract-source", id: "contract-sample" }, setup: withSample, gate: false }],
     "sources.expand": [{ args: { action: "expand", ids: ["valjean"] }, session: seededSession, gate: false }],
     "import_data.import": [
         {

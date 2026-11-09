@@ -8,6 +8,7 @@
  *
  * - the sets store's committed diff (`SetsStore.onCommit`), before any `set:changed`;
  * - a selection change and a visibility change, before their public events;
+ * - an element entering or leaving a state (hovered, pinned, ghosted);
  * - a run moving its result: queued for a re-run (the result is cleared), finished, or removed;
  * - an attribute write after load (`Graph.updateNodes`), announced once per batch on the store
  *   owner's input tick;
@@ -40,6 +41,7 @@ export type MovedInput =
     | { readonly kind: "sets"; readonly ids: readonly SetId[] }
     | { readonly kind: "selection" }
     | { readonly kind: "hover" }
+    | { readonly kind: "state" }
     | { readonly kind: "visibility" }
     | { readonly kind: "run"; readonly run: RunId }
     | { readonly kind: "attributes"; readonly element: "node" | "edge"; readonly fields: readonly string[] }

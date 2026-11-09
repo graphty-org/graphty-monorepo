@@ -110,6 +110,11 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.raisedBorderWidth": "mesh",
     "node.raisedBorderLightColor": "mesh",
     "node.raisedBorderDarkColor": "mesh",
+    "node.shadowColor": "mesh",
+    "node.shadowOpacity": "mesh",
+    "node.shadowBlur": "mesh",
+    "node.shadowOffsetX": "mesh",
+    "node.shadowOffsetY": "mesh",
     "node.underlayColor": "mesh",
     "node.underlayOpacity": "mesh",
     "node.underlayPadding": "mesh",
@@ -197,6 +202,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // outlines are baked into the source mesh
     "node.labelTable": "mesh",
     "node.shapeLineWidth": "mesh",
+    "node.shapeLineHaloColor": "mesh",
+    "node.shapeLineHaloWidth": "mesh",
     // How a node grows to hold its label: the fitted extents are baked into the source mesh, and
     // Node keys the mesh by them as well, since nodes of one style differ by their label's box.
     "node.labelFit": "mesh",
@@ -261,6 +268,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.patternCount": "mesh",
     "edge.waveAmplitude": "mesh",
     "edge.wavePeriod": "mesh",
+    "edge.dashLength": "mesh",
+    "edge.dashGap": "mesh",
     "edge.curvature": "mesh",
     "edge.animationSpeed": "mesh",
 

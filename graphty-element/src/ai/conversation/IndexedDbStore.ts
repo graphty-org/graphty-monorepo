@@ -22,7 +22,7 @@ import { type ConversationRecord, readConversation, writeConversation } from "./
 import { claimEntry, MemoryStore, newestFirst, nextRevision } from "./MemoryStore";
 
 /** The database a store opens when the host names none. */
-export const DEFAULT_HISTORY_DATABASE = "graphty-ai";
+const DEFAULT_HISTORY_DATABASE = "graphty-ai";
 
 const STORE = "conversations";
 

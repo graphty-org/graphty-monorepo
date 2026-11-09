@@ -122,7 +122,7 @@ const projected = new Vector3();
  * @param part.bottom - Its bottom edge.
  * @returns The box, or undefined when there is no camera or the part is behind it.
  */
-export function planePartOnScreen(
+function planePartOnScreen(
     mesh: AbstractMesh,
     part: { left: number; right: number; top: number; bottom: number },
 ): CloseRect | undefined {

@@ -13,9 +13,11 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { siteFileStyles } from "../../siteConfig";
 import { AI_PROVIDER_SECTION, AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
 import { assistantOn } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
+import { fileStylesOn } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
 import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
@@ -49,6 +51,10 @@ function General(): React.JSX.Element {
     const { colorScheme, setColorScheme } = useMantineColorScheme();
     const numberFormat = useNumberFormats().choice;
     const [importStyles, setImportStyles] = useState(() => fileStylesChoice() === "file");
+    // The switch belongs to the element's file styles experiment; the stored preference is kept. The
+    // start screen has no session yet, so there the site's feature list decides, as the element will.
+    const { session } = useWorkspace();
+    const styled = session ? fileStylesOn(session) : siteFileStyles();
     return (
         <Stack gap="md">
             <Input.Wrapper label="Theme" description="The app's panels and menus.">
@@ -82,16 +88,18 @@ function General(): React.JSX.Element {
                     ]}
                 />
             </Input.Wrapper>
-            <Switch
-                label="Import styles from files"
-                description="When a file gives its nodes and edges colors, sizes or shapes, draw them as style layers."
-                checked={importStyles}
-                onChange={(event) => {
-                    const next = event.currentTarget.checked;
-                    setImportStyles(next);
-                    writeFileStylesChoice(next);
-                }}
-            />
+            {styled ? (
+                <Switch
+                    label="Import styles from files"
+                    description="When a file gives its nodes and edges colors, sizes or shapes, draw them as style layers."
+                    checked={importStyles}
+                    onChange={(event) => {
+                        const next = event.currentTarget.checked;
+                        setImportStyles(next);
+                        writeFileStylesChoice(next);
+                    }}
+                />
+            ) : null}
         </Stack>
     );
 }

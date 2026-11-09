@@ -90,7 +90,7 @@ export interface AskedQuestion {
 }
 
 /** The `ask_reader` tool and how a call of it is checked: the questions module's, loaded when needed. */
-export interface QuestionTool {
+interface QuestionTool {
     readonly tool: ToolSpec;
     /** A call of the tool, checked: the question, or undefined when its arguments do not fit. */
     readonly parse: (call: ToolCallRequest) => AskedQuestion | undefined;
@@ -103,7 +103,7 @@ export const DELEGATE = "delegate";
 export const RUN_CODE = "run_code";
 
 /** In-page code (`run_code`): the program module's, loaded only when it is on. */
-export interface CodeTool {
+interface CodeTool {
     readonly tool: ToolSpec;
     /**
      * Run one call: its program, whose tool calls each run read-only through `callTool`.
@@ -333,7 +333,7 @@ export interface ConversationRun {
 }
 
 /** The reader's answer to a question. */
-export interface ReaderAnswer {
+interface ReaderAnswer {
     /** The `ask_reader` call it answers. */
     readonly callId: string;
     /** The choices picked, by value. */
@@ -397,7 +397,7 @@ function joinTexts(texts: readonly string[]): string | undefined {
  * @param message - The message's id, as its steps' `provenance.message` carries it.
  * @returns The step, or undefined when the message has recorded none that is applied.
  */
-export function latestStepOf(session: GraphSession, message: string): HistoryStepId | undefined {
+function latestStepOf(session: GraphSession, message: string): HistoryStepId | undefined {
     const { steps, position } = session.history;
     for (let index = position - 1; index >= 0; index--) {
         if (steps[index].provenance.message === message) {

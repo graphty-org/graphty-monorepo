@@ -573,6 +573,15 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
+     * Whether `nodeGap` is set.
+     * @returns True when the engine spaces nodes by their drawn size.
+     * @internal
+     */
+    override get spacesBySize(): boolean {
+        return this.nodeGap !== null;
+    }
+
+    /**
      * Start the simulation again because a node's drawn size changed, when `nodeGap` keeps nodes
      * apart by that size: a node that grew after the layout came to rest may now cover another.
      * @returns True when the simulation was woken.

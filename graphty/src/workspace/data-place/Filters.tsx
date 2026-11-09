@@ -13,6 +13,7 @@ import type {
     FilterConditionCount,
     GraphSession,
     HistoryStepId,
+    SourceKey,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
 import {
@@ -108,10 +109,13 @@ interface Draft {
  * @param session - the element's session.
  * @param side - nodes or edges.
  * @param field - the field, if any.
+ * @param source - the load it is made for, if any.
  * @returns the selection.
  */
-function newFilterSelection(session: GraphSession, side: Side, field?: CardField): UnionLeaf {
-    const made = newSelection(side === "node" ? "nodes" : "edges", "graph");
+function newFilterSelection(session: GraphSession, side: Side, field?: CardField, source?: SourceKey): UnionLeaf {
+    const fresh = newSelection(side === "node" ? "nodes" : "edges", "graph");
+    // A load's filter starts from that load's elements, so its counts read "N of that load's".
+    const made = source === undefined ? fresh : { ...fresh, sources: [source] };
     const all = editBranch(made, made.branches[0].id ?? "", { start: "all" });
     const branch = all.branches[0].id ?? "";
     return field === undefined ? all : addStep(all, branch, "keep", ruleOfField(session, field)).rule;
@@ -127,16 +131,46 @@ const hides = (condition: FilterCondition): boolean => condition.effect !== "sel
 /**
  * The Filters section: one card per condition, in the element's order, the new cards while they
  * have no value, then the time window's row. "+" adds a card. One card is open at a time; the rest
- * rest as their summary.
+ * rest as their summary. A load's section lists that load's filters, and "+" there makes one for
+ * that load (graphty-element's `FilterCondition.source`): it judges only that load's nodes and
+ * edges, and counts "N of that load's". The primary section takes the canvas toolbar's Filters and
+ * an attribute's Filter to..., and holds the time window's row.
+ * @param props - Component props
+ * @param props.source - the load whose filters it lists: those made for it, and, when it is the
+ * only load (`primary`), those of no load too
+ * @param props.unscoped - with no `source`, list only the filters of no load (beside each load's
+ * own section); otherwise every filter
+ * @param props.primary - whether it is the section the toolbar and Filter to... open (default true)
+ * @param props.headingLevel - its heading's level, under a load's own section
  * @returns the section.
  */
-export function FiltersSection(): React.JSX.Element {
+export function FiltersSection({
+    source,
+    unscoped = false,
+    primary = true,
+    headingLevel,
+}: Readonly<{
+    source?: SourceKey;
+    unscoped?: boolean;
+    primary?: boolean;
+    headingLevel?: 2 | 3;
+}> = {}): React.JSX.Element {
     const { session, store } = useWorkspace();
     const version = useVisibilityVersion(session);
     const asked = useWorkspaceState((state) => state.filterDraft);
     const [drafts, setDrafts] = useState<readonly Draft[]>([]);
     const [openId, setOpenId] = useState<string | null>(null);
-    const conditions = session?.visibility.conditions ?? [];
+    const keys = new Set(session?.data.sources().map((each) => each.key) ?? []);
+    // A filter of a load that is gone is listed with the filters of no load, so it can be removed.
+    const ownless = (condition: FilterCondition): boolean =>
+        condition.source === undefined || !keys.has(condition.source);
+    const listed = (condition: FilterCondition): boolean => {
+        if (source !== undefined) {
+            return condition.source === source || (primary && ownless(condition));
+        }
+        return !unscoped || ownless(condition);
+    };
+    const conditions = (session?.visibility.conditions ?? []).filter(listed);
     // Once written, a draft is one of the element's conditions, drawn by the same card, and is let
     // go: removed later, it must not come back as a draft.
     const waiting = drafts.filter((each) => !conditions.some((c) => c.id === each.id));
@@ -198,16 +232,29 @@ export function FiltersSection(): React.JSX.Element {
     };
     const openRef = useRef(open);
     openRef.current = open;
+    const listedRef = useRef(listed);
+    listedRef.current = listed;
     // An attribute's Filter to... opens a card on it; the toolbar's Filters opens "+".
     useEffect(() => {
         if (asked === null || session === null) {
+            return;
+        }
+        // The toolbar's Filters edits the one filter there is, in whichever section lists it, shows
+        // two or more where they are listed, and starts one only when there is none.
+        const saved = session.visibility.conditions;
+        if (asked === PLUS && saved.length === 1 && listedRef.current(saved[0])) {
+            setOpenId(saved[0].id);
+        }
+        if (!primary) {
             return;
         }
         store.set({ filterDraft: null });
         // What held focus when the card was asked for, not whatever holds it a render later.
         const from = takeDraftOpener();
         if (asked === PLUS) {
-            openRef.current("node", undefined, from);
+            if (saved.length === 0) {
+                openRef.current("node", undefined, from);
+            }
             return;
         }
         const at = asked.indexOf(":");
@@ -219,11 +266,12 @@ export function FiltersSection(): React.JSX.Element {
                 openRef.current(side, field, from);
             }
         }
-    }, [asked, session, store]);
+    }, [asked, session, store, primary]);
 
     const timeCardAdded = useWorkspaceState((state) => state.timeWindowCard);
     // The Time window card: added from "+" (R5), or a window put on from elsewhere (the dock, a key).
-    const timed = session !== null && session.time.field !== null && (timeCardAdded || session.time.current !== null);
+    const timed =
+        primary && session !== null && session.time.field !== null && (timeCardAdded || session.time.current !== null);
     const plus =
         session === null ? null : (
             <span data-filters-plus="">
@@ -266,13 +314,21 @@ export function FiltersSection(): React.JSX.Element {
                       ],
                   },
               ];
-    const cards = [
-        ...conditions.map((condition) => ({ id: condition.id, condition, draft: undefined })),
-        ...waiting.map((each) => ({ id: each.id, condition: undefined, draft: each })),
-    ];
+    const written = conditions.map((condition) => ({ id: condition.id, condition, draft: undefined }));
+    const fresh = waiting.map((each) => ({ id: each.id, condition: undefined, draft: each }));
+    // In the selection workspace the newest filter is on top, a new one's row first, as Figma lists
+    // layers; it stays there once written.
+    const cards =
+        session !== null && selectionWorkspaceOn(session)
+            ? [...fresh, ...written.toReversed()]
+            : [...written, ...fresh];
     const empty = cards.length === 0 && !timed;
     // What the cards together leave, on the header: "Passes none" when they empty the picture.
-    const { summary } = session?.visibility ?? { summary: null };
+    // A load's section says what its filters leave of that load.
+    let summary = session?.visibility.summary ?? null;
+    if (session !== null && source !== undefined) {
+        summary = session.visibility.summaryOf(source);
+    }
     // Kept while a card's workspace is open: what the cards leave together is another fact than the
     // card's own count in the workspace's header (spec 3.0, ws-polish 3).
     const together =
@@ -288,6 +344,7 @@ export function FiltersSection(): React.JSX.Element {
     return (
         <ControlSection
             label="Filters"
+            headingLevel={headingLevel}
             actions={
                 <Group gap={4} wrap="nowrap">
                     {together}
@@ -297,7 +354,13 @@ export function FiltersSection(): React.JSX.Element {
             empty={empty}
         >
             {empty || session === null ? null : (
-                <Stack component="ul" role="list" aria-label="Filters" gap={6} className="dp-filters">
+                <Stack
+                    component="ul"
+                    role="list"
+                    aria-label="Filters"
+                    gap={selectionWorkspaceOn(session) ? 2 : 6}
+                    className="dp-filters"
+                >
                     {cards.map((each) => (
                         // One list, keyed by id: a draft written keeps its card (and focus) as the condition.
                         <FilterCard
@@ -308,6 +371,7 @@ export function FiltersSection(): React.JSX.Element {
                             condition={each.condition}
                             count={counts.find((c) => c.id === each.id)}
                             draft={each.draft}
+                            source={source}
                             timePick={timePick}
                             open={openId === each.id}
                             onOpen={(next) => {
@@ -411,6 +475,7 @@ const NO_SELECTION: UnionLeaf = { kind: "union", side: "nodes", within: "graph",
  * @param props.condition - the condition, or undefined for a draft
  * @param props.count - the element's count of it
  * @param props.draft - a card not yet written: its side and field
+ * @param props.source - the load a new card is made for, or undefined for every load
  * @param props.timePick - the filter's own picker entries, given what to do once one is picked
  * @param props.open - whether its body is shown
  * @param props.onOpen - opens or closes it
@@ -426,6 +491,7 @@ function FilterCard({
     condition,
     count,
     draft: fresh,
+    source,
     timePick,
     open,
     onOpen,
@@ -439,6 +505,7 @@ function FilterCard({
     condition: FilterCondition | undefined;
     count: FilterConditionCount | undefined;
     draft: Draft | undefined;
+    source: SourceKey | undefined;
     timePick: (onPicked: () => void) => readonly PickSection[];
     open: boolean;
     onOpen: (open: boolean) => void;
@@ -464,7 +531,9 @@ function FilterCard({
         }
     }, [open]);
     // A new card's selection: one group starting with All, and a Keep step on its field when it has one.
-    const [draftRule, setDraftRule] = useState(() => newFilterSelection(session, fresh?.side ?? "node", fresh?.field));
+    const [draftRule, setDraftRule] = useState(() =>
+        newFilterSelection(session, fresh?.side ?? "node", fresh?.field, source),
+    );
     const draft = condition === undefined;
     // Added in this card's life: Cancel in the workspace it opened takes it away again, written or not.
     const born = useRef(draft);
@@ -541,14 +610,17 @@ function FilterCard({
         void writeCondition(store, () => session.visibility.updateCondition(id, change));
     };
     // The on box, named as the group eye is ("Use A"). In the open card it takes no Tab stop of its
-    // own: Space on the title row switches it, and the title row says when it is off.
+    // own: Space on the title row switches it, and the title row says when it is off. On a resting
+    // row in the selection workspace the row's group says the filter once, so its controls go by
+    // short names (Use, Edit, More).
+    const short = cards && !open;
     const onBox = (inEditor: boolean): React.ReactNode =>
         draft ? null : (
             <Tooltip label={inEditor ? `Use ${title} (Space)` : `Use ${title}`}>
                 <Checkbox
                     size="xs"
                     className="dp-filter-on"
-                    aria-label={`Use ${title}`}
+                    aria-label={short && !inEditor ? "Use" : `Use ${title}`}
                     tabIndex={inEditor ? -1 : undefined}
                     checked={on}
                     onChange={(event) => {
@@ -608,6 +680,7 @@ function FilterCard({
                 aria-label={total === undefined ? name : `${name}, ${total} ${things}`}
                 className="ws-card dp-filter"
                 data-off={on ? undefined : ""}
+                data-open={open ? "" : undefined}
             >
                 {open && selection !== null ? (
                     <FilterSelection
@@ -616,6 +689,7 @@ function FilterCard({
                         session={session}
                         store={store}
                         id={id}
+                        source={source}
                         rule={selection}
                         effect={condition?.effect}
                         title={title}
@@ -643,7 +717,14 @@ function FilterCard({
                                     value={side}
                                     onChange={(value) => {
                                         setSwitched(true);
-                                        setDraftRule(newFilterSelection(session, value === "edge" ? "edge" : "node"));
+                                        setDraftRule(
+                                            newFilterSelection(
+                                                session,
+                                                value === "edge" ? "edge" : "node",
+                                                undefined,
+                                                source,
+                                            ),
+                                        );
                                     }}
                                 />
                             ) : undefined
@@ -652,7 +733,8 @@ function FilterCard({
                         // Only on arrival: a side switch keeps focus on Nodes | Edges, the picker shut
                         // and nothing said, so the arrows go on switching (WCAG 3.2.2, ws-polish 3).
                         openPicker={draft && stepless && !switched}
-                        openTitle={(draft && switched) || switchIn.current}
+                        // A saved filter opened from its row or its Edit opens the workspace on it at once.
+                        openTitle={(draft && switched) || switchIn.current || (cards && !draft)}
                         switchedSide={draft && switched}
                         hostPicks={timePick(() => {
                             if (draft) {
@@ -711,11 +793,15 @@ function FilterCard({
                         {!(cards && renaming) && (
                             <UnstyledButton
                                 className="dp-filter-name"
-                                aria-label={[
-                                    title,
-                                    ...(total === undefined ? [] : [`${total} ${things}`]),
-                                    ...(on ? [] : ["off"]),
-                                ].join(", ")}
+                                aria-label={
+                                    short
+                                        ? ["Edit", ...(on ? [] : ["off"])].join(", ")
+                                        : [
+                                              title,
+                                              ...(total === undefined ? [] : [`${total} ${things}`]),
+                                              ...(on ? [] : ["off"]),
+                                          ].join(", ")
+                                }
                                 aria-expanded={open}
                                 onClick={() => {
                                     focusOnOpen.current = !open;
@@ -723,9 +809,19 @@ function FilterCard({
                                     onOpen(!open);
                                 }}
                             >
-                                <Text size="sm" fw={600} truncate span className="dp-filter-title">
-                                    {title}
-                                </Text>
+                                {/* A long description wraps to two lines, then is cut short; its tooltip says it whole. */}
+                                <Tooltip label={title} openDelay={500} multiline maw={280}>
+                                    <Text
+                                        size="sm"
+                                        fw={cards ? undefined : 600}
+                                        truncate={cards ? undefined : true}
+                                        lineClamp={cards ? 2 : undefined}
+                                        span
+                                        className="dp-filter-title"
+                                    >
+                                        {title}
+                                    </Text>
+                                </Tooltip>
                                 <span className="sel-spacer" />
                                 {!editing && total === undefined && (
                                     <CountChips count={count} effect={condition?.effect} />
@@ -741,13 +837,23 @@ function FilterCard({
                             // The card's commands, Rename first (Figma's layer row menu).
                             <Menu position="bottom-end" withinPortal>
                                 <Menu.Target>
-                                    <ActionIcon variant="subtle" size="sm" aria-label={`More for ${title}`}>
+                                    <ActionIcon variant="subtle" size="sm" className="dp-filter-more" aria-label="More">
                                         <GLYPHS.more size={14} aria-hidden />
                                     </ActionIcon>
                                 </Menu.Target>
                                 <Menu.Dropdown>
                                     <SelectionMenuItems
                                         items={[
+                                            {
+                                                id: "edit",
+                                                label: "Edit",
+                                                icon: "filter",
+                                                group: "edit",
+                                                key: "Enter",
+                                                onRun: () => {
+                                                    onOpen(true);
+                                                },
+                                            },
                                             {
                                                 id: "rename",
                                                 label: "Rename",

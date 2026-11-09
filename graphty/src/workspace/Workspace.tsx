@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
+import { selectionWorkspaceOn } from "./features";
 import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { NoticeSlot } from "./frame/NoticeSlot";
@@ -16,8 +17,8 @@ import { openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
+import { cardPalette } from "./selection/cardPalette";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import { NetworkDataDialog } from "./start/NetworkDataDialog";
 import { useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
@@ -100,7 +101,12 @@ export function Workspace({
         // before anything loads, so the rows are there from the first frame.
         // The app's run limits for selection steps (design/ui/selection-groups/spec.md, section 6):
         // a run that follows hover or edits starts under 50 ms; one above a second waits for Run.
-        session.scope.setOptions({ liveMs: 50, askAboveMs: 1000 });
+        // The selection workspace's cards go past the element's six branch colors (cardPalette).
+        session.scope.setOptions({
+            liveMs: 50,
+            askAboveMs: 1000,
+            ...(selectionWorkspaceOn(session) ? { branchPalette: cardPalette(session.catalog.palettes()) } : {}),
+        });
         const defaults =
             project?.id === startProjectId ||
             (session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top")
@@ -265,7 +271,6 @@ export function Workspace({
                 <span key={announced}>{announcement}</span>
             </VisuallyHidden>
             <SamplesDialog />
-            <NetworkDataDialog />
         </WorkspaceContext.Provider>
     );
 }

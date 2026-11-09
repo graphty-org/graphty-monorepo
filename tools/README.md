@@ -249,6 +249,9 @@ All packages: 80% lines/functions/statements, 75% branches
   when one test file passes `FILE_GUARD_MS`: it prints `[HANG] <file> ran past ... it had reached
 test: <name>`, stops the browser and exits 1, here and in CI. A test file is held to that limit
   however its tests are split, so a file that reaches it needs less work, not more tests.
+- CI's test job also stops the whole run 26 minutes after its first shard started, before GitHub's job limit, and prints
+  `[HANG]` with the test or file still running (`withTestDeadline()` in `tools/results/run-group.mjs`): a job of
+  several files can pass the job limit with each file under the file guard, and GitHub keeps no log of a job it cancels.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 - `pnpm run test:changed` runs only the tests your change can affect (`--dry-run` shows them and why), the

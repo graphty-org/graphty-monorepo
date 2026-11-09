@@ -9,7 +9,7 @@
 import { DOOR_ROOTS, type DoorRoot, RENDER } from "../../session/commands/doors";
 
 /** Why the assistant does not reach something. */
-export type ExclusionReason =
+type ExclusionReason =
     /** A manager, mesh, render object or id bookkeeping. */
     | "internal-handle"
     /** The assistant's own connection, keys, voice or status. */
@@ -187,7 +187,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...[
         "location-map/map",
         "location-map/gazetteer",
-        "fixed/graphvizAttributes",
         ...["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"].map(
             (engine) => `graphviz-${engine}/attributes`,
         ),
@@ -249,6 +248,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "Graphty", members: ["renderPath"], reason: "machine-preference", kind: BY_DESIGN },
+    { root: "Graphty", members: ["antialias", "limits"], reason: "machine-preference", kind: BY_DESIGN },
+    { root: "Graph", members: ["setLimits"], reason: "machine-preference", kind: BY_DESIGN },
     { root: "Graphty", members: ["shaderSettings"], reason: "reader-trust", kind: BY_DESIGN },
     { root: "Graphty", members: ["downloadGraph"], reason: "needs-host", kind: BY_DESIGN },
     { root: "Graphty", members: ["loadFromSource"], reason: "network", kind: BY_DESIGN },
@@ -510,6 +511,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "ElementSession", members: ["snapshot", "fingerprint"], reason: "raw-data", kind: BY_DESIGN },
+    // What the renderer fades edges by age with: render bookkeeping, not a question a reader asks.
+    { root: "ElementSession", members: ["edgeAges"], reason: "internal-handle", kind: BY_DESIGN },
     { root: "ElementSession", members: ["run"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
     { root: "ElementSession", members: ["execute", "transaction", "plan"], reason: "mechanism", kind: BY_DESIGN },
     { root: "ElementSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
@@ -859,6 +862,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "DataManager", members: ["init", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
+    { root: "DataManager", members: ["renderLimits"], reason: "internal-handle", kind: BY_DESIGN },
     ...coveredBy("Node", { "layout.pin": ["pin"], "layout.unpin": ["unpin"] }),
     {
         root: "Node",

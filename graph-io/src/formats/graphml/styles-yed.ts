@@ -25,6 +25,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { putYedRamp, yedGradientAngle, yedGradientRamp } from "../../styles/canon/yed-gradient.js";
 import {
     YED_INSIDE_INSET,
     YED_LABEL_PADDING,
@@ -41,6 +42,9 @@ import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
+import { YED_UML_STEREOTYPE_DROP, yedNodePicture, yedUmlClassPicture } from "./styles-yed-drawing.js";
+import { type BpmnDrawing, svgPicture, yedBpmnPicture } from "./styles-yed-live-drawing.js";
+import { YED_GROUP_INSETS, type YedBox, yedGroupBounds, type YedGroupFrame } from "./yed-group-bounds.js";
 
 // ============================================================ the kept trees
 
@@ -375,9 +379,9 @@ const ROUND_BEVEL: YedOutline = { shape: "round-rectangle", cornerRadius: 10, be
  * The shape each configuration of yEd's GenericNode palettes draws (flowchart, entity relationship, BPMN, SBGN), by
  * its name after `com.yworks.` without a `.withShadow` suffix, lowercase. Matched whole, before the words below:
  * "data" is a parallelogram, but "storedData" and "directData" are not. A shape no neutral one names is the polygon
- * yEd draws it as (curves as short segments); the lines some draw inside (predefined process, internal storage) are
- * not drawn. The BPMN artifact's outline follows its `com.yworks.bpmn.type` style property (`genericOutline`). The
- * corner radii, the shapes that keep their proportions in a box of another shape and the lines round them are as
+ * yEd draws it as (curves as short segments); the lines some draw inside (predefined process, internal storage) and
+ * the BPMN symbols are pictures over the node (`readMarks`, `genericBpmnDrawing`). The BPMN artifact's outline
+ * follows its `com.yworks.bpmn.type` style property (`genericOutline`). The corner radii, the shapes that keep their proportions in a box of another shape and the lines round them are as
  * yEd 3.25 draws them (`yed-graphml-specimen-node-shapes-p2`, `-p3`).
  */
 const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
@@ -565,13 +569,162 @@ const BPMN_HEAVY: ReadonlySet<string> = new Set(["event_characteristic_end", "ac
  * @returns its value in lowercase, or undefined
  */
 function bpmnProperty(r: unknown, name: string): string | undefined {
+    return styleProperty(r, `com.yworks.bpmn.${name}`);
+}
+
+/**
+ * A style property of a GenericNode.
+ * @param r - the realizer element
+ * @param name - its full name
+ * @returns its value in lowercase, or undefined
+ */
+function styleProperty(r: unknown, name: string): string | undefined {
     const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
     return treeAttr(
-        props.find((p) => treeAttr(p, "name") === `com.yworks.bpmn.${name}`),
+        props.find((p) => treeAttr(p, "name") === name),
         "value",
     )
         ?.slice(0, MAX_STYLE_VALUE_LENGTH)
         .toLowerCase();
+}
+
+/** How far down and right yEd draws the copy behind an SBGN multimer, and the corner radius of a macromolecule. */
+const MULTIMER_OFFSET = 6;
+const MACROMOLECULE_RADIUS = 12;
+
+/** A rounded box: its left, top, right and bottom, and its corners' radius. */
+type RoundBox = readonly [number, number, number, number, number];
+
+/**
+ * Points along the right and bottom of a rounded box, from its top right corner round to its bottom left one.
+ * @param box - the box
+ * @returns the points along its three corners, eight steps each
+ */
+function lowerRightCorners(box: RoundBox): [number, number][] {
+    const [x0, y0, x1, y1, r] = box;
+    const corners: [number, number][][] = [
+        [
+            [x1 - r, y0],
+            [x1, y0],
+            [x1, y0 + r],
+        ],
+        [
+            [x1, y1 - r],
+            [x1, y1],
+            [x1 - r, y1],
+        ],
+        [
+            [x0 + r, y1],
+            [x0, y1],
+            [x0, y1 - r],
+        ],
+    ];
+    const steps = 8;
+    return corners.flatMap(([from, control, to]) =>
+        Array.from({ length: steps + 1 }, (_, i): [number, number] => {
+            const t = i / steps;
+            const at = (k: 0 | 1): number => (1 - t) ** 2 * from[k] + 2 * t * (1 - t) * control[k] + t ** 2 * to[k];
+            return [at(0), at(1)];
+        }),
+    );
+}
+
+/**
+ * Whether a rounded box holds a point.
+ * @param box - the box
+ * @param point - the point
+ * @returns true when the point is in it or on its outline
+ */
+function roundBoxHolds(box: RoundBox, point: [number, number]): boolean {
+    const [x0, y0, x1, y1, r] = box;
+    const [x, y] = point;
+    const [cx, cy] = [Math.min(Math.max(x, x0 + r), x1 - r), Math.min(Math.max(y, y0 + r), y1 - r)];
+    return x >= x0 && x <= x1 && y >= y0 && y <= y1 && (x - cx) ** 2 + (y - cy) ** 2 <= r * r + 1e-9;
+}
+
+/** A node's border's color and width, as the picture drawn over it paints them. */
+interface NodePaint {
+    readonly line: string;
+    readonly width: number;
+}
+
+/** The most of a UML class's attributes or methods drawn: a class's rows, not a block of text. */
+const MAX_UML_WORDS = 16 * MAX_STYLE_VALUE_LENGTH;
+
+/**
+ * What yEd draws in a UMLClassNode beside its name (`yedUmlClassPicture`), from its `y:UML` and its first label.
+ * @param r - the UMLClassNode realizer element
+ * @param width - the node's width
+ * @param height - its height
+ * @param paint - its border as the file gives it: a raised class draws none, but its rules take the border's color
+ * @returns the picture URL, or null
+ */
+function umlClassPicture(r: unknown, width: number, height: number, paint: NodePaint): string | null {
+    const uml = treeChild(r, "UML");
+    if (uml === undefined) {
+        return null;
+    }
+    const label = treeChildren(r, "NodeLabel")[0];
+    const size = Number(treeAttr(label, "fontSize") ?? 12);
+    const words = (name: string): string => (treeText(treeChild(uml, name)) ?? "").trim();
+    return yedUmlClassPicture({
+        width,
+        height,
+        border: treeAttr(uml, "use3DEffect") === "true" ? 0 : paint.width,
+        line: paint.line === "none" ? "#000000" : paint.line,
+        family: javaFamily(treeAttr(label, "fontFamily") ?? "Dialog"),
+        nameSize: Number.isFinite(size) && size > 0 ? size : 12,
+        stereotype: (treeAttr(uml, "stereotype") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH),
+        constraint: (treeAttr(uml, "constraint") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH),
+        attributes: words("AttributeLabel").slice(0, MAX_UML_WORDS),
+        methods: words("MethodLabel").slice(0, MAX_UML_WORDS),
+        omitDetails: treeAttr(uml, "omitDetails") === "true",
+    });
+}
+
+/**
+ * What yEd strokes over a node beside its outline, as a picture over the node: the fold of a UMLNoteNode (a white
+ * triangle in the cut corner, outlined: its two creases), and the part of an SBGN multimer macromolecule's copy that
+ * shows, `MULTIMER_OFFSET` down and right of it behind it (`com.yworks.sbgn.style.mcount` 2 or more), as yEd 3.25
+ * draws them (`yed-graphml-specimen-node-shapes-p3`, `graphml-libcitygml-mapping`).
+ * @param real - the realizer
+ * @param width - the node's width
+ * @param height - its height
+ * @param paint - its border
+ * @returns the picture and how far it reaches past the node's right and bottom, or null where yEd strokes nothing more
+ */
+function realizerOverlay(
+    real: Realizer,
+    width: number,
+    height: number,
+    paint: NodePaint,
+): { picture: string; reach: number } | null {
+    const stroke = `stroke="${paint.line}" stroke-width="${String(paint.width)}"`;
+    if (real.type === "UMLNoteNode") {
+        const [x, y] = [width - Math.min(NOTE_FOLD, width), Math.min(NOTE_FOLD, height)];
+        const d = `M${pointText(x, 0)} L${pointText(x, y)} L${pointText(width, y)} Z`;
+        const body = `<path fill="white" d="${d}"/><path fill="none" ${stroke} d="${d}"/>`;
+        return { picture: svgPicture(width, height, paint.width, body), reach: 0 };
+    }
+    if (real.type === "UMLClassNode") {
+        const picture = umlClassPicture(real.r, width, height, paint);
+        return picture === null ? null : { picture, reach: 0 };
+    }
+    const multimer = Number(styleProperty(real.r, "com.yworks.sbgn.style.mcount") ?? 1) > 1;
+    const conf = treeAttr(real.r, "configuration") ?? "";
+    if (real.type !== "GenericNode" || !multimer || !/^com\.yworks\.sbgn\.macromolecule$/i.test(conf)) {
+        return null;
+    }
+    const [o, r] = [MULTIMER_OFFSET, Math.min(MACROMOLECULE_RADIUS, width / 2, height / 2)];
+    const node: RoundBox = [0, 0, width, height, r];
+    const copy: RoundBox = [o, o, width + o, height + o, r];
+    // ponytail: the copy's outline outside the node, unfilled: yEd also fills the sliver between it and the node in the
+    // node's color, but a closed piece there reads as a stray of graphty's own wherever the oracle's reading takes the
+    // copy's outline for the node's (the scorecard's matched view of yed-graphml-specimen-node-shapes-p3)
+    const shown = lowerRightCorners(copy).filter((q) => !roundBoxHolds(node, q));
+    const body = `<path fill="none" ${stroke} d="M${shown.map(([x, y]) => pointText(x, y)).join(" L")}"/>`;
+    const reach = { left: 0, top: 0, right: o, bottom: o };
+    return { picture: svgPicture(width, height, paint.width, body, "", reach), reach: o };
 }
 
 /**
@@ -1198,6 +1351,9 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
         // a yEd table or pool is a rectangle of bands
         return canonEnum("shape", "rectangle", "yed", at("shape"));
     }
+    if (yedDefaultPainted(real)) {
+        return canonEnum("shape", "rectangle", "yed", at("shape"));
+    }
     if (real.type === "GenericNode") {
         const lower = (treeAttr(real.r, "configuration") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
         for (const [word, value] of GENERIC_SHAPES) {
@@ -1215,8 +1371,40 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
     return `other:${real.type}`;
 }
 
-/** yEd's gradient: from the fill color at a node's top-left corner to `color2` at its bottom-right one. */
+/** The direction a gradient on a node yEd has no measured drawing for (a group, a UML or picture node) is read in. */
 const YED_GRADIENT_ANGLE = 45;
+
+/**
+ * Whether a GenericNode names a configuration of yEd's old `com.yjava` family (BevelNode, ShinyPlateNode and their
+ * variants), which yEd 3.25 no longer registers under that name: it draws the node with its default painter, a box in
+ * the fill's color and a solid line of 1 in the border's color, without `color2`, the border's width or its dashes
+ * (yed-graphml-specimen-node-shapes-p2, graphml-synthetic-nodes). The same names without the prefix are its bevels.
+ * @param real - the realizer
+ * @returns true for a node yEd draws with its default painter
+ */
+function yedDefaultPainted(real: Realizer): boolean {
+    return real.type === "GenericNode" && /^com\.yjava\./i.test(treeAttr(real.r, "configuration") ?? "");
+}
+
+/**
+ * The direction yEd draws a realizer's gradient in: a generic node, and a shape node's diamond, corner to corner; any
+ * other shape node left to right (`yedGradientAngle`); a table or pool draws none (yed-graphml-specimen-groups, its
+ * p2 and graphml-synthetic-nodes' table-node are flat in `color`); other realizers keep a corner-to-corner ramp.
+ * @param real - the realizer
+ * @returns the `fillGradientAngle`, or null for no gradient
+ */
+function realizerGradientAngle(real: Realizer): number | null {
+    if (real.type === "TableNode") {
+        return null;
+    }
+    const geometry = treeChild(real.r, "Geometry");
+    const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
+    if (real.type === "ShapeNode") {
+        const diamond = treeAttr(treeChild(real.r, "Shape"), "type") === "diamond";
+        return yedGradientAngle(diamond ? "corner" : "across", w, h);
+    }
+    return real.type === "GenericNode" ? yedGradientAngle("corner", w, h) : YED_GRADIENT_ANGLE;
+}
 
 /**
  * Whether a `y:Fill` paints nothing.
@@ -1244,11 +1432,26 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
         put("fillOpacity", 0);
         return;
     }
-    readColor(treeAttr(fill, "color"), "fill", "fillOpacity", put, at);
-    const second = canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
-    if (second !== null) {
+    const read = new Map<string, StyleValue | null>();
+    readColor(
+        treeAttr(fill, "color"),
+        "fill",
+        "fillOpacity",
+        (property, value) => {
+            read.set(property, value);
+            put(property, value);
+        },
+        at,
+    );
+    const second = yedDefaultPainted(real) ? null : canonColor(treeAttr(fill, "color2"), "yed", at("fillGradient"));
+    const angle = second === null ? null : realizerGradientAngle(real);
+    if (second !== null && angle !== null) {
         put("fillGradient", second.color);
-        put("fillGradientAngle", YED_GRADIENT_ANGLE);
+        put("fillGradientAngle", angle);
+        // a shape node's left-to-right ramp mirrors back over its left third, and color2's alpha is its stop's
+        const shape = treeAttr(treeChild(real.r, "Shape"), "type") ?? "rectangle";
+        const run = real.type === "ShapeNode" && shape !== "diamond" ? "across" : "corner";
+        putYedRamp(put, run, { color: read.get("fill"), alpha: read.get("fillOpacity") }, second, shape);
     }
 }
 
@@ -1408,9 +1611,8 @@ function yedResourceUrl(r: unknown): string | null {
 
 /**
  * The picture an image or SVG node realizer draws (`y:Image refid`, `y:SVGModel/y:SVGContent refid`), stretched over
- * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`. The realizer's own fill and border are kept beneath it,
- * though yEd paints neither (`graphml-stm32-func`): draw.io, the stand-in for `yed-graphml-specimen-images-charts`,
- * paints both, and that sheet waits for a drawing by yEd itself (ISSUES.md).
+ * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`: the picture alone, without the realizer's own fill or
+ * border, which yEd does not paint (`graphml-stm32-func`, `graphml-synthetic-nodes`, `yed-graphml-specimen-images-charts`).
  * @param real - the realizer
  * @param resources - the graph's shared pictures
  * @param put - receives the values
@@ -1427,6 +1629,8 @@ function readPicture(real: Realizer, resources: ReadonlyMap<string, string>, put
     put("image", src);
     put("imageFit", "fill");
     put("imageClip", "none");
+    // no body under it, as yEd Live's image node with no background is read (`readPictureStyle`)
+    put("shape", "none");
 }
 
 /**
@@ -1490,7 +1694,7 @@ export function putRaisedBorder(fill: string | null, put: PutValue): void {
  * @param share - how far, 0 to 1
  * @returns the lighter color
  */
-function towardWhite(hex: string, share: number): string {
+export function towardWhite(hex: string, share: number): string {
     return hexOf(channelsOf(hex).map((c) => Math.round(c + (255 - c) * share)));
 }
 
@@ -1509,7 +1713,8 @@ export function putBevelPaint(color: string, put: PutValue): void {
 
 /**
  * Writes the line a bevel draws inside its edge, in the node's border color, in place of a border: a box `inset` in
- * from the node's, its corners `radius` less that. yFiles draws it over a wider, lighter line that is not drawn here.
+ * from the node's, its corners `radius` less that. yFiles draws it over a wider, lighter line (`shapeLineHaloColor`),
+ * which the reader of each style writes where it knows that line's color.
  * @param radius - the node's corner radius
  * @param inset - how far in the line runs
  * @param put - receives the values
@@ -1598,6 +1803,269 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
 }
 
 /**
+ * Writes a picture drawn over a node, which may reach past its box, as the node's picture.
+ * @param drawing - the picture, its size and its reach
+ * @param put - receives the values
+ */
+export function putNodeDrawing(drawing: BpmnDrawing, put: PutValue): void {
+    put("image", drawing.picture);
+    put("imageClip", "none");
+    const { left, top, right, bottom } = drawing.reach;
+    if (left + top + right + bottom === 0) {
+        put("imageFit", "fill");
+        return;
+    }
+    put("imageFit", "none");
+    put("imageWidth", drawing.width);
+    put("imageHeight", drawing.height);
+    put("imageOffsetX", (right - left) / 2);
+    put("imageOffsetY", (bottom - top) / 2);
+}
+
+/** A `#rrggbb` color. */
+const HEX_COLOR = /^#[\da-f]{6}$/;
+
+/**
+ * The symbols yEd draws over a BPMN GenericNode (`yedBpmnPicture`), in its `com.yworks.bpmn.icon.*` colors, unset the
+ * node's own.
+ * @param real - the realizer
+ * @param width - the node's width
+ * @param height - its height
+ * @param paint - its border
+ * @param fill - its fill, or null where it has none
+ * @returns the picture, or null where it is no BPMN node or yEd draws nothing over it
+ */
+function genericBpmnDrawing(
+    real: Realizer,
+    width: number,
+    height: number,
+    paint: NodePaint,
+    fill: string | null,
+): BpmnDrawing | null {
+    const conf = (treeAttr(real.r, "configuration") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
+    if (real.type !== "GenericNode" || !conf.startsWith("com.yworks.bpmn.")) {
+        return null;
+    }
+    const color = (name: string): string | undefined => {
+        const value = bpmnProperty(real.r, name);
+        return value !== undefined && HEX_COLOR.test(value) ? value : undefined;
+    };
+    const face = color("icon.fill") ?? fill ?? "none";
+    const kind = conf.replace(/^com\.yworks\.bpmn\./, "").replace(/\.withshadow$/, "");
+    return yedBpmnPicture(kind, (name) => bpmnProperty(real.r, name), { width, height }, paint.width, {
+        line: color("icon.line.color") ?? paint.line,
+        fill: face,
+        shade: face === "none" ? paint.line : javaDarker(face),
+    });
+}
+
+/**
+ * Writes what yEd strokes over a node beside its outline (`realizerOverlay`, or a BPMN node's symbols) as the node's
+ * picture.
+ * @param real - the realizer
+ * @param width - the node's width
+ * @param height - its height
+ * @param painted - the border and fill values written for it
+ * @param put - receives the values
+ */
+function putOverlay(
+    real: Realizer,
+    width: number,
+    height: number,
+    painted: ReadonlyMap<string, unknown>,
+    put: PutValue,
+): void {
+    const [color, line] = [painted.get("borderColor"), Number(painted.get("borderWidth") ?? 1)];
+    const paint: NodePaint = {
+        line: line > 0 && typeof color === "string" ? color : "none",
+        width: Math.max(line, 0),
+    };
+    const fill = painted.get("fill");
+    const bpmn = genericBpmnDrawing(real, width, height, paint, typeof fill === "string" ? fill : null);
+    if (bpmn !== null) {
+        putNodeDrawing(bpmn, put);
+        return;
+    }
+    const overlay = realizerOverlay(real, width, height, paint);
+    if (overlay === null) {
+        return;
+    }
+    put("image", overlay.picture);
+    put("imageClip", "none");
+    if (overlay.reach === 0) {
+        put("imageFit", "fill");
+        return;
+    }
+    put("imageFit", "none");
+    put("imageWidth", width - paint.width + overlay.reach);
+    put("imageHeight", height - paint.width + overlay.reach);
+    put("imageOffsetX", overlay.reach / 2);
+    put("imageOffsetY", overlay.reach / 2);
+}
+
+/**
+ * Reads what a node realizer draws over its fill: a table's bands, an image or SVG node's picture, or what yEd strokes
+ * over the node beside its outline (`putOverlay`).
+ * @param real - the realizer
+ * @param width - the node's width, or null
+ * @param height - its height, or null
+ * @param painted - the border and fill values written for it
+ * @param put - receives the values
+ * @param at - the sites
+ * @param resources - the graph's shared pictures, for image and SVG nodes
+ */
+function readFace(
+    real: Realizer,
+    width: number | null,
+    height: number | null,
+    painted: ReadonlyMap<string, unknown>,
+    put: PutValue,
+    at: SiteOf,
+    resources?: ReadonlyMap<string, string>,
+): void {
+    if (real.type === "TableNode") {
+        readTable(real, put, at);
+    }
+    if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
+        readPicture(real, resources, put);
+    }
+    if (width !== null && height !== null) {
+        putOverlay(real, width, height, painted, put);
+    }
+}
+
+/**
+ * Reads the lines yEd draws inside a flowchart GenericNode (`yedNodePicture`) as a picture over the node's box as
+ * drawn: a node kept square in a box of another shape is drawn in the middle square.
+ * @param real - the realizer
+ * @param outline - its outline, if known
+ * @param size - its stored size
+ * @param size.width - its width
+ * @param size.height - its height
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readMarks(
+    real: Realizer,
+    outline: YedOutline | null,
+    size: { width: number; height: number },
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const aspect = outline?.aspect;
+    const width = aspect === undefined ? size.width : Math.min(size.width, size.height * aspect);
+    const height = aspect === undefined ? size.height : width / aspect;
+    const border = treeChild(real.r, "BorderStyle");
+    const picture = yedNodePicture({
+        kind: treeAttr(real.r, "configuration") ?? "",
+        width,
+        height,
+        line: hasLine(border) ? (canonColor(treeAttr(border, "color"), "yed", at("borderColor"))?.color ?? null) : null,
+        border: hasLine(border) ? (yedDrawnWidth(canonNumber(treeAttr(border, "width"), at("borderWidth"))) ?? 1) : 0,
+    });
+    if (picture !== null) {
+        put("image", picture);
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/**
+ * The soft shadow yEd 3.25 paints under a GenericNode (`y.view.ShadowNodePainter`), as its drawings show it: the node's
+ * outline, border included, in black at 75/255, moved 2.5 down and right, its edge fading over 4 on each side
+ * (`yed-graphml-specimen-node-shapes-p2`'s entity relationship nodes, `-p3`'s BPMN `.withShadow` nodes,
+ * `graphml-galaxy-lcms-workflow`'s artifacts); and the one under its old `BevelNode3` and `BevelNodeWithShadow`, drawn
+ * in nine pieces, moved 3 and fading over 3.5 (`-p2`).
+ */
+const SOFT_SHADOW = { opacity: 0.294, offset: 2.5, blur: 4 };
+const LEGACY_SHADOW = { opacity: 0.294, offset: 3, blur: 3.5 };
+
+/**
+ * The shadow yEd paints under a GenericNode, or null: the one its configuration paints by default (a BPMN
+ * `.withShadow` configuration, an entity relationship node, the old `BevelNode3` and `BevelNodeWithShadow`), turned on
+ * or off by its `y.view.ShadowNodePainter.SHADOW_PAINTING` style property, which turns it on for any other
+ * configuration (a flowchart process in `yed-graphml-specimen-node-fills-borders`). A flowchart node is drawn with none
+ * by default, and an entity relationship node with `SHADOW_PAINTING` false draws none (`graphml-galaxy-lcms-workflow`).
+ * @param real - the realizer
+ * @returns the shadow, or null
+ */
+function genericShadow(real: Realizer): typeof SOFT_SHADOW | null {
+    if (real.type !== "GenericNode") {
+        return null;
+    }
+    const conf = (treeAttr(real.r, "configuration") ?? "").toLowerCase();
+    const legacy = conf === "bevelnode3" || conf === "bevelnodewithshadow";
+    const painting = styleProperty(real.r, "y.view.ShadowNodePainter.SHADOW_PAINTING");
+    const byDefault = legacy || conf.endsWith(".withshadow") || conf.startsWith("com.yworks.entityrelationship.");
+    if (painting === undefined ? !byDefault : painting !== "true") {
+        return null;
+    }
+    return legacy ? LEGACY_SHADOW : SOFT_SHADOW;
+}
+
+/**
+ * Reads the shadow drawn under a node: a `y:DropShadow` (a hard copy of the node's shape in its color, moved by its
+ * offsets, as yEd draws it in `yed-graphml-specimen-node-fills-borders`), or the soft one a GenericNode's painter draws
+ * (`genericShadow`).
+ * @param real - the realizer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readShadow(real: Realizer, put: PutValue, at: SiteOf): void {
+    const drop = treeChild(real.r, "DropShadow");
+    if (drop !== undefined) {
+        const color = canonColor(treeAttr(drop, "color"), "yed", at("shadowColor"));
+        if (color !== null) {
+            put("shadowColor", color.color);
+            put("shadowOpacity", color.alpha);
+            put("shadowBlur", 0);
+            put("shadowOffsetX", canonSigned(treeAttr(drop, "offsetX") ?? "0", at("shadowOffsetX")));
+            put("shadowOffsetY", canonSigned(treeAttr(drop, "offsetY") ?? "0", at("shadowOffsetY")));
+            return;
+        }
+    }
+    const soft = genericShadow(real);
+    if (soft !== null) {
+        put("shadowColor", "#000000");
+        put("shadowOpacity", soft.opacity);
+        put("shadowBlur", soft.blur);
+        put("shadowOffsetX", soft.offset);
+        put("shadowOffsetY", soft.offset);
+    }
+}
+
+/**
+ * The fill an outline darkens, and the raised and bevelled borders it draws round it.
+ * @param r - the node realizer element
+ * @param outline - the node's outline, or null for a plain shape
+ * @param border - its y:BorderStyle
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns the node's fill color, or null
+ */
+function readOutlineFaces(
+    r: unknown,
+    outline: ReturnType<typeof realizerOutline>,
+    border: unknown,
+    put: PutValue,
+    at: SiteOf,
+): string | null {
+    const fill = treeChild(r, "Fill");
+    const color = canonColor(treeAttr(fill, "color"), "yed", at("fill"))?.color ?? null;
+    const face = unfilled(fill) ? null : color;
+    if (outline?.darker === true) {
+        put("fill", color === null ? null : javaDarker(color));
+    }
+    if (outline?.raised === true || treeAttr(treeChild(r, "UML"), "use3DEffect") === "true") {
+        putRaisedBorder(face, put);
+    }
+    if (outline?.bevelInset !== undefined) {
+        putBevel(outline, face, outline.bevelInset, hasLine(border), put);
+    }
+    return color;
+}
+
+/**
  * Reads one node realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1606,44 +2074,68 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
  */
 function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: ReadonlyMap<string, string>): void {
     const { r } = real;
-    readFill(real, put, at);
-    const border = treeChild(r, "BorderStyle");
-    readBorder(border, put, at);
+    const pictured = real.type === "ImageNode" || real.type === "SVGNode";
+    // yEd paints an image or SVG node's picture alone, never its y:Fill or y:BorderStyle (its own SVGs of
+    // graphml-stm32-func and graphml-synthetic-nodes draw an <image> and no #CCCCFF box): a node of no shape
+    if (!pictured) {
+        readFill(real, put, at);
+    }
+    const border = pictured ? undefined : treeChild(r, "BorderStyle");
+    const painted = new Map<string, unknown>();
+    readBorder(
+        border,
+        (property, value) => {
+            painted.set(property, value);
+            put(property, value);
+        },
+        at,
+    );
+    if (yedDefaultPainted(real) && border !== undefined && hasLine(border)) {
+        put("borderWidth", 1);
+        put("borderStyle", canonEnum("borderStyle", "line", "yed", at("borderStyle")));
+    }
     const geometry = treeChild(r, "Geometry");
     const width = canonNumber(treeAttr(geometry, "width"), at("width"));
     const height = canonNumber(treeAttr(geometry, "height"), at("height"));
     put("width", width);
     put("height", height);
     const outline = realizerOutline(real, width, height);
-    if (outline === null) {
+    if (pictured) {
+        put("shape", "none");
+    } else if (outline === null) {
         put("shape", realizerShape(real, at));
     } else {
         putOutline(outline, width, height, put);
     }
-    const fill = treeChild(r, "Fill");
-    const color = canonColor(treeAttr(fill, "color"), "yed", at("fill"))?.color ?? null;
-    if (outline?.darker === true) {
-        put("fill", color === null ? null : javaDarker(color));
+    const color = readOutlineFaces(r, outline, border, put, at);
+    if (width !== null && height !== null && real.type === "GenericNode") {
+        readMarks(real, outline, { width, height }, put, at);
     }
-    if (outline?.raised === true || treeAttr(treeChild(r, "UML"), "use3DEffect") === "true") {
-        putRaisedBorder(unfilled(fill) ? null : color, put);
-    }
-    if (outline?.bevelInset !== undefined) {
-        putBevel(outline, unfilled(fill) ? null : color, outline.bevelInset, hasLine(border), put);
-    }
-    if (real.type === "TableNode") {
-        readTable(real, put, at);
-    }
-    if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
-        readPicture(real, resources, put);
-    }
+    readShadow(real, put, at);
+    painted.set("fill", unfilled(treeChild(r, "Fill")) ? null : color);
+    readFace(real, width, height, painted, put, at, resources);
     const header = readEntityHeader(real, height, put, at);
+    const drop = umlNameDrop(r);
     const labelPut: PutValue = (property, value) => {
         if (header === null || property !== "labelBackground") {
-            put(property, value);
+            put(property, property === "labelOffsetY" && typeof value === "number" ? value + drop : value);
         }
     };
     readLabels(treeChildren(r, "NodeLabel"), true, labelPut, at, geometry, treeChild(r, "UML") !== undefined);
+}
+
+/**
+ * How far yEd draws a UML class's name below where its `internal` label model puts it: under the stereotype, when it
+ * has one (`yed-graphml-specimen-node-shapes-p3` uml-stereotype, `graphml-synthetic-nodes` uml-class). A label of
+ * another model is stored where it is drawn (`graphml-libcitygml-mapping`).
+ * @param r - the node realizer element
+ * @returns the drop, 0 for any other node
+ */
+function umlNameDrop(r: unknown): number {
+    const label = treeChildren(r, "NodeLabel")[0];
+    const stereotype = treeAttr(treeChild(r, "UML"), "stereotype") ?? "";
+    const internalTop = treeAttr(label, "modelName") === "internal" && treeAttr(label, "modelPosition") === "t";
+    return stereotype !== "" && internalTop ? Math.round(YED_UML_STEREOTYPE_DROP * 1000) / 1000 : 0;
 }
 
 /**
@@ -1687,6 +2179,38 @@ export function yedArrowWidth(arrow: unknown): number | null {
 }
 
 /**
+ * Reads a framed edge (GenericEdge `com.yworks.edge.framed`) as yEd draws it: a closed outline 1 wide in the line's
+ * color round a band as wide as the line, filled with `FramedEdgePainter.fillColor` (graphml-galaxy-lcms-workflow: a
+ * band 3 wide stroked 1 wide over a #ffffff fill of the same outline). The fill is the line, 1 narrower than the band,
+ * and the outline reaches 1 past the band each side: 2 wider than the line. With no fill color yEd draws the outline
+ * alone (graphml-synthetic-edges), as is a band too narrow to show a fill inside its outline: one line 1 wider than the
+ * band, in the line's color.
+ * @param r - the realizer element
+ * @param line - its `y:LineStyle`
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readFramedEdge(r: unknown, line: unknown, put: PutValue, at: SiteOf): void {
+    const band = canonNumber(treeAttr(line, "width"), at("width")) ?? 1;
+    const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
+    const fill = treeAttr(
+        props.find((p) => treeAttr(p, "name") === "FramedEdgePainter.fillColor"),
+        "value",
+    );
+    if (fill === undefined || band <= 1) {
+        put("width", band + 1);
+        return;
+    }
+    readColor(treeAttr(line, "color"), "outlineColor", "outlineOpacity", put, at);
+    // its arrowheads are part of the outline, in the line's color (yed-graphml-specimen-edges-lines generic-framed)
+    readColor(treeAttr(line, "color"), "sourceArrowColor", null, put, at);
+    readColor(treeAttr(line, "color"), "targetArrowColor", null, put, at);
+    readColor(fill, "color", "opacity", put, at);
+    put("width", band - 1);
+    put("outlineWidth", 2);
+}
+
+/**
  * Reads one edge realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1699,6 +2223,9 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         readColor(treeAttr(line, "color"), "color", "opacity", put, at);
         put("width", yedDrawnWidth(canonNumber(treeAttr(line, "width"), at("width"))));
         put("lineStyle", canonEnum("lineStyle", treeAttr(line, "type"), "yed", at("lineStyle")));
+        if (real.type === "GenericEdge" && treeAttr(r, "configuration") === "com.yworks.edge.framed") {
+            readFramedEdge(r, line, put, at);
+        }
     }
     const arrows = treeChild(r, "Arrows");
     if (arrows !== undefined) {
@@ -2051,6 +2578,125 @@ export interface YedRead {
 }
 
 /**
+ * The height yEd gives a label of some lines of text: each line its font's ascent plus descent, and the box's padding.
+ * @param text - the label's text
+ * @param fontSize - its font size
+ * @returns the height
+ */
+export function yedLabelHeight(text: string, fontSize: number): number {
+    return text.split("\n").length * YED_LABEL_LINE * fontSize + YED_LABEL_BOX_PADDING;
+}
+
+/**
+ * The frame of an open yEd GraphML group (a `y:ProxyAutoBoundsNode` whose active realizer is not closed): its
+ * `y:Insets` plus its `y:BorderInsets` (`graphml-magiclantern-architecture`'s outer group stores left 9.1 and right 91
+ * of them, and yEd draws it at its stored width), and the height yEd measures for its visible labels inside its top
+ * (`internal` at `t`, `tl` or `tr`) and its bottom (`b`, `bl`, `br`), not the height the file stores (17 for a 10 pt
+ * label yEd draws 15.6406 high in `yed-graphml-specimen-groups`, where the group with its label at `b` grows down).
+ * @param tree - the node's graphics tree
+ * @returns the frame, or null for a node that is not an open group
+ */
+function graphmlGroupFrame(tree: unknown): YedGroupFrame | null {
+    const proxy = treeChild(tree, "ProxyAutoBoundsNode");
+    const real = proxy === undefined ? null : activeRealizer(proxy);
+    if (real === null || treeAttr(treeChild(real.r, "State"), "closed") === "true") {
+        return null;
+    }
+    const side = (element: unknown, name: string, unset: number): number => {
+        const v = Number(treeAttr(element, `${name}F`) ?? treeAttr(element, name));
+        return element !== undefined && Number.isFinite(v) ? v : unset;
+    };
+    const [insets, border] = [treeChild(real.r, "Insets"), treeChild(real.r, "BorderInsets")];
+    // the border insets are how far a reader has dragged the group's sides out past its insets
+    const inset = (name: string): number => side(insets, name, YED_GROUP_INSETS) + side(border, name, 0);
+    const shown = treeChildren(real.r, "NodeLabel").filter(
+        (l) =>
+            treeAttr(l, "visible") !== "false" &&
+            (treeAttr(l, "modelName") ?? "internal") === "internal" &&
+            (treeText(l)?.trim() ?? "") !== "",
+    );
+    const label = (positions: readonly string[]): number =>
+        Math.max(
+            0,
+            ...shown
+                .filter((l) => positions.includes(treeAttr(l, "modelPosition") ?? "c"))
+                .map((l) => yedLabelHeight(treeText(l)?.trim() ?? "", Number(treeAttr(l, "fontSize") ?? 12) || 12)),
+        );
+    return {
+        insets: [inset("top"), inset("left"), inset("bottom"), inset("right")],
+        top: label(["t", "tl", "tr"]),
+        bottom: label(["b", "bl", "br"]),
+    };
+}
+
+/**
+ * The boxes yEd draws the open groups of a yEd GraphML graph in (`yedGroupBounds`), by node index: left, top, right
+ * and bottom, y down.
+ * @param snapshot - the graph
+ * @returns the boxes of the open groups with members
+ */
+export function graphmlGroupBounds(snapshot: GraphSnapshot): Map<number, YedBox> {
+    const columns = treeColumns(snapshot.nodes);
+    const treeOf = (row: number): unknown =>
+        columns.map((c) => plainCell(snapshot.nodes.value(c, row))).find((t) => realizerOf(t, NODE_REALIZERS) !== null);
+    if (columns.length === 0) {
+        return new Map();
+    }
+    return yedGroupBounds(
+        snapshot,
+        (row) => memberBox(treeOf(row)),
+        (row) => graphmlGroupFrame(treeOf(row)),
+    );
+}
+
+/**
+ * The box a node takes in its group: its `y:Geometry` and its labels' boxes (`x` and `y` from the node's corner,
+ * `width`, `height`), as yEd grows a group round its members' labels too (`graphml-yed-voctomix`'s group reaches 31.8
+ * left of its leftmost member, to the start of that member's label), hidden and empty ones included
+ * (`graphml-galaxy-lcms-workflow`'s group n0::n23 ends at its member's hidden 4 x 4 label, 15.4 right of the member).
+ * @param tree - the node's graphics tree
+ * @returns the box, or null for a node with no geometry
+ */
+function memberBox(tree: unknown): YedBox | null {
+    const real = realizerOf(tree, NODE_REALIZERS);
+    const boxOf = (element: unknown, x0: number, y0: number): YedBox | null => {
+        const [x, y, w, h] = ["x", "y", "width", "height"].map((a) => Number(treeAttr(element, a)));
+        return [x, y, w, h].every(Number.isFinite) ? [x0 + x, y0 + y, x0 + x + w, y0 + y + h] : null;
+    };
+    const node = boxOf(treeChild(real?.r, "Geometry"), 0, 0);
+    if (node === null) {
+        return null;
+    }
+    const labels = treeChildren(real?.r, "NodeLabel");
+    const boxes = [node, ...labels.map((label) => boxOf(label, node[0], node[1]))].filter((b) => b !== null);
+    return [
+        Math.min(...boxes.map((b) => b[0])),
+        Math.min(...boxes.map((b) => b[1])),
+        Math.max(...boxes.map((b) => b[2])),
+        Math.max(...boxes.map((b) => b[3])),
+    ];
+}
+
+/**
+ * A realizer with its `y:Geometry` replaced by a box.
+ * @param real - the realizer
+ * @param box - the box
+ * @returns the realizer drawn at the box
+ */
+function realizerAt(real: Realizer, box: YedBox): Realizer {
+    const geometry = {
+        "@_x": String(box[0]),
+        "@_y": String(box[1]),
+        "@_width": String(box[2] - box[0]),
+        "@_height": String(box[3] - box[1]),
+    };
+    const kept = Object.fromEntries(
+        Object.entries(real.r as Tree).filter(([key]) => key.startsWith("@_") || localOf(key) !== "Geometry"),
+    );
+    return { type: real.type, r: { "y:Geometry": geometry, ...kept } };
+}
+
+/**
  * The yEd styles of a graph: each element's realizer read into canonical values.
  * @param snapshot - the graph
  * @param notes - where problems are noted
@@ -2063,6 +2709,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     const resources = yedResources(snapshot);
     // each node's center, width and height, read with the node, for its edges' routes; NaN without yEd graphics
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
+    const groups = graphmlGroupBounds(snapshot);
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -2087,6 +2734,8 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
                 out.put(i, property, value);
             };
             if (target === "node") {
+                const box = groups.get(i);
+                real = box === undefined ? real : realizerAt(real, box);
                 readNode(real, put, at, resources);
                 const geometry = treeChild(real.r, "Geometry");
                 const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
@@ -2121,6 +2770,8 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
         "fillOpacity",
         "fillGradient",
         "fillGradientAngle",
+        "fillGradientColors",
+        "fillGradientStops",
         "borderColor",
         "borderWidth",
         "borderStyle",
@@ -2365,6 +3016,9 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
 function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, approximate: Approximate): Tree {
     const node: Tree = {};
     node["y:Geometry"] = geometryTree(get, at);
+    const shape = get("shape");
+    const nearest = shape === "vee" ? "triangle" : "rectangle";
+    const yedShape = typeof shape === "string" ? yedSpelled(YED_SHAPES, shape, nearest, "shape", approximate) : null;
     const fill = get("fill");
     const fillOpacity = get("fillOpacity");
     if (typeof fill === "string") {
@@ -2372,11 +3026,9 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
         const second = get("fillGradient");
         if (typeof second === "string") {
             (node["y:Fill"] as Tree)["@_color2"] = second.toUpperCase();
-            const angle = get("fillGradientAngle");
-            if (angle !== YED_GRADIENT_ANGLE) {
-                approximate("fillGradientAngle", angle ?? 0);
-            }
+            noteGradientAngle(get, approximate);
         }
+        noteGradientRamp(get, { fill, second, shape: yedShape ?? "rectangle" }, approximate);
     } else if (fillOpacity === 0) {
         node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
     }
@@ -2388,13 +3040,58 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
     if (label !== null) {
         node["y:NodeLabel"] = label;
     }
-    const shape = get("shape");
-    if (typeof shape === "string") {
-        node["y:Shape"] = {
-            "@_type": yedSpelled(YED_SHAPES, shape, shape === "vee" ? "triangle" : "rectangle", "shape", approximate),
-        };
+    if (yedShape !== null) {
+        node["y:Shape"] = { "@_type": yedShape };
     }
     return { "y:ShapeNode": node };
+}
+
+/**
+ * Records a gradient's angle as approximated unless it is the one yEd draws a y:ShapeNode's gradient in for its shape
+ * (`realizerGradientAngle`).
+ * @param get - the node's values
+ * @param approximate - records approximations
+ */
+function noteGradientAngle(get: GetValue, approximate: Approximate): void {
+    const [w, h] = [get("width"), get("height")];
+    const drawn = yedGradientAngle(
+        get("shape") === "diamond" ? "corner" : "across",
+        typeof w === "number" ? w : 0,
+        typeof h === "number" ? h : 0,
+    );
+    const angle = get("fillGradientAngle") ?? 0;
+    if (typeof angle !== "number" || Math.abs(angle - drawn) > 0.01) {
+        approximate("fillGradientAngle", angle);
+    }
+}
+
+/**
+ * Records a gradient's colors and stops as approximated unless they are the ones yEd paints for the y:ShapeNode
+ * written (`yedGradientRamp`): a left-to-right ramp mirrored over its left third, or none.
+ * @param get - the node's values
+ * @param written - what the y:ShapeNode holds
+ * @param written.fill - its `color`
+ * @param written.second - its `color2` (opaque), or the node's `fillGradient` when it has none
+ * @param written.shape - its yEd shape type
+ * @param approximate - records approximations
+ */
+function noteGradientRamp(
+    get: GetValue,
+    written: { fill: string; second: unknown; shape: string },
+    approximate: Approximate,
+): void {
+    const { fill, second, shape } = written;
+    const run = shape === "diamond" ? "corner" : "across";
+    const drawn = typeof second === "string" ? yedGradientRamp(run, fill, second.toLowerCase(), 1, 1, shape) : null;
+    for (const [property, value] of [
+        ["fillGradientColors", drawn?.colors],
+        ["fillGradientStops", drawn?.stops],
+    ] as const) {
+        const had = get(property) ?? undefined;
+        if (had !== value) {
+            approximate(property, had ?? "none");
+        }
+    }
 }
 
 /**

@@ -9,17 +9,11 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
 import { MAX_RUNS } from "../../src/meshes/DirtyRuns";
-import {
-    EDGE_STATIC_FLOATS,
-    JOIN_FLOATS_PER_PIECE,
-    JOIN_TEMPLATE_POSITIONS,
-    WIDENED_FLOATS_PER_PIECE,
-} from "../../src/meshes/edgeJoinShader";
-import { EdgeLineBatch, forceExpandedLines } from "../../src/meshes/EdgeLineBatch";
+import { EDGE_STATIC_FLOATS, JOIN_FLOATS_PER_PIECE, WIDENED_FLOATS_PER_PIECE } from "../../src/meshes/edgeJoinShader";
+import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { batchUploadFrames } from "../../src/meshes/FrameRoster";
 
 const SLOTS = 100_000;
-const VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
 const MATRIX_FLOATS = 16;
 /** Ten slots with gaps between them, none of them slot 0. */
 const TEN_SLOTS = Array.from({ length: 10 }, (_, i) => (i + 1) * 9_000);
@@ -42,7 +36,6 @@ describe("partial uploads", () => {
     });
 
     afterEach(() => {
-        forceExpandedLines(null);
         vi.restoreAllMocks();
         scene.dispose();
     });
@@ -70,13 +63,11 @@ describe("partial uploads", () => {
     /**
      * A batch of joined lines with every slot placed.
      * @param shape - How it is drawn.
-     * @param shape.expanded - As one plain mesh rather than as instances.
      * @param shape.widened - With a static buffer.
      * @param slots - How many slots.
      * @returns The batch.
      */
-    function lines({ expanded = false, widened = false }, slots = SLOTS): EdgeLineBatch {
-        forceExpandedLines(expanded);
+    function lines({ widened = false }, slots = SLOTS): EdgeLineBatch {
         const mesh = CustomLineRenderer.createJoinedLineMesh({ width: 0.2, color: "#336699", widened }, scene);
         return filled(new EdgeLineBatch(mesh, scene), slots);
     }
@@ -118,7 +109,6 @@ describe("partial uploads", () => {
         const cases = [
             { name: "plain", make: () => lines({}), floats: JOIN_FLOATS_PER_PIECE },
             { name: "widened", make: () => lines({ widened: true }), floats: WIDENED_FLOATS_PER_PIECE },
-            { name: "expanded", make: () => lines({ expanded: true }), floats: JOIN_FLOATS_PER_PIECE * VERTICES },
             { name: "matrix", make: () => matrixLines(), floats: MATRIX_FLOATS },
             { name: "caps", make: () => caps(false), floats: MATRIX_FLOATS },
         ];
@@ -139,8 +129,37 @@ describe("partial uploads", () => {
             });
         }
 
-        it("widened and expanded together, with static values", () => {
-            const batch = lines({ expanded: true, widened: true });
+        // The visibility mask hides with park: a joined line writes its one hidden flag, a batch
+        // without one zeroes the slot as setDrawn does (issue #6025).
+        const parks = [
+            { name: "plain", make: () => lines({}), floats: 1 },
+            { name: "widened", make: () => lines({ widened: true }), floats: 1 },
+            { name: "matrix", make: () => matrixLines(), floats: MATRIX_FLOATS },
+            { name: "billboarded caps", make: () => caps(true), floats: 1 },
+            { name: "standard caps", make: () => caps(false), floats: MATRIX_FLOATS },
+        ];
+
+        for (const { name, make, floats } of parks) {
+            it(`${name}, parked by the visibility mask, and shown again`, () => {
+                const batch = make();
+                settle();
+
+                for (const slot of TEN_SLOTS) {
+                    batch.park(slot);
+                }
+
+                const expected = TEN_SLOTS.map(() => floats);
+                assert.deepEqual(frame(), expected);
+                for (const slot of TEN_SLOTS) {
+                    assert.isTrue(batch.unpark(slot));
+                }
+
+                assert.deepEqual(frame(), expected);
+            });
+        }
+
+        it("widened, with static values", () => {
+            const batch = lines({ widened: true });
             settle();
 
             for (const slot of TEN_SLOTS) {
@@ -148,7 +167,7 @@ describe("partial uploads", () => {
                 batch.writeStatic(slot, new Float32Array(EDGE_STATIC_FLOATS).fill(slot));
             }
 
-            assert.strictEqual(sum(frame()), 10 * VERTICES * (WIDENED_FLOATS_PER_PIECE + EDGE_STATIC_FLOATS));
+            assert.strictEqual(sum(frame()), 10 * (WIDENED_FLOATS_PER_PIECE + EDGE_STATIC_FLOATS));
             assert.deepEqual([...(batch.staticOf(TEN_SLOTS[3]) ?? [])].slice(0, 1), [TEN_SLOTS[3]]);
         });
 
@@ -162,8 +181,8 @@ describe("partial uploads", () => {
                 batch.setClip(slot, 0.5);
             }
 
-            // A matrix, a direction, a size, a color and a clip.
-            assert.strictEqual(sum(frame()), 10 * (MATRIX_FLOATS + 3 + 1 + 3 + 1));
+            // A matrix, a direction, a size, a color with its opacity and a clip.
+            assert.strictEqual(sum(frame()), 10 * (MATRIX_FLOATS + 3 + 1 + 4 + 1));
         });
     });
 
@@ -179,20 +198,34 @@ describe("partial uploads", () => {
             assert.deepEqual(frame(), [3 * JOIN_FLOATS_PER_PIECE, JOIN_FLOATS_PER_PIECE]);
         });
 
-        it("keeps the limit's worth of runs, and one more is a single whole upload", () => {
+        it("keeps the limit's worth of runs, and past it joins the runs nearest each other", () => {
             const batch = lines({});
             settle();
             const spaced = (count: number): void => {
                 for (let i = 1; i <= count; i++) {
-                    batch.setDrawn(i * 2, false);
+                    batch.setDrawn(i * 10, false);
                 }
             };
 
             spaced(MAX_RUNS);
             assert.lengthOf(frame(), MAX_RUNS);
 
-            spaced(MAX_RUNS + 1);
-            assert.deepEqual(frame(), [SLOTS * JOIN_FLOATS_PER_PIECE]);
+            // Slot 12 sits one slot from slot 10's run and seven from slot 20's: it joins 10's.
+            spaced(MAX_RUNS);
+            batch.setDrawn(12, false);
+            const runs = frame();
+            assert.lengthOf(runs, MAX_RUNS);
+            assert.strictEqual(runs[0], 3 * JOIN_FLOATS_PER_PIECE);
+            assert.strictEqual(sum(runs), (MAX_RUNS + 2) * JOIN_FLOATS_PER_PIECE);
+
+            // Every gap the same: the first ones close.
+            for (let i = 1; i <= MAX_RUNS + 1; i++) {
+                batch.setDrawn(i * 2, false);
+            }
+
+            const even = frame();
+            assert.lengthOf(even, MAX_RUNS);
+            assert.strictEqual(even[0], 3 * JOIN_FLOATS_PER_PIECE);
         });
 
         it("uploads whole past half the slots", () => {
@@ -267,53 +300,6 @@ describe("partial uploads", () => {
         });
     });
 
-    describe("an expanded batch repeats only the slots written", () => {
-        const WRITTEN = 10;
-        const UNTOUCHED = 20;
-
-        /**
-         * Mark two slots' rows of a per-vertex copy with a value no write leaves there.
-         * @param copy - The copy.
-         * @param width - Floats in a row.
-         * @returns Reads each slot's rows back: whether they still hold the mark.
-         */
-        function poison(copy: Float32Array, width: number): (slot: number) => boolean {
-            const rows = (slot: number): Float32Array =>
-                copy.subarray(slot * VERTICES * width, (slot + 1) * VERTICES * width);
-            rows(WRITTEN).fill(-1);
-            rows(UNTOUCHED).fill(-1);
-            return (slot) => rows(slot).every((value) => value === -1);
-        }
-
-        function copies(batch: EdgeLineBatch): { slots: Float32Array; statics: Float32Array } {
-            return (batch as unknown as { expanded: { slots: Float32Array; statics: Float32Array } }).expanded;
-        }
-
-        it("in its slots", () => {
-            const batch = lines({ expanded: true }, 64);
-            settle();
-            const poisoned = poison(copies(batch).slots, JOIN_FLOATS_PER_PIECE);
-
-            batch.setDrawn(WRITTEN, false);
-            frame();
-
-            assert.isFalse(poisoned(WRITTEN), "the slot written is copied");
-            assert.isTrue(poisoned(UNTOUCHED), "the slot not written is left alone");
-        });
-
-        it("in its static values", () => {
-            const batch = lines({ expanded: true, widened: true }, 64);
-            settle();
-            const poisoned = poison(copies(batch).statics, EDGE_STATIC_FLOATS);
-
-            batch.writeStatic(WRITTEN, new Float32Array(EDGE_STATIC_FLOATS).fill(5));
-            frame();
-
-            assert.isFalse(poisoned(WRITTEN), "the slot written is copied");
-            assert.isTrue(poisoned(UNTOUCHED), "the slot not written is left alone");
-        });
-    });
-
     describe("a write the runs cannot answer for", () => {
         for (const [name, make, floats] of [
             ["lines", () => lines({}), JOIN_FLOATS_PER_PIECE],
@@ -349,19 +335,11 @@ describe("partial uploads", () => {
                 batch.setDrawn(10, false);
                 batchUploadFrames.contextRestored(scene);
 
-                assert.deepEqual(frame(), [SLOTS * floats]);
+                // A line batch's hidden flags (one float a slot) and colors (four) go up whole with its slots.
+                const flags = name === "lines" ? [SLOTS, SLOTS * 4] : [];
+                assert.deepEqual(frame(), [...flags, SLOTS * floats]);
             });
         }
-
-        it("an expanded batch that grows uploads whole, since its copies start empty", () => {
-            const batch = lines({ expanded: true }, 32);
-            settle();
-
-            batch.setDrawn(3, false);
-            batch.place(batch.acquire(), SRC, DST);
-
-            assert.deepEqual(frame(), [33 * VERTICES * JOIN_FLOATS_PER_PIECE]);
-        });
 
         it("a batch that grows keeps its runs, since the new buffer starts from the array", () => {
             const batch = lines({}, 32);

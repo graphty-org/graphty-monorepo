@@ -11,6 +11,7 @@ import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
 import { failureHashes, issueKey } from "../src/signature.js";
+import { HISTORY_INVOCATIONS } from "../src/queries.js";
 import { AUDIENCE, handle } from "../src/service.js";
 import { d1 } from "./d1-shim.mjs";
 
@@ -602,6 +603,19 @@ describe("GET /v1/plan", () => {
         assert.deepEqual(flat.order, ["b.test.ts", "a.test.ts"]);
         assert.deepEqual(flat.fileMs, { [X]: 106 });
         assert.equal((await plan(call, { variants: BROWSER, inputs: "k1" })).body.order, undefined);
+    });
+
+    it("reads per-file durations from the variant's newest invocations only", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("oldest", { at: NOW - 30 * DAY });
+        s.file("oldest", "only-old.test.ts", 5);
+        for (let i = 0; i < HISTORY_INVOCATIONS; i++) {
+            s.inv(`n${i}`, { at: NOW - DAY + i });
+            if (i < 3) s.file(`n${i}`, X, 200);
+        }
+        const v = (await plan(call, { variants: BROWSER, inputs: "k1" })).body.variants[BROWSER];
+        assert.deepEqual(v.fileMs, { [X]: 200 });
     });
 });
 

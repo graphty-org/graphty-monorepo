@@ -77,7 +77,7 @@ function wrap(command: GraphCommand): AssistantTool {
 }
 
 /** `call`: calls any tool by name, for a model that can hold only a few tools. */
-export class CallTool extends AssistantTool {
+class CallTool extends AssistantTool {
     /**
      * The tool, over a registry.
      * @param registry - Where the tools it calls are.

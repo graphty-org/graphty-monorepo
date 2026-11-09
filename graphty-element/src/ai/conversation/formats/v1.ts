@@ -194,7 +194,7 @@ export const partSchema = z.discriminatedUnion("type", [
 ]);
 
 /** One message of a conversation. */
-export const messageSchema = z.strictObject({
+const messageSchema = z.strictObject({
     id,
     role,
     parts: z.array(partSchema),
@@ -313,8 +313,6 @@ export const conversationSchema = z.strictObject({
 
 /** Opaque provider round-trip data; see `providerState` above. */
 export type ProviderState = DeepReadonly<z.infer<typeof providerStateSchema>>;
-/** Where a part of a message came from. */
-export type PartOrigin = z.infer<typeof originSchema>;
 /** One part of a message. */
 export type SavedPart = DeepReadonly<z.infer<typeof partSchema>>;
 /** One message of a conversation. */

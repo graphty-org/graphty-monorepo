@@ -118,19 +118,55 @@
                         boot.setAttribute("aria-label", "Could not load graphty");
                         // The script's own error names only the entry point: a module it imports
                         // that failed shows only in the browser's resource timings, a moment later.
+                        var entry = e.target.src;
                         setTimeout(function () {
-                            var all = performance.getEntriesByType("resource");
-                            // Another origin's status reads 0 whether it failed or not.
-                            var failed = all.filter(function (r) {
-                                var bad = r.responseStatus === 0 || r.responseStatus >= 400;
-                                return bad && r.name.indexOf(location.origin) === 0;
+                            var all = performance.getEntriesByType("resource").filter(function (r) {
+                                // Another origin's status reads 0 whether it failed or not.
+                                return r.name.indexOf(location.origin) === 0;
                             });
-                            console.error(
-                                "graphty failed to load: " + failed.length + " of " + all.length + " requests failed",
-                                failed.slice(0, 20).map(function (r) {
-                                    return r.responseStatus + " " + r.name;
+                            var report = function (how, failed) {
+                                console.error(
+                                    "graphty failed to load " +
+                                        entry +
+                                        ": " +
+                                        failed.length +
+                                        " of " +
+                                        all.length +
+                                        " requests failed (" +
+                                        how +
+                                        ")",
+                                    failed.slice(0, 20),
+                                );
+                            };
+                            if (all.length === 0 || all[0].responseStatus !== undefined) {
+                                report(
+                                    "as loaded",
+                                    all
+                                        .filter(function (r) {
+                                            return r.responseStatus === 0 || r.responseStatus >= 400;
+                                        })
+                                        .map(function (r) {
+                                            return r.responseStatus + " " + r.name;
+                                        }),
+                                );
+                                return;
+                            }
+                            // Safari keeps no status in its timings, so ask for each file again.
+                            // A file that loads now failed only for a moment.
+                            Promise.all(
+                                all.map(function (r) {
+                                    return fetch(r.name, { cache: "no-store" }).then(
+                                        function (res) {
+                                            return res.ok ? null : res.status + " " + r.name;
+                                        },
+                                        function (err) {
+                                            return String(err) + " " + r.name;
+                                        },
+                                    );
                                 }),
-                            );
+                            ).then(function (results) {
+                                report("asked again", results.filter(Boolean));
+                            });
                         }, 500);
                     }
                 },

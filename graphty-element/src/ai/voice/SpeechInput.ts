@@ -109,7 +109,7 @@ interface Meter {
 const PEAK_SAMPLE_MS = 50;
 
 /** The pause that ends a press asked to end on silence, by default, in milliseconds. */
-export const DEFAULT_SILENCE_MS = 1500;
+const DEFAULT_SILENCE_MS = 1500;
 
 /** The level under which the microphone is silent, when `speechLevel` does not say (or is 0). */
 const SILENCE_LEVEL = 0.04;

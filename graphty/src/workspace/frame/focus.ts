@@ -14,7 +14,7 @@ export function focusIsLost(): boolean {
  * Data page closes), so focus lands where the reader goes next, not on the drawing's outline or
  * on the page.
  */
-export function focusCurrentPlace(): void {
+function focusCurrentPlace(): void {
     const rowOf = (): HTMLElement | null =>
         document.querySelector<HTMLElement>('.ws-left [role="tree"] [role="treeitem"][tabindex="0"]');
     const row = rowOf();
@@ -442,19 +442,4 @@ export function installFocusGuard(): () => void {
         document.removeEventListener("focusin", onFocusIn, true);
         document.removeEventListener("keydown", onKeyDown);
     };
-}
-
-/**
- * After a row's menu closes: its row takes focus, unless something the menu opened (a rename box)
- * took it first.
- * @param from - an element inside the row
- */
-export function focusRowOf(from: HTMLElement | null): void {
-    const row = from?.closest<HTMLElement>("[data-row]");
-    requestAnimationFrame(() => {
-        const now = document.activeElement;
-        if (row?.isConnected === true && (now === null || now === document.body || now === from)) {
-            row.focus();
-        }
-    });
 }

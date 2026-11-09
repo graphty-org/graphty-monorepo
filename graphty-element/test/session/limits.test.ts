@@ -9,8 +9,9 @@
 
 import { assert, describe, it } from "vitest";
 
+import { createGraphSession } from "../../src/session";
 import { DEFAULT_COST_GATE_LIMITS } from "../../src/session/cost";
-import { DEFAULT_LIMITS } from "../../src/session/limits";
+import { DEFAULT_LIMITS, RenderLimits } from "../../src/session/limits";
 import { DEFAULT_SELECTION_CAP } from "../../src/session/selection";
 
 describe("the limits the element ships with", () => {
@@ -76,5 +77,61 @@ describe("the limits the element ships with", () => {
         // nothing measured or designed to publish, and inventing a number here is what this
         // module exists to stop a consumer doing.
         assert.notProperty(DEFAULT_LIMITS, "graphMemoryBudgetBytes");
+    });
+});
+
+describe("the limits a session is given", () => {
+    it("reports the shipped limits when given none", () => {
+        const session = createGraphSession();
+        assert.deepStrictEqual(session.capabilities.limits, DEFAULT_LIMITS);
+        session.dispose();
+    });
+
+    it("holds a session that draws nothing to the ceilings it was given", async () => {
+        const session = createGraphSession({ limits: { renderCeiling: 2 } });
+        assert.strictEqual(session.capabilities.limits.renderCeiling, 2);
+        assert.strictEqual(session.capabilities.limits.edgesDrawn, DEFAULT_LIMITS.edgesDrawn);
+
+        const error = await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]).then(
+            () => null,
+            (reason: unknown) => reason as { code?: string; details?: unknown },
+        );
+        assert.strictEqual(error?.code, "E_TOO_LARGE");
+        assert.deepStrictEqual(error?.details, { limit: 2, count: 3, of: "nodes", graph: { nodes: 0, edges: 0 } });
+        session.dispose();
+    });
+
+    it("refuses a ceiling that is not a whole number of at least 1", () => {
+        for (const bad of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+            assert.throws(() => createGraphSession({ limits: { edgesDrawn: bad } }), /limits\.edgesDrawn/);
+        }
+    });
+});
+
+describe("RenderLimits", () => {
+    it("puts the asked-for ceilings in force only while honored, and says each change once", () => {
+        const limits = new RenderLimits(false);
+        let changes = 0;
+        limits.onChange(() => changes++);
+
+        limits.request({ renderCeiling: 500_000 });
+        assert.strictEqual(limits.effective, DEFAULT_LIMITS);
+        assert.isTrue(limits.ignored);
+        assert.strictEqual(changes, 0);
+
+        limits.honor(true);
+        assert.strictEqual(limits.effective.renderCeiling, 500_000);
+        assert.isFalse(limits.ignored);
+        limits.honor(true);
+        assert.strictEqual(changes, 1);
+
+        limits.honor(false);
+        assert.strictEqual(limits.effective, DEFAULT_LIMITS);
+        assert.strictEqual(changes, 2);
+        assert.deepStrictEqual(limits.requested, { renderCeiling: 500_000 });
+    });
+
+    it("is not ignoring anything when nothing was asked for", () => {
+        assert.isFalse(new RenderLimits(false).ignored);
     });
 });

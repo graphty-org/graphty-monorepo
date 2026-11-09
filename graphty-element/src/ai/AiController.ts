@@ -458,7 +458,7 @@ interface MessageRun {
 export const LIVE_MESSAGE: unique symbol = Symbol("graphty.ai.live-message");
 
 /** A message spoken on a live connection, whose turns that connection answers. */
-export interface LiveMessage {
+interface LiveMessage {
     readonly engine: AiEngine;
     /** Every word heard for the message's press so far; "" while none. Saved when the message ends. */
     readonly heard: () => string;

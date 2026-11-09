@@ -8,7 +8,7 @@ import type { AiResultCode, AiResultParams, AiVoiceUnavailableReason } from "../
 import type { AiEngine } from "../engine/types";
 
 /** How speaking ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE` or the provider's code. */
-export interface SpeechOutputEnd {
+interface SpeechOutputEnd {
     readonly code: AiResultCode;
     readonly params: AiResultParams;
 }

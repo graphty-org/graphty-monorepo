@@ -17,7 +17,7 @@ const RESERVED: ReadonlySet<string> = new Set(ASSISTANT_TOOLS.map((tool) => tool
  * @param name - The command's name.
  * @returns The name the registry holds it by.
  */
-export function offeredName(name: string): string {
+function offeredName(name: string): string {
     return RESERVED.has(name) ? `app_${name}` : name;
 }
 

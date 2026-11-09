@@ -207,6 +207,8 @@ export interface TestItem extends RawBase {
     seenAt: number;
     /** From a dependency-bump pull request (ingest.ts isBump): the bump's own failure, never counted as flaky. */
     bump?: true;
+    /** An unstable story's two shots on the same inputs: their PNG sha256 hashes, first then second. */
+    pictures?: [string, string];
 }
 
 export interface PullRequestItem extends RawBase {

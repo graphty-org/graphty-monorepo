@@ -439,7 +439,7 @@ export function stepsWords(changes: number, reads: number): string {
  * @param provider - the provider's name.
  * @returns the words.
  */
-export const sendingWords = (provider: string): string => `Sending to ${provider}`;
+const sendingWords = (provider: string): string => `Sending to ${provider}`;
 
 /**
  * The working line while a tool runs.
@@ -541,7 +541,7 @@ export function keyShapeWords(check: AiKeyShapeCheck, provider: string): string 
  * @param one - the thing.
  * @returns such as "12 nodes".
  */
-export const counted = (count: number, one: string): string => `${formatNumber(count)} ${one}${count === 1 ? "" : "s"}`;
+const counted = (count: number, one: string): string => `${formatNumber(count)} ${one}${count === 1 ? "" : "s"}`;
 
 /**
  * Nodes and edges in one phrase; a count of zero drops out.
@@ -1000,7 +1000,7 @@ function termWords(session: GraphSession | null, term: AiRuleTerm): string {
  * @param where - the rule as written, when there is one.
  * @returns the words, or "" with neither.
  */
-export function ruleWords(session: GraphSession | null, rule: AiRule | undefined, where?: string): string {
+function ruleWords(session: GraphSession | null, rule: AiRule | undefined, where?: string): string {
     if (rule !== undefined && rule.terms.length > 0) {
         return rule.terms.map((term) => termWords(session, term)).join(rule.join === "any" ? " or " : " and ");
     }

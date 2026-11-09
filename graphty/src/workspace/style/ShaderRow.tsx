@@ -46,7 +46,7 @@ const POPOUT_WIDTH = 240;
  * @param props.src - the picture's address, or undefined.
  * @returns The picture
  */
-export function ShaderThumb({ src }: Readonly<{ src: string | undefined }>): React.JSX.Element {
+function ShaderThumb({ src }: Readonly<{ src: string | undefined }>): React.JSX.Element {
     return src === undefined ? (
         <span className="ws-shader-thumb" aria-hidden />
     ) : (

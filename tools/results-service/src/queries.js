@@ -9,6 +9,11 @@ const FULL_RUN_SLOT = DAY / 4;
 const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may count (never local)
 const MASTER_EVIDENCE = "('full','bisect','base')"; // master's own code: the only kinds that excuse or pass a quarantine
 const QUARANTINE_PASSES = 20;
+// A variant's per-file durations read only its newest invocations: file_run is never pruned, and reading a variant's
+// whole history grew until a light check's plan read overloaded D1 (HTTP 500), its bins were packed without
+// history and pull requests ran about five times as many test jobs (#5404). A selected run's bin holds about 7
+// files, so 1,000 bins still give most files their 9 runs; a whole run's parts give every file far more.
+export const HISTORY_INVOCATIONS = 1000;
 // GPU tests, and the style fidelity slices: a sample judged differently on the same inputs is a determinism
 // defect in the drawing or the comparator (#4270)
 const NEVER_QUARANTINED = /^(webgpu-graph-algorithms|graphty-element-fidelity)/;
@@ -157,10 +162,14 @@ async function variantFacts(db, variant, inputs, now) {
     const runs = await all(
         db,
         `SELECT file, ms FROM (SELECT r.file, r.ms, row_number() OVER (PARTITION BY r.file ORDER BY i.started_at DESC) AS n
-           FROM file_run r JOIN invocation i ON i.id = r.invocation
-           WHERE i.variant = ? AND i.kind IN ${EVIDENCE} AND i.outcome IN ('passed','failed') AND r.ms IS NOT NULL)
+           FROM (SELECT id, started_at FROM invocation
+                 WHERE variant = ? AND kind IN ${EVIDENCE} AND outcome IN ('passed','failed')
+                 ORDER BY started_at DESC LIMIT ?) i
+           JOIN file_run r ON r.invocation = i.id
+           WHERE r.ms IS NOT NULL)
          WHERE n <= 9`,
         variant,
+        HISTORY_INVOCATIONS,
     );
     const byFile = Map.groupBy(runs, (r) => r.file);
     const fileMs = Object.fromEntries([...byFile].map(([file, rs]) => [file, median(rs.map((r) => r.ms))]));

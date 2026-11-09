@@ -186,6 +186,29 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
     ],
 };
 
+/** The Line properties the `cosmograph` experiment adds (issue #3247): the long-edge fade and blending. */
+const COSMOGRAPH_LINE_CHANNELS: readonly Channel[] = [
+    "edge.fadeEnd",
+    "edge.fadeStart",
+    "edge.fadeOpacity",
+    "edge.blending",
+];
+
+/** The edge sections with the `cosmograph` experiment on: Line ends with its fade and blending. */
+const COSMOGRAPH_EDGE_SECTIONS: readonly SectionSpec[] = SECTIONS.edge.map((section) =>
+    section.id === "line" ? { ...section, channels: [...section.channels, ...COSMOGRAPH_LINE_CHANNELS] } : section,
+);
+
+/**
+ * A group's sections, with what the experiments switched on add.
+ * @param kind - nodes or edges.
+ * @param cosmograph - whether the `cosmograph` experiment is on.
+ * @returns the sections, in their fixed order.
+ */
+export function sectionsFor(kind: Kind, cosmograph: boolean): readonly SectionSpec[] {
+    return cosmograph && kind === "edge" ? COSMOGRAPH_EDGE_SECTIONS : SECTIONS[kind];
+}
+
 /**
  * The opacity a color field carries in its opacity box: Fill's and Line's. Opacity has one source,
  * the opacity channel, so the color stays six digits and a row that set Opacity keeps it.
@@ -219,6 +242,10 @@ export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boo
     "edge.curvature": [
         [false, "Straight"],
         [true, "Curved"],
+    ],
+    "edge.blending": [
+        [true, "On"],
+        [false, "Off"],
     ],
 };
 
@@ -452,6 +479,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.raisedBorderWidth": "Raised border width",
     "node.raisedBorderLightColor": "Raised border light color",
     "node.raisedBorderDarkColor": "Raised border dark color",
+    "node.shadowColor": "Shadow color",
+    "node.shadowOpacity": "Shadow opacity",
+    "node.shadowBlur": "Shadow blur",
+    "node.shadowOffsetX": "Shadow offset X",
+    "node.shadowOffsetY": "Shadow offset Y",
     "node.underlayColor": "Underlay color",
     "node.underlayOpacity": "Underlay opacity",
     "node.underlayPadding": "Underlay padding",
@@ -522,6 +554,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shapeTexts": "Shape texts",
     "node.labelTable": "Label table",
     "node.shapeLineWidth": "Shape line width",
+    "node.shapeLineHaloColor": "Shape line halo color",
+    "node.shapeLineHaloWidth": "Shape line halo width",
     "node.gradientColors": "Gradient colors",
     "node.gradientStops": "Gradient stops",
     "node.gradientKind": "Gradient kind",
@@ -548,6 +582,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.gradientKind": "Gradient kind",
     "edge.waveAmplitude": "Wave amplitude",
     "edge.wavePeriod": "Wave period",
+    "edge.dashLength": "Dash length",
+    "edge.dashGap": "Dash gap",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
@@ -1260,7 +1296,7 @@ export function madeWords(name: string, nodes: number, edges: number): string {
  * @param edges - how many edges are selected.
  * @returns the words.
  */
-export function selectedWords(nodes: number, edges: number): string {
+function selectedWords(nodes: number, edges: number): string {
     const [first, ...rest] = pickedCount(nodes, edges).split(" and ");
     const [n, word] = first.split(" ");
     const selected = n === "1" ? `selected ${word}` : `${n} selected ${word}`;

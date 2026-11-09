@@ -157,6 +157,7 @@ export type {
     RowUpdate,
     RunPlacement,
     SessionAttributes,
+    SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
     SessionDataApi,
@@ -510,6 +511,7 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 
 export type {
     BySizeLeaf,
+    ElementState,
     HopsLeaf,
     MeasureLeaf,
     MeasureTest,
@@ -518,6 +520,7 @@ export type {
     RuleSide,
     SameValueLeaf,
     SourceKey,
+    StateLeaf,
     StepReference,
     TextMatchMode,
     TouchingLeaf,
@@ -765,6 +768,7 @@ export {
     renamePaths,
     rulePath,
     selectorRule,
+    selectorStates,
 } from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------
@@ -787,7 +791,7 @@ export type {
     XrUnavailableReason,
 } from "./src/acceleration";
 export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
-export type { DefaultableLimits } from "./src/session";
+export type { DefaultableLimits, LimitsOption } from "./src/session";
 export { DEFAULT_LIMITS } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------

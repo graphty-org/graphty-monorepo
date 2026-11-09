@@ -32,7 +32,7 @@ export interface CatalogSources {
  * @param tool - The tool.
  * @returns The actions.
  */
-export function toolActions(tool: ToolDefinition): JsonObject[] {
+function toolActions(tool: ToolDefinition): JsonObject[] {
     return tool.actions.map((action) => {
         const schema = toolJsonSchema(z.strictObject(action.fields)) as JsonObject;
         delete schema.$schema;

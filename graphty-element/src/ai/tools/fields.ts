@@ -22,7 +22,7 @@ export const MAX_SELECTOR = 500;
 export const MAX_STRING = 1000;
 
 /** How a selector is written, as a refused selector's result says it. */
-export const SELECTOR_HELP = "Selector: data.type == 'server', data.weight > `0.5`; \"all\" = all.";
+const SELECTOR_HELP = "Selector: data.type == 'server', data.weight > `0.5`; \"all\" = all.";
 
 /**
  * A selector field's description, sent with every tool that takes one: short, since the
@@ -37,7 +37,7 @@ export const whereField = inputKind(z.string().max(MAX_SELECTOR).describe(WHERE_
 const IDS_HELP = "Ids or labels.";
 
 /** Element ids. */
-export const idsField = inputKind(
+const idsField = inputKind(
     z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe(IDS_HELP),
     "ids",
     "Which",
@@ -53,7 +53,7 @@ const RESULT_OPS = ["==", "!=", "<", "<=", ">", ">=", "in", "largest"] as const;
 const primitive = z.union([z.string().max(MAX_STRING), z.number(), z.boolean(), z.null()]);
 
 /** Selects by a run's value: the tool writes the selector, since run ids are hard to quote. */
-export const resultField = inputKind(
+const resultField = inputKind(
     z
         .strictObject({
             run: z.string().max(200),
@@ -103,7 +103,7 @@ export function text(value: unknown, fallback = ""): string {
  * @param key - The key.
  * @returns True for `__proto__`, `constructor` and `prototype`.
  */
-export function isForbiddenKey(key: string): boolean {
+function isForbiddenKey(key: string): boolean {
     return key === "__proto__" || key === "constructor" || key === "prototype";
 }
 
@@ -125,7 +125,7 @@ const BEFORE_VALUE = /(==|!=|<=|>=|<|>)\s*$/;
  * @param value - The text.
  * @returns The literal.
  */
-export function rawString(value: string): string {
+function rawString(value: string): string {
     const escaped = value.replaceAll("\\", String.raw`\\`).replaceAll("'", String.raw`\'`);
     return `'${escaped}'`;
 }
@@ -194,7 +194,7 @@ function unquoted(run: string): string {
  * @param attributes - The attribute names the graph holds.
  * @returns The repaired selector.
  */
-export function repairSelector(where: string, attributes: readonly string[]): string {
+function repairSelector(where: string, attributes: readonly string[]): string {
     let out = literalQuotes(where);
     for (const name of attributes) {
         // A bare name at the start or after a boolean operator or parenthesis, not already a path.
@@ -652,7 +652,7 @@ export function requireMatch(total: number, target: Target): void {
  * @param target - The target.
  * @returns Its selector, its ids, or "all".
  */
-export function targetText(target: Target): string {
+function targetText(target: Target): string {
     if (target.kind === "where") {
         return target.where;
     }

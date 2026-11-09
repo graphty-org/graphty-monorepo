@@ -1223,6 +1223,10 @@ jobs:
 
             # Relative links, anchors and links to this repository's own files, against this checkout, with no
             # network (about a second). The network half runs in the full run's Links job.
+            # lychee from the Actions cache, not a GitHub release download on every run (#6308).
+            - name: Install lychee
+              uses: ./.github/actions/lychee
+
             - name: Links (offline)
               run: ./tools/check-links.sh --offline
 
@@ -2096,6 +2100,9 @@ jobs:
             - name: Assemble the GitHub Pages site
               run: ./tools/assemble-pages-site.sh "$RUNNER_TEMP/site"
 
+            - name: Install lychee
+              uses: ./.github/actions/lychee
+
             - name: Check links
               run: ./tools/check-links.sh --site "$RUNNER_TEMP/site"
               env:
@@ -2776,11 +2783,28 @@ jobs:
                       parts: 2
                       shard: graphty-storybook
                       command: cd graphty && pnpm exec vitest run --project=storybook --shard=2/2
-                    # One job for the whole project: without coverage its story tests do not slow down as
-                    # they run, which is why the coverage shards split it in five.
+                    # Three legs (vitest --shard=N/3), merged by story-tests-merge (#6178, owner 2026-11-08): one job
+                    # was 20 minutes (1140 s of tests, fileParallelism: false), the critical path of every pull request
+                    # run that tests graphty-element's stories (25.9 min median against a 20-minute budget) and of the
+                    # full run's graphty-element-storybook-shots (median 1017 s against 900 s). 64 story files: 22, 21, 21.
                     - project: graphty-element
+                      name: graphty-element-1
+                      part: 1
+                      parts: 3
                       shard: graphty-element-storybook-1
-                      command: cd graphty-element && pnpm exec vitest run --project=storybook
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=1/3
+                    - project: graphty-element
+                      name: graphty-element-2
+                      part: 2
+                      parts: 3
+                      shard: graphty-element-storybook-1
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=2/3
+                    - project: graphty-element
+                      name: graphty-element-3
+                      part: 3
+                      parts: 3
+                      shard: graphty-element-storybook-1
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=3/3
                     - project: algorithms
                       shard: algorithms-browser
                       command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
@@ -3045,7 +3069,7 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # The parts of a project the story-tests job splits in legs (graph-io-fidelity, graphty), combined into the one capture the
+    # The parts of a project the story-tests job splits in legs (graph-io-fidelity, graphty, graphty-element), combined into the one capture the
     # project's single leg would have uploaded (visual-<project>-<attempt>):
     # merge-results checks every part ran once and every story file ran once, else the capture is complete: false.
     # Blocks as story-tests does: a broken or still-unstable story fails it, a changed picture only holds nightly.
@@ -3058,14 +3082,15 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graph-io-fidelity, graphty]
+                project: [graph-io-fidelity, graphty, graphty-element]
         steps:
+            # `-[0-9]*`, not `-*`: graphty's pattern must not match graphty-element's parts (story-parts-graphty-element-1-1)
             - name: Download the parts
               id: parts
               continue-on-error: true
               uses: actions/download-artifact@v8
               with:
-                  pattern: story-parts-${{ matrix.project }}-*
+                  pattern: story-parts-${{ matrix.project }}-[0-9]*
                   path: ${{ runner.temp }}/parts
 
             # download-artifact@v8 extracts a single matching artifact straight into path, with no <artifact>/ folder

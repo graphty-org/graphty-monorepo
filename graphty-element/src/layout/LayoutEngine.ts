@@ -80,6 +80,19 @@ export interface EdgePosition {
      * @since 3.35.0
      */
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
+    /**
+     * Where the layout starts and ends the edge's line, when it ends it itself, each given as
+     * {@link EdgePosition.labelAt} is: `target` is where an arrowhead's tip goes. The line is drawn to these ends instead
+     * of being cut at its nodes' outlines. A Graphviz layout with `nodeSize: "label"`, whose nodes Graphviz shapes as
+     * the element draws them, gives them: Graphviz's spline ends, on the outer ring of a node of several peripheries, at
+     * a record's field port, or on the border of the cluster an `lhead` or `ltail` names. Absent, the line is cut at
+     * the outlines.
+     * @since 3.36.0
+     */
+    lineEnds?: {
+        readonly source: readonly [along: number, across: number];
+        readonly target: readonly [along: number, across: number];
+    };
 }
 
 /**
@@ -517,6 +530,16 @@ export abstract class LayoutEngine {
      * @internal
      */
     wakeForResize(): boolean {
+        return false;
+    }
+
+    /**
+     * Whether this engine keeps nodes apart by their drawn size (`nodeGap`), so it must not step while a size is still
+     * to come: see `UpdateManager.updateLayout`.
+     * @returns True when the engine reads node sizes.
+     * @internal
+     */
+    get spacesBySize(): boolean {
         return false;
     }
 
@@ -967,7 +990,8 @@ export abstract class LayoutEngine {
     /**
      * Publish a whole column: {@link LayoutEngine.writeNodePosition}'s guards in one loop over typed
      * arrays, with the array resolved once instead of per node.
-     * @param n - any node of the column, which resolves the array; nothing is published without one
+     * @param n - any node of the column, or the element's array itself, which resolves the array;
+     *     nothing is published without one
      * @param rows - each entry's row
      * @param coords - each entry's scene-unit x, y, z
      * @param count - how many entries to publish
@@ -976,7 +1000,7 @@ export abstract class LayoutEngine {
      * @internal
      */
     protected publishColumn(
-        n: Node | undefined,
+        n: Node | ElementPositions | undefined,
         rows: Float64Array,
         coords: Float64Array,
         count: number,
@@ -1040,14 +1064,14 @@ export abstract class LayoutEngine {
      * dataset is discarded -- the store and everything keyed into it is thrown away and rebuilt --
      * and an engine outlives that. A cached reference would keep publishing into the array of a
      * graph that no longer exists, which is invisible: every write succeeds and nothing draws.
-     * @param n - the node being published or read
+     * @param n - the node being published or read, or the element's array itself
      * @returns the array to write to and read from
      */
-    private positionsFor(n: Node): ElementPositions {
+    private positionsFor(n: Node | ElementPositions): ElementPositions {
         if (!this.positionArrayAttached) {
             // A node built by hand for a unit test, or one belonging to a host that keeps no
             // position array, answers nothing here and the engine keeps its own.
-            const owned = writableLane(n.parentGraph?.getDataManager?.());
+            const owned = n instanceof ElementPositions ? n : writableLane(n.parentGraph?.getDataManager?.());
             if (owned !== undefined) {
                 this.positionArray = owned;
             }
@@ -1301,6 +1325,17 @@ function compact<T>(list: T[], gone: Set<T>): T[] {
 }
 
 /**
+ * Sweep a list once half of it is marked removed. See {@link StaticLayoutEngine.removeNode}.
+ * @param list - the list
+ * @param gone - what is marked removed from it
+ */
+function sweepAtHalf<T>(list: T[], gone: Set<T>): void {
+    if (2 * gone.size >= list.length) {
+        compact(list, gone);
+    }
+}
+
+/**
  * Whether two lists hold the same items in the same order.
  * @param a - one list
  * @param b - the other
@@ -1522,6 +1557,15 @@ export const simpleLayoutInternals = {
     kept(engine: StaticLayoutEngine): NodeMask | null;
     /** The element's array for the run in progress, or null for an engine driven without one. */
     positions(engine: StaticLayoutEngine): ElementPositions | null;
+    /** How many nodes and edges the engine's lists hold, removed ones not yet swept included, without sweeping them. */
+    held(engine: StaticLayoutEngine): { readonly nodes: number; readonly edges: number };
+    /**
+     * Hand the engine the element's graph, so that while `byRow` answers true it lays out and
+     * publishes every row of the element's snapshot, a row it was handed no `Node` for included.
+     */
+    attachRows(engine: StaticLayoutEngine, source: GraphSource, byRow: () => boolean): void;
+    /** Whether the engine has nothing to arrange: no node handed to it, and no row it lays out by row. */
+    empty(engine: StaticLayoutEngine): boolean;
 };
 
 /**
@@ -1548,6 +1592,11 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     static {
         simpleLayoutInternals.kept = (engine) => engine.#keep;
         simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
+        simpleLayoutInternals.held = (engine) => ({ nodes: engine.#nodes.length, edges: engine.#edges.length });
+        simpleLayoutInternals.attachRows = (engine, source, byRow) => {
+            engine.#rows = { source, byRow };
+        };
+        simpleLayoutInternals.empty = (engine) => engine._nodes.length === 0 && engine.#rowSource() === null;
     }
 
     static type: string;
@@ -1574,6 +1623,11 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     #keep: NodeMask | null = null;
     /** The element snapshot a run still waiting for its answer arranges; `#keep` is in its rows. */
     #waitingFor: GraphSnapshot | null = null;
+    /**
+     * The element's graph, attached by the element: under renderPath "batched" (`byRow`) the
+     * engine arranges and publishes every row of it, so a row drawn with no `Node` is laid out too.
+     */
+    #rows: { readonly source: GraphSource; readonly byRow: () => boolean } | null = null;
     /** For an engine driven without an element: the graph last built, and from what. */
     #built: { readonly nodes: Node[]; readonly edges: Edge[]; readonly loaded: LoadedGraph } | null = null;
 
@@ -1860,12 +1914,19 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * layout is marked stale, so the next read recomputes it without the node.
      *
      * The node is only marked here, and the list is swept once, in order, at the next read of
-     * `_nodes`. Finding and splicing it out at once cost the length of the list per removal, so
-     * tearing down a graph of n nodes one node at a time cost n^2/2 moves: 8.6 s at 100,000 nodes.
+     * `_nodes` or once half of it is marked, whichever comes first. Finding and splicing it out at
+     * once cost the length of the list per removal, so tearing down a graph of n nodes one node at a
+     * time cost n^2/2 moves: 8.6 s at 100,000 nodes. Waiting only for a read held every removed
+     * node for as long as nothing read the list -- and the element's own engines read the graph
+     * snapshot, not the list -- so each replacing import left the whole graph it replaced behind,
+     * about 900 MB at 100,000 nodes (issue #6006). Sweeping at half costs each removal amortized
+     * constant time, empties the list when the whole graph goes, and holds no more removed nodes
+     * than live ones.
      * @param n - the node leaving the graph
      */
     override removeNode(n: Node): void {
         this.#goneNodes.add(n);
+        sweepAtHalf(this.#nodes, this.#goneNodes);
         this.stale = true;
     }
 
@@ -1875,6 +1936,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     override removeEdge(e: Edge): void {
         this.#goneEdges.add(e);
+        sweepAtHalf(this.#edges, this.#goneEdges);
         this.stale = true;
     }
 
@@ -1970,7 +2032,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         this.result = null;
         // An empty graph has nothing to arrange, and an option that names a node -- a bfs start, a
         // radial root -- could only fail on it: a layout chosen before the data arrives waits for it.
-        if (this._nodes.length > 0) {
+        if (this._nodes.length > 0 || this.#rowSource() !== null) {
             try {
                 this.doLayout();
             } catch (error) {
@@ -2033,7 +2095,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     #load(): LoadedGraph {
         // Reached the way `positionsFor` reaches the coordinate array: an engine driven directly,
         // by a test or by a host that keeps no graph, has nodes whose parent answers none of this.
-        const manager = this._nodes[0]?.parentGraph?.getDataManager?.();
+        const manager = this._nodes[0]?.parentGraph?.getDataManager?.() ?? this.#rowSource() ?? undefined;
         const source = manager as Partial<GraphSource> | undefined;
         if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
             const store = source.getSnapshot();
@@ -2081,6 +2143,10 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * origin is a place a reader would draw at.
      */
     private publishComputed(): void {
+        if (this.#publishRows()) {
+            return;
+        }
+
         const nodes = this._nodes;
         const { rows, coords } = this.publishScratch(nodes.length);
         let count = 0;
@@ -2092,6 +2158,43 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         }
 
         this.publishColumn(nodes[0], rows, coords, count);
+    }
+
+    /**
+     * The element's graph while the engine lays out by row: attached, under renderPath "batched",
+     * and holding at least one row.
+     * @returns the source, or null
+     */
+    #rowSource(): GraphSource | null {
+        const rows = this.#rows;
+        if (rows === null || !rows.byRow() || rows.source.getSnapshot().nodeCount === 0) {
+            return null;
+        }
+
+        return rows.source;
+    }
+
+    /**
+     * Publish the computed column row by row, every row of the element's snapshot, when the engine
+     * lays out by row and computed an index-based answer for the element's graph.
+     * @returns false when it does not, and the answer is published node by node
+     */
+    #publishRows(): boolean {
+        const loaded = this.#loaded;
+        const column = this.#column;
+        if (!loaded?.source || loaded.positions === null || column.length === 0 || this.#rowSource() === null) {
+            return false;
+        }
+
+        const count = Math.min(column.length / 3, loaded.snapshot.nodeCount);
+        const { rows, coords } = this.publishScratch(count);
+        for (let row = 0; row < count; row++) {
+            rows[row] = row;
+        }
+
+        coords.set(column.subarray(0, 3 * count));
+        this.publishColumn(loaded.positions, rows, coords, count);
+        return true;
     }
 
     /**

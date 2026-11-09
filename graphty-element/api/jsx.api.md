@@ -6,7 +6,9 @@
 
 import { AbstractMesh } from '@babylonjs/core';
 import { ActionManager } from '@babylonjs/core';
+import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
+import { BoundingInfo } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { ColumnHandle } from '@graphty/graph-format';
@@ -32,6 +34,7 @@ import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
+import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
@@ -159,6 +162,8 @@ export interface GraphtyElementJSXProps {
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;
     "onelements-removed"?: (event: CustomEvent<EventOfType<"elements-removed">>) => void;
     // (undocumented)
+    "ongraph-first-frame"?: (event: CustomEvent<EventOfType<"graph-first-frame">>) => void;
+    // (undocumented)
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     // (undocumented)
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
@@ -207,6 +212,8 @@ export interface GraphtyElementJSXProps {
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
     // (undocumented)
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    // (undocumented)
+    "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
     "oninput:key-down"?: (event: CustomEvent<EventOfType<"input:key-down">>) => void;
     "oninput:key-up"?: (event: CustomEvent<EventOfType<"input:key-up">>) => void;
@@ -230,6 +237,7 @@ export interface GraphtyElementJSXProps {
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     // (undocumented)
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
+    "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     // (undocumented)
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     // (undocumented)
@@ -275,6 +283,7 @@ export interface GraphtyElementJSXProps {
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
+    antialias?: Graphty["antialias"];
     attributionOffset?: Graphty["attributionOffset"];
     autoFrame?: Graphty["autoFrame"];
     autoRotate?: Graphty["autoRotate"];
@@ -306,6 +315,7 @@ export interface GraphtyElementJSXProps {
     layoutConfig?: Graphty["layoutConfig"];
     layoutScope?: Graphty["layoutScope"];
     lighting?: Graphty["lighting"];
+    limits?: Graphty["limits"];
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];

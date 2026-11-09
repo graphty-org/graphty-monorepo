@@ -267,6 +267,8 @@ A channel is one visual property with one name. These are all of them:
 | `node.shapeParts`             | further pieces of the node's body: polygons as `node.shapePoints` writes them, separated by `;`, filled and outlined as the node is              |
 | `node.shapeLines`             | lines over the node in its border's color: polylines as `node.shapeParts` writes polygons; one that ends where it starts is closed               |
 | `node.shapeLineWidth`         | 0 or more: how wide `node.shapeLines` are, in the units of `node.borderWidth`; unset, the border's width                                         |
+| `node.shapeLineHaloColor`     | a color: of a wider line drawn under each of `node.shapeLines`, down the same path                                                               |
+| `node.shapeLineHaloWidth`     | 0 or more: how wide that line under `node.shapeLines` is, in the units of `node.borderWidth`; unset or 0, none                                   |
 | `node.label`                  | the words to draw                                                                                                                                |
 | `node.labelStyle`             | `{font, sizePx, weight, color, background, outline, padding, ...}`                                                                               |
 | `node.labelColor`             | any CSS colour: the label's colour                                                                                                               |
@@ -759,7 +761,12 @@ await element.session.styles.add({
 `stops` takes the place of `scale`, `domain`, `range` and `palette` (leave `scale` out or set it to
 `"linear"`); the others are refused beside it, because the points already say what each would. It
 is how a Cytoscape continuous mapping is drawn when a file's styles are loaded (see
-[Styles from Files](./file-styles)).
+[Styles from Files](./file-styles), the `file-styles` experiment).
+
+The channels and values added to draw other programs' files (flat node shapes, borders, widths and
+heights, more arrowheads and line patterns, and the rest) are part of the `file-styles` experiment:
+with it off, `session.catalog.channels(target)` leaves them out, and a layer that writes one is
+still drawn. See [Experiments](./experiments).
 
 A number outside what a channel can draw (a negative size, an opacity above 1) is still clamped,
 and a node color with alpha is still drawn opaque; `styles.counts(id)` reports both per layer, as

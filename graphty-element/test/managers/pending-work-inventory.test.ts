@@ -190,8 +190,12 @@ const INVENTORY: Record<string, Covered> = {
     "src/shaders/chunk.ts": { count: 1, kind: "shader", reason: "the shader runtime, loaded the first time one draws" },
     "src/meshes/NodeShaderDrawing.ts": {
         count: 3,
-        kind: "shader",
+        kind: "node-shader",
         reason: "the node shader renderer modules, loaded inside the token a resolving node shader holds",
+    },
+    "src/meshes/GlyphLabels.ts": {
+        count: 1,
+        reason: "document.fonts.check() is a synchronous test; a label whose font is not loaded yet is drawn by canvas meanwhile",
     },
     "src/meshes/EdgeShaderDrawing.ts": {
         count: 1,
@@ -265,8 +269,10 @@ for (const path of files) {
     entered += text;
 }
 
-/** Every kind something in `src/` enters in the record, as a token or a watch. */
-const KINDS = new Set([...entered.matchAll(/\.(?:watch|begin|track)\(\s*"([\w-]+)"/g)].map((m) => m[1]));
+/** Every kind something in `src/` enters in the record, as a token or a watch, directly or through `trackOnScene`. */
+const KINDS = new Set(
+    [...entered.matchAll(/(?:\.(?:watch|begin|track)\(|trackOnScene\([^,()]+,)\s*"([\w-]+)"/g)].map((m) => m[1]),
+);
 
 describe("every asynchronous source is in the record of pending picture work", () => {
     it("finds the entry points it looks for", () => {

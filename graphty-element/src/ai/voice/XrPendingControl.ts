@@ -25,7 +25,7 @@ import { ASSISTANT_TOOLS } from "../../catalog/assistant";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
 
 /** What a card's icon shows. */
-export type XrCardIcon = "approval" | "approve" | "deny" | "question" | "choice" | "transcript" | "answer";
+type XrCardIcon = "approval" | "approve" | "deny" | "question" | "choice" | "transcript" | "answer";
 
 /** One card: its code (for its label), its icon, its data lines, and what pressing it does. */
 export interface XrCard {
@@ -234,8 +234,8 @@ export type CardCanvas = Pick<
 >;
 
 /** Card texture size, in pixels. */
-export const CARD_WIDTH = 1024;
-export const CARD_LINE_HEIGHT = 44;
+const CARD_WIDTH = 1024;
+const CARD_LINE_HEIGHT = 44;
 const ICON = 64;
 const PAD = 16;
 
@@ -244,7 +244,7 @@ const PAD = 16;
  * @param card - The card.
  * @returns Its height in pixels.
  */
-export function cardHeight(card: XrCard): number {
+function cardHeight(card: XrCard): number {
     return Math.max(ICON + 2 * PAD, card.lines.length * CARD_LINE_HEIGHT + 2 * PAD);
 }
 

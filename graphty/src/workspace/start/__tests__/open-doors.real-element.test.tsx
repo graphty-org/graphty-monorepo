@@ -137,7 +137,7 @@ async function chooseSample(name: string): Promise<void> {
     await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
     const dialog = await screen.findByRole("dialog", { name: "Samples" });
-    const row = [...dialog.querySelectorAll("button")].find((button) => button.textContent.startsWith(name));
+    const row = [...dialog.querySelectorAll("button")].find((button) => (button.ariaLabel ?? "").startsWith(name));
     if (row === undefined) {
         throw new Error(`Samples lists no ${name}`);
     }

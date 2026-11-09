@@ -22,12 +22,16 @@ import { type FileStyleKind, isFileStyleNamespace } from "./path";
 /** The name the store is kept under among the graph-level values. */
 export const FILE_STYLES_VALUE = "fileStyles";
 
-/** One value a file-style column holds for an element. */
+/**
+ * One value a file-style column holds for an element.
+ * @experimental file-styles
+ */
 export type FileStyleScalar = string | number | boolean;
 
 /**
  * One column of a load's style values, as plain data: what a project file saves and the
  * `data.setFileStyles` command carries. `ids[i]` holds `values[i]`; a null value holds nothing.
+ * @experimental file-styles
  */
 export interface FileStyleColumnValues {
     /** Nodes or edges. */
@@ -40,7 +44,10 @@ export interface FileStyleColumnValues {
     readonly values: readonly (FileStyleScalar | null)[];
 }
 
-/** The style values of one load, as plain data. */
+/**
+ * The style values of one load, as plain data.
+ * @experimental file-styles
+ */
 export interface FileStyleLoadValues {
     /** The load, as its layers' `templateId` names it (`file:<importId>`). */
     readonly importId: string;
@@ -53,7 +60,7 @@ export interface FileStyleLoadValues {
 }
 
 /** One load, held. */
-export interface StoredFileStyleLoad {
+interface StoredFileStyleLoad {
     /** What it was written from, normalised. */
     readonly values: FileStyleLoadValues;
     /** Its columns by `<kind>:<key>`, each by element id. */
@@ -72,7 +79,7 @@ export interface FileStyleStore {
 const MAX_KEY_LENGTH = 256;
 
 /** The store with nothing in it. */
-export const EMPTY_FILE_STYLES: FileStyleStore = Object.freeze({ loads: Object.freeze([]), byNamespace: new Map() });
+const EMPTY_FILE_STYLES: FileStyleStore = Object.freeze({ loads: Object.freeze([]), byNamespace: new Map() });
 
 /**
  * A refusal of a malformed store.

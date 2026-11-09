@@ -26,8 +26,9 @@ export interface PStop {
 }
 
 /**
- * A gradient as drawn: its kind, its stops and, for a linear one, the screen direction it runs in (degrees, clockwise
- * from the +x axis, y down: from its first stop towards its last), or null where the drawing does not say.
+ * A gradient as drawn: its kind, its stops and, for a linear one, the screen direction its color changes along
+ * (degrees, clockwise from the +x axis, y down: from its first stop towards its last; across its lines of one color,
+ * as `rampAngleOnScreen` reads a stretched ramp), or null where the drawing does not say.
  */
 export interface PGradient {
     kind: "linear" | "radial";
@@ -43,6 +44,124 @@ export interface PGradient {
      * node's middle; its stops are then in halves of the node's shorter side from there. Absent, the node's middle.
      */
     center?: readonly [number, number];
+}
+
+/**
+ * The screen direction a linear ramp's color changes along, where the ramp runs along a vector in its own units and a
+ * linear map takes those units to the screen. A map that stretches one way more than the other (a ramp painted across
+ * a unit square, or an SVG gradient in objectBoundingBox units, laid over a box wider than tall) turns the ramp's lines
+ * of one color with it, and the color changes across those lines, not along the stretched vector: a ramp from corner to
+ * corner of a 220 x 94 box runs along 23.1 degrees on screen, and its color changes along 66.9. That direction is the
+ * map's inverse transpose applied to the vector.
+ * @param v - the ramp's vector, in its own units
+ * @param a - the map's matrix `[a, b, c, d]` (x' = a x + c y, y' = b x + d y)
+ * @returns the direction in degrees, or null for a ramp of no length or a map that flattens it
+ */
+export function rampAngleOnScreen(v: Pt, [a, b, c, d]: readonly [number, number, number, number]): number | null {
+    const det = a * d - b * c;
+    if (Math.hypot(v[0], v[1]) < 1e-12 || Math.abs(det) < 1e-12) {
+        return null;
+    }
+    const x = (d * v[0] - b * v[1]) / det;
+    const y = (a * v[1] - c * v[0]) / det;
+    return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
+/**
+ * The stops a reflected or repeated ramp paints across its shape, from where the shape starts along the ramp to where
+ * it ends: an SVG gradient's `spreadMethod="reflect"` or `"repeat"` runs its stops again past their ends, so its
+ * colors across the shape are not its stops. yEd's shape-node ramp from a third of the way across to the right side,
+ * reflected, paints the color halfway along it at the left side, its first color a third across and its last at the
+ * right (t from -0.5 to 1). `pad` keeps its stops: both sides read a padded ramp along its own vector.
+ * @param stops - the ramp's stops, offsets 0 to 1
+ * @param spread - the gradient's spreadMethod
+ * @param start - where the shape starts along the ramp (0 its first stop, 1 its last)
+ * @param end - where the shape ends
+ * @returns the stops across the shape, offsets 0 to 1, or the stops themselves when nothing repeats over the shape
+ */
+export function spreadStops(stops: readonly PStop[], spread: string, start: number, end: number): PStop[] {
+    const sorted = [...stops].sort((a, b) => a.offset - b.offset);
+    const eps = 1e-6;
+    if ((spread !== "reflect" && spread !== "repeat") || sorted.length === 0 || end - start < eps) {
+        return sorted;
+    }
+    if (start >= -eps && end <= 1 + eps) {
+        return sorted;
+    }
+    // ponytail: places are rounded to 1e-9, so a corner a float's width off a stop is that stop
+    const near = (t: number): number => Math.round(t * 1e9) / 1e9;
+    const [t0, t1] = [near(start), near(end)];
+    // every place a stop, run again either way, falls or a run ends
+    const at = new Set([t0, t1]);
+    for (let k = Math.floor(t0) - 1; k <= Math.ceil(t1) + 1; k++) {
+        for (const t of [k, ...sorted.flatMap((st) => [near(k + st.offset), near(k + 1 - st.offset)])]) {
+            if (t > t0 && t < t1) {
+                at.add(t);
+            }
+        }
+    }
+    const out: PStop[] = [];
+    for (const t of [...at].sort((a, b) => a - b)) {
+        const offset = Math.round(((t - t0) / (t1 - t0)) * 1e6) / 1e6;
+        const [left, right] = spreadSides(spread, t).map(([u, above]) => ({ ...stopAlong(sorted, u, above), offset }));
+        // a seam or a hard stop is two colors at one place; the shape's own ends show only the side inside it
+        if (t !== t0) {
+            out.push(left);
+        }
+        if (t !== t1 && (t === t0 || right.color !== left.color || right.opacity !== left.opacity)) {
+            out.push(right);
+        }
+    }
+    return out;
+}
+
+/**
+ * Where along its stops a reflected or repeated ramp is just before a place and just after it, and whether it is read
+ * from above that place along its stops: a repeat jumps from its end back to its start at each whole place, a
+ * reflection runs back down its stops on every other run.
+ * @param spread - `reflect` or `repeat`
+ * @param t - the place
+ * @returns `[u, above]` just before it and just after it
+ */
+function spreadSides(spread: string, t: number): [[number, boolean], [number, boolean]] {
+    if (spread === "repeat") {
+        const u = t - Math.floor(t);
+        return [
+            [u === 0 ? 1 : u, false],
+            [u, true],
+        ];
+    }
+    const m = t - 2 * Math.floor(t / 2);
+    return [m > 0 && m <= 1 ? [m, false] : [m === 0 ? 0 : 2 - m, true], m < 1 ? [m, true] : [2 - m, false]];
+}
+
+/**
+ * A ramp's color and opacity at a place along its sorted stops, read from below the place or above it: at a hard stop
+ * (two stops at one place) the first stop's below and the last's above.
+ * @param stops - the stops, sorted
+ * @param u - the place, 0 to 1
+ * @param above - read from above
+ * @returns the color and opacity
+ */
+function stopAlong(stops: readonly PStop[], u: number, above: boolean): { color: string; opacity: number } {
+    const last = stops.length - 1;
+    const next = stops.findIndex((s) => s.offset >= u);
+    const k = above ? stops.filter((s) => s.offset <= u).length - 1 : (next < 0 ? stops.length : next) - 1;
+    if (k < 0 || k >= last) {
+        const s = stops[k < 0 ? 0 : last];
+        return { color: s.color, opacity: s.opacity };
+    }
+    const [a, b] = [stops[k], stops[k + 1]];
+    const f = b.offset > a.offset ? (u - a.offset) / (b.offset - a.offset) : 1;
+    const hex = (h: string, i: number): number => Number.parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+    const color = `#${[0, 1, 2]
+        .map((i) =>
+            Math.round(hex(a.color, i) + f * (hex(b.color, i) - hex(a.color, i)))
+                .toString(16)
+                .padStart(2, "0"),
+        )
+        .join("")}`;
+    return { color, opacity: Math.round((a.opacity + f * (b.opacity - a.opacity)) * 1000) / 1000 };
 }
 
 /** A fill: a flat color, or a gradient (its first stop is also its `color`). */
@@ -219,6 +338,11 @@ export interface Prim {
      * that are no arrowhead, band or body. Absent for everything else.
      */
     lettering?: true;
+    /**
+     * An open line's: the band drawn along it under it, as `PEdge.outline` says (yEd's framed edge, its outline round
+     * the line, `framedBand`). Absent for everything else.
+     */
+    lineOutline?: { color: string; opacity: number; width: number };
     /** The fill of the panel a yFiles group lays over this, its tab. Absent for everything else. */
     panel?: PFill;
     /** What the program's own markup says this belongs to, when it says. */
@@ -261,10 +385,10 @@ export interface PNode {
      */
     pictures?: PBox[];
     /**
-     * The oracle's side only: the boxes of a fill drawn in pieces (a yEd table's header and lanes, Graphviz's stripes),
-     * which graphty draws as pieces over the node's face. Absent for a fill in one piece.
+     * The oracle's side only: the pieces of a fill drawn in pieces (a yEd table's header and lanes, Graphviz's stripes),
+     * which graphty draws as pieces over the node's face, each with its color. Absent for a fill in one piece.
      */
-    faces?: PBox[];
+    faces?: { box: PBox; color: string }[];
     /**
      * The oracle's side only: the parts of the node a clip cuts from a fill of another color than the node's (yEd's
      * entity header), each of which graphty must draw over the face in that color. Absent for none.
@@ -293,6 +417,11 @@ export interface PNode {
      * later node is drawn in front of an earlier one).
      */
     order?: number;
+    /**
+     * The oracle's side only: the document order of the primitive that paints its fill, which says what its fill hides
+     * (what it draws after its fill, a chart's slices, is drawn over it).
+     */
+    fillOrder?: number;
     /**
      * A figure's own outline, where it is neither its box nor the ellipse its box holds (a shape with a dent: Pajek's
      * man, woman and cross, a star): its edges, in halves of the node's width and height from its center, y down, so
@@ -878,9 +1007,15 @@ function continuousPattern(outer: readonly Pt[]): DashClass {
     return straightShare(outer) > 0.5 ? "zigzag" : "sinewave";
 }
 
+/** The sine of the widest angle between two sides still read as running alongside one another (10 degrees). */
+const ALONGSIDE = Math.sin((10 * Math.PI) / 180);
+
 /**
- * How far apart two outlines most often are: over one outline's points, the distance to the other's nearest side,
- * and of those the run within a tenth of one another that holds the most, its median.
+ * How far apart two outlines most often are: over one outline's points, the distance to the other's nearest side
+ * running alongside it (within 10 degrees), and of those the run within a tenth of one another that holds the most,
+ * its median. Only a side alongside is the line's other edge: a zigzag drawn thick (Cytoscape desktop's 6 px border,
+ * cx-syn-bypass 2106) brings its next leg's far edge nearer than its own across the turn, which read the band half
+ * its width.
  * @param a - one outline, sampled
  * @param b - the other, closed
  * @returns the distance
@@ -891,10 +1026,28 @@ function outlinesApart(a: readonly Pt[], b: readonly Pt[]): number {
         const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / Math.max(dx * dx + dy * dy, 1e-12)));
         return Math.hypot(x - (x0 + t * dx), y - (y0 + t * dy));
     };
+    const alongside = (u: Pt, v: Pt): boolean => {
+        const [lu, lv] = [Math.hypot(u[0], u[1]), Math.hypot(v[0], v[1])];
+        return lu > 1e-9 && lv > 1e-9 && Math.abs(u[0] * v[1] - u[1] * v[0]) <= ALONGSIDE * lu * lv;
+    };
     const step = Math.max(1, Math.floor(a.length / 256));
     const gaps: number[] = [];
     for (let i = 0; i < a.length; i += step) {
-        gaps.push(Math.min(...b.map((p, k) => toSide(a[i], p, b[(k + 1) % b.length]))));
+        const next = a[(i + 1) % a.length];
+        const dir: Pt = [next[0] - a[i][0], next[1] - a[i][1]];
+        let nearest = Number.POSITIVE_INFINITY;
+        for (let k = 0; k < b.length; k++) {
+            const q = b[(k + 1) % b.length];
+            if (alongside(dir, [q[0] - b[k][0], q[1] - b[k][1]])) {
+                nearest = Math.min(nearest, toSide(a[i], b[k], q));
+            }
+        }
+        if (Number.isFinite(nearest)) {
+            gaps.push(nearest);
+        }
+    }
+    if (gaps.length === 0) {
+        return Number.NaN;
     }
     gaps.sort((x, y) => x - y);
     let [best, from] = [0, 0];
@@ -1056,9 +1209,12 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[], nonze
     if (subpaths.length === 2 || !(ringsAHole(subpaths, box) || drawnInTurn(subpaths)) || !closesOnItself(boxes)) {
         return null;
     }
-    // round the ring: along is the angle at the ring's mean radius, its mirror the circle there
+    // round the ring: along is the angle at the ring's mean radius, its mirror the circle there; across and the
+    // tangent are read against the ring's own outline (its pieces' convex hull), so a box's or a diamond's two rows of
+    // a double line lie each at one depth, as a circle's do at one radius (cx2-syn-mappings 201 was read as slashes
+    // against the circle's radius)
     const r0 = median(subpaths.flat().map((p) => frame(p).across));
-    const { dashClass, width } = piecesPattern(subpaths, frame, {
+    const { dashClass, width } = piecesPattern(subpaths, hullFrame(convexHull(subpaths.flat())), {
         length: 2 * Math.PI * r0,
         circular: true,
         along: ([x, y]) => r0 * (Math.atan2(y - my, x - mx) + Math.PI),
@@ -1069,6 +1225,33 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[], nonze
         },
     });
     return patternResult(dashClass, width, box);
+}
+
+/**
+ * A pattern frame against a convex outline: at a point, the direction of the outline's nearest side and how far
+ * inside it the point is.
+ * @param hull - the outline, counter-clockwise
+ * @returns the frame
+ */
+function hullFrame(hull: readonly (readonly [number, number])[]): PatternFrame {
+    return ([x, y]) => {
+        let best = { tangent: [1, 0] as Pt, across: Number.POSITIVE_INFINITY };
+        for (let i = 0; i < hull.length; i++) {
+            const [x0, y0] = hull[i];
+            const [x1, y1] = hull[(i + 1) % hull.length];
+            const [dx, dy] = [x1 - x0, y1 - y0];
+            const len = Math.hypot(dx, dy);
+            if (len <= 1e-9) {
+                continue;
+            }
+            const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / (len * len)));
+            const d = Math.hypot(x - (x0 + t * dx), y - (y0 + t * dy));
+            if (d < best.across) {
+                best = { tangent: [dx / len, dy / len], across: d };
+            }
+        }
+        return best;
+    };
 }
 
 /** How many times as long as it is wide a filled band must be to be read as a line at all. */
@@ -1232,6 +1415,233 @@ export function taperPaintedAsFill(points: readonly Pt[]): PaintedBand | null {
         ends: [base, corners[tip]],
         across: width,
     };
+}
+
+/** The sharpest corner, in degrees, a band's end is read as a cap of two corners at; a sharper one is an arrow's tip. */
+const TIP_ANGLE = 75;
+
+/** How many times as long as it is wide a closed outline must be to be read as a framed edge's band. */
+const FRAMED_ASPECT = 4;
+
+/** How far, as a share of its width, a framed edge's band may narrow or widen anywhere: a coordinate's rounding. */
+const FRAMED_SIDES = 0.1;
+
+/** An edge drawn as one closed outline round a band (yEd's `com.yworks.edge.framed`). */
+export interface FramedBand {
+    /** The line's route through the band's middle, source end first, between its arrowheads' backs or its ends. */
+    route: Pt[];
+    /** How far apart the band's two sides are: the edge's line width. */
+    width: number;
+    /** Each arrowhead the outline runs round, as a closed outline from its back on one side to its back on the other. */
+    heads: { end: "source" | "target"; outline: Pt[] }[];
+}
+
+/**
+ * Points evenly along an open polyline by arc length.
+ * @param poly - the polyline
+ * @param n - how many points, ends included
+ * @returns the points
+ */
+export function spacedAlong(poly: readonly Pt[], n: number): Pt[] {
+    const cum = [0];
+    for (let i = 1; i < poly.length; i++) {
+        cum.push(cum[i - 1] + Math.hypot(poly[i][0] - poly[i - 1][0], poly[i][1] - poly[i - 1][1]));
+    }
+    const total = cum[cum.length - 1];
+    const out: Pt[] = [];
+    let j = 0;
+    for (let s = 0; s < n; s++) {
+        const target = n === 1 ? 0 : (total * s) / (n - 1);
+        while (j < poly.length - 2 && cum[j + 1] < target) {
+            j++;
+        }
+        const seg = cum[j + 1] - cum[j];
+        const f = seg > 0 ? Math.min(1, Math.max(0, (target - cum[j]) / seg)) : 0;
+        out.push([poly[j][0] + f * (poly[j + 1][0] - poly[j][0]), poly[j][1] + f * (poly[j + 1][1] - poly[j][1])]);
+    }
+    return out;
+}
+
+/**
+ * The point of an open polyline nearest a point.
+ * @param p - the point
+ * @param line - the polyline
+ * @returns the nearest point on it
+ */
+function nearestOn(p: Pt, line: readonly Pt[]): Pt {
+    let best: Pt = line[0];
+    let bestD = Infinity;
+    for (let i = 0; i + 1 < line.length; i++) {
+        const [a, b] = [line[i], line[i + 1]];
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const len2 = dx * dx + dy * dy;
+        const t = len2 > 0 ? Math.min(1, Math.max(0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2)) : 0;
+        const q: Pt = [a[0] + t * dx, a[1] + t * dy];
+        const d = Math.hypot(p[0] - q[0], p[1] - q[1]);
+        if (d < bestD) {
+            [best, bestD] = [q, d];
+        }
+    }
+    return best;
+}
+
+/**
+ * How far a point is from an open polyline.
+ * @param p - the point
+ * @param line - the polyline
+ * @returns the distance
+ */
+function toPolyline(p: Pt, line: readonly Pt[]): number {
+    const q = nearestOn(p, line);
+    return Math.hypot(p[0] - q[0], p[1] - q[1]);
+}
+
+/**
+ * Whether a closed straight-sided outline is an edge drawn as a band round its route, and what of the edge it draws:
+ * yEd writes a framed edge as one outline that starts at the source end, runs down one side of the band to the target
+ * end (round the target's arrowhead, or across the band's end), back up the other side, and closes round the source
+ * end. Its two sides are paired by arc length, the route runs midway between them, and an arrowhead is the part of the
+ * outline that reaches out past the band's sides and back to them at a sharp tip.
+ * @param vertices - the outline's corners, in drawing order, in the side's frame
+ * @param samples - how many points the route is given
+ * @returns the band, or null when the outline is no such band
+ */
+export function framedBand(vertices: readonly Pt[], samples: number): FramedBand | null {
+    const gap = (p: Pt, q: Pt): number => Math.hypot(p[0] - q[0], p[1] - q[1]);
+    const v: Pt[] = [];
+    for (const p of vertices) {
+        if (v.length === 0 || gap(p, v[v.length - 1]) > 1e-3) {
+            v.push(p);
+        }
+    }
+    if (v.length > 1 && gap(v[0], v[v.length - 1]) <= 1e-3) {
+        v.pop();
+    }
+    if (v.length < 4) {
+        return null;
+    }
+    // yEd starts some outlines at the target's arrowhead, one corner past its tip, at its wing, the tip their last
+    // corner (yed-graphml-specimen-edges-lines generic-framed, Arrows target="standard"; graphml-galaxy-lcms-workflow
+    // n0::e12, target="delta"): read from the tip, the end read first is the target
+    const plain = bandOf(v, samples);
+    if (plain !== null) {
+        return plain;
+    }
+    const fromTarget = bandOf([v[v.length - 1], ...v.slice(0, -1)], samples);
+    return fromTarget === null
+        ? null
+        : {
+              route: [...fromTarget.route].reverse(),
+              width: fromTarget.width,
+              heads: fromTarget.heads
+                  .map((h) => ({ ...h, end: h.end === "source" ? ("target" as const) : ("source" as const) }))
+                  .reverse(),
+          };
+}
+
+/**
+ * The band a closed outline draws, read from its first corner (`framedBand`).
+ * @param v - the outline's corners, no two alike in a row, at least 4
+ * @param samples - how many points the route is given
+ * @returns the band, or null when the outline read from that corner is no such band
+ */
+function bandOf(v: readonly Pt[], samples: number): FramedBand | null {
+    const gap = (p: Pt, q: Pt): number => Math.hypot(p[0] - q[0], p[1] - q[1]);
+    const n = v.length;
+    const at = (i: number): Pt => v[((i % n) + n) % n];
+    const fwd = [0];
+    for (let i = 1; i <= n; i++) {
+        fwd.push(fwd[i - 1] + gap(at(i - 1), at(i)));
+    }
+    const perimeter = fwd[n];
+    // the far end: the corner as far round the outline from its start one way as the other
+    let k = 1;
+    for (let i = 2; i < n; i++) {
+        if (Math.min(fwd[i], perimeter - fwd[i]) > Math.min(fwd[k], perimeter - fwd[k])) {
+            k = i;
+        }
+    }
+    const angleAt = (i: number): number => {
+        const [a, o, b] = [at(i - 1), at(i), at(i + 1)];
+        const [ux, uy, wx, wy] = [a[0] - o[0], a[1] - o[1], b[0] - o[0], b[1] - o[1]];
+        return Math.abs((Math.atan2(ux * wy - uy * wx, ux * wx + uy * wy) * 180) / Math.PI);
+    };
+    const tip0 = angleAt(0) < TIP_ANGLE;
+    const tipK = angleAt(k) < TIP_ANGLE;
+    // side A runs forward from the source end, side B backward; at a cap they start at its two corners
+    let [a0, b0] = [0, n];
+    if (!tip0) {
+        [a0, b0] = gap(at(0), at(1)) < gap(at(0), at(n - 1)) ? [1, n] : [0, n - 1];
+    }
+    let [a1, b1] = [k, k];
+    if (!tipK) {
+        [a1, b1] = gap(at(k), at(k + 1)) < gap(at(k), at(k - 1)) ? [k, k + 1] : [k - 1, k];
+    }
+    if (a1 - a0 < 1 || b0 - b1 < 1) {
+        return null;
+    }
+    const sideA = Array.from({ length: a1 - a0 + 1 }, (_, i) => at(a0 + i));
+    const sideB = Array.from({ length: b0 - b1 + 1 }, (_, i) => at(b0 - i));
+    // a corner of one side lies the band's width from the other side; an arrowhead's wing lies further, its tip on it
+    const tipAt = (p: Pt): boolean => (tip0 && p === at(0)) || (tipK && p === at(k));
+    const offsets = [
+        ...sideA.filter((p) => !tipAt(p)).map((p) => toPolyline(p, sideB)),
+        ...sideB.filter((p) => !tipAt(p)).map((p) => toPolyline(p, sideA)),
+    ];
+    const apart = Math.min(...offsets);
+    if (!(apart > 0)) {
+        return null;
+    }
+    const onSide = (1 + FRAMED_SIDES) * apart + 0.05;
+    // the corner, counted from a side's tip, where the outline comes back to the band's side past the arrowhead's wing
+    const backOf = (side: readonly Pt[], other: readonly Pt[]): number => {
+        let wing = false;
+        for (let j = 1; j < side.length - 1; j++) {
+            if (toPolyline(side[j], other) > onSide) {
+                wing = true;
+            } else if (wing) {
+                return j;
+            }
+        }
+        return -1;
+    };
+    let [a, b] = [sideA, sideB];
+    const heads: FramedBand["heads"] = [];
+    if (tip0) {
+        const [ja, jb] = [backOf(a, b), backOf(b, a)];
+        if (ja > 0 && jb > 0) {
+            heads.push({ end: "source", outline: [...a.slice(0, ja + 1).reverse(), ...b.slice(1, jb + 1)] });
+            [a, b] = [a.slice(ja), b.slice(jb)];
+        }
+    }
+    if (tipK) {
+        const [ra, rb] = [[...a].reverse(), [...b].reverse()];
+        const [ja, jb] = [backOf(ra, rb), backOf(rb, ra)];
+        if (ja > 0 && jb > 0) {
+            heads.push({ end: "target", outline: [...ra.slice(0, ja + 1).reverse(), ...rb.slice(1, jb + 1)] });
+            [a, b] = [ra.slice(ja).reverse(), rb.slice(jb).reverse()];
+        }
+    }
+    // past the arrowheads, each point of one side paired with the nearest point of the other, straight across the band
+    // (side by side, the outer side of a bend is the longer)
+    const across = spacedAlong(a, samples).map((p): [Pt, Pt] => [p, nearestOn(p, b)]);
+    const route = across.map(([p, q]): Pt => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]);
+    const gaps = across.map(([p, q]) => gap(p, q));
+    const width = median(gaps);
+    let length = 0;
+    for (let i = 1; i < sideA.length; i++) {
+        length += gap(sideA[i - 1], sideA[i]);
+    }
+    // two sides that keep one width apart the whole way, far longer, arrowheads and all, than that width (a star's or a
+    // gear's sides come and go)
+    if (
+        !(width > 0) ||
+        length < FRAMED_ASPECT * width ||
+        gaps.some((g) => Math.abs(g - width) > FRAMED_SIDES * width)
+    ) {
+        return null;
+    }
+    return { route, width, heads };
 }
 
 /**

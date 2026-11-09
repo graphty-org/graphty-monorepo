@@ -62,7 +62,7 @@ function usesOf(layer: Layer | undefined, side: "node" | "edge"): readonly Shade
  * @param id - the id.
  * @returns the entry, or undefined.
  */
-export function shaderOf(session: GraphSession, id: string): ShaderDescriptor | undefined {
+function shaderOf(session: GraphSession, id: string): ShaderDescriptor | undefined {
     return session.catalog.shaders().find((descriptor) => descriptor.id === id);
 }
 
@@ -99,7 +99,7 @@ export function shaderEntries(ctx: RowContext): ShaderEntry[] {
  * @param ctx - the row.
  * @returns the layer, or undefined.
  */
-export function ownLayer(ctx: RowContext): Layer | undefined {
+function ownLayer(ctx: RowContext): Layer | undefined {
     if (ctx.many !== undefined) {
         return undefined;
     }
@@ -119,7 +119,7 @@ export function ownLayer(ctx: RowContext): Layer | undefined {
  * @param words - the step's name, for Undo and Redo.
  * @returns when it is written.
  */
-export async function writeRow(
+async function writeRow(
     ctx: RowContext,
     writes: Writes,
     drop: (key: string) => boolean = () => false,

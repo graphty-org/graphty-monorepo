@@ -24,7 +24,7 @@ import { easeInOut } from "./presets/glide";
 import { type RegisteredTransition, transitionById, type TransitionNode } from "./registry";
 
 /** A transition's duration when `seconds` is not set. */
-export const DEFAULT_TRANSITION_SECONDS = 0.8;
+const DEFAULT_TRANSITION_SECONDS = 0.8;
 
 /** A move shorter than this, in scene units, is no move: the clock does not start for it. */
 const STILL = 1e-6;
@@ -125,6 +125,15 @@ export function attachTransitions(layoutManager: object, runner: LayoutTransitio
 export function pickAtLayout<T>(scene: Scene, pick: (moving: boolean) => T): T {
     const runner = runners.get(scene);
     return runner === undefined ? pick(false) : runner.atLayout(pick);
+}
+
+/**
+ * Whether a layout transition is under way in a scene, without moving anything to ask.
+ * @param scene - The scene.
+ * @returns True while one is.
+ */
+export function transitionUnderWay(scene: Scene): boolean {
+    return runners.get(scene)?.active === true;
 }
 
 /**

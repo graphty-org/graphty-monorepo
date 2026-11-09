@@ -47,7 +47,7 @@ import { type SessionStylesApi, setShaderTrust } from "./styles/StylesApi";
 import type { SessionEventMap } from "./types";
 
 /** The most shaders one project holds. */
-export const PROJECT_SHADER_LIMIT = 64;
+const PROJECT_SHADER_LIMIT = 64;
 
 /** The side of a drawn thumbnail, in pixels. */
 export const SHADER_THUMBNAIL_SIZE = 128;
@@ -406,7 +406,7 @@ export interface ShadersSources {
 }
 
 /** A shader with its descriptor complete and its bodies loaded: what the renderer compiles. */
-export interface LoadedRegistration {
+interface LoadedRegistration {
     readonly descriptor: ShaderRegistration["descriptor"] & Pick<ShaderDescriptor, "target">;
     readonly glsl: string;
     readonly wgsl?: string;

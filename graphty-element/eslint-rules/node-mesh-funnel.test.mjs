@@ -37,12 +37,26 @@ const classes = `
     declare const mysteryName: Node;
     declare const fakeNode: { mesh: Mesh };
 `;
+// Node as it is now: its mesh is a private field behind the consumer's accessor.
+const accessorNode = `
+    export {};
+    class Mesh { position = { x: 0 }; }
+    class Node {
+        #mesh = new Mesh();
+        get mesh(): Mesh { return this.#mesh; }
+        set mesh(value: Mesh) { this.#mesh = value; }
+        own(): Mesh { return this.#mesh; }
+        other(peer: Node): Mesh { return peer.#mesh; }
+    }
+    declare const node: Node;
+`;
 const read = { messageId: "read" };
 const valid = (code) => ({ code: classes + code, filename: "file.ts" });
 const invalid = (code) => ({ code: classes + code, filename: "file.ts", errors: [read] });
 
 tester.run("node-mesh-funnel", rule, {
     valid: [
+        { code: `${accessorNode} node.own().position;`, filename: "file.ts" },
         valid("node.drawnPosition.x;"),
         valid("edge.mesh.position;"),
         valid("label.mesh.position;"),
@@ -66,5 +80,7 @@ tester.run("node-mesh-funnel", rule, {
         invalid("for (const n of nodes) { n.mesh; }"),
         invalid("node.mesh = label.mesh;"),
         invalid("class Graph { other() { return node.mesh; } }"),
+        { code: `${accessorNode} node.mesh.position;`, filename: "file.ts", errors: [read] },
+        { code: `${accessorNode} node.mesh = new Mesh();`, filename: "file.ts", errors: [read] },
     ],
 });

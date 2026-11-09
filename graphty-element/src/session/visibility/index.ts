@@ -31,7 +31,6 @@ export {
     type RuleTree,
     runPass,
     runPassInSlices,
-    type TimeInstants,
     type TimePlayback,
     type TimeResultsPolicy,
     type TimeStep,

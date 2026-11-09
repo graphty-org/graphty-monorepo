@@ -13,7 +13,7 @@ import { GraphBehaviorOpts } from "../config/GraphBehavior";
 import { GraphStyle, LayoutTransition } from "../config/GraphStyle";
 
 /** Which part of the project settings a key belongs to: the discriminant of `config.set`. */
-export type ConfigGroup =
+type ConfigGroup =
     | "data"
     | "runAlgorithmsOnLoad"
     | "background"

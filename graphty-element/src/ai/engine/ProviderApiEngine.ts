@@ -332,7 +332,7 @@ export class ProviderApiEngine implements AiEngine {
 }
 
 /** The turn that checks a key: what `validateApiKey` has always sent. */
-export const KEY_CHECK: TurnRequest = {
+const KEY_CHECK: TurnRequest = {
     system: "",
     messages: [{ id: "m1", role: "user", parts: [{ type: "text", origin: "reader", text: "hi" }] }],
     tools: [],

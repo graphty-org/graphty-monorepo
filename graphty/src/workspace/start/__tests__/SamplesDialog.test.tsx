@@ -23,15 +23,15 @@ async function openSamples(): Promise<HTMLElement> {
 }
 
 /**
- * The tile of a sample in the dialog.
+ * The card of a sample in the dialog.
  * @param dialog - the dialog.
- * @param name - the sample's name, as the tile's text starts.
+ * @param name - the sample's name, as the card's accessible name starts.
  * @returns the tile's button.
  */
 function tile(dialog: HTMLElement, name: string): HTMLElement {
     const found = within(dialog)
         .getAllByRole("button")
-        .find((button) => button.textContent.startsWith(name));
+        .find((button) => (button.getAttribute("aria-label") ?? "").startsWith(name));
     if (found === undefined) {
         throw new Error(`Samples lists no ${name}`);
     }
@@ -57,10 +57,14 @@ describe("the Samples dialog", () => {
         const headings = within(dialog)
             .getAllByRole("region")
             .map((section) => section.getAttribute("aria-label"));
-        assert.includeMembers(headings, ["Proteins", "Supply chain", "Graphs", "Datasets", "Generated"]);
+        assert.includeMembers(headings, ["Proteins", "Supply chain", "Samples", "Generated"]);
+        // A network server's examples are not samples: they belong to the network data form.
+        assert.notInclude(headings, "Live");
+        assert.throws(() => tile(dialog, "Neo4j demo: movies"));
+        assert.throws(() => tile(dialog, "WikiPathways WP5483"));
         const names = within(dialog)
             .getAllByRole("button")
-            .map((button) => button.textContent);
+            .map((button) => button.getAttribute("aria-label") ?? "");
         assert.lengthOf(
             names.filter((name) => name.startsWith("Les Miserables")),
             1,
@@ -77,11 +81,11 @@ describe("the Samples dialog", () => {
     it("shows a picture that loads for every graph, dataset and generator, as the start page does", async () => {
         const dialog = await openSamples();
 
-        const tiles = ["Graphs", "Datasets", "Generated"].flatMap((group) =>
+        const tiles = ["Samples", "Generated"].flatMap((group) =>
             within(within(dialog).getByRole("region", { name: group })).getAllByRole("button"),
         );
         assert.isNotEmpty(tiles);
-        const missing = tiles.filter((each) => each.querySelector("img") === null).map((each) => each.textContent);
+        const missing = tiles.filter((each) => each.querySelector("img") === null).map((each) => each.ariaLabel);
         assert.deepEqual(missing, [], "tiles with no picture");
         const broken: string[] = [];
         for (const each of tiles) {
@@ -102,7 +106,7 @@ describe("the Samples dialog", () => {
         const sections = within(dialog).getAllByRole("region");
         assert.deepEqual(
             sections.map((section) => section.getAttribute("aria-label")),
-            ["Datasets"],
+            ["Samples"],
         );
         await userEvent.clear(search);
 

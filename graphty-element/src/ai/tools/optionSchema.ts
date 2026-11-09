@@ -19,7 +19,7 @@ import { type JsonObject, ToolRefusal } from "./types";
  * @param option - The option's descriptor.
  * @returns Its schema, or undefined for an option the assistant cannot be offered (type `unknown`).
  */
-export function optionField(option: OptionDescriptor): z.ZodType | undefined {
+function optionField(option: OptionDescriptor): z.ZodType | undefined {
     if (!isOfferedOption(option)) {
         return undefined;
     }

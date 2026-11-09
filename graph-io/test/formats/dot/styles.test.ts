@@ -508,6 +508,7 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
             node [style=filled];
             a [fillcolor="yellow:purple", gradientangle=90];
             b [fillcolor="#00ff00:#0000ff", gradientangle=315];
+            q [width=0.5, height=0.5, fillcolor="#00ff00:#0000ff", gradientangle=315];
             c [color="red;0.3:blue"];
             r [style=radial, fillcolor="white:orange"];
             s [shape=box, style=striped, fillcolor="red:blue"];
@@ -517,11 +518,16 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         }`);
         const get = (p: string): Map<string, unknown> => byId(styles, snapshot, p);
         const [fill, second, angle] = ["fill", "fillGradient", "fillGradientAngle"].map(get);
-        expect(["a", "b", "c", "cluster_g"].map((id) => [fill.get(id), second.get(id), angle.get(id)])).toEqual([
+        expect(["a", "b", "q", "c", "cluster_g"].map((id) => [fill.get(id), second.get(id), angle.get(id)])).toEqual([
             // Graphviz turns counter-clockwise from left to right; the neutral angle clockwise on screen
             ["#ffff00", "#800080", 270],
+            // Graphviz runs 315 to the corner of the 54 x 36 box, along atan2(36, 54) on screen; graphty-element
+            // stretches its ramp over the box, so it is given atan2(36^2, 54^2) to change color along the same line
+            ["#00ff00", "#0000ff", 23.9625],
+            // on a square box the two agree
             ["#00ff00", "#0000ff", 45],
             ["#ff0000", "#0000ff", 0],
+            // a cluster's box is not known until it is laid out
             ["#ff0000", "#0000ff", 180],
         ]);
         // a weighted first color switches at its fraction: Graphviz's SVG stops at the fraction less 0.001 and at it
@@ -1106,8 +1112,10 @@ function compareWithGraphviz(
         if (g === undefined || visible[i] === false) {
             continue;
         }
-        // a pen width of 0 still draws Graphviz's thinnest line; graphty draws none
+        // a pen width of 0 still draws Graphviz's thinnest line; graphty draws none (an invis node draws no line at all)
+        const invis = /\binvis/.test(String(snapshot.nodes.has("style") ? snapshot.nodes.value("style", i) : ""));
         const thinnest =
+            !invis &&
             borderWidth[i] === 0 &&
             Number(snapshot.nodes.has("penwidth") ? snapshot.nodes.value("penwidth", i) : 1) === 0;
         const ours = {

@@ -115,12 +115,17 @@ const B = {
         const serial = stats(intervals(await lib.frames(frames + 1, null)));
         return { serial, paced };
     },
+    // The GPU time of each of `frames` still frames, from EXT_disjoint_timer_query_webgl2, to set
+    // beside the serial still frame: a serial interval below it means the stamps run early.
+    gpuFrame: (frames = 60) => lib.gpuFrame?.(frames) ?? null,
     async orbit(frames = 200) {
         const st = await lib.frames(frames + 1, (i) => lib.moveCamera(i));
         await lib.resetCamera?.();
         return stats(intervals(st));
     },
-    // A node moved each frame the way a drag does, straight onto its mesh; cosmos.gl has no drag here.
+    // A node moved each frame the way a drag does, through setMeshPosition (NodeBehavior's drag
+    // path). Never through `node.mesh`: reading it sends the node's whole group off the batch.
+    // cosmos.gl has no drag here.
     async drag(frames = 60) {
         if (!lib.moveNode) return null;
         const st = await lib.frames(frames + 1, (i) => lib.moveNode(i));
@@ -139,6 +144,31 @@ const B = {
         return { cam, t, stamps: stamps.length, after: lib.el?.graph.getCameraState() };
     },
     hoverTargets: (k) => lib.hoverTargets(k),
+    // A lasso over the middle half of the canvas, through the `{ region }` selection target
+    // (row-renderer.md stage 23): each call's time, the nodes it selected and whether the cap cut it.
+    // cosmos.gl's region select is not measured here.
+    async lasso(times = 20) {
+        const el = lib.el;
+        if (!el?.session?.selection) return null;
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        const polygon = [
+            { x: w / 4, y: h / 4 },
+            { x: (3 * w) / 4, y: h / 4 },
+            { x: (3 * w) / 4, y: (3 * h) / 4 },
+            { x: w / 4, y: (3 * h) / 4 },
+        ];
+        const ms = [];
+        let delta = null;
+        for (let i = 0; i < times; i++) {
+            await el.session.selection.clear();
+            const a = now();
+            delta = await el.session.selection.apply({ region: { polygon } });
+            ms.push(+(now() - a).toFixed(2));
+        }
+        await el.session.selection.clear();
+        return { ms: stats(ms), nodes: delta.nodes, truncated: delta.truncated };
+    },
     armHover() {
         B._hover = { ev: null, hit: null, f0: stamps.length, tArm: now() };
         return true;
@@ -382,21 +412,85 @@ function changedRows(before, after, rows) {
     return changed;
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, renderer }) {
-    await import("@graphty/graphty-element");
-    if (accel !== "off") await import("@graphty/graphty-element/webgpu");
-    const el = document.createElement("graphty-element");
-    el.style.cssText = "display:block;width:1200px;height:900px";
+// layoutBehavior.labels for the sampled and glyphs flags
+function labelBehavior(sampled, glyphs) {
+    const b = {};
+    if (sampled) b.sampleCell = 96;
+    if (glyphs) b.labelText = "glyphs";
+    return b;
+}
+
+// the lean mode's boxes and capless edges, and the curves flag's curves
+async function addShapeStyles(el, mode, curves) {
+    if (mode === "lean") {
+        await el.session.styles.add({
+            name: "lean nodes",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": "box" },
+        });
+        await el.session.styles.add({
+            name: "lean edges",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        });
+    }
+    if (curves)
+        await el.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none", "edge.curvature": true },
+        });
+}
+
+// The element ignores what it does not know, so without these checks a build that lacks an option
+// would be measured on its default and recorded under the requested value.
+function setRequestedOptions(el, { antialias, renderPath, renderer, limits }) {
+    // antialias first, before any other property builds the engine, which reads it only then.
+    if (antialias !== undefined) {
+        if (!("antialias" in el))
+            throw new Error(`antialias ${antialias} requested, but this build has no antialias option`);
+        el.antialias = antialias;
+    }
     if (renderPath) {
-        // The element ignores what it does not know, so without this a build that lacks the option
-        // would be measured on its default path and recorded under the requested one.
         if (!("renderPath" in el))
             throw new Error(`renderPath "${renderPath}" requested, but this build has no renderPath option`);
         el.renderPath = renderPath;
     }
     if (renderer) el.renderer = renderer;
+    if (limits) {
+        if (!("limits" in el)) throw new Error("limits requested, but this build has no limits option");
+        el.limits = limits;
+    }
+}
+
+async function graphtyAdapter({
+    mode,
+    accel,
+    onDemand,
+    dpr,
+    labels,
+    sampled,
+    glyphs,
+    curves,
+    threeD,
+    renderPath,
+    renderer,
+    antialias,
+    limits,
+}) {
+    await import("@graphty/graphty-element");
+    if (accel !== "off") await import("@graphty/graphty-element/webgpu");
+    const el = document.createElement("graphty-element");
+    el.style.cssText = "display:block;width:1200px;height:900px";
+    setRequestedOptions(el, { antialias, renderPath, renderer, limits });
     el.layout = "fixed";
-    el.viewMode = mode === "lean" ? "2d" : "3d";
+    // A pulled line is drawn only in 3D, so the curves and 3d flags keep 3D whatever the mode. The
+    // camera moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.
+    const is2d = mode === "lean" && !curves && !threeD;
+    el.viewMode = is2d ? "2d" : "3d";
     el.acceleration = accel === "off" ? "off" : "auto";
     if (onDemand) el.renderOnDemand = true;
     if (dpr !== 1) el.setAttribute("pixel-ratio", "device");
@@ -412,20 +506,8 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
     const graph = el.graph;
     const gl = graph.engine?._gl ?? null;
     let onFrame = null;
-    if (mode === "lean") {
-        await el.session.styles.add({
-            name: "lean nodes",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.shape": "box" },
-        });
-        await el.session.styles.add({
-            name: "lean edges",
-            target: "edge",
-            selector: { match: "everything" },
-            set: { "edge.arrowHead": "none" },
-        });
-    }
+    await addShapeStyles(el, mode, curves);
+    if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({
             name: "labels",
@@ -438,7 +520,8 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
         stamps.push(now());
         if (onFrame) onFrame();
     });
-    let cam0 = null;
+    let cam0 = null,
+        cam0Before = null;
     let moved = null;
     const a = {
         el,
@@ -518,13 +601,43 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
             }
             return stamps.slice(0, count);
         },
+        async gpuFrame(count) {
+            const ext = gl?.getExtension("EXT_disjoint_timer_query_webgl2");
+            if (!ext) return null;
+            const queries = [];
+            const scene = graph.scene;
+            const begin = scene.onBeforeRenderObservable.add(() => {
+                const q = gl.createQuery();
+                gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
+                queries.push(q);
+            });
+            // First, so the query ends before the stamp's readPixels.
+            const end = scene.onAfterRenderObservable.add(() => gl.endQuery(ext.TIME_ELAPSED_EXT), undefined, true);
+            await a.frames(count, null);
+            scene.onBeforeRenderObservable.remove(begin);
+            scene.onAfterRenderObservable.remove(end);
+            const t = now();
+            while (!queries.every((q) => gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) && now() - t < 10000)
+                await raf();
+            const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
+            const ms = queries.map((q) => gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6);
+            for (const q of queries) gl.deleteQuery(q);
+            return { ...stats(ms), disjoint };
+        },
         moveNode(i) {
-            moved ??= graph.getNode(0)?.mesh ?? null;
-            if (moved) moved.position.x += 0.05 * Math.sin(i / 5 + 1);
+            moved ??= graph.getNode(0) ?? null;
+            if (moved) {
+                // A build from before `drawnPosition` (the reference run) moves its mesh instead.
+                const p = moved.drawnPosition ?? moved.mesh.position;
+                moved.setMeshPosition(p.x + 0.05 * Math.sin(i / 5 + 1), p.y, p.z);
+            }
         },
         moveCamera(i) {
-            cam0 ??= graph.getCameraState();
-            if (mode === "lean") {
+            if (!cam0) {
+                cam0 = graph.getCameraState();
+                cam0Before = JSON.stringify(cam0);
+            }
+            if (is2d) {
                 const p = cam0.pan ?? { x: 0, y: 0 };
                 graph.setCameraState({ pan: { x: p.x + 0.05 * 4 * Math.sqrt(G.n) * Math.sin(i / 20), y: p.y } });
             } else {
@@ -546,9 +659,12 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
             }
         },
         async resetCamera() {
+            // A camera move the view ignores would time a still view as a moving one.
+            if (cam0 && JSON.stringify(graph.getCameraState()) === cam0Before)
+                throw new Error("the camera did not move during the moving stage");
             if (cam0)
                 graph.setCameraState(
-                    mode === "lean"
+                    is2d
                         ? { pan: cam0.pan }
                         : { alpha: cam0.alpha, beta: cam0.beta, radius: cam0.radius, target: cam0.target },
                 );

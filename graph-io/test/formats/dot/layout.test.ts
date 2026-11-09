@@ -48,4 +48,8 @@ describe("the layout a DOT file asks for", () => {
             settings: { rankdir: "BT", splines: "true" },
         });
     });
+
+    it("passes on compound, which lets an edge's lhead or ltail clip it at a cluster (issue #5253)", () => {
+        expect(dotFileLayout({ compound: "true" }).settings).toEqual({ compound: "true" });
+    });
 });

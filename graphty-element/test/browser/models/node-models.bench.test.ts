@@ -1,6 +1,6 @@
 /**
- * @file What a thousand model nodes cost (design/rendering/node-models.md, section 8.2): picking
- * under a real pointer, and the main thread's frame time beside the same graph of icospheres.
+ * @file What a thousand model nodes cost (design/rendering/node-models.md, section 8.2): the picking
+ * work under a real pointer, and the main thread's frame time beside the same graph of icospheres.
  * Timing checks, so they run in the "browser-bench" project (Chromium) and not under coverage.
  *
  * The frame time is the main thread's cost of `scene.render()`: the cost instancing exists to keep
@@ -27,6 +27,7 @@
  * ones, so both are timed in the same state of V8's optimized code.
  */
 
+import { Ray } from "@babylonjs/core/Culling/ray.js";
 import type { Engine } from "@babylonjs/core/Engines/engine.js";
 import { assert, describe, it } from "vitest";
 
@@ -156,49 +157,92 @@ async function frameTimes(elements: readonly Awaited<ReturnType<typeof mount>>[]
     }
 }
 
+/** What the pointer moves cost in picking: the time, and the work counted. */
+interface Picking {
+    /** Milliseconds spent in `scene.pick` per move, logged only (see {@link picking}). */
+    msPerMove: number;
+    /** Calls to `scene.pick`. */
+    picks: number;
+    /** Bounding boxes a pick's ray was tested against. */
+    boxes: number;
+    /** Triangles a pick's ray was tested against. */
+    triangles: number;
+}
+
 /**
- * Move the real pointer across the canvas and time every pick it causes.
+ * Move the real pointer across the canvas, counting the picks it causes and the boxes and
+ * triangles they test, and timing them.
+ *
+ * The test asserts on the counts, not the time. A move's picks take a few tenths of a millisecond,
+ * read on a clock the page coarsens to 0.1 ms, and the first few run before V8 has optimized
+ * them (1-3 ms each): a total that went from 0.4 ms to 0.8 ms per move for the icospheres, and to
+ * 1.6 ms for the models, on a slow CI runner in full run 42345086610, with no change to picking
+ * (issue #6067). What makes model picking cheap is that a model is tested by its box alone, never
+ * by its triangles (design/rendering/node-models.md, section 3.8), and that is counted exactly.
  * @param element - The element.
- * @returns Milliseconds spent picking per move.
+ * @returns The picking's time and counted work.
  */
-async function pickingPerMove(element: Awaited<ReturnType<typeof mount>>): Promise<number> {
+async function picking(element: Awaited<ReturnType<typeof mount>>): Promise<Picking> {
     const { scene, canvas } = element.graph;
-    let spent = 0;
-    let picks = 0;
+    const counted: Picking = { msPerMove: 0, picks: 0, boxes: 0, triangles: 0 };
     const pick = scene.pick.bind(scene);
     scene.pick = (...args: Parameters<typeof scene.pick>) => {
         const start = performance.now();
         try {
             return pick(...args);
         } finally {
-            spent += performance.now() - start;
-            picks++;
+            counted.msPerMove += performance.now() - start;
+            counted.picks++;
         }
+    };
+
+    const { intersectsBoxMinMax, intersectsTriangle } = Ray.prototype;
+    Ray.prototype.intersectsBoxMinMax = function (this: Ray, ...args) {
+        counted.boxes++;
+        return intersectsBoxMinMax.apply(this, args);
+    };
+    Ray.prototype.intersectsTriangle = function (this: Ray, ...args) {
+        counted.triangles++;
+        return intersectsTriangle.apply(this, args);
     };
 
     const box = canvas.getBoundingClientRect();
     const moves = 20;
-    for (let move = 0; move < moves; move++) {
-        await hover(canvas, { x: (box.width * (move + 1)) / (moves + 1), y: box.height / 2 });
+    try {
+        for (let move = 0; move < moves; move++) {
+            await hover(canvas, { x: (box.width * (move + 1)) / (moves + 1), y: box.height / 2 });
+        }
+    } finally {
+        Ray.prototype.intersectsBoxMinMax = intersectsBoxMinMax;
+        Ray.prototype.intersectsTriangle = intersectsTriangle;
     }
 
-    assert.isAbove(picks, 0, "the pointer moves were picked");
-    return spent / moves;
+    counted.msPerMove /= moves;
+    return counted;
 }
 
 describe("a thousand model nodes", () => {
-    it("spends under 1 ms picking per pointer move", async () => {
+    it("picks a model by its box alone, as many boxes as icospheres and no triangle", async () => {
         const icospheres = await thousand(null);
-        const baseline = await pickingPerMove(icospheres);
+        const baseline = await picking(icospheres);
         icospheres.remove();
 
         const element = await thousand(sphereGlb(12, 6));
         assert.isTrue(drawnAsModel(element.graph, "n0"));
-        const spent = await pickingPerMove(element);
+        const models = await picking(element);
         console.log(
-            `[model-bench] picking per move: icosphere ${baseline.toFixed(3)} ms, model ${spent.toFixed(3)} ms`,
+            `[model-bench] picking per move: icosphere ${baseline.msPerMove.toFixed(3)} ms, ` +
+                `model ${models.msPerMove.toFixed(3)} ms; picks ${String(baseline.picks)}/${String(models.picks)}, ` +
+                `boxes ${String(baseline.boxes)}/${String(models.boxes)}, ` +
+                `triangles ${String(baseline.triangles)}/${String(models.triangles)}`,
         );
-        assert.isBelow(spent, 1, `picking took ${spent.toFixed(3)} ms per move`);
+        // The same pointer path over the same grid: the icospheres hit nodes and test their
+        // triangles, so the counters are seen to count.
+        assert.isAbove(baseline.picks, 0, "the pointer moves were picked");
+        assert.isAbove(baseline.triangles, 0, "the icospheres' picks tested their triangles");
+        assert.isAtMost(models.picks, baseline.picks, "a model graph picks no more often than an icosphere graph");
+        assert.isAtMost(models.boxes, baseline.boxes, "a model pick tests no more boxes than an icosphere pick");
+        assert.strictEqual(models.triangles, 0, "a model pick tests no triangle");
     });
 
     it("draws 1,000 nodes of a 2,000-triangle model at the icosphere frame rate", async () => {

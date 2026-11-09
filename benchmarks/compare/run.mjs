@@ -1,9 +1,9 @@
-// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [no-still] [no-move]
+// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
 // lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
-// unset, the element keeps its default. See RUNBOOK.md for the other variables.
+// unset, the element keeps its default. BENCH_ANTIALIAS=false sets antialias="false". See RUNBOOK.md for the others.
 import { execFileSync, execSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { appendFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { loadavg } from "node:os";
 import { dirname, join } from "node:path";
@@ -22,9 +22,19 @@ if (!BASE || !RESULTS) throw new Error("set BENCH_URL and BENCH_RESULTS");
 const DEADLINE_S = Number(process.env.BENCH_DEADLINE_S ?? 570);
 const RENDER_PATH = process.env.BENCH_RENDER_PATH || undefined;
 const RENDERER = process.env.BENCH_RENDERER || undefined;
+const ANTIALIAS = process.env.BENCH_ANTIALIAS === undefined ? undefined : process.env.BENCH_ANTIALIAS !== "false";
+const LIMITS = process.env.BENCH_LIMITS ? JSON.parse(process.env.BENCH_LIMITS) : undefined;
 const [lib, mode, accel, n, m, dpr, ...flags] = process.argv.slice(2);
 const skip = flags.includes("skip-layout"),
     labels = flags.includes("labels"),
+    // label sampling on (layoutBehavior.labels.sampleCell), only with labels
+    sampled = flags.includes("sampled"),
+    // labels drawn from the glyph atlas (layoutBehavior.labels.labelText "glyphs"), only with labels
+    glyphs = flags.includes("glyphs"),
+    // every edge a curve (edge.curvature) with no caps, in 3D: the curve scenario of stage 21
+    curves = flags.includes("curves"),
+    // the lean mode's straight edges kept in 3D, where they are pulled under batched (cosmos-gap G12)
+    threeD = flags.includes("3d"),
     noStill = flags.includes("no-still"),
     noMove = flags.includes("no-move");
 const N = Number(n),
@@ -81,6 +91,8 @@ const out = {
     accel,
     renderPath: lib === "graphty" ? RENDER_PATH : undefined,
     rendererRequest: lib === "graphty" ? RENDERER : undefined,
+    antialias: lib === "graphty" ? ANTIALIAS : undefined,
+    limits: lib === "graphty" ? LIMITS : undefined,
     n: N,
     m: M,
     dpr: DPR,
@@ -102,6 +114,7 @@ const ctx = await chromium.launchPersistentContext(UDD, {
 });
 let saved = false;
 const save = () => {
+    out.loadavgAfter = loadavg()[0];
     if (!saved) appendFileSync(RESULTS, JSON.stringify(out) + "\n");
     saved = true;
 };
@@ -171,8 +184,14 @@ try {
                     accel,
                     dpr: DPR,
                     labels,
+                    sampled,
+                    glyphs,
+                    curves,
+                    threeD,
                     renderPath: RENDER_PATH,
                     renderer: RENDERER,
+                    antialias: ANTIALIAS,
+                    limits: LIMITS,
                     onDemand: !!process.env.LAYOUT_ONLY,
                 },
             ],
@@ -182,12 +201,26 @@ try {
     log("load", load);
     if (load.error) throw new Error("load failed: " + load.error);
     log("canvas", await page.evaluate(() => B.canvasSize()));
-    if (lib === "graphty" && RENDER_PATH === "batched") {
-        // A row that quietly left the fast path would be measured as if it were on it.
+    // A row that quietly left the fast path would be measured as if it were on it. Checked after
+    // the load and again after the drag, the one stage that touches a node.
+    const checkBatched = async (stage) => {
+        if (lib !== "graphty" || RENDER_PATH !== "batched") return;
         const rows = await page.evaluate(() => document.querySelector("graphty-element")?.rowCounts);
-        log("rowCounts", rows);
-        if (!rows || rows.objectNodes > 0) throw new Error(`rows left the batched path: ${JSON.stringify(rows)}`);
-    }
+        log(stage === "load" ? "rowCounts" : `rowCounts-${stage}`, rows);
+        if (!rows || rows.objectNodes > 0 || ((curves || threeD) && rows.objectEdges > 0))
+            throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
+    };
+    await checkBatched("load");
+    // What a labelled run really built: with sampling on, only the cells' winners.
+    if (labels && lib === "graphty")
+        log(
+            "labelCounts",
+            await page.evaluate(async () => {
+                const el = document.querySelector("graphty-element");
+                await el.graph?.waitForStableFrame?.();
+                return el.nodeLabelCounts;
+            }),
+        );
     if (process.env.ONLY_ORBIT) {
         console.log("orbit-debug", JSON.stringify(await page.evaluate(() => B.orbitDebug(20))));
         throw new Error("debug stop");
@@ -204,6 +237,7 @@ try {
         throw new Error("layout-only run, render-on-demand");
     }
     if (!noStill) log("still", await page.evaluate(() => B.still(200)));
+    if (!noStill) log("gpuFrame", await page.evaluate(() => B.gpuFrame(60)));
     await page
         .screenshot({
             path: join(
@@ -214,8 +248,21 @@ try {
             timeout: 20000,
         })
         .catch((e) => console.log("screenshot failed", String(e).slice(0, 120)));
+    // BENCH_PROFILE names a file prefix: the moving and still stages are then also CPU-profiled
+    // into <prefix>-orbit.cpuprofile and <prefix>-still.cpuprofile, outside the timed runs.
+    const profile = async (stage, run) => {
+        if (!process.env.BENCH_PROFILE) return;
+        await cdp.send("Profiler.enable");
+        await cdp.send("Profiler.start");
+        await page.evaluate(run);
+        const { profile: p } = await cdp.send("Profiler.stop");
+        writeFileSync(`${process.env.BENCH_PROFILE}-${stage}.cpuprofile`, JSON.stringify(p));
+    };
+    await profile("still", () => B.still(60));
+    await profile("orbit", () => B.orbit(60));
     if (!noMove) log("orbit", await page.evaluate(() => B.orbit(200)));
     if (!noMove) log("drag", await page.evaluate(() => B.drag(60)));
+    if (!noMove) await checkBatched("drag");
     await cdp.send("HeapProfiler.collectGarbage");
     log("memory", { ...(await page.evaluate(() => B.mem())), gpuMBDelta: gpuMB() - gpu0, rssMB: rssMB() });
     // Hover before the layout: a run of the layout moves cosmos.gl's points off the screen, which is
@@ -243,6 +290,7 @@ try {
     }
     await page.mouse.move(1260, 980);
     log("hover", { targets: targets.length, latMs: lats });
+    if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
     if (!skip) {
         log("layoutFps", await page.evaluate(() => B.layoutFps(200, 30000)));
         log("layoutSteps", await page.evaluate(() => B.layoutSteps()));

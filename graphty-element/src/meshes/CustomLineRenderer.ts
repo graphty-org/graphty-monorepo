@@ -2,6 +2,7 @@ import {
     Color3,
     Constants,
     Effect,
+    type IShaderMaterialOptions,
     Mesh,
     MeshBuilder,
     Scene,
@@ -20,7 +21,36 @@ import {
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_POSITIONS,
 } from "./edgeJoinShader";
+import type { EdgeAgeState } from "./FrameRoster";
 import { PerSceneMaterials } from "./PerSceneMaterials";
+
+/** The define a line fading by age is compiled with. */
+const AGED_DEFINE = "#define EDGE_AGED";
+
+/**
+ * Add or remove what fading by age adds to a line material's options.
+ * @param options - The options, changed in place.
+ * @param aged - Whether the line fades by age.
+ * @param blends - Whether it blends without fading by age.
+ */
+function agedOptions(options: IShaderMaterialOptions, aged: boolean, blends: boolean): void {
+    const without = <T>(list: T[], item: T): void => {
+        const at = list.indexOf(item);
+        if (at !== -1) {
+            list.splice(at, 1);
+        }
+    };
+    const toggle = <T>(list: T[], item: T): void => {
+        without(list, item);
+        if (aged) {
+            list.push(item);
+        }
+    };
+    toggle(options.defines, AGED_DEFINE);
+    toggle(options.attributes, "edgeAge");
+    toggle(options.uniforms, "edgeAgeWindow");
+    options.needAlphaBlending = aged || blends;
+}
 
 /** A line's fade by its length on screen, in CSS pixels; see `line.fade`. */
 export interface EdgeFade {
@@ -51,8 +81,8 @@ export interface JoinedLineOptions {
     fade?: EdgeFade | undefined;
     /** Draw without alpha blending (`line.blending` false): every fragment at full strength. */
     opaque?: boolean | undefined;
-    /** A dashed or dotted line: its element's length along the line (world units) and its kind. */
-    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
+    /** A dashed or dotted line: its element's length along the line (world units), its kind, count and gap. */
+    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined; gap?: number | undefined };
     /**
      * Whether its slots carry the static values a taper or a shader reads (`EDGE_WIDENED`). A
      * plain line leaves it out and draws exactly as before.
@@ -82,6 +112,10 @@ export interface JoinedLineOptions {
      * a `fade` or a `pattern`.
      */
     pulled?: boolean;
+    /** With `pulled`, read each piece as a point of a lone curve's cut path (`EDGE_PULLED_CURVE`). */
+    pulledCurve?: boolean;
+    /** With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`). */
+    pulledLean?: boolean;
 }
 
 /**
@@ -98,7 +132,47 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.fade === undefined ? [] : ["#define EDGE_FADE"]),
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
+        ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
+        ...(options.pulled === true && options.pulledCurve !== true && options.pulledLean === true
+            ? ["#define EDGE_PULLED_LEAN"]
+            : []),
+        ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
     ];
+}
+
+/**
+ * What a joined line's mesh says about how its batch draws it (`EdgeLineMeta`).
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @param color - The look's color.
+ * @returns The metadata.
+ */
+function joinedLineMeta(options: JoinedLineOptions, widened: boolean, color: Color3): Record<string, unknown> {
+    const { pattern } = options;
+    const opaque = options.opaque === true;
+    return {
+        joinedLine: true,
+        pattern: pattern
+            ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count, gap: pattern.gap }
+            : undefined,
+        ...(widened ? { widened: true } : {}),
+        ...(opaque ? { opaque: true } : {}),
+        // What a new slot is drawn in until its edge writes its own (`EdgeLineBatch.setColor`).
+        ...(drawsSlotColor(options, widened)
+            ? { color: [color.r, color.g, color.b, opaque ? 1 : (options.opacity ?? 1)] as const }
+            : {}),
+    };
+}
+
+/**
+ * Whether a look's batch reads each piece's color and opacity from its slot (`edgeJoinShader`'s
+ * `EDGE_SLOT_COLOR`) rather than from the material: every joined line but a widened or pulled one.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns True when the color is per slot.
+ */
+function drawsSlotColor(options: JoinedLineOptions, widened: boolean): boolean {
+    return !widened && options.pulled !== true;
 }
 
 /**
@@ -122,6 +196,8 @@ function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): str
         "pNext",
         "pNext2",
         "run",
+        "edgeHidden",
+        ...(drawsSlotColor(options, widened) ? ["edgeColor"] : []),
         ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
     ];
 }
@@ -132,7 +208,11 @@ function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): str
  * @returns The sampler names.
  */
 function joinedLineSamplers(options: JoinedLineOptions): string[] {
-    return options.pulled === true ? ["rowPosition", "edgeRows"] : [];
+    if (options.pulled !== true) {
+        return [];
+    }
+
+    return options.pulledCurve === true ? ["rowPosition", "edgeRows", "edgeRoutes"] : ["rowPosition", "edgeRows"];
 }
 
 interface LineGeometry {
@@ -178,6 +258,9 @@ interface CustomLineOptions {
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Utility class with static state for shader registration
 export class CustomLineRenderer {
     private static shadersRegistered = false;
+
+    /** The line materials that write the age uniform as they bind. */
+    private static readonly ageBound = new WeakSet<ShaderMaterial>();
 
     /**
      * Every line material, grouped by scene, each scene's group given that scene's render size
@@ -471,6 +554,7 @@ void main(void) {
 
         const { program, fade } = options;
         const opaque = options.opaque === true;
+        const pulledTranslucent = options.pulled === true && (options.opacity ?? 1) < 1;
         const widened = options.widened === true || program !== undefined || fade !== undefined;
         const defines = joinedLineDefines(options, widened);
         const material = new ShaderMaterial(
@@ -501,8 +585,12 @@ void main(void) {
                 uniformBuffers: [...(program?.uniformBuffers ?? [])],
                 defines,
                 // A faded line is translucent whatever its opacity: in the opaque pass it would
-                // write depth, and hide what is drawn behind it after it.
-                ...((program === undefined && fade === undefined) || opaque ? {} : { needAlphaBlending: true }),
+                // write depth, and hide what is drawn behind it after it. A pulled translucent
+                // batch is too: its pieces carry their own opacity, so its mesh's visibility
+                // cannot put it in the transparent pass.
+                ...(opaque || !(program !== undefined || fade !== undefined || pulledTranslucent)
+                    ? {}
+                    : { needAlphaBlending: true }),
             },
         );
         if (widened) {
@@ -550,7 +638,10 @@ void main(void) {
 
         // A translucent line is drawn in the transparent pass, as every line renderer before this
         // one put it there; an opaque one blends in place, so a sub-pixel line's coverage shows.
-        if (opacity < 1 && !opaque) {
+        // A pulled batch's mesh is shared by every edge in it, each with its own opacity in its
+        // piece (EDGE_PULLED), so the first edge's opacity must not become the whole mesh's: an
+        // opacity of 0 would stop Babylon drawing the mesh at all.
+        if (opacity < 1 && !opaque && options.pulled !== true) {
             mesh.visibility = opacity;
         }
 
@@ -559,15 +650,53 @@ void main(void) {
             this.blendInPlace(mesh, options.blend);
         }
 
-        mesh.metadata = {
-            joinedLine: true,
-            pattern: pattern
-                ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
-                : undefined,
-            ...(widened ? { widened: true } : {}),
-        };
+        mesh.metadata = joinedLineMeta(options, widened, colorObj);
 
         return mesh;
+    }
+
+    /**
+     * Switch a joined line's material to or from fading by age (`EDGE_AGED`), in place: the define,
+     * the `edgeAge` attribute, the `edgeAgeWindow` uniform, and alpha blending, without which a
+     * faded line writes depth in the opaque pass and hides what is drawn after it. The next draw
+     * compiles the new program unless {@link CustomLineRenderer.warmAged} already has.
+     * @param mesh - A mesh from {@link CustomLineRenderer.createJoinedLineMesh}.
+     * @param aged - Whether it fades by age.
+     * @param state - The scene's fade by age, whose window the uniform carries.
+     */
+    static setAged(mesh: Mesh, aged: boolean, state: EdgeAgeState): void {
+        const material = mesh.material as ShaderMaterial;
+        if (aged && !this.ageBound.has(material)) {
+            this.ageBound.add(material);
+            material.onBindObservable.add((drawn) => {
+                const [from, to, fade] = state.window;
+                drawn.subMeshes[0]?.effect?.setFloat3("edgeAgeWindow", from, to, fade);
+            });
+        }
+
+        const blends = (mesh.metadata as { blends?: boolean } | null)?.blends;
+        const before = blends ?? material.options.needAlphaBlending;
+        mesh.metadata = { ...(mesh.metadata as object), blends: before };
+        agedOptions(material.options, aged, before);
+    }
+
+    /**
+     * Compile the program {@link CustomLineRenderer.setAged} would switch a line to, on a copy of its
+     * material, so the switch draws at once: Babylon draws nothing with a material while its new
+     * program compiles, and keeps a compiled program for every material that asks for it again.
+     * @param mesh - The line's mesh.
+     * @param aged - The look to compile.
+     * @returns Settles once it compiled; rejects if it failed.
+     */
+    static async warmAged(mesh: Mesh, aged: boolean): Promise<void> {
+        const material = mesh.material as ShaderMaterial;
+        const probe = material.clone(`${material.name}-aged`);
+        agedOptions(probe.options, aged, false);
+        try {
+            await probe.forceCompilationAsync(mesh, { useInstances: mesh.hasThinInstances });
+        } finally {
+            probe.dispose();
+        }
     }
 
     /**

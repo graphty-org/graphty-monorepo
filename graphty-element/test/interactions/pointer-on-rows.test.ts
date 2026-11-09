@@ -13,12 +13,16 @@ import { ActionManager, ExecuteCodeAction } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { dragHandlersBuilt } from "../../src/NodeBehavior";
 import type { SourceExpanded } from "../../src/session/sources/types";
 import { loadRecordedSeed, PEOPLE_SEED } from "../../stories/fixtures/expand/source";
 import { click, hover, type Point } from "../helpers/real-input";
+
+// The expand test loads a network source, which sits behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -119,9 +123,13 @@ describe("pointer on rows", () => {
                 if (path === "batched") {
                     // A batched row answers without its mesh's actions, which go with the mesh in
                     // stage 11: take them off the hidden proxy now, so only the roster can answer.
+                    // Through `drawnPickMesh`: a read of `mesh` would make the seed an object row.
                     const seed = element.graph.getNode(PEOPLE_SEED.id);
                     assert.isDefined(seed);
-                    seed.mesh.actionManager = null;
+                    const own = seed.drawnPickMesh;
+                    if (own !== null) {
+                        own.actionManager = null;
+                    }
                 }
 
                 element.layoutBehavior = { expand: { trigger: "click" } };
@@ -163,6 +171,7 @@ describe("pointer on rows", () => {
                 await click(element, at(element, "a"));
 
                 assert.deepEqual(picked, ["a"]);
+                assert.equal(element.graph.rowCounts.objectNodes, 1, "a read of the mesh keeps the node on it");
             });
         });
     }

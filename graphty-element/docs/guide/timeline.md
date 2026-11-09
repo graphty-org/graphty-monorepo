@@ -4,7 +4,8 @@ Show a graph as it was over time: pick the column that holds each element's time
 along it. Only what falls inside the window is drawn.
 
 Everything on this page needs the `timeline` experiment. Switch it on with `features="timeline"` on
-the element, or see [Experiments](./experiments) for the other ways. The snippets below leave it out.
+the element, or see [Experiments](./experiments) for the other ways. The JavaScript snippets below
+assume it is on, and `g` is the element and `time` is `g.session.time`.
 
 ## Your first timeline
 
@@ -42,7 +43,8 @@ epoch milliseconds, and `to` is excluded.
 ## Choosing the time column
 
 `edge-time-path` and `node-time-path` name the column; `edge-time-unit` and `node-time-unit` say how
-to read numbers. From code:
+to read numbers. A column is named by itself (`sent`) or as `data.sent`; the two are the same. From
+code:
 
 ```js
 await g.session.time.setField({ edges: { start: "sent" } });
@@ -59,7 +61,7 @@ time when every sampled value is a strict date, or when its name speaks of time 
 fits an epoch or a calendar year.
 
 ```js
-const draft = await g.session.data.prepare(source);
+const draft = await g.session.data.prepare({ type: "csv", config: { url: "emails.csv" } });
 const found = draft.findings.find((f) => f.code === "time.found");
 if (found) {
     console.log(found.params.column, found.params.from, found.params.to);
@@ -121,6 +123,39 @@ starts the extent one unit before that end, so the extent as a window shows it. 
 spans overlapping it, so a long element counts in every bar it crosses, and an element with two spells
 in one bar counts twice there.
 
+## Files that declare their time
+
+Some formats say which columns hold time, and the element designates them as the file loads, in the
+load's own step: undoing the load takes the field back with it. A time field already set, by an
+attribute or a saved project, is kept.
+
+- **GEXF** with `mode="dynamic"`: on each of nodes and edges that has times, `start`, `end` and
+  `spells`, or `timestamp` and `timestamps` with `timerepresentation="timestamp"`. A `timestamps` list
+  reaches each record as a list of instants, so a window holds an element when one of them is inside.
+  `timeformat="date"` and `"dateTime"` read as dates, `"integer"` and `"double"` as plain steps.
+- **XGMML** (Cytoscape DynNetwork): `start` and `end`, on a kind that has both.
+
+```js
+g.session.on("time:field", ({ field }) => console.log(field));
+await g.session.data.import({ type: "gexf", config: { url: "dynamics.gexf" } });
+```
+
+A reader of your own format ([Custom data sources](./extending/custom-data-sources)) declares its
+time the same way, by calling its protected `declareTime` before it yields the parsed rows:
+
+```js
+class SpansSource extends DataSource {
+    async *sourceFetchData() {
+        const { nodes, edges } = parse(await this.getContent()); // your parser
+        this.declareTime({ edges: { start: "from", end: "until" } });
+        yield* this.chunkData(nodes, edges);
+    }
+}
+```
+
+`DataSource.fromImporter` takes a `time` option instead: a function of the imported graph returning
+the field, or null.
+
 ## Reading the data's time
 
 After `await time.ready`, these answer at once:
@@ -172,6 +207,50 @@ A move of the window redraws only what entered and left it. The exception is an 
 support point (`edge.supportModel`): support points settle together, so a move that reveals, hides or
 repaints one visits every edge. Repainting includes `outside: "ghost"` turning such an edge into a
 ghost or back.
+
+## Settings
+
+`time.settings` holds the choices that go with the field, every default filled in, and
+`time.setSettings` changes any of them as one undoable step, saved in the project:
+
+```js
+await time.setSettings({ step: "week", mode: "cumulative", results: "rerun", missing: "outside" });
+```
+
+- `step`: the window's width and how far it moves. `"auto"` (the default) picks the calendar step
+  closest to a twentieth of the data's span; `time.current.step` says which.
+- `mode`: `"sliding"` (the default) or `"cumulative"`, a window that grows from the start of the data.
+- `results`: what a window move does to algorithm results computed over the visible graph.
+  `"stale"` (the default) marks them out of date, `"keep"` leaves them current, and `"rerun"` runs
+  them again over each new window, a play waiting for them at every step.
+- `missing`: `"inside"` (the default) keeps elements with no time in every window; `"outside"` hides
+  them.
+- `outside`: `"hide"` (the default) or `"ghost"`, which keeps elements outside the window drawn in the
+  `"ghosted"` element state (`{ match: "state", state: "ghosted" }` in a style layer), never counted
+  as visible.
+- `timeZone` and `ageFade`: see [Time zones](#time-zones) and [Fading older edges](#fading-older-edges).
+
+## Fading older edges
+
+`ageFade` fades the edges in the window by how long ago they started, so the newest stand out
+while a window plays:
+
+```js
+await time.setSettings({ ageFade: 0.2 }); // older edges in the window fade toward 20%
+time.play();
+```
+
+An edge starting at the window's first instant draws at `ageFade` times its opacity, one at the
+window's end at full opacity, and those between in proportion. The default, 1, draws no fade. The
+setting is saved in the project and leaves the window where it is. A value outside 0 to 1 is refused
+with `E_BAD_COMMAND`.
+
+It applies to edges timed by an instant or by a start and an end, with `outside: "hide"`. Elsewhere it
+draws nothing, and `time.notices()` holds `time.age-fade-inactive` with a `reason`:
+`"no-edge-time"` (the field times only nodes), `"spells"` (the edges carry spells or lists of
+instants) or `"ghost"`. A line drawn with `line.blending` false stays opaque. Straight animated lines
+(`line.animationSpeed`) and patterned lines keep their opacity, except a dash or dot line that bends
+or curves, which fades. Arrowheads keep their opacity too.
 
 ## Every window at once
 

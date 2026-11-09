@@ -14,7 +14,7 @@ import type { AiEngine, JsonSchema, TurnRequest } from "../engine/types";
 import { type TokenUsage, TurnFailed } from "../runConversation";
 
 /** The classifier's one tool. */
-export const ROUTE = "route";
+const ROUTE = "route";
 
 /**
  * The classifier's turn for a request.

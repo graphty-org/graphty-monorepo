@@ -263,15 +263,19 @@ export const sourcesTool: ToolDefinition = {
             },
         },
         {
-            name: "load_sample",
-            summary: "fetch a public sample, added to the graph",
-            fields: { id: z.string().max(200).describe("The sample's id.") },
+            name: "load_example",
+            summary: "fetch a network source's public example, added to the graph",
+            fields: {
+                source: z.string().max(200).describe("The source's id."),
+                id: z.string().max(200).describe("The example's id."),
+            },
             effect: "write",
-            reaches: [{ door: "SessionDataApi.loadSample" }, { op: "data.import-source" }],
+            reaches: [{ door: "SessionDataApi.loadExample" }, { op: "data.import-source" }],
             run: async ({ tx, message }, args) => {
+                const source = text(args.source);
                 const id = text(args.id);
                 holdFetch(message, id);
-                await coded(() => tx.data.loadSample(id, { mode: "merge" }));
+                await coded(() => tx.data.loadExample(source, id, { mode: "merge" }));
                 return loaded(tx, id);
             },
         },

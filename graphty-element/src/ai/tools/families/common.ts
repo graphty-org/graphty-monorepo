@@ -11,7 +11,7 @@ import { toJson } from "../shape";
 import { type ActionResult, type JsonObject, type JsonValue, ToolRefusal } from "../types";
 
 /** Catalog names past this many are a plain string, validated against the catalog. */
-export const MAX_ENUM = 40;
+const MAX_ENUM = 40;
 
 /**
  * A field naming one catalog entry: an enum of the names up to 40, else a string the catalog

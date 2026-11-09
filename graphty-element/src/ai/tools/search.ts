@@ -56,7 +56,7 @@ const STOP_WORDS = new Set([
  * @param text - The text.
  * @returns Its tokens.
  */
-export function tokens(text: string): string[] {
+function tokens(text: string): string[] {
     return text
         .toLowerCase()
         .split(/[^a-z0-9]+/)

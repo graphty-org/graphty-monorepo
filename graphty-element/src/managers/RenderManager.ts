@@ -4,6 +4,7 @@ import {
     DirectionalLight,
     Engine,
     EngineStore,
+    FloatingOriginCurrentScene,
     HemisphericLight,
     Logger,
     Material,
@@ -74,8 +75,17 @@ interface RenderManagerConfig {
      * does none of the bookkeeping drawing on demand needs. Left out, it is off.
      */
     drawsOnDemand?: () => boolean;
+    /**
+     * Whether to flush right after each frame's fence, so the GPU sees the fence at once rather
+     * than at the browser's next flush (about every 18 ms in Chromium, which set an 18 ms floor
+     * under every frame). Asked each frame; the element answers true under renderPath "batched".
+     * Left out, it never flushes.
+     */
+    flushesFrameFence?: () => boolean;
     /** See {@link RenderManager.setPixelRatio}. Left out, 1. */
     pixelRatio?: PixelRatio;
+    /** Whether the WebGL engine built when no `engine` is passed multisamples. Left out, true. */
+    antialias?: boolean;
 }
 
 /**
@@ -115,7 +125,18 @@ export interface RendererStatus {
      * @since 3.29.0
      */
     readonly drawing: boolean;
+    /**
+     * Where an accelerated layout runs, decided when the renderer opens and never changed by a run:
+     * `"shared"` on the WebGPU device the graph is drawn with, `"separate"` on a device of its own (under
+     * WebGL, and on a software adapter, which never shares), null when no accelerator is offered
+     * (acceleration is off, or `@graphty/graphty-element/webgpu` was not imported before the renderer opened).
+     * @since 3.47.0
+     */
+    readonly layoutDevice: LayoutDevice | null;
 }
+
+/** Where an accelerated layout runs: on the renderer's own WebGPU device, or on one of its own. */
+export type LayoutDevice = "shared" | "separate";
 
 /** The two modules Babylon compiles a GLSL shader for WebGPU with. */
 interface ShaderCompilers {
@@ -188,11 +209,13 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  *     out a WebGPU one.
  * @param sharesDevice - Asked of the adapter, before the device exists, whether the layout's
  *     accelerator will run on it too: that needs every limit and feature the adapter has.
+ * @param antialias - Whether the engine multisamples (4x); the element's `antialias`.
  * @returns The initialised engine, or the reason there is none.
  */
 export async function openWebGPUEngine(
     canvas: HTMLCanvasElement,
     sharesDevice: (adapter: unknown) => boolean = () => false,
+    antialias = true,
 ): Promise<RecoveringWebGPUEngine | string> {
     if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
         return "this browser has no WebGPU (navigator.gpu is undefined)";
@@ -222,7 +245,7 @@ export async function openWebGPUEngine(
 
     const shared = sharesDevice(adapter);
     const engine = new RecoveringWebGPUEngine(canvas, {
-        antialias: true,
+        antialias,
         ...(shared && { setMaximumLimits: true, enableAllFeatures: true, powerPreference: "high-performance" }),
     });
     engine.sharesDevice = shared;
@@ -255,12 +278,13 @@ export async function openWebGPUEngine(
  * data, its session and the work autosave kept would not load either; with it only the picture is
  * missing, which the log reports as E_NO_WEBGL.
  * @param canvas - The element's canvas.
+ * @param antialias - Whether the context multisamples; the element's `antialias`.
  * @returns The engine and the scene.
  */
-function openWebGL(canvas: HTMLCanvasElement): { engine: Engine; scene: Scene } {
+function openWebGL(canvas: HTMLCanvasElement, antialias: boolean): { engine: Engine; scene: Scene } {
     let engine: Engine | undefined;
     try {
-        engine = new Engine(canvas, true, {
+        engine = new Engine(canvas, antialias, {
             preserveDrawingBuffer: true, // Required for screenshots
         });
         return { engine, scene: new Scene(engine) };
@@ -289,6 +313,21 @@ const GRAPH_ROOT_NAME = "graph-root";
 
 /** How often a disposed graph checks whether the GPU has finished its last frames. */
 const RELEASE_POLL_MS = 16;
+
+/**
+ * Lets a disposed scene be collected. Every `Scene.render` points Babylon's module-wide
+ * `FloatingOriginCurrentScene.getScene` at a closure over that scene, and `Scene.dispose` leaves it
+ * there, so the last scene drawn on the page stays reachable -- and through it the whole graph:
+ * its nodes, edges, snapshot, time index and buffers, about 2.4 GB at 1,000,000 edges -- until
+ * another scene draws (issue #6028). A getter that answers undefined, as a disposed scene's or one
+ * without a floating origin does, is swapped for a fresh one that answers the same; a live
+ * floating-origin scene's is left alone.
+ */
+function forgetDisposedScene(): void {
+    if (FloatingOriginCurrentScene.getScene() === undefined) {
+        FloatingOriginCurrentScene.getScene = () => undefined;
+    }
+}
 
 /**
  * Gives a disposed graph's WebGL context back to the browser, once the GPU has finished with it.
@@ -333,7 +372,11 @@ function releaseWhenIdle(gl: WebGLRenderingContext | WebGL2RenderingContext): vo
 }
 
 /** Events that say nothing about the picture, so they do not ask a resting loop to draw. */
-const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set(["graph-frame-stable", "stats-update"]);
+const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set([
+    "graph-frame-stable",
+    "graph-first-frame",
+    "stats-update",
+]);
 
 /**
  * The canvas events after which the next frame may differ: what a reader does, and the GL context
@@ -767,6 +810,8 @@ export class RenderManager implements Manager {
     private readonly pictureIsFinal: (() => boolean) | null;
     /** See `RenderManagerConfig.drawsOnDemand`. */
     private readonly drawsOnDemand: () => boolean;
+    /** See `RenderManagerConfig.flushesFrameFence`. */
+    private readonly flushesFrameFence: () => boolean;
     /** Set by anything that may have changed the picture since the last frame drawn. */
     private drawOwed = true;
     /**
@@ -902,9 +947,10 @@ export class RenderManager implements Manager {
         Logger.LogLevels = Logger.ErrorLogLevel;
         this.pictureIsFinal = this.config.pictureIsFinal ?? null;
         this.drawsOnDemand = this.config.drawsOnDemand ?? ((): boolean => false);
+        this.flushesFrameFence = this.config.flushesFrameFence ?? ((): boolean => false);
 
         if (this.config.engine === undefined) {
-            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas));
+            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas, this.config.antialias ?? true));
         } else {
             this.engine = this.config.engine;
             this.scene = new Scene(this.engine);
@@ -1038,6 +1084,7 @@ export class RenderManager implements Manager {
         const gl = this.engine instanceof Engine ? (this.engine._gl as WebGLRenderingContext | undefined) : undefined;
         this.scene.dispose();
         this.engine.dispose();
+        forgetDisposedScene();
         if (gl !== undefined) {
             releaseWhenIdle(gl);
         }
@@ -1372,6 +1419,9 @@ export class RenderManager implements Manager {
         }
 
         this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (this.flushesFrameFence()) {
+            gl.flush();
+        }
     }
 
     /**

@@ -99,6 +99,7 @@ import {
     RefreshCw,
     RotateCw,
     Route,
+    Scan,
     Search,
     Send,
     Server,
@@ -132,7 +133,6 @@ import {
     Upload,
     Waypoints,
     Weight,
-    Workflow,
     X,
     Zap,
     ZoomOut,
@@ -160,7 +160,8 @@ const AiSparkles = createLucideIcon("ai-sparkles", [
 /** The icon of each concept the workspace draws. */
 export const GLYPHS = {
     // Things in the graph.
-    graph: Workflow,
+    // A graph: nodes joined by edges.
+    graph: Waypoints,
     node: CircleDot,
     edge: Spline,
     // The AI assistant: one large sparkle and two small ones.
@@ -186,6 +187,8 @@ export const GLYPHS = {
     paintedOver: Blend,
     unlock: LockKeyholeOpen,
     everything: Layers,
+    // What a result ran over, when it is not what is showing: a frame round the part it read.
+    ranOver: Scan,
     // The effects a layer adds to nodes (outline, glow, halo) and to edges (band, motion).
     outline: Disc,
     // A lamp: light given off. Sparkles would read as the assistant.
@@ -294,6 +297,7 @@ export const GLYPHS = {
     gridView: LayoutGrid,
     listView: List,
     generated: Shuffle,
+    // A graph with no picture yet shows the graph icon itself.
     noPicture: Waypoints,
     gpu: Zap,
     developer: Code,

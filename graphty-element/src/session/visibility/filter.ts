@@ -45,6 +45,7 @@ import { assertRuleTree, parseScope } from "../../catalog/sets/parse";
 import type {
     AttributeLeafNodes,
     EdgeId,
+    ElementState,
     NodeId,
     Path,
     Query,
@@ -73,6 +74,7 @@ import {
 import { normalizeText, textMatcher } from "../text";
 import { numericBound, readTimeValue, spanEnd, spellPairs } from "../time/parse";
 import { isTimeZone } from "../time/zone";
+import { isSourceScoped, type SourceScopedRule } from "./conditions";
 import { slideCounters } from "./slide";
 import {
     type Bytes,
@@ -199,6 +201,16 @@ export interface TimePlayback {
     readonly outside?: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in; default `"UTC"`. */
     readonly timeZone?: string;
+    /**
+     * Fade by age: the opacity, 0 to 1, that edges starting at the window's first instant draw at,
+     * rising to full at its end. Default 1, no fade. It applies to edges timed by an instant or a
+     * span, with `outside: "hide"`; elsewhere it does nothing and `session.time.notices()` says why
+     * (`time.age-fade-inactive`). A line drawn with `line.blending` false stays opaque, and so do
+     * straight animated lines (`line.animationSpeed`) and patterned lines other than a dash or dot line that
+     * bends or curves.
+     * @experimental timeline
+     */
+    readonly ageFade?: number;
 }
 
 /** One kind's instants for a time column, parsed once: per row, NaN where there is none. */
@@ -361,6 +373,15 @@ export interface FilterSources {
      */
     readonly focus?: () => NodeId | null;
     /**
+     * Whether an element is in a state now: what a `state` leaf reads. Absent refuses that leaf,
+     * as the visibility filter does, since it cannot follow the reader.
+     * @param state - Which state.
+     * @param target - Nodes or edges.
+     * @param index - The dense index.
+     * @returns True when it is.
+     */
+    readonly inState?: (state: ElementState, target: "node" | "edge", index: number) => boolean;
+    /**
      * Whether a union step can be evaluated now, or why it waits (its run is computing, needed,
      * paused, failed or stale), and the result a `measure` leaf reads. Absent refuses `measure`.
      */
@@ -471,6 +492,7 @@ const FILTER_KINDS = [
     "repeated-edge",
     "source",
     "edges",
+    "state",
     "member",
     "item",
     "threshold",
@@ -759,6 +781,7 @@ function assertFilter(filter: RuleTree): void {
         case "item":
         case "threshold":
         case "text":
+        case "state":
         case "hops":
         case "touching":
         case "nonempty":
@@ -939,6 +962,42 @@ export function windowNeedsTimeline(window: TimeWindow | null): boolean {
 }
 
 /**
+ * Refuse a state leaf, alone or in a union's steps, where nothing follows the reader. A union's
+ * other leaves are checked as it is read; a state never can be there.
+ * @param rule - The leaf.
+ * @param sources - What this session can evaluate with.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED`.
+ */
+function assertStatesEvaluable(rule: RuleTree, sources: FilterSources): void {
+    if (sources.inState !== undefined) {
+        return;
+    }
+
+    switch (rule.kind) {
+        case "state":
+            throw unsupported("state", "a view that follows the reader");
+        case "union":
+            for (const branch of rule.branches) {
+                for (const step of branch.steps) {
+                    assertStatesEvaluable(step.rule, sources);
+                }
+            }
+
+            return;
+        case "all":
+        case "any":
+            rule.of.forEach((member) => {
+                assertStatesEvaluable(member, sources);
+            });
+            return;
+        case "not":
+            assertStatesEvaluable(rule.of, sources);
+            return;
+        default:
+    }
+}
+
+/**
  * Refuse a filter or a window this session could not evaluate, without evaluating it: the checks
  * {@link compileVisibility} makes before it walks anything, so a filter is refused before it is
  * recorded rather than on every later evaluation.
@@ -1013,6 +1072,10 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
                 }
 
                 return;
+            case "state":
+            case "union":
+                assertStatesEvaluable(each, sources);
+                return;
             case "all":
             case "any":
                 each.of.forEach(check);
@@ -1046,7 +1109,7 @@ interface PathMark {
 }
 
 /** Everything the compiler carries down the filter tree. */
-export interface CompileContext {
+interface CompileContext {
     /** The snapshot every test is written against. */
     readonly graph: GraphSnapshot;
     /** Where to read what the compiler cannot compute. */
@@ -1960,6 +2023,25 @@ function fold(tests: readonly (ElementTest | null)[], mode: "all" | "any"): Elem
 }
 
 /**
+ * A state leaf's two halves.
+ * @param context - The compile context.
+ * @param state - The state.
+ * @returns The halves.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED` when nothing here follows the reader.
+ */
+function stateTests(context: CompileContext, state: ElementState): CompiledHalves {
+    const { inState } = context.sources;
+    if (inState === undefined) {
+        throw unsupported("state", "a view that follows the reader");
+    }
+
+    return {
+        node: (index) => inState(state, "node", index),
+        edge: (index) => inState(state, "edge", index),
+    };
+}
+
+/**
  * Compile one filter into its node half and its edge half.
  * @param filter - The filter.
  * @param context - The compile context.
@@ -1989,19 +2071,10 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: null, edge: edgeQueryTest(context, filter.where) };
         case "source":
             return sourceTests(context, filter.sources, filter.side);
-        case "member": {
-            if (context.sources.scope === undefined) {
-                throw unsupported("member", "a scope resolver");
-            }
-
-            const leaf = context.sources.scope(filter.of);
-            const { edges } = leaf;
-
-            return {
-                node: (index) => maskTest(leaf.nodes, index),
-                edge: edges === null ? null : (index) => maskTest(edges, index),
-            };
-        }
+        case "state":
+            return stateTests(context, filter.state);
+        case "member":
+            return compileMember(context, filter.of);
         case "item":
             return compileItem(context, filter.item);
         case "threshold":
@@ -2046,20 +2119,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
         case "measure":
             return compileMeasure(context, filter);
         case "all":
-        case "any": {
-            const members = filter.of.map((member) => compileOne(member, context));
-
-            return {
-                node: fold(
-                    members.map((member) => member.node),
-                    filter.kind,
-                ),
-                edge: fold(
-                    members.map((member) => member.edge),
-                    filter.kind,
-                ),
-            };
-        }
+        case "any":
+            return compileGroup(context, filter);
         default: {
             const { node, edge } = compileOne(filter.of, context);
 
@@ -2069,6 +2130,70 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             };
         }
     }
+}
+
+/**
+ * Compile a "member" leaf: the elements a scope holds.
+ * @param context - The compile context.
+ * @param of - The scope the leaf names.
+ * @returns Its halves.
+ * @throws A `GraphtyError` when this session has no scope resolver.
+ */
+function compileMember(context: CompileContext, of: Extract<RuleTree, { kind: "member" }>["of"]): CompiledHalves {
+    if (context.sources.scope === undefined) {
+        throw unsupported("member", "a scope resolver");
+    }
+
+    const leaf = context.sources.scope(of);
+    const { edges } = leaf;
+
+    return {
+        node: (index) => maskTest(leaf.nodes, index),
+        edge: edges === null ? null : (index) => maskTest(edges, index),
+    };
+}
+
+/**
+ * Compile an "all" or "any" group, or a source-scoped rule.
+ * @param context - The compile context.
+ * @param filter - The group.
+ * @returns Its halves.
+ */
+function compileGroup(context: CompileContext, filter: Extract<RuleTree, { kind: "all" | "any" }>): CompiledHalves {
+    if (isSourceScoped(filter)) {
+        return compileSourceScoped(context, filter);
+    }
+
+    const members = filter.of.map((member) => compileOne(member, context));
+
+    return {
+        node: fold(
+            members.map((member) => member.node),
+            filter.kind,
+        ),
+        edge: fold(
+            members.map((member) => member.edge),
+            filter.kind,
+        ),
+    };
+}
+
+/**
+ * A rule that judges only some loads' elements (a filter condition's `source`): theirs answer as
+ * its rule does, every other element answers `outside`. A half the rule is silent about stays
+ * silent, so a node rule never touches an edge.
+ * @param context - The compile context.
+ * @param scoped - The scoped rule.
+ * @returns Its halves.
+ */
+function compileSourceScoped(context: CompileContext, scoped: SourceScopedRule): CompiledHalves {
+    const inner = compileOne(scoped.of[0], context);
+    const within = sourceTests(context, scoped.withinSources, undefined);
+    const { outside } = scoped;
+    const half = (test: ElementTest | null, mine: ElementTest | null): ElementTest | null =>
+        test === null || mine === null ? test : (index) => (mine(index) ? test(index) : outside);
+
+    return { node: half(inner.node, within.node), edge: half(inner.edge, within.edge) };
 }
 
 /**
@@ -2127,31 +2252,46 @@ function referenceBytes(context: CompileContext, reference: StepReference | unde
  */
 function unionEnvOf(context: CompileContext, leaf: UnionLeaf): UnionEnv {
     const { graph, sources } = context;
+    const wholeOrVisible = (within: UnionLeaf["within"]): { node: Bytes; edge: Bytes } => {
+        if (within === "graph") {
+            return { node: new Uint8Array(graph.nodeCount).fill(1), edge: new Uint8Array(graph.edgeCount).fill(1) };
+        }
+
+        if (sources.scope === undefined) {
+            throw unsupported("union", "a scope resolver");
+        }
+
+        const leaf = sources.scope("visible");
+        const node = bytesOf((index) => maskTest(leaf.nodes, index), graph.nodeCount);
+        const { src, dst } = graph.edgeList();
+        const { edges } = leaf;
+        const edge = bytesOf(
+            edges === null
+                ? (index) => node[src[index]] === 1 && node[dst[index]] === 1
+                : (index) => maskTest(edges, index),
+            graph.edgeCount,
+        );
+
+        return { node, edge };
+    };
+    // A leaf narrowed to some loads starts from theirs.
+    const mine = leaf.sources === undefined ? null : sourceTests(context, leaf.sources, undefined);
+    const narrow = (halves: { node: Bytes; edge: Bytes }): { node: Bytes; edge: Bytes } => {
+        const node = mine?.node ?? null;
+        const edge = mine?.edge ?? null;
+        if (node === null || edge === null) {
+            return halves;
+        }
+
+        return {
+            node: bytesOf((index) => halves.node[index] === 1 && node(index), graph.nodeCount),
+            edge: bytesOf((index) => halves.edge[index] === 1 && edge(index), graph.edgeCount),
+        };
+    };
 
     return {
         graph,
-        base: (within) => {
-            if (within === "graph") {
-                return { node: new Uint8Array(graph.nodeCount).fill(1), edge: new Uint8Array(graph.edgeCount).fill(1) };
-            }
-
-            if (sources.scope === undefined) {
-                throw unsupported("union", "a scope resolver");
-            }
-
-            const leaf = sources.scope("visible");
-            const node = bytesOf((index) => maskTest(leaf.nodes, index), graph.nodeCount);
-            const { src, dst } = graph.edgeList();
-            const { edges } = leaf;
-            const edge = bytesOf(
-                edges === null
-                    ? (index) => node[src[index]] === 1 && node[dst[index]] === 1
-                    : (index) => maskTest(edges, index),
-                graph.edgeCount,
-            );
-
-            return { node, edge };
-        },
+        base: (within) => narrow(wholeOrVisible(within)),
         compile: (tree, frame) => compileOne(tree, { ...context, step: frame }),
         reference: (reference) => referenceBytes(context, reference),
         ...(sources.steps === undefined ? {} : { gate: sources.steps.gate }),

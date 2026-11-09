@@ -562,7 +562,7 @@ export function isFlatShape(shape: string): boolean {
  * @param radius - The arc's radius.
  * @returns The rounded outline, counter-clockwise.
  */
-export function roundCorners(corners: readonly Point2[], radius: number): Point2[] {
+function roundCorners(corners: readonly Point2[], radius: number): Point2[] {
     if (!isPositive(radius)) {
         return [...corners];
     }
@@ -1154,7 +1154,7 @@ const STROKES: ReadonlySet<string> = new Set([
  * @param style - Its line style.
  * @returns The pieces, or null for a style that is not a stroke.
  */
-export function strokedRing(outline: readonly Point2[], width: number, style: string): RingPiece[] | null {
+function strokedRing(outline: readonly Point2[], width: number, style: string): RingPiece[] | null {
     if (!STROKES.has(style)) {
         return null;
     }
@@ -1252,7 +1252,7 @@ export function sineWavePeriod(amplitude: number, period: number, width: number)
  * How much of a zigzag's period a piece draws: all of it, or up to its first or its second turn, where a zigzag
  * that has no room for another turn ends (Cytoscape desktop's `ZigzagStroke`).
  */
-export type ZigzagStretch = "period" | "first-turn" | "second-turn";
+type ZigzagStretch = "period" | "first-turn" | "second-turn";
 
 /**
  * One piece of a zigzag laid along a line: how much of its period it draws, and whether it starts or ends the line,
@@ -1402,12 +1402,7 @@ function laid(piece: RingPiece, s: Station): RingPiece {
  * @param wave - Its swing and period.
  * @returns The pieces, or null for a style that is no wave.
  */
-export function wavedRing(
-    outline: readonly Point2[],
-    width: number,
-    style: string,
-    wave: WaveShape,
-): RingPiece[] | null {
+function wavedRing(outline: readonly Point2[], width: number, style: string, wave: WaveShape): RingPiece[] | null {
     if ((style !== "zigzag" && style !== "sinewave") || !isPositive(wave.period)) {
         return null;
     }

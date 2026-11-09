@@ -7,7 +7,9 @@
 // <files JSON> is the bin's story files (ci.yml's matrix.files: repository-relative, "<file>#<k>/<n>" for a part).
 // Each story is named as a story test names it: its repository-relative file and its name in the Storybook, family
 // "<project>-stories". Fire and forget: anything unreadable is a line on stderr, and the exit code is always 0.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { flushHealth, postFlaky } from "./client.mjs";
@@ -17,9 +19,10 @@ import { flushHealth, postFlaky } from "./client.mjs";
  * @param results the capture's results.json
  * @param index the built Storybook's index.json
  * @param files the bin's story files, repository-relative
- * @returns `{ file, name, message }` per story
+ * @param dir the capture's directory, holding `second/<item file>` (the second shot); omitted, no pictures
+ * @returns `{ file, name, message, pictures? }` per story; `pictures` is the two shots' sha256, first then second
  */
-export function unstableStories(results, index, files) {
+export function unstableStories(results, index, files, dir) {
     const roots = files.map((f) => f.split("#")[0]);
     const out = new Map();
     for (const item of results.items ?? []) {
@@ -32,16 +35,36 @@ export function unstableStories(results, index, files) {
             file,
             name: entry?.name ?? item.id,
             message: `visual-review: ${item.file} is unstable (two renders drew different pictures)`,
+            ...pictures(item, dir),
         });
     }
     return [...out.values()];
+}
+
+/**
+ * The two shots' hashes of an unstable item: results.json's `capture` (the first) and the second shot's file.
+ * @param item the results.json item
+ * @param dir the capture's directory, or undefined
+ * @returns `{ pictures }`, or nothing when either is missing
+ */
+function pictures(item, dir) {
+    if (!dir || typeof item.capture !== "string") return {};
+    try {
+        const second = createHash("sha256")
+            .update(readFileSync(join(dir, "second", item.file)))
+            .digest("hex");
+        return { pictures: [item.capture, second] };
+    } catch {
+        return {};
+    }
 }
 
 async function main(argv, env) {
     const [project, bin, resultsFile, indexFile, filesJson] = argv;
     try {
         const read = (f) => JSON.parse(readFileSync(f, "utf8"));
-        const stories = unstableStories(read(resultsFile), read(indexFile), JSON.parse(filesJson ?? "[]"));
+        const files = JSON.parse(filesJson ?? "[]");
+        const stories = unstableStories(read(resultsFile), read(indexFile), files, dirname(resultsFile));
         postFlaky(env, bin, `${project}-stories`, stories);
         console.error(`post-unstable-stories: ${stories.length} unstable ${project} stories`);
         await flushHealth();

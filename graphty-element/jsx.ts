@@ -272,6 +272,15 @@ export interface GraphtyElementJSXProps {
      */
     renderPath?: Graphty["renderPath"];
     /**
+     * Sets whether the canvas multisamples. Once the engine is built a different value changes
+     * nothing and raises `W_ANTIALIAS_LATE`.
+     */
+    antialias?: Graphty["antialias"];
+    /**
+     * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
+     */
+    limits?: Graphty["limits"];
+    /**
      * Sets the threshold and applies it immediately.
      *
      * A value that is not a whole number of 0 or more is reported and then ignored, leaving the
@@ -557,6 +566,7 @@ export interface GraphtyElementJSXProps {
      */
     "onelements-removed"?: (event: CustomEvent<EventOfType<"elements-removed">>) => void;
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
+    "ongraph-first-frame"?: (event: CustomEvent<EventOfType<"graph-first-frame">>) => void;
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
     /**
@@ -585,6 +595,7 @@ export interface GraphtyElementJSXProps {
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     /**
      * Emitted when user input on the canvas is switched on or off, by `setInputEnabled`.
      */
@@ -649,6 +660,10 @@ export interface GraphtyElementJSXProps {
     "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
+    /**
+     * Emitted when the `limits` the element was given are not in force: under `render-path="objects"` the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`). A code and its parameters, never a sentence.
+     */
+    "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
     /**

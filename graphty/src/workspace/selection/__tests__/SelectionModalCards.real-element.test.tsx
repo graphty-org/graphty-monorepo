@@ -6,7 +6,8 @@
  * to its card; "+ Card" starts a new colored card; a node clicked on the drawing is a step's reference;
  * Done keeps every edit and Cancel restores the selection as it was. The owner's review of
  * 2026-11-04: cards fold to their header (a new card folds the others), reorder by their grip or
- * the arrow keys, no "or" between them; a new number step passes its whole range at once; the
+ * by Ctrl+] and Ctrl+[ as their "..." menu shows them (the grip takes no arrow keys), no "or"
+ * between them; a new number step passes its whole range at once; the
  * matches table tints each row in its group's color, with no Group column; and the preview draws
  * the edges between a group's members in its color.
  */
@@ -44,11 +45,13 @@ const LES_MISERABLES: Sample = { type: "gml", name: "les-miserables.gml", data: 
  * style tree.
  * @param graph - the graph to load.
  * @param layerName - the layer's name.
+ * @param where - the layer's selection, or everything.
  * @returns the session and the layer.
  */
 async function openLayer(
     graph: Sample = LES_MISERABLES,
     layerName = "Calm",
+    where?: UnionLeaf,
 ): Promise<{ session: GraphSession; layer: Layer }> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
@@ -66,7 +69,7 @@ async function openLayer(
     const layer = await session.styles.add({
         name: layerName,
         target: "node",
-        selector: { match: "everything" },
+        selector: where === undefined ? { match: "everything" } : { match: "rule", where },
         set: { "node.color": "#d55e00" },
     });
     await session.styles.settled();
@@ -94,7 +97,7 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
  * @returns the modal.
  */
 async function openModal(): Promise<HTMLElement> {
-    await userEvent.click(screen.getByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the modal is open");
@@ -278,6 +281,44 @@ function edgeColor(session: GraphSession, a: string, b: string): string {
 }
 
 describe("the owner's review of the cards (2026-11-04)", () => {
+    it("a matches table that takes the place of No matches fills the strip (#6062)", async () => {
+        // Degree 1000 and up: nothing in Les Miserables, so the strip opens on No matches.
+        const { session, layer } = await openLayer(LES_MISERABLES, "Calm", {
+            kind: "union",
+            side: "nodes",
+            within: "visible",
+            branches: [
+                {
+                    id: "a",
+                    start: "none",
+                    steps: [{ id: "deg", op: "add", rule: { kind: "range", attribute: "graphty.degree", min: 1000 } }],
+                },
+            ],
+        });
+        const modal = await openModal();
+        const strip = await within(modal).findByRole("region", { name: "Matches" });
+        await within(strip).findByText("No matches");
+        const min = await within(cards()[0]).findByRole("textbox", { name: "Degree from, number" });
+        await userEvent.clear(min);
+        await userEvent.type(min, "10{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(
+                (unionOf(session, layer.id)?.branches[0]?.steps[0]?.rule as { min?: number } | undefined)?.min,
+                10,
+            );
+        });
+        // The table is drawn as tall as the strip leaves it, with its rows showing.
+        await waitFor(() => {
+            const box = strip.querySelector<HTMLElement>(".sel-ws-strip-table");
+            assert.isNotNull(box, "the table's box");
+            assert.isAbove(box?.getBoundingClientRect().height ?? 0, 0, "the box has room");
+            assert.isAbove(
+                box?.querySelectorAll("[data-testid='data-table-row']").length ?? 0,
+                0,
+                "the matches are listed",
+            );
+        });
+    });
     it("a new Degree card counts at once, the cards before it fold, and no or is drawn between them", async () => {
         const { session, layer } = await twoCards();
         const degree = unionOf(session, layer.id)?.branches[1]?.steps[0]?.rule as { min?: number; max?: number };
@@ -331,7 +372,7 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         assert.match(cards().at(-1)?.getAttribute("aria-label") ?? "", /^D, /, "the last card reads D");
     });
 
-    it("a card dragged by its grip, or moved with the arrow keys, takes its new place", async () => {
+    it("a card dragged by its grip, or moved with Ctrl+[ and Ctrl+] on it, takes its new place; arrows do not", async () => {
         const { session, layer } = await twoCards();
         const idsNow = (): string[] => (unionOf(session, layer.id)?.branches ?? []).map((each) => each.id ?? "");
         const [first, second] = idsNow();
@@ -341,12 +382,50 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         await waitFor(() => {
             assert.deepEqual(idsNow(), [second, first], "dragged above A");
         });
-        // The keyboard: Down on the first card's grip moves it back down.
+        // The keyboard, with the grip focused: the arrows move nothing (no button shows them).
         const moved = within(cards()[0]).getByRole("button", { name: /^Move / });
         moved.focus();
         await userEvent.keyboard("{ArrowDown}");
+        assert.deepEqual(idsNow(), [second, first], "the arrows leave the order");
+        // Ctrl+[ (Move down, as the card's menu shows it) moves it back down, focus kept on its grip.
+        await userEvent.keyboard("{Control>}[[{/Control}");
         await waitFor(() => {
-            assert.deepEqual(idsNow(), [first, second], "moved down by its key");
+            assert.deepEqual(idsNow(), [first, second], "moved down by Ctrl+[");
+        });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement?.getAttribute("data-card-grip"), second);
+        });
+        await userEvent.keyboard("{Control>}]{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(idsNow(), [second, first], "moved up by Ctrl+]");
+        });
+    });
+
+    it("a card clicked on its blank space moves with Ctrl+], as its menu shows it", async () => {
+        const { session, layer } = await twoCards();
+        const idsNow = (): string[] => (unionOf(session, layer.id)?.branches ?? []).map((each) => each.id ?? "");
+        const [first, second] = idsNow();
+        // A point on B where nothing but the card (or its header) is under the pointer.
+        const card = cards()[1];
+        const box = card.getBoundingClientRect();
+        const head = card.querySelector(".cm-card-head");
+        let blank: { x: number; y: number } | undefined;
+        for (let y = 2; y < box.height && blank === undefined; y += 3) {
+            for (let x = 2; x < box.width && blank === undefined; x += 3) {
+                const hit = document.elementFromPoint(box.left + x, box.top + y);
+                if (hit === card || hit === head) {
+                    blank = { x, y };
+                }
+            }
+        }
+        assert.isDefined(blank, "B has blank space to click");
+        await userEvent.click(card, { position: blank });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, card, "the click focuses the card");
+        });
+        await userEvent.keyboard("{Control>}]{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(idsNow(), [second, first], "moved up by Ctrl+]");
         });
     });
 

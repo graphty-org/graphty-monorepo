@@ -46,7 +46,7 @@ import { coded, codedNow, ok, requireEntry } from "./common";
 const ASSISTANT_SOURCE_NAME = "graphty-ai";
 
 /** What the assistant records as the source of every layer it adds. */
-export const ASSISTANT_LAYER_SOURCE: LayerSource = { by: "plugin", name: ASSISTANT_SOURCE_NAME };
+const ASSISTANT_LAYER_SOURCE: LayerSource = { by: "plugin", name: ASSISTANT_SOURCE_NAME };
 
 /**
  * Whether a layer is the assistant's own.
@@ -61,7 +61,7 @@ function isAssistantLayer(source: LayerSource): boolean {
  * The largest number the assistant writes to a channel that states no maximum of its own (a size,
  * a width, a speed): far past anything legible, and far short of what overflows a mesh.
  */
-export const MAX_CHANNEL_NUMBER = 10_000;
+const MAX_CHANNEL_NUMBER = 10_000;
 
 /**
  * A value for one channel, checked against what the channel accepts.
@@ -185,7 +185,7 @@ function channelChecked(descriptor: ChannelDescriptor, value: unknown): unknown 
  * @returns The literal style, and whether it paints nodes or edges.
  * @throws {ToolRefusal} For an unknown channel, a bad value, or one call mixing nodes and edges.
  */
-export function checkValues(
+function checkValues(
     values: Record<string, unknown>,
     channels: readonly ChannelDescriptor[],
     both = false,
@@ -355,7 +355,7 @@ function positionOf(
  * @throws {ToolRefusal} `AI_EMPTY_MATCH` when the layer matches nothing; `AI_PAINTED_NOTHING`
  *     when layers above it cover every element it matches.
  */
-export function paintedFacts(tx: TransactionScope, id: string, shown = true): JsonObject {
+function paintedFacts(tx: TransactionScope, id: string, shown = true): JsonObject {
     const counts = tx.styles.counts(id);
     const painted = toJson(counts.painted) as JsonObject;
     if (counts.matched === 0) {

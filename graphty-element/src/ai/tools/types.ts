@@ -49,7 +49,7 @@ export type Reach =
  * How an action relates to undo. `read` changes nothing; `write` joins the message's step;
  * `exempt` changes something no project file saves (the camera, the selection) and adds no step.
  */
-export type ActionEffect = "read" | "write" | "exempt";
+type ActionEffect = "read" | "write" | "exempt";
 
 /** What a write did, which the gate adds to the message's running totals. */
 export interface Measure {

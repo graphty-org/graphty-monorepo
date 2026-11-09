@@ -238,6 +238,7 @@ import {
     startingRows,
 } from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
+import { selectorStates } from "./selector";
 import {
     arrange,
     documentRows,
@@ -1491,6 +1492,8 @@ export interface StylesSources {
     readonly liftDrawn?: () => boolean;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /** Whether the file styles experiment is on, which decides the values a binding spreads over; absent reads on. */
+    readonly fileStyles?: () => boolean;
     /**
      * Where a run is looked up, for the two verbs that take one.
      *
@@ -2686,14 +2689,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const suspended = new WeakMap<CompiledLayer, CompiledLayer>();
 
     /**
-     * Whether a layer draws the selection ring or the hover mark: a layer of the state
-     * `"selected"` or `"hovered"` (the Selected and Hovered rows, or a reader's own).
+     * Whether a layer draws the selection ring or the hover mark: a layer reading the state
+     * `"selected"` or `"hovered"`, whoever made it.
      * @param entry - A layer in the stack.
      * @returns True for one.
      */
     const isStateMark = (entry: CompiledLayer): boolean => {
-        const { selector } = entry.layer;
-        return selector.match === "state" && (selector.state === "selected" || selector.state === "hovered");
+        return selectorStates(entry.layer.selector).some((state) => state === "selected" || state === "hovered");
     };
 
     /**
@@ -4797,6 +4799,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             binding: filled,
             column,
             scales,
+            fileStyles: sources.fileStyles?.() !== false,
             asWritten: binding,
             ...(options.bins === undefined ? {} : { bins: options.bins }),
             ...(options.span === undefined ? {} : { span: options.span }),
@@ -5736,6 +5739,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 binding: palette === undefined ? rule : { ...rule, palette },
                 count: options.count,
                 scales,
+                fileStyles: sources.fileStyles?.() !== false,
             });
         },
 

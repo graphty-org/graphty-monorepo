@@ -209,7 +209,7 @@ function pointingLines(pointing: AiPointing, profile: ToolProfile): string[] {
 }
 
 /** The most characters of ids one facts line lists: long ids (URIs, ontology terms) cost tokens. */
-export const FACT_IDS_CHARS: Readonly<Record<ToolProfile, number>> = { standard: 1_000, small: 500 };
+const FACT_IDS_CHARS: Readonly<Record<ToolProfile, number>> = { standard: 1_000, small: 500 };
 
 /**
  * Ids as a facts line writes them: whole and quoted when text, since the model copies them into

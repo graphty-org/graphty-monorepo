@@ -366,11 +366,7 @@ function checkThreshold(value: Loose, walker: Walker): void {
 const FIELD_ROOTS = new Set(["data", "results"]);
 
 /** The structure values a rule reads with no run and no column: a node's degree. */
-export const STRUCTURE_PATHS: ReadonlySet<string> = new Set([
-    "graphty.degree",
-    "graphty.inDegree",
-    "graphty.outDegree",
-]);
+const STRUCTURE_PATHS: ReadonlySet<string> = new Set(["graphty.degree", "graphty.inDegree", "graphty.outDegree"]);
 
 /**
  * Refuse a field path whose root is reserved: `graph.<measure>` and every other root but `data`
@@ -697,6 +693,14 @@ function checkUnion(value: Loose, walker: Walker): void {
         throw bad('A "union" leaf\'s within is "graph" or "visible".', { within: value.within });
     }
 
+    if (
+        value.sources !== undefined &&
+        (!Array.isArray(value.sources) ||
+            !(value.sources as readonly unknown[]).every((key) => typeof key === "string" && key !== ""))
+    ) {
+        throw bad('A "union" leaf\'s sources are a list of load keys.', { sources: value.sources });
+    }
+
     if (!Array.isArray(value.branches)) {
         throw bad('A "union" leaf\'s branches are a list.', { branches: value.branches });
     }
@@ -796,6 +800,9 @@ function checkStepEnums(step: Loose): void {
     }
 }
 
+/** The states a `state` leaf reads. */
+const ELEMENT_STATES: ReadonlySet<string> = new Set(["selected", "hovered", "ghosted", "pinned"]);
+
 /**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
@@ -876,6 +883,14 @@ function checkTree(value: unknown, walker: Walker): void {
             known([]);
 
             return;
+        case "state":
+            known(["state"]);
+
+            if (!ELEMENT_STATES.has(value.state as string)) {
+                throw bad(`A "state" leaf reads one of ${[...ELEMENT_STATES].join(", ")}.`, { state: value.state });
+            }
+
+            return;
         case "source":
             known(["sources", "side"]);
             checkSide(value);
@@ -905,7 +920,7 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "union":
-            known(["side", "within", "branches"]);
+            known(["side", "within", "sources", "branches"]);
             checkUnion(value, walker);
 
             return;
@@ -1013,7 +1028,7 @@ export function readingOfScope(scope: unknown, referent?: (id: string) => string
 }
 
 /**
- * Whether a rule tree holds a leaf that speaks about edges: an `edges` leaf, a `member` leaf whose
+ * Whether a rule tree holds a leaf that speaks about edges: an `edges` or `state` leaf, a `member` leaf whose
  * set is read `listed` or `clipped`, or an `item` or `threshold` leaf over a field edges carry.
  * @param node - A validated tree node, or a query.
  * @param referent - The reading of the set an id names, when the caller can look it up.
@@ -1034,6 +1049,7 @@ export function speaksEdges(
         case "edges":
         case "self-loop":
         case "repeated-edge":
+        case "state":
             return true;
         case "source":
             return node.side !== "nodes";

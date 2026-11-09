@@ -12,6 +12,7 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | `graph-settled`                                                | Layout finished                                                                                                                                                                                                                                                     | `{ settled: boolean }`                                           |
 | `graph-frame-stable`                                           | The picture is final: layout converged, camera framed, frame drawn                                                                                                                                                                                                  | `{ frames }`                                                     |
+| `graph-first-frame`                                            | The first frame showing the nodes is drawn (the layout may still move them)                                                                                                                                                                                         | `{ frames }`                                                     |
 | `zoom-to-fit-complete`                                         | Auto-framing moved the camera around the whole graph                                                                                                                                                                                                                | `{ boundingBoxMin, boundingBoxMax }`                             |
 | `data-loaded`                                                  | Initial data loaded                                                                                                                                                                                                                                                 | `{ details: { report, ... }, cause? }`                           |
 | `data-added`                                                   | Incremental data added                                                                                                                                                                                                                                              | `{ dataType, count, cause? }`                                    |
@@ -31,7 +32,7 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `graph-started`                                                | The render loop started                                                                                                                                                                                                                                             | `{ timestamp }`                                                  |
 | `layout-changed`                                               | A new layout is now running                                                                                                                                                                                                                                         | `{ layoutType, options }`                                        |
 | `layout-warning`                                               | A layout could not place every node (`W_NO_POSITION`) or ignored options (`W_UNKNOWN_OPTION`), a 2D view replaced `dim` (`W_DIMENSION_OVERRIDDEN`), or an edge weight's meaning was assumed or unreadable (`W_WEIGHT_MEANING_ASSUMED`, `W_WEIGHT_MEANING_MISMATCH`) | `{ layoutType, code, params }`                                   |
-| `operation-cancelled`                                          | A queued operation was aborted                                                                                                                                                                                                                                      | `{ id, reason }`                                                 |
+| `operation-cancelled`                                          | A queued operation was aborted: the whole queue was cleared (`queue-cleared`) or this one operation was cancelled (`cancelled`)                                                                                                                                     | `{ id, code }`                                                   |
 | `stats-update`                                                 | Every 60 graph updates, with the performance counters                                                                                                                                                                                                               | `{ totalUpdates, stats }`                                        |
 | `input-enabled-changed`                                        | `setInputEnabled()` switched canvas input on or off                                                                                                                                                                                                                 | `{ enabled }`                                                    |
 | `xr-session-started`                                           | A VR or AR session started                                                                                                                                                                                                                                          | `{ mode, requestedReferenceSpace, referenceSpace }`              |
@@ -51,6 +52,11 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 or removed the rows: `"undo"`, `"redo"`, `"restore"` or `"rollback"`. A listener that starts work
 when data arrives should skip those, or it starts the work again on every undo. See
 [Undo and History](./undo#following-changes).
+
+`code` on `operation-cancelled` says why the operation stopped: `"queue-cleared"` or
+`"cancelled"`. Write the words you show from it. The detail also carries `reason`, an English
+sentence (`"Queue cleared"`, `"Manual cancellation"`); it is deprecated and is removed in the next
+major release, so read `code` instead.
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
 with a serialisable detail, when edge picking lands.
@@ -342,6 +348,12 @@ element.addEventListener("graphty-note-change", (e) => {
 
 On the session the same change is `note:changed`, whose payload also carries the frozen record as
 `note`. See [Notes](./notes#hearing-about-changes).
+
+### graphty-warning
+
+A notice that stops nothing, as a code and its parameters (`e.detail.code`, `e.detail.params`).
+Today the one code is `W_ANTIALIAS_LATE`: `antialias` was changed after the engine was built. See
+[Renderer](./renderer#smoothing-antialias).
 
 ### style-changed
 

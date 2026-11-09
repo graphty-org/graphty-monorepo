@@ -66,7 +66,7 @@ let programProbe: boolean | undefined;
  * synchronous compile throw. Probed once.
  * @returns True when it can.
  */
-export function programSupported(): boolean {
+function programSupported(): boolean {
     programProbe ??= PROGRAM_IN_BUILD && canCompileWasm();
     return programProbe;
 }

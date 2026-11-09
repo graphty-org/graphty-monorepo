@@ -21,7 +21,7 @@ import { formatNumber } from "../inspector/words";
 import { type Card, cardFields, cardOf, cardWords, type Side } from "../style/cards";
 import { NATURAL, valueName } from "../style/words";
 import type { Verb } from "./model";
-import { isRelative, referenceOf, stepCard, WHILE } from "./values";
+import { isRelative, referenceOf, STATE_WORDS, stepCard, WHILE } from "./values";
 
 /** A verb's word, Figma's name for it, and the words a search finds it by. Verbs are words everywhere. */
 export const VERB_WORDS: Readonly<Record<Verb, { word: string; figma: string; aliases: readonly string[] }>> = {
@@ -187,6 +187,18 @@ const STRUCTURE: Partial<Record<RuleTree["kind"], string>> = {
 };
 
 /**
+ * The name of a value that takes no test: a structure leaf, the largest component, a state.
+ * @param rule - the step's rule.
+ * @returns the name, or undefined for a value with a test.
+ */
+function testlessName(rule: RuleTree): string | undefined {
+    if (rule.kind === "state") {
+        return STATE_WORDS[rule.state];
+    }
+    return rule.kind === "member" && rule.of === "largest-component" ? "Largest component" : STRUCTURE[rule.kind];
+}
+
+/**
  * A step's value and test, as its row says them: the value ("Degree", "Betweenness", "Within 1 hop
  * of") and the short test ("6 to 10", "Valjean"), or the inert word in its place.
  * @param session - the element's session.
@@ -233,12 +245,9 @@ function ruleStepWords(
     if (isRelative(rule)) {
         return { value: relativeName(rule), test: referenceWords(session, referenceOf(rule)) };
     }
-    const structure = STRUCTURE[rule.kind];
-    if (structure !== undefined) {
-        return { value: structure, test: "" };
-    }
-    if (rule.kind === "member" && rule.of === "largest-component") {
-        return { value: "Largest component", test: "" };
+    const plain = testlessName(rule);
+    if (plain !== undefined) {
+        return { value: plain, test: "" };
     }
     if (rule.kind === "measure") {
         const descriptor = session.catalog.algorithms().find((each) => each.key === rule.algorithm);
@@ -363,7 +372,7 @@ const MANY_NAMED = 7;
  * @param card - the card.
  * @returns the words.
  */
-export function shortTest(session: GraphSession, card: Card): string | undefined {
+function shortTest(session: GraphSession, card: Card): string | undefined {
     if (card.type === "number" && card.match === "top") {
         if (card.top === undefined) {
             return "";
@@ -468,10 +477,61 @@ export function selectionWords(session: GraphSession, rule: UnionLeaf): string {
     return groups.filter((each) => each !== "").join(" or ") || "a selection";
 }
 
+/** Two bounds as the Min and Max boxes say them ("8 to 36"), and nothing else. */
+const RANGE = /^(-?[\d.,]+) to (-?[\d.,]+)$/u;
+
+/** A lower bound alone, as the Min box says it ("min 3"). */
+const LOWER = /^min (-?[\d.,]+)$/u;
+
+/** The most values a summary lists before it says how many more ("+3"). */
+const SUMMARY_NAMED = 6;
+
 /**
- * The workspace's cards as one line, each card as its rows say it, with no "or" between them:
- * "Louvain: Community Group 3 + Degree 8 to 36". A card's value says no verb; a condition under it
- * says Add, Keep or Except. What a filter card is called until the reader names it.
+ * A category step's values as a summary lists them: every value up to {@link SUMMARY_NAMED}, else
+ * the first ones and "+N"; and when every value is a shared word and a number ("Group 1", "Group
+ * 4"), only the numbers ("1, 4").
+ * @param names - the values' names, in order.
+ * @returns the words.
+ */
+export function summaryValues(names: readonly string[]): string {
+    const numbered = names.map((name) => /^(.*\S)\s+(\d+)$/u.exec(name));
+    const head = numbered[0]?.[1];
+    const shared = numbered.every((each) => each !== null && each[1] === head);
+    const shown = shared ? numbered.map((each) => each?.[2] ?? "") : [...names];
+    if (shown.length <= SUMMARY_NAMED) {
+        return shown.join(", ");
+    }
+    const listed = SUMMARY_NAMED - 1;
+    return `${shown.slice(0, listed).join(", ")} +${formatNumber(shown.length - listed)}`;
+}
+
+/**
+ * The value a summary names a step by: an algorithm by its name alone when the step reads its
+ * first field ("Louvain", not "Louvain: Community"), anything else as its row names it.
+ * @param session - the element's session.
+ * @param step - the step.
+ * @param side - the selection's side.
+ * @param value - the row's value.
+ * @returns the value.
+ */
+function summaryValue(session: GraphSession, step: UnionStep, side: Side, value: string): string {
+    if (step.rule.kind !== "measure") {
+        return value;
+    }
+    const { algorithm, field } = step.rule;
+    const descriptor = session.catalog.algorithms().find((each) => each.key === algorithm);
+    const first = descriptor?.fields.find(
+        (each) => each.kind === side && each.type !== "table" && each.name !== "rank" && each.name !== "percentile",
+    );
+    const at = value.indexOf(": ");
+    return first?.name === field && at > 0 ? value.slice(0, at) : value;
+}
+
+/**
+ * The workspace's cards as one structured line, never a sentence: each step as its value and its
+ * test, "; " between steps and cards, ", " between values, "-" for a range, "3+" for a lower bound
+ * alone, and "except" only before a step that removes: "Louvain 1, 4, 5, 7; Degree 8-36; except
+ * Isolated". What a filter is called until the reader names it, and what a selection says at rest.
  * @param session - the element's session.
  * @param rule - the selection.
  * @param reading - its reading, which an algorithm's test is said from.
@@ -479,20 +539,22 @@ export function selectionWords(session: GraphSession, rule: UnionLeaf): string {
  */
 export function cardsWords(session: GraphSession, rule: UnionLeaf, reading?: StepsReading): string {
     const side: Side = rule.side === "nodes" ? "node" : "edge";
+    const read = reading?.branches.flatMap((each) => each.steps) ?? [];
     return rule.branches
-        .map((branch) =>
-            branch.steps
-                .map((step, index) => {
-                    const read = reading?.branches.flatMap((each) => each.steps).find((each) => each.id === step.id);
-                    const words = rowWords(session, step, side, read);
-                    const said = [words.value, rowTest(words)].filter((each) => each !== "").join(" ");
-                    const natural = branch.start === "all" ? "keep" : "add";
-                    return index === 0 && step.op === natural
-                        ? said
-                        : `${VERB_WORDS[step.op].word.toLowerCase()} ${said}`;
-                })
-                .join(", "),
-        )
+        .flatMap((branch) => branch.steps)
+        .map((step) => {
+            const stepReading = read.find((each) => each.id === step.id);
+            const words = rowWords(session, step, side, stepReading);
+            const plain =
+                isRelative(step.rule) || step.rule.kind === "member" || STRUCTURE[step.rule.kind] !== undefined;
+            const { card } = plain ? { card: null } : stepCard(session, step, stepReading, side);
+            const test =
+                card?.type === "category" && card.match === "values" && rowTest(words) !== ""
+                    ? summaryValues(categoryNames(session, card))
+                    : rowTest(words).replace(RANGE, "$1-$2").replace(LOWER, "$1+");
+            const said = [summaryValue(session, step, side, words.value), test].filter((each) => each !== "").join(" ");
+            return step.op === "except" ? `${VERB_WORDS.except.word.toLowerCase()} ${said}` : said;
+        })
         .filter((each) => each !== "")
-        .join(" + ");
+        .join("; ");
 }

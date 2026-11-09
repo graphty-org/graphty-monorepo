@@ -158,7 +158,7 @@ export function claimEntry(
  * @param incoming - The record being saved.
  * @returns The merged record, at the stored revision.
  */
-export function mergeRecords(stored: ConversationRecord, incoming: ConversationRecord): ConversationRecord {
+function mergeRecords(stored: ConversationRecord, incoming: ConversationRecord): ConversationRecord {
     const messageIds = new Set(stored.messages.map((message) => message.id));
     const pendingIds = new Set(stored.pending.map((entry) => entry.id));
     // ponytail: an entry one copy resolved (removed) may come back from the other, claimed; a claimed

@@ -171,7 +171,7 @@ type Described = { readonly parameters?: z.ZodType };
  * @param args - Its arguments.
  * @returns The inputs.
  */
-export function callInputs(
+function callInputs(
     registry: Pick<CommandRegistry, "get"> | undefined,
     command: string,
     args: Readonly<Record<string, unknown>>,

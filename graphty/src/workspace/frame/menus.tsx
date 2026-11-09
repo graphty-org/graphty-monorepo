@@ -122,7 +122,7 @@ export function Sections({ sections }: Readonly<{ sections: readonly (readonly s
  * the one open now is checked and says so.
  * @returns The rows
  */
-export function SampleItems(): React.JSX.Element {
+function SampleItems(): React.JSX.Element {
     const workspace = useWorkspace();
     // The sample the graph was loaded from, read from where the element says it came from.
     const loaded = workspace.session?.data.source()?.config?.url;

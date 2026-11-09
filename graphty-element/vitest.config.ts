@@ -90,6 +90,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/groups-follow-members.test.ts",
     "test/browser/label-declutter.test.ts",
     "test/browser/curves-rest-the-same-however-frames-split.test.ts",
+    "test/browser/node-gap-rests-the-same-however-frames-split.test.ts",
     "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
     "test/browser/a-layer-added-later-paints.test.ts",
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
@@ -935,6 +936,9 @@ const config = defineConfig({
                 // sets timing rows' project below, which never runs in CI.
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED, force: true },
+                // Puts GRAPHTY_BROWSER_GPU on `import.meta.env`, so a benchmark whose numbers mean
+                // nothing on the software renderer (timeline-frame-bench.ts) skips itself without it.
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 test: {
                     name: "browser-bench",
                     setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],

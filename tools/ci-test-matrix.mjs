@@ -71,10 +71,10 @@ const ELEMENT_BROWSER_PARTS = 8;
 
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
 const ELEMENT_REPORTERS =
-    "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}";
+    "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} ${GRAPHTY_RUNNING_TESTS:+--reporter=../tools/running-tests.mjs}";
 
 /** How many CI parts the `large-graph` project splits into: one per LargeGraph.*.real-element.test.tsx file. */
-export const LARGE_GRAPH_PARTS = 4;
+export const LARGE_GRAPH_PARTS = 6;
 
 // graphty's projects the five graphty parts run: all but the stories and large-graph, which have shards of their own.
 const GRAPHTY_PROJECTS = "--project=browser --project=real-element --project=eslint-rules --project=node";
@@ -269,9 +269,11 @@ const OFF_SHARDS = [
     // graphty - every project but the stories (uses Playwright for browser-based vitest), in five
     // parts, each its own CI job: about 1,240 tests took 46 minutes in one, past the gate's 30-minute
     // shard limit, and in three parts on a CI runner one part took 15 to 16 minutes (graphty-1: 892 s
-    // and 928 s of vitest, ci.yml runs 39883665524 and 39887583054, 2026-10-23), so five parts are
-    // about 9 minutes each. Each part writes its coverage to its own .coverage-parts/<shard>
-    // (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
+    // and 928 s of vitest, ci.yml runs 39883665524 and 39887583054, 2026-10-23), so five parts. Most of a
+    // part's time is its real-element files, run one at a time (about 20 minutes each by 2026-11-09), so
+    // graphty/test/story-shards.ts splits those by time rather than by vitest's path hash, which once gave
+    // graphty-4 25 minutes of them and ran it into its deadline (#6373). Each part writes its coverage
+    // to its own .coverage-parts/<shard> (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
     // where for the upload. The On twins (tools/features-on.mjs) exist only under GRAPHTY_FEATURES_ON=1, which
     // these commands never set. The projects are named one by one because vitest runs a project that any one
     // --project matches, so a second "!name" would select the project the first one left out.
@@ -550,8 +552,10 @@ export const STORY_RUNS = {
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
- * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS), graphty-large-graph-1 to -4 (one file each, at most about 10 minutes)
- * and graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it).
+ * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS), graphty-large-graph-1 to -6 (one file each, at most about 6 minutes)
+ * graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it)
+ * and graphty-element-gpu-loss (11.2 minutes of vitest in full run 42255498419; small-browser took 28 minutes
+ * with it and reached its deadline before the layout and cytoscape-extensions storybooks ran, #6035).
  */
 export const GROUPS = {
     "small-node": [
@@ -572,7 +576,6 @@ export const GROUPS = {
         "visual-review",
         "webgpu-graph-algorithms-browser",
         "graphty-element-webgpu",
-        "graphty-element-gpu-loss",
         "algorithms-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",

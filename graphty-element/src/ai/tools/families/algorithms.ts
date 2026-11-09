@@ -123,7 +123,7 @@ export async function runEffects(
  * @param params - The facts the result carries.
  * @returns The result, to settle.
  */
-export function settleRun(run: Run, params: JsonObject): ActionResult {
+function settleRun(run: Run, params: JsonObject): ActionResult {
     return {
         settle: async ({ session, signal }) => {
             await awaitRun(run, signal);

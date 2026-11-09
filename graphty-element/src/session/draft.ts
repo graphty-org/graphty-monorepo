@@ -10,7 +10,7 @@
 import { unknownFormat } from "../catalog/detect";
 import type { NodeId } from "../catalog/types";
 import { CSVDataSource, readGephiTypeColumn } from "../data/CSVDataSource";
-import { DataSource, type DeclaredDirection } from "../data/DataSource";
+import { DataSource, type DeclaredDirection, TIMELINE_READERS } from "../data/DataSource";
 import { readEndpoint, resolveEndpoints } from "../data/endpoints";
 import type { DataLoadingError } from "../data/ErrorAggregator";
 import type { LoadReport } from "../data/report";
@@ -402,6 +402,7 @@ function errorsOf(reader: DataSource): Pick<ReadSource, "errors" | "errorLimit">
  * @param signal - Abandons the read.
  * @param progress - Told the rows read so far, after each table or chunk, and, for a CSV file,
  *     the share of its text read.
+ * @param timeline - Whether the timeline experiment is on, so the reader keeps the time data it reads.
  * @returns What it holds.
  * @throws What the source's reader throws, with its code.
  */
@@ -409,12 +410,17 @@ export async function readSource(
     source: ImportSource,
     signal?: AbortSignal,
     progress: (rows: number, fraction?: number) => void = () => undefined,
+    timeline = false,
 ): Promise<ReadSource> {
     const type = source.type ?? "";
     const config = source.config ?? {};
     const reader = DataSource.get(type, config);
     if (reader === null) {
         throw unknownFormat(type);
+    }
+
+    if (timeline) {
+        TIMELINE_READERS.add(reader);
     }
 
     const named = source.name ?? type;

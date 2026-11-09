@@ -32,7 +32,8 @@
  */
 
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripVTControlCharacters } from "node:util";
@@ -57,6 +58,14 @@ export const MAX_RETRY_FILES = 5; // more failing files than this is a breakage,
 const GPU_FAMILY = /^(webgpu-graph-algorithms|graphty-element-fidelity)/;
 const FILE = "tools/test-quarantine.json";
 const RETRY_MARK = "test-quarantine: retrying";
+/** The environment variable holding the time, in ms since the epoch, a run must be stopped by. */
+export const DEADLINE_ENV = "GRAPHTY_TEST_DEADLINE";
+/** A run stopped at its deadline exits with GNU timeout's code, which outcomeOf() reads as not the tests' verdict. */
+export const HANG_CODE = 124;
+/** How long a command's pipes may stay open after it exited; what it wrote is read in far less. */
+const PIPE_DRAIN_MS = 5000;
+/** How long a run stopped at its deadline gets to end, and write what it can, before the KILL. */
+const KILL_GRACE_MS = 10_000;
 
 /**
  * Whether the quarantine is switched on: on unless GRAPHTY_TEST_QUARANTINE=0.
@@ -195,15 +204,100 @@ const ESCAPED_QUOTE = String.raw`'\''`;
 export const shQuote = (s) => `'${s.replaceAll("'", ESCAPED_QUOTE)}'`;
 
 /**
- * Runs a shell command, its output passed through and kept.
+ * What is still running, from the record of tools/running-tests.mjs.
+ * @param file the record
+ * @returns the tests that started and did not end, and the files that did not end with no such test; a browser page
+ *   blocked before it sent its test's start shows as its file
+ */
+export function stillRunning(file) {
+    const open = new Set();
+    const lines = existsSync(file) ? readFileSync(file, "utf8").split("\n") : [];
+    for (const line of lines) {
+        if (line.startsWith("+ ")) open.add(line.slice(2));
+        else open.delete(line.slice(2));
+    }
+    const ids = [...open];
+    return ids.filter((id) => !ids.some((other) => other.startsWith(`${id} > `)));
+}
+
+/** The failure name of a hung file no test of which had started, or of a run no test of which is named. */
+export const HANG_NAME = "(still running at the job's deadline)";
+
+/**
+ * The failures a run stopped at its deadline leaves: each test or file still running, so the results store, and the
+ * bisect of a red full run that reads it (tools/full-run.mjs bisectPlan()), name what hung (#6374). With none
+ * named (no test running, or the run never started) the package stands for the whole shard: the bisect runs a
+ * target whose file is not under the shard's directory as the whole shard (tools/test-select.mjs selectedCommand()).
+ * @param names stillRunning()'s ids, relative to the package
+ * @param pkg the shard's package directory, or undefined
+ * @returns `[{ file, name, text }]`, repo-relative files as parseJunit() names them
+ */
+export function hangFailures(names, pkg) {
+    if (!pkg) return [];
+    const text = `[HANG] the run reached the job's deadline and was stopped`;
+    if (names.length === 0) return [{ file: pkg, name: HANG_NAME, text }];
+    return names.map((id) => {
+        const at = id.indexOf(" > ");
+        return at === -1
+            ? { file: `${pkg}/${id}`, name: HANG_NAME, text }
+            : { file: `${pkg}/${id.slice(0, at)}`, name: id.slice(at + 3), text };
+    });
+}
+
+/**
+ * Reports a run stopped at its deadline. It is an annotation as well as a log line because GitHub keeps no log of
+ * a job it cancels, which is why this stops the run before the job's limit does.
+ * @param running the record of tools/running-tests.mjs
+ * @param chunks the run's output so far
+ * @returns the ids still running
+ */
+function reportHang(running, chunks) {
+    const names = stillRunning(running);
+    const output = stripVTControlCharacters(Buffer.concat(chunks).toString("utf8")).trim().split("\n");
+    const what =
+        names.length > 0 ? `still running: ${names.join("; ")}` : `no test running; last output: ${output.at(-1)}`;
+    console.log(`::error::[HANG] the run reached the job's deadline and was stopped; ${what}`);
+    return names;
+}
+
+/**
+ * Signals a detached command's process group, which may be gone.
+ * @param child the command
+ * @param signal the signal
+ */
+function signalGroup(child, signal) {
+    try {
+        process.kill(-child.pid, signal);
+    } catch {
+        // the group has already ended
+    }
+}
+
+/**
+ * Runs a shell command, its output passed through and kept. It ends when the command has exited and its output is
+ * read; a process the command left behind can hold the pipes open for ever, so that wait is PIPE_DRAIN_MS at most.
+ * With DEADLINE_ENV set (run-group.mjs, in CI's test job) the command is stopped at that time and exits HANG_CODE,
+ * with what was running named (and returned as `hung`); past that time it does not start (`hung` is empty).
  * @param command the command
  * @param env its environment
  * @param cwd its directory
- * @returns `{ code, text }`
+ * @returns `{ code, text, hung }`: `hung` the ids still running when it was stopped, undefined when it was not
  */
 function sh(command, env, cwd) {
+    const deadline = Number(env[DEADLINE_ENV] ?? 0);
+    if (deadline && Date.now() >= deadline) {
+        console.log(`::error::[HANG] not run, the job's deadline has passed: ${command}`);
+        return Promise.resolve({ code: HANG_CODE, text: "", hung: [] });
+    }
+    const running = deadline ? join(tmpdir(), `running-tests-${process.pid}-${Date.now()}.log`) : null;
     return new Promise((resolve) => {
-        const child = spawn("sh", ["-c", command], { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+        const child = spawn("sh", ["-c", command], {
+            cwd,
+            env: running ? { ...env, GRAPHTY_RUNNING_TESTS: running } : env,
+            stdio: ["ignore", "pipe", "pipe"],
+            // its own process group, so one signal reaches what it started; never locally, where Ctrl-C must reach it
+            detached: Boolean(deadline),
+        });
         const chunks = [];
         for (const s of [child.stdout, child.stderr]) {
             s.on("data", (d) => {
@@ -211,9 +305,40 @@ function sh(command, env, cwd) {
                 (s === child.stdout ? process.stdout : process.stderr).write(d);
             });
         }
-        child.on("close", (code, signal) =>
-            resolve({ code: code ?? (signal ? 128 : 1), text: Buffer.concat(chunks).toString("utf8") }),
-        );
+        const timers = [];
+        let hung = false;
+        let finished = false;
+        const finish = (code, signal) => {
+            if (finished) return;
+            finished = true;
+            timers.forEach(clearTimeout);
+            child.stdout.destroy();
+            child.stderr.destroy();
+            const names = hung ? reportHang(running, chunks) : undefined;
+            if (running) rmSync(running, { force: true });
+            const own = code ?? (signal ? 128 : 1);
+            resolve({ code: hung ? HANG_CODE : own, text: Buffer.concat(chunks).toString("utf8"), hung: names });
+        };
+        child.on("close", finish);
+        child.on("exit", (code, signal) => {
+            const leftBehind = () => {
+                console.log("test-quarantine: the command exited, but a process it started still holds its output");
+                finish(code, signal);
+            };
+            timers.push(setTimeout(leftBehind, PIPE_DRAIN_MS));
+        });
+        if (!deadline) return;
+        const stop = () => {
+            hung = true;
+            // the report waits for the run to stop: vitest gets a live page's last test start only as it shuts down
+            signalGroup(child, "SIGTERM");
+            const kill = () => {
+                signalGroup(child, "SIGKILL");
+                finish();
+            };
+            timers.push(setTimeout(kill, KILL_GRACE_MS));
+        };
+        timers.push(setTimeout(stop, deadline - Date.now()));
     });
 }
 
@@ -282,6 +407,7 @@ export async function runShard(
             SHARDS.find((s) => s.shard === shardName) ?? SHARDS.find((s) => familyOf(s.shard) === familyOf(shardName));
         const shard = shardOfRun(root, listed, command);
         reports.pkg = shard?.package;
+        if (r1.hung) result.hung = hangFailures(r1.hung, shard?.package);
         const first = newReports(reports, "");
         result.ran = [...(first?.files ?? [])];
         result.failed = brief(first?.failures ?? []);

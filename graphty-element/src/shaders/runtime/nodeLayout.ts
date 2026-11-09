@@ -33,7 +33,7 @@ export const STATE_NODES_PER_ROW = 128;
 export const STATE_TEXELS = 2;
 
 /** The most parameters a shader binds per element: the slots of one `vec4`. */
-export const VARYING_SLOTS = 4;
+const VARYING_SLOTS = 4;
 
 /**
  * Which slot of the varying `vec4` each parameter takes: its index among the `varies` ones that

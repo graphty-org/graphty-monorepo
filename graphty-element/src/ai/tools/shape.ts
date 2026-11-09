@@ -14,8 +14,8 @@ const MAX_FIELDS = 12;
 const MAX_TEXT = 200;
 
 /** The default and the largest page. */
-export const DEFAULT_LIMIT = 20;
-export const MAX_LIMIT = 50;
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 50;
 
 /**
  * A primitive as plain JSON: strings cut, numbers rounded, a non-finite number or a bigint as text.
@@ -116,7 +116,7 @@ export function compactRecord(record: Readonly<Record<string, unknown>>, fields?
  * @param revision - The session's revision.
  * @returns The cursor.
  */
-export function cursorOf(offset: number, revision: string): string {
+function cursorOf(offset: number, revision: string): string {
     return `${String(offset)}@${revision}`;
 }
 

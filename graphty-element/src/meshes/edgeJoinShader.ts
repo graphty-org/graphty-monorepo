@@ -38,16 +38,35 @@
  * vertex shader folds a fade by its length on screen into the coverage every fragment already
  * multiplies its alpha by. `EDGE_OPAQUE` (line.blending false) writes every fragment at alpha 1.
  *
+ * FADING BY AGE (`EDGE_AGED`, the timeline's `ageFade`). One more instanced float per piece, in a
+ * buffer of its own: its edge's start normalized over the data's extent. A uniform carries the
+ * window and the opacity at its start, so a step writes the uniform and no slot. It folds into the
+ * same coverage, since a widened batch already uses all 15 varying rows.
+ *
  * THE EDGE-SURFACE HOOK (`EDGE_SHADED`). With it the fragment's color is not the uniform color but
  * `graphty_edgeShade(t, side, lengthPx, widthPx, coverage)`, declared here and defined by the
  * shader runtime after this text (`src/shaders/runtime/edgePrograms.ts`), which fills `EdgeInput`
  * and calls the shader's body. Width, taper, corners and the arrowheads (drawn by their own
  * batches) are unchanged: a surface replaces only the color of the pixels the line already covers.
  *
+ * HIDING BY THE VISIBILITY MASK (`edgeHidden`). One more instanced float per piece, in a buffer of
+ * its own: 1 while the piece's edge is hidden, so a time window that hides or shows tens of
+ * thousands of edges writes and uploads one float each instead of zeroing and restoring twenty
+ * (issue #6025). A pulled line has no such attribute: its rows say whether it is drawn.
+ *
+ * COLOR AND OPACITY PER PIECE (`EDGE_SLOT_COLOR`, `edgeColor`). A plain batch -- not widened, not
+ * pulled -- reads its color and opacity from one more instanced vec4 per piece instead of from the
+ * `color` and `opacity` uniforms, so edges that differ only in color share one batch and a restyle
+ * between two such looks (a time window's Ghost row) writes four floats in place rather than moving
+ * the edge to another batch (issue #6026). A widened batch has no varying row left for it and keeps
+ * the uniforms.
+ *
  * DASHES FOLLOW THE WHOLE EDGE. A fragment's distance is measured along its own piece from the
  * edge's start; in the overlap on the inside of a bend it is drawn when either piece's dash covers
  * it, which is what dashing the centre line and then stroking each dash would draw.
  */
+
+import { PULLED_CURVE_GLSL } from "./pulledCurve";
 
 /** The longest miter drawn, as a multiple of half the line's width (SVG's and Canvas's limit). */
 export const EDGE_MITER_LIMIT = 4;
@@ -102,6 +121,17 @@ export const JOIN_TEMPLATE_INDICES: readonly number[] = [
 export const JOIN_TEMPLATE_VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
 
 /**
+ * The lean program's template (`EDGE_PULLED_LEAN`): the join template's rectangle alone, its
+ * vertices 1, 2, 7 and 6, drawn as the same two triangles. A straight piece between node centres
+ * has no neighbour, so every join vertex sits on a side vertex and the join's eight triangles have
+ * no area: the rectangle is all such a piece draws.
+ */
+export const LEAN_TEMPLATE_OF: readonly number[] = [1, 2, 7, 6];
+
+/** The lean rectangle's two triangles, (1, 2, 7) and (1, 7, 6) of the join template. */
+export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
+
+/**
  * PULLED EDGES (`EDGE_PULLED`): a piece's six points are not attributes but read at the top of the
  * vertex stage. `edgeRows` holds two row numbers per piece (a texel holds two pieces), and
  * `rowPosition` (`render/RowTable.ts`) holds each row's place and its w; so moving a node uploads
@@ -111,11 +141,31 @@ export const JOIN_TEMPLATE_VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
  * own ends and its run is zero. A free piece (rows below 0) and a piece with a row of w = 0
  * (hidden or not placed) get every point at the origin, as a hidden slot does, and draw nothing.
  * Every line after this is the plain line's, so the two draw the same pixels.
+ *
+ * A piece takes two texels: (source row, target row, width, opacity), then (red, green, blue). So
+ * its look is its own, not its material's: `pieceWidth` stands in for the `width` uniform, and the
+ * flat varying `vLook` for the `color` and `opacity` uniforms, with the same values a material
+ * would hold.
+ *
+ * The LEAN program (`EDGE_PULLED_LEAN`, straight pieces only) draws each piece from
+ * `LEAN_TEMPLATE_OF`'s four vertices and six indices, `piece * 4 + k`, instead of the join template's
+ * 14 and 30: the same rectangle and the same vertex shader after this, at fewer vertex
+ * invocations a piece. Its fragment stage skips the ownership test and the pattern (a lean piece
+ * has no neighbour and is solid), so it never discards: the rasterizer's coverage is its shape.
+ *
+ * A CURVE's piece (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its point along the
+ * edge's cut path, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Its six
+ * points are points of that path, picked as `EdgeLineBatch.writeFlat` picks a run's neighbours (they
+ * stop at the run's ends), and its run is zero: a solid line that does not taper never reads it (its
+ * `perTotal` is 0 and the pattern branch is off). A piece at or past the span's last point draws
+ * nothing, so an edge holds as many pieces as its longest cut.
  */
 const PULLED_EDGE_GLSL = `
 #ifdef EDGE_PULLED
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D edgeRows;
+float pieceWidth;
+flat varying vec4 vLook;
 const vec3 JOIN_TEMPLATE[${String(JOIN_TEMPLATE_VERTICES)}] = vec3[${String(JOIN_TEMPLATE_VERTICES)}](${Array.from(
     { length: JOIN_TEMPLATE_VERTICES },
     (_, i) =>
@@ -128,17 +178,70 @@ vec4 pulledRow(int r) {
     return texelFetch(rowPosition, ivec2(r & 1023, r >> 10), 0);
 }
 
+#ifdef EDGE_PULLED_LEAN
+const int PIECE_VERTICES = ${String(LEAN_TEMPLATE_OF.length)};
+const int LEAN_OF[PIECE_VERTICES] = int[PIECE_VERTICES](${LEAN_TEMPLATE_OF.join(", ")});
+#else
+const int PIECE_VERTICES = ${String(JOIN_TEMPLATE_VERTICES)};
+#endif
+
+#ifdef EDGE_PULLED_CURVE
+${PULLED_CURVE_GLSL}
+
+const int PIECE_TEXELS = 4;
+#else
+const int PIECE_TEXELS = 2;
+#endif
+
 void pullEdge() {
-    int piece = gl_VertexID / ${String(JOIN_TEMPLATE_VERTICES)};
-    position = JOIN_TEMPLATE[gl_VertexID - piece * ${String(JOIN_TEMPLATE_VERTICES)}];
-    int texel = piece >> 1;
-    vec4 pair = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
-    vec2 rows = (piece & 1) == 0 ? pair.xy : pair.zw;
+    int piece = gl_VertexID / PIECE_VERTICES;
+#ifdef EDGE_PULLED_LEAN
+    position = JOIN_TEMPLATE[LEAN_OF[gl_VertexID - piece * PIECE_VERTICES]];
+#else
+    position = JOIN_TEMPLATE[gl_VertexID - piece * PIECE_VERTICES];
+#endif
+    int texel = piece * PIECE_TEXELS;
+    vec4 head = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
+    vec4 tint = texelFetch(edgeRows, ivec2((texel + 1) & 1023, (texel + 1) >> 10), 0);
+    vec2 rows = head.xy;
+    pieceWidth = head.z;
+    vLook = vec4(tint.rgb, head.w);
     pA = vec3(0.0);
     pB = vec3(0.0);
     if (rows.x >= 0.0 && rows.y >= 0.0) {
         vec4 a = pulledRow(int(rows.x + 0.5));
         vec4 b = pulledRow(int(rows.y + 0.5));
+#ifdef EDGE_PULLED_CURVE
+        vec4 span = texelFetch(edgeRows, ivec2((texel + 2) & 1023, (texel + 2) >> 10), 0);
+        vec4 end = texelFetch(edgeRows, ivec2((texel + 3) & 1023, (texel + 3) >> 10), 0);
+        int j = int(tint.a + 0.5);
+        int pieces = int(span.z + 0.5);
+        if (a.w * b.w != 0.0 && j < pieces) {
+            vec4 counts = vec4(span.xyz, end.w);
+            vec4 cut = vec4(span.w, end.xyz);
+            int prev = j == 0 ? 0 : j - 1;
+            int prev2 = j < 2 ? prev : j - 2;
+            int next = j == pieces - 1 ? j + 1 : j + 2;
+            int next2 = j >= pieces - 2 ? next : j + 3;
+            pA = pulledCurvePoint(a.xyz, b.xyz, counts, cut, j);
+            pB = pulledCurvePoint(a.xyz, b.xyz, counts, cut, j + 1);
+            pPrev = pulledCurvePoint(a.xyz, b.xyz, counts, cut, prev);
+            pPrev2 = pulledCurvePoint(a.xyz, b.xyz, counts, cut, prev2);
+            pNext = pulledCurvePoint(a.xyz, b.xyz, counts, cut, next);
+            pNext2 = pulledCurvePoint(a.xyz, b.xyz, counts, cut, next2);
+        } else {
+            pPrev = pA;
+            pPrev2 = pA;
+            pNext = pB;
+            pNext2 = pB;
+        }
+    } else {
+        pPrev = pA;
+        pPrev2 = pA;
+        pNext = pB;
+        pNext2 = pB;
+    }
+#else
         if (a.w * b.w != 0.0) {
             pA = a.xyz;
             pB = b.xyz;
@@ -148,6 +251,7 @@ void pullEdge() {
     pPrev2 = pA;
     pNext = pB;
     pNext2 = pB;
+#endif
     run = vec2(0.0);
 }
 #endif
@@ -178,6 +282,15 @@ attribute vec3 pB;
 attribute vec3 pNext;
 attribute vec3 pNext2;
 attribute vec2 run;
+// 1 while the visibility mask hides the piece's edge, which then draws nothing; 0 (and an unbound
+// attribute reads 0) draws it. One float a piece, so hiding or showing an edge writes no point.
+attribute float edgeHidden;
+#endif
+
+#ifdef EDGE_SLOT_COLOR
+// The piece's color and, in alpha, its opacity.
+attribute vec4 edgeColor;
+varying vec4 vEdgeColor;
 #endif
 
 uniform mat4 world;
@@ -222,6 +335,13 @@ varying float vEdgeTotal;
 uniform vec3 edgeFade;
 #endif
 
+#ifdef EDGE_AGED
+// The piece's edge's start, and the window's start and end and the opacity at its start, all
+// normalized over the data's extent (a float cannot hold an epoch).
+attribute float edgeAge;
+uniform vec3 edgeAgeWindow;
+#endif
+
 const float EPS = 1e-4;
 ${PULLED_EDGE_GLSL}
 vec4 clipOf(vec3 p) {
@@ -239,12 +359,17 @@ vec2 perpOf(vec2 v) {
 // Half the line's width in pixels at a point, before a sub-pixel line is widened: never under
 // half of minWidth, the fewest pixels wide the line is drawn (line.minScreenWidth).
 float halfWidthAt(vec4 c) {
+#ifdef EDGE_PULLED
+    float lineWidth = pieceWidth;
+#else
+    float lineWidth = width;
+#endif
 #ifdef WORLD_WIDTH
-    float hw = width * length(world[1].xyz) * projection[1][1] * resolution.y * 0.25 / c.w;
+    float hw = lineWidth * length(world[1].xyz) * projection[1][1] * resolution.y * 0.25 / c.w;
 #else
     // The 3D line's own scale: an offset of width / 2 over the resolution in clip space, which the
     // perspective divide tapers with distance.
-    float hw = width * 0.25 / c.w;
+    float hw = lineWidth * 0.25 / c.w;
 #endif
     return max(hw, minWidth * 0.5);
 }
@@ -325,6 +450,15 @@ vec2 sideMeet(vec2 q0, float w0, vec2 p, float w, vec2 q1, float w1, vec2 dIn, v
 void main() {
 #ifdef EDGE_PULLED
     pullEdge();
+#else
+    if (edgeHidden > 0.5) {
+        // Every vertex of the piece at one point outside the clip volume: no triangle, no fragment.
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
+#endif
+#ifdef EDGE_SLOT_COLOR
+    vEdgeColor = edgeColor;
 #endif
     bool atB = position.x > 0.5;
     float side = position.y;
@@ -506,6 +640,12 @@ void main() {
     float faded = clamp((edgePx - edgeFade.x) / max(edgeFade.y - edgeFade.x, EPS), 0.0, 1.0);
     vWidth.z *= mix(1.0, edgeFade.z, faded);
 #endif
+#ifdef EDGE_AGED
+    // Age: 0 at the window's end, 1 at its start, folded into the coverage as the fade above is.
+    float ageSpan = edgeAgeWindow.y - edgeAgeWindow.x;
+    float age = ageSpan > 0.0 ? clamp((edgeAgeWindow.y - edgeAge) / ageSpan, 0.0, 1.0) : 0.0;
+    vWidth.z *= mix(1.0, edgeAgeWindow.z, age);
+#endif
 }
 `;
 
@@ -524,6 +664,10 @@ uniform float miterLimit;
 // The viewport's size in the pixels being drawn (the canvas's, or a capture's); 0 when unknown.
 uniform vec2 fragmentSize;
 
+#ifdef EDGE_PULLED
+// The piece's own color and opacity (PULLED_EDGE_GLSL).
+flat varying vec4 vLook;
+#endif
 varying vec4 vScreen;
 varying vec4 vOwn;
 varying vec4 vOwn2;
@@ -543,6 +687,10 @@ varying vec4 vEdgeMeta;
 varying vec4 vEdgeTimes;
 varying float vEdgeTotal;
 uniform float edgeReach;
+#endif
+
+#ifdef EDGE_SLOT_COLOR
+varying vec4 vEdgeColor;
 #endif
 
 #ifdef EDGE_SHADED
@@ -627,6 +775,9 @@ void main() {
     // drawn by whichever piece reaches it. Each pair of pieces is compared from the same point by the same arithmetic in
     // both, so exactly one of them takes the pixel.
     // ponytail: a piece three away (two short pieces in a row) is not read, and can still overlap.
+#ifndef EDGE_PULLED_LEAN
+    // The lean program's straight solid piece has no neighbour and no pattern: the rasterizer's
+    // coverage of its rectangle is its whole shape, with no ownership test and no discard.
     float lenOwn = vOwn2.x;
     vec2 uA = x - vOwn.xy;
     vec2 uB = x - vEndB.xy;
@@ -721,6 +872,7 @@ void main() {
         }
     }
 
+#endif
 #ifdef EDGE_SHADED
     // Where this pixel is on the whole edge: t along it from its source, side across the line's
     // own width (beyond +-1 on an effect's wider ribbon), and the edge's length on screen.
@@ -731,8 +883,14 @@ void main() {
     float sideS = clamp(dot(uS, vec2(-vOwn.w, vOwn.z)) / hwLine, -edgeReach, edgeReach);
     float pxPerWorld = vOwn2.y > 0.0 ? 1.0 / vOwn2.y : 0.0;
     gl_FragColor = graphty_edgeShade(tS, sideS, vEdgeTotal * pxPerWorld, 2.0 * hwLine, vWidth.z);
+#elif defined(EDGE_SLOT_COLOR)
+    gl_FragColor = vec4(vEdgeColor.rgb, vEdgeColor.a * vWidth.z);
+#else
+#ifdef EDGE_PULLED
+    gl_FragColor = vec4(vLook.rgb, vLook.a * vWidth.z);
 #else
     gl_FragColor = vec4(color, opacity * vWidth.z);
+#endif
 #endif
 #ifdef EDGE_OPAQUE
     gl_FragColor.a = 1.0;

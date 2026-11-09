@@ -10,12 +10,18 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 import type { FileLayout } from "@graphty/graph-io";
-import { type ExtractedStyles, readAnnotations, readImageAnnotations } from "@graphty/graph-io/styles";
+import {
+    type ExtractedStyles,
+    type GraphAnnotation,
+    readAnnotations,
+    readImageAnnotations,
+} from "@graphty/graph-io/styles";
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
 import type { LoadReport } from "../../../data/report";
 import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
+import type { TimeField } from "../../time/TimeApi";
 import type { CompiledLayer } from "../Layer";
 import { quotePath } from "../predicate";
 import { ANNOTATIONS_VALUE, type DrawnAnnotations } from "./annotations";
@@ -27,7 +33,7 @@ import { asFileStyleStore, FILE_STYLES_VALUE, type FileStyleColumnValues, fileSt
 import { type FileStyleNote, type FileStyleOptions, translateFileStyles, type Translation } from "./translate";
 
 /** The template a file's layers are filed under: `file:<importId>`. */
-export const FILE_TEMPLATE_PREFIX = "file:";
+const FILE_TEMPLATE_PREFIX = "file:";
 
 /** A file's styles, as the data source that read the file gives them. */
 export interface FileStylesRead {
@@ -44,6 +50,13 @@ export interface FileStylesRead {
      * positions are in another known unit (Graphviz input inches: 72); absent when they share it.
      */
     readonly positionPxPerUnit?: number;
+    /**
+     * What the format draws beside the graph that its importer reads (`importer.annotations()`: DOT's root graph
+     * label), in the same convention as the annotations a file keeps in a column; absent when it draws none.
+     */
+    readonly annotations?: readonly GraphAnnotation[];
+    /** Whether the file stored a usable position for any node; absent counts as none. */
+    readonly positionsStored?: boolean;
     /**
      * Set when the stored positions have no fixed length and the program that draws the file fits
      * them into its canvas, `padding` px in from each side, drawing label sizes in the canvas's px
@@ -80,13 +93,15 @@ export const HELD_READERS = new WeakMap<
         readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
         /** The layout the file asks for, as the source read it. */
         readonly declaredFileLayout?: FileLayout | null;
+        /** The time field the file declares, as the source read it. */
+        readonly declaredTime?: TimeField | null;
     }
 >();
 
 /** What a load leaves for the step that applies its styles. */
 export interface ImportOutcome {
     /** The data source the records came from, when it can say what styles it read. */
-    readonly reader: Partial<FileStyleSource> | null;
+    readonly reader: (Partial<FileStyleSource> & { readonly declaredTime?: TimeField | null }) | null;
     /** The id each edge record of the load became, in record order; null for one that made no edge. */
     readonly edgeIds: readonly (EdgeId | null)[];
     /** The report the load sealed. */
@@ -99,7 +114,10 @@ export interface ImportOutcome {
     heldNode(id: NodeId): NodeId | undefined;
 }
 
-/** What a load says about the styles it applied. */
+/**
+ * What a load says about the styles it applied.
+ * @experimental file-styles
+ */
 export interface LoadStyleReport {
     /** The layers the file's styles made, bottom first. */
     readonly layers: readonly LayerId[];
@@ -124,12 +142,27 @@ function choiceOf(command: DataImportCommand): {
     readonly options: FileStyleOptions;
 } {
     const config = command.source.config ?? {};
-    const styles = command.styles ?? (config.styles === "file" ? "file" : "none");
+    const styles = asksFileStyles(command) ? "file" : "none";
     const fromConfig =
         typeof config.styleOptions === "object" && config.styleOptions !== null
             ? (config.styleOptions as FileStyleOptions)
             : {};
     return { styles, options: command.styleOptions ?? fromConfig };
+}
+
+/**
+ * Whether an import asks to draw the file's styles, by its own `styles` or its source's.
+ * @param command - The import, or its parts.
+ * @param command.styles - Its own choice.
+ * @param command.source - Its source, whose options may carry the choice.
+ * @param command.source.config - The source's options.
+ * @returns True when it draws them.
+ */
+export function asksFileStyles(command: {
+    readonly styles?: "file" | "none";
+    readonly source: { readonly config?: Readonly<Record<string, unknown>> };
+}): boolean {
+    return (command.styles ?? (command.source.config?.styles === "file" ? "file" : "none")) === "file";
 }
 
 /**
@@ -308,6 +341,7 @@ async function applyRead(
         base: baseValues(ctx.state.styles),
         dataPath: dataPaths(read.path),
         labelPxPerUnit: pxPerUnit,
+        positionsStored: read.positionsStored === true,
     });
     const notes = [...translation.notes];
 
@@ -368,7 +402,11 @@ async function applyRead(
         translation.sceneScale === null ? keptScale : translation.sceneScale * (read.positionPxPerUnit ?? 1);
     // The file's annotations, drawn at the scale of its stored positions so they stay beside the
     // nodes they annotate. ponytail: a merging load keeps the graph's earlier annotations only.
-    const annotations = [...readAnnotations(read.snapshot).annotations, ...readImageAnnotations(read.snapshot)];
+    const annotations = [
+        ...readAnnotations(read.snapshot).annotations,
+        ...readImageAnnotations(read.snapshot),
+        ...(read.annotations ?? []),
+    ];
     if (replacing && annotations.length > 0) {
         const value: DrawnAnnotations = Object.freeze({ scale: sceneScale ?? 1, annotations });
         ctx.services.data?.values?.({ [ANNOTATIONS_VALUE]: value }, ctx.draft);
@@ -388,7 +426,7 @@ async function applyRead(
  * @returns The px per unit, or undefined when the positions keep their own length or there is no
  *     canvas to fit them to.
  */
-export function labelPxPerUnit(
+function labelPxPerUnit(
     fit: FileStylesRead["positionFit"],
     viewport: { readonly width: number; readonly height: number } | null,
 ): number | undefined {

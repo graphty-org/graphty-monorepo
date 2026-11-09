@@ -64,6 +64,7 @@ describe("row scan at a million rows", () => {
             const node = {
                 index: 0,
                 drawnPickMesh: source,
+                drawnAnchor: source,
                 drawnSourceMesh: source,
                 drawnScaling: Vector3.One(),
                 drawnByRowScan: true,

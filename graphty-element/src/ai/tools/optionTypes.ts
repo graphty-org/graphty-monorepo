@@ -7,7 +7,7 @@
 import { OPTION_TYPES, type OptionDescriptor, type OptionType } from "../../catalog/types";
 
 /** The option types the assistant offers. */
-export const OFFERED_OPTION_TYPES: ReadonlySet<OptionType> = new Set(OPTION_TYPES.filter((type) => type !== "unknown"));
+const OFFERED_OPTION_TYPES: ReadonlySet<OptionType> = new Set(OPTION_TYPES.filter((type) => type !== "unknown"));
 
 /**
  * Whether the assistant can offer an option.

@@ -1460,6 +1460,21 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether showing or hiding this node enables or disables a mesh -- its own, a label, or an
+     * overlay -- rather than only writing its row's hidden flag in the row table a batch draws
+     * from. A scene whose list of what is drawn is frozen draws the meshes it listed, so only a
+     * change of this kind needs the list read again. A new overlay changes the scene's mesh count,
+     * which the freeze reads by itself.
+     * @returns True when {@link Node.setRenderState} reaches a mesh's enabled state.
+     * @internal
+     */
+    togglesOwnMeshes(): boolean {
+        return (
+            this.batchSource === null || this.halo !== null || this.contextPoint !== null || this.labels().length > 0
+        );
+    }
+
+    /**
      * Whether a frame's walk still has to visit this node: it is drawn by its own mesh, or carries
      * an overlay placed from its position, or its row is held off its layout place (a drag writes
      * the mesh first), which only its own `update` puts back. A batched row is drawn from the row

@@ -388,7 +388,7 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         await userEvent.keyboard("{ArrowDown}");
         assert.deepEqual(idsNow(), [second, first], "the arrows leave the order");
         // Ctrl+[ (Move down, as the card's menu shows it) moves it back down, focus kept on its grip.
-        await userEvent.keyboard("{Control>}[{/Control}");
+        await userEvent.keyboard("{Control>}[[{/Control}");
         await waitFor(() => {
             assert.deepEqual(idsNow(), [first, second], "moved down by Ctrl+[");
         });

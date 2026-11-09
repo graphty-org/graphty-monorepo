@@ -210,15 +210,31 @@ describe("the date condition card", () => {
             await siteFeatures(features);
             await openWithDates("data");
             await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            // The selection workspace opens on an empty card: its Value field lists the attributes.
+            const list = await waitFor(() => {
+                const found =
+                    screen.queryByRole("option", { name: /^installed(,|$)/ }) ??
+                    screen.queryByRole("button", { name: "Value" });
+                assert.isNotNull(found, "the attribute list, or the card's Value field");
+                return found;
+            });
+            if (list?.getAttribute("role") !== "option") {
+                await userEvent.click(list ?? document.body);
+            }
             await userEvent.click(await screen.findByRole("option", { name: /^installed(,|$)/ }));
             const card = await waitFor(() => {
                 const found = document.querySelector<HTMLElement>("[data-card-body]");
                 assert.isNotNull(found);
                 return found;
             });
-            // Eight nodes, six with an install date.
-            await within(card ?? document.body).findByText("Not measured: 2");
-            assert.notInclude(card?.textContent ?? "", "left out");
+            // Eight nodes, six with an install date: the card says how many it leaves out, as a chip.
+            const said = await waitFor(() => {
+                const text = card?.textContent ?? "";
+                assert.match(text, /Not measured|left out/, "the card says the two without a date");
+                return text;
+            });
+            assert.notInclude(said, "left out", "no sentence");
+            assert.include(said, "Not measured: 2");
             await userEvent.click(
                 within(card ?? document.body).getByRole("combobox", { name: "installed before, a date or a year" }),
             );

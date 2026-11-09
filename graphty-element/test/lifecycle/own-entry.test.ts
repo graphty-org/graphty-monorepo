@@ -60,6 +60,106 @@ function owned(entries: readonly Listed[]): string[] {
 }
 
 describe.each(ENGINES)("%s", (engine) => {
+    /**
+     * A browser and its page open on a fixture, ready to edit.
+     * @param key - The autosave key.
+     * @param delay - The fixture's debounce; a large one leaves every write to the lifecycle events.
+     * @returns The browser context and the page.
+     */
+    const opened = async (key: string, delay?: number): Promise<{ context: BrowserContext; page: Page }> => {
+        const dir = profile(engine);
+        const context = await launch(engine, dir);
+        open.push({ context, dir });
+        const page = await context.newPage();
+        await page.goto(fx.url({ key, tab: `${key}.a`, list: 1, ...(delay === undefined ? {} : { delay }) }));
+        await page.waitForFunction("window.fixture !== undefined");
+        await page.evaluate("fixture.ready()");
+        return { context, page };
+    };
+
+    /**
+     * Makes an edit and waits until it is committed.
+     * @param page - The page.
+     * @param key - The autosave key.
+     * @returns The entry written.
+     */
+    const editSaved = async (page: Page, key: string): Promise<string> => {
+        const revision = await page.evaluate<number>("fixture.next()");
+        await fx.waitFor((e) => e.tab === `${key}.a` && e.type === "saved" && (e.revision as number) >= revision);
+        const { entry } = (await page.evaluate<PageCheck>("fixture.check()")).status;
+        assert.isNotNull(entry);
+        return entry;
+    };
+
+    it("names the entry in session storage when it starts, before its first commit", async () => {
+        const key = `own-start-${engine}`;
+        const { page } = await opened(key, 2_147_000_000);
+        await page.evaluate("fixture.next()");
+        const item = await page.evaluate<string | null>(`sessionStorage.getItem("graphty-autosave:own:${key}")`);
+        assert.isNotNull(item, "the tab names its entry as soon as it has one");
+        assert.isNull((await page.evaluate<PageCheck>("fixture.check()")).status.entry, "nothing is committed yet");
+
+        const beforeReload = fx.log.length;
+        await page.reload();
+        const reloaded = await listedAt(`${key}.a`, beforeReload);
+        assert.deepEqual(owned(reloaded.entries), [item], "the reloaded tab owns the entry its final write made");
+    });
+
+    it("waits out the lock of the page it replaces, and gets the entry", async () => {
+        const key = `own-late-${engine}`;
+        const { context, page } = await opened(key);
+        const entry = await editSaved(page, key);
+        const lock = `graphty-autosave:${key}:${entry}`;
+
+        // Another page queues for the lock, so the reload finds it held after the old page lets go.
+        const other = await context.newPage();
+        await other.goto(`${fx.origin}/blank`);
+        await other.evaluate(
+            `window.heldLock = new Promise((granted) => {
+                navigator.locks.request(${JSON.stringify(lock)}, () => {
+                    granted(true);
+                    return new Promise((release) => { window.releaseLock = release; });
+                });
+            })`,
+        );
+        const queued = async (holder: Page, wanted: number): Promise<void> => {
+            await holder.waitForFunction(
+                `navigator.locks.query().then((q) => (q.pending ?? []).filter((l) => l.name === ${JSON.stringify(lock)}).length >= ${String(wanted)})`,
+            );
+        };
+        await queued(other, 1);
+
+        const beforeReload = fx.log.length;
+        await page.reload();
+        await other.evaluate("window.heldLock");
+        await queued(other, 1);
+        await other.evaluate("window.releaseLock()");
+        const reloaded = await listedAt(`${key}.a`, beforeReload);
+        assert.deepEqual(owned(reloaded.entries), [entry], "the lock passed to the reloaded page");
+    });
+
+    it("gives up on a lock that is never released, and says not own", async () => {
+        const key = `own-held-${engine}`;
+        const { context, page } = await opened(key);
+        const entry = await editSaved(page, key);
+        const lock = `graphty-autosave:${key}:${entry}`;
+        const other = await context.newPage();
+        await other.goto(`${fx.origin}/blank`);
+        await other.evaluate(
+            `window.heldLock = new Promise((granted) => {
+                navigator.locks.request(${JSON.stringify(lock)}, () => {
+                    granted(true);
+                    return new Promise(() => undefined);
+                });
+            })`,
+        );
+        const beforeReload = fx.log.length;
+        await page.reload();
+        await other.evaluate("window.heldLock");
+        const reloaded = await listedAt(`${key}.a`, beforeReload);
+        assert.deepEqual(owned(reloaded.entries), [], "a lock another page keeps is not this tab's");
+    });
+
     it("marks the entry own in the reloaded tab, in exactly one of a tab and its duplicate, and in no unrelated tab", async () => {
         const key = `own-${engine}`;
         const tab = (name: string): string => `${key}.${name}`;

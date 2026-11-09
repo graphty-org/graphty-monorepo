@@ -2758,6 +2758,9 @@ export class UpdateManager implements Manager {
             this.updateRoster(roster);
         }
 
+        // The rows drawn with no Node, which no walk above reaches, move by their rows.
+        transitionsOf(this.layoutManager)?.placeRows();
+
         this.statsManager.nodeUpdate.endMonitoring();
     }
 

@@ -136,7 +136,8 @@ describe("a network load reopened from autosave", () => {
         const { element, session } = openedElement();
         const [{ key }] = session.data.sources();
 
-        await userEvent.click(await screen.findByRole("button", { name: /^WP5483|NDEx/ }));
+        const row = await screen.findByRole("listitem", { name: /NDEx/ });
+        await userEvent.click(row.querySelector(".dp-source-main") ?? row);
         const panel = await screen.findByRole("complementary", { name: "Inspector" });
         await userEvent.click(await within(panel).findByRole("button", { name: "Edit source" }));
         const edit = await screen.findByRole("form", { name: "Network data" });

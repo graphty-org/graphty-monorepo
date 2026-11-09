@@ -318,7 +318,7 @@ describe("editing a network source", () => {
         assert.strictEqual(session.data.statistics().nodeCount, 3);
         assert.strictEqual(session.data.sources()[0].key, key);
 
-        await userEvent.click(await screen.findByRole("button", { name: "Undo" }));
+        await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.strictEqual(session.data.sourceSettings(key)?.config.query, "a,b");
         });

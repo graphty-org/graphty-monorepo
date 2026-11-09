@@ -133,27 +133,28 @@ describe.each(ENGINES)("%s", (engine) => {
 
         // Another page queues for the lock, so the reload finds it held after the old page lets go.
         const other = await context.newPage();
-        await other.goto(`${fx.origin}/blank`);
+        await other.goto(`${fx.origin}/away.html`);
+        // Held until the reloaded page's own request is queued behind it: that event, in the page
+        // holding the lock, is what lets go, so no round trip stands between it and the reader's wait.
         await other.evaluate(
             `window.heldLock = new Promise((granted) => {
                 navigator.locks.request(${JSON.stringify(lock)}, () => {
                     granted(true);
-                    return new Promise((release) => { window.releaseLock = release; });
+                    return new Promise((release) => {
+                        const check = () => navigator.locks.query().then((q) =>
+                            (q.pending ?? []).some((l) => l.name === ${JSON.stringify(lock)}) ? release() : setTimeout(check));
+                        check();
+                    });
                 });
             })`,
         );
-        const queued = async (holder: Page, wanted: number): Promise<void> => {
-            await holder.waitForFunction(
-                `navigator.locks.query().then((q) => (q.pending ?? []).filter((l) => l.name === ${JSON.stringify(lock)}).length >= ${String(wanted)})`,
-            );
-        };
-        await queued(other, 1);
+        await other.waitForFunction(
+            `navigator.locks.query().then((q) => (q.pending ?? []).some((l) => l.name === ${JSON.stringify(lock)}))`,
+        );
 
         const beforeReload = fx.log.length;
         await page.reload();
         await other.evaluate("window.heldLock");
-        await queued(other, 1);
-        await other.evaluate("window.releaseLock()");
         const reloaded = await listedAt(`${key}.a`, beforeReload);
         assert.deepEqual(owned(reloaded.entries), [entry], "the lock passed to the reloaded page");
     });
@@ -164,7 +165,7 @@ describe.each(ENGINES)("%s", (engine) => {
         const entry = await editSaved(page, key);
         const lock = `graphty-autosave:${key}:${entry}`;
         const other = await context.newPage();
-        await other.goto(`${fx.origin}/blank`);
+        await other.goto(`${fx.origin}/away.html`);
         await other.evaluate(
             `window.heldLock = new Promise((granted) => {
                 navigator.locks.request(${JSON.stringify(lock)}, () => {

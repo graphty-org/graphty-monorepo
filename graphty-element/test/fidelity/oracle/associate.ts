@@ -38,6 +38,7 @@ import {
     type PText,
     shapeId,
     strokedBarb,
+    taperedOutline,
     taperPaintedAsFill,
 } from "./primitives";
 
@@ -1337,6 +1338,37 @@ const longestPath = (prims: readonly Prim[]): Prim | undefined => {
         .filter((p) => !p.closed || reach < Math.hypot(bw(p.box), bh(p.box)))
         .sort((a, b) => pathLength(b.points) - pathLength(a.points) || a.index - b.index)[0];
 };
+
+/**
+ * An edge's line drawn as one filled outline with no stroke (Graphviz's style=tapered, `taperedOutline`), as the line
+ * it draws: its axis, as wide as the outline at its widest, in its fill.
+ * @param part - the primitives the markup names one edge, none of them a line
+ * @returns the line and the outline it was read from, or null when none is drawn so
+ */
+function taperedLine(part: readonly Prim[]): { line: Prim; outline: Prim } | null {
+    for (const p of part) {
+        const band = p.kind === "shape" && p.fill !== null && p.stroke === null ? taperedOutline(p.points) : null;
+        if (band !== null && p.fill !== null) {
+            const line: Prim = {
+                ...p,
+                kind: "path",
+                closed: false,
+                points: band.route ?? band.ends,
+                fill: null,
+                stroke: {
+                    color: p.fill.color,
+                    opacity: p.fill.opacity,
+                    width: band.width ?? Number.NaN,
+                    dash: null,
+                    dashClass: band.dashClass,
+                    painted: true,
+                },
+            };
+            return { line, outline: p };
+        }
+    }
+    return null;
+}
 
 // A drawing's point lists are never changed once read, so what is measured along one is kept by the list: matching
 // a shape against every line's ends and middle asks again for each shape (json-vis-siblings: about 400 shapes against
@@ -2655,7 +2687,9 @@ export function associate(
                 const dress = new Set(whole.filter((p) => labelDress(p, whole)));
                 const part = whole.filter((p) => !dress.has(p));
                 const segmented = segmentedLine(part);
-                const line = segmented?.line ?? longestPath(part);
+                // with no line drawn, a line drawn as one filled outline (Graphviz's style=tapered) is the line
+                const tapered = segmented === null && longestPath(part) === undefined ? taperedLine(part) : null;
+                const line = tapered?.line ?? segmented?.line ?? longestPath(part);
                 if (line === undefined) {
                     continue;
                 }
@@ -2663,7 +2697,7 @@ export function associate(
                 const pairId = `${ends[0]}->${ends[1]}`;
                 const k = edgeCount.get(pairId) ?? 0;
                 edgeCount.set(pairId, k + 1);
-                const heads = part.filter((p) => p !== line && p.kind === "shape");
+                const heads = part.filter((p) => p !== line && p !== tapered?.outline && p.kind === "shape");
                 let { points } = line;
                 const endOf = (h: Prim): "source" | "target" => {
                     const c: Pt = [cx(h.box), cy(h.box)];

@@ -110,6 +110,7 @@ export type {
     ShaderOrigin,
     ShaderParamChoice,
     ShaderParamDescriptor,
+    ShaderParamDraft,
     ShaderParams,
     ShaderParamValue,
     ShaderPlace,
@@ -121,13 +122,36 @@ export type {
     ShaderSource,
     ShaderTarget,
     ShaderText,
+    ShaderTextDraft,
+    ShaderTextParts,
     ShaderTextResult,
     ShaderUse,
     ShaderWebGpu,
 } from "./src/catalog/shaders";
-export { shaderAnimates, shaderCovers } from "./src/catalog/shaders";
+export {
+    minSizeApplies,
+    SHADER_CLOCKS,
+    SHADER_MIN_SIZE_RANGE,
+    SHADER_PARAM_TYPES,
+    SHADER_REACH_RANGE,
+    shaderAnimates,
+    shaderCovers,
+    shaderIdForName,
+    shaderParamShape,
+    shaderPlaceUsesReach,
+} from "./src/catalog/shaders";
 export { shaderTemplate, type ShaderTemplatePlace } from "./src/catalog/shaderTemplate";
-export { formatShaderText, parseShaderText, type ShaderTextOptions } from "./src/catalog/shaderText";
+export {
+    changeShaderParamType,
+    formatShaderDraft,
+    formatShaderText,
+    parseShaderText,
+    removeShaderParam,
+    renameShaderParam,
+    shaderParamPlainName,
+    type ShaderTextOptions,
+    splitShaderText,
+} from "./src/catalog/shaderText";
 export { sourceDescriptors } from "./src/catalog/sources";
 export type { ShaderParamAddress } from "./src/catalog/types";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";

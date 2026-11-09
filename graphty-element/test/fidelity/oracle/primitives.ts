@@ -537,6 +537,11 @@ export interface PGroup {
     label: PText | null;
     /** Node ids drawn inside it. */
     members: string[];
+    /**
+     * The oracle's side only: the pieces of a fill drawn in pieces (Graphviz's striped cluster), as `PNode.faces`.
+     * Absent for a fill in one piece.
+     */
+    faces?: { box: PBox; color: string }[];
 }
 
 /** An unassociated primitive, a finding of its own (an annotation, a stray shape). */

@@ -2791,13 +2791,20 @@ export function associate(
                 continue;
             }
             ps.forEach(take);
+            // a fill drawn in pieces under an unfilled outline (Graphviz's striped cluster: a stripe per color, then
+            // the outline over them) is the group's fill, its first color, as a node's is (`piecesFirst`)
+            const first = box.fill === null ? piecesFirst(ps.filter((p) => p !== box && p.kind === "shape")) : null;
+            const pieces = first === null ? [] : ps.filter((p) => p !== box && p.kind === "shape" && p.fill !== null);
             groups.push({
                 id: ps[0]?.hint?.id ?? id,
                 box: box.box,
-                fill: box.fill,
+                fill: first?.fill ?? box.fill,
                 stroke: box.stroke,
                 label: mergeTexts(ps.flatMap((p) => (p.text ? [p.text] : []))),
                 members: [],
+                ...(pieces.length > 0
+                    ? { faces: pieces.map((p) => ({ box: p.box, color: p.fill?.color ?? "#000000" })) }
+                    : {}),
             });
         }
     }

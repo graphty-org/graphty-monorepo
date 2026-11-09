@@ -1,7 +1,7 @@
 /**
  * Network data from the start page on the REAL graphty-element: Open network data pops up the kinds
- * of network, a card opens the app with the form on that kind, and closing the form with nothing
- * loaded goes back to the start page; a refused Load stays in the form; and the Load network data
+ * of network, a card opens the app with the form on that kind, and closing the form stays in the
+ * app, also across a reload; a refused Load stays in the form; and the Load network data
  * section holds one sample of each kind of source, each of which reads first and lands on the graph
  * with the Style panel up. Every step is real input; NDEx answers from its recording.
  */
@@ -185,11 +185,31 @@ describe("network data from the start page", () => {
         });
     }
 
-    it("goes back to the start page when the form closes with nothing loaded", async () => {
-        const { store } = await openForm();
+    it("stays in the app when the form closes with nothing loaded, also after a reload", async () => {
+        sessionStorage.clear();
+        const store = createWorkspaceStore({ autosave: true });
+        const first = render(<Workspace store={store} />);
+        await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
+        const chooser = await screen.findByRole("dialog", { name: "Open network data" });
+        await userEvent.click(within(chooser).getByRole("button", { name: /^NDEx/ }));
+        await screen.findByRole("form", { name: "Network data" });
         await userEvent.click(screen.getByRole("button", { name: "Close Network data" }));
-        await screen.findByRole("button", { name: "Open network data" });
-        assert.isNull(store.get().project);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
+        assert.strictEqual(store.get().project?.name, "Untitled");
+        assert.isNull(screen.queryByRole("button", { name: "Open network data" }));
+
+        // The reload: an empty project wrote nothing, and still comes back.
+        first.unmount();
+        const again = createWorkspaceStore({ autosave: true });
+        render(<Workspace store={again} />);
+        await waitFor(() => {
+            assert.strictEqual(again.get().project?.name, "Untitled");
+        });
+        assert.strictEqual(again.get().place, "data");
+        assert.isNull(screen.queryByRole("button", { name: "Open network data" }));
+        sessionStorage.clear();
     });
 
     it("opens nothing when the chooser is closed with Escape, its X or the backdrop", async () => {
@@ -216,7 +236,7 @@ describe("network data from the start page", () => {
         await closed();
     });
 
-    it("stops the Load and goes back to the start page when the form closes during it", async () => {
+    it("stops the Load and stays in the app when the form closes during it", async () => {
         let signal: AbortSignal | undefined;
         stubNdex((request) => {
             ({ signal } = request);
@@ -236,8 +256,8 @@ describe("network data from the start page", () => {
         await waitFor(() => {
             assert.isTrue(signal?.aborted);
         });
-        await screen.findByRole("button", { name: "Open network data" });
-        assert.isNull(store.get().project);
+        assert.isNotNull(store.get().project);
+        assert.isNull(screen.queryByRole("button", { name: "Open network data" }));
         assert.isNull(store.get().notice);
     });
 

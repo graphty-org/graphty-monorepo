@@ -3,6 +3,7 @@ import "@mantine/core/styles.css";
 
 // Types the <graphty-element> tag for JSX, as any React 19 consumer opts in.
 import type {} from "@graphty/graphty-element/jsx"; // NOSONAR(S7787): the element's documented JSX opt-in, a types-only import
+import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
 import { MantineProvider, Tooltip } from "@mantine/core";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -27,6 +28,22 @@ if (import.meta.env.DEV) {
     void import("eruda").then(({ default: eruda }) => {
         eruda.init();
     });
+}
+
+// A dev server with the remote logger attached: enough facts to tell afterwards what a page did.
+if (import.meta.env.VITE_REMOTE_LOG_URL) {
+    void GraphtyLogger.configure({ enabled: true, level: LogLevel.INFO, modules: ["autosave", "workspace"] }).then(
+        () => {
+            const [navigation] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+            GraphtyLogger.getLogger(["graphty", "workspace"]).info("page start", {
+                origin: location.origin,
+                path: location.pathname,
+                features: new URLSearchParams(location.search).get("features"),
+                userAgent: navigator.userAgent,
+                navigationType: navigation?.type ?? null,
+            });
+        },
+    );
 }
 
 const rootElement = document.getElementById("root");

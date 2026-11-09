@@ -57,7 +57,8 @@ export interface WorkspaceState {
      * project file (#301, tier1-real-app/plan.md section 2 item 10); the Project package moves it.
      * `id` changes when another project opens, which mounts a fresh element.
      */
-    readonly project: { readonly name: string; readonly id: number } | null;
+    /** The open project; `blank` when it opened empty, so a reload brings it back even with nothing written. */
+    readonly project: { readonly name: string; readonly id: number; readonly blank?: true } | null;
     readonly page: Page;
     readonly place: Place;
     /** The open modal, by the id its package gives it ("export", "settings"), or null. */
@@ -223,8 +224,8 @@ export interface WorkspaceState {
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
     readonly serverKind: string | null;
-    /** Whether the server form opened the project it sits in (the start screen's Open network data). */
-    readonly serverFromStart: boolean;
+    /** The network source the server form edits (its key); null when the form adds a new one. */
+    readonly serverEdit: SourceKey | null;
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
@@ -323,7 +324,7 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     exportSource: null,
     serverKind: null,
-    serverFromStart: false,
+    serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,
@@ -493,7 +494,9 @@ export function keepPlace(store: WorkspaceStore): () => void {
     let last = "";
     const write = (): void => {
         const { project, page, place, inspected, tabs, styleSide, dataTab } = store.get();
-        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide, dataTab });
+        const blank = project?.blank === true ? { blank: true } : {};
+        const text =
+            project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide, dataTab, ...blank });
         if (text === last) {
             return;
         }
@@ -516,9 +519,26 @@ export function keepPlace(store: WorkspaceStore): () => void {
  * @returns the place, or an empty change when none was kept.
  */
 export function keptPlace(): Partial<KeptPlace> {
+    const { blank: _blank, ...place } = readKept();
+    return place;
+}
+
+/**
+ * Whether the project this tab kept its place for opened empty.
+ * @returns true for a blank project.
+ */
+export function keptBlank(): boolean {
+    return readKept().blank === true;
+}
+
+/**
+ * What this tab kept before it was reloaded.
+ * @returns the place and whether the project was blank, or an empty object when none was kept.
+ */
+function readKept(): Partial<KeptPlace> & { blank?: boolean } {
     try {
         const text = sessionStorage.getItem(PLACE_ITEM);
-        return text === null ? {} : (JSON.parse(text) as Partial<KeptPlace>);
+        return text === null ? {} : (JSON.parse(text) as Partial<KeptPlace> & { blank?: boolean });
     } catch {
         return {};
     }

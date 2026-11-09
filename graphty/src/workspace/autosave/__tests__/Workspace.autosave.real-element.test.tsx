@@ -163,12 +163,13 @@ async function renameThenLeave(): Promise<string> {
 
 /**
  * Makes a kept entry another tab's: gives it a new id, as a tab that wrote it and was closed
- * leaves it. This page's own record still names the old id, which no longer exists.
+ * leaves it, and this tab a new visit's empty session storage.
  * @param id - the entry.
  * @returns the entry's new id.
  */
 async function fromAnotherTab(id: string): Promise<string> {
     const other = crypto.randomUUID();
+    sessionStorage.clear();
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open(DATABASE);
         request.onsuccess = () => {
@@ -357,6 +358,64 @@ describe("Workspace autosave with the real graphty-element", () => {
         await waitFor(() => {
             assert.strictEqual(reopened.element.autosaver.status.entry, entry);
         });
+        second.view.unmount();
+    });
+
+    it("offers nothing when the newest kept work is clean, however much older dirty work there is", async () => {
+        // Older work with a change never saved to a file.
+        const dirty = mountWorkspace();
+        await openBy(dirty.store, () => pickSample(FLORENTINE.name));
+        const before = openedElement();
+        await before.session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
+        await leave(before.element, dirty.view);
+
+        // Then a sample opened untouched, and a new visit.
+        sessionStorage.clear();
+        const clean = mountWorkspace();
+        await openBy(clean.store, () => pickSample(LES_MIS.name));
+        await leave(openedElement().element, clean.view);
+        sessionStorage.clear();
+
+        const visit = mountWorkspace();
+        await screen.findByRole("button", { name: /^Open a file/ });
+        await waitFor(async () => {
+            assert.isAtLeast((await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).length, 2);
+        });
+        assert.isNull(visit.store.get().recovered);
+        assert.isNull(screen.queryByRole("region", { name: "Unsaved work" }));
+        visit.view.unmount();
+    });
+
+    it("offers no other project's work to a tab that had a project open", async () => {
+        // Older dirty work, then the project this tab has open, whose record is lost.
+        const older = mountWorkspace();
+        await openBy(older.store, () => pickSample(FLORENTINE.name));
+        const before = openedElement();
+        await before.session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
+        await leave(before.element, older.view);
+        sessionStorage.removeItem(`graphty-autosave:own:${WORKSPACE_AUTOSAVE_KEY}`);
+
+        const reload = mountWorkspace();
+        await screen.findByRole("button", { name: /^Open a file/ });
+        await waitFor(() => {
+            assert.isFalse(reload.store.get().autosave && reload.store.get().recovered !== null);
+        });
+        assert.isNull(screen.queryByRole("region", { name: "Unsaved work" }));
+        reload.view.unmount();
+    });
+
+    it("brings back the same style layers when the offered work is restored", async () => {
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        const { element, session } = openedElement();
+        await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
+        const layers = JSON.stringify(session.styles.list());
+        await fromAnotherTab(await leave(element, first.view));
+
+        const second = mountWorkspace();
+        await offer();
+        await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        assert.strictEqual(JSON.stringify(openedElement().session.styles.list()), layers);
         second.view.unmount();
     });
 

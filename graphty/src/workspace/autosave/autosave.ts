@@ -5,6 +5,7 @@
  */
 
 import type { AutosaveEntry } from "@graphty/graphty-element";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import { type GraphSession, listAutosaves, removeAutosave } from "@graphty/graphty-element/session";
 
 import type { CommandContext } from "../commands/registry";
@@ -20,15 +21,18 @@ export const WORKSPACE_AUTOSAVE_KEY = "app.graphty.workspace";
  * The element's autosave options: ask the browser to keep the site's storage, and reopen nothing
  * by itself, because the start screen asks the reader first.
  */
-export const WORKSPACE_AUTOSAVE_OPTIONS = { persist: true, restore: "manual" } as const;
+export const WORKSPACE_AUTOSAVE_OPTIONS = { persist: true, restore: "manual", keepCamera: true } as const;
+
+/** The workspace's facts about opening and reopening projects: ids and counts, never data. */
+const logger = GraphtyLogger.getLogger(["graphty", "workspace"]);
 
 /** What graphty-element keeps for the workspace, as the start of a visit needs it. */
 interface KeptWork {
     /** This tab's own entry (a reload, or a tab the browser discarded and loaded again), or null. */
     readonly own: AutosaveEntry | null;
     /**
-     * The work to offer on the start screen: the newest entry that holds changes never saved to a
-     * file, that no tab is writing and that was not replaced by another project; or null.
+     * The work to offer on the start screen: the newest entry no tab is writing and no project
+     * replaced, when it holds changes never saved to a file; or null.
      */
     readonly recovered: AutosaveEntry | null;
 }
@@ -42,9 +46,8 @@ interface KeptWork {
 export async function findKept(): Promise<KeptWork> {
     const entries = await listAutosaves(WORKSPACE_AUTOSAVE_KEY);
     const own = entries.find((entry) => entry.own === true && entry.ended === undefined) ?? null;
-    const recovered =
-        [...entries].reverse().find((entry) => entry.dirty && !entry.live && entry.ended === undefined) ?? null;
-    return { own, recovered };
+    const newest = [...entries].reverse().find((entry) => !entry.live && entry.ended === undefined);
+    return { own, recovered: newest?.dirty === true ? newest : null };
 }
 
 /**
@@ -84,6 +87,7 @@ function reopen(store: WorkspaceStore, entry: AutosaveEntry, after: (name: strin
  * @param entry - the entry.
  */
 export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): void {
+    logger.info("restore pressed", { entry: entry.id, nodes: entry.nodes, edges: entry.edges });
     reopen(store, entry, () => {
         store.set({ notice: { message: reopenedSentence(entry) } });
     });

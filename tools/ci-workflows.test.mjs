@@ -2928,6 +2928,173 @@ describe("the lanes outside CI", () => {
     });
 });
 
+describe("no outside download at run time (#6308, #6390)", () => {
+    // A job that fetches from a host on every run fails whenever that host is briefly down: GitHub release
+    // downloads answered 504 for over an hour on 2026-11-08 (lychee; master, the full run and pull requests
+    // went red three times) and a T4 runner could not reach archive.ubuntu.com (run 42555029230).
+    const stub = (bin, name, body) => writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
+
+    it("installs lychee from the cache keyed on its pinned version and sha256 before every link check", () => {
+        const action = parseYaml(readFileSync(new URL("../.github/actions/lychee/action.yml", import.meta.url), "utf8"))
+            .runs.steps;
+        assert.match(action[0].run, /LYCHEE_VERSION=.*\n.*LYCHEE_SHA256=/s);
+        assert.match(action[0].run, /key=lychee-\$version-\$\{sha:\?\}/);
+        assert.match(action[1].uses, /^actions\/cache\/restore@/);
+        assert.equal(action[2].run, "./tools/check-links.sh --install");
+        assert.match(action[3].uses, /^actions\/cache\/save@/);
+        assert.match(action[3].if, /github\.event_name != 'pull_request'/);
+        assert.equal(action[1].with.path, action[3].with.path);
+        assert.match(action[1].with.path, /lychee\.tar\.gz$/, "caches the tarball, whose sha256 the script checks");
+        let checked = 0;
+        for (const file of ["ci.yml", "links-weekly.yml"]) {
+            for (const [name, j] of Object.entries(parseYaml(workflow(file)).jobs)) {
+                const steps = j.steps ?? [];
+                const check = steps.findIndex((st) => /tools\/check-links\.sh/.test(st.run ?? ""));
+                if (check === -1) continue;
+                const install = steps.findIndex((st) => st.uses === "./.github/actions/lychee");
+                assert.ok(install !== -1 && install < check, `${file} ${name}: installs lychee first`);
+                checked++;
+            }
+        }
+        assert.equal(checked, 3, "the checks, links and weekly jobs");
+    });
+
+    const lychee = (cached, { sha } = {}) => {
+        const root = mkdtempSync(join(TMP, "lychee-"));
+        const bin = join(root, "bin");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        mkdirSync(bin);
+        let script = readFileSync(new URL("./check-links.sh", import.meta.url), "utf8");
+        const dir = join(root, "node_modules/.cache/lychee", script.match(/^LYCHEE_VERSION=(.*)$/m)[1]);
+        mkdirSync(dir, { recursive: true });
+        if (cached) {
+            const src = join(root, "src/lychee-x86_64-unknown-linux-musl");
+            mkdirSync(src, { recursive: true });
+            writeFileSync(join(src, "lychee"), "#!/bin/sh\necho lychee fake\n", { mode: 0o755 });
+            execFileSync("tar", [
+                "-czf",
+                join(dir, "lychee.tar.gz"),
+                "-C",
+                join(root, "src"),
+                "lychee-x86_64-unknown-linux-musl",
+            ]);
+            const real = createHash("sha256")
+                .update(readFileSync(join(dir, "lychee.tar.gz")))
+                .digest("hex");
+            script = script.replace(/^LYCHEE_SHA256=.*$/m, `LYCHEE_SHA256=${sha ?? real}`);
+        }
+        writeFileSync(join(root, "tools/check-links.sh"), script, { mode: 0o755 });
+        stub(bin, "curl", `echo "curl $*" >> "${root}/calls"; exit 22`);
+        const path = `${bin}:${process.env.PATH.split(":")
+            .filter((d) => !existsSync(join(d, "lychee")))
+            .join(":")}`;
+        const r = spawnSync("bash", [join(root, "tools/check-links.sh"), "--install"], {
+            encoding: "utf8",
+            env: { ...process.env, PATH: path },
+        });
+        const calls = existsSync(join(root, "calls")) ? readFileSync(join(root, "calls"), "utf8") : "";
+        return {
+            ...r,
+            calls,
+            tarball: existsSync(join(dir, "lychee.tar.gz")),
+            binary: existsSync(join(dir, "lychee")),
+        };
+    };
+
+    it("check-links.sh --install extracts a cached tarball whose sha256 matches, with no download", () => {
+        const r = lychee(true);
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.equal(r.calls, "");
+        assert.match(r.stdout, /lychee fake/);
+        assert.ok(r.binary && r.tarball, "keeps the tarball for the cache save");
+    });
+
+    it("check-links.sh --install refuses and deletes a cached tarball whose sha256 does not match", () => {
+        const r = lychee(true, { sha: "0".repeat(64) });
+        assert.equal(r.status, 2);
+        assert.equal(r.calls, "");
+        assert.ok(!r.binary && !r.tarball);
+    });
+
+    it("check-links.sh --install downloads when nothing is cached and fails loudly when it cannot", () => {
+        const r = lychee(false);
+        assert.equal(r.status, 2);
+        assert.match(r.calls, /^curl .*releases\/download\/lychee-v/);
+        assert.ok(!r.tarball, "leaves no partial tarball for the cache to save");
+    });
+
+    // Runs a T4 job's bootstrap step against a fake apt and dpkg, with the cache directory and apt's
+    // configuration moved into a temporary directory.
+    const bootstrap = (file, { hit, cached = [], installed }) => {
+        const root = mkdtempSync(join(TMP, "t4-debs-"));
+        const bin = join(root, "bin");
+        const debs = join(root, "debs");
+        const conf = join(root, "apt.conf.d");
+        for (const d of [bin, debs, conf]) mkdirSync(d);
+        for (const d of cached) writeFileSync(join(debs, d), "");
+        const steps = parseYaml(workflow(file)).jobs;
+        const step = Object.values(steps)
+            .flatMap((j) => j.steps ?? [])
+            .find((st) => /^Bootstrap the container/.test(st.name ?? ""));
+        const run = step.run.replaceAll("/var/cache/t4-debs", debs).replaceAll("/etc/apt/apt.conf.d", conf);
+        const log = (name) => stub(bin, name, `echo "${name} $*" >> "${root}/calls"`);
+        log("apt-get");
+        log("dpkg");
+        const all = step.env.PACKAGES;
+        stub(
+            bin,
+            "dpkg-query",
+            `for p in "\${@:3}"; do case " ${installed ?? all} " in *" $p "*) echo "ii  $p";; *) echo "dpkg-query: no packages found matching $p" >&2;; esac; done`,
+        );
+        const r = spawnSync("bash", ["-e", "-c", run], {
+            encoding: "utf8",
+            env: { ...process.env, HIT: hit, PACKAGES: all, PATH: `${bin}:${process.env.PATH}` },
+        });
+        const calls = existsSync(join(root, "calls")) ? readFileSync(join(root, "calls"), "utf8") : "";
+        return { ...r, calls, debs, conf: readdirSync(conf) };
+    };
+
+    for (const file of ["gpu.yml", "gpu-weekly-paired.yml"]) {
+        it(`${file}: a cache hit installs the T4 container's packages with dpkg and never runs apt`, () => {
+            const r = bootstrap(file, { hit: "true", cached: ["a.deb", "b.deb"] });
+            assert.equal(r.status, 0, r.stdout + r.stderr);
+            assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n$/);
+        });
+
+        it(`${file}: a cache hit that installed too little fails the bootstrap`, () => {
+            const r = bootstrap(file, { hit: "true", cached: ["a.deb"], installed: "git" });
+            assert.equal(r.status, 1);
+            assert.match(r.stdout, /::error::the container's packages are not all installed: .*libvulkan1/s);
+        });
+
+        it(`${file}: a miss installs with apt, retrying, into the directory the cache saves`, () => {
+            const r = bootstrap(file, { hit: "" });
+            assert.equal(r.status, 0, r.stdout + r.stderr);
+            assert.match(
+                r.calls,
+                /^apt-get update\napt-get install -y --no-install-recommends -o Dir::Cache::Archives=(\S+) .*\blibvulkan1 libegl1\b/,
+            );
+            assert.ok(r.calls.includes(`Dir::Cache::Archives=${r.debs} `));
+            assert.deepEqual(r.conf, ["99-ci-timeouts"]);
+        });
+    }
+
+    it("gpu.yml keys the cached sets on the bare image and installs Chromium's packages through the cached action", () => {
+        const steps = parseYaml(workflow("gpu.yml")).jobs["test-gpu"].steps;
+        const key = steps.findIndex((st) => st.id === "t4-debs-key");
+        const boot = steps.findIndex((st) => /^Bootstrap the container/.test(st.name ?? ""));
+        assert.ok(key !== -1 && key < boot, "the key reads dpkg before anything is installed");
+        assert.match(steps[key].run, /dpkg-query -W/);
+        assert.match(steps[boot].run, /rm -f \/etc\/apt\/apt\.conf\.d\/docker-clean\n/);
+        const deps = steps.find((st) => st.uses === "./.github/actions/playwright-system-deps");
+        assert.equal(deps.with.image, "${{ steps.t4-debs-key.outputs.key }}");
+        assert.ok(
+            !steps.some((st) => /--with-deps|install-deps/.test(st.run ?? "")),
+            "no apt outside the cached paths",
+        );
+    });
+});
+
 describe("apt in the workflows", () => {
     it("drops the Microsoft apt sources before every job's first apt use", () => {
         // packages.microsoft.com, a source the hosted Ubuntu images ship and nothing here installs from,
@@ -3060,7 +3227,8 @@ describe("actions/cache in the workflows", () => {
         for (const file of files) {
             const text = readFileSync(new URL(file, import.meta.url), "utf8");
             const code = text.replace(/^\s*#.*$/gm, "");
-            if (!/actions\/cache(\/\w+)?@|cache: "?(pnpm|npm|yarn)|playwright-system-deps/.test(code)) continue;
+            if (!/actions\/cache(\/\w+)?@|cache: "?(pnpm|npm|yarn)|playwright-system-deps|actions\/lychee/.test(code))
+                continue;
             const mins = Number(parseYaml(text)?.env?.SEGMENT_DOWNLOAD_TIMEOUT_MINS);
             assert.ok(mins > 0 && mins <= 2, `${file}: env SEGMENT_DOWNLOAD_TIMEOUT_MINS is 1 or 2 (got ${mins})`);
             checked++;
@@ -3080,7 +3248,7 @@ describe("Playwright's system packages", () => {
     it("keys the cache on the runner image and the Playwright version", () => {
         assert.match(
             action,
-            /key=playwright-debs-\$\{ImageOS:\?\}-\$\{ImageVersion:\?\}-\$\(pnpm exec playwright --version/,
+            /key=playwright-debs-\$\{IMAGE:-\$\{ImageOS:\?\}-\$\{ImageVersion:\?\}\}-\$\(pnpm exec playwright --version/,
         );
         assert.match(action, /path: ~\/\.cache\/playwright-debs/);
         assert.match(action, /run: '"\$GITHUB_ACTION_PATH\/install\.sh"'\n/);
@@ -3246,8 +3414,13 @@ describe("gpu.yml", () => {
                 const where = `${file}: ${body.trim().split("\n")[0]}`;
                 assert.match(body, /\n {8}container:\n {12}image: ubuntu:24\.04\n {12}options: --gpus all\b/, where);
                 assert.match(body, /NVIDIA_DRIVER_CAPABILITIES: all\n/, where);
-                // the whole apt-get install command, with its backslash-continued lines
-                const install = body.match(/apt-get install(?:[^\n]*\\\n)*[^\n]*/)?.[0] ?? "";
+                // the bootstrap's package list, which the cached .deb set is keyed on and checked against (#6390)
+                const install = body.match(/\n {18}PACKAGES: [^\n]*/)?.[0] ?? "";
+                assert.match(
+                    body,
+                    /apt-get install -y --no-install-recommends -o Dir::Cache::Archives="\$dir" \$PACKAGES\n/,
+                    where,
+                );
                 assert.match(install, /\blibvulkan1 libegl1\b/, where);
                 assert.match(
                     install,

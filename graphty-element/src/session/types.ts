@@ -1257,7 +1257,8 @@ export interface SessionDataApi {
     /**
      * Take one load out of the graph, as one undoable step: the nodes and edges only it supplied
      * go, with the edges attached to a node that goes, and the load leaves `sources()`. A node or
-     * edge another load also supplied stays, as does anything no load recorded.
+     * edge another load also supplied stays, as does anything no load recorded. Removing a joined
+     * table takes its join back: the values it wrote go and the values it overwrote come back.
      *
      * ```ts
      * const removed = await session.data.removeSource("s2");

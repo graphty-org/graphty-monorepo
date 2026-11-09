@@ -2910,12 +2910,17 @@ export class SessionData implements SessionDataApi {
             });
         }
 
+        // A joined table's values go with it: what it wrote is removed, what it overwrote comes back.
+        // An edges join's elements are the provenance removal below, so only a values join unjoins.
+        const joined = this.storedSources().find((each) => each.key === key);
+        const unjoin = joined?.join === undefined || joined.join.shape === "edges" ? [] : this.unjoin(joined).steps;
         const before = { nodes: snapshot.nodeCount, edges: snapshot.edgeCount };
         await this.writes.send({
             op: "batch",
             label: `Removed ${entry.name ?? key}`,
             fact: { code: "data.remove-source", params: { key, name: entry.name ?? null } },
             steps: [
+                ...unjoin,
                 { op: "data.apply", mutation: { kind: "remove-edges", ids: goingEdges } },
                 { op: "data.apply", mutation: { kind: "remove-nodes", ids: goingNodes } },
                 {

@@ -1,3 +1,9 @@
+## 0.9.39 (2026-11-09)
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.41
+
 ## 0.9.38 (2026-11-02)
 
 ### 🩹 Fixes

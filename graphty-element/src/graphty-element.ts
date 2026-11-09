@@ -6151,7 +6151,7 @@ export class Graphty extends LitElement {
      * Set it as an attribute, in any position in the tag, or as a property before using any other
      * property or method of the element. A later change takes effect only on a new element and
      * raises the warning `W_ANTIALIAS_LATE`, as a `graphty-warning` event.
-     * @experimental
+     * @experimental cosmograph
      * @example
      * ```html
      * <graphty-element render-path="batched" antialias="false"></graphty-element>

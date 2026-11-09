@@ -952,7 +952,7 @@ export class Graph implements GraphContext {
     /**
      * Whether the canvas multisamples, as the engine was built: the constructor's `antialias`.
      * Fixed for the life of the graph; WebGPU, when it opens, is built the same way.
-     * @experimental
+     * @experimental cosmograph
      */
     readonly antialias: boolean;
 

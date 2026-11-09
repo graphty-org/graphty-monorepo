@@ -401,6 +401,34 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         });
     });
 
+    it("a card clicked on its blank space moves with Ctrl+], as its menu shows it", async () => {
+        const { session, layer } = await twoCards();
+        const idsNow = (): string[] => (unionOf(session, layer.id)?.branches ?? []).map((each) => each.id ?? "");
+        const [first, second] = idsNow();
+        // A point on B where nothing but the card (or its header) is under the pointer.
+        const card = cards()[1];
+        const box = card.getBoundingClientRect();
+        const head = card.querySelector(".cm-card-head");
+        let blank: { x: number; y: number } | undefined;
+        for (let y = 2; y < box.height && blank === undefined; y += 3) {
+            for (let x = 2; x < box.width && blank === undefined; x += 3) {
+                const hit = document.elementFromPoint(box.left + x, box.top + y);
+                if (hit === card || hit === head) {
+                    blank = { x, y };
+                }
+            }
+        }
+        assert.isDefined(blank, "B has blank space to click");
+        await userEvent.click(card, { position: blank });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, card, "the click focuses the card");
+        });
+        await userEvent.keyboard("{Control>}]{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(idsNow(), [second, first], "moved up by Ctrl+]");
+        });
+    });
+
     it("the matches table tints each row in its group's color, with no Group column", async () => {
         const { modal } = await twoCards();
         const table = within(modal).getByRole("region", { name: "Matches" });

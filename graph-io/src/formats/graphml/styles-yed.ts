@@ -921,6 +921,7 @@ function labelShown(label: unknown): boolean {
  * @param at - the sites
  * @param geometry - a node label's node `y:Geometry`, which places the label inside or outside the node
  * @param uml - whether the node is a UML class
+ * @param icons - the graph's label icons, by resource id, for a node label
  */
 function readLabels(
     labels: readonly unknown[],
@@ -929,6 +930,7 @@ function readLabels(
     at: SiteOf,
     geometry?: unknown,
     uml = false,
+    icons?: ReadonlyMap<string, readonly [number, number]>,
 ): void {
     let label: unknown = undefined;
     let text = "";
@@ -955,6 +957,67 @@ function readLabels(
     if (node && !uml) {
         readSmartPlace(label, geometry, put);
     }
+    if (node && icons !== undefined) {
+        readIconPlace(label, icons, put);
+    }
+}
+
+/**
+ * Where yEd writes a node label's words beside its icon (`iconData`): as Java's JLabel lays out a label, the icon and
+ * the words `iconTextGap` apart, the words left or right of the icon (`horizontalTextPosition`) lined up with its top,
+ * middle or bottom, or above, over or below it (`verticalTextPosition`), set against its left or right side for
+ * `left_aligned` and `right_aligned`, and the two together centered in the label. graphty-element draws no label icon,
+ * so the words are moved to where yEd writes them (`yed-graphml-specimen-images-charts` icon-text-*). Read for a label in
+ * the middle of its node by the internal model; the words' line is the font's, without the box's padding.
+ * @param label - the label element
+ * @param icons - the graph's label icons: each icon resource's id to the size yEd draws it
+ * @param put - receives the values
+ */
+function readIconPlace(label: unknown, icons: ReadonlyMap<string, readonly [number, number]>, put: PutValue): void {
+    const id = treeAttr(label, "iconData");
+    const icon = id === undefined ? undefined : icons.get(id);
+    const middle = (treeAttr(label, "modelPosition") ?? "c") === "c";
+    if (icon === undefined || treeAttr(label, "modelName") !== "internal" || !middle) {
+        return;
+    }
+    if (sizedLabelPosition(label, "center") !== "center") {
+        return;
+    }
+    const [iw, ih] = icon;
+    const num = (k: string, fallback: number): number => {
+        const n = Number(treeAttr(label, k) ?? fallback);
+        return Number.isFinite(n) ? n : fallback;
+    };
+    const gap = num("iconTextGap", 4);
+    const lines = (treeText(label)?.trim() ?? "").split("\n").length;
+    const th = lines * YED_LABEL_LINE * num("fontSize", 12);
+    const stored = num("width", Number.NaN) - 2 * YED_LABEL_PADDING;
+    const tw = Number.isFinite(stored) ? stored : iw;
+    const across = treeAttr(label, "horizontalTextPosition") ?? "center";
+    const down = treeAttr(label, "verticalTextPosition") ?? "bottom";
+    // -1, 0 or 1 for top, center and bottom
+    const way = (side: string): number => {
+        if (side === "top") {
+            return -1;
+        }
+        return side === "bottom" ? 1 : 0;
+    };
+    let [x, y] = [0, 0];
+    if (across === "left" || across === "right") {
+        x = ((across === "left" ? -1 : 1) * (iw + gap)) / 2;
+        y = (way(down) * (Math.max(ih, th) - th)) / 2;
+    } else {
+        y = (way(down) * (ih + gap)) / 2;
+        const span = Math.max(iw, tw);
+        if (across === "left_aligned") {
+            x = (tw - span) / 2;
+        } else if (across === "right_aligned") {
+            x = (span - tw) / 2;
+        }
+    }
+    const signed = (value: number): number | null => Math.round(value * 1000) / 1000 || null;
+    put("labelOffsetX", signed(x));
+    put("labelOffsetY", signed(y));
 }
 
 /**
@@ -1163,10 +1226,10 @@ function readInsideInset(label: unknown, geometry: unknown, position: string | n
     const num = (o: unknown, k: string): number => Number(treeAttr(o, k) ?? Number.NaN);
     const [x, y, w, h] = ["x", "y", "width", "height"].map((k) => num(label, k));
     const [nw, nh] = [num(geometry, "width"), num(geometry, "height")];
-    // a box stored without its place has the model's own inset
+    // a box stored without its place has the model's own inset; a free label has none
     const inset = (value: number): number | null => {
         if (Number.isNaN(value)) {
-            return YED_INSIDE_INSET;
+            return treeAttr(label, "modelName") === "free" ? null : YED_INSIDE_INSET;
         }
         return value > 0 ? Math.round(value * 1000) / 1000 : null;
     };
@@ -1206,6 +1269,11 @@ function nodeLabelPosition(label: unknown, geometry: unknown, at: SiteOf): strin
     }
     if (model === "custom") {
         return customPosition(label, outside, at);
+    }
+    // a free label stored without its place is drawn with its box's corner on the node's top-left corner
+    // (graphml-synthetic-nodes label-free-anywhere)
+    if (model === "free" && outside === null && hasStoredBox(label)) {
+        return "inside-top-left";
     }
     if (outside !== null || position === undefined) {
         return outside;
@@ -1569,6 +1637,70 @@ function yedResources(snapshot: GraphSnapshot): ReadonlyMap<string, string> {
         addYedResources(plainCell(snapshot.graph.value(col.meta.name, 0)), out);
     }
     return out;
+}
+
+/**
+ * yEd's label icons: each `<y:Resource>` holding a `yed:ScaledIcon` of a `yed:ImageIcon` to the size yEd draws it, its
+ * PNG's own size by the icon's `xScale` and `yScale`.
+ * @param snapshot - the graph
+ * @param resources - the graph's shared pictures, by id
+ * @returns the icons' sizes, by resource id
+ */
+function yedIconSizes(
+    snapshot: GraphSnapshot,
+    resources: ReadonlyMap<string, string>,
+): ReadonlyMap<string, readonly [number, number]> {
+    const out = new Map<string, readonly [number, number]>();
+    for (const col of snapshot.graph) {
+        if (col.dtype !== "json" || col.meta.origin?.namespace !== "yfiles") {
+            continue;
+        }
+        for (const list of treeChildren(plainCell(snapshot.graph.value(col.meta.name, 0)), "Resources")) {
+            for (const r of treeChildren(list, "Resource")) {
+                const id = treeAttr(r, "id");
+                const scaled = treeChild(r, "ScaledIcon");
+                const image = treeAttr(treeChild(scaled, "ImageIcon"), "image");
+                const size = pngSize(image === undefined ? undefined : resources.get(image));
+                if (id === undefined || size === null || out.has(id)) {
+                    continue;
+                }
+                const scale = (k: string): number => {
+                    const n = Number(treeAttr(scaled, k) ?? 1);
+                    return Number.isFinite(n) ? n : 1;
+                };
+                out.set(id, [size[0] * scale("xScale"), size[1] * scale("yScale")]);
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * A PNG's width and height, from its header in a `data:image/png;base64` URL.
+ * @param url - the picture's URL
+ * @returns the size, or null for another picture or a header that does not read
+ */
+function pngSize(url: string | undefined): readonly [number, number] | null {
+    const prefix = "data:image/png;base64,";
+    if (url?.startsWith(prefix) !== true) {
+        return null;
+    }
+    let bytes: string;
+    try {
+        // the signature, the IHDR chunk's length and type, then its width and height
+        bytes = atob(url.slice(prefix.length, prefix.length + 32));
+    } catch {
+        return null;
+    }
+    if (bytes.length < 24 || bytes.slice(12, 16) !== "IHDR") {
+        return null;
+    }
+    const u32 = (o: number): number =>
+        bytes.charCodeAt(o) * 2 ** 24 +
+        bytes.charCodeAt(o + 1) * 2 ** 16 +
+        bytes.charCodeAt(o + 2) * 2 ** 8 +
+        bytes.charCodeAt(o + 3);
+    return [u32(16), u32(20)];
 }
 
 /**
@@ -2071,8 +2203,15 @@ function readOutlineFaces(
  * @param put - receives the values
  * @param at - the sites
  * @param resources - the graph's shared pictures, for image and SVG nodes
+ * @param icons - the graph's label icons' sizes, by resource id
  */
-function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: ReadonlyMap<string, string>): void {
+function readNode(
+    real: Realizer,
+    put: PutValue,
+    at: SiteOf,
+    resources?: ReadonlyMap<string, string>,
+    icons?: ReadonlyMap<string, readonly [number, number]>,
+): void {
     const { r } = real;
     const pictured = real.type === "ImageNode" || real.type === "SVGNode";
     // yEd paints an image or SVG node's picture alone, never its y:Fill or y:BorderStyle (its own SVGs of
@@ -2121,7 +2260,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
             put(property, property === "labelOffsetY" && typeof value === "number" ? value + drop : value);
         }
     };
-    readLabels(treeChildren(r, "NodeLabel"), true, labelPut, at, geometry, treeChild(r, "UML") !== undefined);
+    readLabels(treeChildren(r, "NodeLabel"), true, labelPut, at, geometry, treeChild(r, "UML") !== undefined, icons);
 }
 
 /**
@@ -2534,7 +2673,10 @@ function readEdgeLabelPlace(real: Realizer, nodes: Float64Array, source: number,
         [s, t],
         [[s[0] + offset("sx"), s[1] + offset("sy")], ...points, [t[0] + offset("tx"), t[1] + offset("ty")]],
         {
-            spot: `${smartMiddle ? "centered" : model}/${position}`,
+            spot:
+                model === "custom" && smart === undefined
+                    ? unplacedSmartSpot(label, s, t)
+                    : `${smartMiddle ? "centered" : model}/${position}`,
             stored: stored ? ["x", "y", "width", "height"].map((k) => Number(treeAttr(label, k))) : null,
             distance: Number(treeAttr(label, "distance") ?? 2) || 0,
             width: Number(treeAttr(label, "width")) || 0,
@@ -2543,6 +2685,20 @@ function readEdgeLabelPlace(real: Realizer, nodes: Float64Array, source: number,
         },
         put,
     );
+}
+
+/**
+ * Where yEd draws a SmartEdgeLabelModel (`custom`) label whose file gives no `y:ModelParameter`: its distance clear of
+ * the line's middle, on the right of the edge's way, and for an `AutoFlippingLabel` on an edge running leftward flipped
+ * to the left, so below the line either way (every such label in `graphml-synthetic-edges`, yEd's own drawing).
+ * @param label - the label element
+ * @param source - the source node's center x and y, width and height
+ * @param target - the target node's center x and y, width and height
+ * @returns the spot, as `YED_EDGE_SPOTS` keys it
+ */
+function unplacedSmartSpot(label: unknown, source: readonly number[], target: readonly number[]): string {
+    const flipped = treeAttr(label, "configuration") === "AutoFlippingLabel" && target[0] < source[0];
+    return flipped ? "six_pos/head" : "six_pos/tail";
 }
 
 /** Canonical values per property, by element index. */
@@ -2707,6 +2863,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     // set by read(), which TypeScript does not see change it
     let found = false as boolean;
     const resources = yedResources(snapshot);
+    const icons = yedIconSizes(snapshot, resources);
     // each node's center, width and height, read with the node, for its edges' routes; NaN without yEd graphics
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
     const groups = graphmlGroupBounds(snapshot);
@@ -2736,7 +2893,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
             if (target === "node") {
                 const box = groups.get(i);
                 real = box === undefined ? real : realizerAt(real, box);
-                readNode(real, put, at, resources);
+                readNode(real, put, at, resources, icons);
                 const geometry = treeChild(real.r, "Geometry");
                 const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
                 boxes.set(

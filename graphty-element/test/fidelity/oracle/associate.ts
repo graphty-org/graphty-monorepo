@@ -143,17 +143,18 @@ export function shapeOf(p: Prim): PShape | null {
             // within 2% of the box: an absolute tolerance passes every corner of a node drawn a few units across
             const slack = 0.02 * Math.max(b.x1 - b.x0, b.y1 - b.y0);
             const near = (v: number, at: number): boolean => Math.abs(v - at) < slack;
-            // each vertex once: a closed outline repeats its first point at its end
+            // each vertex once: a closed outline repeats its first point at its end, and a polygon the file closes
+            // itself and the reader closes again repeats it twice (Graphviz's, dot-synth-nodes s_parallelogram)
             const first = p.points[0];
-            const last = p.points.at(-1);
-            const vertices =
-                p.points.length > 1 &&
+            const vertices = [...p.points];
+            while (
+                vertices.length > 1 &&
                 first !== undefined &&
-                last !== undefined &&
-                near(first[0], last[0]) &&
-                near(first[1], last[1])
-                    ? p.points.slice(0, -1)
-                    : p.points;
+                near(first[0], vertices[vertices.length - 1][0]) &&
+                near(first[1], vertices[vertices.length - 1][1])
+            ) {
+                vertices.pop();
+            }
             const onCorner = vertices.filter(
                 ([x, y]) => (near(x, b.x0) || near(x, b.x1)) && (near(y, b.y0) || near(y, b.y1)),
             ).length;
@@ -533,6 +534,10 @@ function nodeFrom(
                       ),
                   },
         label: mergeTexts(texts),
+        // a node the program draws as its words alone (Graphviz's unfilled plain, plaintext and none: a `<g
+        // class="node">` holding one `<text>`) is a text-only node, read as graphty's are (`facelessAsTexts`): its words,
+        // no node, unless the other side draws a node there (dot-real-happiness c, dot-real-linux-kernel LKD)
+        ...(drawn.length === 0 && texts.length > 0 ? { faceless: texts.map((t) => ({ ...t, owner: id })) } : {}),
         ...(drawn.length > 0 ? { order: Math.max(...drawn.map((p) => p.index)) } : {}),
         ...((painted ?? filled) ? { fillOrder: (painted ?? filled)?.index } : {}),
     };

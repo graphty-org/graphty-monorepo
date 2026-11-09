@@ -82,7 +82,8 @@ describe("a label drawn in runs", () => {
     });
 
     it("gives a blank line the height of a line of the label's font", () => {
-        // yEd's "\nCS" (graphml-stm32-func) is two lines tall, the words on the second
+        // yEd's "\nCS" (graphml-stm32-func) is two lines tall, the words on the second; a trailing blank line
+        // keeps no height, as before (only blank lines between or before words changed)
         const ctx = {
             font: "",
             textBaseline: "alphabetic",
@@ -96,8 +97,8 @@ describe("a label drawn in runs", () => {
         const height = (text: string, plainText = false): number =>
             parser.measureText(parser.parse(text, plainText), ctx, options).totalHeight;
         assert.deepEqual(
-            [height("\nb"), height("a\n\nb"), height("\nb", true), height("b"), height("")],
-            [20, 30, 20, 10, 0],
+            [height("\nb"), height("a\n\nb"), height("\nb", true), height("b"), height(""), height("b\n")],
+            [20, 30, 20, 10, 0, 10],
         );
     });
 

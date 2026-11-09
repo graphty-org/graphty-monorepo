@@ -23,14 +23,17 @@ export class RichTextParser {
     parse(text: string, plainText = false): TextSegment[][] {
         const whole = (line: string): TextSegment[] =>
             line === "" ? [] : [{ text: line, style: { ...this.defaultStyle } }];
-        const lines = text.split("\n");
+        const parsed = text.split("\n").map((line) => (plainText ? whole(line) : this.parseLine(line)));
         // a blank line between or before others is a line of the label's own font, as every text layout draws it
-        // (yEd's "\nCS" is two lines tall); it would measure no height with no run in it
-        const blank = (): TextSegment[] => (lines.length > 1 ? [{ text: "", style: { ...this.defaultStyle } }] : []);
-        return lines.map((line) => {
-            const segments = plainText ? whole(line) : this.parseLine(line);
-            return segments.length === 0 ? blank() : segments;
-        });
+        // (yEd's "\nCS" is two lines tall); it would measure no height with no run in it. A trailing blank line
+        // keeps no height, as before.
+        let last = parsed.length - 1;
+        while (last >= 0 && parsed[last].length === 0) {
+            last--;
+        }
+        return parsed.map((segments, i) =>
+            segments.length === 0 && i < last ? [{ text: "", style: { ...this.defaultStyle } }] : segments,
+        );
     }
 
     private parseLine(line: string): TextSegment[] {

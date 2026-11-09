@@ -210,6 +210,13 @@ columns, choose which column is the node id, the edge endpoints or the weight, a
 the load would produce before anything is added to the graph. See
 [Previewing a Load](./load-preview).
 
+## Joining a Table Onto the Graph
+
+A table that describes the graph already loaded -- values per gene, door entries naming a person
+and a building, the phones each account used -- can be joined onto it instead of loaded on its
+own: its rows become values on the nodes they name, new edges, or links between nodes that share a
+value. See [Joining Data](./joins).
+
 ## Replacing the Graph
 
 A load through `loadFromFile`, `loadFromUrl` or `addDataFromSource` ADDS to the graph unless you

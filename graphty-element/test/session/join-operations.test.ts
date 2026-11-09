@@ -7,6 +7,7 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
+import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 
 /** Forty suppliers, S0 to S39, named "Supplier 0" to "Supplier 39". */
 const SUPPLIERS = [
@@ -260,4 +261,150 @@ describe("merging a table into the nodes it names (shape: merge)", () => {
         assert.strictEqual(reopened.data.nodes().length, 41);
         reopened.dispose();
     });
+});
+
+describe("suggestJoin over the join operations", () => {
+    it("suggests the door-entries edges, one end matched on a node column that is not the id", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            ...Array.from({ length: 6 }, (_unused, at) => ({ id: `P${String(at)}`, person_id: `E${String(at)}` })),
+            ...Array.from({ length: 3 }, (_unused, at) => ({ id: `B${String(at)}` })),
+        ]);
+        const entries = ["person_id,building_id,time", "E0,B0,t1", "E1,B0,t2", "E2,B1,t3", "E3,B2,t4", "E4,B1,t5"];
+        const draft = await table(session, "door-entries.csv", entries.join("\n"));
+        assert.deepEqual(draft.suggestJoin(), {
+            shape: "edges",
+            keys: [
+                { file: "person_id", graph: "data.person_id" },
+                { file: "building_id", graph: "id" },
+            ],
+            confident: true,
+        });
+        session.dispose();
+    });
+
+    it("keeps a table whose two columns name the same node a values join", async () => {
+        const session = await suppliers();
+        const draft = await table(session, "scores.csv", "id,name,score\nS1,Supplier 1,5\nS2,Supplier 2,6\n");
+        assert.deepEqual(draft.suggestJoin(), {
+            shape: "node-values",
+            keys: [{ file: "id", graph: "id" }],
+            confident: true,
+        });
+        session.dispose();
+    });
+
+    it("names the columns whose shared values would link nodes", async () => {
+        const session = await suppliers();
+        const draft = await table(session, "account-identifiers.csv", IDENTIFIERS);
+        const suggestion = draft.suggestJoin();
+        assert.deepEqual(suggestion, {
+            shape: "node-values",
+            keys: [{ file: "account", graph: "id" }],
+            confident: true,
+            link: { columns: ["phone", "device"] },
+        });
+        assert.deepInclude(draft.joinReport({ ...suggestion, shape: "link" }), { pairsLinked: 4 });
+        session.dispose();
+    });
+
+    it("names no link for a column every value of which is a hub", async () => {
+        const session = await suppliers();
+        const rows = Array.from({ length: 40 }, (_unused, at) => `S${String(at)},${String(at % 3)}`);
+        const draft = await table(session, "tiers.csv", ["account,band", ...rows].join("\n"));
+        assert.notProperty(draft.suggestJoin(), "link");
+        session.dispose();
+    });
+});
+
+describe("the join operations' cost", () => {
+    /**
+     * A session of `size` nodes with one join of each operation's table loaded onto it.
+     * @param size - the node count
+     * @param shape - the operation
+     * @returns the session, the join's source and its choices
+     */
+    async function joined(
+        size: number,
+        shape: "link" | "merge" | "aggregate",
+    ): Promise<{ session: GraphSession; key: string; choices: Parameters<GraphSession["data"]["editJoin"]>[1] }> {
+        const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
+        const strict = scope.__GRAPHTY_STRICT_STATE__;
+        scope.__GRAPHTY_STRICT_STATE__ = false;
+        try {
+            const session = createGraphSession();
+            // Imported, as a reader's nodes are: a join's edges name their ends, and a node no load
+            // supplied would count as the join's own.
+            const nodes = [
+                "id,name",
+                ...Array.from({ length: size }, (_unused, at) => `n${String(at)},N${String(at)}`),
+            ];
+            await session.data.import({ type: "csv", config: { data: nodes.join("\n") }, name: "nodes.csv" });
+            const n = (at: number): string => `n${String(at % size)}`;
+            const data = {
+                link: [
+                    "account,phone",
+                    ...Array.from({ length: size }, (_unused, at) => `${n(at)},p${String(at >> 2)}`),
+                ],
+                merge: [
+                    "name,rating",
+                    ...Array.from({ length: size }, (_unused, at) => `N${String(at * 2)},${String(at)}`),
+                ],
+                aggregate: [
+                    "from,to,amount",
+                    ...Array.from(
+                        { length: size * 2 },
+                        (_unused, at) => `${n(at >> 1)},${n((at >> 1) + 1)},${String(at)}`,
+                    ),
+                ],
+            }[shape].join("\n");
+            const choices = {
+                link: {
+                    keys: [{ file: "account", graph: "id" }],
+                    shape: "link" as const,
+                    link: { columns: ["phone"] },
+                },
+                merge: { keys: [{ file: "name", graph: "data.name" }], shape: "merge" as const },
+                aggregate: {
+                    keys: [
+                        { file: "from", graph: "id" },
+                        { file: "to", graph: "id" },
+                    ],
+                    shape: "edges" as const,
+                    aggregate: { amount: ["count", "sum"] as const },
+                },
+            }[shape];
+            const draft = await table(session, `${shape}.csv`, data);
+            await draft.load({ join: choices });
+            return { session, key: session.data.joins()[0].source, choices };
+        } finally {
+            scope.__GRAPHTY_STRICT_STATE__ = strict;
+        }
+    }
+
+    for (const shape of ["link", "merge", "aggregate"] as const) {
+        it(`SessionDataApi.editJoin of ${shape}: no more than linear in the graph`, async () => {
+            await assertScalesLinearly(
+                async (size) => {
+                    const { session, key, choices } = await joined(size, shape);
+                    const visits = await visitsDuring(() => session.data.editJoin(key, choices));
+                    session.dispose();
+                    return visits;
+                },
+                { sizes: [200, 800], growth: "linear", counter: `elements visited by editJoin of ${shape}` },
+            );
+        });
+
+        it(`SessionDataApi.removeSource of a ${shape} join: no more than linear in the graph`, async () => {
+            await assertScalesLinearly(
+                async (size) => {
+                    const { session, key } = await joined(size, shape);
+                    const visits = await visitsDuring(() => session.data.removeSource(key));
+                    session.dispose();
+                    return visits;
+                },
+                { sizes: [200, 800], growth: "linear", counter: `elements visited by removeSource of ${shape}` },
+            );
+        });
+    }
 });

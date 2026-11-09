@@ -2846,6 +2846,7 @@ export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "repl
 export interface JoinSuggestion {
     readonly confident: boolean;
     readonly keys: readonly JoinKey[];
+    readonly link?: JoinLink;
     readonly shape: JoinShape;
 }
 

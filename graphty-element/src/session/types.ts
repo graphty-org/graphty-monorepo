@@ -2414,7 +2414,8 @@ export interface LoadedSource extends DataSourceDescriptor {
  *   only the id): its values fused in as for `"node-values"`; a row naming no node becomes a new
  *   node (`JoinChoices.unmatchedFrom`). Removing the join splits them back. Never suggested.
  * - `"link"`: one row per node, matched by a key; nodes whose rows share a value in
- *   `JoinChoices.link.columns` are linked. Never suggested.
+ *   `JoinChoices.link.columns` are linked. Never suggested as the shape; a values suggestion
+ *   names the columns that fit in `JoinSuggestion.link`.
  *
  * OPEN UNION: shapes may be added in a minor release.
  * @since 3.30.0
@@ -2493,6 +2494,14 @@ export interface JoinSuggestion {
     readonly keys: readonly JoinKey[];
     /** Whether most of the key's values match the graph; ask the reader when false. */
     readonly confident: boolean;
+    /**
+     * For a values join onto nodes: the columns whose values a few of the matched nodes share (a
+     * phone, a device), so a join of `shape: "link"` on them would link those nodes. Absent when no
+     * column fits. The shape stays the values join; linking is the reader's choice:
+     * `{ ...suggestion, shape: "link" }`.
+     * @since 3.37.0
+     */
+    readonly link?: JoinLink;
 }
 
 /**

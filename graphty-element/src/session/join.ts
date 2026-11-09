@@ -76,6 +76,9 @@ const PART = "\u0001";
 /** The share of a key's values that must match for a suggestion to be confident. */
 const CONFIDENT = 0.5;
 
+/** The hub cap when `link.maxShared` is absent (Neo4j's fraud examples use 10). */
+const MAX_SHARED = 10;
+
 /**
  * A refusal of a join choice.
  * @param message - What is wrong.
@@ -265,7 +268,7 @@ function viaOf(graph: JoinGraph, choices: JoinChoices): JoinTable | undefined {
  * @param keys - The compared keys.
  * @returns The share, 0 to 1.
  */
-function overlapOf(table: JoinTable, column: string, keys: ReadonlySet<string>): number {
+function overlapOf(table: JoinTable, column: string, keys: ReadonlySet<string> | ReadonlyMap<string, unknown>): number {
     const loose = { ignoreCase: true, ignoreSpaces: true };
     const values = new Set<string>();
     for (const row of table.rows) {
@@ -304,8 +307,129 @@ function pathsOf(elements: readonly JoinElement[]): string[] {
     return ["id", ...[...names].map((name) => `data.${name}`)];
 }
 
+/** A table column and the node value its values meet most. */
+interface ColumnMatch {
+    readonly column: string;
+    /** The node value: `"id"` or `"data.<column>"`. */
+    readonly path: string;
+    /** The share of the column's distinct values found there. */
+    readonly share: number;
+    /** The nodes under each compared value of the path. */
+    readonly index: ReadonlyMap<string, readonly (NodeId | EdgeId)[]>;
+}
+
 /**
- * How the table most likely joins onto the graph.
+ * Whether most of a column's values found among the nodes each name exactly one node, as an
+ * edge's end does (an id, a person_id), unlike a shared attribute (a tissue).
+ * @param table - The table.
+ * @param end - The column.
+ * @param loose - How to compare.
+ * @returns Whether it names nodes.
+ */
+function namesOneNode(table: JoinTable, end: ColumnMatch, loose: Loose): boolean {
+    const found = new Set<string>();
+    for (const row of table.rows) {
+        const value = norm(row[end.column], loose);
+        if (value !== undefined && end.index.has(value)) {
+            found.add(value);
+        }
+    }
+
+    let one = 0;
+    for (const value of found) {
+        one += end.index.get(value)?.length === 1 ? 1 : 0;
+    }
+
+    return one * 2 > found.size;
+}
+
+/**
+ * Whether the two columns read as an edge's ends: each names one node, and most rows naming a
+ * node in both name two different nodes, not a second key of the same node (an id and a name).
+ * @param table - The table.
+ * @param ends - The two columns.
+ * @param loose - How to compare.
+ * @returns Whether the rows read as edges.
+ */
+function namesTwoNodes(table: JoinTable, ends: readonly [ColumnMatch, ColumnMatch], loose: Loose): boolean {
+    if (!ends.every((end) => namesOneNode(table, end, loose))) {
+        return false;
+    }
+
+    let both = 0;
+    let apart = 0;
+    for (const row of table.rows) {
+        const [source, target] = ends.map((end) => end.index.get(norm(row[end.column], loose) ?? "")?.[0]);
+        if (source !== undefined && target !== undefined) {
+            both++;
+            apart += source === target ? 0 : 1;
+        }
+    }
+
+    return apart * 2 > both;
+}
+
+/**
+ * Whether a cell holds a number, as a number or as text.
+ * @param value - The cell.
+ * @returns Whether it is a finite number.
+ */
+function isNumeric(value: unknown): boolean {
+    return (
+        (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) &&
+        Number.isFinite(Number(value))
+    );
+}
+
+/**
+ * The columns whose values, shared by a few of the nodes the key names, would link them
+ * (`shape: "link"`): a value held by 2 to `MAX_SHARED` nodes links them, one held by more is a
+ * hub. A column fits when it has a linking value and no more hubs than linking values.
+ * @param table - The table.
+ * @param key - The key column and the nodes under each compared value.
+ * @param loose - How to compare.
+ * @returns The columns, in table order.
+ */
+function linkColumnsOf(table: JoinTable, key: ColumnMatch, loose: Loose): string[] {
+    const rowNodes = table.rows.map((row) => key.index.get(norm(row[key.column], loose) ?? ""));
+    return table.columns.filter((column) => {
+        if (column === key.column) {
+            return false;
+        }
+
+        // A measurement (a fold change, a p-value) repeats by chance; an identifier is text or a
+        // whole number.
+        if (table.rows.some((row) => isNumeric(row[column]) && !Number.isInteger(Number(row[column])))) {
+            return false;
+        }
+
+        const holders = new Map<string, Set<NodeId | EdgeId>>();
+        table.rows.forEach((row, at) => {
+            const value = norm(row[column], loose);
+            const ids = rowNodes[at];
+            if (value === undefined || ids === undefined) {
+                return;
+            }
+
+            const held = holders.get(value) ?? new Set();
+            ids.forEach((id) => held.add(id));
+            holders.set(value, held);
+        });
+        let linking = 0;
+        let hubs = 0;
+        for (const held of holders.values()) {
+            hubs += held.size > MAX_SHARED ? 1 : 0;
+            linking += held.size > 1 && held.size <= MAX_SHARED ? 1 : 0;
+        }
+
+        return linking > 0 && linking >= hubs;
+    });
+}
+
+/**
+ * How the table most likely joins onto the graph. An edge end may match any node value, not only
+ * the id (a person_id column onto the people's `data.person_id`). A values join onto nodes also
+ * names, in `link`, the columns whose shared values would link the nodes, when any fit.
  * @param table - The incoming table.
  * @param graph - The graph.
  * @param endpoints - The table's source and target columns, when its own reading found a pair.
@@ -319,25 +443,33 @@ export function suggestJoin(
     endpoints?: { readonly source: string; readonly target: string },
 ): JoinSuggestion {
     const loose = { ignoreCase: true, ignoreSpaces: true };
-    const ids = new Set(indexOf(graph.nodes, ["id"], loose).keys());
-    // Edges: the table's own endpoint pair, or the two columns most of whose values are node ids.
-    const byIds = table.columns
-        .map((column) => ({ column, share: overlapOf(table, column, ids) }))
-        .sort((a, b) => b.share - a.share);
-    const pair =
-        endpoints ??
-        (byIds.length > 1 && byIds[1].share >= CONFIDENT
-            ? { source: byIds[0].column, target: byIds[1].column }
-            : undefined);
+    const nodePaths = pathsOf(graph.nodes).map((path) => ({ path, index: indexOf(graph.nodes, [path], loose) }));
+    const matchOf = (column: string): ColumnMatch =>
+        nodePaths
+            .map(({ path, index }) => ({ column, path, index, share: overlapOf(table, column, index) }))
+            .reduce((best, each) => (each.share > best.share ? each : best));
+    const matches = new Map(table.columns.map((column) => [column, matchOf(column)]));
+
+    // Edges: the table's own endpoint pair, or the two columns most of whose values name
+    // different nodes in each row.
+    const ranked = [...matches.values()].sort((a, b) => b.share - a.share);
+    // In table order, so the earlier column is the source.
+    const [first, second] = ranked
+        .slice(0, 2)
+        .sort((a, b) => table.columns.indexOf(a.column) - table.columns.indexOf(b.column));
+    const guessed: readonly [ColumnMatch, ColumnMatch] | undefined =
+        second !== undefined && ranked[1].share >= CONFIDENT && namesTwoNodes(table, [first, second], loose)
+            ? [first, second]
+            : undefined;
+    const given: readonly [ColumnMatch, ColumnMatch] | undefined =
+        endpoints === undefined ? undefined : [matchOf(endpoints.source), matchOf(endpoints.target)];
+    const pair = given ?? guessed;
     if (pair !== undefined) {
-        const share = Math.min(overlapOf(table, pair.source, ids), overlapOf(table, pair.target, ids));
+        const share = Math.min(pair[0].share, pair[1].share);
         if (share > 0) {
             return Object.freeze({
                 shape: "edges",
-                keys: Object.freeze([
-                    Object.freeze({ file: pair.source, graph: "id" }),
-                    Object.freeze({ file: pair.target, graph: "id" }),
-                ]),
+                keys: Object.freeze(pair.map((end) => Object.freeze({ file: end.column, graph: end.path }))),
                 confident: share >= CONFIDENT,
             });
         }
@@ -345,17 +477,18 @@ export function suggestJoin(
 
     // Values: the column and the graph path whose values meet most, on nodes, then on edges.
     let best: { shape: JoinShape; key: JoinKey; share: number } | undefined;
-    for (const [shape, elements] of [
-        ["node-values", graph.nodes],
-        ["edge-values", graph.edges],
-    ] as const) {
-        for (const path of pathsOf(elements)) {
-            const keys = new Set(indexOf(elements, [path], loose).keys());
-            for (const column of table.columns) {
-                const share = overlapOf(table, column, keys);
-                if (share > (best?.share ?? 0)) {
-                    best = { shape, key: { file: column, graph: path }, share };
-                }
+    for (const match of matches.values()) {
+        if (match.share > (best?.share ?? 0)) {
+            best = { shape: "node-values", key: { file: match.column, graph: match.path }, share: match.share };
+        }
+    }
+
+    for (const path of pathsOf(graph.edges)) {
+        const keys = indexOf(graph.edges, [path], loose);
+        for (const column of table.columns) {
+            const share = overlapOf(table, column, keys);
+            if (share > (best?.share ?? 0)) {
+                best = { shape: "edge-values", key: { file: column, graph: path }, share };
             }
         }
     }
@@ -364,10 +497,13 @@ export function suggestJoin(
         return Object.freeze({ shape: "rows", keys: Object.freeze([]), confident: false });
     }
 
+    const keyMatch = matches.get(best.key.file);
+    const link = best.shape === "node-values" && keyMatch !== undefined ? linkColumnsOf(table, keyMatch, loose) : [];
     return Object.freeze({
         shape: best.shape,
         keys: Object.freeze([Object.freeze(best.key)]),
         confident: best.share >= CONFIDENT,
+        ...(link.length === 0 ? {} : { link: Object.freeze({ columns: Object.freeze(link) }) }),
     });
 }
 
@@ -1231,9 +1367,6 @@ interface Link {
     readonly fates: JoinRowFate[];
     readonly counts: Pick<JoinReport, "pairsLinked" | "valuesOverCap" | "pairsBelowMin" | "newNodes" | "newEdges">;
 }
-
-/** The hub cap when `link.maxShared` is absent (Neo4j's fraud examples use 10). */
-const MAX_SHARED = 10;
 
 /**
  * Plan a link: each row's node holds the row's values in the link columns; a value two to

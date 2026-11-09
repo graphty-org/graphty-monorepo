@@ -320,6 +320,9 @@ reader changes the key or the options:
 | `repeated`     | Several rows with one key: `"first"` (default) or `"both"` (a list, or one edge each) |
 | `via`          | A joined mapping table whose columns translate the incoming keys to the graph's       |
 
+Every shape, choice and count, with linking by a shared value, merging and comparing two lists,
+is in [Joining Data](./joins).
+
 `load({ join })` is one undoable step. The table stays a source: `data.sources()` lists it with
 `kind: "join"` and `joinedOnto`, and `data.joins()` lists the join with its choices and counts. The
 join is saved with the project; `data.editJoin(key, choices)` takes it back and joins the table

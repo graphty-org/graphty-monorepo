@@ -163,13 +163,16 @@ async function renameThenLeave(): Promise<string> {
 
 /**
  * Makes a kept entry another tab's: gives it a new id, as a tab that wrote it and was closed
- * leaves it, and this tab a new visit's empty session storage.
+ * leaves it, and this tab a new visit's empty session storage unless the tab is kept.
  * @param id - the entry.
+ * @param keepTab - leave this tab's session storage, for a tab that still names a project it had.
  * @returns the entry's new id.
  */
-async function fromAnotherTab(id: string): Promise<string> {
+async function fromAnotherTab(id: string, keepTab = false): Promise<string> {
     const other = crypto.randomUUID();
-    sessionStorage.clear();
+    if (!keepTab) {
+        sessionStorage.clear();
+    }
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open(DATABASE);
         request.onsuccess = () => {
@@ -367,14 +370,12 @@ describe("Workspace autosave with the real graphty-element", () => {
         await openBy(dirty.store, () => pickSample(FLORENTINE.name));
         const before = openedElement();
         await before.session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
-        await leave(before.element, dirty.view);
+        await fromAnotherTab(await leave(before.element, dirty.view));
 
         // Then a sample opened untouched, and a new visit.
-        sessionStorage.clear();
         const clean = mountWorkspace();
         await openBy(clean.store, () => pickSample(LES_MIS.name));
-        await leave(openedElement().element, clean.view);
-        sessionStorage.clear();
+        await fromAnotherTab(await leave(openedElement().element, clean.view));
 
         const visit = mountWorkspace();
         await screen.findByRole("button", { name: /^Open a file/ });
@@ -392,8 +393,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         await openBy(older.store, () => pickSample(FLORENTINE.name));
         const before = openedElement();
         await before.session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
-        await leave(before.element, older.view);
-        sessionStorage.removeItem(`graphty-autosave:own:${WORKSPACE_AUTOSAVE_KEY}`);
+        await fromAnotherTab(await leave(before.element, older.view), true);
 
         const reload = mountWorkspace();
         await screen.findByRole("button", { name: /^Open a file/ });

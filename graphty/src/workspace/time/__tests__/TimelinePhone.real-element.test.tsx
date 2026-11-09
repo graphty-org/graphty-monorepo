@@ -170,10 +170,11 @@ describe("the timeline dock on a phone", () => {
         });
     });
 
-    it("closes the timeline for the Filters list the toolbar's Filters asks for", async () => {
+    it("closes the timeline for the Filters list Quick actions asks for", async () => {
         await openDock();
 
-        await tap(screen.getByRole("button", { name: "Filters" }));
+        await tap(screen.getByRole("button", { name: "Quick actions" }));
+        await tap(await screen.findByRole("option", { name: /^Filters/ }));
 
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "Timeline" }));

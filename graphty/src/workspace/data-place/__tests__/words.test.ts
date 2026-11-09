@@ -14,6 +14,7 @@ import {
     leftOutSentence,
     namesOnce,
     noNodeRow,
+    sourceFacts,
     sourceRows,
     sourcesWords,
     typeOf,
@@ -369,5 +370,33 @@ describe("what uses a result", () => {
             "Shortest route x2, Connections",
         );
         assert.strictEqual(namesOnce(["Filter"]), "Filter");
+    });
+});
+
+describe("a source's details", () => {
+    const facts = (source: LoadedSource): Record<string, string | number> => {
+        const { source: about, statistics } = sourceFacts(source, [source], { columns: 2, issues: 0, waiting: false });
+        return Object.fromEntries([...about, ...statistics].map(({ name, value }) => [name, value]));
+    };
+
+    it("draws no row for a fact a load does not have, such as an older project's time", () => {
+        const older = facts(loaded("people.csv", ["people.csv"], { nodes: 3, edges: 0 }));
+        assert.deepEqual(Object.keys(older), ["Type", "Nodes", "Edges", "Columns"]);
+        assert.strictEqual(older.Nodes, 3);
+    });
+
+    it("says when a load was retrieved, and its size in words", () => {
+        const newer = facts({
+            ...loaded("people.csv", ["people.csv"], { nodes: 3, edges: 0 }),
+            kind: "file",
+            size: 2400,
+            fileName: "people.csv",
+            type: "csv",
+            loadedAt: "2024-06-03T08:00:00.000Z",
+        });
+        assert.strictEqual(newer.File, "people.csv");
+        assert.strictEqual(newer.Format, "CSV");
+        assert.strictEqual(newer.Size, "3 KB");
+        assert.isString(newer.Retrieved);
     });
 });

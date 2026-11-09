@@ -58,7 +58,7 @@ export interface SourceInput {
 }
 
 /**
- * A network source read and not yet loaded, from `data.readSource`. Pass the whole object to
+ * A network source read and not yet loaded, from `data.readExample`. Pass the whole object to
  * `data.import`, on this session or another, and it loads without reading the service again.
  * Experimental.
  */

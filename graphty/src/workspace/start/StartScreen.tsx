@@ -1,6 +1,6 @@
 import "./start.css";
 
-import { FileSource, PopoutManager, useFileDrop } from "@graphty/compact-mantine";
+import { FileSource, useFileDrop } from "@graphty/compact-mantine";
 import { type DatasetMeta, GENERATOR_DESCRIPTORS, type GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
@@ -20,7 +20,6 @@ import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
 import { serverKinds } from "../server/commands";
-import { OpenNetworkData } from "../server/ServerForm";
 import { kindName } from "../server/words";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
@@ -31,6 +30,7 @@ import { Groups } from "./icons";
 import { countWords, isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import NETWORK_SAMPLES from "./network-samples.json";
+import { NETWORK_DIALOG } from "./NetworkDataDialog";
 import { openDataset, openFiles, openGenerated, openModel, openNetworkSample, openSample, openUrl } from "./open";
 import { SampleCard } from "./SampleCard";
 import { GENERATED, type LibraryTile, offeredTiles, type SampleCardData } from "./sampleLibrary";
@@ -527,7 +527,7 @@ function useScrolledPast(lockup: React.RefObject<HTMLElement | null>): boolean {
  * recent projects, Open a file and New project. A file dropped anywhere on it opens.
  * @returns The start page
  */
-function StartPage(): React.JSX.Element {
+export function StartScreen(): React.JSX.Element {
     const workspace = useWorkspace();
     const scheme = useComputedColorScheme("dark");
     const recent = useRecentProjects();
@@ -599,11 +599,16 @@ function StartPage(): React.JSX.Element {
         </Button>
     );
     const networkButton = network ? (
-        <OpenNetworkData>
-            <Button className="ws-land-tint" leftSection={<GLYPHS.data size={16} aria-hidden />}>
-                Open network data
-            </Button>
-        </OpenNetworkData>
+        <Button
+            className="ws-land-tint"
+            leftSection={<GLYPHS.data size={16} aria-hidden />}
+            aria-haspopup="dialog"
+            onClick={() => {
+                workspace.store.set({ dialog: NETWORK_DIALOG });
+            }}
+        >
+            Open network data
+        </Button>
     ) : null;
     const newButton = (
         <Button
@@ -788,18 +793,5 @@ function StartPage(): React.JSX.Element {
                 </div>
             ) : null}
         </div>
-    );
-}
-
-/**
- * The start page in its floating layer, outside the hero's stacking context, so a pop-over opened
- * from the launcher is drawn over the top bar and the fact bar.
- * @returns The start page
- */
-export function StartScreen(): React.JSX.Element {
-    return (
-        <PopoutManager>
-            <StartPage />
-        </PopoutManager>
     );
 }

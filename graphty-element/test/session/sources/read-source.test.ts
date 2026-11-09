@@ -1,5 +1,5 @@
 /**
- * Reading a network source without loading it: `data.readSource` changes nothing and refuses what
+ * Reading a network source without loading it: `data.readExample` changes nothing and refuses what
  * the renderer could not draw; `data.import` of the read, on another session, loads it with no
  * second fetch and records the load as an ordinary import does.
  */
@@ -14,6 +14,8 @@ vi.mock("../../../src/session/limits", async (original) => {
     return { ...actual, DEFAULT_LIMITS: { ...actual.DEFAULT_LIMITS, renderCeiling: 3, edgesDrawn: 2 } };
 });
 
+const EXAMPLE = "read-people-all";
+
 registerSource(
     defineSource({
         id: "read-people",
@@ -23,14 +25,13 @@ registerSource(
             auth: ["basic"],
             authRequired: "optional",
             defaultEndpoint: "https://people.example.com",
+            examples: [{ id: EXAMPLE, plainName: "People", params: {} }],
         },
         async records(_params: Record<string, never>, ctx) {
             return ctx.fetchJson<{ nodes: { id: string }[]; edges: { source: string; target: string }[] }>("/people");
         },
     }),
 );
-
-const INPUT = { source: "read-people", config: {}, name: "People" };
 
 /**
  * A fetch that answers a graph, counting its calls.
@@ -81,11 +82,11 @@ async function refusal(promise: Promise<unknown>): Promise<{ code?: string; deta
     );
 }
 
-describe("data.readSource", () => {
+describe("data.readExample", () => {
     it("reads and changes nothing; import on another session loads it with no second fetch", async () => {
         const { fetch, calls } = server(3);
         await withSession(["network-data"], async (scratch) => {
-            const read = await scratch.data.readSource(INPUT, {
+            const read = await scratch.data.readExample("read-people", EXAMPLE, {
                 fetch,
                 credential: credentials.basic("ana", "secret"),
                 limits: { maxNodes: 3, onLimit: "stop" },
@@ -119,9 +120,9 @@ describe("data.readSource", () => {
     it("refuses with the experiment off and fetches nothing", async () => {
         const { fetch, calls } = server(1);
         await withSession([], async (session) => {
-            const error = await refusal(session.data.readSource(INPUT, { fetch }));
+            const error = await refusal(session.data.readExample("read-people", EXAMPLE, { fetch }));
             assert.strictEqual(error?.code, "E_FEATURE_OFF");
-            assert.deepEqual(error?.details, { feature: "network-data", key: "data.readSource" });
+            assert.deepEqual(error?.details, { feature: "network-data", key: "data.readExample" });
         });
         assert.strictEqual(calls(), 0);
     });
@@ -129,7 +130,7 @@ describe("data.readSource", () => {
     it("rejects with the source's code and leaves nothing behind", async () => {
         await withSession(["network-data"], async (session) => {
             const fetch = (): Promise<Response> => Promise.resolve(new Response("no", { status: 401 }));
-            const error = await refusal(session.data.readSource(INPUT, { fetch }));
+            const error = await refusal(session.data.readExample("read-people", EXAMPLE, { fetch }));
             assert.strictEqual(error?.code, "E_SOURCE_AUTH");
             assert.lengthOf(session.data.nodes(), 0);
             assert.lengthOf(session.data.sources(), 0);
@@ -138,7 +139,7 @@ describe("data.readSource", () => {
 
     it("refuses nodes past the render ceiling with E_TOO_LARGE before anything opens", async () => {
         await withSession(["network-data"], async (session) => {
-            const error = await refusal(session.data.readSource(INPUT, { fetch: server(4).fetch }));
+            const error = await refusal(session.data.readExample("read-people", EXAMPLE, { fetch: server(4).fetch }));
             assert.strictEqual(error?.code, "E_TOO_LARGE");
             assert.deepEqual(error?.details, { limit: 3, count: 4, of: "nodes", graph: { nodes: 0, edges: 0 } });
         });
@@ -153,7 +154,7 @@ describe("data.readSource", () => {
         ];
         const fetch = (): Promise<Response> => Promise.resolve(Response.json({ nodes, edges }));
         await withSession(["network-data"], async (session) => {
-            const error = await refusal(session.data.readSource(INPUT, { fetch }));
+            const error = await refusal(session.data.readExample("read-people", EXAMPLE, { fetch }));
             assert.strictEqual(error?.code, "E_TOO_LARGE");
             assert.deepEqual(error?.details, { limit: 2, count: 3, of: "edges", graph: { nodes: 0, edges: 0 } });
         });

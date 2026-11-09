@@ -2749,6 +2749,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             importer: () => dispatcher.capturedDispatch(),
             loadLine: loadLineOf(dispatcher),
+            ceilings,
             slice,
             measure: async (command, config) => {
                 const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });

@@ -20,6 +20,7 @@ import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { useDropToOpen } from "./start/open";
+import { NetworkDataDialog } from "./start/NetworkDataDialog";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import {
@@ -253,6 +254,7 @@ export function Workspace({
                 <span key={announced}>{announcement}</span>
             </VisuallyHidden>
             <SamplesDialog />
+            <NetworkDataDialog />
         </WorkspaceContext.Provider>
     );
 }

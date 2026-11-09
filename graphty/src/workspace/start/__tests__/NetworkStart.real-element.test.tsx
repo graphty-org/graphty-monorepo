@@ -1,8 +1,9 @@
 /**
- * Network data from the start page on the REAL graphty-element: Open network data opens the same
- * form with no project; Load reads first and only then opens the app, on the graph with the Style
- * panel up; a refused read stays in the form and opens nothing; and the Load network data section
- * holds one sample of each kind of source. Every step is real input; NDEx answers from its recording.
+ * Network data from the start page on the REAL graphty-element: Open network data pops up the kinds
+ * of network, a card opens the app with the form on that kind, and closing the form with nothing
+ * loaded goes back to the start page; a refused Load stays in the form; and the Load network data
+ * section holds one sample of each kind of source, each of which reads first and lands on the graph
+ * with the Style panel up. Every step is real input; NDEx answers from its recording.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -67,14 +68,35 @@ function recordedNdex(): string[] {
 }
 
 /**
- * Renders the start page and opens the network form from its button.
- * @returns the store and the form.
+ * Renders the start page and pops up the chooser from its button.
+ * @returns the store and the chooser.
  */
-async function openForm(): Promise<{ store: WorkspaceStore; form: HTMLElement }> {
+async function openChooser(): Promise<{ store: WorkspaceStore; chooser: HTMLElement }> {
     const store = createWorkspaceStore();
     render(<Workspace store={store} />);
     await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
-    return { store, form: await screen.findByRole("form", { name: "Network data" }) };
+    return { store, chooser: await screen.findByRole("dialog", { name: "Open network data" }) };
+}
+
+/**
+ * Renders the start page and opens the network form through the chooser.
+ * @param kind - the card to pick.
+ * @returns the store, the opened project's session and the form.
+ */
+async function openForm(kind: RegExp = /^NDEx/): Promise<{
+    store: WorkspaceStore;
+    session: GraphSession;
+    form: HTMLElement;
+}> {
+    const { store, chooser } = await openChooser();
+    await userEvent.click(within(chooser).getByRole("button", { name: kind }));
+    const form = await screen.findByRole("form", { name: "Network data" });
+    // The form draws once the project's session exists.
+    const session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+        "graphty-element:not([data-start-page])",
+    )?.session;
+    assert.isDefined(session);
+    return { store, session: session as GraphSession, form };
 }
 
 /**
@@ -124,90 +146,72 @@ describe("network data from the start page", () => {
         await clearRecent();
     });
 
-    it("opens the form with no project and no samples in it, and closing leaves the start page", async () => {
-        const { store, form } = await openForm();
+    it("pops up the four kinds of network, and nothing opens until one is picked", async () => {
+        const { store, chooser } = await openChooser();
+        assert.deepEqual(
+            within(chooser)
+                .getAllByRole("button")
+                .map((button) => button.textContent),
+            [
+                "",
+                "NDNDExPublic biology networks",
+                "N4jNeo4jRun a Cypher query",
+                "SPSPARQL endpointRun a SPARQL query",
+                "APIWeb APIJSON results as nodes and edges",
+            ],
+        );
         assert.isNull(store.get().project);
-        assert.isNull(within(form).queryByRole("combobox", { name: "Example" }));
-        assert.isNull(within(form).queryByText("Example"));
+    });
 
+    for (const [card, kind] of [
+        [/^NDNDEx/, "NDEx"],
+        [/^N4jNeo4j/, "Neo4j"],
+        [/^SPSPARQL/, "SPARQL endpoint"],
+        [/^APIWeb API/, "Web API"],
+    ] as const) {
+        it(`opens the app with the form on ${kind}, with no samples in it`, async () => {
+            const { store, form } = await openForm(card);
+            assert.strictEqual(store.get().project?.name, "Untitled");
+            assert.strictEqual(store.get().place, "data");
+            assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }));
+            assert.strictEqual(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).value, kind);
+            assert.isNull(within(form).queryByRole("combobox", { name: "Example" }));
+            assert.isNull(within(form).queryByText("Example"));
+        });
+    }
+
+    it("goes back to the start page when the form closes with nothing loaded", async () => {
+        const { store } = await openForm();
         await userEvent.click(screen.getByRole("button", { name: "Close Network data" }));
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
-        });
-        assert.isNull(store.get().project);
-        assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
-    });
-
-    it("opens the app on the graph with the Style panel only after Load has read the server", async () => {
-        const asked = recordedNdex();
-        const { store, form } = await openForm();
-        await typeWp5483(form);
-        assert.lengthOf(asked, 0, "typing reads nothing");
-        assert.isNull(store.get().project, "and opens nothing");
-
-        const session = await openBy(store, () => pressLoad(form));
-        await landedOnStylePanel(store, session, 57);
-        assert.isNull(screen.queryByRole("form", { name: "Network data" }));
-        assert.lengthOf(
-            asked.filter((url) => url === NETWORK_URL),
-            1,
-            "the network is read once",
-        );
-    });
-
-    it("runs Test on the start page, with no project", async () => {
-        const { store, form } = await openForm();
-        await userEvent.click(within(form).getByRole("combobox", { name: "Kind" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Start people" }));
-        await userEvent.click(within(form).getByRole("button", { name: "Test" }));
-        const preview = await within(form).findByRole("group", { name: "Preview" });
-        assert.include(preview.textContent, "Ana");
+        await screen.findByRole("button", { name: "Open network data" });
         assert.isNull(store.get().project);
     });
 
-    it("keeps the sign-in typed into the form for the opened project", async () => {
-        recordedNdex();
-        const { store, form } = await openForm();
-        await userEvent.type(within(form).getByRole("textbox", { name: "User" }), "reader");
-        await userEvent.type(within(form).getByLabelText("Password"), "hunter2");
-        await typeWp5483(form);
-        const session = await openBy(store, () => pressLoad(form));
-        assert.strictEqual(session.data.loads()[0]?.credential?.username, "reader");
-        assert.notInclude(JSON.stringify(store.get()), "hunter2");
-        const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-            "graphty-element:not([data-start-page])",
-        );
-        assert.isDefined(await element?.credentials.lookup("ndex", NDEX, "default"));
+    it("opens nothing when the chooser is closed with Escape, its X or the backdrop", async () => {
+        const { store } = await openChooser();
+        const closed = async (): Promise<void> => {
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }));
+            });
+            assert.isNull(store.get().project);
+        };
+        const reopen = async (): Promise<HTMLElement> => {
+            await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+            return screen.findByRole("dialog", { name: "Open network data" });
+        };
+
+        await userEvent.keyboard("{Escape}");
+        await closed();
+        await userEvent.click(within(await reopen()).getByRole("button", { name: "Close" }));
+        await closed();
+        await reopen();
+        const backdrop = document.querySelector<HTMLElement>(".mantine-Modal-overlay");
+        assert.isNotNull(backdrop);
+        await userEvent.click(backdrop as HTMLElement, { position: { x: 5, y: 5 } });
+        await closed();
     });
 
-    it("keeps the form open with the server's refusal and opens nothing", async () => {
-        stubNdex(() => Promise.resolve(new Response("{}", { status: 401 })));
-        const { store, form } = await openForm();
-        await typeWp5483(form);
-        await pressLoad(form);
-        const chip = await waitFor(() => {
-            const found = form.querySelector('[data-code="E_SOURCE_AUTH"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        assert.include(chip?.textContent, "sign-in refused");
-        assert.isNull(store.get().project);
-        assert.isNotNull(screen.getByRole("form", { name: "Network data" }));
-    });
-
-    it("keeps the form open when the server cannot be reached", async () => {
-        stubNdex(() => Promise.reject(new TypeError("Failed to fetch")));
-        const { store, form } = await openForm();
-        await typeWp5483(form);
-        await pressLoad(form);
-        await waitFor(() => {
-            assert.include(form.querySelector("[data-error]")?.textContent, "unreachable or blocked");
-        });
-        assert.isNull(store.get().project);
-        assert.isNotNull(screen.getByRole("form", { name: "Network data" }));
-    });
-
-    it("opens nothing when the form is closed during the read", async () => {
+    it("stops the Load and goes back to the start page when the form closes during it", async () => {
         let signal: AbortSignal | undefined;
         stubNdex((request) => {
             ({ signal } = request);
@@ -227,38 +231,77 @@ describe("network data from the start page", () => {
         await waitFor(() => {
             assert.isTrue(signal?.aborted);
         });
+        await screen.findByRole("button", { name: "Open network data" });
         assert.isNull(store.get().project);
+        assert.isNull(store.get().notice);
     });
 
-    it("opens nothing when the server answers after the form is closed", async () => {
-        let answer: (response: Response) => void = () => undefined;
-        let asked = false;
-        stubNdex(() => {
-            asked = true;
-            return new Promise((resolve) => {
-                answer = resolve;
-            });
-        });
-        const { store, form } = await openForm();
+    it("loads into the opened project, where the form lands on the Data place", async () => {
+        const asked = recordedNdex();
+        const { store, session, form } = await openForm();
         await typeWp5483(form);
+        assert.lengthOf(asked, 0, "typing reads nothing");
         await pressLoad(form);
-        await waitFor(() => {
-            assert.isTrue(asked);
-        });
-        await userEvent.click(screen.getByRole("button", { name: "Close Network data" }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
-        answer(new Response("{}", { status: 200 }));
-        // A real click, so everything the answer set off has run before the assertion.
-        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
-        await screen.findByRole("form", { name: "Network data" });
-        assert.isNull(store.get().project);
+        assert.strictEqual(session.data.statistics().nodeCount, 57);
+        assert.strictEqual(store.get().place, "data");
+        assert.lengthOf(
+            asked.filter((url) => url === NETWORK_URL),
+            1,
+            "the network is read once",
+        );
+    });
+
+    it("keeps the sign-in typed into the form for the project", async () => {
+        recordedNdex();
+        const { store, session, form } = await openForm();
+        await userEvent.type(within(form).getByRole("textbox", { name: "User" }), "reader");
+        await userEvent.type(within(form).getByLabelText("Password"), "hunter2");
+        await typeWp5483(form);
+        await pressLoad(form);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
+        assert.strictEqual(session.data.loads()[0]?.credential?.username, "reader");
+        assert.notInclude(JSON.stringify(store.get()), "hunter2");
+        const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        );
+        assert.isDefined(await element?.credentials.lookup("ndex", NDEX, "default"));
+    });
+
+    it("keeps the form open with the server's refusal", async () => {
+        stubNdex(() => Promise.resolve(new Response("{}", { status: 401 })));
+        const { session, form } = await openForm();
+        await typeWp5483(form);
+        await pressLoad(form);
+        const chip = await waitFor(() => {
+            const found = form.querySelector('[data-code="E_SOURCE_AUTH"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.include(chip?.textContent, "sign-in refused");
+        assert.lengthOf(session.data.sources(), 0);
+        assert.isNotNull(screen.getByRole("form", { name: "Network data" }));
+    });
+
+    it("keeps the form open when the server cannot be reached", async () => {
+        stubNdex(() => Promise.reject(new TypeError("Failed to fetch")));
+        const { session, form } = await openForm();
+        await typeWp5483(form);
+        await pressLoad(form);
+        await waitFor(() => {
+            assert.include(form.querySelector("[data-error]")?.textContent, "unreachable or blocked");
+        });
+        assert.lengthOf(session.data.sources(), 0);
+        assert.isNotNull(screen.getByRole("form", { name: "Network data" }));
     });
 
     it("previews a network larger than the preview, and names the size past the Limit", async () => {
         recordedNdex();
-        const { store, form } = await openForm();
+        const { form } = await openForm();
         await typeWp5483(form);
         await userEvent.click(within(form).getByRole("button", { name: "Test" }));
         const preview = await within(form).findByRole("group", { name: "Preview" });
@@ -272,7 +315,6 @@ describe("network data from the start page", () => {
         await waitFor(() => {
             assert.strictEqual(form.querySelector("[data-error]")?.textContent, "57 nodes: over Limit");
         });
-        assert.isNull(store.get().project);
     });
 
     it("closes only the dropdown on Escape, keeping what was typed", async () => {
@@ -307,7 +349,7 @@ describe("network data from the start page", () => {
         render(<Workspace store={store} />);
         await screen.findByRole("heading", { level: 1, name: "Welcome back." });
         await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
-        await screen.findByRole("form", { name: "Network data" });
+        await screen.findByRole("dialog", { name: "Open network data" });
         assert.isNull(store.get().project);
     });
 

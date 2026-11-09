@@ -64,7 +64,12 @@ registerSource(
 registerSource(
     defineSource({
         id: "people-pages",
-        descriptor: { plainName: "People (pages)", params: [], features: ["page"] },
+        descriptor: {
+            plainName: "People (pages)",
+            params: [],
+            features: ["page"],
+            examples: [{ id: "people-pages-a", plainName: "From a", params: { prefix: "a" } }],
+        },
         async *records(params: { prefix?: string }, ctx) {
             const prefix = params.prefix ?? "p";
             for (let page = Number(ctx.cursor?.page ?? 0); page < 3; page++) {
@@ -284,10 +289,9 @@ describe("a read imported into another session", () => {
 
     it("pages and refreshes as a load made there does", async () => {
         await withTwo(async (scratch, session) => {
-            const read = await scratch.data.readSource(
-                { source: "people-pages", config: { prefix: "a" } },
-                { limits: { maxNodes: 3, onLimit: "stop" } },
-            );
+            const read = await scratch.data.readExample("people-pages", "people-pages-a", {
+                limits: { maxNodes: 3, onLimit: "stop" },
+            });
             await session.data.import(read, { history: "start" });
             const [load] = session.data.loads();
             await session.data.more({ load: load.key });

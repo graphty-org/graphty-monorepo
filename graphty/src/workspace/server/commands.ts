@@ -6,7 +6,6 @@
  * `network-data` experiment on.
  */
 
-import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { type SourceCatalogEntry, sourceDescriptors } from "@graphty/graphty-element/catalog";
 import {
     type Credential,
@@ -20,7 +19,7 @@ import {
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { networkOn } from "../features";
-import type { WorkspaceStore } from "../state/store";
+import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { codeWords, failureOf, kindName } from "./words";
 
@@ -259,7 +258,7 @@ export function serverRequest(
     };
 }
 
-/** What Load hands to whoever hosts the form: a read and everything needed to keep its sign-in. */
+/** What Load and Test send: the read, and the sign-in to remember in memory. */
 export interface ServerLoad {
     readonly input: SourceInput;
     /** The load's options, the credential among them. */
@@ -287,23 +286,21 @@ export function serverLoad(entry: SourceCatalogEntry, form: ServerFormState): Se
 }
 
 /**
- * Remembers a load's sign-in in memory, never in the file, so Load more, Refresh and Expand find it.
- * @param element - the element the graph is loaded into.
- * @param load - the load.
- * @returns settles once it is remembered.
- */
-export async function rememberSignIn(element: GraphtyElement, load: ServerLoad): Promise<void> {
-    if (load.credential !== undefined && load.endpoint !== undefined) {
-        await element.credentials.remember({ source: load.input.source, endpoint: load.endpoint }, load.credential);
-    }
-}
-
-/**
- * Opens the server form on the Data place of the open project.
+ * Opens the server form on the Data place, opening an empty project first when none is open
+ * (the start screen's Open network data).
  * @param store - the workspace store.
+ * @param kind - the source the form opens on, or none for its first.
  */
-function openServerForm(store: WorkspaceStore): void {
-    store.set({ page: "panels", place: "data", ...panelsInView(), dialog: SERVER_DIALOG });
+export function openServerForm(store: WorkspaceStore, kind: string | null = null): void {
+    store.set((state) => ({
+        ...(state.project === null ? { project: { name: "Untitled", id: newProjectId(state) }, inspected: null } : {}),
+        page: "panels",
+        place: "data",
+        ...panelsInView(),
+        dialog: SERVER_DIALOG,
+        serverKind: kind,
+        serverFromStart: state.project === null,
+    }));
 }
 
 /**

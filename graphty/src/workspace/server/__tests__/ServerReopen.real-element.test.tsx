@@ -70,18 +70,6 @@ function openedElement(): { element: ElementUnderTest; session: GraphSession } {
     return { element, session: element.session };
 }
 
-/**
- * Picks an option of a dropdown in the form by clicking it open and clicking the option.
- * @param form - the form.
- * @param label - the dropdown's label.
- * @param option - the option's text.
- */
-async function pick(form: HTMLElement, label: string, option: string): Promise<void> {
-    await userEvent.click(within(form).getByRole("combobox", { name: label }));
-    // The list opens in a portal, outside the form.
-    await userEvent.click(await screen.findByRole("option", { name: option }));
-}
-
 describe("a network load reopened from autosave", () => {
     withFeatures(["network-data"]);
 
@@ -104,13 +92,14 @@ describe("a network load reopened from autosave", () => {
     it("draws every node it loaded and asks for no approval", async () => {
         const first = mountWorkspace();
         await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
+        const card = await screen.findByRole("button", { name: /^NDNDEx/ });
+        await userEvent.click(card);
         const form = await screen.findByRole("form", { name: "Network data" });
-        await pick(form, "Kind", "NDEx");
         await userEvent.type(within(form).getByRole("textbox", { name: "Network UUID" }), WP5483);
-        // Load opens the project, and the graph comes in.
-        await openBy(first.store, () => userEvent.click(within(form).getByRole("button", { name: "Load" })));
-        assert.isNull(screen.queryByRole("form", { name: "Network data" }));
-        assert.strictEqual(first.store.get().project?.name, "NDEx");
+        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
         const { element, session } = openedElement();
         assert.strictEqual(session.data.statistics().nodeCount, 57);
 

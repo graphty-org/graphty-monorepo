@@ -86,7 +86,6 @@ describe("the network-data experiment, off", () => {
                 ["data.testSource", () => session.data.testSource(input, { fetch })],
                 ["data.listSource", () => session.data.listSource(input, {}, { fetch })],
                 ["data.previewSource", () => session.data.previewSource(input, { fetch })],
-                ["data.readSource", () => session.data.readSource(input, { fetch })],
                 ["data.readExample", () => session.data.readExample("flag-people", "flag-people-all", { fetch })],
                 ["data.checkSource", () => session.data.checkSource("load-1", { fetch })],
                 ["data.refresh", () => session.data.refresh("load-1", { fetch })],

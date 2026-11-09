@@ -90,19 +90,17 @@ its name, for both user and password. Amazon Neptune has no public server, so it
 
 ## Read first, load later
 
-`session.data.readSource(input, options)` reads a source and changes nothing, so a failure can be
-shown before anything is opened for the data. It takes what `import` takes and refuses what the
-renderer could not draw with `E_TOO_LARGE`. Pass the result to `import`, on any session with
-`network-data` on, and it loads without reading the service again:
+`session.data.readExample(source, example, options)` reads one of a source's examples and changes
+nothing, so a failure can be shown before anything is opened for the data. It takes what `import`
+takes and refuses what the renderer could not draw with `E_TOO_LARGE`. Pass the result to `import`,
+on any session with `network-data` on, and it loads without reading the service again:
 
 ```ts
 const scratch = createGraphSession({ features: ["network-data"] });
-const read = await scratch.data.readSource({ source: "ndex", config: { uuid } });
+const read = await scratch.data.readExample("ndex", "ndex-wp5483");
 await element.session.data.import(read); // read.nodes and read.edges say how big it is
 scratch.dispose();
 ```
-
-`session.data.readExample(source, example)` does the same for one of a source's examples.
 
 ## Write your own source
 

@@ -237,13 +237,13 @@ describe("the start screen", () => {
         assert.isTrue(scrolled);
     });
 
-    it("opens the network data form with no project with network data on", async () => {
+    it("pops up the kinds of network with network data on, opening no project", async () => {
         await siteFeatures(["timeline", "network-data"]);
         const store = renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
 
-        await screen.findByRole("form", { name: "Network data" });
+        await screen.findByRole("button", { name: /^N4jNeo4j/ });
         assert.isNull(store.get().project);
     });
 

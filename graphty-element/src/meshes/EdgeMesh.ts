@@ -656,6 +656,8 @@ void main() {
      * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
      * @param loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
      * @param route - The route the edge takes ({@link EdgeMesh.pullsCurve}).
+     * @param lean - Whether a straight line draws the lean program (`EDGE_PULLED_LEAN`): the
+     *     graph's `antialias` is false under renderPath "batched" (cosmos-gap.md G12). A curve never does.
      * @returns The batch.
      */
     static pulledBatch(
@@ -666,17 +668,27 @@ void main() {
         rowPositions: () => BaseTexture,
         loop = false,
         route = style.line?.route,
+        lean = false,
     ): PulledLineBatch {
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
         const curve = this.pullsCurve(style, loop, route);
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${curve ? "|curve" : ""}`;
+        const leanLine = lean && !curve;
+        const kind = curve ? "|curve" : leanLine ? "|lean" : "";
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${kind}`;
         return cache.getPulledBatch(key, () => {
-            const mesh = this.createStaticLine(options, style, scene, cache, false, curve ? "curve" : true);
+            const mesh = this.createStaticLine(
+                options,
+                style,
+                scene,
+                cache,
+                false,
+                curve ? "curve" : leanLine ? "lean" : true,
+            );
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
-            return new PulledLineBatch(mesh, scene, rowPositions, curve);
+            return new PulledLineBatch(mesh, scene, rowPositions, curve, leanLine);
         });
     }
 
@@ -986,7 +998,7 @@ void main() {
 
         _cache: MeshCache,
         widened = false,
-        pulled: boolean | "curve" = false,
+        pulled: boolean | "curve" | "lean" = false,
     ): Mesh {
         // Use custom line renderer if flag is enabled
 
@@ -1004,6 +1016,7 @@ void main() {
                     opaque: this.drawsOpaque(style),
                     pulled: pulled !== false,
                     pulledCurve: pulled === "curve",
+                    pulledLean: pulled === "lean",
                 },
                 scene,
             );

@@ -121,6 +121,17 @@ export const JOIN_TEMPLATE_INDICES: readonly number[] = [
 export const JOIN_TEMPLATE_VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
 
 /**
+ * The lean program's template (`EDGE_PULLED_LEAN`): the join template's rectangle alone, its
+ * vertices 1, 2, 7 and 6, drawn as the same two triangles. A straight piece between node centres
+ * has no neighbour, so every join vertex sits on a side vertex and the join's eight triangles have
+ * no area: the rectangle is all such a piece draws.
+ */
+export const LEAN_TEMPLATE_OF: readonly number[] = [1, 2, 7, 6];
+
+/** The lean rectangle's two triangles, (1, 2, 7) and (1, 7, 6) of the join template. */
+export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
+
+/**
  * PULLED EDGES (`EDGE_PULLED`): a piece's six points are not attributes but read at the top of the
  * vertex stage. `edgeRows` holds two row numbers per piece (a texel holds two pieces), and
  * `rowPosition` (`render/RowTable.ts`) holds each row's place and its w; so moving a node uploads
@@ -135,6 +146,11 @@ export const JOIN_TEMPLATE_VERTICES = JOIN_TEMPLATE_POSITIONS.length / 3;
  * its look is its own, not its material's: `pieceWidth` stands in for the `width` uniform, and the
  * flat varying `vLook` for the `color` and `opacity` uniforms, with the same values a material
  * would hold.
+ *
+ * The LEAN program (`EDGE_PULLED_LEAN`, straight pieces only) draws each piece from
+ * `LEAN_TEMPLATE_OF`'s four vertices and six indices, `piece * 4 + k`, instead of the join template's
+ * 14 and 30: the same rectangle, the same shader after this, so the same pixels, at fewer vertex
+ * invocations a piece.
  *
  * A CURVE's piece (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its point along the
  * edge's cut path, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Its six
@@ -161,6 +177,13 @@ vec4 pulledRow(int r) {
     return texelFetch(rowPosition, ivec2(r & 1023, r >> 10), 0);
 }
 
+#ifdef EDGE_PULLED_LEAN
+const int PIECE_VERTICES = ${String(LEAN_TEMPLATE_OF.length)};
+const int LEAN_OF[PIECE_VERTICES] = int[PIECE_VERTICES](${LEAN_TEMPLATE_OF.join(", ")});
+#else
+const int PIECE_VERTICES = ${String(JOIN_TEMPLATE_VERTICES)};
+#endif
+
 #ifdef EDGE_PULLED_CURVE
 ${PULLED_CURVE_GLSL}
 
@@ -170,8 +193,12 @@ const int PIECE_TEXELS = 2;
 #endif
 
 void pullEdge() {
-    int piece = gl_VertexID / ${String(JOIN_TEMPLATE_VERTICES)};
-    position = JOIN_TEMPLATE[gl_VertexID - piece * ${String(JOIN_TEMPLATE_VERTICES)}];
+    int piece = gl_VertexID / PIECE_VERTICES;
+#ifdef EDGE_PULLED_LEAN
+    position = JOIN_TEMPLATE[LEAN_OF[gl_VertexID - piece * PIECE_VERTICES]];
+#else
+    position = JOIN_TEMPLATE[gl_VertexID - piece * PIECE_VERTICES];
+#endif
     int texel = piece * PIECE_TEXELS;
     vec4 head = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
     vec4 tint = texelFetch(edgeRows, ivec2((texel + 1) & 1023, (texel + 1) >> 10), 0);

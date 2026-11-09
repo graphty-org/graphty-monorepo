@@ -425,8 +425,8 @@ function containersOf(snapshot: GraphSnapshot): Set<number> {
 }
 
 /**
- * The hook's group boxes in the neutral convention; a container with no coordinate of its own is
- * placed at its box's center.
+ * The hook's group boxes in the neutral convention; each container is placed at its box's center, over a coordinate
+ * of its own (yEd draws an open group round its members, not at the box the file stores).
  * @param spelling - the spelling and the hook's boxes
  * @param rows - the coordinates, changed in place
  * @returns the boxes
@@ -436,9 +436,7 @@ function applyGroups(spelling: Spelling, rows: Rows): FilePositionGroup[] {
     for (const { node, box } of spelling.groups) {
         const p: Point = [box.x, box.y, 0];
         toNeutral(p, spelling.extra, [box.width, box.height], false);
-        if (Number.isNaN(rows.values[3 * node])) {
-            rows.values.set(p, 3 * node);
-        }
+        rows.values.set(p, 3 * node);
         if (!out.some((g) => g.node === node)) {
             out.push({ node, box: { x: p[0], y: p[1], width: box.width, height: box.height } });
         }

@@ -1,3 +1,23 @@
+## 2.6.0 (2026-11-09)
+
+### 🚀 Features
+
+- **layout:** add a collision force to the force simulations ([#3256](https://github.com/graphty-org/graphty-monorepo/issues/3256))
+
+### 🩹 Fixes
+
+- **layout:** clamp an ARF tick only once the run proves unstable ([#3255](https://github.com/graphty-org/graphty-monorepo/issues/3255))
+- **layout:** keep the ForceAtlas2 integrate step within the complexity limit ([#3255](https://github.com/graphty-org/graphty-monorepo/issues/3255))
+- **layout:** stop force layouts throwing nodes away after a pin and leaving ARF nodes stuck ([#3255](https://github.com/graphty-org/graphty-monorepo/issues/3255))
+- **workspace:** type-check the algorithms and layout test files in lint ([#5689](https://github.com/graphty-org/graphty-monorepo/issues/5689))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.45
+- Updated visual-review to 0.2.41
+- Updated graph-format to 1.5.0
+- Updated algorithms to 3.4.20
+
 ## 2.5.15 (2026-11-02)
 
 ### 🩹 Fixes

@@ -14,6 +14,7 @@ import { designate, timelineOn, unitOf } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import { useTimeFieldVersion } from "../time/useTimeVersion";
 import { pickEnd } from "./commands";
+import { FiltersSection } from "./Filters";
 import { TypeGlyphIcon } from "./TypeGlyphIcon";
 import {
     columnChoices,
@@ -596,17 +597,25 @@ function SideGroup({
     };
     return (
         <div ref={group} data-fields-side={side}>
-            <div className="dp-fields-group">
-                <EntityChip kind={kind}>{formatNumber(count)}</EntityChip>
-                <AddButton
-                    kind={kind}
-                    title="Attributes"
-                    options={offered.map((entry) => ({ key: entry.id, label: entry.name }))}
-                    onAdd={(key) => {
-                        setAdding(key as EntryId);
-                    }}
-                />
-            </div>
+            <FieldRow
+                trailing={
+                    <AddButton
+                        kind={kind}
+                        title="Attributes"
+                        options={offered.map((entry) => ({ key: entry.id, label: entry.name }))}
+                        onAdd={(key) => {
+                            setAdding(key as EntryId);
+                        }}
+                    />
+                }
+            >
+                <Text size="xs" truncate>
+                    {side === "nodes" ? "Nodes" : "Edges"}
+                </Text>
+                <span>
+                    <EntityChip kind={kind}>{formatNumber(count)}</EntityChip>
+                </span>
+            </FieldRow>
             {fixed}
             {entries.map(rowOf)}
         </div>
@@ -692,6 +701,22 @@ function TimeEntry({
 }
 
 /**
+ * The columns a load's group lists: those its rows carry (graphty-element's
+ * `AttributeDescriptor.sources`), so a second load's columns never show under the first. A column
+ * two loads carry is listed under each. With no load, every column.
+ * @param session - the element's session
+ * @param source - the load, or undefined
+ * @returns the columns
+ */
+function attributesOf(
+    session: GraphSession,
+    source: LoadedSource | undefined,
+): ReturnType<GraphSession["data"]["attributes"]> {
+    const all = session.data.attributes();
+    return source === undefined ? all : all.filter((each) => each.sources?.includes(source.key) === true);
+}
+
+/**
  * The sides Fields shows: the load's own, or for a graph not loaded from one, each side with
  * columns.
  * @param attributes - `data.attributes()`.
@@ -703,6 +728,11 @@ function sidesShown(
     source: LoadedSource | undefined,
 ): FieldSide[] {
     const own = sidesOf(source);
+    // A graph file's load has both sides, whether or not it carries columns for them (the owner,
+    // 2026-11-07: Edges is always there for College football, whose edges have none).
+    if (own === undefined && source !== undefined) {
+        return ["nodes", "edges"];
+    }
     return (["nodes", "edges"] as const).filter((side) =>
         own === undefined
             ? attributes.some((a) => a.kind === KIND_OF[side]) || tableRoles(source, side) !== undefined
@@ -782,7 +812,7 @@ function SourceFields({
 }: Readonly<{ session: GraphSession; source: LoadedSource | undefined }>): React.JSX.Element {
     const { store } = useWorkspace();
     const held = useWorkspaceState((state) => state.ends);
-    const attributes = session.data.attributes();
+    const attributes = attributesOf(session, source);
     const fail = (): void => {
         store.set({ notice: { message: "Field not changed" } });
     };
@@ -896,12 +926,19 @@ function SourceFields({
  * @param props - Component props
  * @param props.sources - `data.sources()`
  * @param props.selected - the selected load
+ * @param props.filters - draw each load as a section of its own, holding its Filters (the
+ * `selection-workspace` experiment's Sources tab)
  * @returns the section, or nothing before the element has come up
  */
 export function Fields({
     sources,
     selected,
-}: Readonly<{ sources: readonly LoadedSource[]; selected: LoadedSource | undefined }>): React.JSX.Element | null {
+    filters = false,
+}: Readonly<{
+    sources: readonly LoadedSource[];
+    selected: LoadedSource | undefined;
+    filters?: boolean;
+}>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const held = useWorkspaceState((state) => state.ends);
     useTimeFieldVersion(session);
@@ -916,20 +953,24 @@ export function Fields({
         }
     }
     const groups = useRef<HTMLDivElement>(null);
+    const sourcesRef = useRef(sources);
+    sourcesRef.current = sources;
     const drawn = useRef(false);
     useEffect(() => {
         // Not on the first drawing: only a new pick scrolls the panel.
         if (drawn.current) {
-            groups.current?.firstElementChild?.scrollIntoView({ block: "nearest" });
+            // The picked load's group: first under Attributes, at its own place as a section.
+            const at = filters ? sourcesRef.current.findIndex((each) => each.key === selected?.key) : 0;
+            groups.current?.children.item(Math.max(at, 0))?.scrollIntoView({ block: "nearest" });
         }
         drawn.current = true;
-    }, [selected?.key]);
+    }, [selected?.key, filters]);
     if (session === null) {
         return null;
     }
-    const attributes = session.data.attributes();
     const empty = (source: LoadedSource | undefined): boolean =>
-        sidesShown(attributes, source).length === 0 && !(source !== undefined && held?.load === source.key);
+        sidesShown(attributesOf(session, source), source).length === 0 &&
+        !(source !== undefined && held?.load === source.key);
     if (sources.length === 0) {
         return (
             <ControlSection label="Attributes" empty={empty(undefined)}>
@@ -937,25 +978,29 @@ export function Fields({
             </ControlSection>
         );
     }
-    const ordered = selected === undefined ? sources : [selected, ...sources.filter((each) => each !== selected)];
-    return (
-        <ControlSection label="Attributes">
-            <div ref={groups} className="dp-field-groups">
-                {ordered.map((source) => (
-                    <ControlSection
-                        key={source.key}
-                        label={sourceName(source)}
-                        headingLevel={3}
-                        empty={empty(source)}
-                        opened={opened[source.key] ?? source === selected}
-                        onOpenChange={(open) => {
-                            setOpened((was) => ({ ...was, [source.key]: open }));
-                        }}
-                    >
-                        <SourceFields session={session} source={source} />
-                    </ControlSection>
-                ))}
-            </div>
-        </ControlSection>
+    // As their own sections, the loads keep the Data sources list's order; as groups under
+    // Attributes, the selected one comes first.
+    const ordered =
+        filters || selected === undefined ? sources : [selected, ...sources.filter((each) => each !== selected)];
+    const list = (
+        <div ref={groups} className={filters ? "dp-source-sections" : "dp-field-groups"}>
+            {ordered.map((source) => (
+                <ControlSection
+                    key={source.key}
+                    label={sourceName(source)}
+                    // With its filters, a load's group is a section of its own.
+                    headingLevel={filters ? undefined : 3}
+                    empty={!filters && empty(source)}
+                    opened={opened[source.key] ?? source === selected}
+                    onOpenChange={(open) => {
+                        setOpened((was) => ({ ...was, [source.key]: open }));
+                    }}
+                >
+                    <SourceFields session={session} source={source} />
+                    {filters && <FiltersSection source={source.key} primary={sources.length === 1} headingLevel={3} />}
+                </ControlSection>
+            ))}
+        </div>
     );
+    return filters ? list : <ControlSection label="Attributes">{list}</ControlSection>;
 }

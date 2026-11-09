@@ -1,6 +1,6 @@
 /**
  * @file `PULLED_CURVE_GLSL` puts a curve's path points where its mirror, `curvePathPoint`, puts them
- * (design/rendering/row-renderer.md, stage 21): every point of 200 cut curves, lone and fanned, read back through
+ * (design/rendering/row-renderer.md, stage 21): every point of 200 cut curves, lone, fanned, center and raised arcs, read back through
  * transform feedback on WebGL2, within 1e-4 of the mirror, edges moved to the origin as the trim test
  * moves them, since a float's spacing grows with the coordinate.
  */
@@ -8,11 +8,18 @@
 import { assert, describe, it } from "vitest";
 
 import type { Xyz } from "../../src/meshes/edgeRoute";
-import { curvePathPoint, type CurveSpan, curveSpan, PULLED_CURVE_GLSL } from "../../src/meshes/pulledCurve";
+import {
+    curvePathPoint,
+    curveShape,
+    type CurveSpan,
+    curveSpan,
+    loopShape,
+    PULLED_CURVE_GLSL,
+} from "../../src/meshes/pulledCurve";
 
 const VERTEX = `#version 300 es
 precision highp float;
-in vec3 src;
+in vec4 srcAndEnd;
 in vec3 dst;
 in vec4 span;
 in vec4 cutAndPoint;
@@ -20,7 +27,7 @@ out vec3 outPoint;
 ${PULLED_CURVE_GLSL}
 void main() {
     vec4 cut = vec4(cutAndPoint.xy, span.w, cutAndPoint.z);
-    outPoint = pulledCurvePoint(src, dst, vec4(span.xyz, 0.0), cut, int(cutAndPoint.w + 0.5));
+    outPoint = pulledCurvePoint(srcAndEnd.xyz, dst, vec4(span.xyz, srcAndEnd.w), cut, int(cutAndPoint.w + 0.5));
     gl_Position = vec4(0.0);
 }
 `;
@@ -63,26 +70,44 @@ function shaderPoints(asks: Ask[]): Float32Array {
     assert.isTrue(gl.getProgramParameter(program, gl.LINK_STATUS), gl.getProgramInfoLog(program) ?? "");
     gl.useProgram(program);
 
-    const floats = asks.flatMap(({ src, dst, span, j }) => [
-        ...[src.x, src.y, src.z, 0],
-        ...[dst.x, dst.y, dst.z, 0],
-        ...[span.samples, span.first, span.pieces, span.bow ?? 0],
-        ...[span.startAt, span.endAt, span.bow === null ? 0 : 1, j],
-    ]);
+    // the route table: each line through bends' cut path, one point to a texel, from a texel of its own
+    const routes = new Map<CurveSpan, number>();
+    const texels: number[] = [];
+    for (const { src, dst, span } of asks) {
+        if (span.bends !== null && !routes.has(span)) {
+            routes.set(span, texels.length / 4);
+            for (let j = 0; j <= span.pieces; j++) {
+                const { x, y, z } = curvePathPoint(src, dst, span, j);
+                texels.push(x, y, z, 0);
+            }
+        }
+    }
+    const lines = Math.max(1, Math.ceil(texels.length / 4 / 1024));
+    const table = new Float32Array(lines * 1024 * 4);
+    table.set(texels);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 1024, lines, 0, gl.RGBA, gl.FLOAT, table);
+    gl.uniform1i(gl.getUniformLocation(program, "edgeRoutes"), 0);
+
+    const floats = asks.flatMap(({ src, dst, span, j }) => {
+        const shape = curveShape(span, routes.get(span) ?? 0);
+        return [
+            ...[src.x, src.y, src.z, shape[2]],
+            ...[dst.x, dst.y, dst.z, 0],
+            ...[span.samples, span.first, span.pieces, shape[0]],
+            ...[span.startAt, span.endAt, shape[1], j],
+        ];
+    });
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(floats), gl.STATIC_DRAW);
-    ["src", "dst", "span", "cutAndPoint"].forEach((name, i) => {
+    ["srcAndEnd", "dst", "span", "cutAndPoint"].forEach((name, i) => {
         const location = gl.getAttribLocation(program, name);
         assert.isAtLeast(location, 0, `${name} is read`);
         gl.enableVertexAttribArray(location);
-        gl.vertexAttribPointer(
-            location,
-            name === "span" || name === "cutAndPoint" ? 4 : 3,
-            gl.FLOAT,
-            false,
-            64,
-            i * 16,
-        );
+        gl.vertexAttribPointer(location, name === "dst" ? 3 : 4, gl.FLOAT, false, 64, i * 16);
     });
 
     const captured = gl.createBuffer();
@@ -99,7 +124,12 @@ function shaderPoints(asks: Ask[]): Float32Array {
     return out;
 }
 
-/** Every point of 200 cut curves between spheres, the source at the origin; every other one a fanned arc. */
+/**
+ * Every point of 200 cut curves between spheres, the source at the origin: lone curves, fanned arcs, center arcs,
+ * raised arcs, great-circle arcs, self-loops (one shared end object per loop, so a loop counts as one curve), curves
+ * through a support point, straight lines through bends (`line.bends`, read from a route table), and
+ * lone curves stopped short of their nodes by a gap, often wide enough that the curve is drawn uncut.
+ */
 function asks(): Ask[] {
     let s = 3251;
     const random = (): number => {
@@ -108,8 +138,33 @@ function asks(): Ask[] {
     };
     const out: Ask[] = [];
     while (out.length === 0 || new Set(out.map((a) => a.dst)).size < 200) {
-        const src = { x: 0, y: 0, z: 0 };
+        // a lone curve, a fanned arc, a center arc (`line.arcRadius`), a gapped lone curve and a raised arc
+        // (`line.route` "arc"), a gapped straight line raised in an arc, flat at times, and a great-circle arc over a
+        // globe centered on the origin (`line.route` "great-circle"), curved or straight, and a self-loop's teardrop,
+        // and a curve through a support point (`line.supportModel`), in turn
+        const kind = Math.floor(random() * 10);
         const scale = [2, 10, 40][out.length % 3];
+        if (kind === 7) {
+            const centre = { x: (random() - 0.5) * scale, y: (random() - 0.5) * scale, z: (random() - 0.5) * scale };
+            const r = random() * scale * 0.3;
+            const count = 1 + Math.floor(random() * 7);
+            const loop = loopShape(Math.floor(random() * count), count, () => r);
+            const around = (x: number, y: number, z: number): boolean => {
+                const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
+                return d > 0 && d > r;
+            };
+            const span = curveSpan(centre, centre, around, around, { loop });
+            for (let j = 0; span !== null && j <= span.pieces; j++) {
+                out.push({ src: centre, dst: centre, span, j });
+            }
+
+            continue;
+        }
+
+        const src =
+            kind === 6
+                ? { x: (random() - 0.5) * scale, y: (random() - 0.5) * scale, z: (random() - 0.5) * scale }
+                : { x: 0, y: 0, z: 0 };
         const dst =
             random() < 0.05
                 ? { x: 0, y: 0, z: scale }
@@ -118,8 +173,50 @@ function asks(): Ask[] {
             const d = Math.hypot(x - c.x, y - c.y, z - c.z);
             return d > 0 && d > r;
         };
-        const bow = out.length % 2 === 0 ? null : (random() - 0.5) * 2 * scale;
-        const span = curveSpan(src, dst, radius(src, random() * scale * 0.3), radius(dst, random() * scale * 0.3), bow);
+        const bow = kind === 1 ? (random() - 0.5) * 2 * scale : null;
+        const via: [number, number] | null = kind === 8 ? [(random() - 0.25) * 1.5, (random() - 0.5) * 2] : null;
+        const bends =
+            kind === 9
+                ? Array.from({ length: 2 * (1 + Math.floor(random() * 6)) }, (_, k) =>
+                      k % 2 === 0 ? (random() - 0.25) * 1.5 : (random() - 0.5) * 2,
+                  )
+                : null;
+        // a half circle (radius 0.5) among them, whose way round is a float's noise
+        const arc = kind === 2 ? Math.max(0.5, random() * 3.5 - 0.5) : null;
+        const [rSrc, rDst] = [random() * scale * 0.3, random() * scale * 0.3];
+        let height: number | null = null;
+        if (kind === 4) {
+            height = random() * 1.5;
+        } else if (kind === 5 || kind === 6) {
+            height = random() < 0.3 ? 0 : random() * 1.5;
+        }
+        const gapped = kind === 3 || kind === 5;
+        const [gSrc, gDst] = gapped ? [random() * scale * 0.4, random() * scale * 0.4] : [0, 0];
+        const length = Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
+        const bare = (from: Xyz, to: Xyz, reach: number): Xyz => {
+            const t = Math.min(reach, length) / length;
+            return {
+                x: from.x + (to.x - from.x) * t,
+                y: from.y + (to.y - from.y) * t,
+                z: from.z + (to.z - from.z) * t,
+            };
+        };
+        const span = curveSpan(
+            src,
+            dst,
+            radius(src, rSrc + gSrc),
+            radius(dst, rDst + gDst),
+            {
+                bow,
+                radius: arc,
+                height,
+                via,
+                bends,
+                globe: kind === 6,
+                straight: kind === 5 || (kind === 6 && random() < 0.5),
+            },
+            gapped ? () => [bare(src, dst, rSrc + gSrc), bare(dst, src, rDst + gDst)] : null,
+        );
         for (let j = 0; span !== null && j <= span.pieces; j++) {
             out.push({ src, dst, span, j });
         }
@@ -131,11 +228,34 @@ function asks(): Ask[] {
 describe("the pulled curve's GLSL", () => {
     it("puts every path point within 1e-4 of its mirror", () => {
         const all = asks();
+        assert.isAbove(
+            all.filter((a) => a.span.ends !== null).length,
+            0,
+            "some gapped curves are drawn uncut between their bare ends",
+        );
+        assert.isAbove(
+            all.filter((a) => a.span.samples === 1 && a.span.height === 0).length,
+            0,
+            "some raised straight lines are drawn straight between their bare ends",
+        );
+        assert.isAbove(all.filter((a) => (a.span.angle ?? 0) > 0).length, 0, "some great-circle arcs are drawn cut");
+        assert.isAbove(all.filter((a) => a.span.loop !== null).length, 0, "some self-loops are drawn");
+        assert.isAbove(
+            all.filter((a) => a.span.via !== null).length,
+            0,
+            "some curves through a support point are drawn",
+        );
+        assert.isAbove(
+            all.filter((a) => (a.span.bends?.length ?? 0) > 2).length,
+            0,
+            "some straight lines through two or more bends are drawn",
+        );
         const got = shaderPoints(all);
         let worst = 0;
         all.forEach(({ src, dst, span, j }, i) => {
             const p = curvePathPoint(src, dst, span, j);
-            worst = Math.max(worst, Math.hypot(got[3 * i] - p.x, got[3 * i + 1] - p.y, got[3 * i + 2] - p.z));
+            const off = Math.hypot(got[3 * i] - p.x, got[3 * i + 1] - p.y, got[3 * i + 2] - p.z);
+            worst = Math.max(worst, off);
         });
         assert.isAtMost(worst, 1e-4, `the farthest point is ${String(worst)} off`);
     });

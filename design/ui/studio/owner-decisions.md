@@ -188,6 +188,7 @@ Landing the Assistant changes nothing for a consumer of graphty-element that doe
   mock provider matches it when present, so with no facts it matches `content` as before.
 - A saved tool result's `origin` takes `"command"`, the marker that a model reads the result as it
   is, in no envelope.
+
 ## 2026-11-02 -- Decided by the team: going back in the history with nothing left to redo (graphty-element)
 
 **What.** Additive. `session.history.restoreTo(step, { redo: "drop" })` (new optional
@@ -3917,6 +3918,7 @@ or option: the app writes the words. `params` stay numbers and strings, the type
 is. Also decided, and not a public change: a message taken back drops its steps from the redo side and
 restores the selection it found, because a failed message did not happen (`tier6/decided.md`). Evidence
 and reasons: `tier6/rounds/round-2/decisions.md`.
+
 ## 2026-11-01 -- For the owner: two compact-mantine targets below 24 px
 
 **What.** Not done; a question. The tier 5 accessibility review measured two Figma-locked targets

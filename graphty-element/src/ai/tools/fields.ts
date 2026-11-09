@@ -37,11 +37,7 @@ export const whereField = inputKind(z.string().max(MAX_SELECTOR).describe(WHERE_
 const IDS_HELP = "Ids or labels.";
 
 /** Element ids. */
-const idsField = inputKind(
-    z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe(IDS_HELP),
-    "ids",
-    "Which",
-);
+const idsField = inputKind(z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe(IDS_HELP), "ids", "Which");
 
 /**
  * The operators a `result` target takes: comparisons, `in` for a list, and `largest` for the

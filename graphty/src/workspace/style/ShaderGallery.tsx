@@ -5,7 +5,6 @@ import { Chip, Group, Menu, Text, TextInput, Tooltip, UnstyledButton, VisuallyHi
 import React, { useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { roveTiles } from "./tileRoving";
 import {
     GALLERY_WORDS,
     layersWord,
@@ -176,6 +175,35 @@ function originWords(descriptor: ShaderDescriptor): string | undefined {
     return descriptor.origin === "registered" ? descriptor.id.split("/")[0] : undefined;
 }
 
+/**
+ * Moves focus among the gallery's tiles, one Tab stop for all of them (decided.md's grids): the
+ * arrows move by one tile or one row and stop at the ends, Home and End go to the first and last.
+ * Disabled tiles are passed over.
+ * @param event - the key, on a tile.
+ * @param root - the gallery.
+ */
+function roveKey(event: React.KeyboardEvent, root: HTMLElement | null): void {
+    const tiles = [...(root?.querySelectorAll<HTMLElement>(".ws-gallery-tile:not([aria-disabled])") ?? [])];
+    const at = tiles.indexOf(event.target as HTMLElement);
+    if (at < 0) {
+        return;
+    }
+    const moves: Record<string, number> = {
+        ArrowRight: at + 1,
+        ArrowLeft: at - 1,
+        ArrowDown: at + COLUMNS,
+        ArrowUp: at - COLUMNS,
+        Home: 0,
+        End: tiles.length - 1,
+    };
+    const next = moves[event.key];
+    if (next === undefined) {
+        return;
+    }
+    event.preventDefault();
+    tiles[Math.max(0, Math.min(next, tiles.length - 1))]?.focus();
+}
+
 /** Props for ShaderGallery. */
 interface ShaderGalleryProps {
     readonly session: GraphSession;
@@ -324,8 +352,7 @@ export function ShaderGallery({
             data-testid="shader-gallery"
             data-tab={tab}
             onKeyDown={(event) => {
-                // Disabled tiles are passed over.
-                roveTiles(event, COLUMNS, ".ws-gallery-tile:not([aria-disabled])");
+                roveKey(event, root.current);
             }}
             onFocus={(event) => {
                 const id = (event.target as HTMLElement).dataset.shader;

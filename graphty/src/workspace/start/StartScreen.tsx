@@ -1,6 +1,6 @@
 import "./start.css";
 
-import { useFileDrop } from "@graphty/compact-mantine";
+import { FileSource, useFileDrop } from "@graphty/compact-mantine";
 import {
     DATASET_DESCRIPTORS,
     type DatasetMeta,
@@ -13,8 +13,9 @@ import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore }
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
-import { onSiteConfig, siteTimeline } from "../../siteConfig";
+import { onSiteConfig, siteNetwork, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
+import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
@@ -23,6 +24,7 @@ import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
+import { openServerForm } from "../server/commands";
 import type { WorkspaceStore } from "../state/store";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
@@ -32,15 +34,15 @@ import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import { NETWORK_DIALOG } from "./NetworkDataDialog";
 import {
     copyOf,
     openDataset,
+    openFiles,
     openGenerated,
-    openOnStart,
+    openModel,
     openSample,
+    openUrl,
     OWN_COPIES,
-    pickFiles,
     pictureOf,
     samplePicture,
 } from "./open";
@@ -708,7 +710,10 @@ export function StartScreen(): React.JSX.Element {
     const workspace = useWorkspace();
     const scheme = useComputedColorScheme("dark");
     const recent = useRecentProjects();
+    const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
+    // The first paint does not wait for the site's configuration.
+    const network = useSyncExternalStore(onSiteConfig, siteNetwork);
     const [session, setSession] = useState<GraphSession | null>(null);
     const onSession = useCallback((next: GraphSession) => {
         setSession(next);
@@ -728,14 +733,16 @@ export function StartScreen(): React.JSX.Element {
     // says whether it is a model before it is read as graph data.
     const onDrop = useCallback(
         (files: File[]) => {
-            void openOnStart(workspace, files, session);
+            void holdsModel(files).then((model) => {
+                if (model) {
+                    openModel(workspace.store, files[0]?.name ?? "Model", files);
+                } else {
+                    openFiles(workspace, files);
+                }
+            });
         },
-        [workspace, session],
+        [workspace],
     );
-    // Open a file is the drop's Choose: the same files open the same way.
-    const choose = (): void => {
-        void pickFiles().then((files) => openOnStart(workspace, files, session));
-    };
     const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
@@ -754,7 +761,7 @@ export function StartScreen(): React.JSX.Element {
     const openButton = (variant: "primary" | "tint"): React.JSX.Element => (
         <Button
             className={variant === "primary" ? "ws-land-go ws-land-xl" : "ws-land-tint"}
-            onClick={choose}
+            onClick={openDoor?.run}
             leftSection={variant === "tint" ? <GLYPHS.openFile size={16} aria-hidden /> : undefined}
         >
             {variant === "primary" ? (
@@ -885,16 +892,18 @@ export function StartScreen(): React.JSX.Element {
                             <Paper className="ws-land-launcher" withBorder>
                                 {openButton("primary")}
                                 <div className="ws-land-more">
-                                    <Button
-                                        className="ws-land-tint"
-                                        leftSection={<GLYPHS.data size={16} aria-hidden />}
-                                        aria-haspopup="dialog"
-                                        onClick={() => {
-                                            workspace.store.set({ dialog: NETWORK_DIALOG });
-                                        }}
-                                    >
-                                        Open network data
-                                    </Button>
+                                    {network ? (
+                                        <Button
+                                            className="ws-land-tint"
+                                            leftSection={<GLYPHS.data size={16} aria-hidden />}
+                                            aria-haspopup="dialog"
+                                            onClick={() => {
+                                                openServerForm(workspace.store);
+                                            }}
+                                        >
+                                            Open network data
+                                        </Button>
+                                    ) : null}
                                     <Button
                                         className="ws-land-tint"
                                         leftSection={<GLYPHS.gridView size={16} aria-hidden />}
@@ -902,7 +911,24 @@ export function StartScreen(): React.JSX.Element {
                                     >
                                         Samples
                                     </Button>
-                                    <div className="ws-land-wide">{newButton}</div>
+                                    {/* Without network data, New from data... sits beside Samples. */}
+                                    {network ? <div className="ws-land-wide">{newButton}</div> : newButton}
+                                    {/* A graph file at a web address opens as a new project. */}
+                                    <div className="ws-land-wide">
+                                        <FileSource
+                                            variant="row"
+                                            url
+                                            multiple
+                                            placeholder="Web address of a graph file"
+                                            openLabel="Open"
+                                            onUrl={(url) => {
+                                                openUrl(workspace.store, url);
+                                            }}
+                                            onFiles={(files) => {
+                                                openFiles(workspace, files);
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                                 {privacy}
                             </Paper>

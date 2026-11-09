@@ -166,8 +166,12 @@ async function alphaAt(graphty: Graphty, point: Point): Promise<number> {
     return alpha;
 }
 
+/** The define of the batch "batched" pulls plain lines into; a pulled piece carries no age. */
+const PULLED = "#define EDGE_PULLED";
+
 /**
- * The defines of every joined line batch's material.
+ * The defines of every joined line batch's material, but the pulled batch's: no line is pulled
+ * while lines fade by age (`Edge.pullsLine`), which the first check below pins.
  * @param graphty - The element.
  * @returns One list per batch.
  */
@@ -175,7 +179,8 @@ function lineDefines(graphty: Graphty): string[][] {
     return graphty.graph
         .getScene()
         .meshes.filter((mesh) => isEdgeLineBatchMesh(mesh) && (mesh as Mesh).material !== null)
-        .map((mesh) => ((mesh as Mesh).material as ShaderMaterial).options.defines);
+        .map((mesh) => ((mesh as Mesh).material as ShaderMaterial).options.defines)
+        .filter((defines) => !defines.includes(PULLED));
 }
 
 /**
@@ -194,6 +199,8 @@ describe("fade by age", () => {
         await windowed(graphty);
         await graphty.session.time.setSettings({ ageFade: 0.2 });
         await drawn(graphty);
+        const pulled = [...graphty.graph.getDataManager().edges.values()].filter((edge) => edge.isPulled);
+        assert.lengthOf(pulled, 0, "no line is pulled while lines fade by age");
         for (const defines of lineDefines(graphty)) {
             assert.include(defines, AGED);
         }

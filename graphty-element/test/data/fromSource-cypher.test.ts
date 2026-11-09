@@ -1,7 +1,7 @@
 /**
  * A consumer with only graphty-element loads from graph-io's built-in Cypher source by naming it:
  * `DataSource.fromSource("neo4j")`, against responses recorded from the public Neo4j demo server
- * (graph-io's `scripts/live-cypher.ts --record`), gives the movies graph exactly.
+ * (graph-io's `scripts/record-cypher.ts --record`), gives the movies graph exactly.
  */
 
 import { readFileSync } from "node:fs";

@@ -398,15 +398,16 @@ describe("Pajek styles: sizes, label placement and line labels", () => {
     });
 
     it("writes a placed line's arrow position back as the ap Pajek reads it, with the block and without", async () => {
-        // a 200 px line: ap 0.5 puts the tip at 0.475 (5 px past the middle); ap 20 at 0.075
+        // a 200 px line between vertices 20 across: ap 0.5 puts the tip 5 px past the middle, 85 from the target's
+        // outline, 0.472 of the 180 between the outlines; ap 20 5 from it, 0.0278
         const arcs = "*Vertices 3\n1 a 0.1 0.1\n2 b 0.5 0.1\n3 c 0.9 0.1\n*Arcs\n1 2 1 ap 0.5\n2 3 1 ap 20\n";
         const { snapshot, styles } = await load(arcs);
-        expect(drawn(styles, snapshot, "edge", "arrowPosition")).toEqual([0.475, 0.075]);
+        expect(drawn(styles, snapshot, "edge", "arrowPosition")).toEqual([0.472222, 0.0277778]);
         const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
         expect(out).toMatch(/^1 2 .*\bap 0\.5\b/m);
         for (const file of [out, out.replace(/^% graphty\.styles .*\n/m, "")]) {
             const back = await load(file);
-            expect(drawn(back.styles, back.snapshot, "edge", "arrowPosition")).toEqual([0.475, 0.075]);
+            expect(drawn(back.styles, back.snapshot, "edge", "arrowPosition")).toEqual([0.472222, 0.0277778]);
         }
     });
 

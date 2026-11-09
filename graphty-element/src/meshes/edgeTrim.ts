@@ -36,7 +36,7 @@ export interface TrimEnd {
     measured: number;
     /** Whether the line leaves the node at its box, its border included: a glyph's, or a shape with no body. */
     leaves: boolean;
-    /** Whether the node is drawn as a group, a region whose outline the line leaves across the view. */
+    /** Whether the node is drawn behind every edge (a group region), so the line leaves its outline across the view. */
     group: boolean;
 }
 

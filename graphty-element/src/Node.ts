@@ -55,14 +55,16 @@ import {
     type NodeShaderState,
     type SurfacePath,
 } from "./meshes/NodeShaderDrawing";
+import { shareLabelBox } from "./meshes/NodeShapeGeometry";
 import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
 import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
-import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
-import { publishImageFailure, TextureCache } from "./models/TextureCache";
+import { ModelCache, type ModelTemplate, type ModelUser, noteModelDrawn } from "./models/ModelCache";
+import { noteImageDrawn, publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, NodeDragHandler, nodePointerRosterOf } from "./NodeBehavior";
+import { edgeDrawChanges } from "./render/EdgeIdTarget";
 import { rowScanOf } from "./render/PickService";
 import type { RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
@@ -429,6 +431,8 @@ export class Node implements ModelUser {
 
     private set index(row: number) {
         this.row = row;
+        // the edge ID target draws each line from its nodes' rows
+        edgeDrawChanges.count++;
     }
 
     /**
@@ -456,6 +460,8 @@ export class Node implements ModelUser {
     #anchor!: TransformNode;
     /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
     #meshHeld = false;
+    /** The view's scale on this node (`depthIndependentSize`, a map's `nodeScale: "screen"`), a shrink left out. */
+    #wholeScale = 1;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
 
@@ -502,6 +508,7 @@ export class Node implements ModelUser {
 
     /** The shared mesh a batch draws this node from, or null while it has its own. */
     private batchSource: AbstractMesh | null = null;
+    private batchOpacity = 1;
     label?: RichTextLabel;
 
     /** The further texts on screen (`shape.texts`), one label each. */
@@ -637,6 +644,8 @@ export class Node implements ModelUser {
     /** The filled shapes drawn beneath (`underlay`) and over (`overlay`) the node, children of its mesh, or null. */
     private underlay: AbstractMesh | null = null;
     private overlay: AbstractMesh | null = null;
+    /** The layers of the shadow drawn beneath the node (`shadow`), outermost first, children of its mesh. */
+    private shadow: AbstractMesh[] = [];
 
     /** What is drawn over the node's face (`pie`, `stripes`, `image`), children of its mesh like its border. */
     private decorations: AbstractMesh[] = [];
@@ -907,6 +916,7 @@ export class Node implements ModelUser {
      * @internal
      */
     framingBounds(): { min: Vector3; max: Vector3 } {
+        this.followRow();
         if (this.#anchor.isDisposed()) {
             const pos = this.#anchor.getAbsolutePosition();
             const half = new Vector3(this.size / 2, this.size / 2, this.size / 2);
@@ -947,6 +957,22 @@ export class Node implements ModelUser {
     }
 
     /**
+     * How wide a node's border is drawn, in the scene: its width, except that an inside border is drawn narrower on a
+     * small node.
+     * @param style - The resolved style.
+     * @param border - The border drawn (a screen-pixel border already in scene units).
+     * @param perSize - The shape's extent per unit of size.
+     * @returns The width.
+     */
+    private drawnBorderWidth(style: NodeStyleConfig, border: NodeStyleConfig["border"], perSize: number): number {
+        if ((border?.position ?? "outside") === "outside") {
+            return (border?.width ?? 0) * perSize;
+        }
+        const extents = NodeMesh.extentsOf(style.shape ?? {}, Math.max(style.shape?.size ?? this.size, 1e-3));
+        return NodeMesh.borderFit(style.shape, border, extents).ring;
+    }
+
+    /**
      * Build this node's border from its style, as a child of its mesh so it moves, hides and is
      * disposed with the node. Called after every new mesh: the old border went with the old mesh.
      * @param meshKey - The source mesh key the node is drawn under.
@@ -971,15 +997,7 @@ export class Node implements ModelUser {
         }
 
         this.borderBuilt = { meshKey, style, scale };
-        this.borderWidth =
-            (border?.position ?? "outside") === "outside"
-                ? (border?.width ?? 0) * perSize
-                : // only an inside border is ever drawn narrower than its width, and only on a small node
-                  NodeMesh.borderFit(
-                      style.shape,
-                      border,
-                      NodeMesh.extentsOf(style.shape ?? {}, Math.max(style.shape?.size ?? this.size, 1e-3)),
-                  ).ring;
+        this.borderWidth = this.drawnBorderWidth(style, border, perSize);
         this.border = NodeMesh.createBorder(
             this.context.getMeshCache(),
             { styleId: key, is2D: this.context.is2D(), size: this.size },
@@ -1031,6 +1049,24 @@ export class Node implements ModelUser {
             }
 
             this[kind] = halo;
+        }
+
+        for (const layer of this.shadow) {
+            if (!layer.isDisposed()) {
+                layer.dispose();
+            }
+        }
+        this.shadow = NodeMesh.createShadow(
+            this.context.getMeshCache(),
+            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            style.shape,
+            style.shadow,
+            this.#anchor as AbstractMesh,
+            this.context.getScene(),
+        );
+        for (const layer of this.shadow) {
+            layer.parent = this.#anchor;
+            layer.position.setAll(0);
         }
     }
 
@@ -1348,6 +1384,10 @@ export class Node implements ModelUser {
         this.underlay = null;
         this.overlay?.dispose();
         this.overlay = null;
+        for (const layer of this.shadow) {
+            layer.dispose();
+        }
+        this.shadow = [];
 
         this.label?.reattach();
         this.xlabelLabel?.reattach();
@@ -1365,7 +1405,13 @@ export class Node implements ModelUser {
      */
     setMeshPosition(x: number, y: number, z: number): void {
         this.#anchor.position.set(x, y, z);
+        const table = this.batchTable;
+        const held = table?.isHeld(this.row);
         this.rowTable?.place(this.row, x, y, z);
+        // A batched row held off its layout place stays on the roster until it is back on it.
+        if (table !== null && table.isHeld(this.row) !== held) {
+            this.context.getNodeBatches?.()?.rewalk(this);
+        }
         this.shaderDrawing?.moved(this, x, y, z);
         // The overlays follow here, not only in update(): over a settled layout the update loop
         // visits no node, so a dragged node's halo stayed where the drag began until the drop.
@@ -1400,6 +1446,7 @@ export class Node implements ModelUser {
             }
         }
 
+        this.followRow();
         return this.#anchor.getAbsolutePosition();
     }
 
@@ -1413,28 +1460,124 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Say a batch draws this node, or that it no longer does. Call it again when the row's source changes.
-     * @param source - The shared mesh the batch draws from, or null.
+     * Whether a frame's walk still has to visit this node: it is drawn by its own mesh, or carries
+     * an overlay placed from its position, or its row is held off its layout place (a drag writes
+     * the mesh first), which only its own `update` puts back. A batched row is drawn from the row
+     * table and follows it only when read ({@link Node.followRow}).
+     * @returns True when it does.
      * @internal
      */
-    drawInBatch(source: AbstractMesh | null): void {
+    get walksEachFrame(): boolean {
+        return (
+            this.batchSource === null ||
+            this.halo?.isEnabled() === true ||
+            this.contextPoint?.isEnabled() === true ||
+            this.batchTable?.isHeld(this.row) === true ||
+            // A label hangs from the anchor, which only a visit moves while the layout moves the row.
+            this.labels().length > 0
+        );
+    }
+
+    /**
+     * Every label this node has on screen: its label, tooltip, external label and further texts.
+     * @returns They.
+     */
+    private labels(): RichTextLabel[] {
+        const all = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
+        return all.filter((label): label is RichTextLabel => label !== undefined);
+    }
+
+    /**
+     * Tell this node's labels the scene node they hang from was replaced by another at the same place.
+     * @param from - The old anchor.
+     * @param to - The new one.
+     */
+    private retargetLabels(from: TransformNode, to: TransformNode): void {
+        if (to instanceof AbstractMesh) {
+            for (const label of this.labels()) {
+                label.retarget(from, to);
+            }
+        }
+    }
+
+    /**
+     * A batched row's anchor that a label can hang from (design/rendering/row-renderer.md 4.7): a
+     * mesh with no geometry, boxed as its source, so `attachTo`, the label's box and the declutter
+     * read it as they read a node mesh. It draws nothing and takes no pick.
+     * @param name - Its name.
+     * @param scene - Its scene.
+     * @returns The anchor.
+     */
+    private boxAnchor(name: string, scene: Scene): Mesh {
+        const anchor = new Mesh(name, scene);
+        anchor.isPickable = false;
+        anchor.isVisible = false;
+        const { minimum, maximum } = this.#source.getBoundingInfo();
+        anchor.setBoundingInfo(new BoundingInfo(minimum, maximum));
+        shareLabelBox(this.#source as Mesh, anchor);
+        return anchor;
+    }
+
+    /** The table's `moves` when a batched row's anchor last followed its row. */
+    private followedMoves = -1;
+
+    /**
+     * Bring a batched row's anchor to where its table row is drawn. Under `"batched"` the frame's
+     * walk visits no batched row, so its anchor is moved here, by whatever reads it, and only when
+     * the table moved a row since it last followed. A held row was put by setMeshPosition, which
+     * wrote the anchor itself.
+     */
+    private followRow(): void {
+        const table = this.batchTable;
+        if (table === null || table.moves === this.followedMoves || table.isHeld(this.row) || this.row >= table.rows) {
+            return;
+        }
+
+        this.followedMoves = table.moves;
+        this.#anchor.position.copyFrom(table.centerOf(this.row));
+        // Its world place too, which Babylon would otherwise refresh only at the next frame.
+        this.#anchor.computeWorldMatrix(true);
+    }
+
+    /**
+     * Say a batch draws this node, or that it no longer does. Call it again when the row's source changes.
+     * @param source - The shared mesh the batch draws from, or null.
+     * @param opacity - The opacity the batch draws it at (its source's own, which a batched source gives up).
+     * @internal
+     */
+    drawInBatch(source: AbstractMesh | null, opacity = 1): void {
+        this.batchOpacity = opacity;
+        // Leaving the batch, the row takes its anchor's place with it: bring it to the table first.
+        if (source === null) {
+            this.followRow();
+        }
+
         this.batchSource = source;
+        this.followedMoves = -1;
         if (
             source !== null &&
             this.#mesh instanceof InstancedMesh &&
             this.#mesh.sourceMesh === source &&
             !this.#meshHeld
         ) {
-            const anchor = new TransformNode(this.#anchor.name, this.#mesh.getScene());
+            const scene = this.#mesh.getScene();
+            const anchor =
+                this.labels().length > 0
+                    ? this.boxAnchor(this.#anchor.name, scene)
+                    : new TransformNode(this.#anchor.name, scene);
             Node.moveOnto(this.#mesh, anchor);
+            this.retargetLabels(this.#mesh, anchor);
             this.#mesh.dispose();
             this.#anchor = anchor;
             this.#mesh = null;
+            this.forgetMeasuredMesh();
         } else if (source === null && this.#mesh === null && !this.disposed) {
             const anchor = this.#anchor;
             this.build(this.#fit.meshKey, this.#fit.style);
             Node.moveOnto(anchor, this.#anchor);
+            this.retargetLabels(anchor, this.#anchor);
             anchor.dispose();
+            this.forgetMeasuredMesh();
             if (this.#actions !== null) {
                 this.makeDrawnPickable(this.#actions);
             }
@@ -1444,6 +1587,16 @@ export class Node implements ModelUser {
             this.applyInstancePaint(this.drawnStyle ?? this.#fit.style, this.drawnColor);
             this.applyRenderState();
         }
+    }
+
+    /**
+     * Drop the memos keyed on a mesh or anchor the batch handover just disposed: they would keep
+     * it, and through it its scene data, alive (issue #3247). The next read measures again.
+     */
+    private forgetMeasuredMesh(): void {
+        this.roundRadiusMesh = null;
+        this.halfExtentsMesh = null;
+        this.halfExtentsValue.x = 0;
     }
 
     /**
@@ -1476,6 +1629,7 @@ export class Node implements ModelUser {
         }
 
         const { minimum, maximum } = this.#source.getBoundingInfo();
+        this.followRow();
         return new BoundingInfo(minimum, maximum, this.#anchor.computeWorldMatrix());
     }
 
@@ -1545,6 +1699,7 @@ export class Node implements ModelUser {
      * @internal
      */
     drawnWorldMatrix(force?: boolean): Matrix {
+        this.followRow();
         return this.#anchor.computeWorldMatrix(force);
     }
 
@@ -1554,7 +1709,21 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnInstanceColor(): Rgba | null {
-        return this.drawnColor;
+        return this.instanceColorOf(this.drawnColor);
+    }
+
+    /**
+     * The color an instance draws for a painted color: a picture replaces the shape's color, and
+     * `node.modelTint` multiplies the node's color in.
+     * @param color - The painted color, or null.
+     * @returns The instance's color, or null.
+     */
+    private instanceColorOf(color: Rgba | null): Rgba | null {
+        if (color === null || this.drawnImage === null || modelTinted(this.drawnStyle?.shape)) {
+            return color;
+        }
+
+        return { ...color, r: 255, g: 255, b: 255 };
     }
 
     /**
@@ -1572,10 +1741,27 @@ export class Node implements ModelUser {
             (this.#mesh === null || this.#mesh instanceof InstancedMesh) &&
             !this.drawnAsGroup &&
             this.drawnModel === null &&
-            this.drawnImage === null &&
             this.shaderPath === null &&
             batchableOf({ style }, view)
         );
+    }
+
+    /**
+     * What a batch's material is built from, with the size left out: rows whose looks match share
+     * one batch across sizes, each scaled in its matrix.
+     * @returns The look, as a key.
+     * @internal
+     */
+    get batchLook(): string {
+        const style = this.drawnStyle;
+        // Whether the picture is drawn too: while it loads, or when it failed, the row draws the plain shape's material.
+        return JSON.stringify([
+            style?.shape?.type,
+            style?.shape?.detail,
+            style?.texture,
+            style?.effect,
+            this.drawnImage !== null,
+        ]);
     }
 
     /**
@@ -1608,6 +1794,7 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnAnchor(): TransformNode {
+        this.followRow();
         return this.#anchor;
     }
 
@@ -1618,6 +1805,15 @@ export class Node implements ModelUser {
      */
     get drawnPickMesh(): AbstractMesh | null {
         return this.#mesh;
+    }
+
+    /**
+     * The opacity the node is drawn at: its mesh's visibility, or for a row a batch draws, the batch's.
+     * @returns The opacity.
+     * @internal
+     */
+    get drawnOpacity(): number {
+        return this.#mesh?.visibility ?? this.batchOpacity;
     }
 
     /**
@@ -1687,8 +1883,17 @@ export class Node implements ModelUser {
      * @internal
      */
     set drawnScale(scale: number) {
-        this.#anchor.scaling.setAll(scale);
-        this.measureRow();
+        this.drawScaled(scale, scale);
+    }
+
+    /**
+     * The scale a batch draws this row at against its source, before a shrink, which the row
+     * table's w carries: what the view scales the node by.
+     * @returns The scale.
+     * @internal
+     */
+    get wholeScale(): number {
+        return this.#wholeScale;
     }
 
     /**
@@ -1699,7 +1904,21 @@ export class Node implements ModelUser {
      */
     drawShrunk(scale: number, whole: number): void {
         this.rowTable?.shrink(this.row, whole === 0 ? 1 : scale / whole);
-        this.drawnScale = scale;
+        this.drawScaled(scale, whole);
+    }
+
+    /**
+     * Scale the node's anchor, and a batched row's matrix with it.
+     * @param scale - The scale it is drawn at.
+     * @param whole - Its scale when it is not shrunk.
+     */
+    private drawScaled(scale: number, whole: number): void {
+        this.#anchor.scaling.setAll(scale);
+        this.measureRow();
+        if (this.#wholeScale !== whole) {
+            this.#wholeScale = whole;
+            this.context.getNodeBatches?.()?.rescale(this);
+        }
     }
 
     /**
@@ -1932,11 +2151,7 @@ export class Node implements ModelUser {
             return;
         }
 
-        if (this.drawnImage !== null && !modelTinted(this.drawnStyle?.shape)) {
-            // A picture replaces the shape's color; `node.modelTint` multiplies the node's color in.
-            color = color === null ? null : { ...color, r: 255, g: 255, b: 255 };
-        }
-
+        color = this.instanceColorOf(color);
         if (color === null || !(this.#mesh instanceof InstancedMesh)) {
             return;
         }
@@ -2393,14 +2608,13 @@ export class Node implements ModelUser {
      */
     private buildMesh(meshKey: string, o: NodeStyleConfig): AbstractMesh {
         const model = this.modelFor(o);
-        this.drawnModel = model;
         if (model !== null) {
-            this.drawnImage = null;
+            this.setDrawn(model, null);
             return NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
         }
 
         const image = this.imageFor(o);
-        this.drawnImage = image;
+        this.setDrawn(null, image);
         return NodeMesh.create(
             this.context.getMeshCache(),
             // A source mesh with its picture is another source mesh than the one drawn while it loads.
@@ -2408,6 +2622,23 @@ export class Node implements ModelUser {
             { shape: o.shape, texture: o.texture, effect: o.effect, border: o.border, picture: image },
             this.context.getScene(),
         );
+    }
+
+    /**
+     * Record the model and the picture this node draws, telling their caches when either changes.
+     * @param model - The model template, or null.
+     * @param image - The picture on its shape, or null.
+     */
+    private setDrawn(model: ModelTemplate | null, image: BaseTexture | null): void {
+        if (model !== this.drawnModel) {
+            noteModelDrawn(this.context.getScene(), this, model);
+            this.drawnModel = model;
+        }
+
+        if (image !== this.drawnImage) {
+            noteImageDrawn(this.context.getScene(), this, image);
+            this.drawnImage = image;
+        }
     }
 
     /**
@@ -2563,6 +2794,7 @@ export class Node implements ModelUser {
         // Save the current position before disposing the mesh
         // This is critical for style changes when layout is settled,
         // because updateNodes() won't be called to restore positions
+        this.followRow();
         const savedPosition = {
             x: this.#anchor.position.x,
             y: this.#anchor.position.y,
@@ -2767,6 +2999,7 @@ export class Node implements ModelUser {
         this.shaderDrawing?.forget(this);
         this.shaderDrawing = null;
 
+        this.setDrawn(null, null);
         this.disposeMesh();
     }
 
@@ -2973,7 +3206,15 @@ export class Node implements ModelUser {
         // painted over the whole node instead of around it. The halo's OWN look: a layer's
         // halo is drawn even while the selection's own halo is hidden at opacity 0.
         if (!wanted || (kind === "halo" && look.opacity === 0)) {
+            // Only a drawn overlay makes the node walk each frame (`walksEachFrame`), so hiding one
+            // that is not drawn changes nothing the batch needs to hear: a time window that hides
+            // 40,000 plain nodes asked it 80,000 times (issue #6025).
+            const drawn = existing?.isEnabled() === true;
             this.hideOverlay(kind, existing);
+            if (drawn) {
+                this.context.getNodeBatches?.()?.rewalk(this);
+            }
+
             return;
         }
 
@@ -3006,8 +3247,10 @@ export class Node implements ModelUser {
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
         }
 
+        this.followRow();
         overlay.position.copyFrom(this.#anchor.position);
         overlay.setEnabled(true);
+        this.context.getNodeBatches?.()?.rewalk(this);
     }
 
     /**
@@ -3156,6 +3399,16 @@ export class Node implements ModelUser {
      */
     get isDrawnAsGroup(): boolean {
         return this.drawnAsGroup;
+    }
+
+    /**
+     * Whether the node is drawn behind every edge, so it hides no stretch of a line that ends on it: a group region,
+     * or in a 2D view a node below z-index 0 (a group from a file drawn behind its members, `node.zIndex`). A line
+     * ends at such a node's outline, as yEd and Cytoscape.js end one at a compound node's border.
+     * @returns True while it is drawn so.
+     */
+    get isDrawnBehindEdges(): boolean {
+        return this.drawnAsGroup || (this.context.is2D() && (this.drawnStyle?.shape?.zIndex ?? 0) < 0);
     }
 
     /**
@@ -3452,6 +3705,7 @@ export class Node implements ModelUser {
      * overlay parented to the node's own mesh would vanish in exactly the case it exists for.
      */
     private syncOverlayPositions(): void {
+        this.followRow();
         if (this.halo && !this.halo.isDisposed()) {
             this.halo.position.copyFrom(this.#anchor.position);
         }
@@ -3586,16 +3840,38 @@ export class Node implements ModelUser {
         // the further texts first: the label's own early return must not skip them
         this.syncShapeTexts(o, rebuild);
         this.syncXlabel(o, rebuild);
+        this.syncOwnLabel(o, rebuild);
+    }
+
+    /**
+     * Build or drop this node's label again because label sampling (`labels.sampleCell`) picked
+     * it for its screen cell, dropped it, or was switched off. Called by the scene's label pass.
+     * @internal
+     */
+    resampleLabel(): void {
+        if (this.drawnStyle !== null) {
+            this.syncOwnLabel(this.drawnStyle, true);
+        }
+    }
+
+    /**
+     * The label itself, apart from the further texts: see {@link Node.syncLabel}.
+     * @param o - The resolved style.
+     * @param rebuild - True to build it again even when it asks for what is drawn.
+     */
+    private syncOwnLabel(o: NodeStyleConfig, rebuild: boolean): void {
         // a table label draws its words in its cells
         const wanted = this.tableTexts === null ? drawnText(o.label) : undefined;
         const text = wanted === undefined ? undefined : this.extractLabelText(wanted);
+        // Label sampling may hold the label back until its screen cell picks this node.
+        const withheld = LabelDeclutter.withholds(this.#anchor.getScene(), this.context, this, wanted !== undefined);
 
         if (!rebuild && text === this.drawnLabelText && isEqual(wanted, this.drawnLabelStyle)) {
             return;
         }
 
         this.label?.dispose();
-        this.label = wanted === undefined ? undefined : this.createLabel(o);
+        this.label = wanted === undefined || withheld ? undefined : this.createLabel(o);
         this.drawnLabelText = text;
 
         // CLONED rather than held. The block belongs to a `NodePaint` that
@@ -3778,6 +4054,7 @@ export class Node implements ModelUser {
             ...this.createLabelOptions(text, this.wantedTooltip),
             onTop: true,
         });
+        this.context.getNodeBatches?.()?.rewalk(this);
     }
 
     /**
@@ -3788,22 +4065,40 @@ export class Node implements ModelUser {
      * been hovered is a texture per node, which is the cost the hover-only rule exists to avoid.
      */
     hideTooltip(): void {
-        this.tooltip?.dispose();
+        if (this.tooltip === undefined) {
+            return;
+        }
+
+        this.tooltip.dispose();
         this.tooltip = undefined;
+        this.context.getNodeBatches?.()?.rewalk(this);
     }
 
     /**
-     * The mesh a label hangs from. A row a batch draws has none, and a label makes it an object row, so the batch is
-     * told first: a paint that keeps its mesh labels the node before it re-sorts it, which left the label hanging from
-     * nothing, at its own position.
-     * @returns The mesh, or undefined when the node is still drawn in a batch.
+     * The mesh a label hangs from: the node's own, or for a row a batch draws, its anchor made a
+     * geometry-free mesh ({@link Node.boxAnchor}), so the row stays batched. The batch is told
+     * first: a paint that keeps its mesh labels the node before it re-sorts it.
+     * @returns The mesh, or undefined for a removed node with no mesh.
      */
     private labelTarget(): AbstractMesh | undefined {
         if (this.#mesh === null && !this.disposed) {
             this.context.getNodeBatches?.()?.sync(this);
         }
 
-        return this.#mesh ?? undefined;
+        if (this.#mesh !== null || this.disposed) {
+            return this.#mesh ?? undefined;
+        }
+
+        const held = this.#anchor;
+        if (held instanceof AbstractMesh) {
+            return held;
+        }
+
+        const anchor = this.boxAnchor(held.name, held.getScene());
+        Node.moveOnto(held, anchor);
+        held.dispose();
+        this.#anchor = anchor;
+        return anchor;
     }
 
     /**
@@ -3823,6 +4118,7 @@ export class Node implements ModelUser {
         LabelDeclutter.track(scene, this.context, this);
         // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
+        labelOptions.glyphs = this.context.getStyles().config.behavior.labels.labelText === "glyphs";
         const label = new RichTextLabel(scene, labelOptions);
         // The plane is pickable either way (Babylon's default), so unset it takes a click and
         // answers no node; `pickable` makes `pickNodeId` read this node's id off it.
@@ -4013,6 +4309,7 @@ export class Node implements ModelUser {
      * @returns An object containing the x, y, and z coordinates of the node
      */
     getPosition(): { x: number; y: number; z: number } {
+        this.followRow();
         return {
             x: this.#anchor.position.x,
             y: this.#anchor.position.y,

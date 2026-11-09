@@ -3,7 +3,7 @@ import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session
 import { ColorSwatch, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { nodeModelsOn, selectionWorkspaceOn } from "../features";
+import { selectionWorkspaceOn } from "../features";
 import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CatalogGlyph } from "../style/ValueField";
@@ -19,7 +19,6 @@ import {
     swatchText,
     swatchValue,
 } from "./legendWords";
-import { modelName, pictureName } from "./models";
 
 /** Props for LegendCard. */
 interface LegendCardProps {
@@ -274,30 +273,6 @@ function useScrolls(ref: React.RefObject<HTMLElement | null>): { scrolls: boolea
 }
 
 /**
- * With the node-models experiment on, a model's or a picture's rows named as the Style panel names
- * them ("police"), never by the element's asset id or the address a layer names, whose query may
- * hold a signed token.
- * @param session - the session.
- * @param block - one legend block.
- * @returns the block, its model and picture rows named.
- */
-function withAssetNames(session: GraphSession, block: LegendBlock): LegendBlock {
-    if (block.channel !== "node.model" && block.channel !== "node.texture") {
-        return block;
-    }
-    const nameOf = block.channel === "node.model" ? modelName : pictureName;
-    return {
-        ...block,
-        swatches: block.swatches.map((swatch) => {
-            // What it paints is the ref itself, so it is not printed beside the name either.
-            const { paints, ...rest } = swatch;
-            const ref = typeof paints === "string" ? paints : swatch.value;
-            return typeof ref === "string" ? { ...rest, name: swatch.name ?? nameOf(session, ref) } : swatch;
-        }),
-    };
-}
-
-/**
  * The legend card (tier1-design.md section 2.4): read-only, one section per channel a row paints
  * from the data, the row that wins on top. Each section is titled "<Property>: <row>"; a run's
  * node and edge highlight in one color share one section titled by the run.
@@ -316,10 +291,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
     useNumberFormats();
     // The element lists the stack bottom first; the card reads top first, the winner first.
     const names = keyNames(session);
-    const sections = keySections(
-        nodeModelsOn(session) ? blocks.map((block) => withAssetNames(session, block)) : blocks,
-        names,
-    );
+    const sections = keySections(blocks, names);
     return (
         <Paper
             ref={ref}

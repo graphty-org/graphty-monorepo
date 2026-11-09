@@ -63,6 +63,13 @@ export interface StyleInput {
     readonly bytes?: Uint8Array;
 }
 
+/**
+ * The properties a format derives from a native one, by that one, each with the property an element must have for the
+ * format to derive it there: yEd's `color` is a node's `fill` and, on a node with a `color2` (`fillGradient`), the
+ * start of its `fillGradientColors`, so `{ fill: { fillGradientColors: "fillGradient" } }`.
+ */
+export type EditDerives = Readonly<Record<string, Readonly<Record<string, string>>>>;
+
 /** How a format writes styles, for the round trip. */
 export interface StyleWriter {
     /** The registry holding the format's exporter and importer; defaults to `createRegistry()`. */
@@ -78,6 +85,8 @@ export interface StyleWriter {
      * returns null when the file has no such value.
      */
     editNative?(written: Uint8Array): Uint8Array | null;
+    /** The properties the format derives from a native one, which an outside edit of that one changes with it. */
+    readonly editDerives?: EditDerives;
     /** Replaces the `graphty.styles` block of a written file with `change(block)`. */
     replaceBlock?(written: Uint8Array, change: (block: string) => string): Uint8Array;
 }
@@ -897,7 +906,7 @@ export async function roundTrip(
     if (writer.editNative !== undefined) {
         const edited = writer.editNative(written);
         if (edited !== null) {
-            failures.push(...(await checkOutsideEdit(registry, importFormat, edited, backStyles)));
+            failures.push(...(await checkOutsideEdit(registry, importFormat, edited, backStyles, writer.editDerives)));
         }
     }
     return failures;
@@ -1041,19 +1050,24 @@ async function checkFixedPoint(
 }
 
 /**
- * One native value edited outside comes back as exactly one exception (design 10.7 item 4): the same rules below
- * the exceptions, and one more excepted value.
+ * One native value edited outside comes back as exactly the exceptions that edit makes (design 10.7 item 4): the same
+ * rules below the exceptions, and on one element, one new excepted value -- the edited property's -- plus one for each
+ * property the format derives from it there (`StyleWriter.editDerives`): yEd paints a shape node's
+ * ramp through its `color`, so an edited `color` comes back as `fill` and that node's `fillGradientColors`. Any other
+ * new exception fails, on the same element or another.
  * @param registry - the registry
  * @param format - the format to read it as
  * @param edited - the edited file
  * @param unedited - the styles of the file before the edit
+ * @param derives - the properties the format derives from each native one
  * @returns the failures
  */
-async function checkOutsideEdit(
+export async function checkOutsideEdit(
     registry: FormatRegistry,
     format: string,
     edited: Uint8Array,
     unedited: ExtractedStyles,
+    derives: EditDerives = {},
 ): Promise<string[]> {
     const r = await importForStyles(registry, format, edited);
     const styles = r.imported ?? null;
@@ -1065,21 +1079,60 @@ async function checkOutsideEdit(
     if (below(styles) !== below(unedited)) {
         failures.push("an outside edit changed the rules instead of adding one exception");
     }
-    const excepted = (ex: ExtractedStyles): number => {
-        let count = 0;
-        for (const rule of ex.styles.rules.filter((x) => x.role === "exceptions")) {
-            for (const m of Object.values(rule.map ?? {})) {
-                if (m !== undefined && "by" in m && "style" in m.by) {
-                    count += (ex.columns[rule.target].get(m.by.style) ?? []).filter((v) => v !== null).length;
-                }
-            }
-        }
-        return count;
-    };
-    if (excepted(styles) !== excepted(unedited) + 1) {
-        failures.push(`an outside edit gave ${String(excepted(styles) - excepted(unedited))} new exceptions, not 1`);
+    const before = exceptedCells(unedited);
+    const added = [...exceptedCells(styles).values()].filter((c) => !before.has(c.key));
+    const elements = new Set(added.map((c) => `${c.target}:${String(c.row)}`));
+    if (elements.size !== 1) {
+        failures.push(`an outside edit gave new exceptions on ${String(elements.size)} elements, not 1`);
+        return failures;
+    }
+    const [{ target, row }] = added;
+    const got = added.map((c) => c.property).sort();
+    // the edit's own property, and each the format derives from it on an element that has the property it derives
+    // it with (as the edited file reads), unless it was excepted already (the edit then changes that value)
+    const excepted = new Set([...before.values()].map((c) => `${c.target}:${String(c.row)}|${c.property}`));
+    const has = (p: string): boolean => resolveStyles(styles, target, p as StyleProperty, r.snapshot)[row] !== null;
+    const derived = (p: string): string[] =>
+        Object.entries(derives[p] ?? {})
+            .filter(([d, withThis]) => has(withThis) && !excepted.has(`${target}:${String(row)}|${d}`))
+            .map(([d]) => d);
+    const expected = (p: string): string[] => [p, ...derived(p)].sort();
+    if (!got.some((p) => stableJson(expected(p)) === stableJson(got))) {
+        failures.push(`an outside edit gave new exceptions ${got.join(", ")} on one element, not one edited value`);
     }
     return failures;
+}
+
+/** One excepted value: its element, its property and the column it is read from. */
+interface ExceptedCell {
+    readonly key: string;
+    readonly target: StyleTarget;
+    readonly row: number;
+    readonly property: string;
+}
+
+/**
+ * Every excepted value of a graph's styles, by its element and the column it is read from (two exception rules may set
+ * one property).
+ * @param ex - the styles
+ * @returns the values, by key
+ */
+function exceptedCells(ex: ExtractedStyles): Map<string, ExceptedCell> {
+    const cells = new Map<string, ExceptedCell>();
+    for (const rule of ex.styles.rules.filter((x) => x.role === "exceptions")) {
+        for (const [property, m] of Object.entries(rule.map ?? {})) {
+            if (m !== undefined && "by" in m && "style" in m.by) {
+                const column = m.by.style;
+                (ex.columns[rule.target].get(column) ?? []).forEach((v, row) => {
+                    const key = `${rule.target}:${String(row)}|${column}`;
+                    if (v !== null) {
+                        cells.set(key, { key, target: rule.target, row, property });
+                    }
+                });
+            }
+        }
+    }
+    return cells;
 }
 
 /** Hostile values a style slot is set to in a mutant (design 7.4). */

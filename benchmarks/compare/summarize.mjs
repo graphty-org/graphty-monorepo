@@ -55,6 +55,8 @@ const METRICS = [
     ["Layout step in a batch", batched, null, "ms"],
     // Last, because `OLD` is read by position and has no figure for it.
     ["Drag frame", (r) => r.drag?.median, (r) => r.drag?.p95, "ms", (r) => r.drag?.p99],
+    // The still frame's GPU time, beside the still frame: a still frame below it was stamped early.
+    ["GPU still frame", (r) => r.gpuFrame?.median, (r) => r.gpuFrame?.p95, "ms", (r) => r.gpuFrame?.p99],
 ];
 const values = (rs, f) => rs.map(f).filter((v) => typeof v === "number");
 const cell = (cfg, [, f, p95, unit, p99]) => {

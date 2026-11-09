@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { replayFetch } from "@graphty/graph-io";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, defineSource, type GraphSession, registerSource } from "../../session";
 import { loadRecordedSeed, PEOPLE_RECORDINGS } from "../../stories/fixtures/expand/source";
@@ -106,6 +106,7 @@ afterEach(() => {
         session.dispose();
     }
     holds.clear();
+    vi.unstubAllGlobals();
 });
 
 /**
@@ -113,7 +114,7 @@ afterEach(() => {
  * @returns The session.
  */
 function fresh(): GraphSession {
-    const session = createGraphSession();
+    const session = createGraphSession({ features: ["network-data"] });
     sessions.push(session);
     return session;
 }
@@ -155,14 +156,20 @@ const DOORS: readonly Door[] = [
         },
     },
     {
-        name: "loadSample",
+        name: "loadDataset",
         nodes: 34,
         start: (session) => {
-            const read = hold("sample");
-            const fetch = heldFetch("sample", () =>
-                Promise.resolve(new Response(KARATE, { headers: { "content-type": "application/gzip" } })),
+            const read = hold("dataset");
+            vi.stubGlobal(
+                "fetch",
+                heldFetch("dataset", () =>
+                    Promise.resolve(new Response(KARATE, { headers: { "content-type": "application/gzip" } })),
+                ),
             );
-            return Promise.resolve({ load: session.data.loadSample("graph-samples-karate", { fetch }), read });
+            return Promise.resolve({
+                load: session.data.loadDataset("karate", { baseUrl: "https://mirror.test/data/v1/" }),
+                read,
+            });
         },
     },
     {

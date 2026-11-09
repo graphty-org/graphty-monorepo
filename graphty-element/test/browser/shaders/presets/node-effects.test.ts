@@ -171,8 +171,11 @@ describe("the shockwave", () => {
         const scene = element.graph.getScene();
         await clickNode(element, "a");
         await until(element, "the shockwave is drawn", () => batchesHolding(element, 1) === 1);
-        assert.strictEqual(statsOf(element)?.entrances.get(presetId("shockwave")), 1, "the ring runs out");
-        assert.isAbove(everyFrameAnimationsOn(scene), 0, "it claims frames while it runs");
+        // A frame slower than the ring's 0.7 s can end it before this check, so count the ring
+        // given (entered), not the rings still playing; and ask for a frame claim only while one is.
+        assert.strictEqual(statsOf(element)?.entered.get(presetId("shockwave")), 1, "the ring runs out");
+        const playing = statsOf(element)?.entrances.get(presetId("shockwave")) ?? 0;
+        assert.isTrue(playing === 0 || everyFrameAnimationsOn(scene) > 0, "it claims frames while it runs");
         await until(element, "the ring ends and the graph rests", () => everyFrameAnimationsOn(scene) === 0);
     });
 });

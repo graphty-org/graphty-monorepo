@@ -58,8 +58,9 @@ function inkAround(canvas: HTMLCanvasElement, at: { x: number; y: number }): num
 }
 
 describe("a lost WebGL context", () => {
-    it("draws the edges again once the context is given back", async () => {
+    it.for([true, false])("draws the edges again once the context is given back (antialias %s)", async (antialias) => {
         const element: Graphty = document.createElement("graphty-element");
+        element.antialias = antialias;
         element.style.display = "block";
         element.style.width = "400px";
         element.style.height = "300px";
@@ -94,5 +95,6 @@ describe("a lost WebGL context", () => {
         await drawnFrames(scene, 5);
 
         assert.isAbove(inkAround(canvas, middle), 0, "the edge is drawn again");
+        assert.strictEqual(canvas.getContext("webgl2")?.getContextAttributes()?.antialias, antialias);
     });
 });

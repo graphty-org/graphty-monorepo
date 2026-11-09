@@ -68,6 +68,32 @@ const LabelBehaviorOpts = z
          * style puts it. Decided again whenever `declutter` is.
          */
         avoidNodesAndEdges: z.boolean().default(false),
+        /*
+         * The size, in CSS pixels, of the square screen cells label sampling keeps one node label
+         * in.
+         *
+         * UNSET BY DEFAULT, so every label a style asks for is built. Set, the element divides the
+         * canvas into cells of this size and, once the view has settled (the camera, the canvas
+         * and the node positions held still for a frame), builds the label of one node per cell:
+         * a selected node first, then the node with more edges. Every other node label is not
+         * built at all, which keeps a graph with a label on every node as fast as one with none;
+         * `nodeLabelCounts.hiddenBySampling` counts them. `declutter` then thins the labels that
+         * were built.
+         */
+        sampleCell: z.number().positive().optional(),
+        /*
+         * How node labels draw their words.
+         *
+         * UNSET BY DEFAULT, which is "canvas": every label is drawn on its own canvas, as it always was. "glyphs"
+         * draws every plain label (words in one style, with no panel, pointer, badge, table, close
+         * button, animation or depth fade) from one shared atlas of glyphs in one draw, which keeps
+         * thousands of labels cheap to build and draw; its letters are drawn from a distance field,
+         * so their edges differ slightly from the canvas's. A label the atlas cannot draw --
+         * right-to-left and Indic scripts, emoji, combining marks, a font with ligatures, or a
+         * glyph that no longer fits in the atlas -- is drawn on its own canvas, label by label.
+         * Applies to labels built after it is set.
+         */
+        labelText: z.enum(["canvas", "glyphs"]).optional(),
     })
     .prefault({});
 
@@ -252,6 +278,20 @@ export type GraphLayoutBehavior = z.infer<typeof GraphLayoutOpts>;
 /** How the element drives the layout, as a caller supplies it: every field optional. */
 export type GraphBehaviorConfig = z.input<typeof GraphBehaviorOpts>;
 
+const SelectionBehaviorOpts = z
+    .strictObject({
+        /*
+         * What Shift and a drag that starts on empty canvas does.
+         *
+         * "off" BY DEFAULT, so it pans or turns the camera as it always has. "rectangle" draws a
+         * rectangle from the press to the pointer, and "lasso" a free shape along the pointer's
+         * path; releasing adds every drawn node whose center is inside to the selection, as
+         * `select({ region: { polygon } }, "add")` would. A press on a node still drags the node.
+         */
+        region: z.enum(["off", "rectangle", "lasso"]).default("off"),
+    })
+    .prefault({});
+
 export const GraphBehaviorOpts = z.strictObject({
     // dimensions: z.int().min(2).max(3).default(3),
     layout: GraphLayoutOpts.prefault({}),
@@ -260,6 +300,7 @@ export const GraphBehaviorOpts = z.strictObject({
     rendering: RenderingBehaviorOpts,
     camera: CameraBehaviorOpts,
     expand: ExpandBehaviorOpts,
+    selection: SelectionBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

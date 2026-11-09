@@ -81,6 +81,7 @@ export type GraphEvent =
     | GraphStartedEvent
     | LayoutChangedEvent
     | LayoutWarningEvent
+    | LimitsWarningEvent
     | BasemapStatusEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
@@ -457,6 +458,20 @@ export interface LayoutWarningEvent {
     /** The layout that reported it, as `setLayout` was given it. */
     layoutType: string;
     /** What happened, such as `W_NO_POSITION` or `W_UNKNOWN_OPTION`. */
+    code: GraphtyWarningCode;
+    /** The code's parameters, as the code's documentation lists them. */
+    params: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Emitted when the `limits` the element was given are not in force: under `render-path="objects"`
+ * the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`). A code and its
+ * parameters, never a sentence.
+ * @experimental cosmograph
+ */
+export interface LimitsWarningEvent {
+    type: "limits-warning";
+    /** What happened: `W_LIMITS_IGNORED`. */
     code: GraphtyWarningCode;
     /** The code's parameters, as the code's documentation lists them. */
     params: Readonly<Record<string, unknown>>;

@@ -59,7 +59,7 @@ export interface SourceHost {
     dispatch(command: SessionCommand): Promise<unknown>;
     /**
      * Waits for every load asked for before this one to dispatch, for a load that holds a
-     * place in line (`session.data.import`, `loadSample`); unset, or undefined, when none is ahead.
+     * place in line (`session.data.import`, `loadExample`); unset, or undefined, when none is ahead.
      * @returns the wait
      */
     waitTurn?(): Promise<void> | undefined;

@@ -130,8 +130,7 @@ function buildRestPart(
     const held = new Set<string>();
     parts.rest = attempt("rest", () => {
         // Each model's files once, in a part of their own: a style change rewrites none of them.
-        // Autosave embeds everything, whatever the reader chose to keep by URL in a saved file.
-        const { member } = assetsMember(session, "embed-all");
+        const { member } = assetsMember(session);
         const entries = ((member?.assets ?? []) as Record<string, unknown>[]).map(({ files, ...entry }) => {
             const digest = entry.sha256 as string;
             if (files !== undefined) {

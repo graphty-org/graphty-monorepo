@@ -92,6 +92,7 @@ import { segmentedReduceWgsl } from "./wgsl/segmented-reduce.wgsl.js";
 import { spmvPullWgsl } from "./wgsl/spmv-pull.wgsl.js";
 import { ssspPredWgsl } from "./wgsl/sssp-pred.wgsl.js";
 import { ssspRelaxWgsl } from "./wgsl/sssp-relax.wgsl.js";
+import { toDrawnWgsl } from "./wgsl/to-drawn.wgsl.js";
 import { triIntersectWgsl } from "./wgsl/tri-intersect.wgsl.js";
 import { wccCompressWgsl } from "./wgsl/wcc-compress.wgsl.js";
 import { wccLinkEdgesWgsl } from "./wgsl/wcc-link-edges.wgsl.js";
@@ -135,6 +136,7 @@ export type KernelId =
     | "collide-cell-key"
     | "collide-gather"
     | "collide-apply"
+    | "to-drawn"
     | "compact-scatter"
     | "dedupe-claim"
     | "dedupe-filter"
@@ -214,6 +216,22 @@ export const FILL_PARAMS: UniformBlock = UniformBlock.define("FillParams", [
     ["value", "u32"],
     ["mode", "u32"],
     ["pad0", "u32"],
+]);
+
+/** `DrawnParams` (uniform, 48 B; the drawn ring, design/rendering/row-renderer.md 4.5): `n` @0, `dim` @4, `scale` @8, the center the scene is measured from @16, the target it is drawn about @32. */
+export const DRAWN_PARAMS: UniformBlock = UniformBlock.define("DrawnParams", [
+    ["n", "u32"],
+    ["dim", "u32"],
+    ["scale", "f32"],
+    ["pad0", "u32"],
+    ["cx", "f32"],
+    ["cy", "f32"],
+    ["cz", "f32"],
+    ["pad1", "u32"],
+    ["tx", "f32"],
+    ["ty", "f32"],
+    ["tz", "f32"],
+    ["pad2", "u32"],
 ]);
 
 /** `CollideParams` (uniform, 32 B; the collision force, issue #3256): `n` @0, `dim` @4 (2 for a flat collision), `hashMask` @8 (the bucket count less one), `cellMax` @12 (how far a bucket is read), `invCell` @16 (one over the cell width in layout units), `radiusScale` @20 (what turns a radius into layout units). */
@@ -1211,6 +1229,24 @@ const COLLIDE_APPLY: KernelEntry = {
     phase: "P4",
 };
 
+/** `to-drawn` (design/rendering/row-renderer.md 4.5): the scene array into one slot of the drawn ring, skipping the owner's rows and keeping w. */
+const TO_DRAWN: KernelEntry = {
+    id: "to-drawn",
+    body: toDrawnWgsl,
+    entryPoint: "to_drawn",
+    bindings: [
+        decl(1, 0, "scene", "storage-ro", "array<f32>"),
+        decl(1, 1, "skip", "storage-ro", "array<u32>"),
+        decl(1, 2, "drawn", "storage", "array<vec4f>"),
+        decl(2, 0, "P", "uniform", "DrawnParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [DRAWN_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P4",
+};
+
 /** `grid-centroid` (G4, spec 7.7; P4-T9, PD-13): thread per finest cell (the 2^dim orthant pseudo-cells included), the serial mass-weighted sum in sorted order into level 0, the occupancy max into `hubCounters[1]`, hub cells (> GRID_HUB_CELL) appended to `hubList`; 6 storage bindings. */
 const GRID_CENTROID: KernelEntry = {
     id: "grid-centroid",
@@ -2035,6 +2071,7 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "collide-cell-key": COLLIDE_CELL_KEY,
     "collide-gather": COLLIDE_GATHER,
     "collide-apply": COLLIDE_APPLY,
+    "to-drawn": TO_DRAWN,
     "compact-scatter": COMPACT_SCATTER,
     "dedupe-claim": DEDUPE_CLAIM,
     "dedupe-filter": DEDUPE_FILTER,

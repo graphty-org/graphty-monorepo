@@ -18,6 +18,7 @@ import {
     type PArrow,
     type PBox,
     type PEdge,
+    type PFill,
     type PGradient,
     PICTURE_PART,
     PICTURE_WHOLE,
@@ -373,6 +374,46 @@ function arrowShapeNamed(name: string): ArrowShape {
 }
 
 /**
+ * A gradient color as a stop: `#rrggbb` and its alpha, from `#rrggbb`, `#rrggbbaa` or `#rgba` (NodeMesh paints a stop's
+ * alpha, reading the ramp's alpha through the material).
+ * @param color - the color as the style holds it
+ * @returns the stop's color and opacity
+ */
+function stopColor(color: string): { color: string; opacity: number } {
+    const c = color.toLowerCase();
+    if (/^#[0-9a-f]{4}$/.test(c)) {
+        const [r, g, b, a] = c.slice(1);
+        return {
+            color: `#${r}${r}${g}${g}${b}${b}`,
+            opacity: Math.round((Number.parseInt(a + a, 16) / 255) * 1000) / 1000,
+        };
+    }
+    if (/^#[0-9a-f]{8}$/.test(c)) {
+        return { color: c.slice(0, 7), opacity: Math.round((Number.parseInt(c.slice(7), 16) / 255) * 1000) / 1000 };
+    }
+    return { color: c, opacity: 1 };
+}
+
+/**
+ * A node's fill as graphty paints it: a flat color, or a gradient, whose color and opacity are its first stop's (times
+ * the node's fill opacity), as the oracle reads an SVG gradient fill.
+ * @param color - the fill's color
+ * @param opacity - the node's fill opacity
+ * @param ramp - the drawn ramp, or null for a flat fill
+ * @param box - the node's box on screen
+ * @param box.w - its width
+ * @param box.h - its height
+ * @returns the fill
+ */
+function gradientFill(color: string, opacity: number, ramp: DrawnNode["ramp"], box: { w: number; h: number }): PFill {
+    const gradient = gradientOf(ramp, box.w, box.h);
+    const first = gradient?.stops[0];
+    return first === undefined
+        ? { color, opacity, gradient }
+        : { color: stopColor(color).color, opacity: Math.round(opacity * first.opacity * 1000) / 1000, gradient };
+}
+
+/**
  * A node's gradient as graphty paints it: its colors at their stops (evenly spaced when it has none), a linear one
  * along the direction its color changes on screen. NodeMesh paints the ramp at its direction across a square texture
  * and stretches the square over the node's box, so on a box wider than tall its color changes along
@@ -390,7 +431,7 @@ function gradientOf(ramp: DrawnNode["ramp"], w: number, h: number): PGradient | 
     const rad = ((ramp.direction ?? 0) * Math.PI) / 180;
     return {
         kind: ramp.kind,
-        stops: ramp.colors.map((color, i) => ({ offset: ramp.stops?.[i] ?? i / last, color, opacity: 1 })),
+        stops: ramp.colors.map((color, i) => ({ offset: ramp.stops?.[i] ?? i / last, ...stopColor(color) })),
         angle: ramp.kind === "linear" ? (rampAngleOnScreen([Math.cos(rad), Math.sin(rad)], [w, 0, 0, h]) ?? 0) : null,
         ...(ramp.center === undefined ? {} : { center: ramp.center }),
     };
@@ -748,14 +789,7 @@ export function drawnPrimitives(
             w: n.w - inset - gap,
             h: n.h - inset - gap,
             shape: SHAPES[n.shape] ?? "other",
-            fill:
-                fill === null
-                    ? null
-                    : {
-                          color: fill,
-                          opacity: n.fillOpacity,
-                          gradient: d?.gradient === true ? gradientOf(d.ramp, n.w, n.h) : null,
-                      },
+            fill: fill === null ? null : gradientFill(fill, n.fillOpacity, d?.gradient === true ? d.ramp : null, n),
             stroke:
                 borderColor !== null && borderWidth > 0
                     ? {

@@ -118,6 +118,9 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     // a wave that has a swing of its own.
     "edge.waveAmplitude": { "edge.style": "sinewave" },
     "edge.wavePeriod": { "edge.style": "sinewave", "edge.waveAmplitude": 1 },
+    // A dash length shapes only a dashed line, a gap only a dashed or dotted one.
+    "edge.dashLength": { "edge.style": "dash" },
+    "edge.dashGap": { "edge.style": "dot" },
     "node.borderWaveAmplitude": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1 },
     "node.borderWavePeriod": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1, "node.borderWaveAmplitude": 1 },
     // Where runs of different sizes meet changes only a line holding runs of different sizes.

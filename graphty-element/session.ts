@@ -157,6 +157,7 @@ export type {
     RowUpdate,
     RunPlacement,
     SessionAttributes,
+    SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
     SessionDataApi,
@@ -469,9 +470,7 @@ export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal"
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./src/session";
 export { browserProjects } from "./src/session";
 export type {
-    AssetStorage,
     ProjectApi,
-    ProjectAssetChoice,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
@@ -792,7 +791,7 @@ export type {
     XrUnavailableReason,
 } from "./src/acceleration";
 export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
-export type { DefaultableLimits } from "./src/session";
+export type { DefaultableLimits, LimitsOption } from "./src/session";
 export { DEFAULT_LIMITS } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------

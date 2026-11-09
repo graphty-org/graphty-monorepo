@@ -7,7 +7,6 @@ import {
     DEFAULT_DATASET_BASE_URL,
     GENERATOR_DESCRIPTORS,
     type GeneratorDescriptor,
-    sourceDescriptors,
 } from "@graphty/graphty-element/catalog";
 import { ActionIcon, Badge, Chip, Group, Modal, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
@@ -35,9 +34,6 @@ import {
     samplePicture,
 } from "./open";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "./samples";
-
-/** The id of the graph-samples source, whose samples are listed as Datasets rather than Live. */
-const GRAPH_SAMPLES = "graph-samples";
 
 /** Where a picked sample goes: into this project (the {@link addSource} rule), or a new project. */
 type Target = "add" | "separate";
@@ -80,7 +76,7 @@ function hostOf(url: string | undefined, fallback: string): string {
 }
 
 /** Where graph-samples' datasets download from: graphty.app. */
-const DATASET_HOST = hostOf(DEFAULT_DATASET_BASE_URL, GRAPH_SAMPLES);
+const DATASET_HOST = hostOf(DEFAULT_DATASET_BASE_URL, "graphty.app");
 
 /**
  * A file sample to its target: added by the {@link addSource} rule, or opened as its own project.
@@ -116,9 +112,9 @@ function bringGraph(ctx: CommandContext, name: string, load: GraphLoad, target: 
 }
 
 /**
- * Every sample, once: the prototype's fixture files by subject, the app's own graphs, the live
- * server samples,
- * graph-samples' datasets the element opens, and its generators.
+ * Every sample, once: the prototype's fixture files by subject, the app's own graphs,
+ * graph-samples' datasets the element opens, and its generators. A network server's examples are
+ * not samples: they are offered only by the network data form.
  * @param ctx - the command context.
  * @param ask - shows what a large dataset takes, before it downloads.
  * @param configure - shows a generator's parameters.
@@ -163,33 +159,6 @@ function sampleEntries(
             },
         };
     });
-    const live = sourceDescriptors()
-        .filter((source) => source.id !== GRAPH_SAMPLES)
-        .flatMap((source) =>
-            (source.descriptor.samples ?? []).map((sample): SampleEntry => {
-                const provider = hostOf(
-                    sample.endpoint ?? source.descriptor.defaultEndpoint ?? undefined,
-                    source.descriptor.plainName,
-                );
-                return {
-                    key: sample.id,
-                    name: sample.plainName,
-                    group: "Live",
-                    provider,
-                    nodes: sample.counts?.nodes,
-                    edges: sample.counts?.edges,
-                    words: `${sample.plainName} live ${provider} ${source.descriptor.plainName}`.toLowerCase(),
-                    open: (target) => {
-                        bringGraph(
-                            ctx,
-                            sample.plainName,
-                            (session, load) => session.data.loadSample(sample.id, load),
-                            target,
-                        );
-                    },
-                };
-            }),
-        );
     const copies = new Set(Object.values(OWN_COPIES));
     const datasets = DATASET_DESCRIPTORS.filter((dataset) => fitsInBrowser(dataset) && !copies.has(dataset.name)).map(
         (dataset): SampleEntry => ({
@@ -223,7 +192,7 @@ function sampleEntries(
             configure(generator, target);
         },
     }));
-    return [...files, ...graphs, ...live, ...datasets, ...generated];
+    return [...files, ...graphs, ...datasets, ...generated];
 }
 
 /**

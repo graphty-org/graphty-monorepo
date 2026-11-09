@@ -48,6 +48,8 @@ function standIn(
         selection,
         data: { statistics: () => ({ nodeCount: 3, edgeCount: 2 }), node: () => undefined },
         layout: { dimension: "3d" },
+        // No experiment switched on, as a real session carries: a door the network-data experiment gates reads it.
+        features: { enabled: [] },
     } as unknown as GraphSession;
     const element = {
         renderQuality: { level: "high", motion, heavy: "on" },

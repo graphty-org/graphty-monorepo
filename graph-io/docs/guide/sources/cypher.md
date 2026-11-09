@@ -46,7 +46,23 @@ const near = await loadFromSource(
 console.log(near.snapshot.nodeCount); // 230
 ```
 
-`listSources()` lists both as samples of the `neo4j` source, with their endpoints and logins.
+## Examples
+
+The `neo4j` source's descriptor lists public servers you can load from (`descriptor.examples` in
+`listSources()`), each with its endpoint, params and published login:
+
+| Example               | Endpoint                           | Login                         | Nodes / edges         |
+| --------------------- | ---------------------------------- | ----------------------------- | --------------------- |
+| `neo4j-movies`        | `https://demo.neo4jlabs.com:7473`  | movies / movies               | 171 / 253             |
+| `neo4j-northwind`     | `https://demo.neo4jlabs.com:7473`  | northwind / northwind         | 1,035 / 3,139         |
+| `neo4j-gameofthrones` | `https://demo.neo4jlabs.com:7473`  | gameofthrones / gameofthrones | 798 / 6,620           |
+| `neo4j-fincen`        | `https://demo.neo4jlabs.com:7473`  | fincen / fincen               | 7,524 / 40,835        |
+| `neo4j-movies-bolt`   | `bolt+s://demo.neo4jlabs.com:7687` | movies / movies               | 171 / 253             |
+| `hetionet`            | `bolt+s://neo4j.het.io:7687`       | none                          | Metformin's neighbors |
+
+Neo4j Labs' demo server is read-only; every database's login is its name as both user and
+password. Hetionet runs Neo4j 3.5, which reached end of life, so it may stop answering.
+Amazon Neptune has no public server, so the `neptune` source lists no example.
 
 ## What to read: `mode`
 

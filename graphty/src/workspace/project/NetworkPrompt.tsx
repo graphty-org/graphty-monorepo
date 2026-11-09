@@ -20,15 +20,6 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
 };
 
 /**
- * The file an address names: its last path part, without its query or fragment.
- * @param url - the address.
- * @returns the file name, else the address.
- */
-function fileOf(url: string): string {
-    return url.split(/[?#]/)[0].split("/").pop() || url;
-}
-
-/**
  * The question before a project opens a web address it names (a model, a picture, a data
  * source): graphty-element holds every such fetch in `session.network` until it is answered, and
  * this asks the reader, one address at a time. Continue opens it (and the rest of that site, this
@@ -83,21 +74,11 @@ export function NetworkPrompt(): React.JSX.Element | null {
         >
             {request === undefined ? null : (
                 <Stack gap="xs">
-                    {request.params.by === "supplied" ? (
-                        // A part the reader handed a model by its address (only the node-models
-                        // experiment's Parts pop-over supplies parts).
-                        <Text size="sm">
-                            Load a part of this model from {request.params.host}? It is {fileOf(request.params.url)}.
-                        </Text>
-                    ) : (
-                        <>
-                            <Text size="sm">This project wants to open {request.params.url}. Continue?</Text>
-                            <Text size="xs" c="dimmed">
-                                It is {KIND_WORDS[request.params.kind] ?? "a file"} on {request.params.host}. Continue
-                                opens it and anything else this project names on that site.
-                            </Text>
-                        </>
-                    )}
+                    <Text size="sm">This project wants to open {request.params.url}. Continue?</Text>
+                    <Text size="xs" c="dimmed">
+                        It is {KIND_WORDS[request.params.kind] ?? "a file"} on {request.params.host}. Continue opens it
+                        and anything else this project names on that site.
+                    </Text>
                     <ModalFooter mt="md">
                         <Button
                             variant="default"

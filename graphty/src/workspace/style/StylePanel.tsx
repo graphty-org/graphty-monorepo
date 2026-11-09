@@ -7,7 +7,7 @@ import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-elemen
 import { Box, Button, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { cosmographOn, nodeModelsOn, selectionWorkspaceOn } from "../features";
+import { cosmographOn, selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, isHidden, isLocked, paintedTarget, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { isPanelEscape } from "../keys/keys";
@@ -490,13 +490,12 @@ export function RowStyle({
         };
         return (
             <section className="ws-style-group" data-group={side}>
-                {sectionsFor(side, { cosmograph: cosmographOn(session), nodeModels: nodeModelsOn(session) }).map(
-                    (spec) =>
-                        spec.id === "text" ? (
-                            <LabelSection key={spec.id} ctx={ctx} />
-                        ) : (
-                            <Section key={spec.id} ctx={ctx} spec={spec} />
-                        ),
+                {sectionsFor(side, cosmographOn(session)).map((spec) =>
+                    spec.id === "text" ? (
+                        <LabelSection key={spec.id} ctx={ctx} />
+                    ) : (
+                        <Section key={spec.id} ctx={ctx} spec={spec} />
+                    ),
                 )}
             </section>
         );

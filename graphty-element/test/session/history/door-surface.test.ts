@@ -17,7 +17,11 @@ import { promisify } from "node:util";
 
 import { assert, describe, it } from "vitest";
 
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import { DOOR_ROOTS, type DoorRoot } from "../../../src/session/commands/doors";
+
+// Network sources sit behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 const SCAN = fileURLToPath(new URL("door-surface-scan.mjs", import.meta.url));
 

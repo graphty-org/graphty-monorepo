@@ -84,6 +84,13 @@ With [acceleration](./acceleration) on, the graph draws on WebGPU and the adapte
 run on one device. The element decides this before the renderer opens, and needs nothing from you. On a software adapter they stay on two.
 If the device is lost, both stop, the renderer comes back on a new device, and the layout carries on there.
 
+`rendererStatus.layoutDevice` says which it is: `"shared"`, `"separate"` (WebGL, or a software adapter), or `null` when no accelerator
+is offered:
+
+```js
+const { layoutDevice } = element.rendererStatus ?? {};
+```
+
 ## Is WebGPU faster?
 
 Not yet, for this element. Measured frame times at 10,000 and 100,000 nodes are in the
@@ -107,6 +114,49 @@ picture or transparency, say) stays a mesh, and so do the other nodes of its sha
 
 ```js
 const { batchedNodes, objectNodes } = element.rowCounts;
+```
+
+### Loading more than 100,000 nodes
+
+A load past 100,000 nodes or 1,000,000 edges is refused with `E_TOO_LARGE`. On the batched path
+you can raise either number with `limits` (experimental):
+
+```html
+<graphty-element view-mode="2d" render-path="batched" layout="random"></graphty-element>
+<script type="module">
+    import "@graphty/graphty-element";
+    const graph = document.querySelector("graphty-element");
+    graph.limits = { renderCeiling: 1_000_000 };
+    const nodes = Array.from({ length: 1_000_000 }, (_, i) => ({ id: `n${i}` }));
+    await graph.session.data.addNodes(nodes);
+    console.log(graph.session.capabilities.limits.renderCeiling); // 1000000
+</script>
+```
+
+`session.capabilities.limits` always holds the numbers in force, and `capabilities:changed` fires
+when they change. On the default `"objects"` path `limits` is ignored, the element fires
+`limits-warning` with the code `W_LIMITS_IGNORED`, and the 100,000 and 1,000,000 stand. Changing
+`renderPath` to `"objects"` while the graph holds more than those is refused: the element fires
+`error` with `E_TOO_LARGE` and stays on `"batched"`.
+
+## Smoothing (antialias)
+
+The canvas is drawn with 4x multisampling, which smooths the edges of lines and nodes. With very
+many edges, multisampling is most of each frame's cost; `antialias="false"` turns it off, for
+harder edges and faster frames. Nothing else about the picture changes.
+
+```html
+<graphty-element render-path="batched" antialias="false"></graphty-element>
+```
+
+Set it as an attribute, in any position in the tag, or as a property before using any other
+property or method of the element. A later change takes effect only on a new element and raises
+the warning `W_ANTIALIAS_LATE`:
+
+```js
+element.addEventListener("graphty-warning", (e) => {
+    const { code, params } = e.detail; // "W_ANTIALIAS_LATE", { requested, active }
+});
 ```
 
 ## Drawing only when something changes

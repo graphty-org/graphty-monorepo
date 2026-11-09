@@ -27,6 +27,9 @@ import { shadersControllerOf } from "../../src/session/shaders";
 import { VULKAN_GLSL_NAMES } from "../../src/shaders/runtime/wrap";
 import { defineShader } from "../../src/simple/defineShader";
 import { drawnFrames } from "../helpers/drawn-frames";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
@@ -216,7 +219,7 @@ function shaderFailures(graph: Graph): string[] {
 describe("the renderer a graph is drawn with", () => {
     it("is WebGL unless something else is asked for", async () => {
         const graph = await open();
-        assert.deepEqual(graph.rendererStatus, { requested: "webgl", active: "webgl", reason: null, drawing: true });
+        assert.deepInclude(graph.rendererStatus, { requested: "webgl", active: "webgl", reason: null, drawing: true });
         assert.notInstanceOf(graph.engine, WebGPUEngine);
     });
 
@@ -663,7 +666,7 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
     it("opens a WebGPU engine when asked, and under auto", async () => {
         for (const renderer of ["webgpu", "auto"] as const) {
             const graph = await open(renderer);
-            assert.deepEqual(graph.rendererStatus, {
+            assert.deepInclude(graph.rendererStatus, {
                 requested: renderer,
                 active: "webgpu",
                 reason: null,

@@ -67,6 +67,23 @@ describe("an oracle node drawn under another", () => {
         assert.lengthOf(withoutCovered({ ...scene([node("n", 5, 20)]), strays: [corner] }).strays, 1);
     });
 
+    it("keeps a slice drawn over the node's own fill, before the node's front-most slice (cx-syn-bypass 2280)", () => {
+        // the node's fill is drawn at 3, its ring chart's slices at 7 and 9: the first slice is over the fill
+        const slice = {
+            index: 7,
+            tag: "path",
+            kind: "shape" as const,
+            box: { x0: 100, y0: 96, x1: 105, y1: 100 },
+            fill: "#984ea3",
+            stroke: null,
+            text: null,
+        };
+        const ring = { ...node("2280", 9, 20), fillOrder: 3 };
+        assert.lengthOf(withoutCovered({ ...scene([ring]), strays: [slice] }).strays, 1);
+        // one drawn before the fill is still under it
+        assert.lengthOf(withoutCovered({ ...scene([ring]), strays: [{ ...slice, index: 2 }] }).strays, 0);
+    });
+
     it("takes graphty's half pixel into the oracle's pixels by the ratio of the two drawings' node sizes", () => {
         // gexf-cns-wos n5 under n109, 0.63 oracle pixels off, drawn 1.36 oracle pixels to graphty's one
         const off = { ...node("n5", 1, 7.35), cx: 100.63 };

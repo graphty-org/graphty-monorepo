@@ -516,6 +516,22 @@ export function finishScene(scene, out) {
     return done;
 }
 
+/**
+ * Whether a regenerated scene says what the committed one says, its provenance.generatedAt aside: then
+ * regenerating keeps the committed file as it is, so a run that changes nothing rewrites nothing.
+ * @param prior - the committed scene's text
+ * @param fresh - the regenerated scene's text
+ * @returns true when they differ only in provenance.generatedAt
+ */
+export function unchangedScene(prior, fresh) {
+    const strip = (text) => {
+        const s = JSON.parse(text);
+        delete s.provenance?.generatedAt;
+        return JSON.stringify(s);
+    };
+    return strip(prior) === strip(fresh);
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2] === "finish") {
     // node common.mjs finish [--drop-group-edges] <out.json>, the scene on stdin.
     // stdin can be a non-blocking pipe (EAGAIN on a synchronous read), so read it as a stream

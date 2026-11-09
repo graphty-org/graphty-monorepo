@@ -12,11 +12,9 @@
  */
 
 import type { ModelFormat } from "../../catalog/detectModel";
-import type { LayerId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { isPrivateHost, type NetworkApiInternal } from "../network";
 import type { CodedFact } from "../shared";
-import type { SessionStylesApi } from "../styles";
 import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
 import { digestFileSet, sha256Fallback } from "./digest";
@@ -352,20 +350,6 @@ export interface AssetsApi {
      * @returns Their records, in the order added.
      */
     waiting(): readonly AssetRecord[];
-    /**
-     * The node layers that name a model or picture (`node.model` or `node.texture`, as a value or
-     * in an encoding's map), by any name the session knows it by: its id, the id it had while it
-     * waited for parts, or the URL it was added from.
-     * @param ref - An asset id, a waiting model's id, or a URL.
-     * @returns The layers' ids, in stack order; empty when none names it.
-     * @example
-     * ```ts
-     * if (graph.session.assets.usedBy(record.id).length === 0) {
-     *     // no layer draws it yet
-     * }
-     * ```
-     */
-    usedBy(ref: string): readonly LayerId[];
 }
 
 /** A model missing parts, held for `supply` (design 12.4). */
@@ -436,24 +420,6 @@ export interface AssetsApiInternal extends AssetsApi {
      * @returns The digest, or undefined.
      */
     expectedDigest(ref: string): string | undefined;
-    /**
-     * Remember how a project keeps a model or picture a layer names by URL: what an opened file
-     * stored, or what the last save was told, so a later save without a choice keeps it the same way.
-     * @param ref - The URL.
-     * @param storage - `"url"` for kept by URL and digest, `"embed"` for files in the project.
-     */
-    rememberStorage(ref: string, storage: "embed" | "url"): void;
-    /**
-     * How a project last kept a URL, if any.
-     * @param ref - The URL.
-     * @returns What {@link AssetsApiInternal.rememberStorage} was last given for it, or undefined.
-     */
-    rememberedStorage(ref: string): "embed" | "url" | undefined;
-    /**
-     * Forget how the last project kept each URL and the digests its file recorded, when another
-     * project opens in its place: none of it carries into the new one.
-     */
-    forgetProjectStorage(): void;
     /**
      * Whether an accepted asset's parts came from more than one place (`supply`), so no single URL
      * brings it back.
@@ -734,10 +700,9 @@ function useStep(
 /**
  * Build `session.assets`.
  * @param network - The session's fetch gate, which `allowHosts` also opens.
- * @param styles - The session's style stack, for `usedBy`; none names nothing.
  * @returns The API.
  */
-export function createAssetsApi(network?: NetworkApiInternal, styles?: () => SessionStylesApi): AssetsApiInternal {
+export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal {
     let limits: ModelLimits = DEFAULT_MODEL_LIMITS;
     const hosts = new Set<string>();
     const entries = new Map<AssetId, Entry>();
@@ -748,7 +713,6 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     const states = new Map<string, ModelChange>();
     // The digests a project file recorded for assets it keeps by URL, by href.
     const expectedDigests = new Map<string, string>();
-    const storedAs = new Map<string, "embed" | "url">();
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
 
     /**
@@ -1735,26 +1699,6 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return Object.freeze(waitingEntries().map((entry) => entry.record));
         },
 
-        usedBy(ref) {
-            const id = api.find(ref)?.id;
-            const names = (value: unknown): boolean =>
-                typeof value === "string"
-                    ? value === ref || (id !== undefined && api.find(value)?.id === id)
-                    : typeof value === "object" && value !== null && Object.values(value).some(names);
-            const layers = styles?.().list() ?? [];
-            return Object.freeze(
-                layers
-                    .filter(
-                        (layer) =>
-                            layer.target === "node" &&
-                            (["node.model", "node.texture"] as const).some(
-                                (channel) => names(layer.set?.[channel]) || names(layer.encode?.[channel]),
-                            ),
-                    )
-                    .map((layer) => layer.id),
-            );
-        },
-
         assembled(id) {
             return lookup(id)?.assembled === true;
         },
@@ -1843,23 +1787,6 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         expectedDigest(ref) {
             const url = parseUrl(ref);
             return url === undefined ? undefined : expectedDigests.get(url.href);
-        },
-
-        rememberStorage(ref, storage) {
-            const url = parseUrl(ref);
-            if (url !== undefined) {
-                storedAs.set(url.href, storage);
-            }
-        },
-
-        rememberedStorage(ref) {
-            const url = parseUrl(ref);
-            return url === undefined ? undefined : storedAs.get(url.href);
-        },
-
-        forgetProjectStorage() {
-            storedAs.clear();
-            expectedDigests.clear();
         },
 
         bindUrl(ref, id) {

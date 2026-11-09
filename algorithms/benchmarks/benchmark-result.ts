@@ -6,6 +6,8 @@ export interface BenchmarkResult {
     graphGenerationAlgorithm?: string; // Algorithm used to generate the test graph
     graphSize: number;
     edges: number;
+    /** A fingerprint of the input graph: two results compare only when they timed the same graph */
+    input?: string;
     executionTime: number; // milliseconds
     memoryUsage: number; // bytes
     memoryPerVertex: number; // bytes per vertex

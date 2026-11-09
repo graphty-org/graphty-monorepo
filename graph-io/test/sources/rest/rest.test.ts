@@ -320,10 +320,10 @@ describe("OpenAlex", () => {
     });
 });
 
-describe("samples of the rest source", () => {
+describe("examples of the rest source", () => {
     it("STRING: TP53's functional partners are 21 proteins and 113 interactions", async () => {
-        const sample = REST_DESCRIPTOR.samples?.find((s) => s.id === "string-tp53");
-        const { snapshot } = await loadFromSource(restMappingSource, sample?.params as never, {
+        const example = REST_DESCRIPTOR.examples?.find((s) => s.id === "string-tp53");
+        const { snapshot } = await loadFromSource(restMappingSource, example?.params as never, {
             fetch: replayFetch(recorded("string-tp53")),
         });
         expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([21, 113]);
@@ -332,16 +332,16 @@ describe("samples of the rest source", () => {
     });
 
     it("deps.dev: webpack 5.90.0 resolves to 84 packages and 121 dependencies", async () => {
-        const sample = REST_DESCRIPTOR.samples?.find((s) => s.id === "deps-dev-webpack");
-        const { snapshot } = await loadFromSource(restMappingSource, sample?.params as never, {
+        const example = REST_DESCRIPTOR.examples?.find((s) => s.id === "deps-dev-webpack");
+        const { snapshot } = await loadFromSource(restMappingSource, example?.params as never, {
             fetch: replayFetch(recorded("deps-dev-webpack")),
         });
         expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([84, 121]);
         expect(snapshot.nodes.value("name", snapshot.ids.requireIndex("0"))).toBe("webpack");
     });
 
-    it("the sample mappings are the exported ones", () => {
-        expect(REST_DESCRIPTOR.samples?.map((s) => s.params.mapping)).toEqual([STRING_MAPPING, DEPS_DEV_MAPPING]);
+    it("the example mappings are the exported ones", () => {
+        expect(REST_DESCRIPTOR.examples?.map((s) => s.params.mapping)).toEqual([STRING_MAPPING, DEPS_DEV_MAPPING]);
     });
 });
 
@@ -528,6 +528,20 @@ describe("the rest source", () => {
             { fetch: replayFetch(recordings), cursor: next ?? undefined },
         );
         expect([...rest.snapshot.ids].sort()).toEqual(["f"]);
+    });
+
+    it("stops a page's stubs at the expansion's limit", async () => {
+        const { snapshot } = await expandFromSource(
+            people,
+            { params: {}, ids: ["a"], limit: 3 },
+            {
+                fetch: replayFetch([
+                    { url: `${API}/people?knownBy=a`, body: { items: [{ id: "c", knows: ["x", "y", "z", "w"] }] } },
+                ]),
+            },
+        );
+        // c, then two of its four references fill the limit of three new nodes.
+        expect(snapshot.nodeCount).toBe(3);
     });
 
     it("keeps what an expansion fetched when a later page answers 403", async () => {

@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { assetFileExtensions, detectAssetKind } from "../../catalog";
+import { detectAssetKind } from "../../catalog";
 import {
     ASCII_PLY,
     ASCII_STL,
@@ -59,18 +59,5 @@ describe("detectAssetKind", () => {
         assert.equal(detectAssetKind({ filename: "police.glb" }), "model");
         assert.isUndefined(detectAssetKind({ filename: "graph.csv", head: utf8("id,label\n1,a\n") }));
         assert.isUndefined(detectAssetKind({ filename: "notes.txt" }));
-    });
-});
-
-describe("assetFileExtensions", () => {
-    it("offers a picture's formats, and a model's with its parts and a .zip", () => {
-        for (const ext of assetFileExtensions("image")) {
-            assert.equal(detectAssetKind({ filename: `file${ext}` }), "image", ext);
-        }
-        assert.deepEqual([...assetFileExtensions("image")], [".png", ".jpg", ".jpeg", ".webp"]);
-        assert.deepEqual(
-            [...assetFileExtensions("model")],
-            [".glb", ".gltf", ".obj", ".stl", ".ply", ".bin", ".mtl", ".zip", ".png", ".jpg", ".jpeg", ".webp"],
-        );
     });
 });

@@ -1,9 +1,8 @@
 import type React from "react";
 
-import { nodeModelsOn } from "../features";
 import { openFiles } from "../start/open";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { holdsAsset, holdsModel, putAssetOnNodes, putModelOnNodes, readDrop } from "./models";
+import { holdsModel, putModelOnNodes, readDrop } from "./models";
 
 /**
  * The canvas as a drop target: a model goes on the selected nodes, or on every node, as one
@@ -27,13 +26,8 @@ export function useCanvasDrop(): {
                 return;
             }
             event.preventDefault();
-            // With the node-models experiment on, a picture is drawn too, and files go first to a
-            // model waiting for them.
-            const assets = nodeModelsOn(session);
             void readDrop(event.dataTransfer).then(async (dropped) => {
-                if (assets && (await holdsAsset(dropped.files))) {
-                    await putAssetOnNodes(session, store, dropped.source);
-                } else if (!assets && (await holdsModel(dropped.files))) {
+                if (await holdsModel(dropped.files)) {
                     await putModelOnNodes(session, store, dropped.source);
                 } else {
                     openFiles(workspace, dropped.files);

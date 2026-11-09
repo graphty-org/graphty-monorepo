@@ -4,12 +4,11 @@
  * dirty; a host with no IndexedDB is refused with a code.
  */
 
-import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { browserProjects } from "../../session";
 import { isGraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
-import { sphereGlb } from "../fixtures/models/fixtures";
 
 const cleanups: (() => void)[] = [];
 
@@ -122,40 +121,6 @@ describe("browserProjects", () => {
         await browserProjects.remove(stored.id);
         assert.deepStrictEqual(await browserProjects.list(), []);
         assert.isUndefined(await browserProjects.get(stored.id));
-    });
-
-    it("keeps a model by its address when asked, and returns the save's report", async () => {
-        const url = "https://models.example.com/ball.glb";
-        const bytes = sphereGlb(8, 4);
-        vi.stubGlobal("fetch", () =>
-            Promise.resolve({
-                ok: true,
-                status: 200,
-                headers: { get: () => null },
-                body: null,
-                arrayBuffer: () => Promise.resolve(bytes.slice().buffer),
-            }),
-        );
-        cleanups.push(() => vi.unstubAllGlobals());
-        const session = (await threeInARow()).getSession();
-        await session.styles.add({
-            name: "ball",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.model": url },
-        });
-        assert.strictEqual((await session.assets.ready(url)).state, "accepted");
-
-        const stored = await browserProjects.save(session, { assets: { [url]: "url" } });
-        assert.include(stored.report?.written ?? [], "graphty-assets");
-        const file = await browserProjects.get(stored.id);
-        const document = JSON.parse((await file?.text()) ?? "{}") as {
-            members: { kind: string; assets?: { source?: string; stored?: string; files?: unknown[] }[] }[];
-        };
-        const [entry] = document.members.find((member) => member.kind === "graphty-assets")?.assets ?? [];
-        assert.deepInclude(entry, { source: url, stored: "url" });
-        assert.isUndefined(entry.files);
-        assert.deepStrictEqual(await browserProjects.list(), [stored], "the listing carries the report too");
     });
 
     it("lists the newest first", async () => {

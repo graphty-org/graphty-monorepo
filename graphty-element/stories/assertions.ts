@@ -580,8 +580,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             geometryDigest: digestOf(source),
             wireframe: mesh === source ? false : (source.material?.wireframe ?? false),
             enabled: anchor.isEnabled(),
-            // A batched row's proxy answered 0 here, as its source is hidden while a batch draws it.
-            opacity: mesh?.visibility ?? 0,
+            opacity: node.drawnOpacity,
             radius: Number(box.x.toFixed(4)),
             hex: mesh === null ? hexOfRgba(color) : instanceHex(mesh),
             position: [anchor.absolutePosition.x, anchor.absolutePosition.y, anchor.absolutePosition.z],

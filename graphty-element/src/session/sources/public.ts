@@ -56,6 +56,7 @@ export type {
     SourceCursor,
     SourceDescriptor,
     EdgeRecord as SourceEdgeRecord,
+    SourceExample,
     SourceFeature,
     SourceFile,
     SourceFinish,
@@ -77,7 +78,6 @@ export type {
     SourceRequestInit,
     SourceRuntime,
     SourceRuntimeReason,
-    SourceSample,
     SourceValidators,
 } from "@graphty/graph-io";
 export {

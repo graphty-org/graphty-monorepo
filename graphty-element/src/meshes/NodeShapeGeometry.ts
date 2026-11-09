@@ -25,6 +25,19 @@ export function setLabelBox(mesh: Mesh, outline: readonly Point2[]): void {
 }
 
 /**
+ * Give a mesh the label box another mesh has, if it has one: a batched row's anchor stands in for
+ * its source mesh.
+ * @param from - The mesh whose box is shared.
+ * @param to - The mesh that takes it.
+ */
+export function shareLabelBox(from: Mesh, to: Mesh): void {
+    const box = LABEL_BOXES.get(from);
+    if (box !== undefined) {
+        LABEL_BOXES.set(to, box);
+    }
+}
+
+/**
  * The box a label is placed against on a node mesh, where it is not the mesh's bounding box.
  * @param mesh - The mesh, or the source of an instance.
  * @returns The box in the mesh's local units, or undefined.

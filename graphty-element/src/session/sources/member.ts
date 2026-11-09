@@ -245,6 +245,8 @@ export interface SourcesWriteInput {
     readonly loads: readonly SourceLoadRecord[];
     /** The facts each load left, by its key; a load without any is given them now. */
     readonly facts: Map<SourceKey, LoadFacts>;
+    /** The keys of the network loads still waiting to be run (`data.pendingSourceLoads()`). */
+    readonly waiting?: readonly string[];
 }
 
 /** What a save writes about the loads. */
@@ -623,8 +625,20 @@ export function writeSourcesMember(input: SourcesWriteInput): SourcesWrite {
     });
     const order = new Map<string, number>();
     loads.forEach((entry, at) => order.set(String(entry.id), at));
+    // The entries still waiting, by their ids in the member: an autosave restore keeps them waiting.
+    // Written whenever the writer was told, even empty, so a restore can tell "none waited" from a
+    // member written before the list existed (in which every load waits again).
+    const waiting = (input.waiting ?? []).map((key) => rename.get(key) ?? key).filter((id) => order.has(id));
     return {
-        member: loads.length === 0 ? null : { kind: KIND, version: SOURCES_MEMBER_VERSION, loads },
+        member:
+            loads.length === 0
+                ? null
+                : {
+                      kind: KIND,
+                      version: SOURCES_MEMBER_VERSION,
+                      loads,
+                      ...(input.waiting === undefined ? {} : { waiting }),
+                  },
         problems,
         idOf: (value) => rename.get(value) ?? value,
         rank: (id) => {
@@ -1014,6 +1028,8 @@ export interface SourcesRead {
     readonly facts: ReadonlyMap<SourceKey, LoadFacts>;
     /** The member as the file held it, when it was skipped: written back in place. */
     readonly skipped?: Readonly<Record<string, unknown>>;
+    /** The ids of the entries that were still waiting to be run when the member was written. */
+    readonly waiting?: readonly string[];
 }
 
 /** One entry as read. */
@@ -1278,10 +1294,17 @@ function memberProblem(member: Record<string, unknown>, pointer: string): Source
         params: { kind: KIND, pointer: `${pointer}${at}`, ...more },
     });
     const unknown = Object.keys(member).find(
-        (name) => !["kind", "version", "data", "loads", "extensions"].includes(name),
+        (name) => !["kind", "version", "data", "loads", "extensions", "waiting"].includes(name),
     );
     if (unknown !== undefined) {
         return problem("E_BAD_DOCUMENT", `/${unknown}`);
+    }
+
+    if (
+        member.waiting !== undefined &&
+        !(Array.isArray(member.waiting) && member.waiting.every((id) => typeof id === "string"))
+    ) {
+        return problem("E_BAD_DOCUMENT", "/waiting");
     }
 
     if (!Array.isArray(member.loads) || !member.loads.every(isObject)) {
@@ -1456,6 +1479,7 @@ function readVersion2(
         },
         records: entries.flatMap((entry) => (entry.record === undefined ? [] : [entry.record])),
         facts: new Map(entries.map((entry) => [entry.id, entry.facts])),
+        ...(Array.isArray(member.waiting) ? { waiting: member.waiting as string[] } : {}),
     };
 }
 

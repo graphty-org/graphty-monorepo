@@ -12,6 +12,10 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { defineSource, type Graphty, registerSource } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
+
+// Loads from a registered source sit behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 /** A read the test holds: `started` settles when the read reaches it, `open` lets it go on. */
 interface Held {

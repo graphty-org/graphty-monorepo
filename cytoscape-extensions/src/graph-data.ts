@@ -39,6 +39,7 @@ export interface ImportedGraph extends AddedGraph {
      * the core's stylesheet; otherwise append it yourself, rule by rule:
      * `for (const r of stylesheet) cy.style().selector(r.selector).style(r.style); cy.style().update()`.
      * Absent without `styles`.
+     * @experimental
      */
     readonly stylesheet?: CytoscapeStylesheetRule[];
 }

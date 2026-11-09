@@ -210,8 +210,8 @@ Other choices `report`, `load` and `import` take:
 ## Styles in the file
 
 `draft.styles` says, before anything loads, whether the file carries styles a load with
-`styles: "file"` would draw. It is null when the format cannot carry styles or the file holds none,
-and otherwise `{ declared, summary }`:
+`styles: "file"` would draw. It is null when the format cannot carry styles, the file holds none or
+the `file-styles` experiment is off, and otherwise `{ declared, summary }`:
 
 - `declared`: true when reading the file's styles found rules to draw;
 - `summary.nodeRules` and `summary.edgeRules`: how many rules there are for nodes and for edges;

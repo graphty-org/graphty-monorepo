@@ -35,6 +35,13 @@ export class MeshCache {
 
     /** The node batches, by the source mesh they share a material with, which they die with. */
     nodeBatchMap = new Map<Mesh, NodeBatch>();
+
+    /**
+     * Sources whose rows a batch draws. A batch is built from one source of its shape and draws the
+     * other sizes scaled, so those sources have no instance and no batch of their own; this keeps
+     * a prune from taking them while their rows are drawn.
+     */
+    readonly batchedSources = new Set<Mesh>();
     hits = 0;
     misses = 0;
 
@@ -189,7 +196,11 @@ export class MeshCache {
      */
     prune(): void {
         for (const [name, mesh] of this.meshCacheMap) {
-            if (mesh.instances.length === 0 && !this.nodeBatchMap.get(mesh)?.liveSlots) {
+            if (
+                mesh.instances.length === 0 &&
+                !this.nodeBatchMap.get(mesh)?.liveSlots &&
+                !this.batchedSources.has(mesh)
+            ) {
                 this.disposeSource(mesh);
                 this.meshCacheMap.delete(name);
             }
@@ -228,6 +239,7 @@ export class MeshCache {
     private disposeSource(mesh: Mesh): void {
         this.nodeBatchMap.get(mesh)?.dispose();
         this.nodeBatchMap.delete(mesh);
+        this.batchedSources.delete(mesh);
         const { material } = mesh;
         mesh.dispose();
         material?.dispose(false, false);

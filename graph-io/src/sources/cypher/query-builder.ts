@@ -125,8 +125,6 @@ function idExpression(v: string, profile: CypherProfile, filters: QueryFilters, 
 /**
  * The id of a node a neighborhood returns: its id property, else the server's id, as the flattener
  * keys it, so a neighbor without the property is kept rather than dropped.
- * ponytail: with numeric property values the keys mix numbers and server-id strings, and a capped
- * expansion's `key > $after` cannot step from one type to the other; page on a string key if that matters.
  * @param v - the node variable
  * @param profile - the server's profile
  * @param filters - the id property
@@ -298,12 +296,31 @@ export function neighborhood(
     if (shape.limit === null) {
         return [...head, "WITH s, p", `RETURN s, p${degrees}`].join(" ");
     }
+    const key = `${neighborKey("x", profile, filters)} AS key`;
+    if (filters.idProperty === null) {
+        return [
+            ...head,
+            `WITH s, p, ${key}`,
+            shape.after === true ? "WHERE key > $after" : null,
+            `WITH s, p, key ORDER BY key LIMIT ${shape.limit}`,
+            `RETURN s, p, key${degrees}`,
+        ]
+            .filter((l) => l !== null)
+            .join(" ");
+    }
+    // Keyed by an id property, a neighbor without it is keyed by the server's id, and the two kinds
+    // of key can interleave (numbers among integer ids) or not compare at all (numbers and string
+    // ids). So the page is ordered on (byServer, key): every property-keyed neighbor first, then
+    // every server-keyed one, and the cursor `($afterByServer, $after)` is compared as a pair. A seed
+    // with no neighbor (x null) gets a null byServer, so its row sorts after every keyed one, as before.
     return [
         ...head,
-        `WITH s, p, ${neighborKey("x", profile, filters)} AS key`,
-        shape.after === true ? "WHERE key > $after" : null,
-        `WITH s, p, key ORDER BY key LIMIT ${shape.limit}`,
-        `RETURN s, p, key${degrees}`,
+        `WITH s, p, CASE WHEN x IS NOT NULL THEN x.${filters.idProperty} IS NULL END AS byServer, ${key}`,
+        shape.after === true
+            ? "WHERE (byServer = $afterByServer AND key > $after) OR (byServer AND NOT $afterByServer)"
+            : null,
+        `WITH s, p, byServer, key ORDER BY byServer, key LIMIT ${shape.limit}`,
+        `RETURN s, p, byServer, key${degrees}`,
     ]
         .filter((l) => l !== null)
         .join(" ");

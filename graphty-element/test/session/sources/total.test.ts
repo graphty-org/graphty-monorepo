@@ -71,7 +71,7 @@ afterEach(() => {
  * @returns the session and the server
  */
 async function loaded(config: Record<string, unknown>): Promise<{ session: GraphSession; asked: string[] }> {
-    const session = createGraphSession();
+    const session = createGraphSession({ features: ["network-data"] });
     sessions.push(session);
     const { fetch, asked } = server();
     await session.data.import({ source: "neo4j", config }, { endpoint: ENDPOINT, fetch, limits: { maxNodes: 100 } });
@@ -80,7 +80,7 @@ async function loaded(config: Record<string, unknown>): Promise<{ session: Graph
 
 describe("a network load's total", () => {
     it("src-41: a one-label mode all load lists and saves the source's count, kept by data.more", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ features: ["network-data"] });
         sessions.push(session);
         const { fetch, asked } = server();
         await session.data.import(
@@ -109,7 +109,7 @@ describe("a network load's total", () => {
     });
 
     it("src-42: the caller's own query read whole lists what it read, and counts nothing", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ features: ["network-data"] });
         sessions.push(session);
         const { fetch, asked } = server();
         await session.data.import(

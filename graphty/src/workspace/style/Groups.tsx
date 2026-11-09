@@ -18,6 +18,7 @@ import { cosmographOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { offeredChannel } from "./offered";
 import { type DataBinding, type LayerBinding, sourceName, startingValue } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
@@ -1403,11 +1404,10 @@ export function GroupDetail({
         );
 
     // Every property the Style tab draws that can vary, by section, for "+ Set another property".
-    // A picture does not vary by a value yet (node-models design 13.7), so Fill offers no Picture here.
-    const offered = sectionsFor(target, { cosmograph: cosmographOn(session), nodeModels: false }).map((section) => ({
+    const offered = sectionsFor(target, cosmographOn(session)).map((section) => ({
         title: section.title,
         items: section.channels.flatMap((channel) => {
-            const descriptor = descriptorOf(target, channel);
+            const descriptor = offeredChannel(session, target, channel);
             if (descriptor === undefined || !takesBinding(descriptor) || bound.includes(channel)) {
                 return [];
             }
@@ -1482,7 +1482,8 @@ export function GroupDetail({
                 />
             )}
             {bound.map((channel) => {
-                const descriptor = descriptorOf(target, channel);
+                // Its choices as the element offers them; a value the layer holds is still shown.
+                const descriptor = offeredChannel(session, target, channel) ?? descriptorOf(target, channel);
                 if (descriptor === undefined) {
                     return null;
                 }

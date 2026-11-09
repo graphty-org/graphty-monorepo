@@ -8,8 +8,11 @@ import { after, before, describe, it } from "node:test";
 
 describe("nx-cache-proxy", () => {
     let upstream;
-    let proxy;
+    const proxies = [];
+    // Answering requests go through a proxy with its own limit: a short one raced them on a loaded machine and
+    // answered a hit as a miss. Only a stall, which the upstream below never ends, meets the short limit.
     let url;
+    let stallingUrl;
     const stalled = [];
 
     before(async () => {
@@ -29,23 +32,31 @@ describe("nx-cache-proxy", () => {
             res.writeHead(404).end();
         }).listen(0, "127.0.0.1");
         await once(upstream, "listening");
-        proxy = spawn(
-            process.execPath,
-            [new URL("nx-cache-proxy.mjs", import.meta.url).pathname, `http://127.0.0.1:${upstream.address().port}/`],
-            { env: { ...process.env, NX_CACHE_PROXY_TIMEOUT_MS: "300" }, stdio: ["ignore", "pipe", "ignore"] },
-        );
-        const [line] = await once(proxy.stdout, "data");
-        url = line.toString().trim();
+        const startProxy = async (env) => {
+            const proxy = spawn(
+                process.execPath,
+                [
+                    new URL("nx-cache-proxy.mjs", import.meta.url).pathname,
+                    `http://127.0.0.1:${upstream.address().port}/`,
+                ],
+                { env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "ignore"] },
+            );
+            proxies.push(proxy);
+            const [line] = await once(proxy.stdout, "data");
+            return line.toString().trim();
+        };
+        url = await startProxy({ NX_CACHE_PROXY_TIMEOUT_MS: undefined });
+        stallingUrl = await startProxy({ NX_CACHE_PROXY_TIMEOUT_MS: "300" });
     });
 
     after(() => {
-        proxy.kill();
+        for (const proxy of proxies) proxy.kill();
         for (const res of stalled) res.destroy();
         upstream.close();
     });
 
-    const get = (hash, token = "r") =>
-        fetch(`${url}/v1/cache/${hash}`, { headers: { authorization: `Bearer ${token}` } });
+    const get = (hash, token = "r", via = url) =>
+        fetch(`${via}/v1/cache/${hash}`, { headers: { authorization: `Bearer ${token}` } });
 
     it("passes a hit, a miss and a refused token through", async () => {
         const hit = await get("hit");
@@ -56,22 +67,22 @@ describe("nx-cache-proxy", () => {
     });
 
     it("answers a GET whose headers never come as a miss", async () => {
-        assert.equal((await get("stall-headers")).status, 404);
+        assert.equal((await get("stall-headers", "r", stallingUrl)).status, 404);
     });
 
     it("answers a GET whose body stops as a miss, not a truncated hit", async () => {
-        assert.equal((await get("stall-body")).status, 404);
+        assert.equal((await get("stall-body", "r", stallingUrl)).status, 404);
     });
 
     it("stores a PUT, and answers a stalled one as refused so nx skips the store", async () => {
-        const put = (hash, token) =>
-            fetch(`${url}/v1/cache/${hash}`, {
+        const put = (hash, token, via = url) =>
+            fetch(`${via}/v1/cache/${hash}`, {
                 method: "PUT",
                 body: "x",
                 headers: { authorization: `Bearer ${token}` },
             });
         assert.equal((await put("new", "w")).status, 200);
         assert.equal((await put("new", "r")).status, 403);
-        assert.equal((await put("stall-headers", "w")).status, 403);
+        assert.equal((await put("stall-headers", "w", stallingUrl)).status, 403);
     });
 });

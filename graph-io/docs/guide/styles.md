@@ -8,6 +8,9 @@ format that can hold them, so a graph keeps its look when it moves between progr
 Styles are opt-in. Without the `styles` option a load returns the graph exactly as it always does,
 and a save writes exactly the same file.
 
+Styles are experimental: the `styles` options and everything `@graphty/graph-io/styles` exports may
+change or be removed in a minor release.
+
 ## Reading a file's styles
 
 Pass `styles: true` to `importGraph()`, `loadFromUrl()` or `loadFromFile()`. The result then has a
@@ -206,6 +209,11 @@ is kept as `other:<the file's spelling>` and noted.
 | `raisedBorderWidth`         | yes   |       |       | a number                                                                                                                                                                                                                                             |
 | `raisedBorderLightColor`    | yes   |       |       | a color, `#rrggbb`                                                                                                                                                                                                                                   |
 | `raisedBorderDarkColor`     | yes   |       |       | a color, `#rrggbb`                                                                                                                                                                                                                                   |
+| `shadowColor`               | yes   |       |       | a color, `#rrggbb`                                                                                                                                                                                                                                   |
+| `shadowOpacity`             | yes   |       |       | a number from 0 (transparent) to 1                                                                                                                                                                                                                   |
+| `shadowBlur`                | yes   |       |       | a number                                                                                                                                                                                                                                             |
+| `shadowOffsetX`             | yes   |       |       | a number, negative too                                                                                                                                                                                                                               |
+| `shadowOffsetY`             | yes   |       |       | a number, negative too                                                                                                                                                                                                                               |
 | `underlayColor`             | yes   | yes   |       | a color, `#rrggbb`                                                                                                                                                                                                                                   |
 | `underlayOpacity`           | yes   | yes   |       | a number from 0 (transparent) to 1                                                                                                                                                                                                                   |
 | `underlayPadding`           | yes   | yes   |       | a number                                                                                                                                                                                                                                             |

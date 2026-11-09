@@ -36,6 +36,8 @@ import { type DegreeTiers, degreeTiersOf } from "../primitives/core-shape.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
 import { type PlanCaps } from "../types/context.js";
 import {
+    type DrawnOutput,
+    type DrawnTransform,
     type GpuLayoutSimulation,
     type LayoutStatsBase,
     type ResolvedLayoutTuning,
@@ -50,6 +52,7 @@ import {
 } from "../types/options.js";
 import { ClusterStage } from "./clusters.js";
 import { CollisionStage, type CollisionUpdate } from "./collision.js";
+import { type DrawnRecord, DrawnStage } from "./drawn.js";
 import { type ResolvedWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
 
@@ -549,6 +552,8 @@ interface PendingBatch {
     profile: ReadbackRequest | null;
     /** Whether this batch carried the collision's settling sweeps. */
     sweptCollision: boolean;
+    /** The drawn ring slot this batch wrote and the transform it drew with, or null. */
+    drawn: DrawnRecord | null;
 }
 
 /**
@@ -582,6 +587,7 @@ function createPending(k: number, generation: number): PendingBatch {
         stateOffset: 0,
         profile: null,
         sweptCollision: false,
+        drawn: null,
     };
 }
 
@@ -759,6 +765,13 @@ export class ForceSimulation<
     /** What setCollision() set, the stage running it once compiled, and whether the upload is behind. */
     private collision: CollisionUpdate | null = null;
     private collisionStage: CollisionStage | null = null;
+    /** What setDrawn() asked for (the owner's stride-4 rows), the stage writing the ring, its transform and skip mask. */
+    private drawnRows: { readonly slots: number; readonly rows: Float32Array<ArrayBuffer> } | null = null;
+    private drawnStage: DrawnStage | null = null;
+    private drawnTransform: DrawnTransform | null = null;
+    private drawnSkip: Uint32Array | null = null;
+    private landedDrawnValue: GPUBuffer | null = null;
+    private landedDrawnTransformValue: DrawnTransform | null = null;
     private collisionDirty = false;
     private collisionRadiiDirty = false;
     /** The run is over and its settling sweeps are owed, so it does not read settled yet. */
@@ -1051,6 +1064,8 @@ export class ForceSimulation<
 
         // ---- every check passed: mutate
         this.generationValue++;
+        this.landedDrawnValue = null;
+        this.landedDrawnTransformValue = null;
         this.discardPending();
         const resized = this.buffers === null || n !== this.n || snapshot.serial !== this.serial;
         this.snapshot = snapshot;
@@ -1075,6 +1090,8 @@ export class ForceSimulation<
             this.inertWords = null;
             this.clusters = null;
             this.collision = null;
+            this.drawnRows = null;
+            this.drawnSkip = null;
         }
         this.collisionOwed = false;
         this.collisionSwept = false;
@@ -1515,6 +1532,96 @@ export class ForceSimulation<
         this.reheat();
     }
 
+    // ---------------------------------------------------------------- the drawn ring
+
+    /**
+     * The drawn ring slot of the last batch that landed (design/rendering/row-renderer.md 4.5): stride-4 drawn
+     * positions, 16 bytes a row, written on this simulation's device. Null with no drawn ring, before a batch landed
+     * with one, and after a load(): a batch in flight across a load never lands here. It stays unwritten until
+     * `slots` more batches were submitted, so a renderer copies it before submitting that many.
+     * @returns the buffer, or null
+     */
+    get landedDrawn(): GPUBuffer | null {
+        return this.landedDrawnValue;
+    }
+
+    /**
+     * The transform the batch of {@link landedDrawn} drew with, or null with it: what the owner publishes
+     * that landing with, so its own copy holds the same rows.
+     * @returns the transform, or null
+     */
+    get landedDrawnTransform(): DrawnTransform | null {
+        return this.landedDrawnTransformValue;
+    }
+
+    /**
+     * Makes every batch also write the renderer's drawn positions into a ring of `slots` device buffers (see
+     * {@link landedDrawn}). `rows` is the owner's stride-4 copy (x, y, z, w per node): it seeds every slot, and
+     * the w lane and the rows set by {@link setDrawnSkip} are only ever what the owner wrote. Null stops it.
+     * @param output - the slot count and the owner's rows, or null
+     */
+    setDrawn(output: DrawnOutput | null): void {
+        this.assertLoaded();
+        this.dropDrawnStage();
+        if (output === null) {
+            this.drawnRows = null;
+            return;
+        }
+        const { slots, rows } = output;
+        if (!Number.isInteger(slots) || slots < 1) {
+            throw invalidArgument("slots", slots, "an integer >= 1", "setDrawn: slots must be an integer >= 1");
+        }
+        if (rows.length !== 4 * this.n) {
+            throw invalidArgument("rows", rows.length, 4 * this.n, "setDrawn: four floats per node");
+        }
+        this.drawnRows = { slots, rows: new Float32Array(rows) };
+        const { resources } = this;
+        if (resources !== null) {
+            const generation = this.generationValue;
+            const promise = this.ready.catch(() => undefined).then(() => this.bindDrawn(resources, generation));
+            void promise.catch(() => undefined);
+            this.ready = promise;
+        }
+    }
+
+    /**
+     * Sets the transform the next batches draw with: drawn = (scene - center) * scale + target, z = 0 in 2D.
+     * @param transform - the transform
+     */
+    setDrawnTransform(transform: DrawnTransform): void {
+        if (!Number.isFinite(transform.scale)) {
+            throw invalidArgument("scale", transform.scale, "a finite number", "setDrawnTransform: scale");
+        }
+        this.drawnTransform = { center: [...transform.center], scale: transform.scale, target: [...transform.target] };
+        this.drawnStage?.transform(this.drawnTransform);
+    }
+
+    /**
+     * Sets the rows the next batches leave as the owner wrote them (held rows, followers).
+     * @param mask - one bit per node
+     */
+    setDrawnSkip(mask: NodeMask): void {
+        this.drawnSkip = new Uint32Array(mask);
+        this.drawnStage?.setSkip(this.drawnSkip);
+    }
+
+    /**
+     * Writes one node's drawn row into every slot of the ring (queue-ordered before the next submit).
+     * @param index - the node index (< n)
+     * @param x - drawn x
+     * @param y - drawn y
+     * @param z - drawn z
+     * @param w - the w lane
+     */
+    writeDrawn(index: number, x: number, y: number, z: number, w: number): void {
+        const output = this.drawnRows;
+        if (output === null || !Number.isInteger(index) || index < 0 || index >= this.n) {
+            throw invalidArgument("index", index, `an integer in [0, ${this.n}) with a drawn ring`, "writeDrawn");
+        }
+        output.rows.set([x, y, z, w], 4 * index);
+        this.drawnStage?.write(index, output.rows.subarray(4 * index, 4 * index + 4));
+    }
+
     // ---------------------------------------------------------------- dispose and device loss
 
     /**
@@ -1610,6 +1717,11 @@ export class ForceSimulation<
             this.model.recordIteration(batch, first + i, this.tierValue, i === k - 1 ? undefined : beforeEpilogue);
         }
         batch.endPass();
+        const drawn = this.drawnStage;
+        const drawnRows = this.drawnRows?.rows ?? null;
+        record.drawn =
+            drawn === null || drawnRows === null ? null : drawn.record(batch.pass(`${this.label}/drawn`), drawnRows);
+        batch.endPass();
         const scene = batch.readback(buffers.scene, 0, 12 * this.n);
         const state = batch.readback(buffers.state, 0, STATE_HEADER_BYTES + k * this.traceBytes);
         const { profiler } = this.ctx;
@@ -1657,6 +1769,8 @@ export class ForceSimulation<
                 return;
             }
             this.copyScene(owner, bytes, record);
+            this.landedDrawnValue = record.drawn?.buffer ?? null;
+            this.landedDrawnTransformValue = record.drawn?.transform ?? null;
             const header = new DataView(bytes, record.stateOffset, STATE_HEADER_BYTES);
             const trace = new DataView(bytes, record.stateOffset + STATE_HEADER_BYTES, k * this.traceBytes);
             this.writer.absorb(header);
@@ -2038,6 +2152,7 @@ export class ForceSimulation<
         this.resources = null;
         this.dropClusterStage();
         this.dropCollisionStage();
+        this.dropDrawnStage();
         const doomed = [buffers.positions, buffers.scene, buffers.fixed, buffers.partials, buffers.state];
         for (const { buffer } of buffers.model.values()) {
             doomed.push(buffer);
@@ -2344,6 +2459,7 @@ export class ForceSimulation<
         await this.model.bind(resources, overrides);
         await this.bindClusters(resources, generation);
         await this.bindCollision(resources, generation);
+        await this.bindDrawn(resources, generation);
     }
 
     /**
@@ -2428,6 +2544,45 @@ export class ForceSimulation<
             this.collisionRadiiDirty = false;
         }
         return collisionStage;
+    }
+
+    /**
+     * Compiles and attaches the drawn ring when one is asked for and none runs; a load or a setDrawn() that
+     * overtook the compile drops the result.
+     * @param resources - the resources
+     * @param generation - the generation the bind belongs to
+     */
+    private async bindDrawn(resources: ModelResources, generation: number): Promise<void> {
+        const output = this.drawnRows;
+        if (output === null || this.drawnStage !== null || output.rows.length !== 4 * resources.n) {
+            return;
+        }
+        const stage = await DrawnStage.create(resources, output.slots);
+        if (this.stateValue !== "loaded" || generation !== this.generationValue || this.drawnRows !== output) {
+            stage.dispose();
+            return;
+        }
+        this.drawnStage = stage;
+        stage.write(0, output.rows);
+        if (this.drawnTransform !== null) {
+            stage.transform(this.drawnTransform);
+        }
+        if (this.drawnSkip !== null) {
+            stage.setSkip(this.drawnSkip);
+        }
+    }
+
+    /** Detaches the drawn ring; its buffers return to the pool once the batches writing them are done. */
+    private dropDrawnStage(): void {
+        const stage = this.drawnStage;
+        this.landedDrawnValue = null;
+        this.landedDrawnTransformValue = null;
+        if (stage !== null) {
+            this.drawnStage = null;
+            this.afterInFlight(() => {
+                stage.dispose();
+            });
+        }
     }
 
     /** Detaches the collision stage; its buffers return to the pool once the batches reading them are done. */

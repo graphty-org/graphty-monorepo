@@ -12,8 +12,12 @@ import { createGraphSession, type GraphSession, type LayerSpec } from "@graphty/
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
+
+// Styles from files are an experiment: these tests switch it on.
+withFeatures(["file-styles"]);
 
 const NODES = Array.from({ length: 8 }, (_unused, i) => ({ id: `n${String(i)}`, group: i % 3 === 0 ? "x" : "y" }));
 const EDGES = NODES.slice(1).map((node, i) => ({ source: NODES[i].id, target: node.id }));

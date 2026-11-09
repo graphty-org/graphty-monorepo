@@ -25,7 +25,7 @@ const ALLOWED: readonly (readonly [file: string, line: string, reason: string])[
     ],
     [
         join("session", "GraphSession.ts"),
-        "dispatcher.services.data = headlessDataService(store.store, dispatcher, readData);",
+        "dispatcher.services.data = headlessDataService(store.store, dispatcher, readData, ceilings);",
         "assigns the dispatcher's data service, not a record's attributes; records are written by the " +
             "graph primitives, which bump every field they change (session/project/graphOps.ts)",
     ],

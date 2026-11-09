@@ -81,8 +81,8 @@ export interface JoinedLineOptions {
     fade?: EdgeFade | undefined;
     /** Draw without alpha blending (`line.blending` false): every fragment at full strength. */
     opaque?: boolean | undefined;
-    /** A dashed or dotted line: its element's length along the line (world units) and its kind. */
-    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
+    /** A dashed or dotted line: its element's length along the line (world units), its kind, count and gap. */
+    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined; gap?: number | undefined };
     /**
      * Whether its slots carry the static values a taper or a shader reads (`EDGE_WIDENED`). A
      * plain line leaves it out and draws exactly as before.
@@ -148,7 +148,7 @@ function joinedLineMeta(options: JoinedLineOptions, widened: boolean, color: Col
     return {
         joinedLine: true,
         pattern: pattern
-            ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
+            ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count, gap: pattern.gap }
             : undefined,
         ...(widened ? { widened: true } : {}),
         ...(opaque ? { opaque: true } : {}),

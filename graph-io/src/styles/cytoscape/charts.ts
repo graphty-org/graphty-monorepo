@@ -834,8 +834,14 @@ function chartAxes(
 ): { plot: Record<string, StyleValue>; texts: ChartText[] } | null {
     const [range, domain] = [options.cy_showRangeAxis === true, options.cy_showDomainAxis === true];
     const { w, h } = node;
+    if (w === null || h === null || !(w > 0 && h > 0)) {
+        return null;
+    }
+    if (plotted.chartKind === "cells") {
+        return domain ? heatMapDomain(options, plotted, disc, { w, h }, nameOf) : null;
+    }
     const upright = (plotted.chartKind === "bar" || plotted.chartKind === "line") && plotted.chartHorizontal !== true;
-    if (!(range || domain) || !upright || w === null || h === null || !(w > 0 && h > 0)) {
+    if (!(range || domain) || !upright) {
         return null;
     }
     const [lo, hi] = [Number(plotted.chartMin), Number(plotted.chartMax)];
@@ -844,7 +850,6 @@ function chartAxes(
     const f = Number.isFinite(size) && size > 0 ? size : AXIS_LABEL_FONT_SIZE;
     const line = f * DIALOG_LINE_HEIGHT;
     const half = Math.max(0, disc - CHART_INSET - PLOT_INSET) / 2;
-    const plot = { x0: -half, y0: -half, x1: half, y1: half };
     const look = { size: num6(f / h), color: CHART_LABEL_COLOR };
     const put = (x: number, y: number, text: string, turn = 0): ChartText => [
         num6(x / (w / 2)),
@@ -856,17 +861,8 @@ function chartAxes(
     // the domain axis first: the range axis' ticks depend on the plot's height
     const position = DOMAIN_LABEL_POSITIONS.get(String(options.cy_domainLabelPosition)) ?? STANDARD_POSITION;
     const names = values.map((_, k) => nameOf(k) ?? "");
-    if (domain) {
-        const r = (position.turn * Math.PI) / 180;
-        const tall = (text: string): number =>
-            text === "" ? 0 : Math.abs(Math.sin(r)) * width(text) + Math.abs(Math.cos(r)) * line;
-        plot.y1 -= Math.max(0, ...names.map(tall)) + AXIS_ROOM;
-    }
-    // ponytail: the range's ends as JFreeChart's default number format writes them (up to 3 decimals, grouped)
-    const endText = (v: number): string => v.toLocaleString("en-US", { maximumFractionDigits: 3 });
-    if (range) {
-        plot.x0 += Math.max(width(endText(lo)), width(endText(hi))) + AXIS_ROOM;
-    }
+    const axes = { domain: domain ? names : null, range: range ? ([lo, hi] as const) : null };
+    const plot = plotRoom(half, axes, position.turn, { line, width });
     const [pw, ph] = [plot.x1 - plot.x0, plot.y1 - plot.y0];
     // labels that squeeze the plot to nothing: no axes, so no chart is offset far off its node
     if (!(pw > 0 && ph > 0)) {
@@ -884,6 +880,106 @@ function chartAxes(
             chartOffsetY: num6((plot.y0 + plot.y1) / 2),
         },
         texts,
+    };
+}
+
+/**
+ * A bar or line chart's plot box once its axes' labels take their room: the domain axis' names below it (each as tall
+ * as it stands at its turn), and the range axis' end values on its left.
+ * @param half - half the plot's side before the labels
+ * @param axes - the domain axis' names and the range axis' ends, each null where that axis is not shown
+ * @param axes.domain - the names
+ * @param axes.range - the low and high ends
+ * @param turn - the domain labels' turn, in degrees
+ * @param text - the labels' line height and a text's width
+ * @param text.line - the line height
+ * @param text.width - a text's width
+ * @returns the plot's box
+ */
+function plotRoom(
+    half: number,
+    axes: { domain: readonly string[] | null; range: readonly [number, number] | null },
+    turn: number,
+    text: { line: number; width: (text: string) => number },
+): { x0: number; y0: number; x1: number; y1: number } {
+    const plot = { x0: -half, y0: -half, x1: half, y1: half };
+    const { line, width } = text;
+    if (axes.domain !== null) {
+        const r = (turn * Math.PI) / 180;
+        const tall = (t: string): number =>
+            t === "" ? 0 : Math.abs(Math.sin(r)) * width(t) + Math.abs(Math.cos(r)) * line;
+        plot.y1 -= Math.max(0, ...axes.domain.map(tall)) + AXIS_ROOM;
+    }
+    if (axes.range !== null) {
+        // ponytail: the range's ends as JFreeChart's default number format writes them (up to 3 decimals, grouped)
+        const endText = (v: number): string => v.toLocaleString("en-US", { maximumFractionDigits: 3 });
+        plot.x0 += Math.max(...axes.range.map((v) => width(endText(v)))) + AXIS_ROOM;
+    }
+    return plot;
+}
+
+/**
+ * The room JFreeChart keeps between a heat map's domain label and the top of its plot, beyond the label's length, and
+ * how far above the plot's top the label starts, in the file's lengths (measured from Cytoscape 3.10.5's SVG export of
+ * images-charts-p5 and -p7 heat maps at label sizes 1 and 10: the plot's top 2.434 and 24.34 plus 2 lower, the
+ * label's origin 0.5 above where the top was at both).
+ */
+const HEAT_MAP_DOMAIN_ROOM = 2;
+const HEAT_MAP_DOMAIN_RISE = 0.5;
+
+/**
+ * A heat map's domain axis as Cytoscape draws it on a column standing up: one category, named by its data columns
+ * joined with commas, its name turned to read down above the plot, centered across it, and the plot's top lowered by
+ * the name's length.
+ * @param options - the chart's options
+ * @param plotted - its properties so far
+ * @param disc - how far across a pie would be drawn on the node
+ * @param node - the node's width and height
+ * @param node.w - the width
+ * @param node.h - the height
+ * @param nameOf - a category's name by its value's place
+ * @returns the plot's box and the label, or null when there is none
+ */
+function heatMapDomain(
+    options: ChartOptions,
+    plotted: Record<string, StyleValue>,
+    disc: number,
+    node: { w: number; h: number },
+    nameOf: (k: number) => string | undefined,
+): { plot: Record<string, StyleValue>; texts: ChartText[] } | null {
+    // ponytail: only a vertical heat map named by its columns is measured; a horizontal one or other names wait for
+    // a sample
+    const values = String(plotted.chartValues).split(" ");
+    const names = values.map((_, k) => nameOf(k) ?? "");
+    if (plotted.chartHorizontal !== true || names.includes("")) {
+        return null;
+    }
+    const text = names.join(",");
+    const size = Number(options.cy_axisLabelFontSize ?? AXIS_LABEL_FONT_SIZE);
+    const f = Number.isFinite(size) && size > 0 ? size : AXIS_LABEL_FONT_SIZE;
+    const length = f * dialogWidth(text);
+    const half = Math.max(0, disc - CHART_INSET - HEAT_MAP_INSET) / 2;
+    const top = -half + length + HEAT_MAP_DOMAIN_ROOM;
+    const room = half - top;
+    if (Number.isNaN(room) || room <= 0) {
+        return null;
+    }
+    const { w, h } = node;
+    return {
+        plot: {
+            chartWidth: num6((2 * half) / w),
+            chartHeight: num6((half - top) / h),
+            chartOffsetX: 0,
+            chartOffsetY: num6((top + half) / 2),
+        },
+        texts: [
+            [
+                0,
+                num6((half + HEAT_MAP_DOMAIN_RISE - length / 2) / (h / 2)),
+                text,
+                { size: num6(f / h), color: CHART_LABEL_COLOR, rotation: 90 },
+            ],
+        ],
     };
 }
 

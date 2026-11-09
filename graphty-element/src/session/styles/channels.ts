@@ -256,7 +256,10 @@ export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["
  */
 export type EdgeLineValue = EdgeLinePattern;
 
-/** A pattern an edge's outline band can be drawn in (`line.outline.type`). */
+/**
+ * A pattern an edge's outline band can be drawn in (`line.outline.type`).
+ * @experimental file-styles
+ */
 type EdgeOutlineValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["outline"]>["type"]>;
 
 /** An arrow the edge renderer can draw at either end. */
@@ -438,6 +441,11 @@ export interface ChannelValues {
     "node.raisedBorderWidth": number;
     "node.raisedBorderLightColor": ColorValue;
     "node.raisedBorderDarkColor": ColorValue;
+    "node.shadowColor": ColorValue;
+    "node.shadowOpacity": number;
+    "node.shadowBlur": number;
+    "node.shadowOffsetX": number;
+    "node.shadowOffsetY": number;
     "node.cornerRadius": number;
     "node.exactCornerRadius": boolean;
     "node.cornerFraction": number;
@@ -570,6 +578,8 @@ export interface ChannelValues {
     "edge.patternCount": number;
     "edge.waveAmplitude": number;
     "edge.wavePeriod": number;
+    "edge.dashLength": number;
+    "edge.dashGap": number;
     "edge.curvature": boolean;
     "edge.bends": string;
     "edge.fanSpacing": number;
@@ -738,6 +748,7 @@ export type ColorChannel =
     | "node.outerBorderColor"
     | "node.raisedBorderLightColor"
     | "node.raisedBorderDarkColor"
+    | "node.shadowColor"
     | "node.underlayColor"
     | "node.overlayColor"
     | "node.glyphColor"
@@ -1142,6 +1153,11 @@ const NODE_OUTER_BORDER_CAVEAT =
     "(Cytoscape.js's outline): drawn only with a width above 0. Widths and the offset are in the units " +
     "of `node.borderWidth`; `node.outerBorderCount` draws that many rings, each the offset beyond the one before. " +
     "It is not `node.outline`, which is a highlight drawn over the node's rim.";
+
+const NODE_SHADOW_CAVEAT =
+    "A shadow drawn beneath the node: the node's own shape in `node.shadowColor`, moved by `node.shadowOffsetX` " +
+    "(right) and `node.shadowOffsetY` (down), its edge fading over `node.shadowBlur` on each side, as yEd draws a " +
+    "node's drop shadow. Drawn only with a `node.shadowOpacity` above 0. Lengths are in the units of `node.size`.";
 
 const NODE_RAISED_BORDER_CAVEAT =
     "Strips along the inside of the node's edge that make it look raised: `node.raisedBorderLightColor` on its left " +
@@ -2881,6 +2897,69 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: NODE_RAISED_BORDER_CAVEAT,
     },
+    "node.shadowColor": {
+        channel: "node.shadowColor",
+        target: "node",
+        plainName: "Node Shadow Color",
+        shortName: "Shadow color",
+        group: "shape",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "shadow.color",
+        renderable: true,
+        caveat: NODE_SHADOW_CAVEAT,
+    },
+    "node.shadowOpacity": {
+        channel: "node.shadowOpacity",
+        target: "node",
+        plainName: "Node Shadow Opacity",
+        shortName: "Shadow opacity",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "shadow.opacity",
+        renderable: true,
+        caveat: NODE_SHADOW_CAVEAT,
+    },
+    "node.shadowBlur": {
+        channel: "node.shadowBlur",
+        target: "node",
+        plainName: "Node Shadow Blur",
+        shortName: "Shadow blur",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shadow.blur",
+        renderable: true,
+        caveat: NODE_SHADOW_CAVEAT,
+    },
+    "node.shadowOffsetX": {
+        channel: "node.shadowOffsetX",
+        target: "node",
+        plainName: "Node Shadow Offset X",
+        shortName: "Shadow offset X",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "shadow.offsetX",
+        renderable: true,
+        caveat: NODE_SHADOW_CAVEAT,
+    },
+    "node.shadowOffsetY": {
+        channel: "node.shadowOffsetY",
+        target: "node",
+        plainName: "Node Shadow Offset Y",
+        shortName: "Shadow offset Y",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "shadow.offsetY",
+        renderable: true,
+        caveat: NODE_SHADOW_CAVEAT,
+    },
     ...haloRows("node", "underlay"),
     ...haloRows("node", "overlay"),
     "node.image": {
@@ -4398,6 +4477,33 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "How far along its path a sinewave or zigzag line runs before it repeats, in the units of " +
             "`edge.width`. Used with `edge.waveAmplitude`; unset or 0, it is four times the amplitude.",
+    },
+    "edge.dashLength": {
+        channel: "edge.dashLength",
+        target: "edge",
+        plainName: "Edge Dash Length",
+        shortName: "Dash length",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.dashLength",
+        renderable: true,
+        caveat: "How long each dash of a dashed edge is, in the units of `edge.width`. Unset, 3.",
+    },
+    "edge.dashGap": {
+        channel: "edge.dashGap",
+        target: "edge",
+        plainName: "Edge Dash Gap",
+        shortName: "Dash gap",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.dashGap",
+        renderable: true,
+        caveat:
+            "The clear space between two dashes of a dashed edge or two dots of a dotted one, in the units of " +
+            "`edge.width`, repeating from the edge's start, the last dash cut where the edge ends. Unset, the " +
+            "first and last touch the edge's ends and the rest spread between them.",
     },
     "edge.curvature": {
         channel: "edge.curvature",

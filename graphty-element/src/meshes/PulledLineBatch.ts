@@ -12,7 +12,7 @@ import {
 import { JOIN_TEMPLATE_INDICES, JOIN_TEMPLATE_VERTICES } from "./edgeJoinShader";
 import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
-import type { CurveSpan } from "./pulledCurve";
+import { curveShape, type CurveSpan } from "./pulledCurve";
 
 /**
  * @file Straight edges drawn from the row table: a piece is two row numbers, not twenty floats.
@@ -29,10 +29,10 @@ import type { CurveSpan } from "./pulledCurve";
  * A piece also carries its own look -- color, opacity and width -- so edges that differ only in those
  * share one batch and one draw (stage 19): a thousand colors are one draw, not a thousand.
  *
- * A CURVE batch (stage 21, `EDGE_PULLED_CURVE`) draws lone curves (`line.bezier`, `line.fanned: false`):
- * an edge takes a run of pieces, each naming its point along the cut path, and the shader works out
+ * A CURVE batch (stage 21, `EDGE_PULLED_CURVE`) draws curves (`line.bezier`), lone or fanned out of a
+ * bundle: an edge takes a run of pieces, each naming its point along the cut path, and the shader works out
  * the path from the two rows' places and the span the edge writes (`meshes/pulledCurve.ts`). Its pieces
- * take two more texels: (samples, first, pieces, startAt), then (endAt, unused, unused, unused).
+ * take two more texels: (samples, first, pieces, startAt), then (endAt, bow, 1 for a fanned arc, unused).
  */
 
 /**
@@ -207,6 +207,7 @@ export class PulledLineBatch {
         this.rows[at + 10] = span?.pieces ?? 0;
         this.rows[at + 11] = span?.startAt ?? 0;
         this.rows[at + 12] = span?.endAt ?? 0;
+        [this.rows[at + 13], this.rows[at + 14], this.rows[at + 15]] = curveShape(span);
         this.touch(piece);
     }
 

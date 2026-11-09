@@ -428,6 +428,38 @@ describe("GML styles: who wrote the file", () => {
         expect(shapes[2]).toBe("round-rectangle");
     });
 
+    it("draws a Cytoscape GML edge's arrowheads in the edge's fill, as Cytoscape does", async () => {
+        // gml-specimen-arrows-p4: `fill "#505050" source_arrow 1` draws its head #505050, not the style's black
+        const { snapshot, styles } = await load(
+            [
+                'Creator "Cytoscape"',
+                "graph [ directed 1",
+                "node [ id 1 ] node [ id 2 ]",
+                'edge [ source 1 target 2 graphics [ fill "#505050" source_arrow 1 target_arrow 3 ] ]',
+                "edge [ source 2 target 1 graphics [ target_arrow 3 ] ]",
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "edge", "sourceArrowColor", snapshot)).toEqual(["#505050", "#000000"]);
+        expect(resolveStyles(styles, "edge", "targetArrowColor", snapshot)).toEqual(["#505050", "#000000"]);
+    });
+
+    it("stands a Cytoscape GML edge's T and half arrows off the node, as Cytoscape draws them", async () => {
+        // gml-specimen-arrows-p4: `source_arrow 13` (T) ends its line 8 px from the node, as a CYS session's T does
+        const { snapshot, styles } = await load(
+            [
+                'Creator "Cytoscape"',
+                "graph [ directed 1",
+                "node [ id 1 ] node [ id 2 ]",
+                "edge [ source 1 target 2 graphics [ source_arrow 13 target_arrow 16 ] ]",
+                "edge [ source 2 target 1 graphics [ source_arrow 3 ] ]",
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "edge", "sourceArrowGap", snapshot)).toEqual([4, null]);
+        expect(resolveStyles(styles, "edge", "targetArrowGap", snapshot)[0]).toBeCloseTo(0.3 / 1.135);
+    });
+
     it("reads Gephi's GML as Gephi draws it: y up, w a radius, an edge as thick as its value", async () => {
         const doc = [
             "graph [",

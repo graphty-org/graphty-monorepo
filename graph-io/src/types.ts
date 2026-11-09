@@ -20,6 +20,7 @@ import {
 import type { GraphTool, ImporterPositions, PositionReadContext } from "./positions/types.js";
 import { type SourceIssueCode } from "./sources/codes.js";
 import { type SourceReportInfo } from "./sources/types.js";
+import type { GraphAnnotation } from "./styles/annotations.js";
 import type {
     EdgeStyleProperty,
     GraphStyleProperty,
@@ -322,6 +323,15 @@ export interface GraphImporter<Opts = unknown> {
      * @returns the layout, or null
      */
     layout?(snapshot: GraphSnapshot): FileLayout | null;
+    /**
+     * Optional: what the format draws beside its graph that is no node or edge, read from the snapshot this importer
+     * built, in the position convention of `extractPositions()` (y up, the file's own units): DOT's root graph label
+     * (the diagram's title), placed where Graphviz draws it. Annotations a file keeps in a column of their own
+     * (Cytoscape's) are read by `readAnnotations()` instead.
+     * @param snapshot - the graph this importer read
+     * @returns the annotations; none when the file draws none
+     */
+    annotations?(snapshot: GraphSnapshot): readonly GraphAnnotation[];
 }
 
 /**

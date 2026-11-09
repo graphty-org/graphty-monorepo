@@ -4,7 +4,7 @@ import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
 import type { MeshCache } from "../meshes/MeshCache";
 import type { NodeBatches } from "../meshes/NodeBatch";
-import type { RowTable } from "../render/RowTable";
+import type { DrawnTarget, RowTable } from "../render/RowTable";
 import type { GraphSession } from "../session/types";
 import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
@@ -153,6 +153,13 @@ export interface GraphContext {
      * @since 2.0.0
      */
     getAcceleration?(): AccelerationController;
+
+    /**
+     * The row table a layout on the drawing device fills on the card, under renderPath "batched"
+     * on a device shared with the accelerator; null otherwise.
+     * @internal
+     */
+    getDrawnTarget?(): DrawnTarget | null;
 
     /**
      * The frame loop's manager; absent on a context built without a graph. A node whose surface

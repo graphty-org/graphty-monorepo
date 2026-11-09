@@ -463,6 +463,20 @@ export const NodeStyle = z.strictObject({
         })
         .optional(),
     /**
+     * A shadow drawn behind the node (yEd's drop shadow): the node's own shape in `color` at `opacity`, moved
+     * `offsetX` right and `offsetY` down, its edge fading over `blur` on each side; lengths in the units of
+     * `shape.size`. No opacity, or 0, draws none.
+     */
+    shadow: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            opacity: z.number().min(0).max(1).optional(),
+            blur: z.number().nonnegative().optional(),
+            offsetX: z.number().optional(),
+            offsetY: z.number().optional(),
+        })
+        .optional(),
+    /**
      * A filled shape drawn behind the node (Cytoscape.js `underlay-*`): `padding` beyond the node's
      * box on every side, in the units of `shape.size`, in `color` at `opacity`, as `shape` (unset,
      * the node's own) with `cornerRadius` for a rounded one. No opacity, or 0, draws none.

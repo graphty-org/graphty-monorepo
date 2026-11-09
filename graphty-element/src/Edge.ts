@@ -133,6 +133,13 @@ const PULLED_LINE_KEYS = new Set([
     "minScreenWidth",
     "bezier",
     "fanned",
+    "fanSpacing",
+    "arcRadius",
+    "route",
+    "arcHeight",
+    "nodeGap",
+    "sourceNodeGap",
+    "targetNodeGap",
 ]);
 
 /**
@@ -1308,9 +1315,6 @@ export class Edge {
         }
 
         this._lastVia = via;
-
-        // a fanned curve is pulled only while it is alone between its nodes (`Edge.pullsLine`)
-        this.repullLine(edgeVersion);
         this.bundleVersion = edgeVersion;
 
         // a placed end that moves is a move; a first placement, or one after invalidatePositionCache, is at rest
@@ -1481,15 +1485,15 @@ export class Edge {
 
     /**
      * Where a line with no cap at an end starts from that end's node: its center, which the opaque
-     * node hides, or, for a group drawn as a region behind its members and edges, the region's
-     * outline, which is where Cytoscape.js and yEd end an edge to a compound node.
+     * node hides, or, for a node drawn behind every edge (a group region, or a 2D node below z-index 0:
+     * `Node.isDrawnBehindEdges`), its outline, which is where Cytoscape.js and yEd end an edge to a compound node.
      * @param node - The end's node.
      * @param centre - Its center.
      * @param toward - The other end's center.
      * @returns The point.
      */
     private groupEnd(node: Node, centre: Vector3, toward: Vector3): Vector3 {
-        if (!node.isDrawnAsGroup) {
+        if (!node.isDrawnBehindEdges) {
             return centre;
         }
 
@@ -1806,7 +1810,10 @@ export class Edge {
             EdgeMesh.drawsAsPattern(style, this.srcNode === this.dstNode) &&
             !asSurface;
         // A line moves between a pulled piece and a placed slot when the render path changes.
-        const samePull = this.wantsPull(style) === (this.pulled !== null);
+        // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
+        const samePull =
+            this.wantsPull(style) === (this.pulled !== null) &&
+            (this.pulled === null || (this.pulled.run !== null) === EdgeMesh.pullsCurve(style));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
@@ -2506,10 +2513,12 @@ export class Edge {
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, loop, label, band or any other line
      * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
-     * too when it does not fan (`line.fanned: false`), with no `arcRadius`, `supportModel` or gap: its
-     * shape is then its two centres' alone (`meshes/pulledCurve.ts`). So is a curve that fans while
-     * no other edge joins its two nodes, which draws the same curve. Read when the line is built, and
-     * again for a fanned curve when the edge set changes ({@link Edge.repullLine}).
+     * too, with no `supportModel`, and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centres' and, for one that fans out of a
+     * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
+     * radius (`arcRadius`), or for one raised off the map or a globe (`line.route` "arc" or "great-circle", which wins
+     * over both, and pulls a straight line as a curve too, `EdgeMesh.pullsCurve`), its height
+     * (`arcHeight`; a route the layout picks keeps it an object edge), which each placement writes
+     * (`meshes/pulledCurve.ts`, {@link Edge.pullCurve}). Read when the line is built.
      * @param style - The resolved style.
      * @returns True when it is pulled.
      */
@@ -2523,50 +2532,16 @@ export class Edge {
             !EdgeMesh.drawsFlat(this.context.getScene()) &&
             setsOnly(style, PULLED_STYLE_KEYS) &&
             setsOnly(line, PULLED_LINE_KEYS) &&
+            (EdgeMesh.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (line.type ?? "solid") === "solid" &&
-            (line.bezier !== true || line.fanned === false || this.aloneBetween()) &&
             !line.animationSpeed &&
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
             noCap(style.arrowTail) &&
             style.band?.color === undefined &&
-            this.route === "straight" &&
+            (this.routeOf(style) === "straight" || line.route !== undefined) &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
-    }
-
-    /**
-     * Whether no other edge joins this edge's two nodes, in either direction: a fanned curve then draws
-     * the curve of one that does not fan. Asked of the store, as an edge is built, rather than of
-     * `DataManager.drawnBundle`, which works the bundles out over the whole edge set once per change.
-     * @returns True when it is alone.
-     */
-    private aloneBetween(): boolean {
-        const data = this.context.getDataManager();
-        const { id: a } = this.srcNode;
-        const { id: b } = this.dstNode;
-        return [...data.getEdgesBetween(a, b), ...data.getEdgesBetween(b, a)].every((edge) => edge === this);
-    }
-
-    /**
-     * Move a fanned curve's line between a pulled piece and placed slots when the edge set changed
-     * whether it is alone between its nodes. It draws no caps (`Edge.pullsLine` takes none either way),
-     * so only the line is built again; the placement that follows lays it.
-     * @param edgeVersion - The edge set (`DataManager.edgeVersion`) this placement is against.
-     */
-    private repullLine(edgeVersion: number): void {
-        const style = this.drawnStyle;
-        if (
-            edgeVersion === this.bundleVersion ||
-            !this.fans ||
-            style === null ||
-            this.wantsPull(style) === (this.pulled !== null)
-        ) {
-            return;
-        }
-
-        this.releaseLine();
-        this.mesh = this.createLine(this.meshKey, style);
     }
 
     /**
@@ -2600,7 +2575,7 @@ export class Edge {
         const opacity = EdgeMesh.opacityOf(style);
         const look = { color: Color3.FromHexString(options.color), opacity, width: options.width * 20 };
         batch.setLook(piece, look.color, look.opacity, look.width);
-        const curve = style.line?.bezier === true;
+        const curve = EdgeMesh.pullsCurve(style);
         if (curve) {
             // nothing drawn until the first placement writes the span
             batch.setCurve(piece, 0, null);
@@ -2622,9 +2597,12 @@ export class Edge {
     }
 
     /**
-     * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there, taking
-     * pieces while the cut needs more than it holds. A curve the object path would draw another way
-     * (`curveSpan` null: its nodes overlap, or a centre is outside its own node) draws nothing.
+     * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there -- a lone
+     * curve, the arc it fans out of its bundle on ({@link Edge.fanOf}), its circle (`line.arcRadius`), or its raised arc (`line.route`
+     * "arc") -- taking pieces while the cut
+     * needs more than it holds, each node grown by its gap (`line.nodeGap`). A curve no point of which clears both nodes is drawn as the lone
+     * curve between its bare ends ({@link Edge.bareEnd}), uncut, as the object path draws it (`placeCurve`); one it would draw another way
+     * (`curveSpan` null: a centre outside its own node, or bare ends that meet) draws nothing.
      * @param src - The source node's centre.
      * @param dst - The target node's centre.
      */
@@ -2636,7 +2614,28 @@ export class Edge {
 
         const { pulled } = this;
         const { batch, look } = pulled;
-        const span = curveSpan(src, dst, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst));
+        // a raised or great-circle arc the style asks for wins over a fan and a circle, as `bundleRoute` draws it; one
+        // the layout asks for keeps the line an object edge (`pullsLine`)
+        const route = this.drawnStyle?.line?.route ?? "straight";
+        const raised = route !== "straight";
+        const height = raised ? (this.drawnStyle?.line?.arcHeight ?? DEFAULT_ARC_HEIGHT[route]) : null;
+        const fan = raised ? null : this.fanOf(src, dst);
+        // `fanArc` bows to the left of the bundle's first edge; the span's bow is to the left of this one
+        let bow: number | null = null;
+        if (fan !== null) {
+            bow = fan.forward ? fan.offset : -fan.offset;
+        }
+        // a curve that does not fan is drawn on its circle when it has a radius, as `bundleRoute` draws it
+        const radius = fan === null ? (this.drawnStyle?.line?.arcRadius ?? null) : null;
+        const span = curveSpan(
+            src,
+            dst,
+            Edge.outside(this.srcNode, src, this.gapAt("source")),
+            Edge.outside(this.dstNode, dst, this.gapAt("target")),
+            // a straight line raised off the map that clears neither node is drawn straight (`placeLine`)
+            { bow, radius, height, globe: route === "great-circle", straight: this.drawnStyle?.line?.bezier !== true },
+            () => [this.bareEnd("source", src, dst), this.bareEnd("target", dst, src)],
+        );
         while (run.length + 1 < (span?.pieces ?? 0)) {
             const piece = batch.acquire();
             batch.setLook(piece, look.color, look.opacity, look.width);
@@ -3510,8 +3509,8 @@ export class Edge {
      * @returns The route, flat x, y, z, or null.
      */
     private bundleRoute(src: Vector3, dst: Vector3): number[] | null {
-        const { rank, count, first, members } = this.context.getDataManager().drawnBundle(this);
         if (this.srcNode === this.dstNode) {
+            const { rank, count } = this.context.getDataManager().drawnBundle(this);
             return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
         }
 
@@ -3531,9 +3530,38 @@ export class Edge {
             return bezierThroughControls([src.x, src.y, src.z, via.x, via.y, via.z, dst.x, dst.y, dst.z]);
         }
 
-        if (count < 2 || !this.fans) {
+        const fan = this.fanOf(src, dst);
+        if (fan === null) {
             const arc = this.drawnStyle?.line?.arcRadius;
             return arc === undefined ? EdgeMesh.createBezierLine(src, dst) : centerArc(src, dst, arc);
+        }
+
+        const { offset, forward } = fan;
+        if (offset === 0) {
+            // the middle of an evenly spread bundle keeps the line, curved or not; its middle point
+            // is outside both nodes, so the route is drawn rather than handed to the curve
+            const mid = Vector3.Center(src, dst);
+            return [src.x, src.y, src.z, mid.x, mid.y, mid.z, dst.x, dst.y, dst.z];
+        }
+
+        return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
+    }
+
+    /**
+     * How far this curve bows out of its bundle of edges between the same two nodes at its middle
+     * (`fanOffset`), and whether it runs the way of the bundle's first edge, whose left it bows to.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @returns The fan, or null for an edge that does not fan or is alone between its nodes.
+     */
+    private fanOf(src: Vector3, dst: Vector3): { offset: number; forward: boolean } | null {
+        if (!this.fans) {
+            return null;
+        }
+
+        const { rank, count, first, members } = this.context.getDataManager().drawnBundle(this);
+        if (count < 2) {
+            return null;
         }
 
         const slot = fanSlot(
@@ -3542,15 +3570,7 @@ export class Edge {
         );
         const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
         const offset = fanOffset(slot, count, radius, Vector3.Distance(src, dst), this.drawnStyle?.line?.fanSpacing);
-        if (offset === 0) {
-            // the middle of an evenly spread bundle keeps the line, curved or not; its middle point
-            // is outside both nodes, so the route is drawn rather than handed to the curve
-            const mid = Vector3.Center(src, dst);
-            return [src.x, src.y, src.z, mid.x, mid.y, mid.z, dst.x, dst.y, dst.z];
-        }
-
-        const forward = first.srcNode === this.srcNode;
-        return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
+        return { offset, forward: first.srcNode === this.srcNode };
     }
 
     /**
@@ -3597,7 +3617,17 @@ export class Edge {
      * @returns The route.
      */
     private get route(): "straight" | "arc" | "great-circle" {
-        const asked = this.drawnStyle?.line?.route;
+        return this.routeOf(this.drawnStyle);
+    }
+
+    /**
+     * The path a style would have this edge take ({@link Edge.route}), read from that style rather
+     * than the one drawn now, so a restyle is judged by the route it asks for.
+     * @param style - The style to read, or null for none.
+     * @returns The route.
+     */
+    private routeOf(style: EdgeStyleConfig | null): "straight" | "arc" | "great-circle" {
+        const asked = style?.line?.route;
         if (asked !== undefined) {
             return asked;
         }
@@ -3893,8 +3923,26 @@ export class Edge {
             out: typeof outSrc,
             gap: number,
         ): Vector3 => (i >= 0 && i < route.length / 3 ? cross(i, to, out) : this.leaveNode(node, centre, to, gap));
-        const start = ports.src ? a : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
-        const end = ports.dst ? b : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
+        // A port inside a node drawn behind every edge, which hides no stretch of the line, only aims it: the line is
+        // cut where it leaves the node's outline toward its next point, as yEd cuts one at a group's border
+        // (graphml-galaxy-lcms-workflow's bands from its "3 tabulars" group, ports at its middle).
+        const aimed = (node: Node, port: Vector3, to: Vector3, out: typeof outSrc): Vector3 => {
+            if (!node.isDrawnBehindEdges || out(port.x, port.y, port.z) || !out(to.x, to.y, to.z)) {
+                return port;
+            }
+            const c = crossingOf(port, to, out);
+            return new Vector3(c.x, c.y, c.z);
+        };
+        // the point a port's line runs on to: the route's next, else the other end
+        const one = span.first === span.last;
+        const afterA = one ? dst : Vector3.FromArray(route, 3 * span.first + 3);
+        const start = ports.src
+            ? aimed(this.srcNode, a, afterA, outSrc)
+            : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
+        const beforeB = one ? start : Vector3.FromArray(route, 3 * span.last - 3);
+        const end = ports.dst
+            ? aimed(this.dstNode, b, beforeB, outDst)
+            : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
         const mid = clearOfCaps(
             route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1))),
             start,
@@ -4827,12 +4875,12 @@ export class Edge {
             this.pastBorders(srcPoint, dstPoint);
         }
 
-        // A group drawn as a region behind its members is a thin plate a ray meets at once, at its middle: the line
-        // leaves it through its outline across the view instead.
-        if (this.srcNode.isDrawnAsGroup) {
+        // A group drawn as a region behind its members is a thin plate a ray meets at once, at its middle, and no node
+        // drawn behind every edge hides the line under it: the line leaves it through its outline across the view.
+        if (this.srcNode.isDrawnBehindEdges) {
             srcPoint = this.groupEnd(this.srcNode, srcMesh.position, dstMesh.position);
         }
-        if (this.dstNode.isDrawnAsGroup) {
+        if (this.dstNode.isDrawnBehindEdges) {
             dstPoint = this.groupEnd(this.dstNode, dstMesh.position, srcMesh.position);
         }
 
@@ -4911,7 +4959,7 @@ export class Edge {
                 gap,
                 measured: closed ? TRIM_CLOSED : TRIM_NO_HIT,
                 leaves,
-                group: node.isDrawnAsGroup,
+                group: node.isDrawnBehindEdges,
             };
         };
         // a line a unit long loses what the arrow head takes from any line

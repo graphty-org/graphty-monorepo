@@ -590,6 +590,7 @@ describe('lengths: "spacing" (issues #3168, #3103)', () => {
      * @param styleOptions - The style options of the load.
      * @param type - The format of the document.
      * @param id - The node measured.
+     * @param layout - The layout the load should end on.
      * @returns Scene units.
      */
     async function extent(
@@ -597,6 +598,7 @@ describe('lengths: "spacing" (issues #3168, #3103)', () => {
         styleOptions?: { readonly lengths: "median" | "file" | "spacing" },
         type = "json",
         id: NodeId = "a",
+        layout = "force",
     ): Promise<number> {
         const session = createGraphSession();
         await session.data.import(
@@ -606,7 +608,7 @@ describe('lengths: "spacing" (issues #3168, #3103)', () => {
         await vi.waitFor(() => {
             assert.lengthOf(session.history.pending, 0);
         });
-        assert.strictEqual(session.layout.id, "force");
+        assert.strictEqual(session.layout.id, layout);
         const size = number(session, { node: id }, "node.size") * 1.5;
         session.dispose();
         return size;
@@ -642,6 +644,35 @@ describe('lengths: "spacing" (issues #3168, #3103)', () => {
         const inFile = await extent(cx2, { lengths: "file" }, "cx2", "0");
         const spaced = await extent(cx2, { lengths: "spacing" }, "cx2", "0");
         assert.approximately(spaced / NGRAPH_SETTLED_SPACING, inFile / 1.5 / 102, 1e-6);
+    });
+
+    it("spaces a Gephi file with no positions as Gephi's random square does for its node count", async () => {
+        // Gephi scatters the nodes of a file that places none uniformly over a 1000-wide square, so the median
+        // nearest-node spacing is about 1000 sqrt(ln 2 / (pi n)) for n nodes
+        const nodes = ["a", "b", "c", "d"].map((id) => `<node id="${id}"><viz:size value="3"/></node>`).join("");
+        const gexf =
+            '<?xml version="1.0"?><gexf version="1.3" xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz">' +
+            `<graph defaultedgetype="undirected"><nodes>${nodes}</nodes><edges>` +
+            '<edge id="0" source="a" target="b"/><edge id="1" source="b" target="c"/><edge id="2" source="c" target="d"/>' +
+            "</edges></graph></gexf>";
+        const inFile = await extent(gexf, { lengths: "file" }, "gexf");
+        const spaced = await extent(gexf, { lengths: "spacing" }, "gexf");
+        const gephiSpacing = 1000 * Math.sqrt(Math.LN2 / (Math.PI * 4));
+        assert.approximately(spaced / NGRAPH_SETTLED_SPACING, inFile / 1.5 / gephiSpacing, 1e-6);
+    });
+
+    it("scales as the median does for a file that stores its positions", async () => {
+        // vis-network states a spacing, but no layout of its own placed these nodes
+        const placed = JSON.stringify({
+            nodes: [
+                { id: "a", x: 0, y: 0 },
+                { id: "b", x: 300, y: 0 },
+                { id: "c", x: 0, y: 200 },
+            ],
+            edges: [{ from: "a", to: "b" }],
+            options: { nodes: { shape: "dot", size: 20 }, physics: false },
+        });
+        assert.approximately(await extent(placed, { lengths: "spacing" }, "json", "a", "fixed"), 1.5, 1e-6);
     });
 
     it("scales as the median does for a program that states no spacing", async () => {

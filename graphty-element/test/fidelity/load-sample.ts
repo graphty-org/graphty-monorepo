@@ -100,10 +100,16 @@ export async function importSample(
             .map(([k, v]) => `, ${k}: ${JSON.stringify(v)}`)
             .join("");
     // Framed as the file's program frames it (sigma.js fits node centers 30 px in), as the scorecard judges how much
-    // of the canvas the drawing fills against the program's own (issue #5367).
-    const styleOptions = { framing: "file" as const, ...(imageBaseUrl === undefined ? {} : { imageBaseUrl }) };
+    // of the canvas the drawing fills against the program's own (issue #5367). Lengths are scaled as the graphty app
+    // loads a file (its FILE_STYLE_OPTIONS): a file that stores no positions is laid out at the spacing its program's
+    // own layout leaves, so its nodes are as large beside the gaps as the program draws them (issue #3168).
+    const styleOptions = {
+        framing: "file" as const,
+        lengths: "spacing" as const,
+        ...(imageBaseUrl === undefined ? {} : { imageBaseUrl }),
+    };
     const based = imageBaseUrl === undefined ? "" : ", imageBaseUrl";
-    const route = `session.data.import({ type: "${format}", config: { url${named} } }, { styles: "file", layout: "recommended", styleOptions: { framing: "file"${based} } })`;
+    const route = `session.data.import({ type: "${format}", config: { url${named} } }, { styles: "file", layout: "recommended", styleOptions: { framing: "file", lengths: "spacing"${based} } })`;
     await element.session.data.import(
         { type: format, config },
         { styles: "file", layout: "recommended", styleOptions },

@@ -206,6 +206,7 @@ import { NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from 
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { sceneLighting } from "./meshes/NodeLighting";
+import { NodeMesh } from "./meshes/NodeMesh";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
@@ -230,7 +231,7 @@ import {
     useEdgeIdTarget,
     useNodeIdTarget,
 } from "./render/PickService";
-import { RowTable } from "./render/RowTable";
+import { type DrawnTarget, RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -4710,6 +4711,19 @@ export class Graph implements GraphContext {
                         flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
                     }),
                     nodes: () => this.dataManager.nodes.values(),
+                    sourceOf: ({ meshKey, style }) =>
+                        NodeMesh.source(
+                            this.dataManager.meshCache,
+                            { styleId: meshKey, is2D: this.getViewMode() === "2d", size: style.shape?.size ?? 0 },
+                            {
+                                shape: style.shape,
+                                texture: style.texture,
+                                effect: style.effect,
+                                border: style.border,
+                                picture: null,
+                            },
+                            this.scene,
+                        ),
                     meshesChanged: () => {
                         this.updateManager.thawActiveMeshes();
                         this.updateManager.meshesShownOrHidden();
@@ -4834,6 +4848,23 @@ export class Graph implements GraphContext {
      */
     getAcceleration(): AccelerationController {
         return this.acceleration;
+    }
+
+    /**
+     * The row table a layout on the drawing device fills on the card: only under renderPath
+     * "batched" on a device shared with the accelerator.
+     * @returns The table and the device, or null.
+     * @internal
+     */
+    getDrawnTarget(): DrawnTarget | null {
+        const { engine } = this;
+        const table = this.#rowTable;
+        if (this.#renderPath !== "batched" || table === null || !(engine instanceof RecoveringWebGPUEngine)) {
+            return null;
+        }
+
+        const device = engine.sharesDevice ? engine.deviceNow() : null;
+        return device === null ? null : { table, device };
     }
 
     // ============================================================================

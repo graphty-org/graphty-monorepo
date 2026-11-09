@@ -75,6 +75,9 @@ export const NODE_EXTENT_PER_SIZE = 1.5;
 /** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
 const THIN_DEPTH_RATIO = 0.02;
 
+/** The copies of its outline a node's soft shadow is drawn in, from its blur in to its blur out. */
+const SHADOW_LAYERS = 4;
+
 /**
  * How far apart along the 2D camera's view, in scene units, the front faces of two neighbouring
  * `zIndex` levels are drawn. Far above the depth buffer's resolution at the 2D camera's range,
@@ -360,37 +363,71 @@ export class NodeMesh {
         createOptions: NodeMeshCreateOptions,
         scene?: Scene,
     ): AbstractMesh {
-        const cacheKey = `node-style-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
+        return cache.get(this.cacheKeyOf(options), () => this.createSource(options, createOptions, scene));
+    }
 
-        return cache.get(cacheKey, () => {
-            const mesh = this.createMeshWithoutCache(options, createOptions, scene);
-            placeByZIndex(mesh, createOptions.shape, options.is2D);
+    /**
+     * The source mesh {@link NodeMesh.create} instances, with no instance of it: what a row with
+     * no `Node` is drawn from by its batch.
+     * @param cache - The mesh cache.
+     * @param options - As for {@link NodeMesh.create}.
+     * @param createOptions - As for {@link NodeMesh.create}.
+     * @param scene - The scene.
+     * @returns The source mesh.
+     */
+    static source(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        scene?: Scene,
+    ): Mesh {
+        return cache.sourceFor(this.cacheKeyOf(options), () => this.createSource(options, createOptions, scene));
+    }
 
-            // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
-            // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
-            // every node sharing this style id shares the faceted geometry; `node.flat` is a mesh
-            // column in the style interner, so flat and smooth nodes never share a source mesh.
-            // An unindexed mesh (only a registered shape can be one) has no faces to split.
-            if (createOptions.effect?.flatShaded && !mesh.isUnIndexed && mesh.getTotalIndices() > 0) {
-                mesh.convertToFlatShadedMesh();
-            }
+    /**
+     * The cache key of a node's source mesh.
+     * @param options - Its style id and view.
+     * @returns The key.
+     */
+    private static cacheKeyOf(options: NodeMeshOptions): string {
+        return `node-style-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
+    }
 
-            const material = this.createMaterial(createOptions, options.is2D, scene);
-            mesh.material = material;
-            if (isNodeMaterial(material)) {
-                outlineNodeMesh(mesh, sceneLighting(scene));
-            }
+    /**
+     * Build a node's source mesh and its material.
+     * @param options - As for {@link NodeMesh.create}.
+     * @param createOptions - As for {@link NodeMesh.create}.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static createSource(options: NodeMeshOptions, createOptions: NodeMeshCreateOptions, scene?: Scene): Mesh {
+        const mesh = this.createMeshWithoutCache(options, createOptions, scene);
+        placeByZIndex(mesh, createOptions.shape, options.is2D);
 
-            if (
-                createOptions.texture?.color &&
-                typeof createOptions.texture.color === "object" &&
-                "opacity" in createOptions.texture.color
-            ) {
-                mesh.visibility = createOptions.texture.color.opacity ?? 1;
-            }
+        // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
+        // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
+        // every node sharing this style id shares the faceted geometry; `node.flat` is a mesh
+        // column in the style interner, so flat and smooth nodes never share a source mesh.
+        // An unindexed mesh (only a registered shape can be one) has no faces to split.
+        if (createOptions.effect?.flatShaded && !mesh.isUnIndexed && mesh.getTotalIndices() > 0) {
+            mesh.convertToFlatShadedMesh();
+        }
 
-            return mesh;
-        });
+        const material = this.createMaterial(createOptions, options.is2D, scene);
+        mesh.material = material;
+        if (isNodeMaterial(material)) {
+            outlineNodeMesh(mesh, sceneLighting(scene));
+        }
+
+        if (
+            createOptions.texture?.color &&
+            typeof createOptions.texture.color === "object" &&
+            "opacity" in createOptions.texture.color
+        ) {
+            mesh.visibility = createOptions.texture.color.opacity ?? 1;
+        }
+
+        return mesh;
     }
 
     /**
@@ -857,6 +894,87 @@ export class NodeMesh {
         }
 
         return instance;
+    }
+
+    /**
+     * Build a node's shadow (`shadow`, yEd's drop shadow) and hand back its instances, none when the
+     * node draws no shadow: the node's outline moved `offsetX` right and `offsetY` down, behind the
+     * node's back. A soft edge (`blur` above 0) is `SHADOW_LAYERS` copies of the outline grown from
+     * `blur` in to `blur` out, each a share of the opacity, so where they all overlap the shadow is
+     * `opacity` and it fades evenly to nothing across the edge. Each layer is cached under the node's
+     * style key, as its underlay is.
+     * @param cache - The mesh cache the node's own mesh came from.
+     * @param options - The node's mesh options.
+     * @param shape - The node's shape block.
+     * @param shadow - The shadow.
+     * @param fill - The node's own mesh, whose outline and depth it follows.
+     * @param scene - The scene.
+     * @returns The layers' instances, outermost first; empty for no shadow.
+     */
+    static createShadow(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        shape: NodeStyleConfig["shape"],
+        shadow: NodeStyleConfig["shadow"],
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): InstancedMesh[] {
+        const opacity = shadow?.opacity ?? 0;
+        if (shape?.type === undefined || opacity <= 0) {
+            return [];
+        }
+
+        const perSize = this.extentPerSize(shape);
+        const blur = (shadow?.blur ?? 0) * perSize;
+        const [dx, dy] = [(shadow?.offsetX ?? 0) * perSize, -(shadow?.offsetY ?? 0) * perSize];
+        const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
+        const flat = isFlatShape(shape.type);
+        const count = blur > 0 ? SHADOW_LAYERS : 1;
+        // a layer drawn alone at `share` and `count` of them over one another make `opacity`
+        const share = 1 - (1 - opacity) ** (1 / count);
+        // a layer grown inward never passes the node's middle
+        const deepest = 0.45 * Math.min(sized.x ?? sized.across, sized.y ?? sized.across);
+        const instances: InstancedMesh[] = [];
+        for (let layer = 0; layer < count; layer++) {
+            // outermost first; layers at the middles of `count` equal steps across the edge
+            const pad = count === 1 ? 0 : Math.max(blur * (1 - (2 * layer + 1) / count), -deepest);
+            const key = `node-shadow-${String(layer)}-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
+            const instance = cache.get(key, () => {
+                const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
+                const outline = offsetOutline(nodeOutline, pad).map(([x, y]): Point2 => [x + dx, y + dy]);
+                fill.computeWorldMatrix(true);
+                const box = fill.getBoundingInfo().boundingBox;
+                const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
+                const mesh = ringSlab(
+                    "node-shadow",
+                    [{ inner: outline.map((): Point2 => [dx, dy]), outer: outline, closed: true }],
+                    depth,
+                    scene,
+                );
+                // behind the node's back and its underlay (2D looks along +z), the outermost layer furthest
+                const gap = depth * 0.01;
+                const at = box.maximum.z + (depth + gap) * (1 + count - layer) + depth / 2;
+                const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+                if (positions !== null) {
+                    for (let z = 2; z < positions.length; z += 3) {
+                        positions[z] += at;
+                    }
+                    mesh.setVerticesData(VertexBuffer.PositionKind, positions);
+                    mesh.refreshBoundingInfo();
+                }
+                mesh.material = this.createBorderMaterial(shadow?.color ?? "#000000", share, scene);
+
+                return mesh;
+            });
+            instance.sourceMesh.isPickable = false;
+            instance.isPickable = false;
+            if (!flat && !options.is2D) {
+                instance.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+            }
+            instances.push(instance);
+        }
+
+        return instances;
     }
 
     /**

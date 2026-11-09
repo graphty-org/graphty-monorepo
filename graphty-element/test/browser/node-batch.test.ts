@@ -16,6 +16,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
@@ -626,10 +627,14 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await frameOn(graph, "batched");
         const scale = graph.getNode(0)?.drawnScale;
         await wheel(element, { x: 200, y: 150 }, -300);
+        // A reader's zoom does not make the frame unstable, and the rows are rescaled by the render
+        // loop's next update pass, not by the wheel event: wait for that pass, not for a stable frame.
+        await vi.waitFor(() => {
+            assert.notEqual(graph.getNode(0)?.drawnScale, scale, "the zoom scaled the nodes");
+        });
         await element.waitForStableFrame();
         const batched = await readFrame(graph);
 
-        assert.notEqual(graph.getNode(0)?.drawnScale, scale, "the zoom scaled the nodes");
         assert.equal(graph.rowCounts.batchedNodes, NODES.length);
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
@@ -839,5 +844,44 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await frameOn(graph, "objects");
         assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 0);
         assert.isNull(graph.getNodeBatches());
+    });
+
+    it("draw a row with no Node from its paint, the picture its Node drew, and build no Node", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        const before = await frameOn(graph, "batched");
+        const manager = graph.getDataManager();
+        const built = dataManagerInternals.nodesBuilt(manager);
+        const batches = graph.getNodeBatches();
+        const node = manager.nodes.get(4);
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(batches);
+        assert.isDefined(node);
+        assert.isNotNull(paint);
+        if (batches === null || node === undefined || paint === null) {
+            return;
+        }
+
+        // The row's Node stops drawing it: off its batch, and its mesh given up again.
+        batches.leave(node);
+        node.drawInBatch(node.paintedSourceMesh);
+        const without = await readFrame(graph);
+        assert.notEqual(overBar(before, without), 0, "row 4 is gone from the picture");
+        assert.equal(batches.batchedNodes, NODES.length - 1);
+
+        assert.isTrue(batches.paintRow(4, paint));
+        assert.equal(overBar(before, await readFrame(graph)), 0);
+        assert.equal(batches.batchedNodes, NODES.length);
+        assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
+
+        batches.unpaintRow(4);
+        assert.equal(overBar(without, await readFrame(graph)), 0);
+        assert.equal(batches.batchedNodes, NODES.length - 1);
+
+        // A paint only a Node can draw is not held: the caller builds the row's Node.
+        const bordered = { ...paint, style: { ...paint.style, border: { width: 0.2, color: "#000000" } } };
+        assert.isFalse(batches.paintRow(4, bordered));
+        assert.equal(batches.batchedNodes, NODES.length - 1);
     });
 });

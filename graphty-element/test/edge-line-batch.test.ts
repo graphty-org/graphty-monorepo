@@ -194,7 +194,7 @@ describe("EdgeLineBatch", () => {
             vi.restoreAllMocks();
         });
 
-        function joined(pattern?: { kind: "dash" | "dot"; elementLength: number }): EdgeLineBatch {
+        function joined(pattern?: { kind: "dash" | "dot"; elementLength: number; gap?: number }): EdgeLineBatch {
             const mesh = CustomLineRenderer.createJoinedLineMesh(
                 { width: 0.2, color: "#336699", worldWidth: true, pattern },
                 scene,
@@ -290,6 +290,15 @@ describe("EdgeLineBatch", () => {
             const steps = (7 - 0.6) / spacing;
             assert.closeTo(steps, Math.round(steps), 1e-4);
             assert.isAbove(spacing, 0.6, "dashes are apart, not touching");
+        });
+
+        test("a dashed run with a gap of its own repeats a dash and that gap from its start, whatever its length", () => {
+            // yEd's dashes: six widths on, two off, on a line 0.2 wide
+            const drawn = joined({ kind: "dash", elementLength: 1.2, gap: 0.4 });
+            const slots = [drawn.acquire(), drawn.acquire()];
+            drawn.placeRun(slots, [0, 0, 0, 3, 0, 0, 3, 4, 0]);
+            assert.closeTo(slotOf(drawn, slots[0])[13], 1.6, 1e-6);
+            assert.closeTo(slotOf(drawn, slots[1])[13], 1.6, 1e-6);
         });
 
         test("upload once for a frame however many pieces moved", () => {

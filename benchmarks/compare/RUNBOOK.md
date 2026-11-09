@@ -102,6 +102,11 @@ needed `lean-m-tail` three times and `lean-m-dpr2-tail` twice.
 To see where a frame's CPU goes, set `BENCH_PROFILE=<path prefix>`: the run also profiles 60 still and 60 moving
 frames, outside the timed stages, into `<prefix>-still.cpuprofile` and `<prefix>-orbit.cpuprofile`.
 
+The curve target (100,000 curved edges moving) is `lean-s-curves`: 10,000 boxes and 100,000 curves with no caps,
+in 3D. Under `batched` it also fails if any edge is an object edge. Run it once per render path, interleaved:
+
+    BENCH_DEADLINE_S=190 ./matrix.sh lean-s-curves 3
+
 `./matrix.sh list` prints every key. To see why a browser died, run the configuration once with
 `DEBUG=pw:browser` and without the `grep` of `matrix.sh`:
 

@@ -468,22 +468,23 @@ const BUNDLE_STEPS = 24;
 const ARC_TURN_PER_PIECE = Math.PI / 24;
 
 /**
- * A curved edge drawn as an arc of the circle through both node centers (`line.arcRadius`), bowing to the left of
- * the direction from the source to the target in the x-y plane, the shorter way round, as Gephi draws a curved
- * edge (`EdgeRenderer.CurvedEdgeRenderer`: radius the center distance over its arc curveness). z runs straight
- * from one end to the other.
+ * The circle a center arc (`line.arcRadius`) runs on, and how {@link centerArc} samples it: its center and radius,
+ * the angle from the center to the source, the signed turn to the target the shorter way round, and the pieces.
  * @param src - The source node's center.
  * @param dst - The target node's center.
- * @param radius - The circle's radius as a multiple of the distance between the centers in the x-y plane, at
- *     least 0.5 (a half circle).
- * @returns The arc, flat x, y, z, both ends included; the straight line when the centers meet in the x-y plane.
+ * @param radius - The radius as a multiple of the distance between the centers in the x-y plane.
+ * @returns The circle, or null when the centers meet in the x-y plane (the arc is then the straight line).
  */
-export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
+export function centerCircle(
+    src: Xyz,
+    dst: Xyz,
+    radius: number,
+): { cx: number; cy: number; r: number; from: number; turn: number; pieces: number } | null {
     const dx = dst.x - src.x;
     const dy = dst.y - src.y;
     const chord = Math.hypot(dx, dy);
     if (chord < 1e-9) {
-        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+        return null;
     }
 
     const r = Math.max(radius, 0.5) * chord;
@@ -495,6 +496,27 @@ export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
     let turn = Math.atan2(dst.y - cy, dst.x - cx) - from;
     turn -= 2 * Math.PI * Math.round(turn / (2 * Math.PI));
     const pieces = Math.min(BUNDLE_STEPS, Math.max(2, Math.ceil(Math.abs(turn) / ARC_TURN_PER_PIECE - 1e-9)));
+    return { cx, cy, r, from, turn, pieces };
+}
+
+/**
+ * A curved edge drawn as an arc of the circle through both node centers (`line.arcRadius`), bowing to the left of
+ * the direction from the source to the target in the x-y plane, the shorter way round, as Gephi draws a curved
+ * edge (`EdgeRenderer.CurvedEdgeRenderer`: radius the center distance over its arc curveness). z runs straight
+ * from one end to the other.
+ * @param src - The source node's center.
+ * @param dst - The target node's center.
+ * @param radius - The circle's radius as a multiple of the distance between the centers in the x-y plane, at
+ *     least 0.5 (a half circle).
+ * @returns The arc, flat x, y, z, both ends included; the straight line when the centers meet in the x-y plane.
+ */
+export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
+    const circle = centerCircle(src, dst, radius);
+    if (circle === null) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    }
+
+    const { cx, cy, r, from, turn, pieces } = circle;
     const out: number[] = [];
     for (let i = 0; i <= pieces; i++) {
         const t = i / pieces;
@@ -833,6 +855,41 @@ export function raisedArc(src: Xyz, dst: Xyz, height: number): number[] {
 }
 
 /**
+ * The great circle {@link greatCircleArc} draws between two ends: their distances from the globe's center, the
+ * angle between their directions, its sine, the lift at the middle and the pieces.
+ * @param src - Where the edge starts.
+ * @param dst - Where it ends.
+ * @param height - The lift as a share of the straight-line distance between the ends.
+ * @returns The circle, or null when the arc is the straight line: an end at the center, or the ends in one
+ *     direction from it or in opposite ones.
+ */
+export function greatCircle(
+    src: Xyz,
+    dst: Xyz,
+    height: number,
+): { ra: number; rb: number; angle: number; sin: number; lift: number; pieces: number } | null {
+    const ra = Math.hypot(src.x, src.y, src.z);
+    const rb = Math.hypot(dst.x, dst.y, dst.z);
+    if (ra === 0 || rb === 0) {
+        return null;
+    }
+
+    const cos = Math.max(-1, Math.min(1, (src.x * dst.x + src.y * dst.y + src.z * dst.z) / (ra * rb)));
+    const angle = Math.acos(cos);
+    const sin = Math.sin(angle);
+    if (sin < 1e-6) {
+        return null;
+    }
+
+    const lift = height * Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
+    const pieces = Math.min(
+        RAISED_STEPS,
+        Math.max(Math.ceil(angle / ARC_TURN_PER_PIECE - 1e-9), fanArcPieces(angle * ((ra + rb) / 2), lift)),
+    );
+    return { ra, rb, angle, sin, lift, pieces };
+}
+
+/**
  * A great-circle arc over a globe centered on the origin (`line.route` "great-circle"): along the
  * great circle between the two ends' directions, its distance from the center running from one
  * end's to the other's, lifted at the middle by `height` times the straight-line distance between
@@ -845,25 +902,12 @@ export function raisedArc(src: Xyz, dst: Xyz, height: number): number[] {
  *     one direction from the center, or in opposite ones.
  */
 export function greatCircleArc(src: Xyz, dst: Xyz, height: number): number[] {
-    const ra = Math.hypot(src.x, src.y, src.z);
-    const rb = Math.hypot(dst.x, dst.y, dst.z);
-    const straight = [src.x, src.y, src.z, dst.x, dst.y, dst.z];
-    if (ra === 0 || rb === 0) {
-        return straight;
+    const circle = greatCircle(src, dst, height);
+    if (circle === null) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
     }
 
-    const cos = Math.max(-1, Math.min(1, (src.x * dst.x + src.y * dst.y + src.z * dst.z) / (ra * rb)));
-    const angle = Math.acos(cos);
-    const sin = Math.sin(angle);
-    if (sin < 1e-6) {
-        return straight;
-    }
-
-    const lift = height * Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
-    const pieces = Math.min(
-        RAISED_STEPS,
-        Math.max(Math.ceil(angle / ARC_TURN_PER_PIECE - 1e-9), fanArcPieces(angle * ((ra + rb) / 2), lift)),
-    );
+    const { ra, rb, angle, sin, lift, pieces } = circle;
     const out: number[] = [];
     for (let i = 0; i <= pieces; i++) {
         const t = i / pieces;

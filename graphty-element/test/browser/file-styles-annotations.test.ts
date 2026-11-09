@@ -45,14 +45,20 @@ afterEach(() => {
  * @param styles - Whether to load the file's styles.
  * @returns The element.
  */
-async function load(styles: "file" | "none"): Promise<Graphty> {
+async function load(
+    styles: "file" | "none",
+    source: { type: string; data: string } = { type: "xgmml", data: XGMML },
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.cssText = "display:block;width:800px;height:600px";
     element.viewMode = "2d";
     document.body.appendChild(element);
     mounted = element;
     await element.updateComplete;
-    await element.session.data.import({ type: "xgmml", config: { data: XGMML } }, { styles, layout: "recommended" });
+    await element.session.data.import(
+        { type: source.type, config: { data: source.data } },
+        { styles, layout: "recommended" },
+    );
     await element.waitForSettled();
     await element.session.styles.settled();
     await element.waitForStableFrame();
@@ -125,5 +131,27 @@ describe("a file's annotations", () => {
         const drawn = readDrawn(element.graph);
         assert.equal(drawn.nodes.size, 2);
         assert.deepEqual(drawn.annotations, []);
+    });
+
+    test("include a DOT diagram's title, drawn where Graphviz puts the root graph's label", async () => {
+        // laid out (the root has a bb), the label below the drawing and centered, as Graphviz draws it by default
+        const dot =
+            'digraph { graph [bb="0,0,300,100", label="The title"]; a [pos="50,50"]; b [pos="250,50"]; a -> b; }';
+        const element = await load("file", { type: "dot", data: dot });
+        const drawn = readDrawn(element.graph);
+        const title = drawn.annotations.find((x) => x.kind === "text");
+        const a = drawn.nodes.get("a");
+        const b = drawn.nodes.get("b");
+        assert.isDefined(title);
+        assert.isDefined(a);
+        assert.isDefined(b);
+        if (title === undefined || a === undefined || b === undefined) {
+            return;
+        }
+
+        assert.equal(title.text, "The title");
+        assert.closeTo((title.box.x0 + title.box.x1) / 2, (a.x + b.x) / 2, 2);
+        // below the nodes, on screen y grows downward
+        assert.isAbove(title.box.y0, Math.max(a.box.y1, b.box.y1));
     });
 });

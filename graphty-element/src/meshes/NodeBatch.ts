@@ -3,7 +3,7 @@ import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 import { type AbstractMesh, Mesh, type RawTexture, type TransformNode, VertexBuffer } from "@babylonjs/core";
 
 import type { Rgba } from "../catalog/types";
-import type { BatchView } from "../managers/StylePainter";
+import { batchableOf, type BatchView, type NodePaint } from "../managers/StylePainter";
 import type { Node } from "../Node";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
@@ -418,12 +418,84 @@ function drawSpan(first: Mesh, sources: Mesh[]): [Mesh, Mesh] {
     return [low, high];
 }
 
+/**
+ * A row with no `Node`, drawn from its paint alone: the look, color and size the style stack
+ * resolved for it, and the source mesh that look draws from. It has no mesh, anchor, label or
+ * overlay of its own, so it never needs a frame's visit (design/rendering/row-renderer.md 4.6).
+ */
+export class ColumnRow {
+    /** A row's paint draws at its source's size: only a `Node` scales with the view. */
+    readonly wholeScale = 1;
+    /** Nothing hangs from the row, so a frame's walk never visits it. */
+    readonly walksEachFrame = false;
+
+    /**
+     * Hold a row's paint.
+     * @param index - The row.
+     * @param paint - What the style stack resolved for it.
+     * @param paintedSourceMesh - The source mesh its paint draws from.
+     */
+    constructor(
+        readonly index: number,
+        readonly paint: NodePaint,
+        readonly paintedSourceMesh: Mesh,
+    ) {}
+
+    /**
+     * Whether a paint can be drawn with no `Node`: a batch draws it, and it names no model or
+     * picture, which a `Node` loads. A group region or a shader path is the caller's to rule out.
+     * @param paint - The paint.
+     * @param view - The scene state it is drawn in.
+     * @returns True when it can.
+     */
+    static drawable(paint: NodePaint, view: BatchView): boolean {
+        const { shape, texture } = paint.style;
+        return shape?.model === undefined && (texture?.image ?? "") === "" && batchableOf(paint, view);
+    }
+
+    /**
+     * The color the batch writes for the row, as `Node.drawnInstanceColor` does with no picture.
+     * @returns The color, or null when no layer painted one.
+     */
+    get drawnInstanceColor(): Rgba | null {
+        return this.paint.color;
+    }
+
+    /**
+     * What the row's batch material is built from, as `Node.batchLook` keys it with no picture.
+     * @returns The look, as a key.
+     */
+    get batchLook(): string {
+        const { style } = this.paint;
+        return JSON.stringify([style.shape?.type, style.shape?.detail, style.texture, style.effect, false]);
+    }
+
+    /**
+     * Whether a batch can draw the row in a view.
+     * @param view - The scene state.
+     * @returns True when it can.
+     */
+    batchableIn(view: BatchView): boolean {
+        return ColumnRow.drawable(this.paint, view);
+    }
+
+    /** The row has no mesh to give up or take back. */
+    drawInBatch(): void {
+        // Nothing to hand over: the batch is all that draws the row.
+    }
+}
+
+/** A row a batch can hold: a `Node`, or a row with none ({@link ColumnRow}). */
+export type BatchRow = Node | ColumnRow;
+
 /** The rows of one source mesh. */
 interface RowGroup {
     readonly source: Mesh;
-    readonly members: Set<Node>;
+    readonly members: Set<BatchRow>;
     /** Members the batch cannot draw. */
     objects: number;
+    /** Members with no `Node` ({@link ColumnRow}): no instance keeps the source from a prune, so the group does. */
+    columns: number;
     /** The highest row seen, which must be in the table before the batch can place it. */
     highest: number;
     /** The batch family it joins once it is batched. */
@@ -450,6 +522,8 @@ export interface NodeBatchHost {
     view(): BatchView;
     /** Every node. */
     nodes(): Iterable<Node>;
+    /** The source mesh a paint draws from, for a row with no `Node`. */
+    sourceOf(paint: NodePaint): Mesh;
     /** Babylon's list of active meshes no longer holds. */
     meshesChanged(): void;
 }
@@ -460,8 +534,10 @@ export class NodeBatches {
     private readonly families = new Map<string, RowFamily>();
     /** Families whose batch is rebuilt at this flush. */
     private readonly refills = new Set<RowFamily>();
-    private readonly groupOf = new Map<Node, RowGroup>();
-    private readonly objectRows = new Set<Node>();
+    private readonly groupOf = new Map<BatchRow, RowGroup>();
+    private readonly objectRows = new Set<BatchRow>();
+    /** The rows drawn with no `Node`, by row. */
+    private readonly columnRows = new Map<number, ColumnRow>();
     /** The nodes a frame's walk still visits: every member a batch does not draw, and any with an overlay. */
     private readonly walked = new Set<Node>();
     private readonly dirty = new Set<RowGroup>();
@@ -523,7 +599,11 @@ export class NodeBatches {
      * whenever its batch or its overlays change.
      * @param node - The node.
      */
-    rewalk(node: Node): void {
+    rewalk(node: BatchRow): void {
+        if (node instanceof ColumnRow) {
+            return;
+        }
+
         if (this.groupOf.has(node) && node.walksEachFrame) {
             this.walked.add(node);
         } else {
@@ -537,7 +617,7 @@ export class NodeBatches {
      * @param source - The batch's source mesh, or null for its own mesh.
      * @param opacity - The opacity the batch draws it at.
      */
-    private draw(node: Node, source: Mesh | null, opacity = 1): void {
+    private draw(node: BatchRow, source: Mesh | null, opacity = 1): void {
         node.drawInBatch(source, opacity);
         this.rewalk(node);
     }
@@ -561,7 +641,7 @@ export class NodeBatches {
      * A node was painted: put it where it now belongs.
      * @param node - The node.
      */
-    sync(node: Node): void {
+    sync(node: BatchRow): void {
         // The paint may have moved the node to another source: ask its paint, not the batch, so a
         // batched row is not given its mesh back on every sync.
         const source = node.paintedSourceMesh as Mesh;
@@ -598,7 +678,7 @@ export class NodeBatches {
      * The view scaled a node (`Node.wholeScale`): its batched row's matrix follows.
      * @param node - The node.
      */
-    rescale(node: Node): void {
+    rescale(node: BatchRow): void {
         const group = this.groupOf.get(node);
         if (group?.batched === true && !this.objectRows.has(node)) {
             group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale, group.rank);
@@ -610,7 +690,7 @@ export class NodeBatches {
      * A node went away, or left this path.
      * @param node - The node.
      */
-    leave(node: Node): void {
+    leave(node: BatchRow): void {
         const group = this.groupOf.get(node);
         if (group === undefined) {
             return;
@@ -618,6 +698,10 @@ export class NodeBatches {
 
         this.groupOf.delete(node);
         group.members.delete(node);
+        if (node instanceof ColumnRow) {
+            group.columns--;
+        }
+
         this.draw(node, null);
         if (this.objectRows.delete(node)) {
             group.objects--;
@@ -634,6 +718,37 @@ export class NodeBatches {
         }
 
         this.dirty.add(group);
+    }
+
+    /**
+     * Draw a row that has no `Node` from its paint alone, in place of any paint it had.
+     * @param index - The row.
+     * @param paint - What the style stack resolved for it.
+     * @returns False when a batch cannot draw that paint, and the row needs a `Node`: it is then
+     *     not held.
+     */
+    paintRow(index: number, paint: NodePaint): boolean {
+        this.unpaintRow(index);
+        if (!ColumnRow.drawable(paint, this.view)) {
+            return false;
+        }
+
+        const row = new ColumnRow(index, paint, this.host.sourceOf(paint));
+        this.columnRows.set(index, row);
+        this.sync(row);
+        return true;
+    }
+
+    /**
+     * A row drawn with no `Node` went away, or is now drawn by one.
+     * @param index - The row.
+     */
+    unpaintRow(index: number): void {
+        const row = this.columnRows.get(index);
+        if (row !== undefined) {
+            this.columnRows.delete(index);
+            this.leave(row);
+        }
     }
 
     /** A freeze moved rows: every batch refills. */
@@ -748,15 +863,25 @@ export class NodeBatches {
         for (const node of this.host.nodes()) {
             this.sync(node);
         }
+
+        // ponytail: a view that no longer batches a row drops it; the next paint asks for a `Node`.
+        for (const row of [...this.columnRows.values()]) {
+            if (!row.batchableIn(this.view)) {
+                this.unpaintRow(row.index);
+            } else {
+                this.sync(row);
+            }
+        }
     }
 
-    private join(node: Node, source: Mesh): RowGroup {
+    private join(node: BatchRow, source: Mesh): RowGroup {
         let group = this.groups.get(source);
         if (group === undefined) {
             group = {
                 source,
                 members: new Set(),
                 objects: 0,
+                columns: 0,
                 highest: -1,
                 family: null,
                 scale: 1,
@@ -769,6 +894,11 @@ export class NodeBatches {
         }
 
         group.members.add(node);
+        if (node instanceof ColumnRow) {
+            group.columns++;
+            this.host.cache.batchedSources.add(source);
+        }
+
         group.highest = Math.max(group.highest, node.index);
         this.groupOf.set(node, group);
         this.dirty.add(group);
@@ -790,7 +920,7 @@ export class NodeBatches {
         if (batched) {
             this.joinFamily(group);
             this.host.cache.batchedSources.add(group.source);
-        } else {
+        } else if (group.columns === 0) {
             this.host.cache.batchedSources.delete(group.source);
         }
 
@@ -884,7 +1014,7 @@ export class NodeBatches {
      */
     private refill(family: RowFamily): boolean {
         family.batch?.clear();
-        const rows: { node: Node; group: RowGroup }[] = [];
+        const rows: { node: BatchRow; group: RowGroup }[] = [];
         let restVisibility = 1;
         [...family.groups].sort(drawsBefore).forEach((group, rank) => {
             group.rank = rank;
@@ -968,6 +1098,10 @@ export class NodeBatches {
             this.groupOf.delete(node);
             this.draw(node, null);
             this.objectRows.delete(node);
+            if (node instanceof ColumnRow) {
+                // ponytail: its source is gone, so the row draws nothing until it is painted again.
+                this.columnRows.delete(node.index);
+            }
         }
 
         if (group.family !== null) {

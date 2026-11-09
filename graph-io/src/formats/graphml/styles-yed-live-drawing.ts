@@ -56,7 +56,7 @@ interface NodeDrawing {
  * @param text - the text
  * @returns it escaped
  */
-function escapeSvg(text: string): string {
+export function escapeSvg(text: string): string {
     return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
@@ -72,6 +72,7 @@ const PICTURE_SCALE = 3;
  * @param body - the elements
  * @param background - the color behind them, unset none: light words on a clear picture take a dark edge when drawn
  * @param reach - how far the drawing reaches past the node's box (a BPMN event on a port)
+ * @param program - the program whose drawing it is, as the picture's `data-node-drawing`
  * @returns the URL
  */
 export function svgPicture(
@@ -81,12 +82,13 @@ export function svgPicture(
     body: string,
     background = "",
     reach: PictureReach = NO_REACH,
+    program = "yed-live",
 ): string {
     const [w, h] = [width - border + reach.left + reach.right, height - border + reach.top + reach.bottom];
     const size = `width="${String(w * PICTURE_SCALE)}" height="${String(h * PICTURE_SCALE)}"`;
     const view = `viewBox="${String(border / 2 - reach.left)} ${String(border / 2 - reach.top)} ${String(w)} ${String(h)}"`;
     const paint = background === "" ? "" : ` style="background:${background}"`;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" data-node-drawing="yed-live" ${size} ${view}${paint}>${body}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" data-node-drawing="${program}" ${size} ${view}${paint}>${body}</svg>`;
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
@@ -818,4 +820,96 @@ export function shinyPlateGloss(width: number, height: number, radius: number, b
         '<stop stop-color="white" stop-opacity="0.859" offset="0"/>' +
         '<stop stop-color="white" stop-opacity="0.078" offset="0.8"/></linearGradient>';
     return svgPicture(width, height, border, `<defs>${ramp}</defs><path fill="url(#g)" d="${d}"/>`);
+}
+
+/** A rounded square's outline, 14 across about its middle, with corners of 2.1. */
+const ICON_ROUND_SQUARE =
+    "M4.9,-7a2.1,2.1,0,0,1,2.1,2.1v9.8a2.1,2.1,0,0,1,-2.1,2.1h-9.8a2.1,2.1,0,0,1,-2.1,-2.1v-9.8a2.1,2.1,0,0,1,2.1,-2.1Z";
+/** A circle's outline, 14 across about its middle. */
+const ICON_CIRCLE = "M0,-7a7,7,0,0,1,0,14a7,7,0,0,1,0,-14Z";
+/** A square's outline, 14 across about its middle. */
+const ICON_SQUARE = "M-7,-7h14v14h-14Z";
+
+/**
+ * The backgrounds of a yFiles GroupNodeStyle's icon (`iconBackgroundShape`), copied from yEd Live 8.5.16's own drawing
+ * of an icon 14 across about its middle (`yed-live-graphml-specimen-groups-p2`): a solid shape, or its ring a tenth
+ * of the icon wide. NONE draws none.
+ */
+const GROUP_ICON_BACKGROUNDS: ReadonlyMap<string, string> = new Map([
+    ["ROUND_RECTANGLE_SOLID", ICON_ROUND_SQUARE],
+    [
+        "ROUND_RECTANGLE",
+        `${ICON_ROUND_SQUARE}m0,1.4a0.7,0.7,0,0,1,0.7,0.7v9.8a0.7,0.7,0,0,1,-0.7,0.7h-9.8a0.7,0.7,0,0,1,-0.7,-0.7v-9.8a0.7,0.7,0,0,1,0.7,-0.7Z`,
+    ],
+    ["CIRCLE_SOLID", ICON_CIRCLE],
+    ["CIRCLE", `${ICON_CIRCLE}m0,1.4a5.6,5.6,0,0,1,0,11.2a5.6,5.6,0,0,1,0,-11.2Z`],
+    ["SQUARE_SOLID", ICON_SQUARE],
+    ["SQUARE", `${ICON_SQUARE}m1.4,1.4h11.2v11.2h-11.2Z`],
+]);
+
+/** A triangle pointing right, and a chevron pointing right, from the same drawing. */
+const ICON_TRIANGLE = "M-1.4,-3.15v6.3l4.2,-3.15Z";
+const ICON_CHEVRON = "M-1.89,2.17l2.1,-2.17l-2.1,-2.17l0.98,-0.98l3.15,3.15l-3.15,3.15Z";
+
+/** The signs of a GroupNodeStyle's icon (`groupIcon`, `folderIcon`) and their turn in degrees, from the same drawing. */
+const GROUP_ICON_SIGNS: ReadonlyMap<string, readonly [string, number]> = new Map([
+    ["MINUS", ["M-3.5,-0.7h7v1.4h-7Z", 0]],
+    ["PLUS", ["M0.7,-3.5h-1.4v2.8h-2.8v1.4h2.8v2.8h1.4v-2.8h2.8v-1.4h-2.8Z", 0]],
+    ["TRIANGLE_RIGHT", [ICON_TRIANGLE, 0]],
+    ["TRIANGLE_DOWN", [ICON_TRIANGLE, 90]],
+    ["TRIANGLE_LEFT", [ICON_TRIANGLE, 180]],
+    ["TRIANGLE_UP", [ICON_TRIANGLE, -90]],
+    ["CHEVRON_RIGHT", [ICON_CHEVRON, 0]],
+    ["CHEVRON_DOWN", [ICON_CHEVRON, 90]],
+    ["CHEVRON_LEFT", [ICON_CHEVRON, 180]],
+    ["CHEVRON_UP", [ICON_CHEVRON, -90]],
+]);
+
+/** The size the icon paths above are drawn at. */
+const ICON_FRAME = 14;
+/** How far in from the group's top and its side yEd Live 8.5.16 puts an icon's box, past its `iconOffset`. */
+const GROUP_ICON_INSET = 4;
+
+/** What a GroupNodeStyle says about its icon. */
+export interface GroupIcon {
+    /** `groupIcon` on an open group, `folderIcon` on a collapsed one */
+    readonly sign: string;
+    /** `iconBackgroundShape` */
+    readonly background: string;
+    /** `iconPosition`: LEADING puts it at the left of the top, anything else at the right */
+    readonly position: string;
+    readonly size: number;
+    readonly offset: number;
+    readonly foregroundFill: string;
+    readonly backgroundFill: string;
+}
+
+/**
+ * The picture of a group's collapse or expand icon on its top tab, or null where it shows none. yEd Live 8.5.16 draws
+ * the icon's box `iconSize` across, `iconOffset` plus 4 in from the group's top and from its trailing (right) side, or
+ * from its leading side under `iconPosition="LEADING"` (`yed-live-graphml-specimen-groups-p2`, `-p3`, `-p4`).
+ * @param size - the group's size
+ * @param size.width - its width
+ * @param size.height - its height
+ * @param border - its border's width
+ * @param icon - the icon
+ * @returns the picture URL, or null
+ */
+export function groupIconPicture(
+    size: { width: number; height: number },
+    border: number,
+    icon: GroupIcon,
+): string | null {
+    const glyph = GROUP_ICON_SIGNS.get(icon.sign);
+    if (glyph === undefined) {
+        return null;
+    }
+    const near = GROUP_ICON_INSET + icon.offset + icon.size / 2;
+    const x = icon.position === "LEADING" ? near : size.width - near;
+    const scale = Math.round((icon.size / ICON_FRAME) * 1e6) / 1e6;
+    const shape = GROUP_ICON_BACKGROUNDS.get(icon.background);
+    const back = shape === undefined ? "" : `<path fill-rule="evenodd" fill="${icon.backgroundFill}" d="${shape}"/>`;
+    const sign = `<path fill="${icon.foregroundFill}" d="${glyph[0]}" transform="rotate(${String(glyph[1])})"/>`;
+    const body = `<g transform="translate(${svgNumber(x)} ${svgNumber(near)}) scale(${String(scale)})">${back}${sign}</g>`;
+    return svgPicture(size.width, size.height, border, body);
 }

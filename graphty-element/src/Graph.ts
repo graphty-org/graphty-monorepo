@@ -286,7 +286,12 @@ import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { CompiledLayer } from "./session/styles/Layer";
 import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
-import { attachTransitions, LayoutTransitionRunner, transitionsOf } from "./transitions/LayoutTransitionRunner";
+import {
+    attachTransitions,
+    LayoutTransitionRunner,
+    RowSubject,
+    transitionsOf,
+} from "./transitions/LayoutTransitionRunner";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
@@ -1557,6 +1562,15 @@ export class Graph implements GraphContext {
                 config: () => this.styles.config.graph.layoutTransition,
                 quality: () => this.renderManager.shaderGuard.quality,
                 nodes: () => this.layoutManager.nodes,
+                rows: () => {
+                    const table = this.#rowTable;
+                    const rows = this.#nodeBatches?.columnRowIndices() ?? [];
+                    return table === null
+                        ? []
+                        : rows.map(
+                              (row) => new RowSubject(table, row, this.stylePainter.nodePaint(row)?.color ?? null),
+                          );
+                },
                 edges: () => this.layoutManager.edges,
                 selected: () => this.selectionManager.getSelectedNodes(),
                 layoutRunning: () => this.layoutManager.running,

@@ -1000,8 +1000,10 @@ function newNodeRows(
         }
 
         let id = rows[0][key.file] as NodeId;
-        for (let n = 2; held.has(id); n++) {
-            id = `${String(rows[0][key.file])} (${String(n)})`;
+        let copy = 1;
+        while (held.has(id)) {
+            copy += 1;
+            id = `${String(rows[0][key.file])} (${String(copy)})`;
         }
 
         return frozen({ id, values });

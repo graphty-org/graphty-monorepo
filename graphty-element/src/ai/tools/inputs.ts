@@ -26,7 +26,8 @@ export const intentField = z.string().max(INTENT_MAX).optional();
 
 /** What the instructions say the intent field is for. */
 export const INTENT_HELP =
-    'Every call takes intent: what you are doing, in a few words, for the reader ("Coloring the East Coast schools").';
+    'Every call takes intent: what you are doing, in a few words, for the reader ("Coloring the busiest nodes"). ' +
+    'Intent only labels the step: a layer you add still takes its own name, in the reader\'s words (name: "East Coast schools").';
 
 /** What a field holds, beside its schema. */
 interface InputMeta {

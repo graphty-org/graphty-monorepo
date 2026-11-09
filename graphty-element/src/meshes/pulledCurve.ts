@@ -12,11 +12,12 @@
  * cut of another path: a quadratic that bows a signed distance to the chord's left, kept in the span. A curve drawn
  * as an arc of a circle through both centers (`line.arcRadius`, `edgeRoute.centerArc`) is the cut of a third, kept as
  * its radius, a raised arc (`line.route` "arc", `edgeRoute.raisedArc`) as its height, and a great-circle arc over a
- * globe (`line.route` "great-circle", `edgeRoute.greatCircleArc`) as its height and the angle it turns through. Nothing
- * here reads Babylon.js, so it runs in Node.
+ * globe (`line.route` "great-circle", `edgeRoute.greatCircleArc`) as its height and the angle it turns through. A
+ * self-loop's teardrop (`edgeRoute.loopTeardrop`) is the cut of a cubic from its node's center back to it, kept as
+ * its two control points ({@link loopShape}). Nothing here reads Babylon.js, so it runs in Node.
  */
 
-import { centerCircle, fanArcPieces, greatCircle, routeOutside, type Xyz } from "./edgeRoute";
+import { centerCircle, fanArcPieces, greatCircle, LOOP_STEPS, loopControls, routeOutside, type Xyz } from "./edgeRoute";
 
 /** How far the two control points stand off the chord, a share of its length (`EDGE_CONSTANTS.BEZIER_CONTROL_POINT_OFFSET`). */
 const CONTROL_OFFSET = 0.3;
@@ -72,6 +73,44 @@ export interface CurveSpan {
      * (`Edge.bareEnd`); null otherwise. The curve is then the lone curve between those two points of the chord.
      */
     readonly ends: readonly [number, number] | null;
+    /**
+     * For a self-loop's teardrop, its two control points from the node's center as (x, y, k): their mean (x, y), and
+     * how far they stand either side of it, a share k of it turned a quarter left (the first) and right (the
+     * second); null otherwise ({@link loopShape}).
+     */
+    readonly loop: readonly [number, number, number] | null;
+}
+
+/**
+ * A self-loop's teardrop as {@link CurveSpan.loop} keeps it, from where `edgeRoute.loopTeardrop` puts its controls.
+ * @param rank - The loop's place among the loops on its node, from zero.
+ * @param count - How many loops the node has.
+ * @param reachAt - How far the node's surface (and border) is from its center in a direction.
+ * @returns The loop's (x, y, k).
+ */
+export function loopShape(rank: number, count: number, reachAt: (dir: Xyz) => number): [number, number, number] {
+    const { c1, c2, sweep } = loopControls(rank, count, reachAt);
+    return [(c1.x + c2.x) / 2, (c1.y + c2.y) / 2, Math.tan(sweep / 2)];
+}
+
+/**
+ * One sample of a self-loop's teardrop, as `loopTeardrop` computes it: a cubic from the center back to it, flat in z.
+ * @param center - The node's center.
+ * @param i - The sample, 0 to `samples`.
+ * @param samples - The pieces the teardrop is sampled with.
+ * @param loop - Its controls, {@link CurveSpan.loop}.
+ * @returns The point.
+ */
+function loopSampleAt(center: Xyz, i: number, samples: number, loop: readonly [number, number, number]): Xyz {
+    const [x, y, k] = loop;
+    const t = i / samples;
+    const b = 3 * (1 - t) * (1 - t) * t;
+    const c = 3 * (1 - t) * t * t;
+    return {
+        x: center.x + b * (x - k * y) + c * (x + k * y),
+        y: center.y + b * (y + k * x) + c * (y - k * x),
+        z: center.z,
+    };
 }
 
 /**
@@ -235,9 +274,9 @@ function globeSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, height: n
 
 /**
  * Which path a span samples: a lone curve, a fanned arc (`bow`), a center arc (`radius`), a raised arc (`height`) or a
- * great-circle arc (`angle`).
+ * great-circle arc (`angle`), or a self-loop's teardrop (`loop`).
  */
-type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "angle" | "ends">;
+type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "angle" | "ends" | "loop">;
 
 /**
  * One sample of the path a span's shape names.
@@ -249,7 +288,11 @@ type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "angle" | "e
  * @returns The point.
  */
 function pathSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, shape: Shape): Xyz {
-    const { ends } = shape;
+    const { ends, loop } = shape;
+    if (loop !== null) {
+        return loopSampleAt(src, i, samples, loop);
+    }
+
     if (ends !== null) {
         return sampleAt(along(src, dst, ends[0]), along(src, dst, ends[1]), i, samples);
     }
@@ -283,12 +326,18 @@ function along(src: Xyz, dst: Xyz, t: number): Xyz {
 /**
  * The span's shape as the shader's three numbers: (bow, turn or where an uncut curve starts; 0 for a lone curve,
  * 1 for a fanned arc, 2 for a center arc, 3 for a lone curve between two points of the chord, 4 for a raised arc
- * (its height first), 5 for a great-circle arc (its height first); where that curve stops, or a great-circle arc's
- * angle), the last three of a curve piece's fourth texel.
+ * (its height first), 5 for a great-circle arc (its height first), or for a self-loop's teardrop (its controls'
+ * mean x first) 6 plus its share k, under tan(pi / 5); where that curve stops, a great-circle arc's angle, or the
+ * teardrop's mean y), the last three of a curve piece's fourth texel.
  * @param span - The span, or null.
  * @returns The three numbers.
  */
 export function curveShape(span: Shape | null): [number, number, number] {
+    const loop = span?.loop ?? null;
+    if (loop !== null) {
+        return [loop[0], 6 + loop[2], loop[1]];
+    }
+
     const ends = span?.ends ?? null;
     if (ends !== null) {
         return [ends[0], 3, ends[1]];
@@ -367,15 +416,26 @@ function crossingAlong(inside: Xyz, outside: Xyz, isOutside: (x: number, y: numb
  * @param path.radius - The radius.
  * @param path.height - The height.
  * @param path.globe - Whether the height lifts a great-circle arc.
+ * @param path.loop - A self-loop's teardrop.
  * @returns The shape and the pieces it is sampled with.
  */
 function pathShape(
     src: Xyz,
     dst: Xyz,
-    path: { bow?: number | null; radius?: number | null; height?: number | null; globe?: boolean },
+    path: {
+        bow?: number | null;
+        radius?: number | null;
+        height?: number | null;
+        globe?: boolean;
+        loop?: readonly [number, number, number] | null;
+    },
 ): { shape: Shape; samples: number } {
-    const { bow = null, radius = null, height = null, globe = false } = path;
-    const none: Shape = { bow: null, radius: null, turn: null, height: null, angle: null, ends: null };
+    const { bow = null, radius = null, height = null, globe = false, loop = null } = path;
+    const none: Shape = { bow: null, radius: null, turn: null, height: null, angle: null, ends: null, loop: null };
+    if (loop !== null) {
+        return { shape: { ...none, loop }, samples: LOOP_STEPS };
+    }
+
     if (height !== null && globe) {
         // `greatCircleArc`: a straight route is its two ends
         const sphere = greatCircle(src, dst, height);
@@ -410,7 +470,8 @@ function pathShape(
  * @param outsideDst - Whether a point is outside the target node.
  * @param path - The path, a lone curve when empty: a fanned arc's bow ({@link CurveSpan.bow}), a center arc's radius
  *     ({@link CurveSpan.radius}), which wins over a bow, or a raised arc's height ({@link CurveSpan.height}), which wins
- *     over both; with `globe`, a great-circle arc's.
+ *     over both; with `globe`, a great-circle arc's; or a self-loop's teardrop ({@link CurveSpan.loop}), which wins
+ *     over all of them, from `src`, which `dst` equals, back to it.
  * @param path.bow - The bow.
  * @param path.radius - The radius.
  * @param path.height - The height.
@@ -418,6 +479,7 @@ function pathShape(
  *     "great-circle") rather than a raised arc over a flat map.
  * @param path.straight - Whether the line is straight (no `line.bezier`): a route no sample of which clears both
  *     nodes is then the straight line between the bare ends, not the lone curve.
+ * @param path.loop - The teardrop.
  * @param bareEnds - Where the line starts and stops when it is not cut (`Edge.bareEnd`: the centers, or with a gap,
  *     off the nodes along the chord), asked only when no sample is outside both nodes; unset, the centers.
  * @returns The span; the lone curve between the bare ends, uncut, when no sample is outside both nodes, as
@@ -436,6 +498,7 @@ export function curveSpan(
         height?: number | null;
         globe?: boolean;
         straight?: boolean;
+        loop?: readonly [number, number, number] | null;
     } = {},
     bareEnds: (() => readonly [Xyz, Xyz]) | null = null,
 ): CurveSpan | null {
@@ -519,6 +582,7 @@ function uncutSpan(src: Xyz, dst: Xyz, bareEnds: readonly [Xyz, Xyz] | null): Cu
         height: null,
         angle: null,
         ends: moved ? ends : null,
+        loop: null,
     };
 }
 
@@ -633,7 +697,19 @@ vec3 pulledGlobeSample(vec3 src, vec3 dst, float i, float samples, float height,
     return (src * (pulledSin((1.0 - t) * angle) / s / ra) + dst * (pulledSin(t * angle) / s / rb)) * r;
 }
 
+// a self-loop's teardrop: the cubic from the center back to it whose controls stand k times their mean p turned a
+// quarter either side of p
+vec3 pulledLoopSample(vec3 center, float i, float samples, vec2 p, float k) {
+    float t = i / samples;
+    float u = 1.0 - t;
+    vec2 q = vec2(-p.y, p.x) * k;
+    return vec3(center.xy + (p + q) * (3.0 * u * u * t) + (p - q) * (3.0 * u * t * t), center.z);
+}
+
 vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut, float angle) {
+    if (cut.w > 5.5) {
+        return pulledLoopSample(src, i, samples, vec2(cut.z, angle), cut.w - 6.0);
+    }
     if (cut.w > 4.5) {
         return pulledGlobeSample(src, dst, i, samples, cut.z, angle);
     }

@@ -198,13 +198,13 @@
             // too. Better to lose words than to show a secret.
             function bootClean(s) {
                 return String(s)
-                    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\/\s@]*@/gi, "$1")
-                    .replace(/\?\S+|(\S)#\S+/g, "$1")
-                    .replace(
+                    .replaceAll(/\b([a-z][a-z0-9+.-]*:\/\/)[^/\s@]*@/gi, "$1")
+                    .replaceAll(/\?\S+|(\S)#\S+/g, "$1")
+                    .replaceAll(
                         /((?:token|api[_-]?key|secret|password|authorization)[\w-]*["']?\s*[=:]\s*)(?:(?:bearer|basic)\s+)?(?:"[^"]*"|'[^']*'|\S+)/gi,
                         "$1[removed]",
                     )
-                    .replace(/\b(bearer\s+)\S+/gi, "$1[removed]")
+                    .replaceAll(/\b(bearer\s+)\S+/gi, "$1[removed]")
                     .slice(0, 500);
             }
             // "at" is when the step finished, if that was before now.
@@ -219,7 +219,7 @@
                     bootClean(text);
                 bootLast = when;
                 bootNext = bootNext.filter(function (n) {
-                    return text.indexOf(n) < 0;
+                    return !String(text).includes(n);
                 });
                 bootLines.push(line);
                 if (bootLines.length > 500) {
@@ -313,7 +313,7 @@
                 try {
                     sessionStorage.setItem("graphty-boot-log-open", open ? "1" : "");
                 } catch (e) {
-                    // Without storage the fold is not remembered; nothing else depends on it.
+                    bootLine("the fold cannot be remembered: " + e);
                 }
             }
             // What the app says once it runs (src/bootSignal.ts).
@@ -483,7 +483,7 @@
                         bootShow(true);
                     }
                 } catch (e) {
-                    // Without storage the log starts folded.
+                    bootLine("no remembered fold: " + e);
                 }
                 document.addEventListener("DOMContentLoaded", function () {
                     var scripts = document.querySelectorAll("script[type=module][src]");

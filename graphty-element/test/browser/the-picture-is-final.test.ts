@@ -460,20 +460,29 @@ describe("knowing the picture is final", () => {
      * Waits for the final frame with the wait's own limit on a fake clock, and runs the limit out
      * at once. The test then decides when the time is up instead of a real deadline racing the
      * machine, so it reads the same however busy the page is.
+     *
+     * The fake clock is in place only while `waitForStableFrame()` makes its limit and the limit is
+     * run out -- one synchronous stretch, so the only timer on it is the wait's own. Kept in place
+     * across the `await`, it also caught the timers the graph's own work made meanwhile -- a time
+     * slice of the load giving the thread back, the queue's poll -- and those never fire once the
+     * real clock returns, so on a busy machine the load never finished and the test hung (#6310).
      * @returns The message of the rejection, or "resolved" when the wait was satisfied.
      */
     async function waitAndRunOutTheLimit(): Promise<string> {
+        let outcome: Promise<string>;
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
         try {
-            const outcome = graph.waitForStableFrame().then(
+            outcome = graph.waitForStableFrame().then(
                 () => "resolved",
                 (error: unknown) => (error instanceof Error ? error.message : String(error)),
             );
             vi.runOnlyPendingTimers();
-            return await outcome;
+            assert.strictEqual(vi.getTimerCount(), 0, "no timer is left on the fake clock to be lost");
         } finally {
             vi.useRealTimers();
         }
+
+        return outcome;
     }
 
     it("fails out loud rather than handing back a moving picture", async () => {

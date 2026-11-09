@@ -733,7 +733,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelLineHeight: YED_LABEL_LINE_HEIGHT,
                     labelKeepBlankLines: v(
                         true,
-                        `${MEASURED}graphml-stm32-func: the label "\\nCS" is drawn two lines tall, its words on the second)`,
+                        `${MEASURED}graphml-stm32-func: a label of a line break and "CS" is drawn two lines tall, the words on the second)`,
                     ),
                 },
                 edge: {
@@ -747,7 +747,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
                     labelKeepBlankLines: v(
                         true,
-                        `${MEASURED}graphml-stm32-func: the label "\\nCS" is drawn two lines tall, its words on the second)`,
+                        `${MEASURED}graphml-stm32-func: a label of a line break and "CS" is drawn two lines tall, the words on the second)`,
                     ),
                     fanned: v(
                         false,

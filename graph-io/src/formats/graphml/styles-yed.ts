@@ -1020,7 +1020,8 @@ function readIconPlace(label: unknown, icons: ReadonlyMap<string, readonly [numb
         }
         return side === "bottom" ? 1 : 0;
     };
-    let [x, y] = [0, 0];
+    let x = 0;
+    let y: number;
     if (across === "left" || across === "right") {
         x = ((across === "left" ? -1 : 1) * (iw + gap)) / 2;
         y = (way(down) * (Math.max(ih, th) - th)) / 2;
@@ -1714,10 +1715,10 @@ function pngSize(url: string | undefined): readonly [number, number] | null {
         return null;
     }
     const u32 = (o: number): number =>
-        bytes.charCodeAt(o) * 2 ** 24 +
-        bytes.charCodeAt(o + 1) * 2 ** 16 +
-        bytes.charCodeAt(o + 2) * 2 ** 8 +
-        bytes.charCodeAt(o + 3);
+        (bytes.codePointAt(o) ?? 0) * 2 ** 24 +
+        (bytes.codePointAt(o + 1) ?? 0) * 2 ** 16 +
+        (bytes.codePointAt(o + 2) ?? 0) * 2 ** 8 +
+        (bytes.codePointAt(o + 3) ?? 0);
     return [u32(16), u32(20)];
 }
 
@@ -2783,14 +2784,12 @@ function readEdgeLabelPlace(real: Realizer, nodes: Float64Array, source: number,
     const smartMiddle = treeAttr(smart, "position") === "center" && Number(treeAttr(smart, "ratio")) === 0.5;
     const stored = model === "free" || (model === "custom" && smart !== undefined && !smartMiddle);
     const position = smartMiddle ? "center" : (treeAttr(label, "modelPosition") ?? "tail");
+    const placed = smartMiddle ? "centered" : model;
     putYedEdgeLabel(
         [s, t],
         [[s[0] + offset("sx"), s[1] + offset("sy")], ...points, [t[0] + offset("tx"), t[1] + offset("ty")]],
         {
-            spot:
-                model === "custom" && smart === undefined
-                    ? unplacedSmartSpot(label, s, t)
-                    : `${smartMiddle ? "centered" : model}/${position}`,
+            spot: model === "custom" && smart === undefined ? unplacedSmartSpot(label, s, t) : `${placed}/${position}`,
             stored: stored ? ["x", "y", "width", "height"].map((k) => Number(treeAttr(label, k))) : null,
             distance: Number(treeAttr(label, "distance") ?? 2) || 0,
             width: Number(treeAttr(label, "width")) || 0,

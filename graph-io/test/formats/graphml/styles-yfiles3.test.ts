@@ -676,11 +676,36 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         expect(node("fillOpacity", "fill-null")).toBe(0);
     });
 
+    it("draws an ImageNodeStyle's picture alone, its background unoutlined, kept to its aspectRatio", async () => {
+        // yed-live-graphml-specimen-images-charts.svg: `default` (no image) draws nothing; a background fill is drawn
+        // with no line round it; aspectRatio 1 draws the picture 30 x 30 in the middle of a 60 x 30 box
+        const { node } = await sheet("specimen-images-charts.graphml");
+        expect(node("shape", "default")).toBe("none");
+        expect(node("fill", "image-background-fill")).toBe("#ffcc00");
+        expect(node("borderWidth", "image-background-fill")).toBe(0);
+        expect(node("borderWidth", "image-background-shape")).toBe(0);
+        expect(node("width", "image-aspect-ratio")).toBe(30);
+        expect(node("height", "image-aspect-ratio")).toBe(30);
+    });
+
     it("paints no line for a {x:Null} edge stroke, and its arrowheads as ever", async () => {
         // yed-live-graphml-specimen-edges-lines.svg draws stroke-null's target arrowhead and no line
         const { edge } = await sheet("specimen-edges-lines.graphml");
         expect(edge("opacity", "stroke-null")).toBe(0);
         expect(edge("targetArrow", "stroke-null")).toBe("triangle");
+    });
+
+    it("draws a GraphvizNodeStyle with no shape as an ellipse, Graphviz's default", async () => {
+        // yed-live-graphml-specimen-node-shapes-p7.svg draws `default` as a 36 x 36 ellipse
+        const { node } = await sheet("specimen-node-shapes-p7.graphml");
+        expect(node("shape", "default")).toBe("ellipse");
+        expect(node("shape", "graphviz-shape-rectangle")).toBe("rectangle");
+    });
+
+    it("draws no line round a GroupNodeStyle with no stroke", async () => {
+        // yed-live-graphml-specimen-groups.svg: `default` (GroupNodeStyle with nothing set) has no outline
+        const { node } = await sheet("specimen-groups.graphml");
+        expect(node("borderWidth", "default")).toBe(0);
     });
 
     it("rounds a group's corners by its cornerRadius, 4 unset", async () => {

@@ -979,26 +979,38 @@ function readUmlStyle(refs: References, style: StyleObject, size: Size | null, p
  * `color` (`yed-live-graphml-specimen-node-shapes-p7`).
  * @param refs - the references
  * @param style - the style
+ * @param size - the node's stored size, where it has one
  * @param put - receives the values
  * @param at - the sites
  * @returns true when the style is one of these
  */
-function readPictureStyle(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
+function readPictureStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): boolean {
     if (style.tag !== "ImageNodeStyle" && style.tag !== "ColoredIconNodeStyle") {
         return false;
     }
     const src = treeAttr(style.e, "href") ?? treeText(treeChild(style.e, `${style.tag}.image`));
-    if (src === null) {
-        return true;
-    }
     const fill = prop(style, "backgroundFill");
     const stroke = prop(style, "backgroundStroke");
-    if (fill === undefined && stroke === undefined) {
+    // yEd Live 8.5.16 draws no background without a backgroundFill or backgroundStroke, nothing at all without a
+    // picture, and no line round a background without a backgroundStroke (yed-live-graphml-specimen-images-charts:
+    // `default`, image-background-fill)
+    if (src === null || (fill === undefined && stroke === undefined)) {
         put("shape", "none");
     } else {
         putPaint(paintOf(refs, fill, null), "fill", "fillOpacity", put, at);
-        putStroke(strokeOf(refs, stroke), put, at);
+        putStroke(stroke === undefined ? NULL : strokeOf(refs, stroke), put, at);
         put("shape", treeAttr(style.e, "backgroundShape") === "ELLIPSE" ? "ellipse" : "rectangle");
+    }
+    if (src === null) {
+        return true;
+    }
+    // an `aspectRatio` above 0 keeps the picture to it, as large as fits in the middle of the box (image-aspect-ratio:
+    // 1 in a 60 x 30 box draws it 30 x 30)
+    const aspect = Number(treeAttr(style.e, "aspectRatio") ?? 0);
+    if (size !== null && Number.isFinite(aspect) && aspect > 0) {
+        const width = Math.min(size.width, size.height * aspect);
+        put("width", num6(width));
+        put("height", num6(width / aspect));
     }
     put("image", src.trim());
     put("imageFit", "fill");
@@ -1173,7 +1185,7 @@ function readNodeStyle(
         readUmlStyle(refs, style, size, put, at);
         return;
     }
-    if (readPictureStyle(refs, style, put, at)) {
+    if (readPictureStyle(refs, style, size, put, at)) {
         return;
     }
     const fill = paintOf(refs, prop(style, "fill"), (g) => {
@@ -1186,7 +1198,9 @@ function readNodeStyle(
         put("fillOpacity", 0);
     }
     putPaint(fill, "fill", "fillOpacity", put, at);
-    putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
+    // a GroupNodeStyle with no stroke draws no outline (yed-live-graphml-specimen-groups `default`)
+    const stroke = prop(style, "stroke");
+    putStroke(stroke === undefined && style.tag === "GroupNodeStyle" ? NULL : strokeOf(refs, stroke), put, at);
     putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
     putIntrinsicSize(refs, style, shape, size, put);
@@ -1420,6 +1434,10 @@ function nodeShapeOf(style: StyleObject, at: SiteOf): string | null {
     }
     if (style.tag === "ShapeNodeStyle") {
         return "rectangle";
+    }
+    if (style.tag === "GraphvizNodeStyle") {
+        // Graphviz's default shape (yed-live-graphml-specimen-node-shapes-p7 `default`: an ellipse)
+        return "ellipse";
     }
     noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, style.tag);
     return `other:${style.tag}`;

@@ -1800,7 +1800,8 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
         return;
     }
     if (hasLine(border)) {
-        readColor(treeAttr(border, "color"), "borderColor", null, put, at);
+        // a #RRGGBBAA color's alpha is the line's (yed-graphml-specimen-node-sizes-opacity border-alpha-40)
+        readColor(treeAttr(border, "color"), "borderColor", "borderOpacity", put, at);
         put("borderWidth", yedDrawnWidth(canonNumber(treeAttr(border, "width"), at("borderWidth"))));
     } else {
         put("borderWidth", 0);
@@ -2313,8 +2314,16 @@ function edgeCurved(real: Realizer): boolean | null {
  * @param source - the source node's index
  * @param target - the target node's index
  * @param put - receives the values
+ * @param boxed - the nodes whose outline is their box (`boxOutline`)
  */
-function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, target: number, put: PutValue): void {
+function readEdgeRoute(
+    real: Realizer,
+    nodes: Float64Array,
+    source: number,
+    target: number,
+    put: PutValue,
+    boxed: ReadonlySet<number> = new Set(),
+): void {
     const path = treeChild(real.r, "Path");
     const at = (k: number): BendPoint => [nodes[4 * k], nodes[4 * k + 1]];
     const size = (k: number): BendPoint => [nodes[4 * k + 2], nodes[4 * k + 3]];
@@ -2323,10 +2332,28 @@ function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, targ
         [at(source)[0] + offset("sx"), at(source)[1] + offset("sy")],
         [at(target)[0] + offset("tx"), at(target)[1] + offset("ty")],
     ];
+    const stored = treeChildren(path, "Point").map((p): BendPoint => [
+        Number(treeAttr(p, "x")),
+        Number(treeAttr(p, "y")),
+    ]);
+    // a polyline from a port inside a box node is drawn from where its first leg leaves the box
+    // (graphml-libcitygml-mapping e45, between two UML class boxes); a leg that stays inside is left as it is
+    const leaves = (k: number, end: BendPoint, toward: BendPoint): BendPoint => {
+        const [w, h] = size(k);
+        const inside = (p: BendPoint): boolean =>
+            Math.abs(p[0] - at(k)[0]) < w / 2 - YED_PORT_SLACK && Math.abs(p[1] - at(k)[1]) < h / 2 - YED_PORT_SLACK;
+        const centered = end[0] === at(k)[0] && end[1] === at(k)[1];
+        const clipped = STRAIGHT_FROM_ENDS.has(real.type) && source !== target && boxed.has(k);
+        return clipped && !centered && inside(end) && !inside(toward) ? boxExit([...at(k), w, h], end, toward) : end;
+    };
+    const drawn: readonly [BendPoint, BendPoint] = [
+        leaves(source, ends[0], stored[0] ?? ends[1]),
+        leaves(target, ends[1], stored.at(-1) ?? ends[0]),
+    ];
     const port = (k: number, end: BendPoint): string | null =>
         end[0] === at(k)[0] && end[1] === at(k)[1] ? null : canonNodeOffsets(at(k), size(k), [end], true);
-    put("sourcePort", port(source, ends[0]));
-    put("targetPort", port(target, ends[1]));
+    put("sourcePort", port(source, drawn[0]));
+    put("targetPort", port(target, drawn[1]));
     let points = treeChildren(path, "Point").map((p): BendPoint => [
         Number(treeAttr(p, "x")),
         Number(treeAttr(p, "y")),
@@ -2372,6 +2399,27 @@ function arcControl(arc: unknown, ends: readonly [BendPoint, BendPoint]): BendPo
     const twice = 2 * (ratio ? (value * length) / 4 : value);
     return [[(x0 + x1) / 2 + (twice * (y1 - y0)) / length, (y0 + y1) / 2 - (twice * (x1 - x0)) / length]];
 }
+
+/**
+ * Whether a node realizer's outline is its box, where an edge from a port inside it is drawn from the box's side: a
+ * UML class or note. ponytail: yEd clips at every node's outline, a rectangle shape node's too, but graph-io's GraphML
+ * writer writes every node as a shape node, so clipping those would read a written file's ports back moved; add the
+ * shape nodes with a writer that keeps the clipped port.
+ * @param real - the node realizer
+ * @returns true for a box
+ */
+function boxOutline(real: Realizer): boolean {
+    return real.type === "UMLClassNode" || real.type === "UMLNoteNode";
+}
+
+/**
+ * The edge realizers whose line runs straight from each end toward its first point: a polyline, a generic (framed)
+ * edge, and a quad curve, whose first and last legs are straight from the ends to their middles.
+ */
+const STRAIGHT_FROM_ENDS: ReadonlySet<string> = new Set(["PolyLineEdge", "GenericEdge", "QuadCurveEdge"]);
+
+/** How far inside a node's side a port must sit to be inside it, not on its outline. */
+const YED_PORT_SLACK = 1e-6;
 
 /** yEd's quad curve straightness when a file gives none. */
 const YED_STRAIGHTNESS = 0.1;
@@ -2803,6 +2851,8 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
     const groups = graphmlGroupBounds(snapshot);
     const folded = closedFolderMembers(snapshot);
+    // the nodes whose outline is their box, where an edge from a port inside leaves the box
+    const boxOutlined = new Set<number>();
     const parent = snapshot.nodes.byRole("parent");
     const nestedRows = new Set(
         [...groups.keys()].filter((row) => parent?.isSet(row) === true && typeof parent.value(row) === "number"),
@@ -2843,6 +2893,9 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
                 const box = groups.get(i);
                 real = box === undefined ? real : realizerAt(real, box);
                 readNode(real, box !== undefined && nestedRows.has(i) ? nestedGroupPut(put) : put, at, resources);
+                if (boxOutline(real)) {
+                    boxOutlined.add(i);
+                }
                 const geometry = treeChild(real.r, "Geometry");
                 const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
                 boxes.set(
@@ -2851,7 +2904,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
                 );
             } else {
                 readEdge(real, put, at);
-                readEdgeRoute(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
+                readEdgeRoute(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put, boxOutlined);
                 readEdgeLabelPlace(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
             }
         }

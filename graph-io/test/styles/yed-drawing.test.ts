@@ -109,3 +109,49 @@ describe("yEd GraphML lines with no color", () => {
         expect(edge("targetArrow")).toEqual(["none", "vee"]);
     });
 });
+
+describe("yEd GraphML ports inside a box", () => {
+    it("starts a polyline where it leaves a box node's outline, from a port inside the node", async () => {
+        // graphml-libcitygml-mapping e45: ports 18.5,-11.4 and -31.9,4.2 off the centers of two UML class boxes;
+        // yEd draws the line only between the two boxes' sides, where the line between the ports crosses them
+        const text = `<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
+<key for="node" id="d6" yfiles.type="nodegraphics"/><key for="edge" id="d10" yfiles.type="edgegraphics"/>
+<graph edgedefault="directed" id="G">
+<node id="a"><data key="d6"><y:UMLClassNode><y:Geometry x="-50" y="-10" width="100" height="20"/></y:UMLClassNode></data></node>
+<node id="b"><data key="d6"><y:ShapeNode><y:Geometry x="150" y="-10" width="100" height="20"/><y:Shape type="ellipse"/></y:ShapeNode></data></node>
+<edge source="a" target="b"><data key="d10"><y:PolyLineEdge><y:Path sx="20" sy="-5" tx="0" ty="0"/></y:PolyLineEdge></data></edge>
+<edge source="a" target="b"><data key="d10"><y:PolyLineEdge><y:Path sx="50" sy="0" tx="-30" ty="5"/></y:PolyLineEdge></data></edge>
+</graph></graphml>`;
+        const r = await registry.importGraph(text, { format: "graphml", styles: true });
+        if (!r.styles) {
+            throw new Error("no styles");
+        }
+        const source = resolveStyles(r.styles, "edge", "sourcePort", r.snapshot);
+        const target = resolveStyles(r.styles, "edge", "targetPort", r.snapshot);
+        // from 20,-5 toward the target's center 200,0 the line leaves the box at x 50, y -4.1667: its right side,
+        // 0.4167 of the half height up
+        expect(source[0]).toBe("1,0.4167");
+        // a port on the outline stays; the ellipse's port inside it stays where the file puts it
+        expect(source[1]).toBe("1,0");
+        expect(target[1]).toBe("-0.6,-0.5");
+    });
+});
+
+describe("yEd GraphML border alpha", () => {
+    it("draws a border color's #RRGGBBAA alpha as the border's opacity", async () => {
+        // yed-graphml-specimen-node-sizes-opacity border-alpha-40: #00000040 drawn black at 0.251
+        const text = `<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
+<key for="node" id="d6" yfiles.type="nodegraphics"/>
+<graph edgedefault="directed" id="G">
+<node id="a"><data key="d6"><y:ShapeNode><y:Geometry x="0" y="0" width="20" height="10"/><y:BorderStyle color="#00000040" type="line" width="3.0"/></y:ShapeNode></data></node>
+</graph></graphml>`;
+        const r = await registry.importGraph(text, { format: "graphml", styles: true });
+        if (!r.styles) {
+            throw new Error("no styles");
+        }
+        expect(resolveStyles(r.styles, "node", "borderColor", r.snapshot)[0]).toBe("#000000");
+        expect(resolveStyles(r.styles, "node", "borderOpacity", r.snapshot)[0]).toBeCloseTo(0x40 / 255, 3);
+    });
+});

@@ -47,14 +47,15 @@ const SHAPES: Partial<Record<ShapeClass, PShape>> = {
 /**
  * The part of a label's words box its inked lines fill: a blank line before or after the words is room in the plane
  * and not words, as an SVG text's box holds only its letters (yEd's "\nCS" in graphml-stm32-func draws "CS" on the
- * second of two lines). The text holds one line per drawn line (the label's laid-out runs, wrapped lines too); a
- * label turned other than a quarter turn at a time is left as it is.
+ * second of two lines). The text holds one line per laid-out line (wrapped lines too), and `tall` says which of them
+ * were drawn a line tall; a label turned other than a quarter turn at a time is left as it is.
  * @param d - the drawn label
  * @param box - its words box on screen
  * @returns the box of its inked lines
  */
 export function inkedLines(d: DrawnLabel, box: PBox): PBox {
-    const lines = d.text.split("\n");
+    // only the lines drawn a line tall share the box: a blank line with no height is in the text and not the box
+    const lines = d.text.split("\n").filter((_, i) => d.tall?.[i] !== false);
     const inked = lines.flatMap((l, i) => (l.trim() === "" ? [] : [i]));
     const quarter = (((Math.round(d.rotation / 90) % 4) + 4) % 4) as 0 | 1 | 2 | 3;
     if (inked.length === 0 || Math.abs(d.rotation - 90 * Math.round(d.rotation / 90)) > 1e-6) {
@@ -80,9 +81,9 @@ function textOf(d: DrawnLabel): PText {
     const b = d.textBox ?? d.box;
     const box = { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 };
     const n = Math.max(1, d.lineCount);
-    const lineH = (box.y1 - box.y0) / n;
     const bg = d.background;
     const words = inkedLines(d, box);
+    const lineH = (words.y1 - words.y0) / n;
     return {
         content: d.text,
         x: (words.x0 + words.x1) / 2,
@@ -97,7 +98,11 @@ function textOf(d: DrawnLabel): PText {
         color: d.color,
         opacity: d.opacity,
         // graphty draws its lines in one plane: their count is read, their alignment declared
-        lines: Array.from({ length: n }, (_, i) => ({ ...box, y0: box.y0 + i * lineH, y1: box.y0 + (i + 1) * lineH })),
+        lines: Array.from({ length: n }, (_, i) => ({
+            ...words,
+            y0: words.y0 + i * lineH,
+            y1: words.y0 + (i + 1) * lineH,
+        })),
         align: d.align,
         outline: d.outline,
         background:

@@ -6,7 +6,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../../session";
 import type { RichTextStyle } from "../../../src/meshes/RichTextLabel";
-import { measureLine, RichTextParser } from "../../../src/meshes/RichTextParser";
+import { hasWords, measureLine, RichTextParser } from "../../../src/meshes/RichTextParser";
 import { labelRunsMarkup } from "../../../src/session/styles/fileStyles/translate";
 import { fileStylesOn } from "../../helpers/file-styles-on";
 
@@ -81,9 +81,9 @@ describe("a label drawn in runs", () => {
         assert.deepEqual(heights("a\n<nudge='-50%'>b</nudge>"), { totalHeight: 20, over: { top: 0, bottom: 0 } });
     });
 
-    it("gives a blank line the height of a line of the label's font", () => {
+    it("gives a blank line the height of a line of the label's font when the label keeps blank lines", () => {
         // yEd's "\nCS" (graphml-stm32-func) is two lines tall, the words on the second; a trailing blank line
-        // keeps no height, as before (only blank lines between or before words changed)
+        // keeps no height either way, and a label that does not keep blank lines gives none of them height
         const ctx = {
             font: "",
             textBaseline: "alphabetic",
@@ -94,12 +94,20 @@ describe("a label drawn in runs", () => {
         } as unknown as CanvasRenderingContext2D;
         const parser = new RichTextParser({ size: 10, weight: "normal", style: "normal", font: "x" } as RichTextStyle);
         const options = { lineHeight: 1, textOutline: false, textOutlineWidth: 0 };
-        const height = (text: string, plainText = false): number =>
-            parser.measureText(parser.parse(text, plainText), ctx, options).totalHeight;
+        const height = (text: string, keep: boolean, plainText = false): number =>
+            parser.measureText(parser.parse(text, plainText, keep), ctx, options).totalHeight;
+        const texts = ["\nb", "a\n\nb", "b", "", "b\n"];
         assert.deepEqual(
-            [height("\nb"), height("a\n\nb"), height("\nb", true), height("b"), height(""), height("b\n")],
-            [20, 30, 20, 10, 0, 10],
+            texts.map((t) => height(t, true)),
+            [20, 30, 10, 0, 10],
         );
+        assert.equal(height("\nb", true, true), 20);
+        assert.deepEqual(
+            texts.map((t) => height(t, false)),
+            [10, 20, 10, 0, 10],
+        );
+        // a kept blank line holds a run with no letters, which is not a line with words
+        assert.deepEqual(parser.parse("\nb", false, true).map(hasWords), [false, true]);
     });
 
     it("sets runs of different sizes on one line where the label's run alignment says", () => {

@@ -731,6 +731,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelPosition: v("center", `${YED_CORPUS} of y:NodeLabel`),
                     labelPadding: YED_LABEL_BOX_PADDING,
                     labelLineHeight: YED_LABEL_LINE_HEIGHT,
+                    labelKeepBlankLines: v(
+                        true,
+                        `${MEASURED}graphml-stm32-func: the label "\\nCS" is drawn two lines tall, its words on the second)`,
+                    ),
                 },
                 edge: {
                     color: v("#000000", `${YED_EDGE} (line color defaults to Color.black)`),
@@ -741,6 +745,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${YED_CORPUS} of y:EdgeLabel`),
                     labelFont: v("DejaVu Sans, sans-serif", `${YED_CORPUS} of y:EdgeLabel (Dialog's face)`),
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
+                    labelKeepBlankLines: v(
+                        true,
+                        `${MEASURED}graphml-stm32-func: the label "\\nCS" is drawn two lines tall, its words on the second)`,
+                    ),
                     fanned: v(
                         false,
                         `${YED_EDGE} (an edge is drawn along its own path and bends, whatever other edges join its nodes)`,

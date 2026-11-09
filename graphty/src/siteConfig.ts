@@ -118,6 +118,15 @@ export function siteTimeline(): boolean {
 }
 
 /**
+ * Whether this site switches network data on (the `network-data` experiment, issue #6211), for a
+ * door the start page draws before any session exists; `networkOn(session)` answers everywhere else.
+ * @returns true when it is on.
+ */
+export function siteNetwork(): boolean {
+    return resolveFeatures(current.features).enabled.includes("network-data");
+}
+
+/**
  * Whether this site switches styles from files on, for the Settings switch the start page offers
  * before any session exists; `fileStylesOn(session)` answers everywhere else.
  * @returns true when it is on.

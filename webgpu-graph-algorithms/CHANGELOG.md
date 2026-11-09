@@ -1,3 +1,20 @@
+## 0.6.67 (2026-11-09)
+
+### 🚀 Features
+
+- **layout:** add a collision force to the force simulations ([#3256](https://github.com/graphty-org/graphty-monorepo/issues/3256))
+
+### 🩹 Fixes
+
+- **layout:** clamp an ARF tick only once the run proves unstable ([#3255](https://github.com/graphty-org/graphty-monorepo/issues/3255))
+- **layout:** stop force layouts throwing nodes away after a pin and leaving ARF nodes stuck ([#3255](https://github.com/graphty-org/graphty-monorepo/issues/3255))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.5.0
+- Updated algorithms to 3.4.20
+- Updated layout to 2.6.0
+
 ## 0.6.66 (2026-11-02)
 
 ### 🩹 Fixes

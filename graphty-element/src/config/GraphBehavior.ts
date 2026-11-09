@@ -278,6 +278,20 @@ export type GraphLayoutBehavior = z.infer<typeof GraphLayoutOpts>;
 /** How the element drives the layout, as a caller supplies it: every field optional. */
 export type GraphBehaviorConfig = z.input<typeof GraphBehaviorOpts>;
 
+const SelectionBehaviorOpts = z
+    .strictObject({
+        /*
+         * What Shift and a drag that starts on empty canvas does.
+         *
+         * "off" BY DEFAULT, so it pans or turns the camera as it always has. "rectangle" draws a
+         * rectangle from the press to the pointer, and "lasso" a free shape along the pointer's
+         * path; releasing adds every drawn node whose center is inside to the selection, as
+         * `select({ region: { polygon } }, "add")` would. A press on a node still drags the node.
+         */
+        region: z.enum(["off", "rectangle", "lasso"]).default("off"),
+    })
+    .prefault({});
+
 export const GraphBehaviorOpts = z.strictObject({
     // dimensions: z.int().min(2).max(3).default(3),
     layout: GraphLayoutOpts.prefault({}),
@@ -286,6 +300,7 @@ export const GraphBehaviorOpts = z.strictObject({
     rendering: RenderingBehaviorOpts,
     camera: CameraBehaviorOpts,
     expand: ExpandBehaviorOpts,
+    selection: SelectionBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

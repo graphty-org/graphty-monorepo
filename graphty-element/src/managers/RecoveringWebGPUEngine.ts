@@ -42,6 +42,14 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
             : Promise.resolve(this._device);
     }
 
+    /**
+     * The device drawn on now, or null while a loss waits for the new one.
+     * @returns The device, or null.
+     */
+    deviceNow(): GPUDevice | null {
+        return this.awaitingDevice || this.noDevice !== null ? null : this._device;
+    }
+
     /** Disposes the engine and refuses whoever waits for its device. */
     override dispose(): void {
         super.dispose();

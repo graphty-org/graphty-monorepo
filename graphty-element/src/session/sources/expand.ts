@@ -16,7 +16,7 @@ import { columnsMapping, sourceGraph, toRecords } from "../../data/graph-io-impo
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { SourceCollapseCommand, SourceExpandCommand } from "../commands/source-expand";
 import type { CodedFact, CodedFactParam } from "../shared";
-import { resolve as storedCredential } from "./credentialLookup";
+import { originOf as originOfEndpoint, resolve as storedCredential } from "./credentialLookup";
 import { notYetRun, toGraphtyError } from "./errors";
 import type { SourceHost } from "./host";
 import { isSourceFactKey, sourceFactKeys, sourceFactsOf, sourceLoadsOf } from "./ids";
@@ -113,7 +113,7 @@ export function factParams(details: unknown): Record<string, CodedFactParam> {
  * @returns the origin, or "" when there is none
  */
 function originOf(endpoint: string | null): string {
-    return endpoint === null ? "" : new URL(endpoint).origin;
+    return endpoint === null ? "" : originOfEndpoint(endpoint);
 }
 
 /**
@@ -232,7 +232,8 @@ async function expandGroup(
     // A capped expansion of one node continues from where it stopped.
     const facts = seeds.length === 1 ? sourceFactsOf(host.node(seeds[0])) : {};
     const cursor = facts.expansion === "partial" ? (facts.next as SourceCursor | null | undefined) : undefined;
-    const credential = options.credential ?? (await storedCredential(host.owner, load.source, originOf(load.endpoint)));
+    const credential =
+        options.credential ?? (await storedCredential(host.owner, load.source, originOf(load.endpoint), load.config));
 
     let fetched: ImportGraphResult;
     try {

@@ -1479,8 +1479,9 @@ export class Autosaver {
             await turn.wait();
             this.#restoreTurn = turn;
             this.#restoringFlag = true;
+            // The reader's own work coming back: a network load they ran stays live.
             report = await line.within(turn, () =>
-                this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } }),
+                this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
             );
         } catch (error) {
             this.#restoringFlag = false;

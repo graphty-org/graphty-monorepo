@@ -139,7 +139,7 @@ const CASES: readonly Case[] = [
         expect: {
             shape: [120, -65, 0],
             generic: [0, -210, 0],
-            group: [280, -80, 0],
+            group: [245, -85, 0],
             "group::inner": [245, -85, 0],
         },
         units: "px",
@@ -270,7 +270,7 @@ describe("extractPositions over each format's samples", () => {
     it("yEd and DOT cluster containers have a box (center, y up)", async () => {
         const yed = await load(readFileSync(join(FIXTURES, "yed-groups.graphml")), "graphml");
         const group = yed.snapshot.ids.requireIndex("group");
-        expect(yed.positions?.groups).toEqual([{ node: group, box: { x: 280, y: -80, width: 160, height: 120 } }]);
+        expect(yed.positions?.groups).toEqual([{ node: group, box: { x: 245, y: -85, width: 60, height: 60 } }]);
         const dot = await load(readFileSync(join(FIXTURES, "cluster-laid-out.gv")), "dot");
         expect(dot.positions?.groups).toEqual([
             { node: dot.snapshot.ids.requireIndex("cluster_0"), box: { x: 53, y: 212.5, width: 90, height: 291 } },

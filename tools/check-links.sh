@@ -17,6 +17,10 @@
 #                                         every link inside that site's HTML (VitePress sidebars
 #                                         and nav, which VitePress itself does not check), and
 #                                         every Storybook deep link's story id
+#   tools/check-links.sh --install        only make sure lychee is ready (below) and exit. CI runs
+#                                         it inside .github/actions/lychee, which caches the release
+#                                         tarball across runs, so a GitHub release-download outage does
+#                                         not fail the link check (#6308)
 #   tools/check-links.sh --external <report.md>
 #                                         every link in those files, external ones included, over
 #                                         the network; writes a Markdown report of the dead ones.
@@ -35,11 +39,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 OFFLINE=0
+INSTALL_ONLY=0
 SITE=""
 REPORT=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --offline) OFFLINE=1 ;;
+        --install) INSTALL_ONLY=1 ;;
         --site) SITE="$(cd "${2:?--site needs a directory}" && pwd)" || exit 2; shift ;;
         --external) REPORT="${2:?--external needs a report path}"; shift ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -47,7 +53,10 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-# lychee: the one on PATH, else a pinned static release cached under node_modules/.cache
+# lychee: the one on PATH, else a pinned static release cached under node_modules/.cache. The
+# tarball is kept beside the binary and its sha256 is checked before every extraction, so a tarball
+# restored from CI's cache (.github/actions/lychee, keyed on this version and sha256) is verified
+# exactly like a fresh download, and a run downloads only when nothing is cached.
 LYCHEE_VERSION=0.24.2
 LYCHEE_SHA256=73657a111819a30c47c08352896796f23d64e4eb2b3ed39b6d32149241566fc5
 LYCHEE="$(command -v lychee || true)"
@@ -61,12 +70,18 @@ if [ -z "$LYCHEE" ]; then
         fi
         mkdir -p "$CACHE"
         TARBALL="$CACHE/lychee.tar.gz"
-        curl -sSfL -o "$TARBALL" \
-            "https://github.com/lycheeverse/lychee/releases/download/lychee-v$LYCHEE_VERSION/lychee-x86_64-unknown-linux-musl.tar.gz" || exit 2
+        if [ ! -f "$TARBALL" ]; then
+            curl -sSfL --retry 4 --retry-delay 5 --retry-all-errors --connect-timeout 20 -o "$TARBALL" \
+                "https://github.com/lycheeverse/lychee/releases/download/lychee-v$LYCHEE_VERSION/lychee-x86_64-unknown-linux-musl.tar.gz" \
+                || { rm -f "$TARBALL"; exit 2; }
+        fi
         echo "$LYCHEE_SHA256  $TARBALL" | sha256sum -c --quiet - || { rm -f "$TARBALL"; exit 2; }
         tar -xzf "$TARBALL" -C "$CACHE" --strip-components=1 lychee-x86_64-unknown-linux-musl/lychee || exit 2
-        rm -f "$TARBALL"
     fi
+fi
+if [ "$INSTALL_ONLY" = 1 ]; then
+    "$LYCHEE" --version || exit 2
+    exit 0
 fi
 
 # Inputs: every tracked Markdown, MDX and HTML file and package.json (homepage, repository, bugs),

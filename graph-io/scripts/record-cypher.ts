@@ -1,9 +1,9 @@
 /**
- * Live check of the Cypher source against the public services of design section 12.5, never run
- * in CI: loads the Neo4j demo `movies` database over the Query API and Metformin's neighborhood
- * from Hetionet over Bolt, and fails when either differs from what the samples say.
+ * Records the Neo4j demo server's answers the Cypher source tests replay (paging, a user query, a
+ * neighborhood, a syntax error, a probe), checking each against the live server; never run in CI.
+ * Loading every example whole is scripts/live-examples.ts's job.
  *
- * Usage: `GRAPH_IO_LIVE=1 pnpm exec tsx scripts/live-cypher.ts [--record <dir>]`. With `--record`,
+ * Usage: `GRAPH_IO_LIVE=1 pnpm exec tsx scripts/record-cypher.ts [--record <dir>]`. With `--record`,
  * every Query API exchange is written to `<dir>/<name>.json` as replayFetch recordings: request
  * headers are never kept, so the published demo login is not either.
  */
@@ -22,7 +22,6 @@ import {
 } from "../src/index.js";
 
 const DEMO = "https://demo.neo4jlabs.com:7473";
-const HETIONET = "bolt+s://neo4j.het.io:7687";
 
 if (process.env.GRAPH_IO_LIVE !== "1") {
     process.stdout.write("set GRAPH_IO_LIVE=1 to call the live services\n");
@@ -75,20 +74,6 @@ function check(ok: boolean, what: string): void {
 }
 
 const login = (): ReturnType<typeof credentials.basic> => credentials.basic("movies", "movies");
-
-// 1. movies, whole, over the Query API
-{
-    const { snapshot, report } = await loadFromSource(
-        "neo4j",
-        { database: "movies", mode: "all" },
-        { endpoint: DEMO, credential: login() },
-    );
-    check(
-        snapshot.nodeCount === 171 && snapshot.edgeCount === 253,
-        `movies: ${snapshot.nodeCount} nodes / ${snapshot.edgeCount} edges`,
-    );
-    check(report.source?.next === null, "movies: complete in one load");
-}
 
 // 2. movies in pages of 100, for the cursor test
 {
@@ -162,21 +147,4 @@ const login = (): ReturnType<typeof credentials.basic> => credentials.basic("mov
         `probe: ${JSON.stringify(probe.server)}`,
     );
     save("movies-queries", r.recordings);
-}
-
-// 4. Metformin's neighborhood from Hetionet (Neo4j 3.5) over Bolt
-{
-    const { snapshot, report } = await loadFromSource(
-        "neo4j",
-        { mode: "neighborhood", idProperty: "name", ids: ["Metformin"], depth: 1 },
-        { endpoint: HETIONET },
-    );
-    check(
-        snapshot.nodeCount === 230 && snapshot.edgeCount === 229,
-        `Metformin: ${snapshot.nodeCount} nodes / ${snapshot.edgeCount} edges`,
-    );
-    check(
-        report.source?.server?.version?.startsWith("3.5") === true,
-        `Hetionet: ${JSON.stringify(report.source?.server)}`,
-    );
 }

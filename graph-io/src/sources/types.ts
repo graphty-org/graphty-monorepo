@@ -339,11 +339,12 @@ export interface SourceParamDescriptor {
 }
 
 /**
- * A public example a source offers. Experimental.
+ * A public server and the params that load a known graph from it: a dependable example of what a
+ * source reads, shipped as catalog data. Not a graph-samples dataset. Experimental.
  * @category Network sources
  */
-export interface SourceSample {
-    /** Its id ("neo4j-movies"). */
+export interface SourceExample {
+    /** Its id, unique within its source ("neo4j-movies"). */
     readonly id: string;
     /** Its default name; catalog data. */
     readonly plainName: string;
@@ -369,11 +370,11 @@ export interface SourceSample {
               readonly edges?: number | undefined;
           }
         | undefined;
-    /** false: too big to load whole; start from a neighborhood. */
+    /** false: too big to load whole; its params start from a neighborhood or it has `firstPage`. */
     readonly whole?: boolean | undefined;
     /**
-     * A node cap for loading the sample when the caller gives none, for a sample too big to load
-     * whole that pages: the load stops at the first page past it, and its cursor reads on.
+     * A node cap for loading the example when the caller gives none, for an example too big to
+     * load whole that pages: the load stops at the first page past it, and its cursor reads on.
      */
     readonly firstPage?: number | undefined;
 }
@@ -496,8 +497,8 @@ export interface SourceDescriptor {
      */
     readonly migrateParams?:
         ((params: Record<string, unknown>, fromVersion: number) => Record<string, unknown>) | undefined;
-    /** Public examples to offer. */
-    readonly samples?: readonly SourceSample[] | undefined;
+    /** Public servers and params that load a known graph, to offer as examples. */
+    readonly examples?: readonly SourceExample[] | undefined;
 }
 
 /**

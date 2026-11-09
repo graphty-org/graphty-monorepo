@@ -71,8 +71,24 @@ describe("DOT styles: labels", () => {
 });
 
 describe("DOT styles: what Graphviz draws nothing of", () => {
-    it("hides a node styled invisible, Graphviz's other spelling of invis", async () => {
-        expect((await nodes(`digraph { a [style=invisible] }`, "visible")).a).toBe(false);
+    it("draws nothing of an invis node but keeps it, as Graphviz still draws the edges that end at it", async () => {
+        // dot-real-linux-kernel's HI -> HI_ ends at a `shape=point, style=invis` node, and dot-synth-nodes'
+        // n_lingrad2 -> n_invis at the invisible ellipse's rim: both edges are in Graphviz's SVG, the nodes are not
+        const doc = `digraph { a [style=invis, label="a"]; b [style="filled,invisible", shape=point]; c -> a; c -> b }`;
+        for (const id of ["a", "b"]) {
+            expect((await nodes(doc, "visible"))[id] ?? true).toBe(true);
+            expect((await nodes(doc, "fillOpacity"))[id]).toBe(0);
+            expect((await nodes(doc, "borderWidth"))[id]).toBe(0);
+            expect((await nodes(doc, "label"))[id]).toBe("");
+        }
+        // its shape and size stay, so an edge stops at its rim as Graphviz's does
+        expect((await nodes(doc, "shape")).a).toBe("ellipse");
+        expect((await nodes(doc, "width")).a).toBe(54);
+        expect(await edges(doc, "visible")).toEqual([null, null]);
+    });
+
+    it("hides an edge styled invis", async () => {
+        expect(await edges(`digraph { a -> b [style=invis] }`, "visible")).toEqual([false]);
     });
 
     it("hides a plain node with an empty label, filled or not", async () => {

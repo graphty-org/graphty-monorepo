@@ -64,6 +64,7 @@ import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from
 import { ModelCache, type ModelTemplate, type ModelUser, noteModelDrawn } from "./models/ModelCache";
 import { noteImageDrawn, publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, NodeDragHandler, nodePointerRosterOf } from "./NodeBehavior";
+import { edgeDrawChanges } from "./render/EdgeIdTarget";
 import { rowScanOf } from "./render/PickService";
 import type { RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
@@ -430,6 +431,8 @@ export class Node implements ModelUser {
 
     private set index(row: number) {
         this.row = row;
+        // the edge ID target draws each line from its nodes' rows
+        edgeDrawChanges.count++;
     }
 
     /**
@@ -641,6 +644,8 @@ export class Node implements ModelUser {
     /** The filled shapes drawn beneath (`underlay`) and over (`overlay`) the node, children of its mesh, or null. */
     private underlay: AbstractMesh | null = null;
     private overlay: AbstractMesh | null = null;
+    /** The layers of the shadow drawn beneath the node (`shadow`), outermost first, children of its mesh. */
+    private shadow: AbstractMesh[] = [];
 
     /** What is drawn over the node's face (`pie`, `stripes`, `image`), children of its mesh like its border. */
     private decorations: AbstractMesh[] = [];
@@ -952,6 +957,22 @@ export class Node implements ModelUser {
     }
 
     /**
+     * How wide a node's border is drawn, in the scene: its width, except that an inside border is drawn narrower on a
+     * small node.
+     * @param style - The resolved style.
+     * @param border - The border drawn (a screen-pixel border already in scene units).
+     * @param perSize - The shape's extent per unit of size.
+     * @returns The width.
+     */
+    private drawnBorderWidth(style: NodeStyleConfig, border: NodeStyleConfig["border"], perSize: number): number {
+        if ((border?.position ?? "outside") === "outside") {
+            return (border?.width ?? 0) * perSize;
+        }
+        const extents = NodeMesh.extentsOf(style.shape ?? {}, Math.max(style.shape?.size ?? this.size, 1e-3));
+        return NodeMesh.borderFit(style.shape, border, extents).ring;
+    }
+
+    /**
      * Build this node's border from its style, as a child of its mesh so it moves, hides and is
      * disposed with the node. Called after every new mesh: the old border went with the old mesh.
      * @param meshKey - The source mesh key the node is drawn under.
@@ -976,15 +997,7 @@ export class Node implements ModelUser {
         }
 
         this.borderBuilt = { meshKey, style, scale };
-        this.borderWidth =
-            (border?.position ?? "outside") === "outside"
-                ? (border?.width ?? 0) * perSize
-                : // only an inside border is ever drawn narrower than its width, and only on a small node
-                  NodeMesh.borderFit(
-                      style.shape,
-                      border,
-                      NodeMesh.extentsOf(style.shape ?? {}, Math.max(style.shape?.size ?? this.size, 1e-3)),
-                  ).ring;
+        this.borderWidth = this.drawnBorderWidth(style, border, perSize);
         this.border = NodeMesh.createBorder(
             this.context.getMeshCache(),
             { styleId: key, is2D: this.context.is2D(), size: this.size },
@@ -1036,6 +1049,24 @@ export class Node implements ModelUser {
             }
 
             this[kind] = halo;
+        }
+
+        for (const layer of this.shadow) {
+            if (!layer.isDisposed()) {
+                layer.dispose();
+            }
+        }
+        this.shadow = NodeMesh.createShadow(
+            this.context.getMeshCache(),
+            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            style.shape,
+            style.shadow,
+            this.#anchor as AbstractMesh,
+            this.context.getScene(),
+        );
+        for (const layer of this.shadow) {
+            layer.parent = this.#anchor;
+            layer.position.setAll(0);
         }
     }
 
@@ -1353,6 +1384,10 @@ export class Node implements ModelUser {
         this.underlay = null;
         this.overlay?.dispose();
         this.overlay = null;
+        for (const layer of this.shadow) {
+            layer.dispose();
+        }
+        this.shadow = [];
 
         this.label?.reattach();
         this.xlabelLabel?.reattach();
@@ -3186,8 +3221,15 @@ export class Node implements ModelUser {
         // painted over the whole node instead of around it. The halo's OWN look: a layer's
         // halo is drawn even while the selection's own halo is hidden at opacity 0.
         if (!wanted || (kind === "halo" && look.opacity === 0)) {
+            // Only a drawn overlay makes the node walk each frame (`walksEachFrame`), so hiding one
+            // that is not drawn changes nothing the batch needs to hear: a time window that hides
+            // 40,000 plain nodes asked it 80,000 times (issue #6025).
+            const drawn = existing?.isEnabled() === true;
             this.hideOverlay(kind, existing);
-            this.context.getNodeBatches?.()?.rewalk(this);
+            if (drawn) {
+                this.context.getNodeBatches?.()?.rewalk(this);
+            }
+
             return;
         }
 
@@ -3372,6 +3414,16 @@ export class Node implements ModelUser {
      */
     get isDrawnAsGroup(): boolean {
         return this.drawnAsGroup;
+    }
+
+    /**
+     * Whether the node is drawn behind every edge, so it hides no stretch of a line that ends on it: a group region,
+     * or in a 2D view a node below z-index 0 (a group from a file drawn behind its members, `node.zIndex`). A line
+     * ends at such a node's outline, as yEd and Cytoscape.js end one at a compound node's border.
+     * @returns True while it is drawn so.
+     */
+    get isDrawnBehindEdges(): boolean {
+        return this.drawnAsGroup || (this.context.is2D() && (this.drawnStyle?.shape?.zIndex ?? 0) < 0);
     }
 
     /**
@@ -4028,7 +4080,11 @@ export class Node implements ModelUser {
      * been hovered is a texture per node, which is the cost the hover-only rule exists to avoid.
      */
     hideTooltip(): void {
-        this.tooltip?.dispose();
+        if (this.tooltip === undefined) {
+            return;
+        }
+
+        this.tooltip.dispose();
         this.tooltip = undefined;
         this.context.getNodeBatches?.()?.rewalk(this);
     }

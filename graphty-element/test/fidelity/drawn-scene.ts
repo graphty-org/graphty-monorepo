@@ -237,6 +237,9 @@ interface NodeInternals {
     drawnStyle: NodeStyleConfig | null;
     decorationPieces: readonly NodeDecorationPiece[];
     tableTexts: readonly unknown[] | null;
+    shadow: readonly AbstractMesh[];
+    underlay: AbstractMesh | null;
+    overlay: AbstractMesh | null;
 }
 
 /** A piece a node draws over its face, on screen: a body piece with its fill. */
@@ -452,6 +455,17 @@ function materialColor(material: Material | null): { rgb: Color3; alpha: number;
         return v ? { rgb: new Color3(v.x, v.y, v.z), alpha: material.alpha * opacity, texture: false } : null;
     }
     return null;
+}
+
+/**
+ * The color and opacity a line batch draws one slot in, for a batch that keeps them per slot.
+ * @param batch - the batch
+ * @param slot - the slot
+ * @returns its color and opacity as {@link materialColor} reads a material's, or null when the material holds them
+ */
+function slotColor(batch: EdgeLineBatch, slot: number): { rgb: Color3; alpha: number; texture: boolean } | null {
+    const rgba = batch.colorOf(slot);
+    return rgba === null ? null : { rgb: new Color3(rgba[0], rgba[1], rgba[2]), alpha: rgba[3], texture: false };
 }
 
 const runsText = (runs: readonly (readonly TextSegment[])[]): string =>
@@ -749,6 +763,10 @@ export interface DrawnNode {
     figure?: [Xy, Xy][];
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox; fill?: string }[];
+    /** The shadow drawn beneath the node (`shadow`), out to the edge of its soft edge, its screen box; absent for none. */
+    shadow?: ScreenBox;
+    /** The filled shapes drawn beneath and over the node (`underlay`, `overlay`), each its screen box and color. */
+    halos?: { box: ScreenBox; fill: string }[];
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
     picture?: ScreenBox;
     /** A picture graph-io drew for what a program draws piece by piece over a node: its box and its URL. */
@@ -1252,6 +1270,63 @@ function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx
 }
 
 /**
+ * The screen box of the shadow drawn beneath a node: its outermost layer, out to where its soft edge ends.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the box, or null for a node that draws no shadow
+ */
+function readShadow(node: Node, p: Projector): ScreenBox | null {
+    const [outer] = (node as unknown as NodeInternals).shadow;
+    return outer === undefined ? null : meshBox(outer, p);
+}
+
+/**
+ * The filled shapes drawn beneath (`underlay`) and over (`overlay`) a node, each its screen box and color: shapes of
+ * their own round the node, as Cytoscape.js draws them.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the shapes, none for a node that draws neither
+ */
+function readHalos(node: Node, p: Projector): { box: ScreenBox; fill: string }[] {
+    const { underlay, overlay } = node as unknown as NodeInternals;
+    return [underlay, overlay].flatMap((mesh) => {
+        const box = mesh === null ? null : meshBox(mesh, p);
+        const material = mesh instanceof InstancedMesh ? mesh.sourceMesh.material : null;
+        return box === null || !(material instanceof StandardMaterial)
+            ? []
+            : [{ box, fill: hex(material.emissiveColor) }];
+    });
+}
+
+/**
+ * The screen box of a flat mesh drawn beside a node, from its world bounds in the plane.
+ * @param mesh - the mesh
+ * @param p - the projector
+ * @returns the box, or null for a mesh not drawn
+ */
+function meshBox(mesh: AbstractMesh, p: Projector): ScreenBox | null {
+    if (mesh.isDisposed() || !mesh.isEnabled()) {
+        return null;
+    }
+    mesh.computeWorldMatrix(true);
+    const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+    const corners = [
+        p.point(new Vector3(min.x, min.y, min.z)),
+        p.point(new Vector3(max.x, min.y, min.z)),
+        p.point(new Vector3(min.x, max.y, min.z)),
+        p.point(new Vector3(max.x, max.y, min.z)),
+    ];
+    return {
+        x0: Math.min(...corners.map((c) => c.x)),
+        x1: Math.max(...corners.map((c) => c.x)),
+        y0: Math.min(...corners.map((c) => c.y)),
+        y1: Math.max(...corners.map((c) => c.y)),
+        near: Math.min(...corners.map((c) => c.depth)),
+        far: Math.max(...corners.map((c) => c.depth)),
+    };
+}
+
+/**
  * How far a node's border position drew its fill in from its size, in screen pixels, whether or not the border
  * itself is shown (`NodeMesh.borderFit`): nothing for a border outside the size, half the ring for one centered on
  * it, the ring for one inside it, half the ring for one inside it at opacity 0.
@@ -1400,6 +1475,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     const offCenter = body.length > 0 || drawnStyle?.shape?.stretchPoints === false;
     const placedBy = picture?.box ?? (offCenter ? drawnBox : null);
     const figure = faces ? readFigure(mesh, p) : undefined;
+    const shadow = readShadow(node, p);
     return {
         x: placedBy === null ? center.x : (placedBy.x0 + placedBy.x1) / 2,
         y: placedBy === null ? center.y : (placedBy.y0 + placedBy.y1) / 2,
@@ -1433,6 +1509,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
             ? { svgPicture: { box: imagePiece.box, src: imageSrc } }
             : {}),
         ...(figure === undefined ? {} : { figure }),
+        ...(shadow === null ? {} : { shadow }),
+        halos: readHalos(node, p),
         ...(inner === null || inner.outline || own !== null || outer !== null ? {} : { faceLine: inner.box }),
         pieces: pieces
             .filter((piece) => piece !== picture && piece.kind !== "body")
@@ -1671,7 +1749,8 @@ function readBand(batch: EdgeLineBatch | null, slots: readonly number[], p: Proj
     }
     const [a, b] = batch.endsOf(slots[0]);
     const mid = a.add(b).scale(0.5);
-    const m = materialColor(batch.mesh.material);
+    const own = slotColor(batch, slots[0]);
+    const m = own ?? materialColor(batch.mesh.material);
     const meta = batch.mesh.metadata as {
         lineOpacity?: number;
         joinedLine?: boolean;
@@ -1684,7 +1763,7 @@ function readBand(batch: EdgeLineBatch | null, slots: readonly number[], p: Proj
         ? null
         : {
               color: hex(m.rgb),
-              opacity: (meta?.lineOpacity ?? m.alpha) * visibility,
+              opacity: (own?.alpha ?? meta?.lineOpacity ?? m.alpha) * visibility,
               width: lineThickness(batch.mesh, mid, p),
               ...(pattern === undefined ? {} : { pattern }),
           };
@@ -1724,7 +1803,9 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
         thicknessPx = lineThickness(batch.mesh, mid, p);
         screenFloored = thicknessPx > 0 && thicknessPx <= screenFloorOf(batch.mesh);
-        const m = materialColor(batch.mesh.material);
+        // a batch keyed by shape draws each slot in its own color and opacity
+        const own = slots.length > 0 ? slotColor(batch, slots[0]) : null;
+        const m = own ?? materialColor(batch.mesh.material);
         color = m ? hex(m.rgb) : null;
         // A flat line's style opacity, not its material's alpha: a sub-pixel line is drawn one pixel
         // wide with its alpha scaled by its width, the same ink as its own width at full opacity.
@@ -1736,7 +1817,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         // a dashed or dotted line through bends or round a loop is a joined line that draws its own pattern
         pattern = meta?.pattern?.kind ?? null;
         dashPx = joinedDashes(batch, slots, meta?.pattern, mid, p);
-        const styled = meta?.lineOpacity;
+        const styled = own?.alpha ?? meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
         const visibility = meta?.joinedLine === true ? 1 : batch.mesh.visibility;
@@ -1927,7 +2008,14 @@ export function readDrawn(graph: Graph): DrawnGraph {
         edges.set(id, readEdge(edge, p));
     }
     // what a node draws over its face is drawn beside the node's own shape, as a file annotation is
-    const pieces = [...nodes.values()].flatMap((n) => (n.shown ? n.pieces : []));
+    // and so is the shadow it draws beneath itself, a picture of its own as a program's soft shadow is
+    const shown = [...nodes.values()].filter((n) => n.shown);
+    const pieces = [
+        ...shown.flatMap((n) => n.pieces),
+        ...shown.flatMap((n) => (n.shadow === undefined ? [] : [{ kind: "image" as const, box: n.shadow }])),
+        // and so are the shapes it draws beneath and over itself (Cytoscape.js's underlay and overlay)
+        ...shown.flatMap((n) => (n.halos ?? []).map((h) => ({ kind: "shape" as const, ...h }))),
+    ];
     return {
         nodes,
         edges,

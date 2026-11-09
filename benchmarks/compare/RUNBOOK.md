@@ -107,6 +107,11 @@ in 3D. Under `batched` it also fails if any edge is an object edge. Run it once 
 
     BENCH_DEADLINE_S=190 ./matrix.sh lean-s-curves 3
 
+The frame floor, where a frame measures the loop's pacing rather than drawing, is `lean-10-few` (10 nodes, 10
+edges) beside `lean-s-few` and `lean-m-few`:
+
+    BENCH_DEADLINE_S=190 ./matrix.sh lean-10-few 3
+
 `./matrix.sh list` prints every key. To see why a browser died, run the configuration once with
 `DEBUG=pw:browser` and without the `grep` of `matrix.sh`:
 
@@ -127,7 +132,7 @@ Then call `servherd_stop` with the name `cosmos-bench-<LABEL>`.
 ## What a row holds
 
 `results.jsonl` has one line per run: `sha`, `source`, `dirty`, `renderPath` (absent when unset), `renderer`, `flags`, `loadavgBefore`, `loadavgAfter` (the one-minute load average as the row was written), `floor` (the
-cost of the measurement itself), `load`, `canvas`, `still`, `orbit` (the moving frame), `drag` (a frame with one node moved, null for cosmos.gl), `memory`, `hover`,
+cost of the measurement itself), `load`, `canvas`, `still`, `gpuFrame` (the GPU time of 60 still frames from `EXT_disjoint_timer_query_webgl2`, null without the extension and for cosmos.gl; a serial still frame below it means the stamps ran early), `orbit` (the moving frame), `drag` (a frame with one node moved, null for cosmos.gl), `memory`, `hover`,
 `layoutFps`, `layoutSteps` (on the accelerated path also `publish`, one `publishPositions()`, `stepUndrawn`, the step with the frame loop stopped, and `repackUpload`, one row table repack and upload finished on the card, with `rowsCopied`, the fewest rows a timed flush really changed, which should be close to `rows`), and `failure` when it ended early. The order of the stages is fixed: still, moving, drag,
 memory, hover, layout. Hover comes before the layout so both libraries hover the same scene.
 

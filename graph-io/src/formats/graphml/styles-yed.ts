@@ -131,6 +131,18 @@ export function treeAttr(node: unknown, name: string): string | undefined {
 }
 
 /**
+ * A yEd label's words as yEd lays them out: under `xml:space="preserve"` (which yEd writes on every label) a leading
+ * line break is a blank first line, and the label's stored box counts it (`graphml-stm32-func`: "\nCS" stored two
+ * lines tall), while a trailing one adds no line; any other label is trimmed.
+ * @param label - the `y:NodeLabel` or `y:EdgeLabel`
+ * @returns the words
+ */
+function labelWords(label: unknown): string {
+    const text = treeText(label) ?? "";
+    return treeAttr(label, "xml:space") === "preserve" ? text.trimEnd() : text.trim();
+}
+
+/**
  * The text of an element: the element itself when it has neither attributes nor children, else its `#text`.
  * @param node - the tree node
  * @returns the text, or null
@@ -939,7 +951,7 @@ function readLabels(
         }
         if (label === undefined) {
             label = l;
-            text = treeText(l)?.trim() ?? "";
+            text = labelWords(l);
         } else {
             extra++;
         }
@@ -2539,7 +2551,7 @@ function readEdgeLabelPlace(real: Realizer, nodes: Float64Array, source: number,
             distance: Number(treeAttr(label, "distance") ?? 2) || 0,
             width: Number(treeAttr(label, "width")) || 0,
             fontSize: Number(treeAttr(label, "fontSize") ?? 12) || 12,
-            lines: (treeText(label)?.trim() ?? "").split("\n").length,
+            lines: labelWords(label).split("\n").length,
         },
         put,
     );
@@ -2620,7 +2632,7 @@ function graphmlGroupFrame(tree: unknown): YedGroupFrame | null {
             0,
             ...shown
                 .filter((l) => positions.includes(treeAttr(l, "modelPosition") ?? "c"))
-                .map((l) => yedLabelHeight(treeText(l)?.trim() ?? "", Number(treeAttr(l, "fontSize") ?? 12) || 12)),
+                .map((l) => yedLabelHeight(labelWords(l), Number(treeAttr(l, "fontSize") ?? 12) || 12)),
         );
     return {
         insets: [inset("top"), inset("left"), inset("bottom"), inset("right")],

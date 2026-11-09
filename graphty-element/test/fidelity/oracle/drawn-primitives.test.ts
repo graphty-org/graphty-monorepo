@@ -7,9 +7,9 @@
 import { assert, describe, it } from "vitest";
 
 import type { Scene, SceneEdge } from "../../../../graph-io/test/fidelity/scene";
-import type { DrawnBorder, DrawnEdge, DrawnGraph, DrawnNode } from "../drawn-scene";
+import type { DrawnBorder, DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
 import { rampColor, withoutCaptions } from "./compare-oracle";
-import { drawnPrimitives } from "./drawn-primitives";
+import { drawnPrimitives, inkedLines } from "./drawn-primitives";
 import type { Pt } from "./primitives";
 
 type Cap = DrawnEdge["caps"][number];
@@ -77,6 +77,21 @@ function graphOf(
 type PScene = ReturnType<typeof drawnPrimitives>;
 
 describe("graphty's drawing in the oracle comparison's model", () => {
+    it("reads a label's words where its inked lines are, not over a blank line before them", () => {
+        // yEd's "\nCS" (graphml-stm32-func n30, n36): two lines, the words on the second, as the SVG's text box holds
+        const box = { x0: 0, y0: 0, x1: 10, y1: 20 };
+        // the scene counts only the inked lines; its text holds every drawn line
+        const label = (text: string, rotation: number): DrawnLabel => ({ text, rotation, lineCount: 1 }) as DrawnLabel;
+        assert.deepEqual(inkedLines(label("\nCS", 0), box), { x0: 0, y0: 10, x1: 10, y1: 20 });
+        assert.deepEqual(inkedLines(label("CS\n", 180), box), { x0: 0, y0: 10, x1: 10, y1: 20 });
+        // turned a quarter clockwise, the lines step leftward; three quarters, rightward
+        assert.deepEqual(inkedLines(label("\nCS", 90), box), { x0: 0, y0: 0, x1: 5, y1: 20 });
+        assert.deepEqual(inkedLines(label("\nCS", 270), box), { x0: 5, y0: 0, x1: 10, y1: 20 });
+        // every line inked, or another angle: as it is
+        assert.deepEqual(inkedLines(label("A\nB", 0), box), box);
+        assert.deepEqual(inkedLines(label("\nCS", 30), box), box);
+    });
+
     it("counts no arrowhead for a cap drawn at no opacity or no size", () => {
         assert.lengthOf(graphOf([cap({ opacity: 0 })]).edges[0].arrows, 0);
         assert.lengthOf(graphOf([cap({ sizePx: 0 })]).edges[0].arrows, 0);

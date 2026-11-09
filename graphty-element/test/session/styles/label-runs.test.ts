@@ -81,6 +81,26 @@ describe("a label drawn in runs", () => {
         assert.deepEqual(heights("a\n<nudge='-50%'>b</nudge>"), { totalHeight: 20, over: { top: 0, bottom: 0 } });
     });
 
+    it("gives a blank line the height of a line of the label's font", () => {
+        // yEd's "\nCS" (graphml-stm32-func) is two lines tall, the words on the second
+        const ctx = {
+            font: "",
+            textBaseline: "alphabetic",
+            measureText(this: { font: string }, text: string) {
+                const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 0);
+                return { width: text.length, fontBoundingBoxAscent: 0.8 * size, fontBoundingBoxDescent: 0.2 * size };
+            },
+        } as unknown as CanvasRenderingContext2D;
+        const parser = new RichTextParser({ size: 10, weight: "normal", style: "normal", font: "x" } as RichTextStyle);
+        const options = { lineHeight: 1, textOutline: false, textOutlineWidth: 0 };
+        const height = (text: string, plainText = false): number =>
+            parser.measureText(parser.parse(text, plainText), ctx, options).totalHeight;
+        assert.deepEqual(
+            [height("\nb"), height("a\n\nb"), height("\nb", true), height("b"), height("")],
+            [20, 30, 20, 10, 0],
+        );
+    });
+
     it("sets runs of different sizes on one line where the label's run alignment says", () => {
         // a context whose fonts are as tall as their size: ascent 0.8, descent 0.2, hanging baseline 0.6 of it
         const ctx = {

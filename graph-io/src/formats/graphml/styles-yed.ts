@@ -3061,7 +3061,13 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
             if (target === "node") {
                 const box = groups.get(i);
                 real = box === undefined ? real : realizerAt(real, box);
-                readNode(real, box !== undefined && nestedRows.has(i) ? nestedGroupPut(put) : put, at, resources, icons);
+                readNode(
+                    real,
+                    box !== undefined && nestedRows.has(i) ? nestedGroupPut(put) : put,
+                    at,
+                    resources,
+                    icons,
+                );
                 if (boxOutline(real)) {
                     boxOutlined.add(i);
                 }

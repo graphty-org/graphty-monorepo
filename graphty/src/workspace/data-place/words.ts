@@ -13,6 +13,7 @@ import type {
     Endpoint,
     GraphSession,
     ImportReport,
+    JoinShape,
     LeftOutEdge,
     LoadedSource,
     LocationKind,
@@ -23,6 +24,7 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { formatNumber, valueText } from "../inspector/words";
+import { kindName } from "../server/words";
 import { formatCount } from "../settings/numberFormat";
 
 /** What a Sources row's glyph shows: a graph file holding both tables, one table, or the rows a load left out. */
@@ -152,17 +154,6 @@ export function leftOutRow(edge: LeftOutEdge, ends?: NonNullable<LoadedSource["l
 }
 
 /**
- * The index into `data.sources()` that a Sources row id names.
- * @param id - `source:<load>` or `source:<load>:<table>`.
- * @returns the index, or undefined for an id that is not a source row's.
- */
-export function loadIndexOf(id: string): number | undefined {
-    const [head, index] = id.split(":");
-    const at = Number(index);
-    return head === "source" && Number.isInteger(at) && at >= 0 ? at : undefined;
-}
-
-/**
  * The glyph of a load that read one table: a graph file when it brought both nodes and edges.
  * @param added - `LoadedSource.added`.
  * @returns the kind.
@@ -218,23 +209,6 @@ export function sourceRows(sources: readonly LoadedSource[], report: ImportRepor
             ...(leftOut.length === 0 ? {} : { children: leftOut }),
         };
     });
-}
-
-/**
- * One Sources row by its id, a load's or a child's.
- * @param sources - `data.sources()`.
- * @param report - `data.lastImport()`.
- * @param id - the row's id.
- * @returns the row, or undefined when it is gone.
- */
-export function sourceRowOf(
-    sources: readonly LoadedSource[],
-    report: ImportReport | null,
-    id: string,
-): SourceRow | undefined {
-    return sourceRows(sources, report)
-        .flatMap((row) => [row, ...(row.children ?? [])])
-        .find((row) => row.id === id);
 }
 
 /**
@@ -450,6 +424,156 @@ export function sourceName(source: LoadedSource): string {
 }
 
 /**
+ * What kind of source a load is, for its details: the catalog's name for a network source.
+ * @param source - the load.
+ * @returns such as "File" or "SPARQL endpoint".
+ */
+export function sourceKindWord(source: LoadedSource): string {
+    const id = source.type?.replace(/^source:/, "");
+    const entry = source.kind === "server" ? sourceDescriptors().find((each) => each.id === id) : undefined;
+    return entry === undefined ? KIND_NAMES[source.kind] : kindName(entry);
+}
+
+/**
+ * The key of the load an inspected Sources row names.
+ * @param id - `source:<key>`.
+ * @returns the key.
+ */
+export function sourceKeyOf(id: string): string {
+    return id.slice("source:".length);
+}
+
+/** One row of a load's details. */
+export interface SourceFact {
+    readonly name: string;
+    readonly value: string | number;
+}
+
+/** What a joined table's rows were read as, in words. */
+const JOIN_SHAPE_WORDS: Readonly<Record<JoinShape, string>> = {
+    "node-values": "Values on nodes",
+    "edge-values": "Values on edges",
+    edges: "Edges",
+    rows: "Added rows",
+    replace: "Replaced data",
+};
+
+/**
+ * What `JoinRecord.matched` counts, by the join's shape.
+ * @param shape - the join's shape.
+ * @returns "node", "edge" or "row".
+ */
+function matchedUnit(shape: JoinShape): "node" | "edge" | "row" {
+    if (shape === "node-values") {
+        return "node";
+    }
+    return shape === "edge-values" ? "edge" : "row";
+}
+
+/**
+ * A file's size.
+ * @param bytes - how many bytes.
+ * @returns such as "12 KB" or "1.4 MB".
+ */
+function sizeWords(bytes: number): string {
+    return bytes < 1_000_000 ? `${formatNumber(Math.ceil(bytes / 1000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+/**
+ * One side of a join key, as a reader says it.
+ * @param graph - the key's graph value: "id", "source", "target" or "data.<column>".
+ * @returns such as "Id" or "symbol".
+ */
+function graphValueWord(graph: string): string {
+    const plain = graph.replace(/^data\./, "");
+    return plain === graph && graph !== "" ? `${graph.charAt(0).toUpperCase()}${graph.slice(1)}` : plain;
+}
+
+/** What a load's details say besides its own entry. */
+interface SourceExtras {
+    /** How many columns it brought. */
+    readonly columns: number;
+    /** How many open issues it has. */
+    readonly issues: number;
+    /** It is an opened project's network load that has not run. */
+    readonly waiting: boolean;
+}
+
+/**
+ * A join's own rows.
+ * @param source - the joined load.
+ * @param sources - `data.sources()`.
+ * @returns the rows.
+ */
+function joinFacts(source: LoadedSource, sources: readonly LoadedSource[]): SourceFact[] {
+    const { join } = source;
+    if (join === undefined) {
+        return [];
+    }
+    const nameOf = (key: string | undefined): string | undefined => {
+        const held = sources.find((each) => each.key === key);
+        return held === undefined ? undefined : sourceName(held);
+    };
+    const unit = matchedUnit(join.shape);
+    const rows: readonly (SourceFact | false)[] = [
+        nameOf(source.joinedOnto) !== undefined && { name: "Joined onto", value: nameOf(source.joinedOnto) as string },
+        { name: "Reads as", value: JOIN_SHAPE_WORDS[join.shape] },
+        join.choices.keys.length > 0 && {
+            name: "Key",
+            value: join.choices.keys.map((key) => `${key.file} = ${graphValueWord(key.graph)}`).join(", "),
+        },
+        nameOf(join.choices.via) !== undefined && { name: "Through", value: nameOf(join.choices.via) as string },
+        { name: "Table rows", value: join.rows },
+        { name: `${unit.charAt(0).toUpperCase()}${unit.slice(1)}s matched`, value: join.matched },
+        join.columns.length > 0 && { name: "Columns added", value: join.columns.join(", ") },
+    ];
+    return rows.filter((row) => row !== false);
+}
+
+/**
+ * A load's details, as the right panel draws them: what it was and when it was retrieved, simple
+ * statistics, and how a joined table was joined. A fact a load does not have is left out.
+ * @param source - the load.
+ * @param sources - `data.sources()`.
+ * @param extras - what the element says about it besides its entry.
+ * @returns the rows of each section.
+ */
+export function sourceFacts(
+    source: LoadedSource,
+    sources: readonly LoadedSource[],
+    extras: SourceExtras,
+): { source: SourceFact[]; statistics: SourceFact[]; join: SourceFact[] } {
+    const local = source.kind === "file" || source.kind === "join";
+    const server = source.kind === "server";
+    const facts: readonly (SourceFact | false)[] = [
+        { name: "Type", value: sourceKindWord(source) },
+        local && source.fileName !== undefined && { name: "File", value: source.fileName },
+        !local && source.address !== undefined && { name: "Address", value: source.address },
+        !server && source.type !== undefined && { name: "Format", value: source.type.toUpperCase() },
+        local && source.size !== undefined && { name: "Size", value: sizeWords(source.size) },
+        source.retrievedAt !== undefined && {
+            name: "Retrieved",
+            value: new Date(source.retrievedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }),
+        },
+        extras.waiting && { name: "Status", value: "Not fetched yet" },
+    ];
+    const values = source.join?.shape === "node-values" || source.join?.shape === "edge-values";
+    const { nodes, edges } = source.counts;
+    const statistics: readonly (SourceFact | false)[] = [
+        !values && { name: "Nodes", value: server ? serverCount(nodes, source.total) : nodes },
+        !values && { name: "Edges", value: server ? serverCount(edges, source.totalEdges) : edges },
+        { name: "Columns", value: source.join === undefined ? extras.columns : source.join.columns.length },
+        source.leftOut !== undefined && { name: "Rows left out", value: source.leftOut.rows },
+        extras.issues > 0 && { name: "Open issues", value: extras.issues },
+    ];
+    return {
+        source: facts.filter((row) => row !== false),
+        statistics: statistics.filter((row) => row !== false),
+        join: joinFacts(source, sources),
+    };
+}
+
+/**
  * A server load's count beside its name: how many nodes it brought of how many the source holds.
  * @param loaded - the nodes the load brought.
  * @param total - the nodes the source holds, when it says.
@@ -474,12 +598,18 @@ export function joinMatch(source: LoadedSource): string | null {
 /**
  * The join match's name and tooltip, with its unit.
  * @param source - the joined load.
- * @returns such as "17 of 19 rows joined", or null when {@link joinMatch} draws nothing.
+ * @returns such as "17 of 19 rows joined" or "52 nodes matched by 70 rows", or null when
+ * {@link joinMatch} draws nothing.
  */
 export function joinWords(source: LoadedSource): string | null {
-    return joinMatch(source) === null || source.join === undefined
-        ? null
-        : `${formatNumber(source.join.matched)} of ${formatNumber(source.join.rows)} rows joined`;
+    if (joinMatch(source) === null || source.join === undefined) {
+        return null;
+    }
+    const { matched, rows, shape } = source.join;
+    const unit = matchedUnit(shape);
+    return unit === "row"
+        ? `${formatNumber(matched)} of ${formatNumber(rows)} rows joined`
+        : `${count(matched, unit)} matched by ${count(rows, "row")}`;
 }
 
 /**

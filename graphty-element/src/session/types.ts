@@ -1712,16 +1712,10 @@ export interface SessionDataApi {
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
 
     /**
-     * Read a network source and change nothing. Pass the result to `import`, on this session or
-     * another with `network-data` on, and it loads without reading the service again.
-     * @param source - The source id and its params.
-     * @param options - Anything `import` takes; the import that takes the read keeps them.
-     * @returns The read and how many nodes and edges it holds.
-     */
-    readSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceRead>;
-    /**
-     * Read one of a source's examples and change nothing: `readSource` for what `loadExample`
-     * loads, with the example's endpoint, published login and first page. Experimental.
+     * Read one of a source's examples and change nothing, for what `loadExample` loads, with the
+     * example's endpoint, published login and first page. Pass the result to `import`, on this
+     * session or another with `network-data` on, and it loads without reading the service again.
+     * Experimental.
      * @param source - The source id, such as `"neo4j"`.
      * @param example - The example's id within that source, such as `"neo4j-movies"`.
      * @param options - Anything `import` takes; the import that takes the read keeps them.
@@ -2291,6 +2285,8 @@ export interface DataSourceDescriptor {
     readonly name?: string;
     /** The file's size in bytes, when a file was read. */
     readonly size?: number;
+    /** The name of the file it was read from; `name` is the reader's and can change. */
+    readonly fileName?: string;
     /** The source's options, without `data` and `file`: the `url`, and what the source reads besides. */
     readonly config?: Readonly<Record<string, unknown>>;
 }
@@ -2340,6 +2336,17 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tableRows?: readonly ("nodes" | "edges")[];
     /** How many nodes and edges the load added to the graph. */
     readonly added: { readonly nodes: number; readonly edges: number };
+    /**
+     * When this load last read its data, as RFC 3339. Absent in a project saved before it was kept.
+     * @since 3.30.0
+     */
+    readonly retrievedAt?: string;
+    /**
+     * Where it was read from, without credentials: a URL load's address, or a network load's origin
+     * and path. Absent for anything else.
+     * @since 3.30.0
+     */
+    readonly address?: string;
     /**
      * Edge rows the load left out because they named a node no node row held (`unmatched:
      * "leave-out"`), and how many distinct such names, as `LoadReport.unmatched` counts them.
@@ -3187,6 +3194,8 @@ export interface SessionEventMap {
     "source:expanded": SourceExpanded;
     /** An expansion failed: the source's code and params. Mirrored as `graphty-source-expand-failed`. Experimental. */
     "source:expand-failed": SourceExpandFailed;
+    /** A network load read its source again (More or Refresh), so its `retrievedAt` moved. Experimental. */
+    "source:refreshed": { readonly load: string };
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.

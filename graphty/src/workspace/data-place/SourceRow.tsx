@@ -11,7 +11,8 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { IssuesList } from "../table/IssuesList";
 import { countWords, joinMatch, joinWords, serverCount, sourceName } from "./words";
 
-const KIND_ICONS: Readonly<Record<LoadedSource["kind"], React.ReactNode>> = {
+/** The glyph of each kind of load. */
+export const KIND_ICONS: Readonly<Record<LoadedSource["kind"], React.ReactNode>> = {
     file: <GLYPHS.file size={14} aria-hidden />,
     url: <GLYPHS.webAddress size={14} aria-hidden />,
     server: <GLYPHS.server size={14} aria-hidden />,

@@ -842,6 +842,7 @@ export class Ingest<K extends KnownEdge> {
             ...tableFacts(command),
             added,
             ...(leftOut === undefined ? {} : { leftOut }),
+            retrievedAt: new Date().toISOString(),
             // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
             counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
         });

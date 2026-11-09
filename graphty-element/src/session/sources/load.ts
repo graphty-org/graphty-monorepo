@@ -337,8 +337,9 @@ export async function readSource(
 ): Promise<SourceRead> {
     const access = await accessFor(host, input.source, options, input.config);
     const read = await readRows(input.source, input.config, access, options);
-    refuseAboveCeiling("nodes", read.held.nodes.length, DEFAULT_LIMITS.renderCeiling);
-    refuseAboveCeiling("edges", read.held.edges.length, DEFAULT_LIMITS.edgesDrawn);
+    const { renderCeiling, edgesDrawn } = host.ceilings?.() ?? DEFAULT_LIMITS;
+    refuseAboveCeiling("nodes", read.held.nodes.length, renderCeiling);
+    refuseAboveCeiling("edges", read.held.edges.length, edgesDrawn);
     const rows: HeldRead = { access, read, options, ...(known === undefined ? {} : { known }) };
     return { ...input, nodes: read.held.nodes.length, edges: read.held.edges.length, rows };
 }
@@ -346,7 +347,7 @@ export async function readSource(
 /**
  * Load from a source as one undoable step, and record the load.
  * @param host - the session pieces
- * @param input - the source and its params, or what `readSource` read, which loads without a fetch
+ * @param input - the source and its params, or what `readExample` read, which loads without a fetch
  * @param given - the load options
  * @param total - how many nodes the source holds, when the caller knows (a sample's count)
  * @returns the load's record
@@ -572,6 +573,7 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
         ...(read.info?.total?.nodes === undefined ? {} : { total: read.info.total.nodes }),
         ...(read.info?.total?.edges === undefined ? {} : { totalEdges: read.info.total.edges }),
     });
+    host.emit("source:refreshed", { load: record.key });
 }
 
 /**
@@ -800,6 +802,7 @@ export async function refreshSource(
         endpoint: access.endpoint,
         ...totalOf(read, record.total, record.totalEdges),
     });
+    host.emit("source:refreshed", { load: loadKey });
     return report;
 }
 
@@ -983,4 +986,5 @@ export async function runPendingSourceLoad(host: SourceHost, id: string, options
         endpoint: access.endpoint,
         ...totalOf(read, record.total, record.totalEdges),
     });
+    host.emit("source:refreshed", { load: id });
 }

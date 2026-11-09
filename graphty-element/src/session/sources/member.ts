@@ -485,8 +485,8 @@ function localPart(
     return {
         kind: "file",
         part: defined({
-            name: file?.name,
-            size: file?.size ?? load.size,
+            name: load.fileName ?? file?.name,
+            size: load.size ?? file?.size,
             sha256: file?.sha256,
             mediaType: file?.mediaType,
         }),
@@ -523,7 +523,7 @@ function entryOf(
         id: load.key,
         kind,
         name: load.name,
-        loadedAt: facts.loadedAt,
+        loadedAt: load.retrievedAt ?? facts.loadedAt,
         mode: facts.mode,
         format: network || load.type === undefined ? undefined : load.type,
         [kind]: part,
@@ -1050,13 +1050,15 @@ interface ReadEntry {
 function loadedOf(raw: Record<string, unknown>): Record<string, unknown> {
     const kinds: Readonly<Record<string, string>> = { file: "file", url: "url", source: "server", sample: "sample" };
     const kind = typeof raw.kind === "string" ? raw.kind : "file";
-    const { size } = partOf(raw, "file");
+    const { size, name: fileName } = partOf(raw, "file");
     const joinedOnto = typeof raw.joinedOnto === "string" ? raw.joinedOnto : undefined;
     const join = isObject(raw.join) ? { source: raw.id, onto: joinedOnto ?? null, ...raw.join } : undefined;
     return defined({
         ...describedOf(raw, kind === "source"),
         name: typeof raw.name === "string" ? raw.name : undefined,
         size: typeof size === "number" ? size : undefined,
+        fileName: typeof fileName === "string" ? fileName : undefined,
+        retrievedAt: typeof raw.loadedAt === "string" ? raw.loadedAt : undefined,
         key: raw.id,
         kind: joinedOnto === undefined && join === undefined ? (kinds[kind] ?? kind) : "join",
         joinedOnto,

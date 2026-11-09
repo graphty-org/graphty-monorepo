@@ -141,7 +141,7 @@ import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
 import { isSourceFactKey, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
-import { type LoadFacts, type SourcesRead, type SourcesWrite, writeSourcesMember } from "./sources/member";
+import { type LoadFacts, redactUrl, type SourcesRead, type SourcesWrite, writeSourcesMember } from "./sources/member";
 import { pendingSourceLoads } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
 import type {
@@ -231,6 +231,8 @@ interface DataWrites {
      * runs in -- held for a verb that dispatches it after an await.
      */
     importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+    /** The ceilings in force, which a read-first load is refused above. */
+    readonly ceilings?: RenderLimits;
     /** The `graph` slice now. */
     slice(): GraphSlice;
     /** Runs an import in a scratch session with this data configuration and returns its report. */
@@ -1399,27 +1401,10 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Read a network source and change nothing: nothing is drawn, recorded or added to history.
-     * Pass the result to `import`, on this session or another with `network-data` on, and it loads
-     * without reading the service again. Refuses what the renderer could not draw (`E_TOO_LARGE`)
-     * here, before anything is opened for it.
-     * @param source - The source id and its params.
-     * @param options - Anything `import` takes; the import that takes the read keeps them.
-     * @returns The read and how many nodes and edges it holds.
-     */
-    readSource(source: SourceInput, options: SourceLoadOptions = {}): Promise<SourceRead> {
-        this.requireLive("readSource");
-        const off = this.networkOff("readSource");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
-
-        const host = this.sourceHost();
-        return import("./sources/load").then((module) => module.readSource(host, source, options));
-    }
-
-    /**
-     * Read one of a source's examples and change nothing: `readSource` for what `loadExample` loads.
+     * Read one of a source's examples and change nothing: nothing is drawn, recorded or added to
+     * history. Pass the result to `import`, on this session or another with `network-data` on, and
+     * it loads without reading the service again. Refuses what the renderer could not draw
+     * (`E_TOO_LARGE`) here, before anything is opened for it.
      * @param source - The source id.
      * @param example - The example's id within that source.
      * @param options - Anything `import` takes; the import that takes the read keeps them.
@@ -1686,6 +1671,7 @@ export class SessionData implements SessionDataApi {
             pending: this.pendingLoads,
             owner: this,
             expansions: this.expansions,
+            ceilings: () => writes.ceilings?.overrides,
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
             labelPath: () => this.readConfig().knownFields.nodeLabelPath,
@@ -2581,6 +2567,7 @@ export class SessionData implements SessionDataApi {
                     ...(input !== undefined && this.kept.has(input) ? { reloadable: true as const } : {}),
                     ...(loadKey === undefined ? {} : { loadKey }),
                     ...loadFacts(records.get(loadKey ?? ""), catalog),
+                    ...addressOf(kind, each.config, records.get(loadKey ?? "")),
                     counts: Object.freeze(
                         supplied === undefined
                             ? { ...each.added }
@@ -3681,6 +3668,7 @@ export class SessionData implements SessionDataApi {
             tables: [table.name],
             tableRows: [plan.target === "node" ? ("nodes" as const) : ("edges" as const)],
             added: { nodes: 0, edges: 0 },
+            retrievedAt: new Date().toISOString(),
             counts: { nodes: nodes.length, edges: edges.length },
         });
         steps.push({
@@ -5832,6 +5820,26 @@ function choiceOptions(
 }
 
 /**
+ * Where a load was read from, without credentials.
+ * @param kind - the load's kind
+ * @param config - its options
+ * @param record - its network record, when it has one
+ * @returns the address, or nothing for a load read from neither
+ */
+function addressOf(
+    kind: LoadedSource["kind"],
+    config: LoadedSource["config"],
+    record: SourceLoadRecord | undefined,
+): Pick<LoadedSource, "address"> {
+    const url = config?.url;
+    if (kind === "url" && typeof url === "string") {
+        return { address: redactUrl(url).address };
+    }
+
+    return record?.endpoint === undefined || record.endpoint === null ? {} : { address: record.endpoint };
+}
+
+/**
  * What a network load can do now and how big its source says it is, for its `sources()` entry.
  * @param record - the load's record, when the entry has one
  * @param catalog - each source's features, by source id
@@ -5840,13 +5848,14 @@ function choiceOptions(
 function loadFacts(
     record: SourceLoadRecord | undefined,
     catalog: ReadonlyMap<string, SourceFeatures>,
-): Pick<LoadedSource, "features" | "total" | "totalEdges"> {
+): Pick<LoadedSource, "features" | "total" | "totalEdges" | "retrievedAt"> {
     if (record === undefined) {
         return {};
     }
 
     const declared = catalog.get(record.source);
     return {
+        retrievedAt: record.loadedAt,
         features: Object.freeze({
             expand: declared?.expand === true,
             more: declared?.more === true && record.next !== null,

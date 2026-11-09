@@ -54,10 +54,7 @@ export function DataPlace(): React.JSX.Element {
     // A press picks the load for Fields and opens it in the inspector: what it added and what it
     // left out, with Edit source and Replace in its "...".
     const select = (key: SourceKey): void => {
-        const at = sources.findIndex((each) => each.key === key);
-        if (at !== -1) {
-            store.set({ pickedSource: key, inspected: { kind: "source", id: `source:${String(at)}` } });
-        }
+        store.set({ pickedSource: key, inspected: { kind: "source", id: `source:${key}` } });
     };
 
     const tab = useWorkspaceState((state) => state.dataTab);

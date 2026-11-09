@@ -12,10 +12,8 @@ import {
     joinWords,
     leftOutRow,
     leftOutSentence,
-    loadIndexOf,
     namesOnce,
     noNodeRow,
-    sourceRowOf,
     sourceRows,
     sourcesWords,
     typeOf,
@@ -147,8 +145,6 @@ describe("the Data place's words", () => {
             kinds.children?.map((t) => t.kind),
             ["nodes", "edges", "left-out"],
         );
-        assert.equal(sourceRowOf([load], null, "source:0:left-out")?.name, "1 row left out");
-        assert.isUndefined(sourceRowOf([load], null, "source:0:9"));
         assert.equal(
             sourceRows([load, loaded("passes.csv", ["passes.csv"], { nodes: 0, edges: 17 })], null)[1].quiet,
             "17 edges",
@@ -188,8 +184,6 @@ describe("the Data place's words", () => {
         assert.equal(noNodeRow(["s11"]), "s11 has no node row");
         assert.equal(noNodeRow(["s11", "p13", "s11"]), "s11 and p13 have no node rows");
         assert.equal(noNodeRow(["a", "b", "c", "d"]), "a, b and 2 more have no node rows");
-        assert.equal(loadIndexOf("source:1:0"), 1);
-        assert.isUndefined(loadIndexOf("node:age"));
     });
 
     it("lists every load, oldest first, a load of two tables expanding to them", () => {

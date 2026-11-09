@@ -3,7 +3,7 @@ import { Text } from "@mantine/core";
 import type React from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-import { leftOutRow, leftOutSentence, loadIndexOf, sourceRowOf } from "./words";
+import { leftOutRow, leftOutSentence, type SourceFact, sourceFacts, sourceKeyOf } from "./words";
 
 /**
  * Lines with a key each: the line itself, numbered when it repeats.
@@ -20,20 +20,36 @@ function keyedLines(lines: readonly string[]): { key: string; line: string }[] {
 }
 
 /**
- * A Sources row in the inspector. A load's row: what it added, then, under "Left out" when it
- * left edge rows out, how many and why and the left-out rows themselves, which the element keeps
- * with the load (through a save and reopen too). A table child shows what it names: a node table
- * what it added as nodes, an edge table as edges. The left-out child shows only "Left out": its
- * title names the rows left out, so the load's counts stay on the load's row. Every count is the
- * element's (`data.sources()`).
+ * One section of facts, or nothing for none.
  * @param props - Component props
- * @param props.row - The Sources row id, `source:<load>` or `source:<load>:<child>`
+ * @param props.label - the section's name
+ * @param props.facts - its rows
+ * @returns the section
+ */
+function Facts({ label, facts }: Readonly<{ label: string; facts: readonly SourceFact[] }>): React.JSX.Element | null {
+    return facts.length === 0 ? null : (
+        <ControlSection label={label} defaultOpened>
+            {facts.map(({ name, value }) => (
+                <DataRow key={name} stat name={name} value={value} />
+            ))}
+        </ControlSection>
+    );
+}
+
+/**
+ * A load in the inspector: what it was and when it was retrieved, simple statistics, how a joined
+ * table was joined, and the edge rows it left out, which the element keeps with the load (through
+ * a save and reopen too). Every fact is the element's; a fact a load does not have draws no row.
+ * Never reads a load's `config`, `credential` or `validators`.
+ * @param props - Component props
+ * @param props.row - The inspected id, `source:<key>`
  * @returns The values
  */
 export function SourceValues({ row }: Readonly<{ row: string }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const sources = session?.data.sources() ?? [];
-    const load = sources[loadIndexOf(row) ?? -1];
+    const key = sourceKeyOf(row);
+    const load = sources.find((each) => each.key === key);
     if (session === null || load === undefined) {
         return (
             <Text size="xs" c="dimmed" p="md">
@@ -41,34 +57,32 @@ export function SourceValues({ row }: Readonly<{ row: string }>): React.JSX.Elem
             </Text>
         );
     }
-    // A table child shows what its table loaded; a load, the whole load; its left-out child, only that.
-    // "Loaded", not "Added": true for a first load, a second table and a replacement alike.
-    const child = row.split(":").length > 2 ? sourceRowOf(sources, session.data.lastImport(), row)?.kind : undefined;
-    const part = child === "nodes" || child === "edges" ? child : "all";
+    const facts = sourceFacts(load, sources, {
+        columns: session.data.attributes().filter((each) => each.sources?.includes(key)).length,
+        issues: session.data.issues().filter((each) => each.source === key).length,
+        waiting: session.data.pendingSourceLoads().some((each) => each.id === load.loadKey),
+    });
     const { leftOut } = load;
-    const added = (
-        <ControlSection key="added" label="Loaded" defaultOpened>
-            {part === "edges" ? null : <DataRow stat name="Nodes" value={load.added.nodes} />}
-            {part === "nodes" ? null : <DataRow stat name="Edges" value={load.added.edges} />}
-        </ControlSection>
-    );
-    if (leftOut === undefined || part !== "all") {
-        return added;
-    }
-    const left = (
-        <ControlSection key="left-out" label="Left out" defaultOpened>
-            <Text size="sm" px="md" py={2}>
-                {leftOutSentence(leftOut)}
-            </Text>
-            {/* One wrapping line per row, so a long row reads whole. */}
-            {keyedLines((leftOut.edges ?? []).map((edge) => leftOutRow(edge, leftOut.endColumns))).map(
-                ({ key, line }) => (
-                    <Text key={key} size="sm" px="md" py={2}>
-                        {line}
+    return (
+        <>
+            <Facts label="Source" facts={facts.source} />
+            <Facts label="Statistics" facts={facts.statistics} />
+            <Facts label="Join" facts={facts.join} />
+            {leftOut === undefined ? null : (
+                <ControlSection label="Left out" defaultOpened>
+                    <Text size="sm" px="md" py={2}>
+                        {leftOutSentence(leftOut)}
                     </Text>
-                ),
+                    {/* One wrapping line per row, so a long row reads whole. */}
+                    {keyedLines((leftOut.edges ?? []).map((edge) => leftOutRow(edge, leftOut.endColumns))).map(
+                        ({ key: lineKey, line }) => (
+                            <Text key={lineKey} size="sm" px="md" py={2}>
+                                {line}
+                            </Text>
+                        ),
+                    )}
+                </ControlSection>
             )}
-        </ControlSection>
+        </>
     );
-    return child === "left-out" ? left : <>{[added, left]}</>;
 }

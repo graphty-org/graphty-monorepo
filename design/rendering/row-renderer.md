@@ -1026,6 +1026,13 @@ the CPU copy. A layout transition suspends the copy: while the transition runner
 `suspended`, and each landing goes up by upload, while the skip mask and the transform are still sent, so the copy
 resumes at the first landing after the move ends.
 
+A correction, found when the gpu-loss tests were made to wait on the copy itself rather than on a count of landings:
+when a layout with no transition replaces the one that held a transition, the FIRST landing copied after the swap
+leaves the texture differing from the CPU copy (worst relative difference about 2000); from the second copy on they
+agree. The mechanism is not yet explained (a batch of the replaced simulation, or its draw transform, landing after
+the swap is the likely one). `shared-device-drawn-moves.test.ts` compares at the second copy and points here; until
+this is fixed the texture can hold the wrong rows for one landing after a layout is replaced. Issue #6422.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,

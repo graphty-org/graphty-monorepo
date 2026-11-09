@@ -111,10 +111,38 @@ export async function nextFrame(): Promise<void> {
  * @param graph - The graph.
  */
 export async function startLayout(graph: Graph): Promise<void> {
+    await submitLayout(graph);
+    await landed(graph);
+}
+
+/**
+ * Starts a layout that will not come to rest during the test, and waits for the accelerator to take
+ * its first batch, without waiting for one to land.
+ * @param graph - The graph.
+ */
+export async function submitLayout(graph: Graph): Promise<void> {
+    // Boxes and no arrowheads, not the default icosphere and arrows: on SwiftShader with two cores the
+    // icosphere's 960 vertices a node cost about 70 ms of a 90 ms frame and the arrows another 15, and
+    // the device queue runs some 300 frames behind the page, so every landing waited out 300 of those
+    // frames. A frame is about 20 ms this way. Nothing here is about the shape or the arrows.
+    await graph.getSession().styles.add({
+        name: "box nodes",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.shape": "box" },
+    });
+    await graph.getSession().styles.add({
+        name: "no arrows",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.arrowHead": "none" },
+    });
     await graph.addNodes(NODES);
     await graph.addEdges(EDGES);
     await graph.setLayout("forceatlas2", { maxIter: 1_000_000 });
-    await landed(graph);
+    while (!layoutOf(graph).isAccelerated || layoutOf(graph).iterationsDone === 0) {
+        await nextFrame();
+    }
 }
 
 /**
@@ -124,6 +152,21 @@ export async function startLayout(graph: Graph): Promise<void> {
 export async function landed(graph: Graph): Promise<void> {
     const before = layoutOf(graph).landedBatchesPublished;
     while (!layoutOf(graph).isAccelerated || layoutOf(graph).landedBatchesPublished <= before) {
+        await nextFrame();
+    }
+}
+
+/**
+ * Waits for the layout to copy a landing into the `rowPosition` texture, after this call: the ring is
+ * attached a batch after a load, so this is the real moment the copy starts, which a fixed number of
+ * landings only stands in for.
+ * @param graph - The graph.
+ */
+export async function copied(graph: Graph): Promise<void> {
+    const table = graph.getRowTable();
+    assert.isNotNull(table);
+    const before = table.copies;
+    while (table.copies <= before) {
         await nextFrame();
     }
 }

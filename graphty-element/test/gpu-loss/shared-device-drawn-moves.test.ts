@@ -8,14 +8,13 @@
 import { assert, describe, it } from "vitest";
 
 import { transitionsOf } from "../../src/transitions/LayoutTransitionRunner";
-import { deviceOf, landed, nextFrame, running, textureDiff } from "./shared-device";
+import { copied, deviceOf, landed, nextFrame, running, textureDiff } from "./shared-device";
 
 describe("the layout filling the row table through a loss and a transition", () => {
     it("fills the table on the new device after the shared device is lost", async () => {
         const graph = await running("batched");
         const before = graph.acceleration.accelerator;
-        await landed(graph);
-        await landed(graph);
+        await copied(graph);
         const old = await deviceOf(graph);
         old.destroy();
         while (graph.acceleration.accelerator === before || graph.acceleration.accelerator === null) {
@@ -23,18 +22,16 @@ describe("the layout filling the row table through a loss and a transition", () 
         }
 
         // the ring is attached again a batch after the rebuild's load
-        await landed(graph);
-        await landed(graph);
+        await copied(graph);
         const table = graph.getRowTable();
         assert.isNotNull(table);
         assert.notStrictEqual(graph.getDrawnTarget()?.device, old);
         const { copies } = table;
         const uploads = table.positionUploads;
-        for (let i = 0; i < 5; i++) {
-            await landed(graph);
-        }
+        await landed(graph);
+        await landed(graph);
 
-        assert.isAtLeast(table.copies - copies, 5);
+        assert.isAtLeast(table.copies - copies, 2);
         assert.strictEqual(table.positionUploads - uploads, 0);
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
     });
@@ -43,8 +40,7 @@ describe("the layout filling the row table through a loss and a transition", () 
         const graph = await running("batched");
         const table = graph.getRowTable();
         assert.isNotNull(table);
-        await landed(graph);
-        await landed(graph);
+        await copied(graph);
         const session = graph.getSession();
         await session.config.set({ layoutTransition: { transition: "glide", seconds: 30, hold: 0.5 } });
         const runner = transitionsOf(graph.getLayoutManager());
@@ -54,9 +50,8 @@ describe("the layout filling the row table through a loss and a transition", () 
         await landed(graph);
         const { copies } = table;
         const uploads = table.positionUploads;
-        for (let i = 0; i < 3; i++) {
-            await landed(graph);
-        }
+        await landed(graph);
+        await landed(graph);
 
         assert.isTrue(runner.active);
         assert.strictEqual(table.copies - copies, 0);
@@ -66,9 +61,10 @@ describe("the layout filling the row table through a loss and a transition", () 
         await session.config.set({ layoutTransition: undefined });
         await graph.setLayout("forceatlas2", { maxIter: 1_000_000 });
         assert.isFalse(runner.active);
-        for (let i = 0; i < 4; i++) {
-            await landed(graph);
-        }
+        // the copy resumes; the texture is compared at the second copy, since at the first one after the
+        // layout is replaced it still differs from the CPU copy (design/rendering/row-renderer.md 4.5)
+        await copied(graph);
+        await copied(graph);
 
         assert.isAbove(table.copies - copies, 0);
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);

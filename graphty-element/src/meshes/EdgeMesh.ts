@@ -11,8 +11,10 @@ import {
     MeshBuilder,
     RawTexture,
     type Scene,
+    type ShaderMaterial,
     StandardMaterial,
     Texture,
+    Vector2,
     Vector3,
     VertexBuffer,
     VertexData,
@@ -33,13 +35,14 @@ import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
+import { ANIMATED_TEMPLATE, createPulledAnimatedLineMesh, followRenderSize } from "./pulledAnimatedLine";
 import { PulledLineBatch } from "./PulledLineBatch";
 import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
 /** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
-const animatedEdgeFrames = new FrameRoster();
+export const animatedEdgeFrames = new FrameRoster();
 
 const PATTERNED_TYPES: ReadonlySet<string> = new Set<PatternType>([
     "dot",
@@ -671,6 +674,12 @@ void main() {
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
         const curve = this.pullsCurve(style, loop, route);
+        if (!curve && style.line?.animationSpeed) {
+            return cache.getPulledBatch("edge-pulled|animated", () =>
+                this.createPulledAnimatedBatch(scene, rowPositions),
+            );
+        }
+
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${curve ? "|curve" : ""}`;
         return cache.getPulledBatch(key, () => {
             const mesh = this.createStaticLine(options, style, scene, cache, false, curve ? "curve" : true);
@@ -692,6 +701,33 @@ void main() {
         }
 
         return this.opacityOf(style) < 1 ? "translucent" : "opaque";
+    }
+
+    /**
+     * The batch every pulled straight animated line is drawn from (`pulledAnimatedLine.ts`), and its one frame
+     * callback: it moves the one `scroll` uniform for every piece, each scrolling at its own speed, and parks it at 0
+     * while the scene does not animate, as {@link EdgeMesh.applyAnimatedTexture} parks a greased line's texture.
+     * @param scene - The scene.
+     * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
+     * @returns The batch.
+     */
+    private static createPulledAnimatedBatch(scene: Scene, rowPositions: () => BaseTexture): PulledLineBatch {
+        const mesh = createPulledAnimatedLineMesh(scene);
+        mesh.parent = scene.getTransformNodeByName("graph-root");
+        const material = mesh.material as ShaderMaterial;
+        let scroll = 0;
+        const stopFrames = animatedEdgeFrames.join(scene, () => {
+            scroll = scene.animationsEnabled
+                ? scroll + EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * scene.getAnimationRatio()
+                : 0;
+            material.setFloat("scroll", scroll);
+        });
+        const releaseFrames = animatesEveryFrame(scene);
+        mesh.onDisposeObservable.addOnce(() => {
+            releaseFrames();
+            stopFrames();
+        });
+        return new PulledLineBatch(mesh, scene, rowPositions, false, ANIMATED_TEMPLATE);
     }
 
     /**
@@ -1021,6 +1057,7 @@ void main() {
             },
             scene,
         );
+        this.followResolution(mesh);
 
         // Apply opacity if specified
         if (style.line?.opacity !== undefined) {
@@ -1028,6 +1065,21 @@ void main() {
         }
 
         return mesh;
+    }
+
+    /**
+     * Keep a greased line's resolution at the render size. Its material reads the size once, when it is built, so
+     * a line built before a resize -- the first element on a page builds its lines at the canvas's default 300 by
+     * 150 -- kept drawing with that aspect.
+     * @param mesh - The greased line.
+     */
+    private static followResolution(mesh: GreasedLineBaseMesh): void {
+        followRenderSize(mesh, (width, height) => {
+            const material = mesh.greasedLineMaterial;
+            if (material !== undefined) {
+                material.resolution = new Vector2(width, height);
+            }
+        });
     }
 
     private static createAnimatedLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): Mesh {
@@ -1062,6 +1114,7 @@ void main() {
         );
 
         this.applyAnimatedTexture(mesh, texture, scene, style.line?.animationSpeed);
+        this.followResolution(mesh);
 
         // Apply opacity if specified
         if (style.line?.opacity !== undefined) {

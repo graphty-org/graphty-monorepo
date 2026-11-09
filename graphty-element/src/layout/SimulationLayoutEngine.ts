@@ -1370,7 +1370,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const simulation = this.#simulation;
         try {
             this.#sendDrawnSkip(run);
-            if (landed !== null) {
+            if (landed === null) {
+                run.target.table.dropCopy();
+            } else {
                 run.target.table.copyLanded(run.target.device, landed, run.n);
             }
 

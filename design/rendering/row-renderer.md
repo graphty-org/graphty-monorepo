@@ -378,6 +378,30 @@ switched-on third: on WebGL 325 stories pass, but only 4 of them draw a pulled e
 edge. Found building it: a pulled line follows the row table, which takes the layout's places, so a place written to the layout
 engine and not yet to the node's mesh moves the line before the node; the update loop writes both in one frame.
 
+As built (stage 15, the 6-vertex program, cosmos-gap.md G12): `EDGE_PULLED_LEAN` draws a straight pulled piece's rectangle
+alone, the join template's vertices 1, 2, 7 and 6 as its two triangles (4 vertices and 6 indices a piece, `piece * 4 + k`,
+not 14 and 30), and its fragment stage skips the ownership test and the pattern, so it never discards. It is used only
+when `antialias` is false and the `"batched"` batches are open (`Graph.leansLines`), in a batch of its own
+(`edge-pulled|...|lean`); curves never use it. The stray pixel did not survive the trace. The spike's program is not in the
+repository, so the trace rebuilt it from the join shader: the triangles are the join template's own, and a piece with no
+neighbour has every join vertex on a side vertex, so the dropped triangles have no area; the one thing left that could put
+a pixel on one side and not the other is the fragment's ownership test against the rasterizer's coverage. Against the
+placed plain line, over 240 scenes (60 seeded cameras and graphs of 120 edges, 4 widths from 160 screen to 0.05 world) with
+`antialias` false and 240 with it true, 0 pixels differ on the RTX 4070 SUPER (ANGLE Vulkan) and 0 on SwiftShader.
+`test/browser/pulled-edge-lines.test.ts` holds it at 0 pixels in 27 scenes per setting, and
+`test/browser/pulled-edges-on-graph.test.ts` holds a graph under `antialias` false on `"batched"` to the objects picture, at
+rest and after a mouse drag, on WebGL and WebGPU. Measured 100k + 1M still frame with `antialias` false on the RTX: 29.2-29.5
+ms serial, 35.6-35.8 ms paced, 28.2 ms of GPU, against 54.8-54.9 ms, 70.1-70.5 ms and 52.3-53.2 ms with the join template.
+Two corrections, from the code:
+
+- The vertex count is not what costs: the join template's rectangle alone with the join fragment stage measured 54.2 ms
+  against 55.0, since a straight piece's join triangles have no area. The gain is the fragment stage's: no ownership test
+  and no `discard`, which also lets the card test depth before shading.
+- The harness's lean mode is 2D (`main.js`, `is2d`), where a straight line is not pulled until cosmos-gap.md G3 lands, so
+  its 100k + 1M scene draws 1,000,000 object lines and neither G5 nor this program reaches it. The `3d` flag
+  (`run.mjs graphty lean on 100000 1000000 1 skip-layout 3d no-move`) keeps it in 3D, where every edge is pulled, and
+  fails a run with an object edge; the numbers above are its. The 2D scene reaches this program with G3.
+
 As built (stage 16, first pull request): `Edge.pullsLine` passes on the `"batched"` path, read as the graph keeping node batches,
 so `pulledEdgesDefault` is needed only to pull on `"objects"`. A line's rebuild test (`Edge.paintFrom`) compares whether it is
 pulled with whether it should be, and `Graph` repaints every edge, then walks them, when the path changes live, so an edge moves

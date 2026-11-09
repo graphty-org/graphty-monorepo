@@ -6148,7 +6148,9 @@ export class Graphty extends LitElement {
     /**
      * Whether the canvas is drawn with multisampling (4x), which smooths the edges of lines and
      * nodes. `false` turns it off: harder edges, and faster frames when there are very many edges.
-     * Nothing else about the picture changes. Read once, when the element builds its engine.
+     * Nothing else about the picture changes. Under renderPath "batched" it also draws plain straight
+     * 3D edges with a cheaper line program that draws the same pixels. Read once, when the element
+     * builds its engine.
      * @remarks
      * Set it as an attribute, in any position in the tag, or as a property before using any other
      * property or method of the element. A later change takes effect only on a new element and

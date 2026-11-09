@@ -675,17 +675,16 @@ void main() {
         const pass = this.pulledPass(style);
         const curve = this.pullsCurve(style, loop, route);
         const leanLine = lean && !curve;
-        const kind = curve ? "|curve" : leanLine ? "|lean" : "";
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${kind}`;
+        let kind: "curve" | "lean" | true = true;
+        if (curve) {
+            kind = "curve";
+        } else if (leanLine) {
+            kind = "lean";
+        }
+
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${kind === true ? "" : `|${kind}`}`;
         return cache.getPulledBatch(key, () => {
-            const mesh = this.createStaticLine(
-                options,
-                style,
-                scene,
-                cache,
-                false,
-                curve ? "curve" : leanLine ? "lean" : true,
-            );
+            const mesh = this.createStaticLine(options, style, scene, cache, false, kind);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
             return new PulledLineBatch(mesh, scene, rowPositions, curve, leanLine);

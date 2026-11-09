@@ -2864,6 +2864,8 @@ export class Graph implements GraphContext {
     isVoiceActive(): boolean;
     isVRSupported(): Promise<boolean>;
     labelOf(nodeId: string | number): NodeLabel | undefined;
+    // @internal
+    leansLines(): boolean;
     get limits(): Readonly<LimitsOption>;
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
@@ -3104,6 +3106,8 @@ export interface GraphContext {
     getXRSessionManager?(): XRSessionManager | undefined;
     is2D(): boolean;
     isRunning(): boolean;
+    // @internal
+    leansLines?(): boolean;
     // @deprecated
     needsRayUpdate(): boolean;
     readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;

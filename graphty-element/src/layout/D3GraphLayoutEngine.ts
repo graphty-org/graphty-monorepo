@@ -542,7 +542,7 @@ export class D3GraphEngine extends LayoutEngine {
      * Fix each held row body where it is and free the rest, and note each follower row's id.
      * @param followers - The follower ids, which this adds to.
      */
-    private holdRows(followers: Set<NodeIdType>): void {
+    private holdRowBodies(followers: Set<NodeIdType>): void {
         const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
@@ -780,7 +780,7 @@ export class D3GraphEngine extends LayoutEngine {
             }
         }
 
-        this.holdRows(followers);
+        this.holdRowBodies(followers);
 
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
         for (const [node, d3node] of this.nodeMapping) {

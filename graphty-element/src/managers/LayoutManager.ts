@@ -1611,7 +1611,7 @@ export class LayoutManager implements Manager {
 
     /**
      * The nodes a new engine is handed: every `Node` but one whose row is drawn with no `Node`,
-     * which a d3 engine is handed as its row instead, so that no row has two bodies.
+     * which a d3 or ngraph engine is handed as its row instead, so that no row has two bodies.
      * @returns The nodes.
      */
     private nodesWithBodies(): Node[] {
@@ -1621,13 +1621,13 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * Under renderPath "batched", hand a d3 engine a body for each row drawn with no `Node`; a
-     * third party's engine, and ngraph until it goes by row, are handed `Node`s only.
+     * Under renderPath "batched", hand a d3 or ngraph engine a body for each row drawn with no
+     * `Node`; a third party's engine is handed `Node`s only.
      * @param engine - The new engine.
      */
     private addColumnRows(engine: LayoutEngine): void {
         const rows = this.columnRows();
-        if (!(engine instanceof D3GraphEngine) || rows.length === 0) {
+        if (!(engine instanceof D3GraphEngine || engine instanceof NGraphEngine) || rows.length === 0) {
             return;
         }
 

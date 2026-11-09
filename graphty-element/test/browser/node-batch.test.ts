@@ -18,6 +18,7 @@ import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { nodeFramingBox } from "../../src/managers/UpdateManager";
@@ -1081,7 +1082,10 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
     });
 
-    it("simulate a row with no Node in d3 by its row", async () => {
+    it.each([
+        ["d3", D3GraphEngine],
+        ["ngraph", NGraphEngine],
+    ] as const)("simulate a row with no Node in %s by its row", async (layout, Engine) => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
         const { graph } = element;
@@ -1098,16 +1102,16 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             return;
         }
 
-        // Row 4 is drawn with no Node: the layout swap hands d3 its row, never its Node.
+        // Row 4 is drawn with no Node: the layout swap hands the engine its row, never its Node.
         batches.leave(node);
         node.drawInBatch(node.paintedSourceMesh);
         assert.isTrue(batches.paintRow(4, paint));
-        await graph.setLayout("d3", { dim: 3 });
+        await graph.setLayout(layout, { dim: 3 });
         await operationQueueOf(graph).waitForCompletion();
 
         const engine = graph.getLayoutManager().layoutEngine;
-        assert.instanceOf(engine, D3GraphEngine);
-        if (!(engine instanceof D3GraphEngine)) {
+        assert.isTrue(engine instanceof Engine, `the engine is ${layout}'s`);
+        if (!(engine instanceof Engine)) {
             return;
         }
 

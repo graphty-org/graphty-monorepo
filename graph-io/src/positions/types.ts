@@ -135,7 +135,10 @@ export interface ImporterPositions extends PositionColumnExtra {
     readonly z?: string;
     /** A 3-component node column holding the coordinates (advanced form); defaults to the role-`position` column. */
     readonly column?: string;
-    /** Group container boxes the file stores apart from the node coordinates (Graphviz cluster `bb`). */
+    /**
+     * The boxes the program draws group containers in, apart from the node coordinates (Graphviz cluster `bb`, a yEd
+     * open group round its members); a container is placed at its box's center, over its own coordinate.
+     */
     readonly groups?: readonly ImporterGroupBox[];
     /** The median node diameter in the file's unit, when the importer knows it better than the size columns. */
     readonly medianNodeSize?: number | null;

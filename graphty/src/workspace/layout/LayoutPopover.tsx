@@ -7,6 +7,50 @@ import { isPanelEscape } from "../keys/keys";
 import { LayoutForm } from "./LayoutForm";
 import { LAYOUT_SECTIONS, type LayoutChoice, layoutChoices, sectionOf, useLayouts } from "./methods";
 
+/**
+ * Keeps a row centered in the box that scrolls it until the reader scrolls, clicks or types there.
+ * The popover settles its height and its rows after the row is focused (the size middleware, the
+ * focus trap's own focus, the web font that rewraps the rows), so centering once left the list
+ * wherever the last of those landed.
+ * @param row - the row.
+ * @returns stops keeping it centered.
+ */
+function keepCentered(row: HTMLElement): () => void {
+    let box = row.parentElement;
+    while (box !== null && !/auto|scroll/.test(getComputedStyle(box).overflowY)) {
+        box = box.parentElement;
+    }
+    if (box === null) {
+        return () => undefined;
+    }
+    const scroller = box;
+    const center = (): void => {
+        const at = row.getBoundingClientRect();
+        const view = scroller.getBoundingClientRect();
+        scroller.scrollTop += at.top + at.height / 2 - (view.top + scroller.clientTop + scroller.clientHeight / 2);
+    };
+    const observer = new ResizeObserver(center);
+    observer.observe(scroller);
+    // The scroll box keeps its size when a row in it grows (it is capped), so its sections are
+    // watched too: a row that wraps again once the web font arrives moves the row off center.
+    for (const section of scroller.children) {
+        observer.observe(section);
+    }
+    const stop = (): void => {
+        observer.disconnect();
+        for (const type of READER_INPUT) {
+            scroller.removeEventListener(type, stop);
+        }
+    };
+    for (const type of READER_INPUT) {
+        scroller.addEventListener(type, stop, { passive: true });
+    }
+    return stop;
+}
+
+/** What a reader does in the list that ends {@link keepCentered}. */
+const READER_INPUT = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
+
 /** Props for LayoutPopover. */
 interface LayoutPopoverProps {
     session: GraphSession;
@@ -66,11 +110,16 @@ export function LayoutPopover({ session, onClose, initialPick }: Readonly<Layout
         choices.find((choice) => choice.reason === null) ??
         choices.at(0);
     // On the list, focus sits on that row, so Esc (back from a form, or a second time) reaches the
-    // popover's own handler.
+    // popover's own handler. The row is centered in the list, and kept there while the popover
+    // settles, so it opens on the same picture however that settling interleaves.
     useEffect(() => {
-        if (picked === undefined) {
-            listRef.current?.querySelector<HTMLElement>('[role="option"][tabindex="0"]')?.focus();
+        const row =
+            picked === undefined ? listRef.current?.querySelector<HTMLElement>('[role="option"][tabindex="0"]') : null;
+        if (row === null || row === undefined) {
+            return undefined;
         }
+        row.focus({ preventScroll: true });
+        return keepCentered(row);
     }, [picked]);
     const sections = LAYOUT_SECTIONS.map(({ title }) => ({
         title,

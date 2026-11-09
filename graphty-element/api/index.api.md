@@ -47,6 +47,7 @@ import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GlowLayer } from '@babylonjs/core';
 import { GML_LOSS } from '@graphty/graph-io';
+import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GraphChoiceOptions } from '@graphty/graph-io';
 import type { GraphExporter } from '@graphty/graph-io';
@@ -901,6 +902,11 @@ export class DataManager implements Manager {
     };
     removeEdge(edgeId: string): boolean;
     removeNodeAndIncidentEdges(nodeId: NodeIdType): readonly EdgeId[] | null;
+    // @internal
+    renderLimits: {
+        ceilings(): Readonly<Ceilings> | undefined;
+        batched(): boolean;
+    } | null;
     get seededNodeCount(): number;
     setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void;
     setGraphContext(context: GraphContext): void;
@@ -1117,7 +1123,7 @@ export class Edge {
     // (undocumented)
     srcNode: Node_2;
     // @internal
-    supportEdge(): SupportEdge | null;
+    supportEdge(centerOf?: (node: Node_2) => Readonly<Vector3>): SupportEdge | null;
     // @internal
     togglesOwnMeshes(): boolean;
     transformArrowCap(): EdgeLine;
@@ -1895,6 +1901,8 @@ export const EdgeStyle: z.ZodObject<{
         patternCount: z.ZodOptional<z.ZodNumber>;
         waveAmplitude: z.ZodOptional<z.ZodNumber>;
         wavePeriod: z.ZodOptional<z.ZodNumber>;
+        dashLength: z.ZodOptional<z.ZodNumber>;
+        dashGap: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
         fade: z.ZodOptional<z.ZodObject<{
@@ -2718,7 +2726,9 @@ export interface GlobeLook {
 
 // @public
 export class Graph implements GraphContext {
-    constructor(element: Element | string, useMockInput?: boolean);
+    constructor(element: Element | string, useMockInput?: boolean, options?: {
+        readonly antialias?: boolean;
+    });
     readonly acceleration: AccelerationController;
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
@@ -2731,6 +2741,7 @@ export class Graph implements GraphContext {
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     aiCommand(input: string): Promise<ExecutionResult>;
+    readonly antialias: boolean;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -2792,6 +2803,8 @@ export class Graph implements GraphContext {
     getCameraTransitionDuration(): number | undefined;
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
+    // @internal
+    getDrawnTarget(): DrawnTarget | null;
     getEdgeCount(): number;
     // @internal
     getEdgeIdTarget(): EdgeIdTarget | null;
@@ -2851,6 +2864,9 @@ export class Graph implements GraphContext {
     isVoiceActive(): boolean;
     isVRSupported(): Promise<boolean>;
     labelOf(nodeId: string | number): NodeLabel | undefined;
+    // @internal
+    leansLines(): boolean;
+    get limits(): Readonly<LimitsOption>;
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -2970,6 +2986,7 @@ export class Graph implements GraphContext {
     setLayoutBehavior(behavior: GraphBehaviorConfig): void;
     setLayoutScope(scope: ScopeInput | undefined): Promise<void>;
     setLighting(lighting: Lighting): void;
+    setLimits(value: LimitsOption): void;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setPixelRatio(ratio: PixelRatio): void;
     setRenderer(request: RendererRequest): void;
@@ -3069,6 +3086,8 @@ export interface GraphContext {
     getAcceleration?(): AccelerationController;
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
+    // @internal
+    getDrawnTarget?(): DrawnTarget | null;
     getEventManager?(): EventManager | undefined;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
@@ -3087,6 +3106,8 @@ export interface GraphContext {
     getXRSessionManager?(): XRSessionManager | undefined;
     is2D(): boolean;
     isRunning(): boolean;
+    // @internal
+    leansLines?(): boolean;
     // @deprecated
     needsRayUpdate(): boolean;
     readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;
@@ -3152,7 +3173,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | BasemapStatusEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -3215,6 +3236,8 @@ export class Graphty extends LitElement {
     aiCommand(message: string): Promise<ExecutionResult>;
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined;
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined);
+    get antialias(): boolean;
+    set antialias(value: boolean);
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -3372,6 +3395,8 @@ export class Graphty extends LitElement {
     set layoutScope(value: ScopeInput | undefined);
     get lighting(): Lighting;
     set lighting(value: Lighting);
+    get limits(): Readonly<LimitsOption>;
+    set limits(value: LimitsOption);
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -3576,7 +3601,7 @@ export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[];
 
 // @public
 export interface GraphtyCapabilitiesChangeDetail {
-    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
+    readonly capabilities: SessionCapabilities;
 }
 
 // @public
@@ -4408,6 +4433,12 @@ export type GraphtyWarningCode =
 */
 | "W_ALPHA_IGNORED"
 /**
+* The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
+* shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
+* @experimental cosmograph
+*/
+| "W_LIMITS_IGNORED"
+/**
 * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
 * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
 * size sits, and `params.value` the size.
@@ -4442,6 +4473,12 @@ export type GraphtyWarningCode =
 * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
 */
 | "W_DIMENSION_OVERRIDDEN"
+/**
+* `antialias` was changed after the element built its engine, which reads it only then: the
+* engine keeps the value it was built with. Raised as a `graphty-warning` event.
+* `params.requested` is the value given, `params.active` the one in use.
+*/
+| "W_ANTIALIAS_LATE"
 /**
 * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
 * `node.modelSourceUp` turns it.
@@ -4818,7 +4855,7 @@ export abstract class LayoutEngine {
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
     // @internal
-    protected publishColumn(n: Node_2 | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
+    protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -5153,6 +5190,7 @@ class Node_2 implements ModelUser {
     // @internal
     get isDrawn(): boolean;
     get isDrawnAsGroup(): boolean;
+    get isDrawnBehindEdges(): boolean;
     // @internal
     isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;
@@ -5225,6 +5263,8 @@ class Node_2 implements ModelUser {
     syncXlabelPlace(): void;
     // @internal
     get teardownMesh(): TransformNode;
+    // @internal
+    togglesOwnMeshes(): boolean;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
@@ -5654,6 +5694,13 @@ export const NodeStyle: z.ZodObject<{
         width: z.ZodOptional<z.ZodNumber>;
         lightColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    }, z.core.$strict>>;
+    shadow: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        opacity: z.ZodOptional<z.ZodNumber>;
+        blur: z.ZodOptional<z.ZodNumber>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     underlay: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -7971,6 +8018,8 @@ export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
+    // @internal
+    columnFraming(): ColumnFraming | undefined;
     deriving: () => boolean;
     disableZoomToFit(): void;
     dispose(): void;

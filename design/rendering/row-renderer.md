@@ -378,6 +378,37 @@ switched-on third: on WebGL 325 stories pass, but only 4 of them draw a pulled e
 edge. Found building it: a pulled line follows the row table, which takes the layout's places, so a place written to the layout
 engine and not yet to the node's mesh moves the line before the node; the update loop writes both in one frame.
 
+As built (stage 15, the 6-vertex program, cosmos-gap.md G12): `EDGE_PULLED_LEAN` draws a straight pulled piece's rectangle
+alone, the join template's vertices 1, 2, 7 and 6 as its two triangles (4 vertices and 6 indices a piece, `piece * 4 + k`,
+not 14 and 30), and its fragment stage skips the ownership test and the pattern, so it never discards. It is used only
+when `antialias` is false and the `"batched"` batches are open (`Graph.leansLines`), in a batch of its own
+(`edge-pulled|...|lean`); curves never use it. The stray pixel did not survive the trace. The spike's program is not in the
+repository, so the trace rebuilt it from the join shader: the triangles are the join template's own, and a piece with no
+neighbour has every join vertex on a side vertex, so the dropped triangles have no area; the one thing left that could put
+a pixel on one side and not the other is the fragment's ownership test against the rasterizer's coverage. Against the
+placed plain line, over 240 scenes (60 seeded cameras and graphs of 120 edges, 4 widths from 160 screen to 0.05 world) with
+`antialias` false and 240 with it true, 0 pixels differ on the RTX 4070 SUPER (ANGLE Vulkan) and 0 on SwiftShader.
+`test/browser/pulled-edge-lines.test.ts` holds it at 0 pixels in 27 scenes per setting, and
+`test/browser/pulled-edges-on-graph.test.ts` holds a graph under `antialias` false on `"batched"` to the objects picture, at
+rest and after a mouse drag, on WebGL and WebGPU. Measured 100k + 1M still frame with `antialias` false on the RTX: 29.2-29.5
+ms serial, 35.6-35.8 ms paced, 28.2 ms of GPU, against 54.8-54.9 ms, 70.1-70.5 ms and 52.3-53.2 ms with the join template.
+Two corrections, from the code:
+
+- The vertex count is not what costs: the join template's rectangle alone with the join fragment stage measured 54.2 ms
+  against 55.0, since a straight piece's join triangles have no area. The gain is the fragment stage's: no ownership test
+  and no `discard`, which also lets the card test depth before shading.
+- The harness's lean mode is 2D (`main.js`, `is2d`), where a straight line is not pulled until cosmos-gap.md G3 lands, so
+  its 100k + 1M scene draws 1,000,000 object lines and neither G5 nor this program reaches it. The `3d` flag
+  (`run.mjs graphty lean on 100000 1000000 1 skip-layout 3d no-move`) keeps it in 3D, where every edge is pulled, and
+  fails a run with an object edge; the numbers above are its. The 2D scene reaches this program with G3.
+- Stage 15's render-parity could not switch the program on: no story sets `antialias`, so every batched load multisampled.
+  `VITE_PARITY_ANTIALIAS=false` builds every load of a run without multisampling (through the internal `antialiasDefault`,
+  read only when an element has no `antialias` property or attribute), and each load asserts `Graph.leansLines` is true on
+  `"batched"` and false on `"objects"`. With it, on SwiftShader: WebGL 324 passed, 1 failed; WebGPU 283 passed, 1 failed.
+  The one failure is `FileStyles.stories.ts Gexf`, 676 pixels, the same 676 with `leansLines` forced false, so the lean
+  program adds none: it is issue #6392 (1488 pixels with `antialias` true, on either parity mode), where the objects and
+  pulled pictures differ in the blended colors of overlapping translucent edges.
+
 As built (stage 16, first pull request): `Edge.pullsLine` passes on the `"batched"` path, read as the graph keeping node batches,
 so `pulledEdgesDefault` is needed only to pull on `"objects"`. A line's rebuild test (`Edge.paintFrom`) compares whether it is
 pulled with whether it should be, and `Graph` repaints every edge, then walks them, when the path changes live, so an edge moves
@@ -390,6 +421,17 @@ Correction from stage 16: this pull request cannot move the stage's targets, bec
 head, which waits for stage 17. One `lean-m` run each under `"batched"`, RTX, interleaved: before (`benchmarks/results/stage-16-before`,
 load average 5.4) moving 87.6 ms (p99 90.6), layout frame 942 ms; after (`benchmarks/results/stage-16`, 4.2) moving 86.9 ms (p99 89.5),
 layout frame 997 ms, `rowCounts.pulledEdges` 0 in both. The 2D targets need a pulled 2D line, which no stage yet builds.
+
+As built (stage G3 of `cosmos-gap.md`): a plain solid straight 2D line is pulled too. `EdgeMesh.pulledBatch` builds a 2D batch's
+mesh as the 2D line's joined program (`worldWidth`, a piece's width `edge.width / 40`, as `Simple2DLineRenderer` takes it), and
+the view keys the batch (`|2d`), so a 2D/3D switch builds another. Correction to `cosmos-gap.md` section 3.3 item 1, which drops
+the `drawsFlat` refusal whole: two refusals stay in 2D. A 2D curve (`EdgeMesh.pullsCurve`) stays an object edge, since no parity
+case covers a pulled 2D curve yet; and `Edge.pullsLine` now refuses an end at a node drawn behind every edge
+(`Node.isDrawnBehindEdges`, which a 2D node below z-index 0 is, not only a group), because that line ends at the node's outline
+(`Edge.groupEnd`) where a pulled line runs to its centre. `test/browser/pulled-edges-batched.test.ts` holds 2D to the objects
+picture, 0 pixels, at rest, after a mouse drag, across a 2D/3D switch and at a sub-pixel width. One `lean-m` run under
+`"batched"`, RTX, load average 3.0 (`benchmarks/results/stage-g3`): `rowCounts.pulledEdges` 1,000,000, drag 79.9 ms median
+(p99 89.6; 107 ms median before), still serial 72.1 ms (p99 74.3), paced 87.3 ms (p99 89.8).
 
 Also fixed in stage 16 (a `"batched"`-only defect already on master): a node source mesh whose batch group lost its last member
 stayed in `MeshCache.batchedSources` until the next flush, but the cache prunes right after the repaint, before that flush, so a
@@ -523,7 +565,7 @@ Corrections, from the code:
   object path draws the lone curve from center to center there. The fourth pull request draws that curve (below).
 - Moving a node still writes edge bytes for a pulled curve: its span changes with its length, so every piece of a moved
   curve is rewritten (16 floats a piece, against the object path's slot plus its matrix), and the CPU still samples the
-  curve to find its cut. The measurement on 100,000 curves waits for a curve scenario in `benchmarks/compare`.
+  curve to find its cut. The measurement on 100,000 curves is in the ninth pull request's paragraph below.
 
 As built (stage 21, second pull request): a fanned curve alone between its two nodes is pulled too, on `"batched"`.
 `Edge.pullsLine` takes `line.bezier: true` with `line.fanned` unset or true when no other edge joins the two nodes in
@@ -568,6 +610,218 @@ curve draws the same uncut curve; it answers null only for a center outside its 
 `test/browser/pulled-curves-batched.test.ts` pulls a bundle of three fanned curves at `fanSpacing` 0.25, then 0.5, at 0
 pixels against `"objects"`, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, `arcRadius`,
 `supportModel` or a gap, routes (`line.route`), bends and self-loops.
+
+As built (stage 21, fifth pull request): a curve drawn on a circle through both centers (`line.arcRadius`,
+`edgeRoute.centerArc`) is pulled too, on `"batched"`. `arcRadius` joins `PULLED_LINE_KEYS`; it shapes only a curve that
+does not fan (a fanned curve in a bundle keeps its bow, as on the object path), and a change to it already re-places
+the edge. `edgeRoute.centerCircle` is `centerArc`'s circle, split out unchanged so the mirror samples it the same way;
+`curveSpan` takes the radius and the span gains `radius` and `turn` (the signed angle from source to target, set by the
+radius alone), both null for the other kinds. The fourth texel of a curve piece is (endAt, bow or turn, 0 lone, 1 fanned
+arc, 2 circle, unused), written through `pulledCurve.curveShape`. Two findings from the code: the shader takes the turn,
+not the radius, because a half circle's way round (radius 0.5) is float noise in `centerArc` itself, so float32 must not
+work it out again; and it samples the circle by the chord each sample sweeps from the source, with its own Taylor sine
+and cosine, because SwiftShader's built-in `sin`, `cos` and `atan` put samples up to 9e-3 off at a radius of 40, where
+the bar is 1e-4. `test/pulled-curve.test.ts` holds the mirror to `centerArc`'s cut within 1e-9 on 400 seeded edges (half
+circles among them, some falling back to the uncut lone curve); `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to
+it within 1e-4; `test/browser/pulled-curves-batched.test.ts` draws every curve at radius 0.6, drags a node, then widens
+the radius to 2, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve
+with caps, `supportModel` or a gap, routes (`line.route`), bends and self-loops.
+
+As built (stage 21, sixth pull request): a curve stopped short of its nodes by a gap (`line.nodeGap`, `sourceNodeGap`,
+`targetNodeGap`) is pulled too, on `"batched"`; a straight line with a gap stays an object edge. The cut needs nothing
+new: `Edge.placeRoute` cuts the route where it clears each node grown by its gap, so `Edge.pullCurve` hands `curveSpan`
+the same gapped outside tests. Correction to the fourth pull request's, from the code: the uncut lone curve drawn when
+no sample clears both nodes runs between the line's bare ends (`Edge.bareEnd`), which a gap moves off the centers to
+where the chord leaves the gapped node (`Edge.leaveNode`, never past the other center), not from center to center. So
+`curveSpan` takes the bare ends, asked only for that case, and the span gains `ends`: the shares of the chord where
+that curve starts and stops, null when they are the centers. The fourth texel of a curve piece is (endAt, start share,
+3, stop share) for it, and the shader draws the lone cubic between those two points of the chord. Bare ends within
+0.01 of each other on every axis are drawn by `createBezierLine` as a self-loop; `curveSpan` answers null there, and
+such a pulled curve draws nothing while its nodes stay that close. `test/pulled-curve.test.ts` holds the mirror to the
+object path within 1e-9 on 400 seeded lone curves, fanned arcs and center arcs with a gap at one end or both (many drawn
+uncut); `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4; `test/browser/pulled-curves-batched.test.ts`
+stops every curve 0.15 short of its nodes, drags a node, then widens three source gaps to 1.2, at 0 pixels against
+`"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or `supportModel`, routes
+(`line.route`), bends and self-loops.
+
+As built (stage 21, seventh pull request): a curve raised off the map by its own style (`line.bezier` with `line.route`
+"arc", `edgeRoute.raisedArc`) is pulled too, on `"batched"`. `route` and `arcHeight` join `PULLED_LINE_KEYS`. The raised
+arc wins over a fan and a circle, as `Edge.bundleRoute` draws it, so `Edge.pullCurve` hands `curveSpan` the height
+(`line.arcHeight`, else `DEFAULT_ARC_HEIGHT.arc`) in place of a bow or radius. `curveSpan` now takes its path as one
+object (`{ bow, radius, height }`); the span gains `height`, null for the other kinds, and the fourth texel of a curve
+piece is (endAt, height, 4, unused). A height of 0 is `raisedArc`'s two ends, no sample of which clears both nodes, so it
+is drawn as the uncut lone curve, as on the object path. A change to either key already rebuilds the line. Still object
+edges: a straight line with a raised route, a great-circle route, and a raised route the layout picks (`location-map`
+in 3D) rather than the style, since `Edge.pullsLine` is read only when the line is built and the layout's route can
+change without a rebuild. `Edge.pullsLine` reads the route from the style it is handed (`Edge.routeOf`), not the
+one drawn now: `Edge.paintFrom` asks before it stores the new style, and `line.route` is a content channel that does
+not change the mesh key, so a pulled straight line restyled to "great-circle", or to "arc" with no curvature, would
+otherwise stay pulled and draw straight. `test/pulled-curve.test.ts` holds the mirror to `raisedArc`'s cut within 1e-9 on 400 seeded
+edges (height 0 among them); `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` raises every curve at the default height, drags a node, then raises them
+to 0.6, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). It also restyles pulled straight lines to
+each of those two routes and holds that they leave the pull and match `"objects"` at 0 pixels. Still object edges: a curve with
+caps or `supportModel`, those routes, bends and self-loops.
+
+As built (stage 21, eighth pull request): a straight line raised off the map by its own style (`line.route` "arc"
+with no `line.bezier`) is pulled too, on `"batched"`, from the curve batch: `EdgeMesh.pullsCurve` (a curve, or a
+style-raised route) picks the batch, takes the line's pieces and lets it carry a gap, as `placeRoute` cuts any route
+alike. The one difference from a raised curve is where no sample clears both nodes (height 0, or wide gaps): the
+object path then draws the straight line between the bare ends (`placeLine`, `transformEdgeMesh`), not the lone
+curve, so `curveSpan` takes `straight` and answers a flat raised arc of one piece cut at the two bare ends. A pulled
+line that becomes a curve or stops being one rebuilds (`Edge.paintFrom` compares `EdgeMesh.pullsCurve` with whether
+the pulled piece has a run): `line.route` keys no mesh, so without it a pulled straight line restyled to "arc" kept
+its straight piece. `test/pulled-curve.test.ts` holds the mirror to the object path within 1e-9 on 400 seeded edges,
+gapped and flat among them; `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` straightens every edge, raises it, drags a node, raises it to 0.6 and
+flattens it to 0, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a
+curve with caps or `supportModel`, a great-circle route, a raised route the layout picks, bends and self-loops.
+
+As built (stage 21, ninth pull request): `benchmarks/compare` has the curve scenario, key `lean-s-curves`: 10,000 boxes
+and 100,000 curves (`edge.curvature`, no caps) in 3D, which under `"batched"` fails if any edge is an object edge. Its
+moving stage orbits the 3D camera, and a run fails if the camera state after that stage equals the state before it, so
+a camera move the view ignores cannot time a still view as a moving one. On the RTX at commit cd1a676863, three runs a
+path interleaved, one-minute load average 1.4 to 2.0: under `"batched"` all 100,000 curves are pulled and the moving
+frame is 46.0 ms median (runs 44.7 to 46.3, p99 49.3), still frame 46.6 ms, drag frame 47.6 ms, renderer and GPU
+processes 5,184 MB (`benchmarks/results/stage-21-curves-batched`); under `"objects"` moving 60.7 ms (60.3 to 62.3, p99
+77.7), still 58.9 ms, drag 124 ms, 2,839 MB (`benchmarks/results/stage-21-curves-objects`). The 40 ms target is missed
+by about 6 ms. Under `"batched"` a moving frame costs what a still one does, so the frame is bound by drawing the curves,
+not by the camera. The pulled path holds 2.3 GB more, which a curve's pieces (one per sample of its longest cut, four
+texels each) and its per-piece vertices would explain but no profile has yet confirmed.
+
+As built (stage 21, tenth pull request): a line on the great-circle route its own style asks for (`line.route`
+"great-circle", `edgeRoute.greatCircleArc`), curve or straight, is pulled too, on `"batched"`, from the curve batch:
+`EdgeMesh.pullsCurve` takes either style route, `Edge.pullsLine` any route the style sets, and `Edge.pullCurve` hands
+`curveSpan` the height (`line.arcHeight`, else `DEFAULT_ARC_HEIGHT["great-circle"]`) with `globe`. `edgeRoute.greatCircle`
+is `greatCircleArc`'s circle, split out unchanged so the mirror samples it the same way; the span gains `angle`, the
+angle between the two centers' directions from the origin (0 where the arc is the straight line: a center at the
+origin, or the centers in one direction from it or opposite ones), null for the other kinds, and the fourth texel of a
+curve piece is (endAt, height, 5, angle). As for the center arc, the shader takes the angle rather than working it out
+with `acos`, and takes each sine from the Taylor series of its half angle (`pulledSin`): with SwiftShader's built-in
+`sin` the GLSL test's farthest point is 6.3e-3 off, against the 1e-4 bar. Where no sample clears both nodes the line
+is drawn as a raised one is (the uncut lone curve, or for a straight line the straight line between the bare ends).
+`test/pulled-curve.test.ts` holds the mirror to the object path within 1e-9 on 400 seeded edges, curved and straight,
+gapped, flat and straight-drawn among them; `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` puts every curve on the route (node 4 at the origin and one edge through
+it, so some are drawn straight), drags a node, raises them to 0.6, straightens them and flattens them to 0, at 0 pixels
+against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or
+`supportModel`, a raised route the layout picks, bends and self-loops.
+
+As built (stage 21, eleventh pull request): a self-loop's teardrop (`edgeRoute.loopTeardrop`) is pulled too, on
+`"batched"`, from the curve batch, whatever its own curve or route asks for, as `Edge.bundleRoute` draws it:
+`EdgeMesh.pullsCurve` and `EdgeMesh.pulledBatch` take whether the edge is a loop, `Edge.pullsLine` no longer refuses
+one, and `Edge.pullCurve` hands `curveSpan` the loop's controls from its rank and count round its node
+(`DataManager.drawnBundle`) and its node's reach (`Edge.reachOf`). `edgeRoute.loopControls` is `loopTeardrop`'s
+control points, split out unchanged. The span gains `loop`, (x, y, k): the two controls' mean from the center and the
+share k of it they stand either side, turned a quarter, so the shader needs no sine; k is tan(sweep / 2), under
+tan(pi / 5). A teardrop needs three numbers and the fourth texel has two beside the kind, so its kind is 6 plus k:
+the fourth texel of a loop piece is (endAt, mean x, 6 + k, mean y). Its 24 samples are cut where they leave the node,
+as any route is; a teardrop's tip clears its node by construction, so the cut never falls back to the object path's
+circle (`createSelfLoopCurve`). A loop with bends (`line.bends`, the ring) or a dash stays an object edge, as before.
+`test/pulled-curve.test.ts` holds the mirror to `loopTeardrop`'s cut within 1e-9 on 400 seeded loops, one to seven on a
+node, round and stretched nodes; `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` gives one node three loops (two curved) and another four, drags a node,
+then gives the second a fifth, which narrows its loops' share, and takes it away, at 0 pixels against `"objects"`
+each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or `supportModel`, a raised route
+the layout picks, and bends.
+
+As built (stage 21, twelfth pull request): a route the `location-map` layout picks (a raised arc over a flat map in the
+3D view, a great circle on a globe, straight to a node in the tray) is pulled too, on `"batched"`, curve or straight, as
+a route the style asks for is. `Edge.pullCurve` reads the route drawn now (`Edge.route`: the style's, else the layout's),
+`EdgeMesh.pullsCurve` and `EdgeMesh.pulledBatch` take that route, and `Edge.pullsLine` no longer refuses a layout's
+route. Correction to the seventh pull request's, from the code: the layout's route changes with its frame, which keys
+no mesh, but every such change moves the nodes, so the edge is placed again; `Edge.placeLine` first moves a pulled line
+whose route now wants the other batch (straight to curve or back) by rebuilding it (`Edge.followRoute`), then writes
+its span. Two `"batched"` defects found on the way, both fixed there only: a pulled curve gave no points
+(`Edge.drawnCurve` null), so framing (`framingBox`) left its bow out and picking took it for a straight line; it now
+gives its path's points from its last span (`curvePathPoint`). And `Graph.#drawOverMap` ordered only the line batches
+over a map, so pulled lines kept their depth writes and drew under it in the wrong order; it takes the pulled batches
+(`MeshCache.pulledBatchMap`) too. `test/browser/pulled-curves-batched.test.ts` straightens half the edges, lays the graph
+on a flat map, then a globe, then back on its fixed positions (one node has no place, so its edges stay straight on
+the map), at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve
+with caps or `supportModel`, and bends.
+
+As built (stage 21, thirteenth pull request): a curve through a support point (`line.supportModel`, the quadratic
+`Edge.bundleRoute` draws through `supportPoints`' point with `bezierThroughControls`) is pulled too, on `"batched"`,
+from the curve batch. The support points place a point in x-y and give it the chord's z at its share along, so two
+numbers hold it: `CurveSpan.via`, its share along the chord and across it (`viaShare`, `supportPoints`' `toRel`),
+which wins over a fan and a circle and gives way to a raised route and a teardrop, as `bundleRoute` has them. Its kind
+is 7: the fourth texel of its piece is (endAt, along, 7, across), sampled with `bezierThroughControls`' 24 pieces and
+cut where it leaves its nodes, as any route is. `Edge.pullsLine` takes the `line.support*` keys, and the placement that
+follows a moved point (`Edge.update`, every edge while the points settle) writes the new span. Two defects found on
+the way. On `"batched"` only: forceAtlas2's degrees (`degreeWeights`) find an edge's nodes among the centres by the
+point object, and a batched node's `drawnPosition` is a new point at each read, so every degree was lost and the
+curves settled elsewhere; `UpdateManager` now reads each node's centre once per support update and hands it to
+`Edge.supportEdge` too. On both paths: `SupportPoints.endsChanged` ignored a move under 1e-6, so a drag's last move
+(its place rounded to 32 bits, 2.5e-8) left the settle begun a frame early from ends a hair off, and where the points
+rested, a few pixels, hung on the drag's last frames; it compares exactly now. `test/pulled-curve.test.ts` holds the
+mirror to the object path within 1e-9 on 400 seeded edges, gapped among them; `test/browser/pulled-curve-glsl.test.ts`
+holds the GLSL to it within 1e-4; `test/meshes/support-points.test.ts` settles a last move of a hair afresh;
+`test/browser/pulled-curves-batched.test.ts` bows every curve through a support point (barnesHut, the drawing's
+unit), drags a node and lets the points settle, then changes the law to forceAtlas2, at 0 pixels against
+`"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, and bends.
+
+As built (stage 21, fourteenth pull request): a straight line through bends (`line.bends`) is pulled too, on
+`"batched"`, from the curve batch, as long as it is not also rounded (`line.bezier`) or a self-loop's ring. Its kind is
+8, and it is the one kind whose path the shader does not work out from the two rows: `Edge.pullSpan` cuts the path in
+doubles (`curvePathPoint`, the ends where it leaves its nodes and the bends between, as `placeBent` places them) and
+writes every point into a ROUTE TABLE (`edgeRoutes`, one (x, y, z) to a texel) that the curve batch keeps beside its
+piece table; the fourth texel of its piece is (endAt, the texel its points start at, 8, 0), and `pulledCurvePoint`
+reads point j from there. Blocks are handed out in powers of two (`PulledLineBatch.writeRoute`, `releaseRoute`), a
+move of either node writes them again, and the table doubles when it runs out. Where no bend clears both nodes, the
+line is drawn as it would be without them, as `transformEdgeMesh` draws it. One defect found on the way, on
+`"batched"` only: the camera frames the graph by `Edge.drawnCurve`, which for a pulled curve gave its points in
+doubles while the object path gives them in the 32-bit floats its slots hold, so the frame sat a last bit off
+(`ThreeDBends`: the view's y translation -0.68700176 against -0.68700153) and one sample flipped at the end of a
+dashed edge that is not pulled at all. The pulled points are now rounded to 32 bits there. A correction: the
+fourteenth pull request's first draft blamed that pixel on the 35-degree solid edge's source end and moved its points
+into the route table to cure it; the route table stays, as it gives the card the object path's exact points, but it
+was not what the pixel needed. `test/pulled-curve.test.ts` holds the mirror to the object path's points;
+`test/browser/pulled-curve-glsl.test.ts` holds the GLSL's read of the route table; `test/browser/pulled-curves-batched.test.ts`
+draws lines through bends at 0 pixels against `"objects"` on WebGL and WebGPU (SwiftShader), and render-parity's
+`ThreeDBends` is at 0 on both. Still an object edge: a curve with caps.
+
+As built (stage 21, fifteenth pull request, closing the stage): a curve with caps stays an object edge, and stage 21 adds
+no pulled cap. A correction to the plan for this pull request, from the code: a cap is not a curve kind but the same
+question as a cap on a straight line. `Edge.pullsLine` refuses any end that draws a cap or words (`noCap`), straight or
+curved, so a capped straight line is an object edge too; `PulledCapBatch` is built by no edge, only by
+`test/browser/pulled-arrow-caps.test.ts`, and throws while `pulledCapsOn` is off, which it is on every path. A pulled cap
+differs from the placed one by one anti-aliasing sample at its tip (stage 17), so it cannot reach 0 pixels, and turning
+it on is the owner's change in section 10. Under the stage's rule a kind stays an object edge until its parity passes, so
+a capped curve stays one with the capped straight line, and a pulled curve cap is built, on the curve batch's span and
+route table, only once that change is made. With that, every curve kind without caps is pulled on `"batched"`: lone and
+fanned curves, `fanSpacing`, `arcRadius`, gaps, raised and great-circle routes, the layout's routes, self-loop
+teardrops, support points and bends. The stage's 40 ms target stays missed by about 6 ms (ninth pull request).
+
+Correction from stage 22 (code read at origin/master 8593e8751a): the row's "fragment scroll" cannot ride the join shader.
+A straight animated line (`line.animationSpeed`, 3D only: in 2D `EdgeMesh` draws it flat and unanimated before it asks)
+is a Babylon greased line with a two-texel moving texture (`#D3D3D3` and the edge's color, nearest, `uScale` 5), one batch
+and one `animatedEdgeFrames` callback a look, each moving its texture's `uOffset`. Measured on SwiftShader WebGL with the
+nine-node scene of `test/browser/pulled-animated-lines.test.ts` (every edge animated, parked), the greased line's
+silhouette and a solid join-shader line's of the same width and color differ by 173 pixels: the join line's
+anti-aliased fringe, which the greased line has not. So a scroll added to `EDGE_PULLED` misses the section 7 bar before
+its colors are compared. The pulled animated line instead takes the greased line's own arithmetic: four vertices a piece
+(each end at its row's place, offset by `0.5 * width * normal`, the normal multiplied by `projection`, as Babylon's
+greased line plugin does with `sizeAttenuation` off), `u` 0 to 1 along the edge, and the texel `floor(fract(5u +
+offset) * 2)` in the fragment stage, from the rows and the edge table `PulledLineBatch` already keeps, with its look in
+the table as stage 19 keeps a pulled line's. One `animatedEdgeFrames` callback moves the one `offset` uniform for every
+pulled animated line, which is the row's "CPU per animated edge per frame at 0": today a frame costs one callback a
+look, and a move rewrites a thin-instance matrix an edge.
+
+Correction from stage 22: the greased line drew with the render size its material was built at, not the canvas's.
+Babylon's greased line plugin reads `engine.getRenderWidth()` and `getRenderHeight()` once, in its constructor, into its
+`resolution` (and so its aspect), and never again. The first element on a page builds its lines before its first resize,
+while its canvas still has the default 300 by 150, so it drew every greased line with aspect 2 on a 400 by 300 canvas;
+a later element on the same page, or any resize, gave another picture. That is a defect on both paths (the batched path
+still draws curved and capped animated lines as greased lines), so the fix applies to both: `EdgeMesh` hands every
+greased line the render size now and after every `engine.onResizeObservable`, and the pulled animated line's `aspect`
+uniform follows the same size. On the `"objects"` path this changes the picture of a page's first element with animated
+or fallback greased lines.
+
+Correction from stage 22: `scene.animationsEnabled`, the switch that parks an animated line, did not survive WebGPU
+opening. `renderer: "webgpu"` starts on a WebGL scene and replaces it with a new one when WebGPU opens; the swap carried
+the background but not this flag, so a consumer that parked the animation before WebGPU opened found it running. The
+swap in `Graph` now carries it, on both paths.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
@@ -786,6 +1040,49 @@ lands as one (the stale skip). The methods are optional members of `GpuLayoutSim
 The element's copy at landing follows; `copyBufferToTexture` needs `bytesPerRow` a multiple of 256, which the `rowPosition`
 texture's width must allow.
 
+As built (stage 25, third pull request): the element fills the table on the card under renderPath "batched" on a shared
+device, and only there (`Graph.getDrawnTarget`, internal). At each load the engine seeds the ring from `rowPosition`
+(4 slots: two batches in flight, the one the frame's step submits, and the landed one, copied at the publish after
+it). Every write `RowTable` makes other than a repack from the lane (`place`, w changes) is mirrored into the ring
+through `writeDrawn`. Each publish sends the skip mask (no row, a held fixed row, a follower, a row the table keeps
+itself) and writes a row that joins it as the table holds it. It copies the landed slot into the texture
+(1024-texel rows are 16384 bytes, so the alignment holds) and sends the next transform. The next repack then sends
+none of those rows. A settling batch still goes up by upload.
+Correction to the text above: the envelope cannot be a single uniform the next batch reads. A batch's commands are
+recorded across awaits, so a transform set at a publish reached a batch the frame before had already submitted, and
+the texture parted from the lane by 2.5% on every row. So each ring slot has its own transform and skip mask, written
+when a batch is recorded into it. The simulation reports the transform of the landed batch
+(`landedDrawnTransform`), and the element publishes that landing with it, so the lane and the texture hold the same
+rows. A row the owner writes while an earlier batch in a slot is still to run is written into that slot again before
+its next batch. The one landing already recorded over it can still show the kernel's value for that row once.
+A second correction: a repack from the lane also changes w, when a row the layout adds while it runs is first placed
+(w 0 to 1) or a row is unplaced. The kernel keeps the ring's w, so such a row stayed at w 0 on the card until the layout
+settled. A repack that changes a row's w now mirrors that row into the ring and uploads it once, since the landing
+already copied holds the old w.
+
+As built (stage 25, fourth pull request): a loss needed no code of its own. The controller's rebuild on the engine's
+new device goes through `replaceSimulation`, whose load attaches a new ring seeded from `rowPosition`, and the
+table's texture is re-uploaded with the engine's restore; `#drawnRun` drops a run whose device is no longer the
+target's. A test destroys the device mid-run and checks that copies resume with no uploads and the texture equals
+the CPU copy. A layout transition suspends the copy: while the transition runner is active, `getDrawnTarget` says
+`suspended`, and each landing goes up by upload, while the skip mask and the transform are still sent, so the copy
+resumes at the first landing after the move ends.
+
+A correction, found when the gpu-loss tests were made to wait on the copy itself rather than on a count of landings:
+when a layout with no transition replaces the one that held a transition, the FIRST landing copied after the swap
+leaves the texture differing from the CPU copy (worst relative difference about 2000); from the second copy on they
+agree. The mechanism is not yet explained (a batch of the replaced simulation, or its draw transform, landing after
+the swap is the likely one). `shared-device-drawn-moves.test.ts` compares at the second copy and points here; until
+this is fixed the texture can hold the wrong rows for one landing after a layout is replaced. Issue #6422.
+
+As built (stage 25, fifth pull request): a correction to "a settling batch repacks from the lane, so the rest
+picture matches the upload path". It did not always. `RowTable` remembers a copied landing with one flag until
+the next repack, which then sends no row; when the settling batch was published by upload after a copy and before
+that repack, the flag hid it too, and the texture rested on the copied landing while the CPU copy held the settled
+rows (2 runs in 8, every x, y and z lane, worst relative difference 0.2). A publish that goes up by upload now drops
+the flag (`RowTable.dropCopy`), so the repack sends every row. The texture at rest now equals the CPU copy, which is
+what the upload path sends, within 1e-6, and a click while the layout copies selects the node under the pointer.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,
@@ -795,7 +1092,8 @@ texture's width must allow.
   `SimpleLayoutEngine` still get `Node`s. `node-add-before` is gated on its observers. `StylePainter` writes columns into batch buffers.
 - **The typed door**, the advanced path; `addNodes` and `addEdges` stay the simple one. `session.data.importColumns({ sources, targets,
 nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attributes` are optional. Same ceilings, report and undo step,
-  with one range entry in the op log. graph-io and graph-samples route through it.
+  with one range entry in the op log, the only bulk history entry (cosmos-gap.md G4 reuses it). Rows are placed by the element's `layout`, as
+  `nodeData`'s are. graph-io and graph-samples route through it.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` serves `JoinScreen.tsx:636`.
 - **Records into columns is conditional.** Records and op log are 3.8% of the heap; removing `Edge`, `Node` and per-node Babylon objects
@@ -902,7 +1200,7 @@ builds a consumer subclass.
 
 **Additive, no owner approval, each stated on its pull request:** `renderPath`, `rowCounts`, `limits` (option, and in `capabilities`),
 `rendererStatus.layoutDevice`, `session.data.importColumns` and `count`, the `{ region }` target and gesture option, label sampling options,
-`labelText`, `antialias`, a `hiddenBySampling` count, the warning `W_OBJECT_CAP` on the existing `{ code, params }` event, the 4.8 options, and in webgpu-graph-algorithms `device`, `to_drawn` and `GpuContext.from`'s `errorSink`. Each gets a `doors.ts` entry and a
+`labelText`, `antialias` (cosmos-gap.md G5), a `hiddenBySampling` count, the warning `W_OBJECT_CAP` on the existing `{ code, params }` event, the 4.8 options, and in webgpu-graph-algorithms `device`, `to_drawn` and `GpuContext.from`'s `errorSink`. Each gets a `doors.ts` entry and a
 blind-author example under 15 lines. `GraphContext` gains optional members only.
 
 ## 7. Proving a faster path draws the same picture
@@ -941,9 +1239,23 @@ A missed millisecond target does not block a parity-clean stage: the Proof file 
 `DEFAULT_LIMITS.renderCeiling` (100,000) and `edgesDrawn` (1,000,000) in `session/limits.ts` were measured against V8's heap with one
 object per element. Stages 26 to 28 remove that reason.
 
-- Stage 30 adds `limits: { renderCeiling?, edgesDrawn?, objectRows?, objectEdges? }` on the element and session; `Ingest` reads the effective
-  value. `session.capabilities` and `capabilities:changed` widen with `limits`. The app's `fitsInBrowser` and `isLarge` take limits as a
+- `limits: { renderCeiling?, edgesDrawn? }` on the element and session, `Ingest` reading the effective value, and the widening of
+  `session.capabilities` and `capabilities:changed` with `limits` are G2 of `cosmos-gap.md`. Stage 30 adds only `objectRows?` and
+  `objectEdges?` to that option, and `W_OBJECT_CAP`. The app's `fitsInBrowser` and `isLarge` take limits as a
   parameter, because the start screens have no element.
+- **As G2 built it** (corrections to cosmos-gap.md section 3.2, which named no channel for the warning). The element had no
+  general `{ code, params }` warning event, so `W_LIMITS_IGNORED` arrives on a new element event, `limits-warning`
+  (`{ code, params }`, shaped like `layout-warning`); stage 30's `W_OBJECT_CAP` can use the same one. A refused switch to
+  `"objects"` is the existing `error` event, its `GraphtyError` carrying `E_TOO_LARGE` with the ingest's `details`
+  (`{ limit, count, of, graph }`). The capability type is published as `SessionCapabilities`. On a session with no renderer
+  (`createGraphSession({ limits })`) nothing draws, so the ceilings are held as given. The effective values live in
+  `RenderLimits` (`session/limits.ts`); the ingest host's `ceilings()` returns nothing while the defaults stand, so `Ingest`
+  still reads `DEFAULT_LIMITS` itself, and `batched()` is the render path alone (true under NullEngine too).
+- **G2 measured** (correction to cosmos-gap.md 3.2's "about 50 s" and 5.4's 850-920 MB heap). With `limits` raised under
+  `"batched"`, 200,000 nodes load (first frame 8.4 s on the RTX), but 500,000 nodes and both million-node rows end the
+  renderer process within about 20 s: its memory climbs past 4 GB, V8's pointer-compression heap cage, which
+  `--max-old-space-size` does not lift. That is about 8 KB of heap per node on the records path, roughly ten times the
+  estimate. The heap measurement and its fix stay with G9 and G11; a million rows cannot load before them.
 - With `"batched"`, that option loads a million nodes. `"objects"` with a higher limit refuses with `E_TOO_LARGE`: its heap reason stands.
   **The default stays 100,000** (section 10).
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or
@@ -1015,6 +1327,8 @@ Labels
 
 ## 13. Stages
 
+How the remaining stages and a few follow-on ones close the measured gaps to cosmos.gl: [cosmos-gap.md](cosmos-gap.md).
+
 Each stage is one pull request into master (or several where marked), passes CI, and leaves master shippable: under `"objects"` it
 changes nothing a consumer sees. Only 32-34, 36 and 37 add picture changes, with their options on. CI proves _counted work_; milliseconds
 come from the harness (`benchmarks/compare/`) under `render-path="batched"`, in the Proof file.
@@ -1066,6 +1380,44 @@ only a `Node` draws (a model, a picture, or anything `batchableOf` refuses); a g
 (`UpdateManager.takeNodeBatch`) keeps dropping a row with no `Node` until the fifth pull request skips `buildNode`, because today such a
 row is one that was removed, and painting it would draw a ghost. That pull request also renumbers `ColumnRow`s on a freeze.
 
+Correction from stage 26's third pull request: the third item is split. Fit and filter go first, alone: they reach a `ColumnRow`
+through `NodeBatches.columnRowIndices()` and the row table, never through a `Node`. A fit frames each visible column row from
+`RowTable.centerOf` and `extentOf` inside the graph root's transform (`nodeFramingBox`'s `columns`), and a filter writes the row
+table's hidden flag (`UpdateManager.applyColumnRows`), which is all a batch reads. Two limits carry to the fifth pull request. A row
+the mask draws faintly in context, or ringed as selected, needs a `Node` (both are a `Node`'s overlays), so ingest must build one for
+such a row; a column row is shown or hidden, nothing else. And `RowTable.measure` takes a `Node`, so a row that never had one has no
+extent to frame until paint measures it from its `NodePaint`. Shipped engines and transitions by row are the next pull request.
+
+Correction from stage 26's fourth pull request: shipped engines are split by kind. Static engines (every `StaticLayoutEngine`,
+which is every `SnapshotLayoutEngine`) go first, alone: they already compute over the element's snapshot by row, and only two
+things reached a `Node`. They found the data manager through `_nodes[0].parentGraph`, and they published node by node through
+`n.index`. The layout manager now hands each one the data manager (`simpleLayoutInternals.attachRows`), and while the data manager
+says `"batched"` the engine arranges with no `Node` at all and publishes every row of its answer (`publishColumn` takes the
+element's array in place of a node). Under `"objects"` it publishes node by node, as before. A third party's static engine is
+still handed every built `Node`. Two limits carry on. A snapshot layout's `nodeSizes`, `nodeExtents` and data columns still read
+a row's `Node`, so a row with none counts as unsized until paint measures it (the fifth pull request). Simulations
+(`SimulationLayoutEngine`, d3, ngraph), which hold per-node state, and layout transitions are the next pull request.
+
+Correction from stage 26's fifth pull request: simulations are split again. `SimulationLayoutEngine` (spring, spring-electrical,
+ForceAtlas2) already loads, steps and draws through the GPU ring by row; only its publish walked `nodes` for row membership.
+Under `"batched"` it now publishes every row of its loaded snapshot (`publishColumn` with the element's array), and under
+`"objects"` node by node, as before. A removed node's row, live until the next freeze, is published too; the batches draw nothing
+for it. Its `nodeGap` radii and `clusterBy` communities still walk `nodes` and read a row's `Node`, so the fifth item must
+materialize nothing there either: a row with no `Node` counts as unsized and in no community until then. d3 and ngraph are
+different in kind: they keep a body per `Node`, fed through `addNode`, so going by row is a rewrite of their bodies onto rows,
+not a change to their publish. They and layout transitions, whose movers are keyed by `Node` and read `drawnPosition`, are the
+next pull request.
+
+Correction from stage 26's sixth pull request: transitions go first, alone, and d3 and ngraph follow. The runner needed no
+rekeying: its movers are keyed by a `TransitionSubject`, which a `Node` is and a `RowSubject` now is too, a row drawn with no
+`Node` read and written through the row table (`centerOf`, `extentOf`, `shrink`, `place`) and painted from `StylePainter.nodePaint`.
+The graph hands the runner `NodeBatches.columnRowIndices()` as row subjects beside its `Node`s, and since no `Node.update`
+places them, `UpdateManager.updateNodes` calls `placeRows` after its node walk: each row is drawn on its way to where the lane
+puts it (`RowTable.laneOf`, flat in 2D), and is put back on the lane when the move ends or is replaced. Under `"objects"` there
+are no column rows, so nothing changes. One limit carries on: a row subject's hops from the selection are taken as farthest,
+since edges still reach their ends as `Node`s (the end accessors, the fourth item). d3 and ngraph by row are the next pull
+request, then the fifth item.
+
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0   | Done: baseline, spikes              | all                             | Harness, `baseline` run, section 5                                                                                                                                                                                                                                                                      | --                                                                                                                                               | L   | None                                                                                                                                                                                                 | Harness and `baseline` committed                                                                                                                                                                                                                                                                                                                                                                 |
@@ -1084,7 +1436,7 @@ row is one that was removed, and painting it would draw a ghost. That pull reque
 | 12  | Object roster                       | #3247                           | Per-frame walks visit object rows only                                                                                                                                                                                                                                                                  | 2, 11                                                                                                                                            | L   | Moving 130 ms; 10k still 8 ms                                                                                                                                                                        | `Node.update` per frame equals object rows                                                                                                                                                                                                                                                                                                                                                       |
 | 13  | App opts in                         | #3247                           | The graphty app sets `renderPath: "batched"` while its `cosmograph` experiment is on (canary and `?features=cosmograph`); the flag graduates when stage 38 decides the defaults                                                                                                                         | 12                                                                                                                                               | H   | App at stage 12's numbers                                                                                                                                                                            | Section 7's gate: a changed image goes to the owner's review or those rows stay ineligible; `check:quick --with-dry-run`                                                                                                                                                                                                                                                                         |
 | 14  | Widen eligibility (PRs)             | #3247 closes                    | Per-instance size, opacity, z order, pictures, gradients, screen-scale size                                                                                                                                                                                                                             | 12                                                                                                                                               | M   | Size ramp: draws counted at one per shape                                                                                                                                                            | `render-parity` per kind                                                                                                                                                                                                                                                                                                                                                                         |
-| 15  | Pulled lines, dark                  | #3251                           | `EDGE_PULLED`, one `gl_VertexID` draw, behind an internal switch; 6-vertex program; `antialias`; trace the stray pixel, or that program stays off, with a picture for the owner                                                                                                                         | 6, 8                                                                                                                                             | H   | Zero edge bytes on a move; 1M long edges 83 ms, 6 vertices 68, also no antialiasing 21                                                                                                               | `render-parity` with the switch on; RTX parity of the 6-vertex program; `curves-rest-the-same-however-frames-split`; w = 0 ends                                                                                                                                                                                                                                                                  |
+| 15  | Pulled lines, dark                  | #3251                           | `EDGE_PULLED`, one `gl_VertexID` draw, behind an internal switch; 6-vertex program, using cosmos-gap.md G5's `antialias` option; trace the stray pixel, or that program stays off, with a picture for the owner                                                                                         | 6, 8                                                                                                                                             | H   | Zero edge bytes on a move; 1M long edges 83 ms, 6 vertices 68, also no antialiasing 21                                                                                                               | `render-parity` with the switch on; RTX parity of the 6-vertex program; `curves-rest-the-same-however-frames-split`; w = 0 ends                                                                                                                                                                                                                                                                  |
 | 16  | Pulled lines join `"batched"`       | #3251                           | One line; `repeatPerVertex` deleted                                                                                                                                                                                                                                                                     | 11, 13, 14, 15                                                                                                                                   | H   | Moving 90 ms; layout frame 90 ms                                                                                                                                                                     | Both projects by dispatch; no changed image in the app; 1M edges load on SwiftShader                                                                                                                                                                                                                                                                                                             |
 | 17  | Caps pulled                         | #3251                           | Caps on the same rows and include; 2D, image, stacked caps wait for parity                                                                                                                                                                                                                              | 16                                                                                                                                               | M   | 3D default moving 100 ms (176 today)                                                                                                                                                                 | `render-parity`; line end equals cap place                                                                                                                                                                                                                                                                                                                                                       |
 | 18  | ID buffer, edges                    | #3250                           | Edge target, window read for hover; `pickEdgeId` a typed scan for clicks                                                                                                                                                                                                                                | 10, 16                                                                                                                                           | M   | Hover 20 ms                                                                                                                                                                                          | Agreement test; per-edge `worldToScreen` per move counted at 0                                                                                                                                                                                                                                                                                                                                   |
@@ -1096,10 +1448,10 @@ row is one that was removed, and painting it would draw a ghost. That pull reque
 | 24  | Device sharing, no data             | #3248                           | `device`, engine limits, `errorSink`, scope wait, recovery, dispose order; software adapters decline                                                                                                                                                                                                    | 0, 39                                                                                                                                            | H   | Step within 5% of separate, by harness                                                                                                                                                               | Destroy and crash mid-layout; a Babylon validation error fails no batch; a layout error rejects its landing; ten dispose cycles leave nothing resident                                                                                                                                                                                                                                           |
 | 25  | GPU fills the table                 | #3248 closes                    | `to_drawn`, ring, copy at landing; rebuild on a new device; `layoutDevice`; transitions suspend it                                                                                                                                                                                                      | 1, 4, 16, 24                                                                                                                                     | H   | `renderer="webgpu"` layout frame 115 ms                                                                                                                                                              | Rest positions equal the upload path within 1e-6; uploads in a run counted at 0; mid-run click; reload in flight skips its copy; table equals lane after loss; software adapter reports `"separate"`                                                                                                                                                                                             |
 | 26  | Lazy `Node`                         | #3249                           | `buildNode` for object rows only; views; engines and transitions by row; events gated; paint from columns                                                                                                                                                                                               | 1, 12, 16                                                                                                                                        | H   | `Node`s built counted at 0                                                                                                                                                                           | Counted after load, transition, fit, filter, layout swap; `evt.node === graph.getNode(id)`; `defineLayout` cases                                                                                                                                                                                                                                                                                 |
-| 27  | Lazy `Edge`                         | #3249                           | The same; `reconcile`, pending edges, end accessors                                                                                                                                                                                                                                                     | 26                                                                                                                                               | H   | First frame 8 s; heap 600 MB                                                                                                                                                                         | Counted; `heldEdgeProblems`; undo across a load                                                                                                                                                                                                                                                                                                                                                  |
-| 28  | Column door                         | #3249 closes unless 29 is built | `importColumns`, `count`, bulk op-log entry; graph-io, graph-samples routed; staging released; no id maps for typed input; 20-byte batches                                                                                                                                                              | 27                                                                                                                                               | M   | Typed input: first frame 2 s, heap 400 MB                                                                                                                                                            | Digest equals the record path; bulk undo, redo; `render-parity` on 20-byte batches; blind-author example                                                                                                                                                                                                                                                                                         |
+| 27  | Lazy `Edge`                         | #3249                           | The same; `reconcile`, pending edges, end accessors                                                                                                                                                                                                                                                     | 26                                                                                                                                               | H   | First frame per cosmos-gap.md 5.1; heap 600 MB                                                                                                                                                       | Counted; `heldEdgeProblems`; undo across a load                                                                                                                                                                                                                                                                                                                                                  |
+| 28  | Column door                         | #3249 closes unless 29 is built | `importColumns`, `count`, bulk op-log entry; graph-io, graph-samples routed; staging released; no id maps for typed input; 20-byte batches                                                                                                                                                              | 27                                                                                                                                               | M   | Typed: first frame per cosmos-gap.md 5.1; heap 400 MB                                                                                                                                                | Digest equals the record path; bulk undo, redo; `render-parity` on 20-byte batches; blind-author example                                                                                                                                                                                                                                                                                         |
 | 29  | Conditional: records into columns   | #3249 closes                    | Attribute columns, overlay, records on demand                                                                                                                                                                                                                                                           | 28, 30                                                                                                                                           | H   | Stage 30's heap target                                                                                                                                                                               | Digest and fingerprint equal on every sample dataset                                                                                                                                                                                                                                                                                                                                             |
-| 30  | The ceiling                         | ceiling                         | `limits`, budgets, `W_OBJECT_CAP`, `capabilities`; app passes limits to `fitsInBrowser`, `isLarge`; measure the iteration raise                                                                                                                                                                         | 18, 21, 22, 23, 25, 28                                                                                                                           | M   | 1M nodes and edges, typed: first frame 6 s, frames 100 ms (40 with the 6-vertex program and no antialiasing), hover 30 ms, heap 800 MB, layout frame 120 ms, `renderer="webgpu"` 125 ms, lasso 15 ms | Harness run, which settles stage 29; refusal at default limits unchanged; `StartPageFrame.real-element`                                                                                                                                                                                                                                                                                          |
+| 30  | The ceiling                         | ceiling                         | `objectRows`, `objectEdges` and `W_OBJECT_CAP` added to the `limits` option and `capabilities` member cosmos-gap.md G2 lands; app passes limits to `fitsInBrowser`, `isLarge`; measure the iteration raise                                                                                              | 18, 21, 22, 23, 25, 28, G2                                                                                                                       | M   | 1M nodes and edges, typed: first frame 6 s, frames 100 ms (40 with the 6-vertex program and no antialiasing), hover 30 ms, heap 800 MB, layout frame 120 ms, `renderer="webgpu"` 125 ms, lasso 15 ms | Harness run, which settles stage 29; refusal at default limits unchanged; `StartPageFrame.real-element`                                                                                                                                                                                                                                                                                          |
 | 31  | Label anchors                       | #3252                           | Geometry-free anchor; labelled and tooltip rows stay batched                                                                                                                                                                                                                                            | 12                                                                                                                                               | M   | 10k labelled still at least 20 ms below stage 0                                                                                                                                                      | `render-parity`; `label-scaling`                                                                                                                                                                                                                                                                                                                                                                 |
 | 32  | Grid sampling                       | #3252                           | Option, off by default                                                                                                                                                                                                                                                                                  | 4, 31                                                                                                                                            | M   | Sampling on, 100k labelled: still within 8 ms of labels off                                                                                                                                          | Labels built bounded by cell count; off leaves `nodeLabelCounts` unchanged                                                                                                                                                                                                                                                                                                                       |
 | 33  | Glyph atlas                         | #3252 closes                    | Option, off by default; section 4.7's rules; stories to the owner's review                                                                                                                                                                                                                              | 32                                                                                                                                               | H   | 10,000 labels in one draw; 5,000 build under 1 s, on the RTX (SwiftShader's first frame alone is 1.4 s)                                                                                              | Off shows zero pixel change; `test/fidelity` unchanged; fallback list and full atlas by unit test                                                                                                                                                                                                                                                                                                |

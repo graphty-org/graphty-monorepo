@@ -146,6 +146,7 @@ import {
     EventCallbackType,
     EventOfType,
     EventType,
+    type LimitsWarningEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
@@ -231,7 +232,7 @@ import {
     useEdgeIdTarget,
     useNodeIdTarget,
 } from "./render/PickService";
-import { RowTable } from "./render/RowTable";
+import { type DrawnTarget, RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -261,6 +262,7 @@ import {
     setsNotifierOfSession,
 } from "./session/GraphSession";
 import { ISSUES_VALUE } from "./session/issues";
+import { DEFAULT_LIMITS, type LimitsOption, RenderLimits } from "./session/limits";
 import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
@@ -284,7 +286,12 @@ import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { CompiledLayer } from "./session/styles/Layer";
 import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
-import { attachTransitions, LayoutTransitionRunner, transitionsOf } from "./transitions/LayoutTransitionRunner";
+import {
+    attachTransitions,
+    LayoutTransitionRunner,
+    RowSubject,
+    transitionsOf,
+} from "./transitions/LayoutTransitionRunner";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
@@ -817,6 +824,8 @@ export class Graph implements GraphContext {
     #rowTable: RowTable | null = null;
     /** How nodes are drawn; see {@link Graph.setRenderPath}. */
     #renderPath: RenderPath = renderPathDefault.value;
+    /** The ceilings asked for through `limits`, and those in force on this render path. */
+    readonly #limits = new RenderLimits(this.#renderPath === "batched");
     /** The node batches, once the renderer is open on the `"batched"` path. */
     #nodeBatches: NodeBatches | null = null;
     /** What hover reads on the `"batched"` path. */
@@ -889,6 +898,13 @@ export class Graph implements GraphContext {
     private readonly drawsOnDemand = (): boolean =>
         this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
+     * Whether the render loop flushes after each frame's fence: only under renderPath "batched",
+     * whose frames are short enough that waiting for the browser's own flush set their floor.
+     * Asked each frame, so a live path change takes effect on the next one.
+     * @returns True under renderPath "batched".
+     */
+    readonly #flushesFrameFence = (): boolean => this.#renderPath === "batched";
+    /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
      * while drawing on demand is on. A turning camera keeps it unfinished only while the canvas is
@@ -943,12 +959,22 @@ export class Graph implements GraphContext {
     private activeCapture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture | null = null;
 
     /**
+     * Whether the canvas multisamples, as the engine was built: the constructor's `antialias`.
+     * Fixed for the life of the graph; WebGPU, when it opens, is built the same way.
+     * @experimental cosmograph
+     */
+    readonly antialias: boolean;
+
+    /**
      * Creates a new Graph instance and initializes the rendering engine and managers.
      * @param element - DOM element or element ID to attach the graph canvas to
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
+     * @param options - How the engine is built; read once, here.
+     * @param options.antialias - Whether the canvas multisamples (4x). Left out, true.
      */
-    constructor(element: Element | string, useMockInput = false) {
+    constructor(element: Element | string, useMockInput = false, options: { readonly antialias?: boolean } = {}) {
         this.useMockInput = useMockInput;
+        this.antialias = options.antialias ?? true;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
 
@@ -993,6 +1019,8 @@ export class Graph implements GraphContext {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
+            flushesFrameFence: this.#flushesFrameFence,
+            antialias: this.antialias,
         });
 
         this.basemapManager = new BasemapManager(
@@ -1023,6 +1051,10 @@ export class Graph implements GraphContext {
 
         // Initialize DataManager
         this.dataManager = new DataManager(this.eventManager, this.styles);
+        this.dataManager.renderLimits = {
+            ceilings: () => this.#limits.overrides,
+            batched: () => this.#renderPath === "batched",
+        };
 
         // ONE controller for the element, this graph and its session. Nothing is probed until
         // `start()` is called, which the element does from `connectedCallback`. No `minNodes`
@@ -1057,6 +1089,7 @@ export class Graph implements GraphContext {
             {
                 acceleration: this.acceleration,
                 xr: this.xrAvailability,
+                ceilings: this.#limits,
                 region: (polygon) => this.nodesInRegion(polygon),
                 store: laneStoreOf(this.dataManager),
                 features: () => requestedFeatures.get(this)?.(),
@@ -1529,6 +1562,15 @@ export class Graph implements GraphContext {
                 config: () => this.styles.config.graph.layoutTransition,
                 quality: () => this.renderManager.shaderGuard.quality,
                 nodes: () => this.layoutManager.nodes,
+                rows: () => {
+                    const table = this.#rowTable;
+                    const rows = this.#nodeBatches?.columnRowIndices() ?? [];
+                    return table === null
+                        ? []
+                        : rows.map(
+                              (row) => new RowSubject(table, row, this.stylePainter.nodePaint(row)?.color ?? null),
+                          );
+                },
                 edges: () => this.layoutManager.edges,
                 selected: () => this.selectionManager.getSelectedNodes(),
                 layoutRunning: () => this.layoutManager.running,
@@ -2129,7 +2171,11 @@ export class Graph implements GraphContext {
      */
     private async openWebGPU(requested: RendererRequest): Promise<void> {
         const canvas = this.createCanvas();
-        const opened = await openWebGPUEngine(canvas, (adapter) => this.acceleration.sharesDevice(adapter));
+        const opened = await openWebGPUEngine(
+            canvas,
+            (adapter) => this.acceleration.sharesDevice(adapter),
+            this.antialias,
+        );
         // Shut down while the engine was opening: nothing will ever dispose it but this.
         if (this.#teardown.signal.aborted) {
             if (typeof opened !== "string") {
@@ -2156,6 +2202,8 @@ export class Graph implements GraphContext {
             this.reportEngineGone(error);
         };
         const background = this.scene.clearColor;
+        // a consumer that parked the scene's animations before WebGPU opened keeps them parked
+        const animates = this.scene.animationsEnabled;
         const previous = this.renderManager;
         const label = this.canvas.getAttribute("aria-label");
         if (label !== null) {
@@ -2172,6 +2220,7 @@ export class Graph implements GraphContext {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
+            flushesFrameFence: this.#flushesFrameFence,
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
@@ -2196,6 +2245,7 @@ export class Graph implements GraphContext {
         this.renderManager.applyLighting(this.#lighting);
         NodeEffects.setOutlineWidth(this.scene, this.styles.config.behavior.node.outlineWidth);
         this.scene.clearColor = background;
+        this.scene.animationsEnabled = animates;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
         this.updateManager.rebindScene(this.camera);
         this.graphContext = new DefaultGraphContext(
@@ -4623,6 +4673,16 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether a straight pulled line draws the lean program, each piece's rectangle alone:
+     * `antialias` false under renderPath "batched" (design/rendering/cosmos-gap.md, G12).
+     * @returns True when it does.
+     * @internal
+     */
+    leansLines(): boolean {
+        return !this.antialias && this.#nodeBatches !== null;
+    }
+
+    /**
      * The node batches, on the `"batched"` path.
      * @returns The batches, or null.
      * @internal
@@ -4667,10 +4727,77 @@ export class Graph implements GraphContext {
             throw new Error(`unknown render path "${String(path)}"`);
         }
 
+        if (path === "objects" && this.#renderPath === "batched") {
+            const refusal = this.#objectsRefusal();
+            if (refusal !== null) {
+                this.eventManager.emitGraphError(this, refusal, "other");
+                return;
+            }
+        }
+
         this.#renderPath = path;
+        this.#limits.honor(path === "batched");
+        if (path === "objects") {
+            this.#warnLimitsIgnored();
+        }
+
         if (this.#renderPathOpen) {
             this.#applyRenderPath();
         }
+    }
+
+    /**
+     * The ceilings asked for: honored under `"batched"`, set aside under `"objects"`.
+     * @returns The ceilings as given.
+     */
+    get limits(): Readonly<LimitsOption> {
+        return this.#limits.requested;
+    }
+
+    /**
+     * Ask for ceilings a load is refused above. Under `"objects"` the shipped ones stand, and
+     * `limits-warning` says so with `W_LIMITS_IGNORED`.
+     * @param value - The ceilings; a field left out keeps its default.
+     * @throws An Error when a value is not a whole number of at least 1.
+     */
+    setLimits(value: LimitsOption): void {
+        this.#limits.request(value);
+        this.#warnLimitsIgnored();
+    }
+
+    /** Say, as a code, that the ceilings asked for are not in force. */
+    #warnLimitsIgnored(): void {
+        if (this.#limits.ignored) {
+            this.eventManager.emit("limits-warning", {
+                code: "W_LIMITS_IGNORED",
+                params: { renderPath: this.#renderPath },
+            } satisfies Omit<LimitsWarningEvent, "type">);
+        }
+    }
+
+    /**
+     * Why the graph held now cannot move to `"objects"`, whose ceilings are the shipped ones.
+     * @returns The `E_TOO_LARGE` refusal, or null when it fits.
+     */
+    #objectsRefusal(): GraphtyError | null {
+        const nodes = this.dataManager.nodes.size;
+        const edges = this.dataManager.edges.size;
+        const over: ["nodes" | "edges", number, number][] = [
+            ["nodes", nodes, DEFAULT_LIMITS.renderCeiling],
+            ["edges", edges, DEFAULT_LIMITS.edgesDrawn],
+        ];
+        const found = over.find(([, count, limit]) => count > limit);
+        if (found === undefined) {
+            return null;
+        }
+
+        const [of, count, limit] = found;
+        return new GraphtyError({
+            code: "E_TOO_LARGE",
+            source: "view",
+            message: `render path "objects" holds at most ${limit} ${of}, and the graph holds ${count}`,
+            details: { limit, count, of, graph: { nodes, edges } },
+        });
     }
 
     /**
@@ -4848,6 +4975,25 @@ export class Graph implements GraphContext {
      */
     getAcceleration(): AccelerationController {
         return this.acceleration;
+    }
+
+    /**
+     * The row table a layout on the drawing device fills on the card: only under renderPath
+     * "batched" on a device shared with the accelerator.
+     * @returns The table and the device, or null.
+     * @internal
+     */
+    getDrawnTarget(): DrawnTarget | null {
+        const { engine } = this;
+        const table = this.#rowTable;
+        if (this.#renderPath !== "batched" || table === null || !(engine instanceof RecoveringWebGPUEngine)) {
+            return null;
+        }
+
+        const device = engine.sharesDevice ? engine.deviceNow() : null;
+        // A transition draws its movers off their lanes, every frame, so the ring would only be overwritten.
+        const suspended = transitionsOf(this.layoutManager)?.active === true;
+        return device === null ? null : { table, device, suspended };
     }
 
     // ============================================================================
@@ -5505,7 +5651,9 @@ export class Graph implements GraphContext {
             }
         }
 
-        for (const [key, batch] of this.dataManager.meshCache.batchCacheMap) {
+        // A pulled line (`"batched"`) is drawn over a map as the line it stands for is.
+        const { batchCacheMap, pulledBatchMap } = this.dataManager.meshCache;
+        for (const [key, batch] of [...batchCacheMap, ...pulledBatchMap]) {
             this.#edgeMeshes.add(batch.mesh);
             // A band under the line (an outline a layer drew) must draw before it: with no depth written
             // the later of two meshes at one depth wins, and a band drawn last hid its line.
@@ -5964,7 +6112,11 @@ export class Graph implements GraphContext {
         if (frame) {
             // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
             // labels are framed by zoom-to-fit, on a data load or a layout change.
-            const box = nodeFramingBox(this.getNodes(), this.session.config.framing?.extent);
+            const box = nodeFramingBox(
+                this.getNodes(),
+                this.session.config.framing?.extent,
+                this.updateManager.columnFraming(),
+            );
             if (box) {
                 this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
             }

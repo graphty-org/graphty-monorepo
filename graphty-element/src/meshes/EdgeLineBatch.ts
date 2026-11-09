@@ -84,8 +84,11 @@ const scratchColor = new Float32Array(FLOATS_PER_COLOR);
  */
 export interface EdgeLineMeta {
     joinedLine?: boolean;
-    /** A dashed or dotted line: which, its element's length along the line, and `line.patternCount`. */
-    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
+    /**
+     * A dashed or dotted line: which, its element's length along the line, `line.patternCount`, and the gap between
+     * two elements (`line.dashGap`, in world units; unset, the elements spread from end to end).
+     */
+    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined; gap?: number | undefined };
     /**
      * A joined line drawn with a shader or a taper (`edgeJoinShader`'s `EDGE_WIDENED`): each slot
      * also carries the whole edge's length, and the static values in a buffer of their own.
@@ -1146,7 +1149,12 @@ export class EdgeLineBatch {
             return 0;
         }
 
-        const { elementLength, count } = this.pattern;
+        const { elementLength, count, gap } = this.pattern;
+        // a gap of the line's own repeats from the line's start, as a dash pattern does, the last element cut
+        // where the line ends
+        if (gap !== undefined && count === undefined) {
+            return Math.max(elementLength + gap, 1e-6);
+        }
         const n = discreteMeshCount(length, elementLength, count);
         // one element: the next would start past the line's end
         if (n < 2) {

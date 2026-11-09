@@ -113,7 +113,10 @@
                 "error",
                 function (e) {
                     var boot = document.getElementById("boot");
-                    if (boot && e.target instanceof HTMLScriptElement) {
+                    // Only the app's own scripts count. Another origin's script, such as the dev
+                    // server's remote logger, failing says nothing about whether the app loads.
+                    var own = e.target instanceof HTMLScriptElement && e.target.src.indexOf(location.origin) === 0;
+                    if (boot && own) {
                         boot.className = "failed";
                         boot.setAttribute("aria-label", "Could not load graphty");
                         // The script's own error names only the entry point: a module it imports

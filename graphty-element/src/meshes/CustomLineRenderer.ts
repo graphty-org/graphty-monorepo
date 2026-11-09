@@ -81,8 +81,8 @@ export interface JoinedLineOptions {
     fade?: EdgeFade | undefined;
     /** Draw without alpha blending (`line.blending` false): every fragment at full strength. */
     opaque?: boolean | undefined;
-    /** A dashed or dotted line: its element's length along the line (world units) and its kind. */
-    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
+    /** A dashed or dotted line: its element's length along the line (world units), its kind, count and gap. */
+    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined; gap?: number | undefined };
     /**
      * Whether its slots carry the static values a taper or a shader reads (`EDGE_WIDENED`). A
      * plain line leaves it out and draws exactly as before.
@@ -114,6 +114,8 @@ export interface JoinedLineOptions {
     pulled?: boolean;
     /** With `pulled`, read each piece as a point of a lone curve's cut path (`EDGE_PULLED_CURVE`). */
     pulledCurve?: boolean;
+    /** With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`). */
+    pulledLean?: boolean;
 }
 
 /**
@@ -131,6 +133,9 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
         ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
+        ...(options.pulled === true && options.pulledCurve !== true && options.pulledLean === true
+            ? ["#define EDGE_PULLED_LEAN"]
+            : []),
         ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
     ];
 }
@@ -148,7 +153,7 @@ function joinedLineMeta(options: JoinedLineOptions, widened: boolean, color: Col
     return {
         joinedLine: true,
         pattern: pattern
-            ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
+            ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count, gap: pattern.gap }
             : undefined,
         ...(widened ? { widened: true } : {}),
         ...(opaque ? { opaque: true } : {}),
@@ -203,7 +208,11 @@ function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): str
  * @returns The sampler names.
  */
 function joinedLineSamplers(options: JoinedLineOptions): string[] {
-    return options.pulled === true ? ["rowPosition", "edgeRows"] : [];
+    if (options.pulled !== true) {
+        return [];
+    }
+
+    return options.pulledCurve === true ? ["rowPosition", "edgeRows", "edgeRoutes"] : ["rowPosition", "edgeRows"];
 }
 
 interface LineGeometry {

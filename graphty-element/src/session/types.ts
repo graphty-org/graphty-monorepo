@@ -67,6 +67,7 @@ import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration 
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
 import type { LayoutRecommendation } from "./layout";
+import type { DefaultableLimits, LimitsOption } from "./limits";
 import type { NetworkApi, NetworkRequest } from "./network";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
@@ -119,6 +120,19 @@ import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
 import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
+ * What `session.capabilities` reports: acceleration and XR, and the limits a load is refused above
+ * on this element's render path (`limits`, honored under `render-path="batched"`; the shipped
+ * `DEFAULT_LIMITS` otherwise). `graphMemoryBudgetBytes` is absent: nothing can report it.
+ */
+export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
+    /**
+     * The limits in force.
+     * @experimental cosmograph
+     */
+    readonly limits: Readonly<DefaultableLimits>;
+};
+
+/**
  * The element's data configuration, parsed: the id and weight paths, the position scale, the
  * direction policy and the id coercion rule.
  *
@@ -126,6 +140,7 @@ import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange 
  * configuration a session carries. The style layers, the camera defaults and the XR settings are
  * the view's, and they are not here.
  */
+
 export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 
 /** A node as a consumer reads it: its id, and whatever attributes its record arrived with. */
@@ -3116,7 +3131,7 @@ export interface SessionEventMap {
      * settling, a WebXR device change, entering or leaving a session (including the headset
      * ending it), an XR configuration change. The document is the one `capabilities` returns.
      */
-    "capabilities:changed": { readonly capabilities: Pick<Capabilities, "acceleration" | "xr"> };
+    "capabilities:changed": { readonly capabilities: SessionCapabilities };
     /**
      * The history changed: a step was recorded, merged, undone, redone, restored, evicted or
      * cleared, or the pending work (and so what the next undo will do) changed. Fires
@@ -4132,9 +4147,10 @@ export interface GraphSession {
     /**
      * What this machine can do, measured rather than guessed at by the consumer: acceleration,
      * and which immersive modes can be entered (with the reason when one cannot) and which one
-     * is presenting. A session that draws nothing reports VR and AR as `"unsupported"`.
+     * is presenting. A session that draws nothing reports VR and AR as `"unsupported"`. Also the
+     * limits a load is refused above, which `capabilities:changed` reports a change of.
      */
-    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
+    readonly capabilities: SessionCapabilities;
     /**
      * What the consumer asks of the hardware: use an accelerator when there is one, never look,
      * or refuse to run without one.
@@ -4381,6 +4397,14 @@ export interface CreateGraphSessionOptions {
     readonly acceleration?: AccelerationControllerLike;
     /** How this session runs algorithms. */
     readonly runs?: SessionRunsOptions;
+    /**
+     * The most nodes and edges a load may bring; a field left out keeps `DEFAULT_LIMITS`. A
+     * session with no renderer draws nothing, so it holds them as given; on the element,
+     * `limits` is honored only under `render-path="batched"`. `capabilities.limits` reports
+     * what is in force.
+     * @experimental cosmograph
+     */
+    readonly limits?: Readonly<LimitsOption>;
     /**
      * The experiments to switch on, by id, or `["all"]`; absent takes the page default set with
      * `setDefaultFeatures`. Unknown ids are listed in `features.unknown`, never thrown.

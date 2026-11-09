@@ -3,12 +3,7 @@ import { registry as sourceRegistry, SOURCE_FORMAT_PREFIX } from "@graphty/graph
 import { css, LitElement, type PropertyValues, ReactiveElement } from "lit";
 import { property } from "lit/decorators.js";
 
-import {
-    type AccelerationController,
-    type AccelerationPolicy,
-    type Capabilities,
-    isAccelerationPolicy,
-} from "./acceleration";
+import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
 import { type AutosaveAtRisk, ElementAutosave, resolveAutosaveKey } from "./autosave/elementAutosave";
 import { type PageSource, sourceSlot } from "./autosave/recovery";
 import type {
@@ -43,6 +38,7 @@ import type { PartialXRConfig } from "./config/xr-config-schema";
 import { CredentialStore } from "./credentials/CredentialStore";
 import { DataSource } from "./data/DataSource";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
+import type { GraphtyWarningCode } from "./errors/codes";
 import { isGraphtyError } from "./errors/GraphtyError";
 import {
     type GraphtyForwardedEventMap,
@@ -57,6 +53,7 @@ import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/Lab
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
+import { antialiasDefault } from "./meshes/PulledLineBatch";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -70,6 +67,7 @@ import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
+import type { LimitsOption } from "./session/limits";
 import { loadLineOf } from "./session/loadLine";
 import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
@@ -89,7 +87,13 @@ import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
-import type { ModelChange, ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
+import type {
+    ModelChange,
+    ProjectConfigPatch,
+    SessionCapabilities,
+    SessionEventMap,
+    TransactionScope,
+} from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 import { downloadBlob } from "./utils/download";
 
@@ -112,6 +116,16 @@ const ELEMENT_SOURCE = "element-source";
  * one `layout.set`, one build and one step.
  */
 const ELEMENT_LAYOUT = "element-layout";
+
+/**
+ * The `antialias` attribute's value: only `"false"` turns multisampling off, and no attribute
+ * leaves it on.
+ * @param value - The attribute, or null when there is none.
+ * @returns Whether to multisample.
+ */
+function antialiasFromAttribute(value: string | null): boolean {
+    return value === null ? antialiasDefault.value : value !== "false";
+}
 
 /**
  * A file name for an export in a format other than a project file: the project's name, or
@@ -180,6 +194,8 @@ export class Graphty extends LitElement {
     }
 
     #builtGraph: Graph | undefined;
+    /** The `antialias` property as set before the engine was built; undefined when it was not. */
+    #antialias: boolean | undefined;
     readonly #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
@@ -234,7 +250,11 @@ export class Graphty extends LitElement {
      */
     get #graph(): Graph {
         if (this.#builtGraph === undefined) {
-            const graph = new Graph(this.#element);
+            // Read here, the one moment the engine is built: an attribute anywhere in the tag is
+            // already present, though its own callback may not have run yet.
+            const graph = new Graph(this.#element, false, {
+                antialias: this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias")),
+            });
             this.#builtGraph = graph;
             waitFirstFor(
                 graph,
@@ -6127,6 +6147,88 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the canvas is drawn with multisampling (4x), which smooths the edges of lines and
+     * nodes. `false` turns it off: harder edges, and faster frames when there are very many edges.
+     * Nothing else about the picture changes. Under renderPath "batched" it also draws plain straight
+     * 3D edges with a cheaper line program that draws the same pixels. Read once, when the element
+     * builds its engine.
+     * @remarks
+     * Set it as an attribute, in any position in the tag, or as a property before using any other
+     * property or method of the element. A later change takes effect only on a new element and
+     * raises the warning `W_ANTIALIAS_LATE`, as a `graphty-warning` event.
+     * @experimental cosmograph
+     * @example
+     * ```html
+     * <graphty-element render-path="batched" antialias="false"></graphty-element>
+     * ```
+     * @returns Whether the canvas multisamples; true by default.
+     */
+    @property({ attribute: "antialias", converter: { fromAttribute: antialiasFromAttribute } })
+    get antialias(): boolean {
+        return this.#builtGraph?.antialias ?? this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias"));
+    }
+    /**
+     * Sets whether the canvas multisamples. Once the engine is built a different value changes
+     * nothing and raises `W_ANTIALIAS_LATE`.
+     */
+    set antialias(value: boolean) {
+        const oldValue = this.antialias;
+        const built = this.#builtGraph;
+        if (built === undefined) {
+            this.#antialias = value;
+        } else if (value !== built.antialias) {
+            this.#warn({ code: "W_ANTIALIAS_LATE", params: { requested: value, active: built.antialias } });
+            return;
+        }
+
+        this.requestUpdate("antialias", oldValue);
+    }
+
+    /**
+     * Dispatches a warning as a `graphty-warning` event.
+     * @param warning - The code and its parameters.
+     */
+    #warn(warning: CodedFact<GraphtyWarningCode>): void {
+        this.dispatchEvent(new CustomEvent("graphty-warning", { detail: warning, bubbles: true, composed: true }));
+    }
+
+    /**
+     * The most nodes and edges a load may bring, past the shipped `DEFAULT_LIMITS` (100,000 nodes,
+     * 1,000,000 edges); a field left out keeps its default. Honored under
+     * `render-path="batched"`. Under `"objects"` the defaults stand, a larger load is still refused
+     * with `E_TOO_LARGE`, and setting `limits` raises `limits-warning` with `W_LIMITS_IGNORED`
+     * (`{ renderPath }`). A switch to `"objects"` while the graph is past the defaults is refused
+     * with an `error` event carrying `E_TOO_LARGE`, and the path stays `"batched"`.
+     * `session.capabilities.limits` reports the limits in force.
+     * @returns The limits asked for.
+     * @experimental cosmograph
+     * @example
+     * ```js
+     * graph.renderPath = "batched";
+     * graph.limits = { renderCeiling: 1_000_000 };
+     * ```
+     */
+    @property({ attribute: false })
+    get limits(): Readonly<LimitsOption> {
+        return this.#graph.limits;
+    }
+    /**
+     * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
+     */
+    set limits(value: LimitsOption) {
+        const oldValue = this.#graph.limits;
+
+        try {
+            this.#graph.setLimits(value);
+        } catch (error) {
+            console.error(`<graphty-element>: ${error instanceof Error ? error.message : String(error)}.`);
+            return;
+        }
+
+        this.requestUpdate("limits", oldValue);
+    }
+
+    /**
      * How many nodes and edges each render path is drawing, as of the last frame.
      * @returns The counts.
      */
@@ -6297,7 +6399,7 @@ export type GraphtyModelChangeDetail = ModelChange;
 /** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
 export interface GraphtyCapabilitiesChangeDetail {
     /** The acceleration and XR capabilities after the change. */
-    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
+    readonly capabilities: SessionCapabilities;
 }
 
 /*
@@ -6345,6 +6447,7 @@ declare global {
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
+        "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
     }
 
     // Every one bubbles and is composed, so a listener on the document is typed the same way.
@@ -6371,6 +6474,7 @@ declare global {
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
+        "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
     }
 }
 

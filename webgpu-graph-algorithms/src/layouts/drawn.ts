@@ -18,6 +18,17 @@ import { type LeaseBox, leaseOf } from "./repulsion-grid.js";
 interface Slot {
     readonly binding: Binding;
     readonly bound: BoundKernel;
+    /** This slot's own transform and skip mask, written when a batch is recorded into it. */
+    readonly params: Binding;
+    readonly skip: Binding;
+    /** Rows the owner wrote since this slot's last batch, written again before its next one. */
+    readonly pending: Set<number>;
+}
+
+/** What one batch's slot holds once it lands: the buffer and the transform it was drawn with. */
+export interface DrawnRecord {
+    readonly buffer: GPUBuffer;
+    readonly transform: DrawnTransform;
 }
 
 /** The compiled `to-drawn` kernel and one slot per batch in flight. */
@@ -25,8 +36,9 @@ export class DrawnStage {
     private readonly kernel: Kernel;
     private readonly box: LeaseBox;
     private readonly slots: Slot[];
-    private readonly skip: Binding;
-    private readonly params: Binding;
+    private skipWords: Uint32Array<ArrayBuffer>;
+    private paramsBytes = new ArrayBuffer(DRAWN_PARAMS.byteLength);
+    private current: DrawnTransform = { center: [0, 0, 0], scale: 1, target: [0, 0, 0] };
     private readonly plan: ReturnType<typeof plan1d>;
     private readonly device: GPUDevice;
     private readonly n: number;
@@ -55,24 +67,30 @@ export class DrawnStage {
         this.n = n;
         this.dim = dim;
         this.plan = plan1d(n, kernel.workgroupSize, caps);
-        this.skip = storage(4 * Math.max(1, Math.ceil(n / 32)), "drawn/skip");
-        this.params = {
-            buffer: lease.uniform(DRAWN_PARAMS.byteLength, "drawn/params"),
-            offset: 0,
-            size: DRAWN_PARAMS.byteLength,
-            window: null,
-        };
+        const skipBytes = 4 * Math.max(1, Math.ceil(n / 32));
+        this.skipWords = new Uint32Array(skipBytes / 4);
         const scene = resources.buffer("scenePositions");
         this.slots = [];
         for (let i = 0; i < count; i++) {
             const binding = storage(16 * Math.max(1, n), `drawn/slot${i}`);
+            // A batch's commands are recorded across awaits, so a transform or a mask set before its submit
+            // would reach a shared uniform the batch already chose against: each slot has its own.
+            const skip = storage(skipBytes, `drawn/skip${i}`);
+            const params: Binding = {
+                buffer: lease.uniform(DRAWN_PARAMS.byteLength, `drawn/params${i}`),
+                offset: 0,
+                size: DRAWN_PARAMS.byteLength,
+                window: null,
+            };
             this.slots.push({
                 binding,
-                bound: kernel.bind({ scene, skip: this.skip, drawn: binding, P: this.params }),
+                bound: kernel.bind({ scene, skip, drawn: binding, P: params }),
+                params,
+                skip,
+                pending: new Set(),
             });
         }
-        this.device.queue.writeBuffer(this.skip.buffer, 0, new Uint32Array(this.skip.size / 4));
-        this.transform({ center: [0, 0, 0], scale: 1, target: [0, 0, 0] });
+        this.transform(this.current);
     }
 
     /**
@@ -97,6 +115,7 @@ export class DrawnStage {
      * @param t - the transform
      */
     transform(t: DrawnTransform): void {
+        this.current = t;
         const bytes = new ArrayBuffer(DRAWN_PARAMS.byteLength);
         DRAWN_PARAMS.write(new DataView(bytes), {
             n: this.n,
@@ -112,7 +131,7 @@ export class DrawnStage {
             tz: t.target[2],
             pad2: 0,
         });
-        this.device.queue.writeBuffer(this.params.buffer, 0, bytes);
+        this.paramsBytes = bytes;
     }
 
     /**
@@ -120,10 +139,9 @@ export class DrawnStage {
      * @param mask - one bit per row
      */
     setSkip(mask: Uint32Array): void {
-        const words = Math.min(mask.length, this.skip.size / 4);
-        const copy = new Uint32Array(this.skip.size / 4);
-        copy.set(mask.subarray(0, words));
-        this.device.queue.writeBuffer(this.skip.buffer, 0, copy);
+        const copy = new Uint32Array(this.skipWords.length);
+        copy.set(mask.subarray(0, Math.min(mask.length, copy.length)));
+        this.skipWords = copy;
     }
 
     /**
@@ -134,19 +152,31 @@ export class DrawnStage {
     write(row: number, values: Float32Array<ArrayBuffer>): void {
         for (const slot of this.slots) {
             this.device.queue.writeBuffer(slot.binding.buffer, 16 * row, values);
+            if (values.length === 4) {
+                slot.pending.add(row);
+            }
         }
     }
 
     /**
      * Records `to-drawn` into the next slot, in a pass of its own.
      * @param encoder - a pass opened for it
-     * @returns the slot's buffer
+     * @param rows - the owner's stride-4 rows, for the rows written since this slot's last batch
+     * @returns the slot's buffer and the transform the batch draws with
      */
-    record(encoder: GPUComputePassEncoder): GPUBuffer {
+    record(encoder: GPUComputePassEncoder, rows: Float32Array<ArrayBuffer>): DrawnRecord {
         const slot = this.slots[this.next];
         this.next = (this.next + 1) % this.slots.length;
+        const { queue } = this.device;
+        queue.writeBuffer(slot.params.buffer, 0, this.paramsBytes);
+        queue.writeBuffer(slot.skip.buffer, 0, this.skipWords);
+        // a row the owner wrote while an earlier batch in this slot was still to run, which drew over it
+        for (const row of slot.pending) {
+            queue.writeBuffer(slot.binding.buffer, 16 * row, rows, 4 * row, 4);
+        }
+        slot.pending.clear();
         this.kernel.dispatch(encoder, slot.bound, this.plan, [0]);
-        return slot.binding.buffer;
+        return { buffer: slot.binding.buffer, transform: this.current };
     }
 
     /** Releases the lease and drops the bind groups; idempotent. */

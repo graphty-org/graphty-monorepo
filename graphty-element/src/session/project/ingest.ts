@@ -46,7 +46,7 @@ import {
     SOURCES_VALUE,
 } from "../commands/data";
 import { ISSUES_VALUE, type IssueState, loadFactsOf, withLoadFacts } from "../issues";
-import { DEFAULT_LIMITS, tooLargeError } from "../limits";
+import { DEFAULT_LIMITS, type DefaultableLimits, tooLargeError } from "../limits";
 import type { ProgressChange } from "../shared";
 import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/provenance";
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
@@ -299,7 +299,17 @@ export interface IngestHost<K extends KnownEdge> {
     progress?(change: ProgressChange): void;
     /** Whether the timeline experiment is on, so a reader keeps the time data it reads; absent reads off. */
     timeline?(): boolean;
+    /**
+     * The ceilings a load is refused above, as plain numbers the element worked out for its render
+     * path; absent, or undefined, reads `DEFAULT_LIMITS`.
+     */
+    ceilings?(): Readonly<Ceilings> | undefined;
+    /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. Nothing reads it yet. */
+    batched?(): boolean;
 }
+
+/** The two ceilings `Ingest` refuses a load above. */
+export type Ceilings = Pick<DefaultableLimits, "renderCeiling" | "edgesDrawn">;
 
 /**
  * A load's progress as the session publishes it. A load cannot know its record count in advance,
@@ -1027,7 +1037,7 @@ export class Ingest<K extends KnownEdge> {
         const { builder } = this.host.store();
         const ids = nodes.map((node) => searchRecord(node, query) as NodeIdType);
         const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
-        this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, DEFAULT_LIMITS.renderCeiling);
+        this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, this.ceilings().renderCeiling);
 
         for (const [i, node] of nodes.entries()) {
             const nodeId = ids[i];
@@ -1178,13 +1188,13 @@ export class Ingest<K extends KnownEdge> {
             "edges",
             this.heldCounts().edges,
             this.edgesAdded(edges, endpoints, policy, false),
-            DEFAULT_LIMITS.edgesDrawn,
+            this.ceilings().edgesDrawn,
         );
         this.refuseAboveCeiling(
             "nodes",
             this.heldCounts().nodes,
             this.endpointNodesAdded(edges, endpoints),
-            DEFAULT_LIMITS.renderCeiling,
+            this.ceilings().renderCeiling,
         );
 
         const batch: EdgeBatch = { endpoints, policy, recordIdPath, weightPath, legacyFallback, tally };
@@ -1431,7 +1441,7 @@ export class Ingest<K extends KnownEdge> {
     refuseNodeReplacement(nodes: readonly Record<string | number, unknown>[], idPath?: string): void {
         const query = idPath ?? this.host.dataConfig().knownFields.nodeIdPath;
         const ids = new Set(nodes.map((node) => searchRecord(node, query)));
-        this.refuseAboveCeiling("nodes", 0, ids.size, DEFAULT_LIMITS.renderCeiling);
+        this.refuseAboveCeiling("nodes", 0, ids.size, this.ceilings().renderCeiling);
     }
 
     /**
@@ -1453,7 +1463,7 @@ export class Ingest<K extends KnownEdge> {
             "edges",
             surviving,
             this.edgesAdded(edges, this.endpointsFor(edges, options), policy, true),
-            DEFAULT_LIMITS.edgesDrawn,
+            this.ceilings().edgesDrawn,
         );
     }
 
@@ -2172,6 +2182,15 @@ export class Ingest<K extends KnownEdge> {
         }
 
         return { nodes, edges: builder.edgeCount + this.measure.edges };
+    }
+
+    /**
+     * The ceilings in force: the host's, which the element sets from its `limits` option under
+     * `"batched"`, or the shipped defaults.
+     * @returns The ceilings.
+     */
+    private ceilings(): Readonly<Ceilings> {
+        return this.host.ceilings?.() ?? DEFAULT_LIMITS;
     }
 
     /**

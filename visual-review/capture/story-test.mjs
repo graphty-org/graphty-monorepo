@@ -22,6 +22,7 @@ import {
     chromiumEnv,
     CLOCK_START,
     clip,
+    cpuModel,
     EMPTY,
     fileName,
     hasBaselines,
@@ -166,7 +167,7 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
         capturedAt: new Date().toISOString(),
         clock: { start: CLOCK_START, running: true },
         scale: SCALE,
-        environment: { harness: "story-test", mode: "production", fonts: null, tool: toolVersion() },
+        environment: { harness: "story-test", mode: "production", cpu: null, fonts: null, tool: toolVersion() },
         items: [],
     };
     let renames = new Map();
@@ -176,6 +177,9 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
         hasBaselines(baselines).then((s) => (results.seeded = s)),
         loadRenames(baselines).then((r) => (renames = r)),
         fontconfig && pinnedFonts(fontconfig).then((f) => (results.environment.fonts = f)),
+        // Which CPU drew this shard's pictures: a story the re-capture finds unstable is told apart from one drawn on
+        // another CPU model only by this (#6351).
+        cpuModel().then((c) => (results.environment.cpu = c)),
     ]).then(() => {
         // The retry of the failed story files (tools/test-quarantine.mjs) writes into the same
         // directory: it keeps the first run's items and replaces only those it shoots again.

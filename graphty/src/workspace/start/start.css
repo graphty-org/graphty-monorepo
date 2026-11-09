@@ -11,7 +11,8 @@
 }
 
 .ws-land,
-.ws-land-settings {
+.ws-land-settings,
+.ws-land-cards {
     --ws-land-canvas: #fbfbfd;
     --ws-land-raised: #eef0f4;
     --ws-land-glass: rgba(255, 255, 255, 0.86);
@@ -74,7 +75,8 @@ html.ws-land-page #root {
 }
 
 .ws-land[data-scheme="dark"],
-:root[data-mantine-color-scheme="dark"] .ws-land-settings {
+:root[data-mantine-color-scheme="dark"] .ws-land-settings,
+:root[data-mantine-color-scheme="dark"] .ws-land-cards {
     --ws-land-canvas: #15171e;
     --ws-land-raised: #232633;
     --ws-land-glass: rgba(26, 28, 36, 0.86);
@@ -907,7 +909,7 @@ html.ws-land-page #root {
     gap: 2px;
 }
 
-.ws-land .ws-land-sample {
+:is(.ws-land, .ws-land-cards) .ws-land-sample {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -940,7 +942,7 @@ html.ws-land-page #root {
     border-radius: 6px;
 }
 
-.ws-land .ws-land-sample:hover {
+:is(.ws-land, .ws-land-cards) .ws-land-sample:hover {
     border-color: var(--ws-land-go);
 }
 
@@ -1010,6 +1012,31 @@ html.ws-land-page #root {
 .ws-land-sample-tag svg {
     margin-right: 4px;
     vertical-align: -1px;
+}
+
+/* The sample cards outside the start page (the Samples dialog): the page's reading text. */
+.ws-land-cards {
+    font-weight: 400;
+    line-height: 1.45;
+    letter-spacing: normal;
+    text-rendering: geometricPrecision;
+}
+
+/* On the dialog's own surface the card keeps the start page's, so its tag and lines read the same. */
+.ws-land-cards .ws-land-sample {
+    background: var(--ws-land-surface);
+}
+
+/* A card with a control in its corner (SampleCard's corner). */
+.ws-land-sample-cell {
+    position: relative;
+    display: grid;
+}
+
+.ws-land-sample-corner {
+    position: absolute;
+    top: 8px;
+    right: 8px;
 }
 
 /* The generators, under the datasets. */

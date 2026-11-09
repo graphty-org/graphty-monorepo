@@ -548,6 +548,9 @@ export function recordsOf(o) {
     const { result } = o;
     const common = { id: o.id, head: o.head, variant: o.variant, inputs: o.inputs, env: o.env };
     const firstEnd = result.retried ? result.retryAt : o.endedAt;
+    // a run stopped at its deadline wrote no report of what hung: test-quarantine.mjs names it (#6374)
+    const junit = junitOf(o.dir, o.runId);
+    const hung = result.hung ?? [];
     const recs = [
         recordOf({
             ...common,
@@ -555,7 +558,7 @@ export function recordsOf(o) {
             outcome: firstOutcome(o.code, result),
             startedAt: o.startedAt,
             ms: firstEnd - o.startedAt,
-            junit: junitOf(o.dir, o.runId),
+            junit: hung.length ? { files: junit?.files ?? [], failures: [...(junit?.failures ?? []), ...hung] } : junit,
         }),
     ];
     if (result.retried) {

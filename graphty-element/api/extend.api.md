@@ -44,6 +44,7 @@ import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
+import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GraphChoiceOptions } from '@graphty/graph-io';
 import { GraphExporter } from '@graphty/graph-io';
@@ -845,7 +846,7 @@ export class Edge {
     // (undocumented)
     srcNode: Node_2;
     // @internal
-    supportEdge(): SupportEdge | null;
+    supportEdge(centerOf?: (node: Node_2) => Readonly<Vector3>): SupportEdge | null;
     // @internal
     togglesOwnMeshes(): boolean;
     transformArrowCap(): EdgeLine;
@@ -2019,7 +2020,7 @@ export abstract class LayoutEngine {
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
     // @internal
-    protected publishColumn(n: Node_2 | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
+    protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -2225,6 +2226,7 @@ class Node_2 implements ModelUser {
     // @internal
     get isDrawn(): boolean;
     get isDrawnAsGroup(): boolean;
+    get isDrawnBehindEdges(): boolean;
     // @internal
     isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;
@@ -2297,6 +2299,8 @@ class Node_2 implements ModelUser {
     syncXlabelPlace(): void;
     // @internal
     get teardownMesh(): TransformNode;
+    // @internal
+    togglesOwnMeshes(): boolean;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;

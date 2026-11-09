@@ -223,7 +223,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | 5 | 3 | 165 | 12% | 4% | 0 | 7980 | 0 |  |
 | graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | 5 | 4 | 468 | 81% | 4% | 0 | 1084 | 0 |  |
 | graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | 6 | 7 | 162 | 85% | 2% | 0 | 503 | 0 |  |
-| graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | 2 | 3 | 48 | 100% | 0% | 0 | 86 | 0 | W_STYLE_NO_FILL |
+| graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | 2 | 3 | 49 | 100% | 0% | 0 | 86 | 0 | W_STYLE_NO_FILL |
 | graphml/a-little-srdjan_grapher__bleve.graphml.gz | ok | 39 | 120 | 3 | 3 | 229 | 100% | 0% | 0 | 237 | 0 |  |
 | graphml/architolk_mimtools__fbm-mim2.graphml.gz | ok | 73 | 38 | 6 | 6 | 150 | 63% | 14% | 0 | 546 | 0 | W_STYLE_EXTRA_LABELS |
 | graphml/color-key/iVis-at-Bilkent__chilay__circle.graphml | ok | 64 | 64 | - | - | 0 | - | - | 0 | 0 | 0 |  |
@@ -238,7 +238,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 452 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 4 | 6 | 69 | 46% | 0% | 0 | 311 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 357 | 100% | 0% | 0 | 526 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 2 | 362 | 100% | 0% | 0 | 336 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 3 | 362 | 100% | 0% | 0 | 336 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 141 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
 | graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 200 | 0 |  |
 | graphml/generated/labels-multi.graphml | ok | 6 | 0 | 3 | 1 | 0 | - | - | 0 | 43 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_EXTRA_LABELS |
@@ -254,7 +254,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml | ok | 166 | 544 | 8 | 3 | 423 | 71% | 0% | 0 | 5136 | 0 |  |
 | graphml/gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml | ok | 77 | 254 | 8 | 3 | 182 | 0% | 0% | 0 | 2394 | 0 |  |
 | graphml/gephi-rgb/nielmclaren__constellation.js__data.graphml | ok | 47 | 57 | 8 | 4 | 102 | 0% | 0% | 0 | 775 | 0 |  |
-| graphml/inbloom_secure-data-service__index.graphml | ok | 100 | 51 | 4 | 5 | 558 | 39% | 0% | 0 | 567 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/inbloom_secure-data-service__index.graphml | ok | 100 | 51 | 4 | 5 | 560 | 39% | 0% | 0 | 567 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml | ok | 10 | 4 | 6 | 2 | 20 | 75% | 20% | 0 | 56 | 0 |  |
 | graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | 8 | 3 | 55 | 84% | 24% | 0 | 149 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | graphml/java-graphml-lib/domondi1__KEVGraph__guin-D__Library-Management-System.graphml | ok | 16 | 15 | - | - | 0 | - | - | 0 | 0 | 0 |  |
@@ -263,7 +263,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml | ok | 8 | 3 | 4 | 2 | 14 | 100% | 29% | 0 | 72 | 0 | W_STYLE_NO_FILL |
 | graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml | ok | 4 | 0 | 3 | 1 | 6 | 100% | 0% | 0 | 17 | 0 |  |
 | graphml/yed-genericnode/brucou__kingly__hero_graph.graphml | ok | 6 | 8 | 3 | 3 | 1 | 100% | 0% | 0 | 41 | 0 |  |
-| graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | 10 | 4 | 159 | 53% | 1% | 0 | 244 | 0 |  |
+| graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | 10 | 4 | 161 | 53% | 1% | 0 | 244 | 0 |  |
 | graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | 4 | 1 | 37 | 70% | 0% | 0 | 68 | 0 |  |
 | graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 6 | 5 | 444 | 76% | 3% | 0 | 942 | 0 |  |
 | graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz | ok | 31 | 0 | 3 | 1 | 71 | 70% | 0% | 0 | 257 | 0 | W_STYLE_NO_FILL |

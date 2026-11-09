@@ -2238,9 +2238,9 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
     }
     put("curved", edgeCurved(real));
     if (real.type === "ArcEdge") {
-        // the bend yEd saves is the arc's apex, `y:Arc height` from the line between the ends (every yEd-saved arc
-        // in the corpus: scala-collection-mutable, Animatron__player__flow), so the arc is the circle through it
-        put("bendCurve", "arc");
+        // yEd draws an arc edge as one quadratic Bezier between its ends (graphml-synthetic-edges' oracle fits one to
+        // 1e-5 px), its control point the one bend `readEdgeRoute` puts
+        put("bendCurve", "bezier");
     }
     readLabels(treeChildren(r, "EdgeLabel"), false, put, at);
 }
@@ -2303,12 +2303,16 @@ function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, targ
         Number(treeAttr(p, "x")),
         Number(treeAttr(p, "y")),
     ]);
-    if (points.length > 0 && (real.type === "BezierEdge" || real.type === "QuadCurveEdge")) {
+    if (real.type === "ArcEdge") {
+        points = arcControl(treeChild(real.r, "Arc"), ends) ?? points;
+    } else if (points.length > 0 && (real.type === "BezierEdge" || real.type === "QuadCurveEdge")) {
         const controls = [ends[0], ...points, ends[1]];
         const curve =
             real.type === "BezierEdge"
                 ? flattenCubic(controls)
-                : flattenQuadSpline(controls, Number(treeAttr(real.r, "straightness") ?? YED_STRAIGHTNESS));
+                : // yEd joins its first and last legs at their middles too, straight from the ends
+                  // (graphml-magiclantern-architecture n0::n1::e4, yed-graphml-specimen-edges-lines' quad curves)
+                  flattenQuadSpline(controls, Number(treeAttr(real.r, "straightness") ?? YED_STRAIGHTNESS), 8, true);
         points = (curve ?? controls).slice(1, -1);
     }
     put(
@@ -2317,6 +2321,28 @@ function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, targ
             ? canonNodeOffsets(at(source), size(source), points, true)
             : canonBends(at(source), at(target), points, true),
     );
+}
+
+/**
+ * The control point of the quadratic Bezier yEd draws an arc edge as, from its `y:Arc`: the apex sits `height` off
+ * the middle of the line between the ends, to the right of it going from source to target for a positive height
+ * (y down), or, for a `fixedRatio` arc, `ratio` times a quarter of the line, whatever height and point the file stores
+ * (yEd-saved files store that height and that apex: scala-collection-mutable, Animatron__player__flow;
+ * graphml-synthetic-edges stores others, and yEd draws them from the ratio). The control point is twice as far off.
+ * @param arc - the `y:Arc` element
+ * @param ends - the route's two ends
+ * @returns the one control point, or null without a usable arc or line
+ */
+function arcControl(arc: unknown, ends: readonly [BendPoint, BendPoint]): BendPoint[] | null {
+    const [[x0, y0], [x1, y1]] = ends;
+    const length = Math.hypot(x1 - x0, y1 - y0);
+    const ratio = treeAttr(arc, "type") === "fixedRatio";
+    const value = Number(treeAttr(arc, ratio ? "ratio" : "height"));
+    if (arc === undefined || length === 0 || !Number.isFinite(length) || !Number.isFinite(value)) {
+        return null;
+    }
+    const twice = 2 * (ratio ? (value * length) / 4 : value);
+    return [[(x0 + x1) / 2 + (twice * (y1 - y0)) / length, (y0 + y1) / 2 - (twice * (x1 - x0)) / length]];
 }
 
 /** yEd's quad curve straightness when a file gives none. */
@@ -2649,6 +2675,69 @@ export function graphmlGroupBounds(snapshot: GraphSnapshot): Map<number, YedBox>
     );
 }
 
+/** How much darker, in each 0..255 channel, yEd paints an open group inside another group than its file's fill. */
+const YED_NESTED_GROUP_DARKER = 20;
+
+/**
+ * A put that paints an open group's fill as yEd 3.25 does inside another group: each channel 20 darker
+ * (yed-graphml-specimen-groups' #CAECFF inner group is drawn #B6D8EB; graphml-galaxy-lcms-workflow's and
+ * graphml-magiclantern-architecture's #F5F5F5 groups inside a group #E1E1E1), its border as stored. Only groups one
+ * level down are drawn in the oracles; deeper ones are painted the same.
+ * @param put - where the values go
+ * @returns the put
+ */
+function nestedGroupPut(put: PutValue): PutValue {
+    return (property, value) => {
+        const darker =
+            property === "fill" && typeof value === "string" && HEX_COLOR.test(value)
+                ? hexOf(channelsOf(value).map((c) => Math.max(0, c - YED_NESTED_GROUP_DARKER)))
+                : value;
+        put(property, darker);
+    };
+}
+
+/**
+ * The nodes yEd does not draw because a folder holding them is closed (a `y:ProxyAutoBoundsNode` whose active
+ * realizer's `y:State closed` is true): yEd draws the folder alone (graphml-synthetic-nodes' `grp-closed`).
+ * @param snapshot - the graph, its nesting in the `parent` node role
+ * @returns the hidden nodes' indices
+ */
+function closedFolderMembers(snapshot: GraphSnapshot): Set<number> {
+    const hidden = new Set<number>();
+    const parent = snapshot.nodes.byRole("parent");
+    const columns = treeColumns(snapshot.nodes);
+    if (parent === null || columns.length === 0) {
+        return hidden;
+    }
+    const closed = new Map<number, boolean>();
+    const isClosed = (row: number): boolean => {
+        let known = closed.get(row);
+        if (known === undefined) {
+            const proxy = columns
+                .map((c) => treeChild(plainCell(snapshot.nodes.value(c, row)), "ProxyAutoBoundsNode"))
+                .find((p) => p !== undefined);
+            const real = proxy === undefined ? null : activeRealizer(proxy);
+            known = real !== null && treeAttr(treeChild(real.r, "State"), "closed") === "true";
+            closed.set(row, known);
+        }
+        return known;
+    };
+    for (let row = 0; row < parent.length; row++) {
+        // walk up the nesting; a cycle the file should not have ends the walk
+        const seen = new Set<number>([row]);
+        let p = parent.isSet(row) ? parent.value(row) : undefined;
+        while (typeof p === "number" && !seen.has(p)) {
+            if (isClosed(p)) {
+                hidden.add(row);
+                break;
+            }
+            seen.add(p);
+            p = parent.isSet(p) ? parent.value(p) : undefined;
+        }
+    }
+    return hidden;
+}
+
 /**
  * The box a node takes in its group: its `y:Geometry` and its labels' boxes (`x` and `y` from the node's corner,
  * `width`, `height`), as yEd grows a group round its members' labels too (`graphml-yed-voctomix`'s group reaches 31.8
@@ -2710,6 +2799,11 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     // each node's center, width and height, read with the node, for its edges' routes; NaN without yEd graphics
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
     const groups = graphmlGroupBounds(snapshot);
+    const folded = closedFolderMembers(snapshot);
+    const parent = snapshot.nodes.byRole("parent");
+    const nestedRows = new Set(
+        [...groups.keys()].filter((row) => parent?.isSet(row) === true && typeof parent.value(row) === "number"),
+    );
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -2733,10 +2827,19 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
             const put: PutValue = (property, value) => {
                 out.put(i, property, value);
             };
+            // an edge between two folded nodes is folded away with them; one with an end outside the folder yEd draws
+            // to the folder, which a style cannot, so it is left as it is
+            if (
+                target === "node"
+                    ? folded.has(i)
+                    : folded.has(snapshot.edgeSource(i)) && folded.has(snapshot.edgeTarget(i))
+            ) {
+                put("visible", false);
+            }
             if (target === "node") {
                 const box = groups.get(i);
                 real = box === undefined ? real : realizerAt(real, box);
-                readNode(real, put, at, resources);
+                readNode(real, box !== undefined && nestedRows.has(i) ? nestedGroupPut(put) : put, at, resources);
                 const geometry = treeChild(real.r, "Geometry");
                 const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
                 boxes.set(

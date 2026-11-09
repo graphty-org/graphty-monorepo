@@ -204,6 +204,34 @@ describe("flattenQuadSpline", () => {
         expect(flattenQuadSpline(controls, 1, 2)).toEqual(controls);
         expect(flattenQuadSpline(controls.slice(0, 2), 0)).toEqual(controls.slice(0, 2));
     });
+
+    it("can start and end its curve at the middle of the first and last legs, straight from the ends, as yEd does", () => {
+        // yed-graphml-specimen-edges-lines quadcurve-straightness-0-5: ends 114,527.111 and 190,527.111, controls
+        // 137,497.111 and 167,497.111; yEd draws straight from the source to 131.25,504.611, half way from the first
+        // leg's middle to its control point, curves to 144.5,497.111, straight to 159.5, and on to the target
+        const flat = flattenQuadSpline(
+            [
+                [114, 527.111],
+                [137, 497.111],
+                [167, 497.111],
+                [190, 527.111],
+            ],
+            0.5,
+            2,
+            true,
+        );
+        const round = flat.map(([x, y]) => [Math.round(x * 100) / 100, Math.round(y * 1000) / 1000]);
+        expect(round).toEqual([
+            [114, 527.111],
+            [131.25, 504.611],
+            [137.44, 498.986],
+            [144.5, 497.111],
+            [159.5, 497.111],
+            [166.56, 498.986],
+            [172.75, 504.611],
+            [190, 527.111],
+        ]);
+    });
 });
 
 describe("routes: yEd GraphML ports, curves and self-loops", () => {
@@ -234,23 +262,35 @@ ${edge("a", "a", '<y:PolyLineEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x
                 .map((p) => p.split(",").map(Number));
         // the cubic's middle: half way, 30 of 100 above the line (y up), not at its control points 40 above
         expect(pairs(bezier)).toContainEqual([0.5, 0.3]);
-        // the quadratic's middle: half way to its control point, 50 above
-        expect(pairs(quad)).toContainEqual([0.5, 0.5]);
+        // yEd curves a quad curve from the middle of its first leg to the middle of its last, straight from the ends:
+        // its middle three quarters of the way to its control point, 75 above
+        expect(pairs(quad)).toContainEqual([0.5, 0.75]);
+        expect(pairs(quad)).toContainEqual([0.25, 0.5]);
         // 20 above the center of a node 10 high is four half heights up
         expect(loop).toBe("-0.5,4 0.5,4");
     });
 
-    it("draws a flattened Bezier or quad curve straight through its points, and an arc as a circle through its apex", async () => {
+    it("draws a flattened Bezier or quad curve straight through its points, and an arc as a quadratic curve through its apex", async () => {
         // the flattened points lie on the curve: rounding their corners cut inside it
         expect((await bends(doc, "graphml", "curved")).slice(1, 3)).toEqual([false, false]);
-        const arc = doc.replace(
-            /<edge source="a" target="b"><data key="d10"><y:PolyLineEdge>.*?<\/edge>/,
-            '<edge source="a" target="b"><data key="d10"><y:ArcEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x="50" y="-20"/></y:Path><y:Arc height="20" ratio="0.8" type="fixedHeight"/></y:ArcEdge></data></edge>',
-        );
-        expect((await bends(arc, "graphml", "bendCurve"))[0]).toBe("arc");
-        expect((await bends(arc, "graphml", "curved"))[0]).toBe(true);
-        // yEd saves the arc's apex, 20 above the middle of the line between the centers 100 apart
-        expect((await bends(arc, "graphml"))[0]).toBe("0.5,0.2");
+        const arc = (point: string, arcTag: string): string =>
+            doc.replace(
+                /<edge source="a" target="b"><data key="d10"><y:PolyLineEdge>.*?<\/edge>/,
+                `<edge source="a" target="b"><data key="d10"><y:ArcEdge><y:Path sx="0" sy="0" tx="0" ty="0">${point}</y:Path>${arcTag}</y:ArcEdge></data></edge>`,
+            );
+        const fixedHeight = arc('<y:Point x="50" y="-20"/>', '<y:Arc height="20" ratio="0.8" type="fixedHeight"/>');
+        // yEd 3.25 draws an arc edge as one quadratic Bezier from center to center (graphml-synthetic-edges' oracle
+        // fits one to 1e-5 px), its apex `y:Arc height` from the middle of the line: the control point twice as far
+        expect((await bends(fixedHeight, "graphml", "bendCurve"))[0]).toBe("bezier");
+        expect((await bends(fixedHeight, "graphml", "curved"))[0]).toBe(true);
+        expect((await bends(fixedHeight, "graphml"))[0]).toBe("0.5,0.4");
+        // a fixed ratio arc's apex is the ratio times a quarter of the line, whatever point the file stores
+        // (graphml-synthetic-edges: ratio 1 between centers 754.7 apart, apex 188.68 off the line; every yEd-saved
+        // arc in the corpus stores that height and that point)
+        const fixedRatio = arc('<y:Point x="40" y="10"/>', '<y:Arc height="25" ratio="1.0" type="fixedRatio"/>');
+        expect((await bends(fixedRatio, "graphml"))[0]).toBe("0.5,0.5");
+        const negative = arc("", '<y:Arc height="0" ratio="-0.4" type="fixedRatio"/>');
+        expect((await bends(negative, "graphml"))[0]).toBe("0.5,-0.2");
     });
 
     it("writes ports and a loop's points back so they read back as the same values", async () => {

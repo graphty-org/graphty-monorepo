@@ -509,6 +509,27 @@ describe("yEd Live GraphML: edge geometry, stroke alpha and hollow arrows", () =
         expect(edge("bends", "color-ff0000")).toBeNull();
     });
 
+    it("draws an ArcEdgeStyle as a quadratic curve through its apex, and a BezierEdgeStyle through its curve", async () => {
+        // yed-live-graphml-specimen-edges-lines.svg: centers 76 apart, `height="20"` drawn as a parabola 20 off the
+        // line in the middle (19.69 at 4.75 from it), so its control point 40 off; `fixedHeight="false"
+        // height="0.5"` 38 off, half the line; a positive height bends left of the way from source to target, y up
+        const { edge } = await sheet("specimen-edges-lines.graphml");
+        expect(edge("bendCurve", "arc-height-20")).toBe("bezier");
+        expect(edge("curved", "arc-height-20")).toBe(true);
+        const off = (id: string): number => Number(String(edge("bends", id)).split(",")[1]);
+        expect(off("arc-height-20")).toBeCloseTo(40 / 76, 4);
+        expect(off("arc-height-minus-20")).toBeCloseTo(-40 / 76, 4);
+        expect(off("arc-fixed-height-false")).toBeCloseTo(1, 4);
+        // the five bends of bezier-five are two cubic pieces joined at the third, which the drawn curve passes
+        // through (460,618.222, on the line between the centers): flattened into points on the curve, drawn straight
+        const bezier = String(edge("bends", "bezier-five"))
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
+        expect(bezier.length).toBeGreaterThan(5);
+        expect(bezier).toContainEqual([0.5, 0]);
+        expect(edge("curved", "bezier-five")).toBe(false);
+    });
+
     it("starts and ends an edge at its sourceport and targetport, placed by their FreeNodePortLocationModelParameter", async () => {
         // yed-live-graphml-specimen-edges-lines.svg draws port-top-bottom from the top middle of its source to the
         // bottom middle of its target, and port-corners from the bottom-right corner to the top-left one

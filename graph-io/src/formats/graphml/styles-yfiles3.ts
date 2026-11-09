@@ -7,7 +7,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import { type BendPoint, canonBends, canonNodeOffsets } from "../../styles/canon/bends.js";
+import { type BendPoint, canonBends, canonNodeOffsets, flattenCubic } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, num6 } from "../../styles/canon/number.js";
@@ -1623,6 +1623,27 @@ function edgeBends(geometry: unknown): BendPoint[] {
 }
 
 /**
+ * The control point of the quadratic curve yEd Live 8.5.16 draws an `ArcEdgeStyle` as: its apex `height` off the
+ * middle of the line between the centers, left of the way from source to target for a positive height as the reader
+ * sees it, or, with `fixedHeight="false"`, `height` times the line's length (yed-live-graphml-specimen-edges-lines.svg:
+ * centers 76 apart, `height="20"` 20 off, 19.69 at 4.75 from the middle, a parabola; `height="0.5"` 38 off). The
+ * control point is twice as far off as the apex.
+ * @param style - the `yjs:ArcEdgeStyle` element
+ * @param line - the source and target centers
+ * @returns the control point, or null without a height or a line
+ */
+function arcEdgeControl(style: unknown, line: readonly [BendPoint, BendPoint]): BendPoint | null {
+    const [[x0, y0], [x1, y1]] = line;
+    const length = Math.hypot(x1 - x0, y1 - y0);
+    const height = Number(treeAttr(style, "height"));
+    if (length === 0 || !Number.isFinite(length) || !Number.isFinite(height)) {
+        return null;
+    }
+    const twice = 2 * (treeAttr(style, "fixedHeight") === "false" ? height * length : height);
+    return [(x0 + x1) / 2 + (twice * (y1 - y0)) / length, (y0 + y1) / 2 - (twice * (x1 - x0)) / length];
+}
+
+/**
  * Reads an edge's route from its EdgeGeometry: the `y:Bend` locations, relative to its two nodes' centers (a
  * self-loop's to its node's size), and, for a PolylineEdgeStyle with a `smoothingLength` above 0, its rounded bends.
  * @param refs - the references
@@ -1638,13 +1659,31 @@ function readEdgeGeometry(
     ends: readonly [Float64Array, Float64Array, boolean],
     put: PutValue,
 ): void {
-    const points = edgeBends(geometry);
+    let points = edgeBends(geometry);
     const [s, t, loop] = ends;
-    const bends = loop
-        ? canonNodeOffsets([s[0], s[1]], [s[2], s[3]], points, true)
-        : canonBends([s[0], s[1]], [t[0], t[1]], points, true);
-    put("bends", bends);
     const st = refs.first(style);
+    const line: [BendPoint, BendPoint] = [
+        [s[0], s[1]],
+        [t[0], t[1]],
+    ];
+    if (!loop && st?.tag === "BezierEdgeStyle" && points.length > 0) {
+        // its bends are the control points of cubic pieces from center to center, every third one on the curve
+        // (yed-live-graphml-specimen-edges-lines.svg draws bezier-five through its third bend): flattened into points
+        // on the curve, drawn straight between them, as yEd's BezierEdge
+        const controls = [line[0], ...points, line[1]];
+        points = (flattenCubic(controls) ?? controls).slice(1, -1);
+        put("curved", false);
+    }
+    const arc = !loop && st?.tag === "ArcEdgeStyle" ? arcEdgeControl(st.e, line) : null;
+    if (arc !== null) {
+        points = [arc];
+        put("curved", true);
+        put("bendCurve", "bezier");
+    }
+    const bends = loop
+        ? canonNodeOffsets(line[0], [s[2], s[3]], points, true)
+        : canonBends(line[0], line[1], points, true);
+    put("bends", bends);
     const smoothing = st === null ? undefined : treeAttr(st.e, "smoothingLength");
     if (bends !== null && st?.tag === "PolylineEdgeStyle" && Number(smoothing) > 0) {
         put("curved", true);

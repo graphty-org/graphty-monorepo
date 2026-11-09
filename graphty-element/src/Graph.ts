@@ -5522,7 +5522,9 @@ export class Graph implements GraphContext {
             }
         }
 
-        for (const [key, batch] of this.dataManager.meshCache.batchCacheMap) {
+        // A pulled line (`"batched"`) is drawn over a map as the line it stands for is.
+        const { batchCacheMap, pulledBatchMap } = this.dataManager.meshCache;
+        for (const [key, batch] of [...batchCacheMap, ...pulledBatchMap]) {
             this.#edgeMeshes.add(batch.mesh);
             // A band under the line (an outline a layer drew) must draw before it: with no depth written
             // the later of two meshes at one depth wins, and a band drawn last hid its line.

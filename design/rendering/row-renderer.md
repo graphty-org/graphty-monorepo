@@ -665,6 +665,60 @@ it, so some are drawn straight), drags a node, raises them to 0.6, straightens t
 against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or
 `supportModel`, a raised route the layout picks, bends and self-loops.
 
+As built (stage 21, eleventh pull request): a self-loop's teardrop (`edgeRoute.loopTeardrop`) is pulled too, on
+`"batched"`, from the curve batch, whatever its own curve or route asks for, as `Edge.bundleRoute` draws it:
+`EdgeMesh.pullsCurve` and `EdgeMesh.pulledBatch` take whether the edge is a loop, `Edge.pullsLine` no longer refuses
+one, and `Edge.pullCurve` hands `curveSpan` the loop's controls from its rank and count round its node
+(`DataManager.drawnBundle`) and its node's reach (`Edge.reachOf`). `edgeRoute.loopControls` is `loopTeardrop`'s
+control points, split out unchanged. The span gains `loop`, (x, y, k): the two controls' mean from the center and the
+share k of it they stand either side, turned a quarter, so the shader needs no sine; k is tan(sweep / 2), under
+tan(pi / 5). A teardrop needs three numbers and the fourth texel has two beside the kind, so its kind is 6 plus k:
+the fourth texel of a loop piece is (endAt, mean x, 6 + k, mean y). Its 24 samples are cut where they leave the node,
+as any route is; a teardrop's tip clears its node by construction, so the cut never falls back to the object path's
+circle (`createSelfLoopCurve`). A loop with bends (`line.bends`, the ring) or a dash stays an object edge, as before.
+`test/pulled-curve.test.ts` holds the mirror to `loopTeardrop`'s cut within 1e-9 on 400 seeded loops, one to seven on a
+node, round and stretched nodes; `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` gives one node three loops (two curved) and another four, drags a node,
+then gives the second a fifth, which narrows its loops' share, and takes it away, at 0 pixels against `"objects"`
+each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or `supportModel`, a raised route
+the layout picks, and bends.
+
+As built (stage 21, twelfth pull request): a route the `location-map` layout picks (a raised arc over a flat map in the
+3D view, a great circle on a globe, straight to a node in the tray) is pulled too, on `"batched"`, curve or straight, as
+a route the style asks for is. `Edge.pullCurve` reads the route drawn now (`Edge.route`: the style's, else the layout's),
+`EdgeMesh.pullsCurve` and `EdgeMesh.pulledBatch` take that route, and `Edge.pullsLine` no longer refuses a layout's
+route. Correction to the seventh pull request's, from the code: the layout's route changes with its frame, which keys
+no mesh, but every such change moves the nodes, so the edge is placed again; `Edge.placeLine` first moves a pulled line
+whose route now wants the other batch (straight to curve or back) by rebuilding it (`Edge.followRoute`), then writes
+its span. Two `"batched"` defects found on the way, both fixed there only: a pulled curve gave no points
+(`Edge.drawnCurve` null), so framing (`framingBox`) left its bow out and picking took it for a straight line; it now
+gives its path's points from its last span (`curvePathPoint`). And `Graph.#drawOverMap` ordered only the line batches
+over a map, so pulled lines kept their depth writes and drew under it in the wrong order; it takes the pulled batches
+(`MeshCache.pulledBatchMap`) too. `test/browser/pulled-curves-batched.test.ts` straightens half the edges, lays the graph
+on a flat map, then a globe, then back on its fixed positions (one node has no place, so its edges stay straight on
+the map), at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve
+with caps or `supportModel`, and bends.
+
+As built (stage 21, thirteenth pull request): a curve through a support point (`line.supportModel`, the quadratic
+`Edge.bundleRoute` draws through `supportPoints`' point with `bezierThroughControls`) is pulled too, on `"batched"`,
+from the curve batch. The support points place a point in x-y and give it the chord's z at its share along, so two
+numbers hold it: `CurveSpan.via`, its share along the chord and across it (`viaShare`, `supportPoints`' `toRel`),
+which wins over a fan and a circle and gives way to a raised route and a teardrop, as `bundleRoute` has them. Its kind
+is 7: the fourth texel of its piece is (endAt, along, 7, across), sampled with `bezierThroughControls`' 24 pieces and
+cut where it leaves its nodes, as any route is. `Edge.pullsLine` takes the `line.support*` keys, and the placement that
+follows a moved point (`Edge.update`, every edge while the points settle) writes the new span. Two defects found on
+the way. On `"batched"` only: forceAtlas2's degrees (`degreeWeights`) find an edge's nodes among the centres by the
+point object, and a batched node's `drawnPosition` is a new point at each read, so every degree was lost and the
+curves settled elsewhere; `UpdateManager` now reads each node's centre once per support update and hands it to
+`Edge.supportEdge` too. On both paths: `SupportPoints.endsChanged` ignored a move under 1e-6, so a drag's last move
+(its place rounded to 32 bits, 2.5e-8) left the settle begun a frame early from ends a hair off, and where the points
+rested, a few pixels, hung on the drag's last frames; it compares exactly now. `test/pulled-curve.test.ts` holds the
+mirror to the object path within 1e-9 on 400 seeded edges, gapped among them; `test/browser/pulled-curve-glsl.test.ts`
+holds the GLSL to it within 1e-4; `test/meshes/support-points.test.ts` settles a last move of a hair afresh;
+`test/browser/pulled-curves-batched.test.ts` bows every curve through a support point (barnesHut, the drawing's
+unit), drags a node and lets the points settle, then changes the law to forceAtlas2, at 0 pixels against
+`"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, and bends.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

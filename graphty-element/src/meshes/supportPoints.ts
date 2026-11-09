@@ -729,7 +729,9 @@ export class SupportPoints<E> {
         });
         const was = this.lastEnds;
         this.lastEnds = now;
-        return was.length !== now.length || now.some((v, i) => Math.abs(v - was[i]) > 1e-6);
+        // exactly: a last move under any tolerance (a node's place rounded to 32 bits after a drag) left the settle
+        // started a frame early, from ends a hair off, so where the points rested hung on the drag's last frames
+        return was.length !== now.length || now.some((v, i) => v !== was[i]);
     }
 
     /**

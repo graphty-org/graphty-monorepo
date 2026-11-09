@@ -846,7 +846,7 @@ export class Edge {
     // (undocumented)
     srcNode: Node_2;
     // @internal
-    supportEdge(): SupportEdge | null;
+    supportEdge(centerOf?: (node: Node_2) => Readonly<Vector3>): SupportEdge | null;
     // @internal
     togglesOwnMeshes(): boolean;
     transformArrowCap(): EdgeLine;

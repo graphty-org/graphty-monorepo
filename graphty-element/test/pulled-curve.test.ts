@@ -9,15 +9,17 @@ import { assert, describe, it } from "vitest";
 
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
 import {
+    bezierThroughControls,
     centerArc,
     crossingOf,
     fanArc,
     greatCircleArc,
+    loopTeardrop,
     raisedArc,
     routeOutside,
     type Xyz,
 } from "../src/meshes/edgeRoute";
-import { bezierSamples, curvePathPoint, curveSpan } from "../src/meshes/pulledCurve";
+import { bezierSamples, curvePathPoint, curveSpan, loopShape, viaShare } from "../src/meshes/pulledCurve";
 
 /** A seeded generator, so a failure names a case that comes back. */
 function seeded(seed: number): () => number {
@@ -384,5 +386,104 @@ describe("a pulled curve's path", () => {
 
         assert.isAtLeast(drawn, 150, "most cases draw a curve");
         assert.isAbove(uncut, 20, "many clear neither gapped node and are drawn uncut between the bare ends");
+    });
+
+    it("puts every point of a self-loop's teardrop where the object path has it, round nodes and stretched ones", () => {
+        const random = seeded(6364);
+        let drawn = 0;
+        for (const [i, { src }] of cases().entries()) {
+            // a round node, or one stretched along each axis, which reaches farther one way than another
+            const radius = [0.05, 0.5, 3, 20][i % 4] * (0.5 + random());
+            const stretch = i % 2 === 0 ? { x: 1, y: 1, z: 1 } : { x: 0.5 + random() * 2, y: 0.5 + random() * 2, z: 1 };
+            const reachAt = (dir: Xyz): number =>
+                radius / Math.hypot(dir.x / stretch.x, dir.y / stretch.y, dir.z / stretch.z);
+            const outside = (x: number, y: number, z: number): boolean => {
+                const d = Math.hypot(x - src.x, y - src.y, z - src.z);
+                return d > 0 && d > reachAt({ x: (x - src.x) / d, y: (y - src.y) / d, z: (z - src.z) / d });
+            };
+            const count = 1 + (i % 7);
+            const rank = Math.floor(random() * count);
+            const route = loopTeardrop(src, rank, count, reachAt);
+            const cut = routeOutside(route, outside, outside);
+            assert.isNotNull(cut, `case ${String(i)}: the teardrop clears its node`);
+            if (cut === null) {
+                continue;
+            }
+
+            const at = (k: number): Xyz => ({ x: route[3 * k], y: route[3 * k + 1], z: route[3 * k + 2] });
+            const want = [crossingOf(at(cut.first - 1), at(cut.first), outside)];
+            for (let k = cut.first; k <= cut.last; k++) {
+                want.push(at(k));
+            }
+
+            want.push(crossingOf(at(cut.last + 1), at(cut.last), outside));
+            const span = curveSpan(src, src, outside, outside, { loop: loopShape(rank, count, reachAt) });
+            assert.isNotNull(span, `case ${String(i)}: a span`);
+            if (span === null) {
+                continue;
+            }
+
+            drawn++;
+            assert.strictEqual(span.pieces, want.length - 1);
+            want.forEach((p, j) => {
+                const q = curvePathPoint(src, src, span, j);
+                const off = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+                assert.isAtMost(off, 1e-9 * (1 + Math.hypot(p.x, p.y, p.z)), `case ${String(i)} point ${String(j)}`);
+            });
+        }
+
+        assert.strictEqual(drawn, 400);
+    });
+    it("puts every point of a curve through a support point where the object path has it, gaps and all", () => {
+        const random = seeded(6372);
+        let drawn = 0;
+        let uncut = 0;
+        for (const [i, { src, dst, rSrc, rDst }] of cases().entries()) {
+            // a support point (`line.supportModel`) is placed in x-y; its z is its share along the chord's, and an
+            // edge of no length in x-y keeps it at its middle (`supportPoints`' `toRel`)
+            const dx = dst.x - src.x;
+            const dy = dst.y - src.y;
+            const flat = dx === 0 && dy === 0;
+            const along = flat ? 0.5 : (random() - 0.25) * 1.5;
+            const across = flat ? 0 : (random() - 0.5) * 2;
+            const via = {
+                x: src.x + along * dx - across * dy,
+                y: src.y + along * dy + across * dx,
+                z: src.z + (dst.z - src.z) * along,
+            };
+            const length = Vector3.Distance(src, dst);
+            const gSrc = i % 3 === 0 ? random() * length * 0.6 : 0;
+            const gDst = i % 3 === 0 ? random() * length * 0.6 : 0;
+            const route = bezierThroughControls([src.x, src.y, src.z, via.x, via.y, via.z, dst.x, dst.y, dst.z]);
+            const want = objectPath(src, dst, rSrc, rDst, route, gSrc, gDst);
+            const span = curveSpan(
+                src,
+                dst,
+                outsideOf(src, rSrc + gSrc),
+                outsideOf(dst, rDst + gDst),
+                { via: viaShare(src, dst, via) },
+                () => [bareEnd(src, dst, rSrc, gSrc), bareEnd(dst, src, rDst, gDst)],
+            );
+            assert.strictEqual(
+                span === null,
+                want === null,
+                `case ${String(i)}: a span exactly when the object path has one`,
+            );
+            if (span === null || want === null) {
+                continue;
+            }
+
+            drawn++;
+            uncut += span.via === null ? 1 : 0;
+            assert.strictEqual(span.pieces, want.length - 1, `case ${String(i)}`);
+            want.forEach((p, j) => {
+                const q = curvePathPoint(src, dst, span, j);
+                const off = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+                assert.isAtMost(off, 1e-9 * (1 + Math.hypot(p.x, p.y, p.z)), `case ${String(i)} point ${String(j)}`);
+            });
+        }
+
+        assert.isAtLeast(drawn, 150, "most cases draw a line");
+        assert.isAbove(uncut, 0, "some clear neither node and are drawn as the lone curve, uncut");
     });
 });

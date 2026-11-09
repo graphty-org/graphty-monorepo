@@ -56,6 +56,7 @@ import { narrowLayout } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION, type GraphAccelerator } from "../acceleration/types";
 import { asStrength } from "../algorithms/input/weight";
 import { WRITABLE_LANE } from "../data/lane";
+import type { ElementPositions } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
@@ -1236,21 +1237,35 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const target = viaCard?.target ?? this.#targetCentre;
         const { rows, coords } = this.publishScratch(snapshot.nodeCount);
         let count = 0;
-        let first: Node | undefined;
-        // ponytail: still walks the Node map for row membership (a removed node's row lives until the
-        // next freeze); a row table replaces the walk once rows stop having a Node each.
-        for (const node of this.nodes) {
-            const row = node.index;
+        let first: Node | ElementPositions | undefined;
+        const put = (row: number): void => {
             if (!this.#hasRow(row) || (this.#fixedRows.has(row) && store.isPlaced(row))) {
-                continue;
+                return;
             }
 
-            first ??= node;
             rows[count] = row;
             coords[3 * count] = (simPositions[3 * row] - centre[0]) * scale + target[0];
             coords[3 * count + 1] = (simPositions[3 * row + 1] - centre[1]) * scale + target[1];
             coords[3 * count + 2] = (simPositions[3 * row + 2] - centre[2]) * scale + target[2];
             count++;
+        };
+        if (this.#dataManager.renderLimits?.batched() ?? false) {
+            // Under renderPath "batched" every row of the loaded snapshot is published, a row drawn
+            // with no Node included; a removed node's row, live until the next freeze, is one the
+            // batches draw nothing for.
+            first = store;
+            for (let row = 0; row < snapshot.nodeCount; row++) {
+                put(row);
+            }
+        } else {
+            // Under "objects", node by node, as before: a removed node's row lives until the next freeze.
+            for (const node of this.nodes) {
+                const before = count;
+                put(node.index);
+                if (count > before) {
+                    first ??= node;
+                }
+            }
         }
 
         // A ROW WITH NO COORDINATE HAS NO PLACEMENT TO PROTECT. A node can be pinned before anything

@@ -142,7 +142,12 @@ edges (a node is shown while any of its shown edges is), set by the app as an el
 - A source that a server feeds adds `500 of 40,000`, a "changed" dot when a check found changes,
   and two icon buttons on hover: Load more, Refresh. A reopened project's waiting load shows
   Approve (requirement 27).
-- Click a row: selects it; the Fields section below shows that source's special fields.
+- Click a row: selects it; the Fields section below shows that source's special fields, and the
+  right panel shows the source: Type (File, Web address, Server, Sample, Joined table), File or
+  Address, Format, Size, Retrieved, the Nodes and Edges it brought, Open issues and, for a joined
+  table, Joined onto, Reads as, Key, Through, Table rows, Lines not read, how many matched and
+  Columns added. A fact a source lacks draws no row, so a project saved before retrieval times were
+  kept shows no Retrieved. A credential is never shown or stored here.
 - Row context menu (right-click or the row's `...`): Edit join (joined only), Replace with file...,
   Refresh, Load more, Edit query (server), Rename, Remove. Items whose precondition is missing are
   absent, not disabled.
@@ -179,6 +184,8 @@ source`, a category card whose values are the source names with counts. Style la
   the same card, because they use the same picker.
 - The header filter chip `(o) 140 of 900` appears while anything is hidden; clicking it opens the
   Filters section. Its `x` clears all filters (one undo step).
+- Filters are reached from this section and from Quick actions. The canvas toolbar has no Filters
+  button.
 
 ### 3.5 The table dock
 
@@ -372,7 +379,7 @@ Expand    [x] on double-click   (pop-over: depth 1, direction both, edge types a
 | Feature        | Immediate                                 | One click                               | Menu                                                                         |
 | -------------- | ----------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------- |
 | Load a file    | Drop anywhere; Sources `+`                | File picker, Samples                    | Paste, Server                                                                |
-| Sources        | Source rows with chips                    | Select row: its fields                  | Row menu: Replace, Refresh, Remove, Rename, Edit join, Edit query            |
+| Sources        | Source rows with chips                    | Select row: fields and right panel      | Row menu: Replace, Refresh, Remove, Rename, Edit join, Edit query            |
 | Special fields | Fields rows with chosen column            | Each dropdown                           | Weight meaning, kind ids rule                                                |
 | Warnings       | Header warning icons; source row icon     | Hover: details and fixes                | Maximized Issues list; Ignored toggle                                        |
 | Table          | Table button                              | Maximize; sort; summary hover           | Header menu: Type, Role, Rename, Hide, Hide others, Unhide                   |
@@ -438,6 +445,11 @@ Live server sources (no fixture file; listed under Samples > Live):
 
 The existing `graphty/public/samples/*.gml` and the graph-samples datasets stay in the Samples
 list.
+
+The Samples dialog's Join group lists the files for each way of joining, in the order to load them
+(`JOIN_WALKS` in `graphty/src/workspace/start/samples.ts`). The first file starts the project and
+each later file opens the join screen. Status, and the files for each kind:
+`research/joins.md`, "Status of each kind in the app".
 
 ## 7. Work packages
 

@@ -3,7 +3,7 @@
 > The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
 
 Status (2026-11-07): implemented and experimental, behind graphty-element's `network-data`
-experiment (issue #6211; off by default, on at canary.graphty.app). Built: graph-io's source
+experiment (issue #6211; off by default, on at canary.graphty.app and nightly.graphty.app). Built: graph-io's source
 contract, registry and built-in sources NDEx, Cypher (with the `neo4j` and `neptune` presets, over
 the Neo4j Query API, Bolt, Neptune Database and Neptune Analytics), SPARQL, and REST (with the
 `openalex` preset); graphty-element's source verbs on `session.data` (`import` with a `source`,
@@ -1072,10 +1072,19 @@ as busy, so a failure leaves the reader on the start page with a notice and no p
 read opens a new project on the graph, with the Style panel open on the row that paints the whole
 graph.
 
-Open network data on the start page pops up a chooser with one card per kind of network; a card
-opens the app on an empty project with the `ServerForm` popped up on that kind, with no example or
-sample in it. Closing the form with nothing loaded returns to the start page, and closing it during
-a Load aborts the Load.
+Open network data on the start page pops up a chooser with one card per kind of network (NDEx,
+Neo4j, SPARQL endpoint, Web API), a Web address box and an Open a file button. A card opens the app
+on an empty project with the `ServerForm` popped up on that kind, with no example or sample in it.
+Closing the form with nothing loaded returns to the start page, and closing it during a Load aborts
+the Load. With the experiment off there is no button and no tiles, and the start page keeps its own
+Web address box.
+
+**What the app says about a load.** A click on a row in the Data place's Sources list shows that
+load in the right panel: its type, file or address, format, size, when it was retrieved, node and
+edge counts, open issues and, for a joined table, how it was joined. These come from
+`session.data.sources()`: `LoadedSource.loadedAt` is the time of the last read and is saved with the
+project (absent for a project saved before it was kept), `url` is the address with no credential in
+it, and `fileName` is the file it came from.
 
 **The dependable set (2026-11-07).** Every one loaded live that day with the counts shown, from
 Node (`scripts/live-examples.ts`) and from the graphty app in Chromium through

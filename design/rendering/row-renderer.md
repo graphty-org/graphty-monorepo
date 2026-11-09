@@ -719,6 +719,26 @@ holds the GLSL to it within 1e-4; `test/meshes/support-points.test.ts` settles a
 unit), drags a node and lets the points settle, then changes the law to forceAtlas2, at 0 pixels against
 `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, and bends.
 
+As built (stage 21, fourteenth pull request): a straight line through bends (`line.bends`) is pulled too, on
+`"batched"`, from the curve batch, as long as it is not also rounded (`line.bezier`) or a self-loop's ring. Its kind is
+8, and it is the one kind whose path the shader does not work out from the two rows: `Edge.pullSpan` cuts the path in
+doubles (`curvePathPoint`, the ends where it leaves its nodes and the bends between, as `placeBent` places them) and
+writes every point into a ROUTE TABLE (`edgeRoutes`, one (x, y, z) to a texel) that the curve batch keeps beside its
+piece table; the fourth texel of its piece is (endAt, the texel its points start at, 8, 0), and `pulledCurvePoint`
+reads point j from there. Blocks are handed out in powers of two (`PulledLineBatch.writeRoute`, `releaseRoute`), a
+move of either node writes them again, and the table doubles when it runs out. Where no bend clears both nodes, the
+line is drawn as it would be without them, as `transformEdgeMesh` draws it. One defect found on the way, on
+`"batched"` only: the camera frames the graph by `Edge.drawnCurve`, which for a pulled curve gave its points in
+doubles while the object path gives them in the 32-bit floats its slots hold, so the frame sat a last bit off
+(`ThreeDBends`: the view's y translation -0.68700176 against -0.68700153) and one sample flipped at the end of a
+dashed edge that is not pulled at all. The pulled points are now rounded to 32 bits there. A correction: the
+fourteenth pull request's first draft blamed that pixel on the 35-degree solid edge's source end and moved its points
+into the route table to cure it; the route table stays, as it gives the card the object path's exact points, but it
+was not what the pixel needed. `test/pulled-curve.test.ts` holds the mirror to the object path's points;
+`test/browser/pulled-curve-glsl.test.ts` holds the GLSL's read of the route table; `test/browser/pulled-curves-batched.test.ts`
+draws lines through bends at 0 pixels against `"objects"` on WebGL and WebGPU (SwiftShader), and render-parity's
+`ThreeDBends` is at 0 on both. Still an object edge: a curve with caps.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

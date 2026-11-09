@@ -14,6 +14,7 @@ import {
     type ShaderMaterial,
     StandardMaterial,
     Texture,
+    Vector2,
     Vector3,
     VertexBuffer,
     VertexData,
@@ -34,7 +35,7 @@ import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
-import { ANIMATED_TEMPLATE, createPulledAnimatedLineMesh } from "./pulledAnimatedLine";
+import { ANIMATED_TEMPLATE, createPulledAnimatedLineMesh, followRenderSize } from "./pulledAnimatedLine";
 import { PulledLineBatch } from "./PulledLineBatch";
 import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
@@ -1056,6 +1057,7 @@ void main() {
             },
             scene,
         );
+        this.followResolution(mesh);
 
         // Apply opacity if specified
         if (style.line?.opacity !== undefined) {
@@ -1063,6 +1065,21 @@ void main() {
         }
 
         return mesh;
+    }
+
+    /**
+     * Keep a greased line's resolution at the render size. Its material reads the size once, when it is built, so
+     * a line built before a resize -- the first element on a page builds its lines at the canvas's default 300 by
+     * 150 -- kept drawing with that aspect.
+     * @param mesh - The greased line.
+     */
+    private static followResolution(mesh: GreasedLineBaseMesh): void {
+        followRenderSize(mesh, (width, height) => {
+            const material = mesh.greasedLineMaterial;
+            if (material !== undefined) {
+                material.resolution = new Vector2(width, height);
+            }
+        });
     }
 
     private static createAnimatedLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): Mesh {
@@ -1097,6 +1114,7 @@ void main() {
         );
 
         this.applyAnimatedTexture(mesh, texture, scene, style.line?.animationSpeed);
+        this.followResolution(mesh);
 
         // Apply opacity if specified
         if (style.line?.opacity !== undefined) {

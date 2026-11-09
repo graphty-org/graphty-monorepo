@@ -119,6 +119,25 @@ export function movingTexel(color: { r: number; g: number; b: number }): Color3 
 }
 
 /**
+ * Hand a mesh the engine's render size now and after every resize, until the mesh is disposed. A greased line's
+ * material reads the size once, when it is built, and the first element on a page builds its lines before its
+ * first resize, at the canvas's default 300 by 150.
+ * @param mesh - The mesh.
+ * @param apply - Takes the render width and height in pixels.
+ */
+export function followRenderSize(mesh: Mesh, apply: (width: number, height: number) => void): void {
+    const engine = mesh.getScene().getEngine();
+    const update = (): void => {
+        apply(engine.getRenderWidth(true), engine.getRenderHeight(true));
+    };
+    update();
+    const resized = engine.onResizeObservable.add(update);
+    mesh.onDisposeObservable.addOnce(() => {
+        resized.remove();
+    });
+}
+
+/**
  * The mesh a batch of pulled animated lines draws with, its pieces' looks in the batch's edge table.
  * @param scene - The scene.
  * @returns The mesh.
@@ -158,10 +177,9 @@ export function createPulledAnimatedLineMesh(scene: Scene): Mesh {
     material.setFloat("scroll", 0);
     material.setFloat("handed", scene.useRightHandedSystem ? -1 : 1);
     material.backFaceCulling = false;
-    // The render size the mesh is built at, as the greased line's material keeps the one it was built at (its
-    // `resolution`): a later resize leaves both drawing with the old aspect, so the two paths draw alike.
-    const engine = scene.getEngine();
-    material.setFloat("aspect", engine.getRenderWidth() / engine.getRenderHeight());
+    followRenderSize(mesh, (width, height) => {
+        material.setFloat("aspect", width / height);
+    });
     mesh.material = material;
     mesh.onDisposeObservable.addOnce(() => {
         mask.dispose();

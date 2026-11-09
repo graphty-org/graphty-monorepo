@@ -766,6 +766,16 @@ the table as stage 19 keeps a pulled line's. One `animatedEdgeFrames` callback m
 pulled animated line, which is the row's "CPU per animated edge per frame at 0": today a frame costs one callback a
 look, and a move rewrites a thin-instance matrix an edge.
 
+Correction from stage 22: the greased line drew with the render size its material was built at, not the canvas's.
+Babylon's greased line plugin reads `engine.getRenderWidth()` and `getRenderHeight()` once, in its constructor, into its
+`resolution` (and so its aspect), and never again. The first element on a page builds its lines before its first resize,
+while its canvas still has the default 300 by 150, so it drew every greased line with aspect 2 on a 400 by 300 canvas;
+a later element on the same page, or any resize, gave another picture. That is a defect on both paths (the batched path
+still draws curved and capped animated lines as greased lines), so the fix applies to both: `EdgeMesh` hands every
+greased line the render size now and after every `engine.onResizeObservable`, and the pulled animated line's `aspect`
+uniform follows the same size. On the `"objects"` path this changes the picture of a page's first element with animated
+or fallback greased lines.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

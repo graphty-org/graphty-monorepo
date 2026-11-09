@@ -10,6 +10,9 @@ import { afterEach, assert, describe, test } from "vitest";
 import type { Graphty } from "../../index.js";
 import { readDrawn } from "../fidelity/drawn-scene";
 import { occluders } from "../fidelity/extract-scene";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** An outer compound holding an inner one holding two nodes, each drawn as a filled rectangle. */
 const DOC = JSON.stringify({

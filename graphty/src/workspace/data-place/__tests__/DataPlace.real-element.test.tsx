@@ -475,6 +475,8 @@ describe("the Data place's sidebar on the real element", () => {
     });
 
     it("draws the Sources + items with a glyph and their keys, and says it opens a menu", async () => {
+        await siteFeatures(["network-data"]);
+        onTestFinished(() => siteFeatures([]));
         await openDataPlace();
         const add = await place().findByRole("button", { name: "Add source" });
         assert.equal(add.getAttribute("aria-haspopup"), "menu");
@@ -486,13 +488,13 @@ describe("the Data place's sidebar on the real element", () => {
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
             items.map((item) => item.textContent),
-            ["File...Ctrl+O", "Samples...", "Server...", "Network data...", "PasteCtrl+V"],
+            ["File...Ctrl+O", "Samples...", "Network data...", "PasteCtrl+V"],
         );
         for (const item of items) {
             assert.isNotNull(item.querySelector("svg"), `${item.textContent ?? ""} has a glyph`);
         }
         assert.equal(items[0]?.getAttribute("aria-keyshortcuts"), "Control+O");
-        assert.equal(items[4]?.getAttribute("aria-keyshortcuts"), "Control+V");
+        assert.equal(items[3]?.getAttribute("aria-keyshortcuts"), "Control+V");
         await userEvent.keyboard("{Escape}");
     });
 

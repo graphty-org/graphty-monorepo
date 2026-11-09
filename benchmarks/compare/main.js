@@ -141,6 +141,31 @@ const B = {
         return { cam, t, stamps: stamps.length, after: lib.el?.graph.getCameraState() };
     },
     hoverTargets: (k) => lib.hoverTargets(k),
+    // A lasso over the middle half of the canvas, through the `{ region }` selection target
+    // (row-renderer.md stage 23): each call's time, the nodes it selected and whether the cap cut it.
+    // cosmos.gl's region select is not measured here.
+    async lasso(times = 20) {
+        const el = lib.el;
+        if (!el?.session?.selection) return null;
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        const polygon = [
+            { x: w / 4, y: h / 4 },
+            { x: (3 * w) / 4, y: h / 4 },
+            { x: (3 * w) / 4, y: (3 * h) / 4 },
+            { x: w / 4, y: (3 * h) / 4 },
+        ];
+        const ms = [];
+        let delta = null;
+        for (let i = 0; i < times; i++) {
+            await el.session.selection.clear();
+            const a = now();
+            delta = await el.session.selection.apply({ region: { polygon } });
+            ms.push(+(now() - a).toFixed(2));
+        }
+        await el.session.selection.clear();
+        return { ms: stats(ms), nodes: delta.nodes, truncated: delta.truncated };
+    },
     armHover() {
         B._hover = { ev: null, hit: null, f0: stamps.length, tArm: now() };
         return true;
@@ -384,7 +409,40 @@ function changedRows(before, after, rows) {
     return changed;
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, renderer }) {
+// layoutBehavior.labels for the sampled and glyphs flags
+function labelBehavior(sampled, glyphs) {
+    const b = {};
+    if (sampled) b.sampleCell = 96;
+    if (glyphs) b.labelText = "glyphs";
+    return b;
+}
+
+// the lean mode's boxes and capless edges, and the curves flag's curves
+async function addShapeStyles(el, mode, curves) {
+    if (mode === "lean") {
+        await el.session.styles.add({
+            name: "lean nodes",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": "box" },
+        });
+        await el.session.styles.add({
+            name: "lean edges",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        });
+    }
+    if (curves)
+        await el.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none", "edge.curvature": true },
+        });
+}
+
+async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, curves, renderPath, renderer }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
     const el = document.createElement("graphty-element");
@@ -398,7 +456,10 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
     }
     if (renderer) el.renderer = renderer;
     el.layout = "fixed";
-    el.viewMode = mode === "lean" ? "2d" : "3d";
+    // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode. The camera
+    // moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.
+    const is2d = mode === "lean" && !curves;
+    el.viewMode = is2d ? "2d" : "3d";
     el.acceleration = accel === "off" ? "off" : "auto";
     if (onDemand) el.renderOnDemand = true;
     if (dpr !== 1) el.setAttribute("pixel-ratio", "device");
@@ -414,20 +475,8 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
     const graph = el.graph;
     const gl = graph.engine?._gl ?? null;
     let onFrame = null;
-    if (mode === "lean") {
-        await el.session.styles.add({
-            name: "lean nodes",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.shape": "box" },
-        });
-        await el.session.styles.add({
-            name: "lean edges",
-            target: "edge",
-            selector: { match: "everything" },
-            set: { "edge.arrowHead": "none" },
-        });
-    }
+    await addShapeStyles(el, mode, curves);
+    if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({
             name: "labels",
@@ -440,7 +489,8 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
         stamps.push(now());
         if (onFrame) onFrame();
     });
-    let cam0 = null;
+    let cam0 = null,
+        cam0Before = null;
     let moved = null;
     const a = {
         el,
@@ -529,8 +579,11 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
             }
         },
         moveCamera(i) {
-            cam0 ??= graph.getCameraState();
-            if (mode === "lean") {
+            if (!cam0) {
+                cam0 = graph.getCameraState();
+                cam0Before = JSON.stringify(cam0);
+            }
+            if (is2d) {
                 const p = cam0.pan ?? { x: 0, y: 0 };
                 graph.setCameraState({ pan: { x: p.x + 0.05 * 4 * Math.sqrt(G.n) * Math.sin(i / 20), y: p.y } });
             } else {
@@ -552,9 +605,12 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, 
             }
         },
         async resetCamera() {
+            // A camera move the view ignores would time a still view as a moving one.
+            if (cam0 && JSON.stringify(graph.getCameraState()) === cam0Before)
+                throw new Error("the camera did not move during the moving stage");
             if (cam0)
                 graph.setCameraState(
-                    mode === "lean"
+                    is2d
                         ? { pan: cam0.pan }
                         : { alpha: cam0.alpha, beta: cam0.beta, radius: cam0.radius, target: cam0.target },
                 );

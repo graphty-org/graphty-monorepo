@@ -178,6 +178,7 @@ export interface Layer {
      * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
      * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
      * bag is never shared with them. Never used to paint.
+     * @experimental file-styles
      */
     readonly fileStyle?: FileStyleOrigin;
 }

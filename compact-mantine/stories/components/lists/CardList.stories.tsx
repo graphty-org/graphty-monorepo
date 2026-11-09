@@ -10,8 +10,8 @@ const COLORS = ["#009E73", "#E69F00", "#56B4E9", "#CC79A7", "#D55E00"];
 /**
  * An ordered stack of cards, each with a header (grip, fold, color chit, title, a slot beside the
  * title, a slot at the end, a menu and an x), a body and a footer. The caller owns the cards and
- * their order; the list draws them, folds them, renames, removes and reorders them by drag and
- * by Up and Down on the grip.
+ * their order; the list draws them, folds them, renames, removes and reorders them by dragging
+ * the grip. Keys that move a card are the caller's, shown on its menu.
  *
  * ## When to use it
  *

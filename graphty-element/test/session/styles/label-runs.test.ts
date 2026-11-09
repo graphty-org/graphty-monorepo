@@ -8,6 +8,9 @@ import { createGraphSession } from "../../../session";
 import type { RichTextStyle } from "../../../src/meshes/RichTextLabel";
 import { measureLine, RichTextParser } from "../../../src/meshes/RichTextParser";
 import { labelRunsMarkup } from "../../../src/session/styles/fileStyles/translate";
+import { fileStylesOn } from "../../helpers/file-styles-on";
+
+fileStylesOn();
 
 describe("a label drawn in runs", () => {
     it("is each run's words in the tags of its own font, every line tagged on its own", () => {

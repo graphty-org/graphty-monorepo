@@ -8,25 +8,20 @@
  */
 
 import {
-    type AssetStorage,
     browserProjects,
     type GraphSession,
     isGraphtyError,
     type LoadDraft,
-    type ProjectAssetChoice,
     projectFileName,
-    type ProjectSaveReport,
 } from "@graphty/graphty-element/session";
 
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
-import { nodeModelsOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { addSource, incomingFiles } from "../start/open";
 import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStore } from "../state/store";
-import { chipLine } from "../style/modelWords";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
 import { notReadWords } from "./words";
@@ -34,109 +29,6 @@ import { notReadWords } from "./words";
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
 export const DISCARD_DIALOG = "discard";
-export const KEEP_ASSETS_DIALOG = "keep-assets";
-
-/** How to keep each model or picture a layer names by web address, by that address. */
-export type AssetChoices = Record<string, AssetStorage>;
-
-/** A save waiting on the reader: the addresses to ask about, and what to do with the answer. */
-export interface AssetQuestion {
-    readonly entries: readonly ProjectAssetChoice[];
-    readonly answer: (choices: AssetChoices | null) => void;
-}
-
-const assetQuestions = new WeakMap<WorkspaceStore, AssetQuestion>();
-
-/**
- * The addresses the reader already answered for, per session and the project it holds
- * (`project.id`): a later save of the same project does not ask again, and a project opened in
- * its place starts with none.
- */
-const answered = new WeakMap<GraphSession, { readonly projectId: string; readonly urls: Set<string> }>();
-
-/**
- * The addresses already answered for the project the session holds now.
- * @param session - the project's session.
- * @returns the set, empty for a project not saved with an answer yet.
- */
-function answeredFor(session: GraphSession): Set<string> {
-    const projectId = session.project.id;
-    let held = answered.get(session);
-    if (held?.projectId !== projectId) {
-        held = { projectId, urls: new Set<string>() };
-        answered.set(session, held);
-    }
-    return held.urls;
-}
-
-/**
- * The save waiting on the reader's answer, for the dialog that asks.
- * @param store - the workspace store.
- * @returns the question, or undefined.
- */
-export function assetQuestion(store: WorkspaceStore): AssetQuestion | undefined {
-    return assetQuestions.get(store);
-}
-
-/**
- * Asks how to keep each model or picture the layers name by web address (embed it, or keep only
- * its address), before a save. graphty-element lists what to ask about
- * (`project.assetChoices()`) and takes the answer (`save({ assets })`). Only the node models
- * experiment asks, and only about addresses not answered before in this session; an answered one
- * is kept as the element reports it was last kept.
- * @param store - the workspace store.
- * @param session - the project's session.
- * @returns the choices by address, empty when there is nothing to ask, or null when the reader
- *     cancelled.
- */
-export function askAssetChoices(store: WorkspaceStore, session: GraphSession): Promise<AssetChoices | null> {
-    if (!nodeModelsOn(session)) {
-        return Promise.resolve({});
-    }
-    const choices = session.project.assetChoices();
-    const known = answeredFor(session);
-    const kept: AssetChoices = Object.fromEntries(
-        choices.filter((entry) => known.has(entry.url)).map((entry) => [entry.url, entry.storage]),
-    );
-    const entries = choices.filter((entry) => !known.has(entry.url));
-    if (entries.length === 0) {
-        return Promise.resolve(kept);
-    }
-    if (assetQuestions.has(store)) {
-        // A save pressed while the question is open: the open question stays the one answered.
-        return Promise.resolve(null);
-    }
-    return new Promise((resolve) => {
-        assetQuestions.set(store, {
-            entries,
-            answer: (given) => {
-                assetQuestions.delete(store);
-                if (given === null) {
-                    resolve(null);
-                    return;
-                }
-                entries.forEach((entry) => known.add(entry.url));
-                resolve({ ...kept, ...given });
-            },
-        });
-        store.set({ dialog: KEEP_ASSETS_DIALOG });
-    });
-}
-
-/**
- * The saved notice, with what of the models the save could not keep as asked.
- * @param session - the project's session.
- * @param message - the notice's sentence.
- * @param report - what the save reported, when it reported.
- * @returns the notice's words.
- */
-function withModelsLeftOut(session: GraphSession, message: string, report: ProjectSaveReport | undefined): string {
-    if (!nodeModelsOn(session)) {
-        return message;
-    }
-    const lines = (report?.leftOut ?? []).filter((fact) => /^[EW]_MODEL_/.test(fact.code)).map(chipLine);
-    return [message, ...lines].join(" ");
-}
 
 /** Where the open project's Save goes, and what is waiting on the reader. Per workspace store. */
 interface ProjectFileState {
@@ -303,26 +195,17 @@ export function saveProblemSentence(name: string, error: unknown): string {
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the project's session.
  * @param target - the `browserProjects` id to write again, or null for a new record.
- * @returns false when the reader cancelled the question about files from the web.
  */
-async function writeProject({ workspace, session }: CommandContext, target: string | null): Promise<boolean> {
+async function writeProject({ workspace, session }: CommandContext, target: string | null): Promise<void> {
     if (session === null) {
-        return true;
-    }
-    const assets = await askAssetChoices(workspace, session);
-    if (assets === null) {
-        return false;
+        return;
     }
     await nameTheProject(workspace, session);
     const name = headerName(workspace);
-    const saved = await browserProjects.save(session, {
-        ...(target === null ? {} : { id: target }),
-        ...(Object.keys(assets).length === 0 ? {} : { assets }),
-    });
+    const saved = await browserProjects.save(session, target === null ? {} : { id: target });
     fileState(workspace).target = saved.id;
     await refreshStored();
-    workspace.set({ notice: { message: withModelsLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
-    return true;
+    workspace.set({ notice: { message: `Saved ${name} in this browser.` } });
 }
 
 /**
@@ -353,10 +236,7 @@ export async function saveProjectAs(ctx: CommandContext, name: string): Promise<
     const before = { header: headerName(workspace), element: session?.project.name ?? null };
     workspace.set((now) => ({ project: now.project && { ...now.project, name } }));
     try {
-        if (!(await writeProject(ctx, null))) {
-            // Cancelled: nothing was saved, so the project keeps the name it had.
-            workspace.set((now) => ({ project: now.project && { ...now.project, name: before.header } }));
-        }
+        await writeProject(ctx, null);
     } catch (error) {
         // Nothing was saved, so the project keeps the name it had.
         workspace.set((now) => ({
@@ -375,24 +255,14 @@ export async function saveProjectAs(ctx: CommandContext, name: string): Promise<
  * @param ctx - the command context.
  * @param ctx.workspace - the workspace store.
  * @param ctx.element - the element, which downloads.
- * @param ctx.session - the project's session, which says what to ask before the copy.
  */
-export async function saveLocalCopy({ workspace, element, session }: CommandContext): Promise<void> {
+export async function saveLocalCopy({ workspace, element }: CommandContext): Promise<void> {
     if (element === null) {
         return;
     }
     const name = headerName(workspace);
     try {
-        const assets = session === null ? {} : await askAssetChoices(workspace, session);
-        if (assets === null) {
-            return;
-        }
-        const fileName = projectFileName(name);
-        if (Object.keys(assets).length === 0) {
-            await element.downloadGraph("graphty", { fileName });
-        } else {
-            await element.downloadProject({ assets, fileName, markSaved: false });
-        }
+        await element.downloadGraph("graphty", { fileName: projectFileName(name) });
     } catch {
         workspace.set({ notice: { message: `A copy of ${name} could not be saved.`, error: true } });
     }
@@ -642,6 +512,8 @@ async function openInSession(
         const report = await session.project.open(file, {
             discard,
             fileName: file.name,
+            // A project this app kept in the browser is the reader's own work: its loads stay live.
+            ...(pending.storedId === undefined ? {} : { ownWork: true }),
             ...(fresh ? { history: "start" as const } : {}),
             draft: { guess: "values", ...(onto ? { onto: "graph" as const } : {}) },
         });

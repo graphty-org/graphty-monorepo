@@ -392,6 +392,23 @@ const REPAINT_FRAMES = 32;
 /** What an unbound renderer reads: no selection, no filter, nothing hidden. */
 const EMPTY_MASKS: ViewMasks = Object.freeze({});
 
+/** Rows a time window's slide moved, as {@link inRowOrder} hands them on. */
+type Rows = readonly number[] | Uint32Array;
+
+/**
+ * A slide's rows sorted into row order. A slide lists them in the order they crossed the window,
+ * which is time order and scatters them over the rows; nodes, edges and their batch slots are laid
+ * out about in row order, so walking the rows in order reads memory forward rather than at random.
+ * A jump over 40,000 edge rows (test/browser/timeline-frame-bench.ts) showed and hid them in 21 ms
+ * this way and in 29 ms in the slide's order (issue #6025). A row listed twice is harmless: the
+ * second visit finds the state already applied.
+ * @param rows - The rows, or null when they are not known.
+ * @returns The rows in row order, or null.
+ */
+function inRowOrder(rows: readonly number[] | null): Rows | null {
+    return rows === null || rows.length < 2 ? rows : Uint32Array.from(rows).sort();
+}
+
 /**
  * Configuration for the UpdateManager
  */
@@ -802,17 +819,26 @@ export class UpdateManager implements Manager {
         this.pending.changed();
         const fade = UpdateManager.ageFadeOf(masks);
         const state = batchUploadFrames.edgeAges(this.graphContext.getScene());
-        if (fade === null) {
-            state.on = false;
-            return;
+        const was = state.on;
+        state.on = fade !== null;
+        if (fade !== null) {
+            state.ages = fade.ages;
+            state.window[0] = fade.from;
+            state.window[1] = fade.to;
+            state.window[2] = fade.fade;
+            state.switched = this.ageSwitched;
         }
 
-        state.on = true;
-        state.ages = fade.ages;
-        state.window[0] = fade.from;
-        state.window[1] = fade.to;
-        state.window[2] = fade.fade;
-        state.switched = this.ageSwitched;
+        // A pulled line carries no age (`Edge.pullsLine`): on "batched", turning the fade on or
+        // off moves the plain edges between the pulled and the placed line.
+        if (state.on !== was && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+            for (const edge of this.dataManager.edges.values()) {
+                edge.updateStyle();
+            }
+
+            this.forceEdgeWalk();
+            this.meshesAdded();
+        }
     }
 
     /**
@@ -911,10 +937,6 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        // A mask has just hidden or revealed something, so the cached list of what is drawn is
-        // out of date. See `settleActiveMeshFreeze`.
-        this.sceneChanged = true;
-
         // A time window's slide says which rows it moved, so a step costs those rows and not the
         // graph. Anything else that moved a mask answers null here and walks, as below.
         const sameLook =
@@ -922,8 +944,8 @@ export class UpdateManager implements Manager {
             this.appliedAnything &&
             showContext === this.appliedShowContext &&
             ghost === this.appliedGhost;
-        const nodeRows = sameLook ? (nodeVisibility?.changedSince(this.appliedNodeVisibility) ?? null) : null;
-        const edgeRows = sameLook ? (edgeVisibility?.changedSince(this.appliedEdgeVisibility) ?? null) : null;
+        const nodeRows = sameLook ? inRowOrder(nodeVisibility?.changedSince(this.appliedNodeVisibility) ?? null) : null;
+        const edgeRows = sameLook ? inRowOrder(edgeVisibility?.changedSince(this.appliedEdgeVisibility) ?? null) : null;
 
         // With what is drawn unchanged, only the selection moved: touch the elements that leave
         // it and the ones in it, not the whole graph. A visibility or context change rewrites its
@@ -981,21 +1003,28 @@ export class UpdateManager implements Manager {
      * @param apply.walk - Walk every element.
      */
     private applyMove(
-        rows: readonly number[] | null,
+        rows: Rows | null,
         moved: boolean,
         selectionOnly: boolean,
         selectionMoved: boolean,
-        apply: { rows(rows: readonly number[]): void; selection(): void; walk(): void },
+        apply: { rows(rows: Rows): void; selection(): void; walk(): void },
     ): void {
+        // A selection or a walk may enable, disable or rebuild meshes anywhere, so the cached list
+        // of what is drawn is out of date (see `settleActiveMeshFreeze`). Rows say for themselves
+        // whether they reached a mesh: a time window that only moves edges drawn from shared
+        // batches writes slots, and leaves the list -- a hundred thousand node instances -- frozen.
         if (rows !== null) {
             apply.rows(rows);
             if (selectionMoved) {
                 apply.selection();
+                this.sceneChanged = true;
             }
         } else if (moved && selectionOnly) {
             apply.selection();
+            this.sceneChanged = true;
         } else if (moved) {
             apply.walk();
+            this.sceneChanged = true;
         }
     }
 
@@ -1005,16 +1034,17 @@ export class UpdateManager implements Manager {
      * @param nodeVisibility - The visible nodes.
      * @param showContext - Whether hidden nodes are drawn faintly.
      */
-    private applyNodeRows(
-        rows: readonly number[],
-        nodeVisibility: ElementMask<NodeId> | null,
-        showContext: boolean,
-    ): void {
+    private applyNodeRows(rows: Rows, nodeVisibility: ElementMask<NodeId> | null, showContext: boolean): void {
         const { nodesByIndex } = this.dataManager;
         const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
 
         for (const row of rows) {
-            nodesByIndex[row]?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState);
+            // Showing or hiding a node enables or disables its mesh, which the frozen list must see.
+            if (
+                nodesByIndex[row]?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState) === true
+            ) {
+                this.sceneChanged = true;
+            }
         }
     }
 
@@ -1025,7 +1055,7 @@ export class UpdateManager implements Manager {
      * @param rows - The rows a slide moved.
      * @param edgeVisibility - The visible edges.
      */
-    private applyEdgeRows(rows: readonly number[], edgeVisibility: ElementMask<EdgeId> | null): void {
+    private applyEdgeRows(rows: Rows, edgeVisibility: ElementMask<EdgeId> | null): void {
         const { edgesByIndex } = this.dataManager;
 
         for (const row of rows) {
@@ -1033,6 +1063,10 @@ export class UpdateManager implements Manager {
             const visible = edgeVisibility?.has(row) === true;
 
             if (edge?.setRenderVisible(visible) === true) {
+                if (edge.togglesOwnMeshes()) {
+                    this.sceneChanged = true;
+                }
+
                 if (visible) {
                     this.edgesToPlace.push(edge);
                 }
@@ -1963,6 +1997,11 @@ export class UpdateManager implements Manager {
             "an edge has not been trimmed to its nodes at the new scale yet",
             () => this.retrimPending,
         );
+        work.watch(
+            "sizing",
+            "an edge's end is drawn at its node's bounding radius until the move rests",
+            () => this.byRadius.size > 0,
+        );
         work.watch("view", "a filter or a selection has not been drawn yet", () => this.viewMasksPending());
         work.watch("view", "the camera is still moving to the selection", () => this.followingSelection);
         work.watch(
@@ -2794,8 +2833,51 @@ export class UpdateManager implements Manager {
         }
 
         this.edgesToPlace = [];
+        this.settleEnds();
 
         this.statsManager.edgeUpdate.endMonitoring();
+    }
+
+    /** Edges a move left with an end on its node's bounding radius, see {@link endsByRadius}. */
+    private byRadius = new Set<Edge>();
+
+    /** Whether an edge was placed by radius since the last edge pass. */
+    private byRadiusPlaced = false;
+
+    /** Edge passes in a row that placed no edge by radius. */
+    private byRadiusStill = 0;
+
+    /**
+     * Say that an edge's end follows a move on its node's bounding radius rather than a ray. Once
+     * {@link STILL_PASSES} edge passes in a row place no edge that way, the edges are placed again, measured.
+     * @param edge - The edge.
+     * @internal
+     */
+    endsByRadius(edge: Edge): void {
+        this.byRadius.add(edge);
+        this.byRadiusPlaced = true;
+    }
+
+    /** Measure again the ends a move left on a bounding radius, once moves have rested. */
+    private settleEnds(): void {
+        if (this.byRadius.size === 0) {
+            return;
+        }
+
+        // a mouse's moves come a frame or two apart, so a drag counts as rested only after it held for a few passes
+        this.byRadiusStill = this.byRadiusPlaced ? 0 : this.byRadiusStill + 1;
+        this.byRadiusPlaced = false;
+        if (this.byRadiusStill < UpdateManager.STILL_PASSES) {
+            return;
+        }
+
+        const edges = this.byRadius;
+        this.byRadius = new Set();
+        for (const edge of edges) {
+            edge.invalidatePositionCache();
+            edge.update();
+        }
+        this.sceneChanged = true;
     }
 
     /**
@@ -3261,7 +3343,7 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether a node's size follows the view, which a node batch cannot draw yet.
+     * Whether a node's size follows the view, which a batched row carries in its matrix.
      * @returns True under `depthIndependentSize` or a map's `nodeScale: "screen"`.
      */
     get nodesScaledByView(): boolean {
@@ -3531,12 +3613,22 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether paint can still change the box a framing measures: a style pass on its way, or paint
-     * that has arrived and is not applied to every element yet (`syncStyles` applies it in batches).
+     * Whether paint can still change the box a framing measures: a style pass on its way, paint
+     * that has arrived and is not applied to every element yet (`syncStyles` applies it in batches),
+     * or a node shader still loading or compiling. A shader drawn in place of its node (`replace`) swaps
+     * the node's mesh for a proxy of another size once it is ready, after its paint was applied;
+     * framed before that, the camera fitted the node's unshaded mesh and nothing framed the swap,
+     * so whether the shader compiled first decided the zoom (issue #6284). Only node shaders count
+     * (kind `node-shader`): a material's shader variant arriving draws a mesh that was skipped but
+     * never changes its size, so it holds the final picture, not the framing.
      * @returns True while some element is still to be drawn with paint it does not have yet.
      */
     private paintIsOutstanding(): boolean {
-        return this.graphContext.getStylePainter?.()?.hasPending === true || this.styleIsPainting();
+        return (
+            this.graphContext.getStylePainter?.()?.hasPending === true ||
+            this.styleIsPainting() ||
+            this.pending.isPending("node-shader")
+        );
     }
 
     /**

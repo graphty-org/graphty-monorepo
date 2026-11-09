@@ -13,6 +13,8 @@ const no = (notOffered: string): Home => ({ notOffered });
 
 /** A channel golden added after the unified Style panel was designed; the panel has no row for it yet. */
 const NOT_PLACED = no("added to graphty-element after the Style panel's design; no row for it yet");
+/** A node's 3D model or picture: put on nodes by dropping a file on the canvas; the panel has no row for it yet. */
+const MODEL = no("set by dropping a model or a picture on the canvas; the Style panel has no row for it yet");
 /** A label's font, weight or italic as its own channel; the panel sets them inside the label style. */
 const TEXT_FIELD = no("the panel sets it inside the label style, Label settings, Type");
 
@@ -21,13 +23,13 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.color": at("Nodes, Fill, Color"),
     "node.size": at("Nodes, Shape, Size"),
     "node.shape": at("Nodes, Shape, Shape"),
-    "node.model": at("Nodes, Shape, Model... (the node-models experiment)"),
-    "node.modelSourceUp": at("Nodes, Shape, Model settings, Up (node-models)"),
-    "node.modelTurn": at("Nodes, Shape, Model settings, Turn (node-models)"),
-    "node.modelTint": at("Nodes, Shape, Model settings, Color (node-models)"),
-    "node.modelFit": at("Nodes, Shape, Model settings, Fit (node-models)"),
-    "node.modelCenter": at("Nodes, Shape, Model settings, Center (node-models)"),
-    "node.texture": at("Nodes, Fill, Picture (node-models)"),
+    "node.model": MODEL,
+    "node.modelSourceUp": MODEL,
+    "node.modelTurn": MODEL,
+    "node.modelTint": MODEL,
+    "node.modelFit": MODEL,
+    "node.modelCenter": MODEL,
+    "node.texture": MODEL,
     "node.opacity": at("Nodes, Fill, Color opacity (its own line when it varies by a value)"),
     "node.wireframe": at("Nodes, Shape, Wireframe (on with a low-detail mesh)"),
     "node.meshDetail": no("no row of its own: Shape's Wireframe row writes it low with the wireframe"),
@@ -165,6 +167,11 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.raisedBorderWidth": NOT_PLACED,
     "node.raisedBorderLightColor": NOT_PLACED,
     "node.raisedBorderDarkColor": NOT_PLACED,
+    "node.shadowColor": NOT_PLACED,
+    "node.shadowOpacity": NOT_PLACED,
+    "node.shadowBlur": NOT_PLACED,
+    "node.shadowOffsetX": NOT_PLACED,
+    "node.shadowOffsetY": NOT_PLACED,
     "node.underlayColor": NOT_PLACED,
     "node.underlayOpacity": NOT_PLACED,
     "node.underlayPadding": NOT_PLACED,
@@ -273,6 +280,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.gradientKind": NOT_PLACED,
     "edge.waveAmplitude": NOT_PLACED,
     "edge.wavePeriod": NOT_PLACED,
+    "edge.dashLength": NOT_PLACED,
+    "edge.dashGap": NOT_PLACED,
     "edge.fanSpacing": NOT_PLACED,
     "edge.fanned": NOT_PLACED,
     "edge.bendCurve": NOT_PLACED,

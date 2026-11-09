@@ -468,22 +468,23 @@ const BUNDLE_STEPS = 24;
 const ARC_TURN_PER_PIECE = Math.PI / 24;
 
 /**
- * A curved edge drawn as an arc of the circle through both node centers (`line.arcRadius`), bowing to the left of
- * the direction from the source to the target in the x-y plane, the shorter way round, as Gephi draws a curved
- * edge (`EdgeRenderer.CurvedEdgeRenderer`: radius the center distance over its arc curveness). z runs straight
- * from one end to the other.
+ * The circle a center arc (`line.arcRadius`) runs on, and how {@link centerArc} samples it: its center and radius,
+ * the angle from the center to the source, the signed turn to the target the shorter way round, and the pieces.
  * @param src - The source node's center.
  * @param dst - The target node's center.
- * @param radius - The circle's radius as a multiple of the distance between the centers in the x-y plane, at
- *     least 0.5 (a half circle).
- * @returns The arc, flat x, y, z, both ends included; the straight line when the centers meet in the x-y plane.
+ * @param radius - The radius as a multiple of the distance between the centers in the x-y plane.
+ * @returns The circle, or null when the centers meet in the x-y plane (the arc is then the straight line).
  */
-export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
+export function centerCircle(
+    src: Xyz,
+    dst: Xyz,
+    radius: number,
+): { cx: number; cy: number; r: number; from: number; turn: number; pieces: number } | null {
     const dx = dst.x - src.x;
     const dy = dst.y - src.y;
     const chord = Math.hypot(dx, dy);
     if (chord < 1e-9) {
-        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+        return null;
     }
 
     const r = Math.max(radius, 0.5) * chord;
@@ -495,6 +496,27 @@ export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
     let turn = Math.atan2(dst.y - cy, dst.x - cx) - from;
     turn -= 2 * Math.PI * Math.round(turn / (2 * Math.PI));
     const pieces = Math.min(BUNDLE_STEPS, Math.max(2, Math.ceil(Math.abs(turn) / ARC_TURN_PER_PIECE - 1e-9)));
+    return { cx, cy, r, from, turn, pieces };
+}
+
+/**
+ * A curved edge drawn as an arc of the circle through both node centers (`line.arcRadius`), bowing to the left of
+ * the direction from the source to the target in the x-y plane, the shorter way round, as Gephi draws a curved
+ * edge (`EdgeRenderer.CurvedEdgeRenderer`: radius the center distance over its arc curveness). z runs straight
+ * from one end to the other.
+ * @param src - The source node's center.
+ * @param dst - The target node's center.
+ * @param radius - The circle's radius as a multiple of the distance between the centers in the x-y plane, at
+ *     least 0.5 (a half circle).
+ * @returns The arc, flat x, y, z, both ends included; the straight line when the centers meet in the x-y plane.
+ */
+export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
+    const circle = centerCircle(src, dst, radius);
+    if (circle === null) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    }
+
+    const { cx, cy, r, from, turn, pieces } = circle;
     const out: number[] = [];
     for (let i = 0; i <= pieces; i++) {
         const t = i / pieces;
@@ -659,6 +681,35 @@ export function fanArc(src: Xyz, dst: Xyz, left: Xyz, right: Xyz, offset: number
     return out;
 }
 
+/** How many pieces a self-loop's teardrop is drawn with. */
+export const LOOP_STEPS = BUNDLE_STEPS;
+
+/**
+ * Where a self-loop's teardrop ({@link loopTeardrop}) puts its cubic's two control points, from its node's center,
+ * in the x-y plane: either side of the loop's direction by half its sweep.
+ * @param rank - The loop's place among the loops on its node, from zero.
+ * @param count - How many loops the node has.
+ * @param reachAt - How far the node's surface (and border) is from its center in a direction.
+ * @returns The two points, and the angle between their directions.
+ */
+export function loopControls(
+    rank: number,
+    count: number,
+    reachAt: (dir: Xyz) => number,
+): { c1: { x: number; y: number }; c2: { x: number; y: number }; sweep: number } {
+    const share = (2 * Math.PI) / Math.max(count, 4);
+    const angle = Math.PI / 4 - rank * share;
+    const sweep = Math.min(Math.PI / 2, 0.8 * share);
+    const toward = { x: Math.cos(angle), y: Math.sin(angle), z: 0 };
+    const reach = reachAt(toward);
+    // A cubic from the center back to it reaches 3/4 of its controls' mean: far enough that its
+    // tip clears the surface by the loop's extent.
+    const far = (reach * (1 + LOOP_EXTENT_RADII)) / (0.75 * Math.cos(sweep / 2));
+    const c1 = { x: Math.cos(angle + sweep / 2) * far, y: Math.sin(angle + sweep / 2) * far };
+    const c2 = { x: Math.cos(angle - sweep / 2) * far, y: Math.sin(angle - sweep / 2) * far };
+    return { c1, c2, sweep };
+}
+
 /**
  * A self-loop's teardrop, from its node's center back to it, outside the node: it leaves in one
  * direction and comes back in the next, the bundle's loops spread evenly round the node, the first
@@ -670,19 +721,10 @@ export function fanArc(src: Xyz, dst: Xyz, left: Xyz, right: Xyz, offset: number
  * @returns The points, flat x, y, z.
  */
 export function loopTeardrop(center: Xyz, rank: number, count: number, reachAt: (dir: Xyz) => number): number[] {
-    const share = (2 * Math.PI) / Math.max(count, 4);
-    const angle = Math.PI / 4 - rank * share;
-    const sweep = Math.min(Math.PI / 2, 0.8 * share);
-    const toward = { x: Math.cos(angle), y: Math.sin(angle), z: 0 };
-    const reach = reachAt(toward);
-    // A cubic from the center back to it reaches 3/4 of its controls' mean: far enough that its
-    // tip clears the surface by the loop's extent.
-    const far = (reach * (1 + LOOP_EXTENT_RADII)) / (0.75 * Math.cos(sweep / 2));
-    const c1 = { x: Math.cos(angle + sweep / 2) * far, y: Math.sin(angle + sweep / 2) * far };
-    const c2 = { x: Math.cos(angle - sweep / 2) * far, y: Math.sin(angle - sweep / 2) * far };
+    const { c1, c2 } = loopControls(rank, count, reachAt);
     const out: number[] = [];
-    for (let i = 0; i <= BUNDLE_STEPS; i++) {
-        const t = i / BUNDLE_STEPS;
+    for (let i = 0; i <= LOOP_STEPS; i++) {
+        const t = i / LOOP_STEPS;
         const b = 3 * (1 - t) * (1 - t) * t;
         const c = 3 * (1 - t) * t * t;
         out.push(center.x + b * c1.x + c * c2.x, center.y + b * c1.y + c * c2.y, center.z);
@@ -833,6 +875,41 @@ export function raisedArc(src: Xyz, dst: Xyz, height: number): number[] {
 }
 
 /**
+ * The great circle {@link greatCircleArc} draws between two ends: their distances from the globe's center, the
+ * angle between their directions, its sine, the lift at the middle and the pieces.
+ * @param src - Where the edge starts.
+ * @param dst - Where it ends.
+ * @param height - The lift as a share of the straight-line distance between the ends.
+ * @returns The circle, or null when the arc is the straight line: an end at the center, or the ends in one
+ *     direction from it or in opposite ones.
+ */
+export function greatCircle(
+    src: Xyz,
+    dst: Xyz,
+    height: number,
+): { ra: number; rb: number; angle: number; sin: number; lift: number; pieces: number } | null {
+    const ra = Math.hypot(src.x, src.y, src.z);
+    const rb = Math.hypot(dst.x, dst.y, dst.z);
+    if (ra === 0 || rb === 0) {
+        return null;
+    }
+
+    const cos = Math.max(-1, Math.min(1, (src.x * dst.x + src.y * dst.y + src.z * dst.z) / (ra * rb)));
+    const angle = Math.acos(cos);
+    const sin = Math.sin(angle);
+    if (sin < 1e-6) {
+        return null;
+    }
+
+    const lift = height * Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
+    const pieces = Math.min(
+        RAISED_STEPS,
+        Math.max(Math.ceil(angle / ARC_TURN_PER_PIECE - 1e-9), fanArcPieces(angle * ((ra + rb) / 2), lift)),
+    );
+    return { ra, rb, angle, sin, lift, pieces };
+}
+
+/**
  * A great-circle arc over a globe centered on the origin (`line.route` "great-circle"): along the
  * great circle between the two ends' directions, its distance from the center running from one
  * end's to the other's, lifted at the middle by `height` times the straight-line distance between
@@ -845,25 +922,12 @@ export function raisedArc(src: Xyz, dst: Xyz, height: number): number[] {
  *     one direction from the center, or in opposite ones.
  */
 export function greatCircleArc(src: Xyz, dst: Xyz, height: number): number[] {
-    const ra = Math.hypot(src.x, src.y, src.z);
-    const rb = Math.hypot(dst.x, dst.y, dst.z);
-    const straight = [src.x, src.y, src.z, dst.x, dst.y, dst.z];
-    if (ra === 0 || rb === 0) {
-        return straight;
+    const circle = greatCircle(src, dst, height);
+    if (circle === null) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
     }
 
-    const cos = Math.max(-1, Math.min(1, (src.x * dst.x + src.y * dst.y + src.z * dst.z) / (ra * rb)));
-    const angle = Math.acos(cos);
-    const sin = Math.sin(angle);
-    if (sin < 1e-6) {
-        return straight;
-    }
-
-    const lift = height * Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
-    const pieces = Math.min(
-        RAISED_STEPS,
-        Math.max(Math.ceil(angle / ARC_TURN_PER_PIECE - 1e-9), fanArcPieces(angle * ((ra + rb) / 2), lift)),
-    );
+    const { ra, rb, angle, sin, lift, pieces } = circle;
     const out: number[] = [];
     for (let i = 0; i <= pieces; i++) {
         const t = i / pieces;

@@ -3,6 +3,9 @@
  * module: the types of a file's styles, the codes of every style condition, reading, planning and resolving styles,
  * the Cytoscape.js stylesheet in and out, the neutral vocabulary and the defaults of the programs that write graph
  * files. The engine behind them stays internal.
+ *
+ * Experimental: everything this entry exports, and the `styles` options of `importGraph` and `exportGraph`, may
+ * change or be removed in a minor release.
  */
 
 export {
@@ -32,6 +35,7 @@ export {
 export {
     TOOL_DEFAULTS,
     type ToolArrowhead,
+    type ToolDash,
     type ToolDefaults,
     toolDefaults,
     type ToolDefaultValue,

@@ -113,7 +113,39 @@ describe("GML styles: who wrote the file", () => {
         expect(angle[0]).toBe(0);
         // the ramp stretched over a 60 x 30 box changes color along its diagonal, as yEd's does
         expect(angle[1]).toBe(14.036);
+        // a left-to-right ramp starts a third of the way across and mirrors back over the left third
+        expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)).toEqual([
+            "#800080 #ff0000 #0000ff",
+            null,
+        ]);
+        expect(resolveStyles(styles, "node", "fillGradientStops", snapshot)).toEqual(["0 0.333333 1", null]);
         expect(styles.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_GRADIENT");
+    });
+
+    it("reads fill2's alpha into each stop, and a six-pointed star's ramp under its own sides", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                '  node [ id 0 label "a" graphics [ w 60 h 30 type "rectangle" fill "#C8C8C8" fill2 "#00000000" ] ]',
+                '  node [ id 1 label "b" graphics [ w 60 h 30 type "diamond" fill "#FF8800" fill2 "#FF880080" ] ]',
+                '  node [ id 2 label "c" graphics [ w 80 h 30 type "star6" fill "#FF0000" fill2 "#0000FF" ] ]',
+                '  node [ id 3 label "d" graphics [ w 60 h 30 type "rectangle" fill "#FF000080" fill2 "#0000FF80" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        const colors = resolveStyles(styles, "node", "fillGradientColors", snapshot);
+        const stops = resolveStyles(styles, "node", "fillGradientStops", snapshot);
+        // the left side halfway, half clear; color2 clear at the right
+        expect([colors[0], stops[0]]).toEqual(["#64646480 #c8c8c8ff #00000000", "0 0.333333 1"]);
+        // a corner-to-corner ramp keeps its two colors, the second half clear
+        expect([colors[1], stops[1]]).toEqual(["#ff8800 #ff880080", "0 1"]);
+        // yEd's star reaches 0.067 to 0.933 of its box, where graphty-element's reaches the sides
+        expect(stops[2]).toBe("0 0.30755 1");
+        expect(colors[2]).toBe("#990066 #ff0000 #1a00e5");
+        // color2 as clear as color: the node's fillOpacity carries both, its stops none
+        expect(colors[3]).toBe("#800080 #ff0000 #0000ff");
+        expect(resolveStyles(styles, "node", "fillOpacity", snapshot)[3]).toBe(0.501961);
     });
 
     it("reads Cytoscape's keys with Cytoscape's default style: numbered arrows, outline_width, nodes labeled", async () => {
@@ -394,6 +426,38 @@ describe("GML styles: who wrote the file", () => {
         expect(shapes.slice(0, 2)).toEqual(["round-rectangle", "vee"]);
         // a name Cytoscape does not know leaves its default style's shape
         expect(shapes[2]).toBe("round-rectangle");
+    });
+
+    it("draws a Cytoscape GML edge's arrowheads in the edge's fill, as Cytoscape does", async () => {
+        // gml-specimen-arrows-p4: `fill "#505050" source_arrow 1` draws its head #505050, not the style's black
+        const { snapshot, styles } = await load(
+            [
+                'Creator "Cytoscape"',
+                "graph [ directed 1",
+                "node [ id 1 ] node [ id 2 ]",
+                'edge [ source 1 target 2 graphics [ fill "#505050" source_arrow 1 target_arrow 3 ] ]',
+                "edge [ source 2 target 1 graphics [ target_arrow 3 ] ]",
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "edge", "sourceArrowColor", snapshot)).toEqual(["#505050", "#000000"]);
+        expect(resolveStyles(styles, "edge", "targetArrowColor", snapshot)).toEqual(["#505050", "#000000"]);
+    });
+
+    it("stands a Cytoscape GML edge's T and half arrows off the node, as Cytoscape draws them", async () => {
+        // gml-specimen-arrows-p4: `source_arrow 13` (T) ends its line 8 px from the node, as a CYS session's T does
+        const { snapshot, styles } = await load(
+            [
+                'Creator "Cytoscape"',
+                "graph [ directed 1",
+                "node [ id 1 ] node [ id 2 ]",
+                "edge [ source 1 target 2 graphics [ source_arrow 13 target_arrow 16 ] ]",
+                "edge [ source 2 target 1 graphics [ source_arrow 3 ] ]",
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "edge", "sourceArrowGap", snapshot)).toEqual([4, null]);
+        expect(resolveStyles(styles, "edge", "targetArrowGap", snapshot)[0]).toBeCloseTo(0.3 / 1.135);
     });
 
     it("reads Gephi's GML as Gephi draws it: y up, w a radius, an edge as thick as its value", async () => {

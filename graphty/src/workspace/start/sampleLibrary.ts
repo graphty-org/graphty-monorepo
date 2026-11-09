@@ -107,7 +107,7 @@ export interface SampleCardData {
 }
 
 /** What a tile of the library opens. */
-export type SampleSource =
+type SampleSource =
     | { readonly kind: "sample"; readonly sample: StartSample }
     | { readonly kind: "dataset"; readonly dataset: DatasetMeta }
     | { readonly kind: "generator"; readonly generator: GeneratorDescriptor };

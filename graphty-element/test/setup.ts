@@ -2,10 +2,8 @@ import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine.js";
 import { EngineStore } from "@babylonjs/core/Engines/engineStore.js";
 import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Logger } from "@babylonjs/core/Misc/logger.js";
-import { configure } from "storybook/test";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 
-import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import type { Graph } from "../src/Graph";
 import { MockDeviceInputSystem } from "../src/input/mock-device-input-system";
 import { caughtFailure, installCaughtErrors, takeCaughtErrors } from "./helpers/caught-errors";
@@ -14,12 +12,6 @@ import { pinLabelFont } from "./helpers/pin-label-font";
 // An error the element caught and carried on past, or one nobody caught, fails the test it
 // happened in (test/helpers/caught-errors.ts).
 installCaughtErrors();
-
-// A story's play run here (render-parity, and every test that composes a story) waits with
-// storybook/test's waitFor, which keeps Testing Library's 1000 ms default unless told otherwise:
-// .storybook/preview.ts tells it only under Storybook. Give it the one hang guard here too, so a
-// busy machine never fails a story's wait (tools/test-wait-guard.mjs, #6368).
-configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 
 // Strict state: every session created in these tests checks that project state changes only
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).

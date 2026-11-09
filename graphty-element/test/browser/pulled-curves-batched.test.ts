@@ -9,7 +9,8 @@
  * neither gapped node and is drawn uncut between its bare ends. A curve raised off the map (`line.route` "arc") is
  * pulled too, and follows a new height (`line.arcHeight`), and so is a curve or a straight line on the great-circle
  * route (`line.route` "great-circle"). A self-loop's teardrop is pulled too, and spreads round its node as the node
- * gains a loop.
+ * gains a loop. A route the `location-map` layout picks (an arc over a flat map, a great circle on a globe, straight
+ * to a node it could not place) is pulled too, and follows the layout as it changes.
  * Stage 21 of design/rendering/row-renderer.md; the bar is its section 7.
  */
 
@@ -31,9 +32,11 @@ afterEach(() => {
     document.body.replaceChildren();
 });
 
+/** Each node but the last has a place on a map too, which only the `location-map` layout reads. */
 const NODES = Array.from({ length: 9 }, (_, id) => ({
     id,
     position: { x: (id % 3) * 1.4 - 1.4, y: Math.floor(id / 3) * 1.4 - 1.4, z: (id % 2) * 0.6 },
+    ...(id < 8 ? { latitude: 20 + (id % 3) * 15, longitude: -100 + id * 25 } : {}),
 }));
 
 /** A ring and two crossings; edge 0 fans, alone between its nodes until a parallel edge joins it. */
@@ -529,5 +532,51 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
         assert.equal(overBar(before.five, after.five), 0, "with a fifth loop");
         assert.equal(overBar(before.four, after.four), 0, "after it is removed");
+    });
+    it("pull the routes the location-map layout picks, and follow the layout as it changes, drawing the objects path's picture", async () => {
+        /**
+         * Straighten half the edges, lay the graph on a flat map (arcs), then on a globe (great circles), then back on
+         * its fixed positions (no route). Node 8 has no place on the map, so its edges stay straight on it.
+         * @param element - The element.
+         * @returns The pulled rows on the map, and the pictures.
+         */
+        async function mapped(element: Graphty): Promise<{ pulled: number; flat: Frame; globe: Frame; fixed: Frame }> {
+            await element.session.styles.add({
+                name: "straight",
+                target: "edge",
+                selector: {
+                    match: "ids",
+                    edges: EDGES.filter((_, i) => i % 2 === 0).map((e) => edgeId(element, e.src, e.dst)),
+                },
+                set: { "edge.curvature": false },
+            } as never);
+            const map = { latitude: "latitude", longitude: "longitude", gazetteer: false } as const;
+            const lay = async (type: string, options: Record<string, unknown>): Promise<Frame> => {
+                await element.graph.setLayout(type, options);
+                await settled(element);
+                return readCanvas(element.graph);
+            };
+            const flat = await lay("location-map", { ...map, mapDimension: "2d" });
+            const { pulledEdges: pulled } = element.graph.rowCounts;
+            const globe = await lay("location-map", { ...map, mapDimension: "3d" });
+            await lay("fixed", { dim: 3 });
+            // the camera still frames the globe, where the graph is a few pixels across
+            element.zoomToFit();
+            await settled(element);
+            const fixed = await readCanvas(element.graph);
+            return { pulled, flat, globe, fixed };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await mapped(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await mapped(batched);
+        assert.equal(after.pulled, EDGES.length, "the edges on the map are pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.equal(overBar(before.flat, after.flat), 0, "arcs over a flat map");
+        assert.equal(overBar(before.globe, after.globe), 0, "great circles on a globe");
+        assert.equal(overBar(before.fixed, after.fixed), 0, "off the map again");
     });
 });

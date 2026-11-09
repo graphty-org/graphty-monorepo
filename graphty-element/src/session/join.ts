@@ -306,7 +306,30 @@ export function suggestJoin(
         }
     }
 
-    // Values: the column and the graph path whose values meet most, on nodes, then on edges.
+    const best = bestValuesKey(table, graph, loose);
+    if (best === undefined) {
+        return Object.freeze({ shape: "rows", keys: Object.freeze([]), confident: false });
+    }
+
+    return Object.freeze({
+        shape: best.shape,
+        keys: Object.freeze([Object.freeze(best.key)]),
+        confident: best.share >= CONFIDENT,
+    });
+}
+
+/**
+ * The column and the graph path whose values meet most, on nodes, then on edges.
+ * @param table - The table.
+ * @param graph - The graph.
+ * @param loose - How to compare.
+ * @returns The key and its shape, or undefined when no values meet.
+ */
+function bestValuesKey(
+    table: JoinTable,
+    graph: JoinGraph,
+    loose: Loose,
+): { shape: JoinShape; key: JoinKey; share: number } | undefined {
     let best: { shape: JoinShape; key: JoinKey; share: number } | undefined;
     for (const [shape, elements] of [
         ["node-values", graph.nodes],
@@ -323,15 +346,7 @@ export function suggestJoin(
         }
     }
 
-    if (best === undefined) {
-        return Object.freeze({ shape: "rows", keys: Object.freeze([]), confident: false });
-    }
-
-    return Object.freeze({
-        shape: best.shape,
-        keys: Object.freeze([Object.freeze(best.key)]),
-        confident: best.share >= CONFIDENT,
-    });
+    return best;
 }
 
 /**

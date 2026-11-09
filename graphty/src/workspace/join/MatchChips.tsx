@@ -123,6 +123,40 @@ function CountChip({
 }
 
 /**
+ * What becomes of a values join's rows matching no node: left out, or new nodes.
+ * @param props - Component props
+ * @param props.choices - the join as chosen
+ * @param props.onChange - takes changed choices
+ * @returns the chip
+ */
+function NewRowsChip({
+    choices,
+    onChange,
+}: Readonly<Pick<MatchChipsProps, "choices" | "onChange">>): React.JSX.Element {
+    const adding = choices.unmatchedRows === "add";
+    return (
+        <MenuChip label={adding ? "Add as new nodes" : "Leave those rows out"}>
+            <ChoiceItem
+                checked={adding}
+                onClick={() => {
+                    onChange({ ...choices, unmatchedRows: "add" });
+                }}
+            >
+                Add as new nodes
+            </ChoiceItem>
+            <ChoiceItem
+                checked={!adding}
+                onClick={() => {
+                    onChange({ ...choices, unmatchedRows: "leave-out" });
+                }}
+            >
+                Leave those rows out
+            </ChoiceItem>
+        </MenuChip>
+    );
+}
+
+/**
  * An edge join's counts: edges added and new nodes narrow the file's table; nodes updated names
  * no rows. A zero count is not drawn.
  * @param props - Component props
@@ -216,26 +250,7 @@ export function MatchChips({
                     </CountChip>
                 </li>
             ) : null}
-            {canAdd && report.notInGraph > 0 ? (
-                <MenuChip label={choices.unmatchedRows === "add" ? "Add as new nodes" : "Leave those rows out"}>
-                    <ChoiceItem
-                        checked={choices.unmatchedRows === "add"}
-                        onClick={() => {
-                            onChange({ ...choices, unmatchedRows: "add" });
-                        }}
-                    >
-                        Add as new nodes
-                    </ChoiceItem>
-                    <ChoiceItem
-                        checked={choices.unmatchedRows !== "add"}
-                        onClick={() => {
-                            onChange({ ...choices, unmatchedRows: "leave-out" });
-                        }}
-                    >
-                        Leave those rows out
-                    </ChoiceItem>
-                </MenuChip>
-            ) : null}
+            {canAdd && report.notInGraph > 0 ? <NewRowsChip choices={choices} onChange={onChange} /> : null}
             {report.withoutValue > 0 && !edges ? (
                 <li>
                     {toggles.includes("without-value") ? (

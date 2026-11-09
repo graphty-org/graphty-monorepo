@@ -1165,6 +1165,8 @@ Labels
 
 ## 13. Stages
 
+How the remaining stages and a few follow-on ones close the measured gaps to cosmos.gl: [cosmos-gap.md](cosmos-gap.md).
+
 Each stage is one pull request into master (or several where marked), passes CI, and leaves master shippable: under `"objects"` it
 changes nothing a consumer sees. Only 32-34, 36 and 37 add picture changes, with their options on. CI proves _counted work_; milliseconds
 come from the harness (`benchmarks/compare/`) under `render-path="batched"`, in the Proof file.

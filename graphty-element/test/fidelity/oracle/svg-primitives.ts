@@ -1209,6 +1209,35 @@ function geometryPoints(el: SVGGeometryElement, m: DOMMatrix, samples: number): 
         const p = el.getPointAtLength((len * i) / (samples - 1));
         out.push(at(m, p.x, p.y));
     }
+    // a rect's sides and, square-cornered, its corners exactly, each in place of the sample nearest it: samples evenly
+    // spaced round a long thin box miss its ends by up to a step (graphml-cla-checker-graph's group band, 7076 x 21,
+    // read 130 units short of its right end, so its label's middle fell outside it; its rounded group as short)
+    if (tag === "rect") {
+        const r = el as unknown as SVGRectElement;
+        const [x, y, w, h] = [r.x.baseVal.value, r.y.baseVal.value, r.width.baseVal.value, r.height.baseVal.value];
+        const square = r.rx.baseVal.value === 0 && r.ry.baseVal.value === 0;
+        const sides: Pt[] = [
+            [x + w / 2, y],
+            [x + w, y + h / 2],
+            [x + w / 2, y + h],
+            [x, y + h / 2],
+        ];
+        const corners: Pt[] = square
+            ? [
+                  [x, y],
+                  [x + w, y],
+                  [x + w, y + h],
+                  [x, y + h],
+              ]
+            : [];
+        for (const c of [...sides, ...corners].map(([px, py]) => at(m, px, py))) {
+            const gap = (q: Pt): number => Math.hypot(q[0] - c[0], q[1] - c[1]);
+            const near = out.reduce((best, q, i) => (gap(q) < gap(out[best]) ? i : best), 0);
+            out[near] = c;
+        }
+        // the outline closes where it starts
+        out[out.length - 1] = out[0];
+    }
     return out;
 }
 

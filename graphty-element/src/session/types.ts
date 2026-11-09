@@ -2454,6 +2454,24 @@ export interface JoinLink {
 }
 
 /**
+ * How a mapping table is read ({@link JoinChoices.mapping}).
+ * @since 3.37.0
+ */
+export interface JoinMapping {
+    /** The mapping table's column holding the incoming keys, then its column holding the graph's. */
+    readonly columns?: readonly [from: string, to: string];
+    /** What a key mapped to several values matches: the `"first"` (the default), or every one. */
+    readonly many?: "first" | "list";
+}
+
+/**
+ * A node's region when a join compares two graphs ({@link JoinChoices.combine}): the value
+ * written to its membership column.
+ * @since 3.37.0
+ */
+export type JoinRegion = "both" | "only-from" | "only-onto";
+
+/**
  * One pair of a join's key: a column of the incoming table and the graph value it matches.
  * @since 3.30.0
  */
@@ -2510,10 +2528,46 @@ export interface JoinChoices {
      */
     readonly ignore?: readonly JoinWarning[];
     /**
-     * A mapping table: a joined table (`sources()` key) with one column holding the incoming
-     * keys and one holding the graph's, through which incoming keys are translated first.
+     * A mapping table: a load (`sources()` key) with one column holding the incoming keys and one
+     * holding the graph's, through which incoming keys are translated first; an incoming key the
+     * table lacks is matched as it is ({@link JoinReport.unmapped} counts them). A joined table
+     * is read as its rows; any other load as its records: its edges (`source`, `target` and their
+     * values) when it read a table of edges, otherwise its nodes (`id` and their values).
      */
     readonly via?: SourceKey;
+    /**
+     * How the mapping table (`via`) is read: `columns` its column holding the incoming keys and
+     * its column holding the graph's (by default the columns whose values meet the incoming keys
+     * and the graph's most); `many` what a key mapped to several values matches: the `"first"`
+     * (the default) or every one (`"list"`).
+     * @since 3.37.0
+     */
+    readonly mapping?: JoinMapping;
+    /**
+     * For `"edges"`: the `kind` the nodes the join makes take, by end. A node the graph holds is
+     * left as it is.
+     * @since 3.37.0
+     */
+    readonly endKinds?: { readonly source?: string; readonly target?: string };
+    /**
+     * For `"edges"` with `endKinds`: `"shared"` (the default) matches an end to a node of any kind;
+     * `"scoped"` matches it only to a node of its end's kind, and an end it makes whose id a node
+     * of another kind holds becomes `<kind>:<value>`, as `LoadChoices.kindIds` does.
+     * @since 3.37.0
+     */
+    readonly kindIds?: "shared" | "scoped";
+    /**
+     * For `"merge"`: compare the table, read as a second graph's nodes, with the graph, writing
+     * each node's region to the `membership` column: `"both"` (a row merged into it), `"only-from"`
+     * (a node the table alone holds) or `"only-onto"` (a node no row names). A clashing column of
+     * the table is always written as `<column> (<table name>)`, so the two graphs' values sit side
+     * by side. `"union"`, `"intersection"` and `"difference"` keep every node: they say which
+     * regions a reader keeps, which a filter on the membership column applies.
+     * @since 3.37.0
+     */
+    readonly combine?: "union" | "intersection" | "difference";
+    /** For `combine`: the column the regions are written to. Default `"membership"`. @since 3.37.0 */
+    readonly membership?: string;
     /**
      * For `"edges"`: a row with an end the graph lacks either `"add"`s that end as a new node
      * (the default) or is `"leave-out"`, left out of the join.
@@ -2628,6 +2682,18 @@ export interface JoinReport {
     readonly valuesOverCap: number;
     /** For `"link"`: the pairs sharing fewer values than `minShared`, so not linked. @since 3.37.0 */
     readonly pairsBelowMin: number;
+    /** With `via`: the distinct incoming keys the mapping table lacks. 0 otherwise. @since 3.37.0 */
+    readonly unmapped: number;
+    /** With `via`: the distinct incoming keys the mapping table maps to more than one value. @since 3.37.0 */
+    readonly mappedToMany: number;
+    /**
+     * With `combine`: the nodes in each region ({@link JoinRegion}): `from` only the table holds,
+     * `both`, `onto` only the graph holds. Absent otherwise.
+     * @since 3.37.0
+     */
+    readonly regions?: {
+        readonly nodes: { readonly from: number; readonly both: number; readonly onto: number };
+    };
 }
 
 /**

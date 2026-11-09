@@ -1429,7 +1429,7 @@ export class Draft implements LoadDraft {
 }
 
 /** A graph with nothing in it, for a host that lends none. */
-const NO_GRAPH: JoinGraph = { nodes: [], edges: [], joins: new Map() };
+const NO_GRAPH: JoinGraph = { nodes: [], edges: [], table: () => undefined };
 
 /**
  * The table a join reads: the first table with rows, a table of the reader's own before a

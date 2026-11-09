@@ -2744,11 +2744,19 @@ export interface JoinChoices {
     readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
     readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
     readonly columns?: readonly string[];
+    readonly combine?: "union" | "intersection" | "difference";
+    readonly endKinds?: {
+        readonly source?: string;
+        readonly target?: string;
+    };
     readonly ignore?: readonly JoinWarning[];
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly keys: readonly JoinKey[];
+    readonly kindIds?: "shared" | "scoped";
     readonly link?: JoinLink;
+    readonly mapping?: JoinMapping;
+    readonly membership?: string;
     readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
     readonly unknownEnds?: "add" | "leave-out";
@@ -2800,6 +2808,7 @@ export interface JoinReport {
     readonly extraIgnoringCase: number;
     readonly extraIgnoringSpaces: number;
     readonly fanOut: number;
+    readonly mappedToMany: number;
     readonly matched: number;
     readonly merged: number;
     readonly newEdges: number;
@@ -2809,10 +2818,18 @@ export interface JoinReport {
     readonly onlyOnto: number;
     readonly pairsBelowMin: number;
     readonly pairsLinked: number;
+    readonly regions?: {
+        readonly nodes: {
+            readonly from: number;
+            readonly both: number;
+            readonly onto: number;
+        };
+    };
     readonly repeatedKeys: number;
     readonly rowFates: readonly JoinRowFate[];
     readonly rowMatches: readonly (readonly (NodeId_2 | EdgeId)[])[];
     readonly unknownEndRows: number;
+    readonly unmapped: number;
     readonly updatedNodes: number;
     readonly valuesOverCap: number;
     readonly withoutValue: number;

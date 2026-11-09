@@ -111,7 +111,7 @@ import {
     type IssueState,
     NO_ISSUE_STATE,
 } from "./issues";
-import { frozen, type JoinGraph, type JoinPlan, joinReport, planJoin } from "./join";
+import { frozen, type JoinGraph, type JoinPlan, joinReport, type JoinTable, planJoin } from "./join";
 import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
 import type { SessionCommand } from "./planning";
@@ -3432,14 +3432,39 @@ export class SessionData implements SessionDataApi {
             this.joinRows(kind)
                 .filter((row) => !gone.has(`${kind}:${String(row.id)}`))
                 .map((row) => ({ id: row.id, data: restored.get(`${kind}:${String(row.id)}`) ?? row.data }));
-        const joins = new Map<SourceKey, JoinRecord>();
-        for (const each of this.storedSources()) {
-            if (each.join !== undefined) {
-                joins.set(each.key, each.join);
-            }
+        return { nodes: read("node"), edges: read("edge"), table: (key) => this.loadTable(key) };
+    }
+
+    /**
+     * A load read as a table, for a join's mapping table: a joined table's rows; any other load's
+     * records, its edges when it read a table of edges, otherwise its nodes.
+     * @param key - the load's key
+     * @returns the table, or undefined for a load no longer in the graph
+     */
+    private loadTable(key: SourceKey): JoinTable | undefined {
+        const entry = this.storedSources().find((each) => each.key === key);
+        if (entry?.join !== undefined) {
+            return entry.join.table;
         }
 
-        return { nodes: read("node"), edges: read("edge"), joins };
+        if (entry === undefined) {
+            return undefined;
+        }
+
+        const supplied = this.provenance()?.[key];
+        const asEdges = entry.tableRows?.includes("edges") === true && !entry.tableRows.includes("nodes");
+        let rows: Readonly<Record<string, unknown>>[];
+        if (asEdges) {
+            const ids = new Set(supplied?.edges ?? []);
+            rows = this.edges().filter((edge) => ids.has(edge.id));
+        } else {
+            rows = (supplied?.nodes ?? []).flatMap((id) => this.node(id) ?? []);
+        }
+
+        const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))].filter(
+            (column) => !asEdges || column !== "id",
+        );
+        return { name: entry.name ?? key, columns, rows };
     }
 
     /**

@@ -79,6 +79,14 @@ export interface GraphContext {
     getRowTable?(): RowTable | null;
 
     /**
+     * Whether a straight pulled line draws the lean program (`EDGE_PULLED_LEAN`): only with
+     * `antialias` false and the `"batched"` path's batches open. Optional, as `getRowTable` is.
+     * @returns True when it does.
+     * @internal
+     */
+    leansLines?(): boolean;
+
+    /**
      * The node batches, on the `"batched"` render path.
      * @returns The batches, or null.
      * @internal

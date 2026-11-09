@@ -60,19 +60,31 @@ function widthOf(i: number): number {
 }
 
 /**
- * The first edges between distinct node pairs, each with a color, width and opacity of its own.
+ * The restyled edge: nodes 0 and 12 sit opposite on the outer ring, so it crosses the middle of the
+ * canvas, where the edges show between the node spheres (a neighbour's edge, 0 to 1, lies inside the
+ * two spheres and shows no pixel).
+ */
+const RESTYLED = { src: 0, dst: 12 };
+
+/**
+ * The first edges between distinct node pairs, each with a color, width and opacity of its own. The
+ * restyled edge comes last, so its new width keeps the widths in edge order (see `widthOf`).
  */
 const EDGES = (() => {
-    const edges: { src: number; dst: number; color: string; width: number; opacity: number }[] = [];
-    for (let a = 0; a < NODES.length && edges.length < EDGE_COUNT; a++) {
-        for (let b = a + 1; b < NODES.length && edges.length < EDGE_COUNT; b++) {
-            const i = edges.length;
-            const color = `#${((i * 2654435761) >>> 8).toString(16).padStart(6, "0").slice(-6)}`;
-            edges.push({ src: a, dst: b, color, width: widthOf(i), opacity: opacityOf(i) });
+    const pairs: { src: number; dst: number }[] = [];
+    for (let a = 0; a < NODES.length && pairs.length < EDGE_COUNT; a++) {
+        for (let b = a + 1; b < NODES.length && pairs.length < EDGE_COUNT; b++) {
+            if (a !== RESTYLED.src || b !== RESTYLED.dst) {
+                pairs.push({ src: a, dst: b });
+            }
         }
     }
 
-    return edges;
+    pairs[EDGE_COUNT - 1] = RESTYLED;
+    return pairs.map(({ src, dst }, i) => {
+        const color = `#${((i * 2654435761) >>> 8).toString(16).padStart(6, "0").slice(-6)}`;
+        return { src, dst, color, width: widthOf(i), opacity: opacityOf(i) };
+    });
 })();
 
 /**
@@ -148,25 +160,28 @@ describe.each(RENDERERS)("a pulled edge's own look on %s", (renderer) => {
     });
 
     it("rewrite a piece's look when its edge's look changes", async () => {
-        const restyle = async (element: Graphty): Promise<Frame> => {
+        const restyle = async (element: Graphty): Promise<{ rest: Frame; restyled: Frame }> => {
+            const rest = await readCanvas(element.graph);
             await element.session.styles.add({
                 name: "one",
                 target: "edge",
-                selector: { match: "ids", edges: [edgeBetween(element.graph, 0, 1)?.id] },
+                selector: { match: "ids", edges: [edgeBetween(element.graph, RESTYLED.src, RESTYLED.dst)?.id] },
                 set: { "edge.color": "#ff0000", "edge.width": 6, "edge.opacity": 1 },
             } as never);
             await settled(element);
-            return readCanvas(element.graph);
+            return { rest, restyled: await readCanvas(element.graph) };
         };
 
         const objects = await loaded(renderer, "objects");
-        const objectsRestyled = await restyle(objects);
+        const objectsFrames = await restyle(objects);
         objects.remove();
 
         const batched = await loaded(renderer, "batched");
         const before = draws(batched);
-        const batchedRestyled = await restyle(batched);
+        const batchedFrames = await restyle(batched);
         assert.equal(draws(batched), before, "no batch more");
-        assert.equal(overBar(objectsRestyled, batchedRestyled), 0, "the restyled picture");
+        assert.isAbove(overBar(objectsFrames.rest, objectsFrames.restyled), 100, "the objects path restyles");
+        assert.isAbove(overBar(batchedFrames.rest, batchedFrames.restyled), 100, "the batched path restyles");
+        assert.equal(overBar(objectsFrames.restyled, batchedFrames.restyled), 0, "the restyled picture");
     });
 });

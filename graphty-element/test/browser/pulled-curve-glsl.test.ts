@@ -101,7 +101,8 @@ function shaderPoints(asks: Ask[]): Float32Array {
 
 /**
  * Every point of 200 cut curves between spheres, the source at the origin: lone curves, fanned arcs, center arcs,
- * raised arcs, and lone curves stopped short of their nodes by a gap, often wide enough that the curve is drawn uncut.
+ * raised arcs, great-circle arcs, self-loops (one shared end object per loop, so a loop counts as one curve), and
+ * lone curves stopped short of their nodes by a gap, often wide enough that the curve is drawn uncut.
  */
 function asks(): Ask[] {
     let s = 3251;
@@ -128,7 +129,7 @@ function asks(): Ask[] {
             };
             const span = curveSpan(centre, centre, around, around, { loop });
             for (let j = 0; span !== null && j <= span.pieces; j++) {
-                out.push({ src: centre, dst: { ...centre }, span, j });
+                out.push({ src: centre, dst: centre, span, j });
             }
 
             continue;

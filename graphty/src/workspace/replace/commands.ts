@@ -11,6 +11,7 @@ import type {
     ReplaceReport,
     ReplaceUnboundCode,
     SourceKey,
+    SourceLoadOptions,
 } from "@graphty/graphty-element/session";
 import React from "react";
 
@@ -70,7 +71,7 @@ export async function replaceWith(
     session: GraphSession,
     key: SourceKey,
     incoming: Incoming,
-    choices?: LoadChoices,
+    choices?: LoadChoices & SourceLoadOptions,
 ): Promise<void> {
     const replaced = session.data.sources().find((each) => each.key === key);
     const before = replaced === undefined ? key : sourceName(replaced);

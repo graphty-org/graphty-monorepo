@@ -371,6 +371,8 @@ interface SourceExtras {
     readonly issues: number;
     /** It is an opened project's network load that has not run. */
     readonly waiting: boolean;
+    /** A network load's Start, params, Limit and Expand, drawn after its Address. */
+    readonly settings?: readonly SourceFact[];
 }
 
 /**
@@ -424,6 +426,7 @@ export function sourceFacts(
         { name: "Type", value: sourceKindWord(source) },
         local && source.fileName !== undefined && { name: "File", value: source.fileName },
         !local && source.url !== undefined && { name: "Address", value: source.url },
+        ...(extras.settings ?? []),
         !server && source.type !== undefined && { name: "Format", value: formatWord(source) },
         local && source.size !== undefined && { name: "Size", value: sizeWords(source.size) },
         source.loadedAt !== undefined && {

@@ -149,7 +149,7 @@ edges (a node is shown while any of its shown edges is), set by the app as an el
   Columns added. A fact a source lacks draws no row, so a project saved before retrieval times were
   kept shows no Retrieved. A credential is never shown or stored here.
 - Row context menu (right-click or the row's `...`): Edit join (joined only), Replace with file...,
-  Refresh, Load more, Edit query (server), Rename, Remove. Items whose precondition is missing are
+  Refresh, Load more, Edit... (network source), Rename, Remove. Items whose precondition is missing are
   absent, not disabled.
 - `+` on the section: a menu with File..., Samples..., Server..., Paste. Dropping a file anywhere
   is the same as File....
@@ -320,8 +320,8 @@ the prior design (`structure-b-refined.md` section 12.1):
 
 `+` > Server... opens a pop-over form in the left sidebar (not a modal), Figma-style rows. The start
 page's Open network data pops up a chooser of the kinds of network; picking one opens the app on an
-empty project with this form popped up on that kind. Closing it with nothing loaded returns to the
-start page. The form never lists an example or a sample:
+empty project with this form popped up on that kind. Closing it stays in the app, on the empty
+project (only closing the chooser itself stays on the start page). The form never lists an example or a sample:
 
 ```
 Kind      [Neo4j / Cypher v]     (Cypher, SPARQL, NDEx, OpenAlex, REST mapping)
@@ -353,7 +353,11 @@ Expand    [x] on double-click   (pop-over: depth 1, direction both, edge types a
 - What a source cannot do is absent: no Load more for NDEx and STRING; no Expand for a REST
   mapping without `expand`.
 - **From the start page:** the form runs inside the empty project the chooser opened. A refused
-  Load keeps the form and its error, and closing the form during a Load stops it.
+  Load keeps the form and its error, and closing the form during a Load stops it and stays in the app.
+- **Editing a network source:** a network source's details in the right panel show what it connects
+  to and fetches, and Edit source (also Edit... on its row) opens this form filled in with its
+  settings. Load replaces that source in place, with the same key and name; passwords are empty, and
+  left empty the login held for the session is used. A file or sample file source has none of this.
 - **Network samples** are not in the form. The start page's "Load network data" section, immediately
   before "Generate a graph", has one tile for each kind of network (NDEx, Neo4j, SPARQL endpoint,
   Web API), with a thumbnail of its graph. A tile reads its graph first, shows as busy while it
@@ -379,7 +383,7 @@ Expand    [x] on double-click   (pop-over: depth 1, direction both, edge types a
 | Feature        | Immediate                                 | One click                               | Menu                                                                         |
 | -------------- | ----------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------- |
 | Load a file    | Drop anywhere; Sources `+`                | File picker, Samples                    | Paste, Server                                                                |
-| Sources        | Source rows with chips                    | Select row: fields and right panel      | Row menu: Replace, Refresh, Remove, Rename, Edit join, Edit query            |
+| Sources        | Source rows with chips                    | Select row: fields and right panel      | Row menu: Replace, Refresh, Remove, Rename, Edit join, Edit...               |
 | Special fields | Fields rows with chosen column            | Each dropdown                           | Weight meaning, kind ids rule                                                |
 | Warnings       | Header warning icons; source row icon     | Hover: details and fixes                | Maximized Issues list; Ignored toggle                                        |
 | Table          | Table button                              | Maximize; sort; summary hover           | Header menu: Type, Role, Rename, Hide, Hide others, Unhide                   |

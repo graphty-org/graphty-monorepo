@@ -24,6 +24,7 @@ const RENAME_ORDER = 80;
 const ITEM_GLYPHS: Readonly<Record<string, React.ReactNode>> = {
     "source.edit-join": <GLYPHS.join size={14} aria-hidden />,
     "source.replace": <GLYPHS.upload size={14} aria-hidden />,
+    "source.edit-network": <GLYPHS.rename size={14} aria-hidden />,
     "source.load-more": <GLYPHS.loadMore size={14} aria-hidden />,
     "source.refresh": <GLYPHS.refresh size={14} aria-hidden />,
     "source.select-nodes": <GLYPHS.selection size={14} aria-hidden />,

@@ -14,7 +14,10 @@ import {
     type GraphSession,
     type NodeId,
     type SourceInput,
+    type SourceKey,
     type SourceLoadOptions,
+    type SourceParamDescriptor,
+    type SourceSettings,
 } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
@@ -102,6 +105,138 @@ export function freshForm(entry: SourceCatalogEntry): ServerFormState {
         expand: entry.features.expand,
         expandWith: EXPAND_DEFAULTS,
     };
+}
+
+/**
+ * How a load started when its params do not say, as graph-io reads them: a query means Query, ids
+ * mean Seed nodes, and otherwise Everything.
+ * @param config - the load's params.
+ * @returns the Start value.
+ */
+export function startOf(config: Readonly<Record<string, unknown>>): string {
+    if (typeof config.mode === "string") {
+        return config.mode;
+    }
+    if (typeof config.query === "string") {
+        return "query";
+    }
+    return Array.isArray(config.ids) ? "neighborhood" : "all";
+}
+
+/**
+ * A form opened to edit a load: its settings, with the sign-in rows empty. User stays empty on
+ * purpose: a user with a blank password would be a login that overrides the remembered one.
+ * @param entry - the source.
+ * @param settings - what the load holds, from `data.sourceSettings`.
+ * @returns the form.
+ */
+export function formFromSettings(entry: SourceCatalogEntry, settings: SourceSettings): ServerFormState {
+    const { expand, config } = settings;
+    const hasMode = entry.descriptor.params.some((p) => p.name === "mode");
+    return {
+        kind: entry.id,
+        endpoint: settings.endpoint ?? "",
+        user: "",
+        secret: "",
+        apiKey: "",
+        params: { ...config, ...(hasMode ? { mode: startOf(config) } : {}) },
+        limit: settings.limits?.maxNodes ?? 0,
+        expand: expand !== undefined,
+        expandWith:
+            expand === undefined
+                ? EXPAND_DEFAULTS
+                : {
+                      depth: expand.depth ?? EXPAND_DEFAULTS.depth,
+                      direction: expand.direction ?? EXPAND_DEFAULTS.direction,
+                      limit: expand.limit ?? EXPAND_DEFAULTS.limit,
+                      types: (expand.relationshipTypes ?? []).join(", "),
+                  },
+    };
+}
+
+/**
+ * The params a load holds that its source does not declare (a Web API's template values), as
+ * params the form can draw.
+ * @param entry - the source.
+ * @param params - the params the form holds.
+ * @returns one descriptor per undeclared param, named by itself.
+ */
+export function undeclaredParams(
+    entry: SourceCatalogEntry,
+    params: Readonly<Record<string, unknown>>,
+): readonly SourceParamDescriptor[] {
+    const declared = new Set(entry.descriptor.params.map((p) => p.name));
+    return Object.keys(params)
+        .filter((name) => !declared.has(name))
+        .map((name) => ({ name, plainName: name, type: "string" as const }));
+}
+
+/** What the right panel draws about a load's settings. */
+export interface SettingsFacts {
+    /** Short values, one row each. */
+    readonly rows: readonly { readonly name: string; readonly value: string | number }[];
+    /** Long values (a query, a mapping), each its own section. */
+    readonly long: readonly { readonly name: string; readonly value: string }[];
+}
+
+/**
+ * A param's value as the panel shows it.
+ * @param value - the value.
+ * @returns the text, or null for nothing to show.
+ */
+function shownValue(value: unknown): string | null {
+    if (Array.isArray(value)) {
+        return value.join(", ");
+    }
+    if (typeof value === "object" && value !== null) {
+        return JSON.stringify(value, null, 2);
+    }
+    if (typeof value === "boolean") {
+        return value ? "Yes" : "No";
+    }
+    return typeof value === "string" || typeof value === "number" ? String(value) : null;
+}
+
+/**
+ * What a load connects to and fetches, as the right panel draws it: Start, each param with a
+ * value, Limit and Expand. A query or a mapping is long, and goes in a section of its own.
+ * @param entry - the source.
+ * @param settings - what the load holds.
+ * @returns the rows.
+ */
+export function settingsFacts(entry: SourceCatalogEntry, settings: SourceSettings): SettingsFacts {
+    const { config } = settings;
+    const { params } = entry.descriptor;
+    const rows: SettingsFacts["rows"][number][] = [];
+    const long: SettingsFacts["long"][number][] = [];
+    if (params.some((p) => p.name === "mode")) {
+        const start = startOf(config);
+        rows.push({ name: "Start", value: START_WORDS[start] ?? start });
+    }
+    for (const { name, plainName, type } of [...params, ...undeclaredParams(entry, config)]) {
+        const value = name === "mode" ? null : shownValue(config[name]);
+        if (value !== null && value !== "") {
+            (type === "query" || type === "text" ? long : rows).push({ name: plainName, value });
+        }
+    }
+    if (settings.limits?.maxNodes !== undefined) {
+        rows.push({ name: "Limit", value: settings.limits.maxNodes });
+    }
+    if (settings.expand !== undefined) {
+        rows.push({ name: "Expand", value: "On double-click" });
+    }
+    return { rows, long };
+}
+
+/**
+ * Whether a source can be edited in the form: a network load of a kind this browser can reach.
+ * @param session - the session.
+ * @param key - the source's key.
+ * @returns its settings, or undefined when it cannot be edited.
+ */
+export function editableSettings(session: GraphSession | null, key: SourceKey): SourceSettings | undefined {
+    const settings = session?.data.sourceSettings(key);
+    return settings !== undefined && serverKinds().some((each) => each.id === settings.source) ? settings : undefined;
 }
 
 /**
@@ -231,7 +366,7 @@ export function serverRequest(
     form: ServerFormState,
 ): { input: SourceInput; options: SourceLoadOptions } {
     const config: Record<string, unknown> = {};
-    for (const { name, type } of entry.descriptor.params) {
+    for (const { name, type } of [...entry.descriptor.params, ...undeclaredParams(entry, form.params)]) {
         const value = paramValue(type, form.params[name]);
         if (value !== undefined) {
             config[name] = value;
@@ -290,16 +425,23 @@ export function serverLoad(entry: SourceCatalogEntry, form: ServerFormState): Se
  * (the start screen's Open network data).
  * @param store - the workspace store.
  * @param kind - the source the form opens on, or none for its first.
+ * @param editing - the network source the form opens filled in with, whose Load replaces it.
  */
-export function openServerForm(store: WorkspaceStore, kind: string | null = null): void {
+export function openServerForm(
+    store: WorkspaceStore,
+    kind: string | null = null,
+    editing: SourceKey | null = null,
+): void {
     store.set((state) => ({
-        ...(state.project === null ? { project: { name: "Untitled", id: newProjectId(state) }, inspected: null } : {}),
+        ...(state.project === null
+            ? { project: { name: "Untitled", id: newProjectId(state), blank: true as const }, inspected: null }
+            : {}),
         page: "panels",
         place: "data",
         ...panelsInView(),
         dialog: SERVER_DIALOG,
         serverKind: kind,
-        serverFromStart: state.project === null,
+        serverEdit: editing,
     }));
 }
 
@@ -415,6 +557,17 @@ export const registration = defineRegistration({
                 if (id !== undefined && ctx.session !== null) {
                     collapseNode(ctx.workspace, ctx.session, id);
                 }
+            },
+        },
+    ],
+    sourceRow: [
+        {
+            id: "source.edit-network",
+            label: "Edit...",
+            order: 15,
+            shown: (ctx, source) => editableSettings(ctx.session, source.key) !== undefined,
+            run: (ctx, source) => {
+                openServerForm(ctx.workspace, editableSettings(ctx.session, source.key)?.source ?? null, source.key);
             },
         },
     ],

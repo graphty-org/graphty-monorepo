@@ -122,4 +122,49 @@ describe("a network load reopened from autosave", () => {
         assert.isNull(screen.queryByRole("button", { name: "Approve" }));
         assert.isNull(screen.queryByRole("list", { name: "Waiting loads" }));
     });
+
+    it("keeps an edited load's new settings through a reload, with no Approve", async () => {
+        const first = mountWorkspace();
+        await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
+        await userEvent.click(await screen.findByRole("button", { name: /^NDEx/ }));
+        const form = await screen.findByRole("form", { name: "Network data" });
+        await userEvent.type(within(form).getByRole("textbox", { name: "Network UUID" }), WP5483);
+        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
+        const { element, session } = openedElement();
+        const [{ key }] = session.data.sources();
+
+        await userEvent.click(await screen.findByRole("button", { name: /^WP5483|NDEx/ }));
+        const panel = await screen.findByRole("complementary", { name: "Inspector" });
+        await userEvent.click(await within(panel).findByRole("button", { name: "Edit source" }));
+        const edit = await screen.findByRole("form", { name: "Network data" });
+        const limit = within(edit).getByLabelText("Limit");
+        await userEvent.clear(limit);
+        await userEvent.type(limit, "100");
+        await userEvent.click(within(edit).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
+        assert.strictEqual(session.data.sourceSettings(key)?.limits?.maxNodes, 100);
+
+        await waitFor(() => {
+            assert.strictEqual(element.autosaver.status.state, "saved");
+        });
+        const { entry } = element.autosaver.status;
+        first.view.unmount();
+        await waitFor(async () => {
+            const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
+            assert.isTrue(kept !== undefined && !kept.live, "the work is not kept yet");
+        });
+
+        const second = mountWorkspace();
+        await openBy(second.store, () => Promise.resolve());
+        const reopened = openedElement();
+        const [source] = reopened.session.data.sources();
+        assert.strictEqual(reopened.session.data.sourceSettings(source.key)?.limits?.maxNodes, 100);
+        assert.deepEqual(reopened.session.data.pendingSourceLoads(), []);
+        assert.isNull(screen.queryByRole("button", { name: "Approve" }));
+    });
 });

@@ -64,6 +64,17 @@ describe("network data behind its experiment", () => {
         assert.strictEqual(error?.code, "E_FEATURE_OFF");
     });
 
+    it("offers no Edit source with it off, for a source the element holds as a network load", async () => {
+        await siteFeatures([]);
+        const session = await openDataPlace();
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" }, name: "ships.csv" });
+        const row = await screen.findByRole("listitem", { name: /ships/ });
+        await userEvent.click(row);
+        await screen.findByRole("complementary", { name: "Inspector" });
+        assert.isNull(screen.queryByRole("button", { name: "Edit source" }));
+        assert.isUndefined(session.data.sourceSettings(session.data.sources()[0].key));
+    });
+
     it("offers Open network data and Network data... with it on", async () => {
         await siteFeatures(["network-data"]);
         onTestFinished(() => siteFeatures([]));
@@ -78,8 +89,7 @@ describe("network data behind its experiment", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
-        assert.isNull(store.get().project);
-        assert.isNotNull(await screen.findByRole("button", { name: "Open network data" }));
+        assert.strictEqual(store.get().project?.name, "Untitled", "closing the form stays in the app");
     });
 
     it("offers Network data... in the Sources + with it on", async () => {

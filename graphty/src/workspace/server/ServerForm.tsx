@@ -16,13 +16,15 @@ import { type CodedFact, type SourceParamDescriptor, type SourcePreview } from "
 import { Button, Input, Loader, PasswordInput, Stack, Textarea } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { sourceName } from "../data-place/words";
 import { networkOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
-import { closeProject } from "../project/actions";
+import { replaceWith } from "../replace/commands";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     EXPAND_DEFAULTS,
+    formFromSettings,
     formReady,
     freshForm,
     SERVER_DIALOG,
@@ -30,6 +32,7 @@ import {
     serverKinds,
     serverLoad,
     START_WORDS,
+    undeclaredParams,
     withStart,
 } from "./commands";
 import { CodeChip, PreviewRows } from "./PreviewRows";
@@ -368,10 +371,14 @@ function SignInRow({
 function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
     const { session, element, store } = useWorkspace();
     const kinds = serverKinds();
+    const editing = store.get().serverEdit;
     // Opened on the source the store names, else on the first listed (NDEx, which needs no sign-in).
+    // An edit opens filled in with what the load holds.
     const [form, setForm] = useState<ServerFormState>(() => {
         const asked = store.get().serverKind;
-        return freshForm(kinds.find((each) => each.id === asked) ?? kinds[0]);
+        const opened = kinds.find((each) => each.id === asked) ?? kinds[0];
+        const settings = editing === null ? undefined : session?.data.sourceSettings(editing);
+        return settings === undefined ? freshForm(opened) : formFromSettings(opened, settings);
     });
     const loading = useRef<AbortController | null>(null);
     useEffect(() => () => loading.current?.abort(), []);
@@ -432,11 +439,25 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
             if (credential !== undefined && element !== null && endpoint !== undefined) {
                 await element.credentials.remember({ source: entry.id, endpoint }, credential);
             }
-            await session.data.import(input, {
-                ...options,
-                signal: loading.current.signal,
-                ...(session.data.sources().length > 0 ? { mode: "merge" as const } : {}),
-            });
+            const edited = session.data.sources().find((each) => each.key === editing);
+            if (edited === undefined) {
+                await session.data.import(input, {
+                    ...options,
+                    signal: loading.current.signal,
+                    ...(session.data.sources().length > 0 ? { mode: "merge" as const } : {}),
+                });
+            } else {
+                await replaceWith(
+                    store,
+                    session,
+                    edited.key,
+                    { source: input, name: sourceName(edited) },
+                    {
+                        ...options,
+                        signal: loading.current.signal,
+                    },
+                );
+            }
             onClose();
         } catch (error) {
             setFailure(failureOf(error));
@@ -466,6 +487,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                         <PanelField
                             label="Kind"
                             kind="select"
+                            disabled={editing !== null}
                             data={kinds.map((each) => ({ value: each.id, label: kindName(each) }))}
                             value={form.kind}
                             onChange={(id) => {
@@ -564,7 +586,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                             ) : null}
                         </>
                     ) : null}
-                    {advanced.map((param) => (
+                    {[...advanced, ...undeclaredParams(entry, form.params)].map((param) => (
                         <ParamRow
                             key={param.name}
                             param={param}
@@ -671,21 +693,14 @@ function WaitingLoads(): React.JSX.Element | null {
  * @returns the place, or nothing.
  */
 export function ServerPlace(): React.JSX.Element | null {
-    const { store, session, element } = useWorkspace();
+    const { store, session } = useWorkspace();
     const anchor = useRef<HTMLDivElement>(null);
     const opened = useWorkspaceState((state) => state.dialog === SERVER_DIALOG);
+    const formKey = useWorkspaceState((state) => state.serverEdit ?? state.serverKind ?? "");
     const close = (): void => {
-        const { dialog, serverFromStart } = store.get();
-        if (dialog !== SERVER_DIALOG) {
-            return;
+        if (store.get().dialog === SERVER_DIALOG) {
+            store.set({ dialog: null });
         }
-        // The project the start screen's Open network data opened, closed with nothing loaded:
-        // back to the start screen rather than an empty Untitled.
-        if (serverFromStart && (session?.data.sources().length ?? 0) === 0) {
-            closeProject({ session, element, workspace: store });
-            return;
-        }
-        store.set({ dialog: null });
     };
     if (!networkOn(session)) {
         return null;
@@ -714,7 +729,7 @@ export function ServerPlace(): React.JSX.Element | null {
                         placement="right"
                         alignment="start"
                     >
-                        <Popout.Content>{opened ? <ServerForm onClose={close} /> : null}</Popout.Content>
+                        <Popout.Content>{opened ? <ServerForm key={formKey} onClose={close} /> : null}</Popout.Content>
                     </Popout.Panel>
                 </Popout>
             </PopoutManager>

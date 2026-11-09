@@ -124,7 +124,7 @@ Tool values are elements drawn with the writing program's default.
 | dot/fidelity/real-crazy.gv | ok | 41 | 49 | 4 | 2 | 118 | 100% | 0% | 0 | 769 | 0 |  |
 | dot/fidelity/real-depcruise.gv | ok | 115 | 652 | 8 | 5 | 224 | 91% | 58% | 0 | 1783 | 0 | W_STYLE_HTML_LABEL |
 | dot/fidelity/real-happiness.gv | ok | 78 | 77 | 10 | 3 | 1 | 100% | 0% | 0 | 1134 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNFILLED |
-| dot/fidelity/real-linux-kernel.gv | ok | 65 | 68 | 4 | 6 | 245 | 82% | 0% | 0 | 514 | 0 | W_STYLE_UNFILLED |
+| dot/fidelity/real-linux-kernel.gv | ok | 65 | 68 | 4 | 6 | 247 | 82% | 0% | 0 | 514 | 0 | W_STYLE_UNFILLED |
 | dot/fidelity/real-siblings.gv | ok | 200 | 284 | 7 | 2 | 157 | 0% | 0% | 0 | 4356 | 0 |  |
 | dot/fidelity/real-softmaint.gv | ok | 213 | 269 | 6 | 3 | 202 | 0% | 0% | 0 | 3654 | 0 |  |
 | dot/fidelity/synth-edges-clusters.gv | ok | 80 | 102 | 11 | 7 | 155 | 70% | 23% | 0 | 1151 | 0 | W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_RECORD_LABEL |

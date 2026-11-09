@@ -768,6 +768,12 @@ export type GraphtyWarningCode =
      */
     | "W_ALPHA_IGNORED"
     /**
+     * The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
+     * shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
+     * @experimental
+     */
+    | "W_LIMITS_IGNORED"
+    /**
      * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
      * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
      * size sits, and `params.value` the size.

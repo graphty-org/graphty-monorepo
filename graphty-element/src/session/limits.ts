@@ -116,3 +116,126 @@ export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
      */
     approximateAboveNodes: 2_000,
 });
+
+/**
+ * The ceilings a consumer asks for through `limits`: the most nodes and edges a load may bring.
+ *
+ * Honored under `render-path="batched"`, whose rows cost no meshes of their own; under
+ * `"objects"` the {@link DEFAULT_LIMITS} stand, because their reason (the heap a node of meshes
+ * costs) still holds there. A field left out keeps its default.
+ * @experimental
+ */
+export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>;
+
+/** The two fields of {@link LimitsOption}, in a fixed order. */
+const CEILING_KEYS = ["renderCeiling", "edgesDrawn"] as const;
+
+/**
+ * The ceilings asked for and the ceilings in force, which differ while they are not honored.
+ *
+ * The element owns one and says whether it is honored from its render path; a session reads
+ * `effective` for `capabilities.limits` and hears each change. Plain numbers, no renderer.
+ * @internal
+ */
+export class RenderLimits {
+    #requested: Readonly<LimitsOption> = Object.freeze({});
+    #honored: boolean;
+    #effective: Readonly<DefaultableLimits> = DEFAULT_LIMITS;
+    readonly #listeners = new Set<() => void>();
+
+    /**
+     * Start with nothing asked for.
+     * @param honored - Whether the asked-for ceilings are in force from the start.
+     */
+    constructor(honored: boolean) {
+        this.#honored = honored;
+    }
+
+    /**
+     * The ceilings asked for, as given.
+     * @returns The ceilings.
+     */
+    get requested(): Readonly<LimitsOption> {
+        return this.#requested;
+    }
+
+    /**
+     * Whether a non-empty request is being set aside.
+     * @returns True while ceilings were asked for and are not honored.
+     */
+    get ignored(): boolean {
+        return !this.#honored && CEILING_KEYS.some((key) => this.#requested[key] !== undefined);
+    }
+
+    /**
+     * The limits in force: the same frozen object until either ceiling changes.
+     * @returns The limits.
+     */
+    get effective(): Readonly<DefaultableLimits> {
+        return this.#effective;
+    }
+
+    /**
+     * The limits in force when they are not the shipped ones, for a reader that otherwise reads
+     * `DEFAULT_LIMITS` itself.
+     * @returns The limits, or undefined while the defaults stand.
+     */
+    get overrides(): Readonly<DefaultableLimits> | undefined {
+        return this.#effective === DEFAULT_LIMITS ? undefined : this.#effective;
+    }
+
+    /**
+     * Ask for ceilings. Each given value is a whole number of at least 1.
+     * @param value - The ceilings; a field left out keeps its default.
+     * @throws An Error naming the field when a value is not a whole number of at least 1.
+     */
+    request(value: LimitsOption): void {
+        const next: LimitsOption = {};
+        for (const key of CEILING_KEYS) {
+            const ceiling = (value as LimitsOption | null | undefined)?.[key];
+            if (ceiling === undefined) {
+                continue;
+            }
+
+            if (!Number.isInteger(ceiling) || ceiling < 1) {
+                throw new Error(`limits.${key} must be a whole number of at least 1, not ${String(ceiling)}`);
+            }
+
+            next[key] = ceiling;
+        }
+
+        this.#requested = Object.freeze(next);
+        this.#settle();
+    }
+
+    /**
+     * Say whether the asked-for ceilings are in force.
+     * @param honored - True on the `"batched"` render path.
+     */
+    honor(honored: boolean): void {
+        this.#honored = honored;
+        this.#settle();
+    }
+
+    /**
+     * Hear each change of the limits in force.
+     * @param listener - Called after the change.
+     * @returns The unsubscribe.
+     */
+    onChange(listener: () => void): () => void {
+        this.#listeners.add(listener);
+        return () => this.#listeners.delete(listener);
+    }
+
+    #settle(): void {
+        const next = this.#honored ? { ...DEFAULT_LIMITS, ...this.#requested } : DEFAULT_LIMITS;
+        if (CEILING_KEYS.every((key) => next[key] === this.#effective[key])) {
+            return;
+        }
+
+        this.#effective = next === DEFAULT_LIMITS ? DEFAULT_LIMITS : Object.freeze(next);
+        for (const listener of [...this.#listeners]) {
+            listener();
+        }
+    }
+}

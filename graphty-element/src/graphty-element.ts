@@ -3,12 +3,7 @@ import { registry as sourceRegistry, SOURCE_FORMAT_PREFIX } from "@graphty/graph
 import { css, LitElement, type PropertyValues, ReactiveElement } from "lit";
 import { property } from "lit/decorators.js";
 
-import {
-    type AccelerationController,
-    type AccelerationPolicy,
-    type Capabilities,
-    isAccelerationPolicy,
-} from "./acceleration";
+import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
 import { type AutosaveAtRisk, ElementAutosave, resolveAutosaveKey } from "./autosave/elementAutosave";
 import { type PageSource, sourceSlot } from "./autosave/recovery";
 import type {
@@ -70,6 +65,7 @@ import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
+import type { LimitsOption } from "./session/limits";
 import { loadLineOf } from "./session/loadLine";
 import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
@@ -89,7 +85,13 @@ import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
-import type { ModelChange, ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
+import type {
+    ModelChange,
+    ProjectConfigPatch,
+    SessionCapabilities,
+    SessionEventMap,
+    TransactionScope,
+} from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 import { downloadBlob } from "./utils/download";
 
@@ -6127,6 +6129,42 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * The most nodes and edges a load may bring, past the shipped `DEFAULT_LIMITS` (100,000 nodes,
+     * 1,000,000 edges); a field left out keeps its default. Honored under
+     * `render-path="batched"`. Under `"objects"` the defaults stand, a larger load is still refused
+     * with `E_TOO_LARGE`, and setting `limits` raises `limits-warning` with `W_LIMITS_IGNORED`
+     * (`{ renderPath }`). A switch to `"objects"` while the graph is past the defaults is refused
+     * with an `error` event carrying `E_TOO_LARGE`, and the path stays `"batched"`.
+     * `session.capabilities.limits` reports the limits in force.
+     * @returns The limits asked for.
+     * @experimental
+     * @example
+     * ```js
+     * graph.renderPath = "batched";
+     * graph.limits = { renderCeiling: 1_000_000 };
+     * ```
+     */
+    @property({ attribute: false })
+    get limits(): Readonly<LimitsOption> {
+        return this.#graph.limits;
+    }
+    /**
+     * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
+     */
+    set limits(value: LimitsOption) {
+        const oldValue = this.#graph.limits;
+
+        try {
+            this.#graph.setLimits(value);
+        } catch (error) {
+            console.error(`<graphty-element>: ${error instanceof Error ? error.message : String(error)}.`);
+            return;
+        }
+
+        this.requestUpdate("limits", oldValue);
+    }
+
+    /**
      * How many nodes and edges each render path is drawing, as of the last frame.
      * @returns The counts.
      */
@@ -6297,7 +6335,7 @@ export type GraphtyModelChangeDetail = ModelChange;
 /** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
 export interface GraphtyCapabilitiesChangeDetail {
     /** The acceleration and XR capabilities after the change. */
-    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
+    readonly capabilities: SessionCapabilities;
 }
 
 /*

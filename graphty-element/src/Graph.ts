@@ -889,13 +889,6 @@ export class Graph implements GraphContext {
     private readonly drawsOnDemand = (): boolean =>
         this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
-     * Whether the render loop flushes after each frame's fence: only under renderPath "batched",
-     * whose frames are short enough that waiting for the browser's own flush set their floor.
-     * Asked each frame, so a live path change takes effect on the next one.
-     * @returns True under renderPath "batched".
-     */
-    readonly #flushesFrameFence = (): boolean => this.#renderPath === "batched";
-    /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
      * while drawing on demand is on. A turning camera keeps it unfinished only while the canvas is
@@ -1000,7 +993,6 @@ export class Graph implements GraphContext {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
-            flushesFrameFence: this.#flushesFrameFence,
         });
 
         this.basemapManager = new BasemapManager(
@@ -2180,7 +2172,6 @@ export class Graph implements GraphContext {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
-            flushesFrameFence: this.#flushesFrameFence,
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;

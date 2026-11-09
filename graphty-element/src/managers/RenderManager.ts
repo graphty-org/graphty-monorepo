@@ -75,13 +75,6 @@ interface RenderManagerConfig {
      * does none of the bookkeeping drawing on demand needs. Left out, it is off.
      */
     drawsOnDemand?: () => boolean;
-    /**
-     * Whether to flush right after each frame's fence, so the GPU sees the fence at once rather
-     * than at the browser's next flush (about every 18 ms in Chromium, which set an 18 ms floor
-     * under every frame). Asked each frame; the element answers true under renderPath "batched".
-     * Left out, it never flushes.
-     */
-    flushesFrameFence?: () => boolean;
     /** See {@link RenderManager.setPixelRatio}. Left out, 1. */
     pixelRatio?: PixelRatio;
 }
@@ -805,8 +798,6 @@ export class RenderManager implements Manager {
     private readonly pictureIsFinal: (() => boolean) | null;
     /** See `RenderManagerConfig.drawsOnDemand`. */
     private readonly drawsOnDemand: () => boolean;
-    /** See `RenderManagerConfig.flushesFrameFence`. */
-    private readonly flushesFrameFence: () => boolean;
     /** Set by anything that may have changed the picture since the last frame drawn. */
     private drawOwed = true;
     /**
@@ -942,7 +933,6 @@ export class RenderManager implements Manager {
         Logger.LogLevels = Logger.ErrorLogLevel;
         this.pictureIsFinal = this.config.pictureIsFinal ?? null;
         this.drawsOnDemand = this.config.drawsOnDemand ?? ((): boolean => false);
-        this.flushesFrameFence = this.config.flushesFrameFence ?? ((): boolean => false);
 
         if (this.config.engine === undefined) {
             ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas));
@@ -1414,9 +1404,6 @@ export class RenderManager implements Manager {
         }
 
         this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-        if (this.flushesFrameFence()) {
-            gl.flush();
-        }
     }
 
     /**

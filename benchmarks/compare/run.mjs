@@ -228,7 +228,6 @@ try {
         throw new Error("layout-only run, render-on-demand");
     }
     if (!noStill) log("still", await page.evaluate(() => B.still(200)));
-    if (!noStill) log("gpuFrame", await page.evaluate(() => B.gpuFrame(60)));
     await page
         .screenshot({
             path: join(

@@ -115,9 +115,6 @@ const B = {
         const serial = stats(intervals(await lib.frames(frames + 1, null)));
         return { serial, paced };
     },
-    // The GPU time of each of `frames` still frames, from EXT_disjoint_timer_query_webgl2, to set
-    // beside the serial still frame: a serial interval below it means the stamps run early.
-    gpuFrame: (frames = 60) => lib.gpuFrame?.(frames) ?? null,
     async orbit(frames = 200) {
         const st = await lib.frames(frames + 1, (i) => lib.moveCamera(i));
         await lib.resetCamera?.();
@@ -572,29 +569,6 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
                 await raf();
             }
             return stamps.slice(0, count);
-        },
-        async gpuFrame(count) {
-            const ext = gl?.getExtension("EXT_disjoint_timer_query_webgl2");
-            if (!ext) return null;
-            const queries = [];
-            const scene = graph.scene;
-            const begin = scene.onBeforeRenderObservable.add(() => {
-                const q = gl.createQuery();
-                gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
-                queries.push(q);
-            });
-            // First, so the query ends before the stamp's readPixels.
-            const end = scene.onAfterRenderObservable.add(() => gl.endQuery(ext.TIME_ELAPSED_EXT), undefined, true);
-            await a.frames(count, null);
-            scene.onBeforeRenderObservable.remove(begin);
-            scene.onAfterRenderObservable.remove(end);
-            const t = now();
-            while (!queries.every((q) => gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) && now() - t < 10000)
-                await raf();
-            const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
-            const ms = queries.map((q) => gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6);
-            for (const q of queries) gl.deleteQuery(q);
-            return { ...stats(ms), disjoint };
         },
         moveNode(i) {
             moved ??= graph.getNode(0) ?? null;

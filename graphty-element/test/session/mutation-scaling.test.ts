@@ -320,7 +320,7 @@ const CASES: readonly Case[] = [
         method: "SelectionApi.peek",
         growth: "linear",
         prepare: (session, size) => {
-            setDefaultFeatures(["assistant"]);
+            setDefaultFeatures(["timeline", "assistant"]);
             return Promise.resolve(async () => {
                 await session.selection.peek({ nodes: ids(size) });
                 await session.styles.settled();
@@ -1056,7 +1056,8 @@ const CASES: readonly Case[] = [
 describe("the session's mutating methods do work in proportion to their reach", () => {
     afterEach(() => {
         vi.unstubAllGlobals();
-        setDefaultFeatures([]);
+        // Put back this file's default (the timeline on) after a case that switched more on.
+        setDefaultFeatures(["timeline"]);
     });
     for (const { method, growth, superlinear, prepare } of CASES) {
         const reach = growth === "linear" ? "no more than linear in the graph" : "about the same at any size";

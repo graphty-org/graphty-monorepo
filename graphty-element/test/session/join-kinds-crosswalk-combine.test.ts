@@ -2,7 +2,8 @@
  * @file The join operations that name kinds, translate keys and compare two graphs: kinds for the
  * ends an edges join makes (`JoinChoices.endKinds`, `kindIds`), a membership table making a new
  * kind of node, a loaded mapping table used as a crosswalk (`via`, `mapping`), and union,
- * intersection and difference of two graphs (`combine`, `membership`).
+ * intersection and difference of two graphs (`compare`, `membership`), and the names a join writes
+ * (`names`).
  */
 
 import { assert, describe, it } from "vitest";
@@ -167,6 +168,27 @@ describe("a loaded mapping table as a crosswalk (via, mapping)", () => {
         session.dispose();
     });
 
+    it("translates keys through a mapping table read as a lookup, never adding it to the graph", async () => {
+        const session = await graphOf("genes.csv", GENES);
+        const crosswalk = await session.data.prepare({ config: { data: MAPPING }, name: "mapping.csv" });
+        const via = crosswalk.lookup();
+        crosswalk.dispose();
+        assert.deepInclude(via, { name: "mapping.csv", columns: ["symbol", "ensembl"] });
+
+        const draft = await table(session, "expression.csv", EXPRESSION);
+        assert.deepInclude(draft.joinReport({ keys, shape: "node-values", via }), { unmapped: 1, mappedToMany: 1 });
+        await draft.load({ join: { keys, shape: "node-values", via } });
+        assert.strictEqual(session.data.node("ENSG1")?.logFC, 1.5);
+        assert.lengthOf(session.data.nodes(), 4, "the mapping adds no node");
+        assert.lengthOf(session.data.edges(), 0, "the mapping adds no edge");
+        assert.lengthOf(session.data.sources(), 2, "the mapping is no source");
+
+        const [join] = session.data.joins();
+        await session.data.editJoin(join.source, { ...join.choices, mapping: { many: "list" } });
+        assert.strictEqual(session.data.node("ENSG4")?.logFC, 4, "editing the join reads the same lookup");
+        session.dispose();
+    });
+
     it("counts nothing unmapped without a mapping table", async () => {
         const session = await graphOf("genes.csv", GENES);
         const draft = await table(session, "chrom.csv", "gene,band\nENSG1,p13\n");
@@ -178,7 +200,7 @@ describe("a loaded mapping table as a crosswalk (via, mapping)", () => {
     });
 });
 
-describe("union, intersection and difference of two graphs (combine)", () => {
+describe("union, intersection and difference of two graphs (compare)", () => {
     const TUMOR = "id,logFC\nG1,1\nG2,2\nG3,3\n";
     const NORMAL = "gene,logFC\nG2,5\nG3,3\nG4,7\n";
     const keys = [{ file: "gene", graph: "id" }];
@@ -186,23 +208,23 @@ describe("union, intersection and difference of two graphs (combine)", () => {
     it("counts the three regions", async () => {
         const session = await graphOf("tumor.csv", TUMOR);
         const draft = await table(session, "normal.csv", NORMAL);
-        const report = draft.joinReport({ keys, shape: "merge", combine: "union" });
-        assert.deepEqual(report.regions, { nodes: { from: 1, both: 2, onto: 1 } });
+        const report = draft.joinReport({ keys, shape: "merge", compare: true });
+        assert.deepEqual(report.regions, { nodes: { "only-from": 1, both: 2, "only-onto": 1 } });
         assert.isUndefined(draft.joinReport({ keys, shape: "merge" }).regions);
-        assert.throws(() => draft.joinReport({ keys, shape: "node-values", combine: "union" }), /combine/);
+        assert.throws(() => draft.joinReport({ keys, shape: "node-values", compare: true }), /compare/);
         session.dispose();
     });
 
     it("marks each node's region and keeps both graphs' values side by side, taken back as one step", async () => {
         const session = await graphOf("tumor.csv", TUMOR);
         const draft = await table(session, "normal.csv", NORMAL);
-        await draft.load({ join: { keys, shape: "merge", combine: "intersection", membership: "set" } });
+        await draft.load({ join: { keys, shape: "merge", compare: true, membership: "set" } });
         assert.deepInclude(session.data.node("G1"), { set: "only-onto", logFC: 1 });
         assert.deepInclude(session.data.node("G2"), { set: "both", logFC: 2, "logFC (normal.csv)": 5 });
         const g4 = session.data.node("G4");
         assert.deepInclude(g4, { set: "only-from", "logFC (normal.csv)": 7 });
         assert.isUndefined(g4?.logFC, "the incoming graph's values stay in its own column");
-        assert.strictEqual(session.data.joins()[0].choices.combine, "intersection");
+        assert.isTrue(session.data.joins()[0].choices.compare);
 
         await session.undo();
         assert.isUndefined(session.data.node("G1")?.set);
@@ -219,8 +241,18 @@ describe("union, intersection and difference of two graphs (combine)", () => {
     it("names the column membership by default", async () => {
         const session = await graphOf("tumor.csv", TUMOR);
         const draft = await table(session, "normal.csv", NORMAL);
-        await draft.load({ join: { keys, shape: "merge", combine: "union" } });
+        await draft.load({ join: { keys, shape: "merge", compare: true } });
         assert.strictEqual(session.data.node("G3")?.membership, "both");
+        session.dispose();
+    });
+
+    it("writes a clashing column under the name the reader gives", async () => {
+        const session = await graphOf("tumor.csv", TUMOR);
+        const draft = await table(session, "normal.csv", NORMAL);
+        await draft.load({ join: { keys, shape: "merge", compare: true, names: { "logFC (normal.csv)": "normal" } } });
+        assert.deepInclude(session.data.node("G2"), { logFC: 2, normal: 5 });
+        assert.deepInclude(session.data.node("G4"), { normal: 7 });
+        assert.isUndefined(session.data.node("G2")?.["logFC (normal.csv)"]);
         session.dispose();
     });
 });

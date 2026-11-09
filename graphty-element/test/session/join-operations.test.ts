@@ -61,6 +61,23 @@ describe("JoinChoices.aggregate", () => {
         session.dispose();
     });
 
+    it("writes a reduction under the name the reader gives", async () => {
+        const session = await suppliers();
+        const draft = await table(session, "orders.csv", "supplier,amount\nS1,1\nS1,2\n");
+        const keys = [{ file: "supplier", graph: "id" }];
+        await draft.load({
+            join: {
+                keys,
+                shape: "node-values",
+                aggregate: { amount: ["count", "sum"] },
+                names: { "amount (count)": "orders" },
+            },
+        });
+        assert.deepInclude(session.data.node("S1"), { orders: 2, "amount (sum)": 3 });
+        assert.isUndefined(session.data.node("S1")?.["amount (count)"]);
+        session.dispose();
+    });
+
     it("reads a column given no reduction as its first value", async () => {
         const session = await suppliers();
         const draft = await table(session, "orders.csv", "supplier,amount,note\nS1,1,a\nS1,2,b\n");
@@ -159,6 +176,10 @@ describe("joining by a shared value (shape: link)", () => {
         const pair = edges.find((edge) => edge.source === "S0" && edge.target === "S1");
         assert.deepInclude(pair, { shared: 2, kind: "shares" });
         const [join] = session.data.joins();
+        await session.data.editJoin(join.source, { ...join.choices, names: { shared: "overlap" } });
+        const renamed = session.data.edges().find((edge) => edge.source === "S0" && edge.target === "S1");
+        assert.deepInclude(renamed, { overlap: 2 });
+        assert.isUndefined(renamed?.shared);
         assert.strictEqual(join.shape, "link");
         assert.strictEqual(session.data.nodes().length, 40);
 

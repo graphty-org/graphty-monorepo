@@ -9,6 +9,7 @@ import { GraphtyError } from "../errors";
 import type {
     JoinChoices,
     JoinKey,
+    JoinLookup,
     JoinReduce,
     JoinRegion,
     JoinReport,
@@ -258,7 +259,35 @@ function translator(
  * @returns The table, or undefined when the join names none (or one no longer loaded).
  */
 function viaOf(graph: JoinGraph, choices: JoinChoices): JoinTable | undefined {
-    return choices.via === undefined ? undefined : graph.table(choices.via);
+    const { via } = choices;
+    if (via === undefined) {
+        return undefined;
+    }
+
+    return typeof via === "string" ? graph.table(via) : lookupTable(via);
+}
+
+/**
+ * A lookup as a join reads it.
+ * @param lookup - The lookup.
+ * @returns The table, its columns by default every column a row holds.
+ */
+function lookupTable(lookup: JoinLookup): JoinTable {
+    return {
+        name: lookup.name ?? "",
+        columns: lookup.columns ?? [...new Set(lookup.rows.flatMap((row) => Object.keys(row)))],
+        rows: lookup.rows,
+    };
+}
+
+/**
+ * The name a join writes in place of one it derives (`JoinChoices.names`).
+ * @param choices - The join.
+ * @param name - The derived name.
+ * @returns The reader's name for it, or the derived one.
+ */
+function named(choices: JoinChoices, name: string): string {
+    return choices.names?.[name] ?? name;
 }
 
 /**
@@ -537,8 +566,8 @@ function checked(table: JoinTable, choices: JoinChoices, shape: JoinShape): Join
         }
     }
 
-    if (choices.combine !== undefined && chosen !== "merge") {
-        throw badJoin("Only a join of merge can combine two graphs.", { reason: "combine", shape: chosen });
+    if (choices.compare === true && chosen !== "merge") {
+        throw badJoin("Only a join of merge can compare two graphs.", { reason: "compare", shape: chosen });
     }
 
     if (chosen === "link" && (choices.link === undefined || choices.link.columns.length === 0)) {
@@ -789,7 +818,7 @@ function groupValues(
         if (choices.aggregate !== undefined) {
             const rules = choices.aggregate[column] ?? "first";
             for (const rule of typeof rules === "string" ? [rules] : rules) {
-                const name = typeof rules === "string" ? nameOf(column) : `${nameOf(column)} (${rule})`;
+                const name = typeof rules === "string" ? nameOf(column) : named(choices, `${nameOf(column)} (${rule})`);
                 const value = reduce(rule, given);
                 if (value !== undefined) {
                     out.push({ column, name, value });
@@ -929,13 +958,17 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
                 onlyFrom: merge.onlyFrom,
                 onlyOnto: elements.length - now.matched.size,
                 newNodes: kept,
-                ...(choices.combine === undefined
-                    ? {}
-                    : {
+                ...(choices.compare === true
+                    ? {
                           regions: frozen({
-                              nodes: { from: kept, both: now.matched.size, onto: elements.length - now.matched.size },
+                              nodes: {
+                                  "only-from": kept,
+                                  both: now.matched.size,
+                                  "only-onto": elements.length - now.matched.size,
+                              },
                           }),
-                      }),
+                      }
+                    : {}),
             },
             elements,
         );
@@ -1117,6 +1150,17 @@ function bothName(column: string, table: JoinTable): string {
 }
 
 /**
+ * The column a clashing incoming column is written under with `"both"`, or the reader's name for it.
+ * @param column - The incoming column.
+ * @param table - The incoming table.
+ * @param choices - The join.
+ * @returns The name.
+ */
+function bothColumn(column: string, table: JoinTable, choices: JoinChoices): string {
+    return named(choices, bothName(column, table));
+}
+
+/**
  * Plan a join: what it writes.
  * @param table - The incoming table.
  * @param graph - The graph.
@@ -1193,7 +1237,8 @@ function valuesOf(
     const clashing = new Set(clashesOf(elements, columns));
     const ruleOf = (column: string): "keep" | "overwrite" | "both" =>
         clashing.has(column) ? (choices.clash?.[column] ?? "both") : "overwrite";
-    const nameOf = (column: string): string => (ruleOf(column) === "both" ? bothName(column, table) : column);
+    const nameOf = (column: string): string =>
+        ruleOf(column) === "both" ? bothColumn(column, table, choices) : column;
     // Each element's rows, in table order.
     const rowsOf = new Map<NodeId | EdgeId, Readonly<Record<string, unknown>>[]>();
     matching.rowIds.forEach((ids, at) => {
@@ -1270,10 +1315,10 @@ function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merg
     if (choices.unmatchedFrom !== "drop") {
         const ids = new Set(graph.nodes.map((node) => String(node.id)));
         // Comparing two graphs keeps the table's clashing values in their own columns on every node.
-        const clashing = new Set(choices.combine === undefined ? ["id"] : clashesOf(graph.nodes, columns));
+        const clashing = new Set(choices.compare === true ? clashesOf(graph.nodes, columns) : ["id"]);
         const nameOf = (column: string): string =>
             clashing.has(column) && (column === "id" || (choices.clash?.[column] ?? "both") === "both")
-                ? bothName(column, table)
+                ? bothColumn(column, table, choices)
                 : column;
         for (const ats of unmatched.values()) {
             const first = table.rows[ats[0]];
@@ -1319,7 +1364,7 @@ function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merg
 }
 
 /**
- * With `combine`: writes each node's region to the membership column, the graph's own nodes now
+ * With `compare`: writes each node's region to the membership column, the graph's own nodes now
  * (the merged ones `"both"`, the rest `"only-onto"`, their values before kept for undo), and
  * returns the value a node the table alone holds takes.
  * @param graph - The graph.
@@ -1328,7 +1373,7 @@ function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merg
  * @param nodes - The merge's node records, added to.
  * @param before - The values before, added to.
  * @param written - The names written, added to.
- * @returns The membership value of a region, as a record to spread; empty without `combine`.
+ * @returns The membership value of a region, as a record to spread; empty without `compare`.
  */
 function regionWriter(
     graph: JoinGraph,
@@ -1338,7 +1383,7 @@ function regionWriter(
     before: Record<string, Record<string, unknown>>,
     written: Set<string>,
 ): (region: JoinRegion) => Record<string, unknown> {
-    if (choices.combine === undefined) {
+    if (choices.compare !== true) {
         return () => ({});
     }
 
@@ -1435,7 +1480,9 @@ function linkOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Link 
             ids.forEach((holder) => edges.push({ source: holder, target: id, ...kind }));
         }
     } else {
-        linked.forEach((pair) => edges.push({ source: pair.a, target: pair.b, shared: pair.count, ...kind }));
+        linked.forEach((pair) =>
+            edges.push({ source: pair.a, target: pair.b, [named(choices, "shared")]: pair.count, ...kind }),
+        );
     }
 
     const fates = matching.rowIds.map((ids, at): JoinRowFate => {
@@ -1488,7 +1535,9 @@ function planEdges(
     const [source, target] = choices.keys.map((key) => key.file);
     const clashing = new Set(clashesOf(graph.edges, columns));
     const nameOf = (column: string): string =>
-        clashing.has(column) && (choices.clash?.[column] ?? "both") === "both" ? bothName(column, table) : column;
+        clashing.has(column) && (choices.clash?.[column] ?? "both") === "both"
+            ? bothColumn(column, table, choices)
+            : column;
     // The rows of each pair, or of each row with "both"; a Map keeps the pair where it first
     // appeared. Without aggregate, one row is kept: the first, or the last with "last".
     const groups = new Map<string, EdgeRow[]>();

@@ -116,6 +116,7 @@ export type {
     JoinChoices,
     JoinKey,
     JoinLink,
+    JoinLookup,
     JoinMapping,
     JoinRecord,
     JoinReduce,

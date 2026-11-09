@@ -120,13 +120,19 @@ maps to its node through the key; a value held by 2 to `maxShared` nodes links t
 const draft = await data.prepare({ config: { file: identifiers } }, { onto: "graph" });
 const suggestion = draft.suggestJoin();
 // { shape: "node-values", keys: [{ file: "account", graph: "id" }], link: { columns: ["phone", "device"] } }
-await draft.load({ join: { ...suggestion, shape: "link" } });
+if (suggestion.link) {
+    await draft.load({ join: { ...suggestion, shape: "link" } });
+}
 // one edge per linked pair; its "shared" value is how many values the pair shares
+
+// or name the columns yourself
+await draft.load({ join: { keys: [{ file: "account", graph: "id" }], shape: "link", link: { columns: ["phone"] } } });
 ```
 
 `suggestJoin()` names the columns that fit in `link` when a few nodes share their values (an
 identifier, not a measurement or a category held by most nodes). It still suggests the values
-join; linking is your choice.
+join; linking is your choice. When no column fits, `link` is absent and a link join needs
+`link.columns` of your own.
 
 | `link` field | What it does                                                                                        |
 | ------------ | --------------------------------------------------------------------------------------------------- |
@@ -154,29 +160,48 @@ node, and removing the join splits them back. The report counts `merged`, `onlyF
 
 ### Comparing two graphs
 
-`combine` on a merge compares the table, read as a second graph's nodes, with the graph, and
+`compare: true` on a merge compares the table, read as a second graph's nodes, with the graph, and
 writes each node's region to a membership column: `"both"`, `"only-from"` (the table alone holds
-it) or `"only-onto"` (no row names it).
+it) or `"only-onto"` (no row names it). Every node is kept; a filter on the membership column
+keeps the union (every node), the intersection (`"both"`) or a difference (`"only-from"` or
+`"only-onto"`).
 
 ```ts
-await draft.load({ join: { keys, shape: "merge", combine: "intersection", membership: "in" } });
+await draft.load({ join: { keys, shape: "merge", compare: true, membership: "in" } });
 // a filter on in == "both" keeps the intersection
 ```
 
 A clashing column of the table is written as `<column> (<table name>)`, so both graphs' values
-sit side by side. The report's `regions.nodes` counts each region.
+sit side by side. The report's `regions.nodes` counts each region, by the same codes.
 
 ### Translating keys through a mapping table
 
-When the table's keys are another naming of the graph's (gene symbols against Ensembl ids), name
-a loaded mapping table in `via`:
+When the table's keys are another naming of the graph's (gene symbols against Ensembl ids), read
+the mapping table with `lookup()` and pass it as `via`. It is held apart from the graph: none of
+its rows becomes a node or an edge, and it is saved with the join.
 
 ```ts
-await draft.load({ join: { keys, via: mappingSource, mapping: { many: "first" } } });
+const crosswalk = await data.prepare({ config: { file: symbolToEnsembl } });
+const via = crosswalk.lookup(); // { name, columns: ["symbol", "ensembl"], rows }
+crosswalk.dispose();
+
+const expression = await data.prepare({ config: { file } }, { onto: "graph" });
+await expression.load({ join: { keys: [{ file: "symbol", graph: "id" }], via, mapping: { many: "first" } } });
 ```
+
+`via` also takes the key of a load already in the graph (`data.sources()`), read as its rows.
 
 `mapping.columns` names its two columns (by default, the ones whose values meet the table's keys
 and the graph's most). The report counts `unmapped` and `mappedToMany` keys.
+
+## Naming what a join writes
+
+A join derives some names: a reduction's `<column> (<reduction>)`, a clashing column's
+`<column> (<table name>)` and a link edge's `shared`. `names` replaces them, by the derived name:
+
+```ts
+await draft.load({ join: { keys, aggregate: { amount: ["count", "sum"] }, names: { "amount (count)": "orders" } } });
+```
 
 ## What happened to each row
 

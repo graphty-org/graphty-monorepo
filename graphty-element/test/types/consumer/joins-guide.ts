@@ -5,12 +5,13 @@
  */
 
 /**
- * The guide's canonical example, then its door-entries and shared-value examples.
+ * The guide's canonical example, then its door-entries, shared-value and mapping-table examples.
  * @param file - the values table
  * @param doorEntries - the door log
  * @param identifiers - the accounts' phones and devices
+ * @param symbolToEnsembl - the mapping table
  */
-export async function joins(file: File, doorEntries: File, identifiers: File): Promise<void> {
+export async function joins(file: File, doorEntries: File, identifiers: File, symbolToEnsembl: File): Promise<void> {
     const element = document.querySelector("graphty-element");
     if (element === null) {
         return;
@@ -34,6 +35,13 @@ export async function joins(file: File, doorEntries: File, identifiers: File): P
 
     const ids = await data.prepare({ config: { file: identifiers } }, { onto: "graph" });
     const linked = ids.suggestJoin();
-    console.log(linked.link?.columns);
-    await ids.load({ join: { ...linked, shape: "link" } });
+    if (linked.link) {
+        await ids.load({ join: { ...linked, shape: "link" } });
+    }
+
+    const crosswalk = await data.prepare({ config: { file: symbolToEnsembl } });
+    const via = crosswalk.lookup();
+    crosswalk.dispose();
+    const expression = await data.prepare({ config: { file } }, { onto: "graph" });
+    await expression.load({ join: { keys: [{ file: "symbol", graph: "id" }], via, mapping: { many: "first" } } });
 }

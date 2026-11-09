@@ -1970,6 +1970,14 @@ export interface LoadDraft {
      * @since 3.30.0
      */
     joinReport(choices: JoinChoices): JoinReport;
+    /**
+     * The table read as a mapping table for a join's `via`, held apart from the graph: its rows
+     * never become nodes or edges. Any draft answers, prepared onto the graph or not.
+     * @returns The table: its name, columns and rows.
+     * @throws `E_DISPOSED` once the draft has been loaded or disposed.
+     * @since 3.37.0
+     */
+    lookup(): JoinLookup;
     /** Let go of the held rows. */
     dispose(): void;
     /**
@@ -2466,11 +2474,31 @@ export interface JoinMapping {
 }
 
 /**
- * A node's region when a join compares two graphs ({@link JoinChoices.combine}): the value
+ * A node's region when a join compares two graphs ({@link JoinChoices.compare}): the value
  * written to its membership column.
  * @since 3.37.0
  */
 export type JoinRegion = "both" | "only-from" | "only-onto";
+
+/**
+ * A mapping table held apart from the graph ({@link JoinChoices.via}): `LoadDraft.lookup()` reads
+ * one from any file, or write the rows yourself. Its rows never become nodes or edges.
+ *
+ * ```ts
+ * const crosswalk = await session.data.prepare({ url: "symbol-to-ensembl.csv" });
+ * const via = crosswalk.lookup();
+ * crosswalk.dispose();
+ * ```
+ * @since 3.37.0
+ */
+export interface JoinLookup {
+    /** Its name, as a source's. */
+    readonly name?: string;
+    /** Its columns; by default every column a row holds. */
+    readonly columns?: readonly string[];
+    /** Its rows, by column. */
+    readonly rows: readonly Readonly<Record<string, unknown>>[];
+}
 
 /**
  * One pair of a join's key: a column of the incoming table and the graph value it matches.
@@ -2537,13 +2565,15 @@ export interface JoinChoices {
      */
     readonly ignore?: readonly JoinWarning[];
     /**
-     * A mapping table: a load (`sources()` key) with one column holding the incoming keys and one
-     * holding the graph's, through which incoming keys are translated first; an incoming key the
-     * table lacks is matched as it is ({@link JoinReport.unmapped} counts them). A joined table
-     * is read as its rows; any other load as its records: its edges (`source`, `target` and their
-     * values) when it read a table of edges, otherwise its nodes (`id` and their values).
+     * A mapping table with one column holding the incoming keys and one holding the graph's,
+     * through which incoming keys are translated first; an incoming key the table lacks is matched
+     * as it is ({@link JoinReport.unmapped} counts them). Either a {@link JoinLookup}, held apart
+     * from the graph (`LoadDraft.lookup()`), or a load already in the graph (`sources()` key): a
+     * joined table is read as its rows; any other load as its records: its edges (`source`,
+     * `target` and their values) when it read a table of edges, otherwise its nodes (`id` and
+     * their values).
      */
-    readonly via?: SourceKey;
+    readonly via?: SourceKey | JoinLookup;
     /**
      * How the mapping table (`via`) is read: `columns` its column holding the incoming keys and
      * its column holding the graph's (by default the columns whose values meet the incoming keys
@@ -2567,15 +2597,15 @@ export interface JoinChoices {
     readonly kindIds?: "shared" | "scoped";
     /**
      * For `"merge"`: compare the table, read as a second graph's nodes, with the graph, writing
-     * each node's region to the `membership` column: `"both"` (a row merged into it), `"only-from"`
-     * (a node the table alone holds) or `"only-onto"` (a node no row names). A clashing column of
-     * the table is always written as `<column> (<table name>)`, so the two graphs' values sit side
-     * by side. `"union"`, `"intersection"` and `"difference"` keep every node: they say which
-     * regions a reader keeps, which a filter on the membership column applies.
+     * each node's region ({@link JoinRegion}) to the `membership` column: `"both"` (a row merged
+     * into it), `"only-from"` (a node the table alone holds) or `"only-onto"` (a node no row
+     * names). Every node is kept: a filter on the membership column keeps the union, the
+     * intersection (`"both"`) or a difference. A clashing column of the table is always written as
+     * `<column> (<table name>)`, so the two graphs' values sit side by side.
      * @since 3.37.0
      */
-    readonly combine?: "union" | "intersection" | "difference";
-    /** For `combine`: the column the regions are written to. Default `"membership"`. @since 3.37.0 */
+    readonly compare?: boolean;
+    /** For `compare`: the column the regions are written to. Default `"membership"`. @since 3.37.0 */
     readonly membership?: string;
     /**
      * For `"edges"`: a row with an end the graph lacks either `"add"`s that end as a new node
@@ -2600,6 +2630,13 @@ export interface JoinChoices {
      * @since 3.37.0
      */
     readonly unmatchedFrom?: "keep" | "drop";
+    /**
+     * The names to write in place of the ones the join derives, by the derived name: a reduction's
+     * `<column> (<reduction>)`, a clashing column's `<column> (<table name>)`, a link edge's
+     * `shared`. `{ "amount (count)": "orders", shared: "overlap" }`.
+     * @since 3.37.0
+     */
+    readonly names?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -2696,12 +2733,11 @@ export interface JoinReport {
     /** With `via`: the distinct incoming keys the mapping table maps to more than one value. @since 3.37.0 */
     readonly mappedToMany: number;
     /**
-     * With `combine`: the nodes in each region ({@link JoinRegion}): `from` only the table holds,
-     * `both`, `onto` only the graph holds. Absent otherwise.
+     * With `compare`: the nodes in each region ({@link JoinRegion}). Absent otherwise.
      * @since 3.37.0
      */
     readonly regions?: {
-        readonly nodes: { readonly from: number; readonly both: number; readonly onto: number };
+        readonly nodes: Readonly<Record<JoinRegion, number>>;
     };
 }
 

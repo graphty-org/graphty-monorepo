@@ -39,6 +39,7 @@ import type {
     EdgeEnd,
     Endpoint,
     JoinChoices,
+    JoinLookup,
     JoinReport,
     JoinShape,
     JoinSuggestion,
@@ -1104,6 +1105,16 @@ export class Draft implements LoadDraft {
         const host = this.joinHost("joinReport");
         const { table, shape } = this.joinTable("joinReport", choices);
         return joinReport(table, host.joinGraph?.() ?? NO_GRAPH, choices, shape);
+    }
+
+    /**
+     * The table read as a mapping table for a join's `via`, held apart from the graph.
+     * @returns The table.
+     */
+    lookup(): JoinLookup {
+        const read = this.live("lookup");
+        const { name, columns, rows } = tableOf(read, joinedHeld(read));
+        return Object.freeze({ name, columns: Object.freeze([...columns]), rows: Object.freeze([...rows]) });
     }
 
     /**

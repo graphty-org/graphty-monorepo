@@ -2744,7 +2744,7 @@ export interface JoinChoices {
     readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
     readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
     readonly columns?: readonly string[];
-    readonly combine?: "union" | "intersection" | "difference";
+    readonly compare?: boolean;
     readonly endKinds?: {
         readonly source?: string;
         readonly target?: string;
@@ -2757,11 +2757,12 @@ export interface JoinChoices {
     readonly link?: JoinLink;
     readonly mapping?: JoinMapping;
     readonly membership?: string;
+    readonly names?: Readonly<Record<string, string>>;
     readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
     readonly unknownEnds?: "add" | "leave-out";
     readonly unmatchedFrom?: "keep" | "drop";
-    readonly via?: SourceKey;
+    readonly via?: SourceKey | JoinLookup;
 }
 
 // @public
@@ -2777,6 +2778,19 @@ export interface JoinLink {
     readonly kind?: string;
     readonly maxShared?: number;
     readonly minShared?: number;
+}
+
+// @public
+export interface JoinLookup {
+    readonly columns?: readonly string[];
+    readonly name?: string;
+    readonly rows: readonly Readonly<Record<string, unknown>>[];
+}
+
+// @public
+export interface JoinMapping {
+    readonly columns?: readonly [from: string, to: string];
+    readonly many?: "first" | "list";
 }
 
 // @public
@@ -2800,6 +2814,9 @@ export interface JoinRecord {
 export type JoinReduce = "count" | "sum" | "min" | "max" | "mean" | "first" | "last" | "list";
 
 // @public
+export type JoinRegion = "both" | "only-from" | "only-onto";
+
+// @public
 export interface JoinReport {
     readonly clashes: readonly {
         readonly column: string;
@@ -2819,11 +2836,7 @@ export interface JoinReport {
     readonly pairsBelowMin: number;
     readonly pairsLinked: number;
     readonly regions?: {
-        readonly nodes: {
-            readonly from: number;
-            readonly both: number;
-            readonly onto: number;
-        };
+        readonly nodes: Readonly<Record<JoinRegion, number>>;
     };
     readonly repeatedKeys: number;
     readonly rowFates: readonly JoinRowFate[];
@@ -3168,6 +3181,7 @@ export interface LoadDraft {
     readonly graphtyDocument?: "project" | "document";
     joinReport(choices: JoinChoices): JoinReport;
     load(choices?: LoadChoices): Promise<void>;
+    lookup(): JoinLookup;
     readonly mapping: LoadMappingRead;
     missing(choices?: LoadChoices): Readonly<Record<string, readonly ColumnRole[]>>;
     report(choices?: LoadChoices): Promise<LoadReport>;

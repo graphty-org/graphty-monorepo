@@ -10,7 +10,8 @@
  * pulled too, and follows a new height (`line.arcHeight`), and so is a curve or a straight line on the great-circle
  * route (`line.route` "great-circle"). A self-loop's teardrop is pulled too, and spreads round its node as the node
  * gains a loop. A route the `location-map` layout picks (an arc over a flat map, a great circle on a globe, straight
- * to a node it could not place) is pulled too, and follows the layout as it changes.
+ * to a node it could not place) is pulled too, and follows the layout as it changes. A curve through a support point
+ * (`line.supportModel`) is pulled too, and follows the point as it settles and as its model changes.
  * Stage 21 of design/rendering/row-renderer.md; the bar is its section 7.
  */
 
@@ -578,5 +579,50 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.equal(overBar(before.flat, after.flat), 0, "arcs over a flat map");
         assert.equal(overBar(before.globe, after.globe), 0, "great circles on a globe");
         assert.equal(overBar(before.fixed, after.fixed), 0, "off the map again");
+    });
+    it("pull curves through support points, and follow the points as they settle, drawing the objects path's picture", async () => {
+        /**
+         * Bow every curve through a support point, read the settled frame, drag, then change the force law and read again.
+         * @param element - The element.
+         * @returns The frames: plain curves, then through support points, after a drag, and under forceAtlas2.
+         */
+        async function supported(
+            element: Graphty,
+        ): Promise<{ plain: Frame; barnesHut: Frame; dragged: Frame; forceAtlas2: Frame }> {
+            const plain = await readCanvas(element.graph);
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            await element.session.styles.add({
+                name: "support points",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.supportModel": "barnesHut", "edge.supportScale": "drawing" },
+            } as never);
+            await settled(element);
+            const barnesHut = await readCanvas(element.graph);
+            // the support points settle after the drag, from their edges' middles
+            await moved(element);
+            await settled(element);
+            const dragged = await readCanvas(element.graph);
+            await element.session.styles.add({
+                name: "forceAtlas2",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.supportModel": "forceAtlas2" },
+            } as never);
+            await settled(element);
+            return { plain, barnesHut, dragged, forceAtlas2: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await supported(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await supported(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.plain, before.barnesHut), 0, "the support points bow the curves");
+        assert.equal(overBar(before.barnesHut, after.barnesHut), 0, "settled under barnesHut");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.forceAtlas2, after.forceAtlas2), 0, "settled under forceAtlas2");
     });
 });

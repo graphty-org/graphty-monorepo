@@ -216,7 +216,7 @@ describe("the join screen on the real element", () => {
         const [joined] = session.data.joins();
         assert.strictEqual(joined.matched, 58);
         // The Sources row names its join ratio with its unit (tier 4 R11).
-        await screen.findByText("58 nodes matched by 70 rows");
+        await screen.findByText("58 nodes matched, 70 table rows");
 
         // The header's Undo names the step it undoes ("Undo joining ...").
         await userEvent.click(

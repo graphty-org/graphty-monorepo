@@ -151,7 +151,8 @@ describe("network data from the start page", () => {
         assert.deepEqual(
             within(chooser)
                 .getAllByRole("button")
-                .map((button) => button.textContent),
+                .map((button) => button.textContent)
+                .slice(0, 5),
             [
                 "",
                 "NDNDExPublic biology networks",
@@ -160,6 +161,8 @@ describe("network data from the start page", () => {
                 "APIWeb APIJSON results as nodes and edges",
             ],
         );
+        within(chooser).getByPlaceholderText("Web address of a graph file");
+        within(chooser).getByRole("button", { name: /^Open a file/ });
         assert.isNull(store.get().project);
     });
 

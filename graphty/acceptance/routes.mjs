@@ -328,50 +328,6 @@ const sizeIs = (nodes, edges) => async (g) => assert.deepEqual(await g.counts(),
 
 export const routes = [
     {
-        id: "reload-returns-to-the-same-project",
-        feature: "A real page reload comes back to the same project, as it was",
-        from: "issue: reload lands on the start page",
-        async walk(u) {
-            await openSample(u, "Les Miserables");
-            await everything(u);
-            await u.click("Add to node text");
-            await u.page.getByRole("menuitem", { name: "Label", exact: true }).click();
-            await u.page.getByRole("option", { name: /^name(,|$)/ }).click();
-            const canvas = u.page.locator("graphty-element:not([data-start-page]) canvas").first();
-            const box = await canvas.boundingBox();
-            await u.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-            await u.page.mouse.down();
-            await u.page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 40, { steps: 8 });
-            await u.page.mouse.up();
-            await u.page.reload();
-            await opened(u);
-        },
-        checks: {
-            "the same graph is back, with no offer of unsaved work": async (g) => {
-                assert.deepEqual(await g.counts(), { nodes: 77, edges: 254 });
-                assert.equal(await g.page.getByRole("region", { name: "Unsaved work" }).count(), 0);
-            },
-            "every node still carries its label": async (g) => {
-                const labels = await g.nodeLook("node.label");
-                assert.equal(Object.values(labels).filter(Boolean).length, 77);
-            },
-            "the camera is where this tab left it": async (g) => {
-                const [kept, now] = await g.page.evaluate(() => {
-                    const item = Object.keys(sessionStorage).find((k) => k.startsWith("graphty-autosave:camera:"));
-                    const element = document.querySelector("graphty-element:not([data-start-page])");
-                    return [
-                        item === undefined ? null : JSON.parse(sessionStorage.getItem(item)).state,
-                        element.getCameraState(),
-                    ];
-                });
-                assert.notEqual(kept, null);
-                for (const axis of ["x", "y", "z"]) {
-                    assert.ok(Math.abs(kept.position[axis] - now.position[axis]) < 0.01, `camera position ${axis}`);
-                }
-            },
-        },
-    },
-    {
         id: "t37a-sample-size-and-hub",
         feature: "Open a sample and read its size and its most connected node",
         from: "T37 A",

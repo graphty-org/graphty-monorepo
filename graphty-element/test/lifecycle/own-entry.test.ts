@@ -105,6 +105,26 @@ describe.each(ENGINES)("%s", (engine) => {
         assert.deepEqual(owned(reloaded.entries), [item], "the reloaded tab owns the entry its final write made");
     });
 
+    it("puts the camera back after a real reload with keepCamera", async () => {
+        const key = `own-camera-${engine}`;
+        const dir = profile(engine);
+        const context = await launch(engine, dir);
+        open.push({ context, dir });
+        const page = await context.newPage();
+        await page.goto(fx.url({ key, tab: `${key}.a`, keepCamera: 1 }));
+        await page.waitForFunction("window.fixture !== undefined");
+        await page.evaluate("fixture.ready()");
+        await editSaved(page, key);
+        const placed = { position: { x: 12, y: 5, z: -30 }, target: { x: 0, y: 0, z: 0 } };
+        await page.evaluate(`fixture.placeCamera(${JSON.stringify(placed)})`);
+        await page.reload();
+        await page.waitForFunction("window.fixture !== undefined");
+        await page.evaluate("fixture.ready()");
+        await page.waitForFunction(
+            "fixture.camera().position.x === 12 && fixture.camera().position.y === 5 && fixture.camera().position.z === -30",
+        );
+    });
+
     it("waits out the lock of the page it replaces, and gets the entry", async () => {
         const key = `own-late-${engine}`;
         const { context, page } = await opened(key);

@@ -72,8 +72,8 @@ registerSource(
     }),
 );
 
-/** What the settings server was last asked, and with which login. */
-const edited: { query?: string; login?: string | null } = {};
+/** What the settings server was last asked. */
+const edited: { query?: string } = {};
 
 /** A server with a query and a sign-in, which answers with one node per comma-separated name in the query. */
 const EDITABLE = "test-editable-server";
@@ -100,9 +100,8 @@ registerSource(
                 { name: "database", plainName: "Database", type: "string" },
             ],
         },
-        records: (params: Record<string, unknown>, ctx) => {
+        records: (params: Record<string, unknown>) => {
             edited.query = String(params.query);
-            edited.login = ctx.credential?.kind === "basic" ? ctx.credential.username : null;
             return Promise.resolve({
                 nodes: String(params.query)
                     .split(",")
@@ -369,8 +368,9 @@ describe("editing a network source", () => {
         assert.strictEqual(within(form).getByRole<HTMLTextAreaElement>("textbox", { name: "Query" }).value, "a,b");
         await userEvent.click(within(form).getByRole("button", { name: "Load" }));
         await waitFor(() => {
-            assert.strictEqual(edited.login, "reader");
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
+        assert.strictEqual(session.data.loads()[0]?.credential?.username, "reader");
         assert.notInclude(JSON.stringify(session.data.sourceSettings(session.data.sources()[0].key)), "hunter2");
     });
 

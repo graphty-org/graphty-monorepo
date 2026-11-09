@@ -67,9 +67,17 @@ function InSamplesDialog(): React.JSX.Element {
 const meta: Meta = {
     title: "Workspace/Sample card",
     parameters: { layout: "fullscreen" },
-    // The picture is taken once every card's picture has drawn (the dialog's are in a portal).
+    // The picture is taken once every card's picture has drawn (the dialog's are in a portal). The
+    // cards load their pictures lazily, which a page that is not on screen (a story test's) never
+    // starts, so each is asked for now.
     play: async ({ canvasElement }) => {
-        await Promise.all([...canvasElement.ownerDocument.querySelectorAll("img")].map((img) => img.decode()));
+        const pictures = [...canvasElement.ownerDocument.querySelectorAll("img")];
+        await Promise.all(
+            pictures.map((img) => {
+                img.loading = "eager";
+                return img.decode();
+            }),
+        );
     },
 };
 export default meta;

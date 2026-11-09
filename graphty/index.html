@@ -280,9 +280,9 @@
             var bootCopyReset = 0;
             // The log must never be why the page fails to load.
             function bootGuard(f) {
-                return function () {
+                return function (...args) {
                     try {
-                        return f.apply(null, arguments);
+                        return f(...args);
                     } catch (e) {
                         console.warn("[graphty loading] the log failed: " + e);
                     }
@@ -441,6 +441,9 @@
                 bootItems.forEach(function (i) {
                     bootList().append(i.el);
                 });
+                // Copy's own button is the keyboard's way to the click; the list scrolls, so it takes focus.
+                bootList().tabIndex = 0;
+                document.getElementById("boot-log").addEventListener("click", bootPanelClick);
             }
             // A step has finished. "at" is when, if that was before now. Words after a step's name
             // are a detail; a line that names no step is a row of its own, in the order it happened.
@@ -685,9 +688,8 @@
                     "entry script loaded " +
                         src +
                         (entry ? " (" + Math.round(entry.duration) + " ms for this file, the rest its imports)" : ""),
-                    Math.max.apply(
-                        null,
-                        bootOwnRequests().map(function (r) {
+                    Math.max(
+                        ...bootOwnRequests().map(function (r) {
                             return r.responseEnd;
                         }),
                     ),
@@ -821,8 +823,8 @@
                     <svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1 0l6 4-6 4z" fill="currentColor" /></svg>
                 </button>
                 <span class="bar"></span>
-                <div id="boot-log" hidden onclick="bootPanelClick(event)">
-                    <ul aria-live="off" aria-label="Loading steps" tabindex="0"></ul>
+                <div id="boot-log" hidden>
+                    <ul aria-live="off" aria-label="Loading steps"></ul>
                     <button type="button" class="log-copy">Copy</button>
                 </div>
             </span>

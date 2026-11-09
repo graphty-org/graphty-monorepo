@@ -751,6 +751,21 @@ route table, only once that change is made. With that, every curve kind without 
 fanned curves, `fanSpacing`, `arcRadius`, gaps, raised and great-circle routes, the layout's routes, self-loop
 teardrops, support points and bends. The stage's 40 ms target stays missed by about 6 ms (ninth pull request).
 
+Correction from stage 22 (code read at origin/master 8593e8751a): the row's "fragment scroll" cannot ride the join shader.
+A straight animated line (`line.animationSpeed`, 3D only: in 2D `EdgeMesh` draws it flat and unanimated before it asks)
+is a Babylon greased line with a two-texel moving texture (`#D3D3D3` and the edge's color, nearest, `uScale` 5), one batch
+and one `animatedEdgeFrames` callback a look, each moving its texture's `uOffset`. Measured on SwiftShader WebGL with the
+nine-node scene of `test/browser/pulled-animated-lines.test.ts` (every edge animated, parked), the greased line's
+silhouette and a solid join-shader line's of the same width and color differ by 173 pixels: the join line's
+anti-aliased fringe, which the greased line has not. So a scroll added to `EDGE_PULLED` misses the section 7 bar before
+its colors are compared. The pulled animated line instead takes the greased line's own arithmetic: four vertices a piece
+(each end at its row's place, offset by `0.5 * width * normal`, the normal multiplied by `projection`, as Babylon's
+greased line plugin does with `sizeAttenuation` off), `u` 0 to 1 along the edge, and the texel `floor(fract(5u +
+offset) * 2)` in the fragment stage, from the rows and the edge table `PulledLineBatch` already keeps, with its look in
+the table as stage 19 keeps a pulled line's. One `animatedEdgeFrames` callback moves the one `offset` uniform for every
+pulled animated line, which is the row's "CPU per animated edge per frame at 0": today a frame costs one callback a
+look, and a move rewrites a thin-instance matrix an edge.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

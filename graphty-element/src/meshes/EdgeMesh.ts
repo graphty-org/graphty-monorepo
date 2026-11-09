@@ -39,7 +39,7 @@ import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
 /** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
-const animatedEdgeFrames = new FrameRoster();
+export const animatedEdgeFrames = new FrameRoster();
 
 const PATTERNED_TYPES: ReadonlySet<string> = new Set<PatternType>([
     "dot",

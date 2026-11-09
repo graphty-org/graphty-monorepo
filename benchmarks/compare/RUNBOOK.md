@@ -12,6 +12,7 @@ reaches a published package. Install it once with `pnpm install --frozen-lockfil
 | `BENCH_RENDER_PATH`          | graphty-element's `renderPath` option, recorded in the row as `renderPath`. A build without the option ends the run with a failure instead of measuring its default path                                                                      | Unset: the element's default                                 |
 | `BENCH_LIMITS`               | JSON for graphty-element's `limits` option, e.g. `{"renderCeiling":2000000,"edgesDrawn":2000000}`; it applies only under `BENCH_RENDER_PATH=batched`. Recorded in the row as `limits`. A build without the option ends the run with a failure | Unset: the shipped limits                                    |
 | `BENCH_RENDERER`             | graphty-element's `renderer` option, recorded in the row as `rendererRequest`                                                                                                                                                                 | Unset: WebGL                                                 |
+| `BENCH_ANTIALIAS`            | `false` sets graphty-element's `antialias` to false, before any other option; recorded in the row as `antialias`. A build without the option ends the run with a failure                                                                      | Unset: the element's default (true)                          |
 | `BENCH_TOOLS`                | The checkout whose Playwright and `tools/with-browser.sh` run the browser                                                                                                                                                                     | This checkout                                                |
 | `BENCH_EGL`                  | The directory of the extracted libEGL                                                                                                                                                                                                         | `tmp/egl/root/usr/lib/x86_64-linux-gnu` in the main checkout |
 | `BENCH_DEADLINE_S`           | Seconds before a run ends as `did not finish`                                                                                                                                                                                                 | 570                                                          |
@@ -102,6 +103,9 @@ needed `lean-m-tail` three times and `lean-m-dpr2-tail` twice.
 
 To see where a frame's CPU goes, set `BENCH_PROFILE=<path prefix>`: the run also profiles 60 still and 60 moving
 frames, outside the timed stages, into `<prefix>-still.cpuprofile` and `<prefix>-orbit.cpuprofile`.
+
+The `3d` flag keeps the lean mode's straight edges in 3D, where `batched` pulls them (a 2D line is not pulled), and
+fails the run if any edge is an object edge: the million-edge line program (cosmos-gap.md G12) is measured with it.
 
 The curve target (100,000 curved edges moving) is `lean-s-curves`: 10,000 boxes and 100,000 curves with no caps,
 in 3D. Under `batched` it also fails if any edge is an object edge. Run it once per render path, interleaved:

@@ -447,7 +447,13 @@ async function addShapeStyles(el, mode, curves) {
 
 // The element ignores what it does not know, so without these checks a build that lacks an option
 // would be measured on its default and recorded under the requested value.
-function setRequestedOptions(el, { renderPath, renderer, limits }) {
+function setRequestedOptions(el, { antialias, renderPath, renderer, limits }) {
+    // antialias first, before any other property builds the engine, which reads it only then.
+    if (antialias !== undefined) {
+        if (!("antialias" in el))
+            throw new Error(`antialias ${antialias} requested, but this build has no antialias option`);
+        el.antialias = antialias;
+    }
     if (renderPath) {
         if (!("renderPath" in el))
             throw new Error(`renderPath "${renderPath}" requested, but this build has no renderPath option`);
@@ -469,19 +475,21 @@ async function graphtyAdapter({
     sampled,
     glyphs,
     curves,
+    threeD,
     renderPath,
     renderer,
+    antialias,
     limits,
 }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
     const el = document.createElement("graphty-element");
     el.style.cssText = "display:block;width:1200px;height:900px";
-    setRequestedOptions(el, { renderPath, renderer, limits });
+    setRequestedOptions(el, { antialias, renderPath, renderer, limits });
     el.layout = "fixed";
-    // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode. The camera
-    // moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.
-    const is2d = mode === "lean" && !curves;
+    // A pulled line is drawn only in 3D, so the curves and 3d flags keep 3D whatever the mode. The
+    // camera moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.
+    const is2d = mode === "lean" && !curves && !threeD;
     el.viewMode = is2d ? "2d" : "3d";
     el.acceleration = accel === "off" ? "off" : "auto";
     if (onDemand) el.renderOnDemand = true;

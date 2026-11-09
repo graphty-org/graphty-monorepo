@@ -20,12 +20,19 @@ concurrency:
     group: links-weekly
     cancel-in-progress: true
 
+env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+
 jobs:
     external-links:
         name: External links
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v7
+
+            - name: Install lychee
+              uses: ./.github/actions/lychee
 
             - name: Check every link
               id: check

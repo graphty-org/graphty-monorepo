@@ -61,6 +61,7 @@ import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } 
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { batchUploadFrames } from "./meshes/FrameRoster";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { movingTexel } from "./meshes/pulledAnimatedLine";
 import { curvePathPoint, type CurveSpan, curveSpan, loopShape, viaShare } from "./meshes/pulledCurve";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
@@ -2560,7 +2561,7 @@ export class Edge {
             setsOnly(line, PULLED_LINE_KEYS) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (line.type ?? "solid") === "solid" &&
-            !line.animationSpeed &&
+            (!line.animationSpeed || this.pullsAnimated(style)) &&
             // a line through bends is pulled straight, not rounded or round a self-loop's ring
             (parseBends(line.bends) === null || (line.bezier !== true && !this.isLoop)) &&
             drawnText(style.label) === undefined &&
@@ -2568,6 +2569,21 @@ export class Edge {
             noCap(style.arrowTail) &&
             style.band?.color === undefined &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
+        );
+    }
+
+    /**
+     * Whether an animated line (`line.animationSpeed`) is pulled (`meshes/pulledAnimatedLine.ts`): only on the
+     * `"batched"` render path, only straight, and only opaque, as the greased line it redraws.
+     * @param style - The resolved style.
+     * @returns True when it is pulled.
+     */
+    private pullsAnimated(style: EdgeStyleConfig): boolean {
+        return (
+            (this.context.getNodeBatches?.() ?? null) !== null &&
+            !this.pullsCurve(style) &&
+            EdgeMesh.opacityOf(style) >= 1 &&
+            !EdgeMesh.drawsOpaque(style)
         );
     }
 
@@ -2620,14 +2636,24 @@ export class Edge {
             () => rows.positionTexture,
             this.isLoop,
             this.routeOf(style),
+            this.context.leansLines?.() ?? false,
         );
         const piece = batch.acquire();
         // As `createStaticLine` hands the plain line's material its look.
         const opacity = EdgeMesh.opacityOf(style);
+        const animationSpeed = style.line?.animationSpeed ?? 0;
+        const color = Color3.FromHexString(options.color);
+        // an animated line's width and color as its greased line takes them (`EdgeMesh.createAnimatedLine`);
         // in 2D a world width, as `Simple2DLineRenderer.createBatchMesh` is handed it
-        const width = EdgeMesh.drawsFlat(scene) ? options.width / 40 : options.width * 20;
-        const look = { color: Color3.FromHexString(options.color), opacity, width };
+        let look = { color, opacity, width: EdgeMesh.drawsFlat(scene) ? options.width / 40 : options.width * 20 };
+        if (animationSpeed) {
+            look = { color: movingTexel(color), opacity, width: options.width / 40 };
+        }
         batch.setLook(piece, look.color, look.opacity, look.width);
+        if (animationSpeed) {
+            batch.setSpeed(piece, animationSpeed);
+        }
+
         const curve = this.pullsCurve(style);
         if (curve) {
             // nothing drawn until the first placement writes the span

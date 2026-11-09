@@ -378,6 +378,37 @@ switched-on third: on WebGL 325 stories pass, but only 4 of them draw a pulled e
 edge. Found building it: a pulled line follows the row table, which takes the layout's places, so a place written to the layout
 engine and not yet to the node's mesh moves the line before the node; the update loop writes both in one frame.
 
+As built (stage 15, the 6-vertex program, cosmos-gap.md G12): `EDGE_PULLED_LEAN` draws a straight pulled piece's rectangle
+alone, the join template's vertices 1, 2, 7 and 6 as its two triangles (4 vertices and 6 indices a piece, `piece * 4 + k`,
+not 14 and 30), and its fragment stage skips the ownership test and the pattern, so it never discards. It is used only
+when `antialias` is false and the `"batched"` batches are open (`Graph.leansLines`), in a batch of its own
+(`edge-pulled|...|lean`); curves never use it. The stray pixel did not survive the trace. The spike's program is not in the
+repository, so the trace rebuilt it from the join shader: the triangles are the join template's own, and a piece with no
+neighbour has every join vertex on a side vertex, so the dropped triangles have no area; the one thing left that could put
+a pixel on one side and not the other is the fragment's ownership test against the rasterizer's coverage. Against the
+placed plain line, over 240 scenes (60 seeded cameras and graphs of 120 edges, 4 widths from 160 screen to 0.05 world) with
+`antialias` false and 240 with it true, 0 pixels differ on the RTX 4070 SUPER (ANGLE Vulkan) and 0 on SwiftShader.
+`test/browser/pulled-edge-lines.test.ts` holds it at 0 pixels in 27 scenes per setting, and
+`test/browser/pulled-edges-on-graph.test.ts` holds a graph under `antialias` false on `"batched"` to the objects picture, at
+rest and after a mouse drag, on WebGL and WebGPU. Measured 100k + 1M still frame with `antialias` false on the RTX: 29.2-29.5
+ms serial, 35.6-35.8 ms paced, 28.2 ms of GPU, against 54.8-54.9 ms, 70.1-70.5 ms and 52.3-53.2 ms with the join template.
+Two corrections, from the code:
+
+- The vertex count is not what costs: the join template's rectangle alone with the join fragment stage measured 54.2 ms
+  against 55.0, since a straight piece's join triangles have no area. The gain is the fragment stage's: no ownership test
+  and no `discard`, which also lets the card test depth before shading.
+- The harness's lean mode is 2D (`main.js`, `is2d`), where a straight line is not pulled until cosmos-gap.md G3 lands, so
+  its 100k + 1M scene draws 1,000,000 object lines and neither G5 nor this program reaches it. The `3d` flag
+  (`run.mjs graphty lean on 100000 1000000 1 skip-layout 3d no-move`) keeps it in 3D, where every edge is pulled, and
+  fails a run with an object edge; the numbers above are its. The 2D scene reaches this program with G3.
+- Stage 15's render-parity could not switch the program on: no story sets `antialias`, so every batched load multisampled.
+  `VITE_PARITY_ANTIALIAS=false` builds every load of a run without multisampling (through the internal `antialiasDefault`,
+  read only when an element has no `antialias` property or attribute), and each load asserts `Graph.leansLines` is true on
+  `"batched"` and false on `"objects"`. With it, on SwiftShader: WebGL 324 passed, 1 failed; WebGPU 283 passed, 1 failed.
+  The one failure is `FileStyles.stories.ts Gexf`, 676 pixels, the same 676 with `leansLines` forced false, so the lean
+  program adds none: it is issue #6392 (1488 pixels with `antialias` true, on either parity mode), where the objects and
+  pulled pictures differ in the blended colors of overlapping translucent edges.
+
 As built (stage 16, first pull request): `Edge.pullsLine` passes on the `"batched"` path, read as the graph keeping node batches,
 so `pulledEdgesDefault` is needed only to pull on `"objects"`. A line's rebuild test (`Edge.paintFrom`) compares whether it is
 pulled with whether it should be, and `Graph` repaints every edge, then walks them, when the path changes live, so an edge moves
@@ -761,6 +792,36 @@ a capped curve stays one with the capped straight line, and a pulled curve cap i
 route table, only once that change is made. With that, every curve kind without caps is pulled on `"batched"`: lone and
 fanned curves, `fanSpacing`, `arcRadius`, gaps, raised and great-circle routes, the layout's routes, self-loop
 teardrops, support points and bends. The stage's 40 ms target stays missed by about 6 ms (ninth pull request).
+
+Correction from stage 22 (code read at origin/master 8593e8751a): the row's "fragment scroll" cannot ride the join shader.
+A straight animated line (`line.animationSpeed`, 3D only: in 2D `EdgeMesh` draws it flat and unanimated before it asks)
+is a Babylon greased line with a two-texel moving texture (`#D3D3D3` and the edge's color, nearest, `uScale` 5), one batch
+and one `animatedEdgeFrames` callback a look, each moving its texture's `uOffset`. Measured on SwiftShader WebGL with the
+nine-node scene of `test/browser/pulled-animated-lines.test.ts` (every edge animated, parked), the greased line's
+silhouette and a solid join-shader line's of the same width and color differ by 173 pixels: the join line's
+anti-aliased fringe, which the greased line has not. So a scroll added to `EDGE_PULLED` misses the section 7 bar before
+its colors are compared. The pulled animated line instead takes the greased line's own arithmetic: four vertices a piece
+(each end at its row's place, offset by `0.5 * width * normal`, the normal multiplied by `projection`, as Babylon's
+greased line plugin does with `sizeAttenuation` off), `u` 0 to 1 along the edge, and the texel `floor(fract(5u +
+offset) * 2)` in the fragment stage, from the rows and the edge table `PulledLineBatch` already keeps, with its look in
+the table as stage 19 keeps a pulled line's. One `animatedEdgeFrames` callback moves the one `offset` uniform for every
+pulled animated line, which is the row's "CPU per animated edge per frame at 0": today a frame costs one callback a
+look, and a move rewrites a thin-instance matrix an edge.
+
+Correction from stage 22: the greased line drew with the render size its material was built at, not the canvas's.
+Babylon's greased line plugin reads `engine.getRenderWidth()` and `getRenderHeight()` once, in its constructor, into its
+`resolution` (and so its aspect), and never again. The first element on a page builds its lines before its first resize,
+while its canvas still has the default 300 by 150, so it drew every greased line with aspect 2 on a 400 by 300 canvas;
+a later element on the same page, or any resize, gave another picture. That is a defect on both paths (the batched path
+still draws curved and capped animated lines as greased lines), so the fix applies to both: `EdgeMesh` hands every
+greased line the render size now and after every `engine.onResizeObservable`, and the pulled animated line's `aspect`
+uniform follows the same size. On the `"objects"` path this changes the picture of a page's first element with animated
+or fallback greased lines.
+
+Correction from stage 22: `scene.animationsEnabled`, the switch that parks an animated line, did not survive WebGPU
+opening. `renderer: "webgpu"` starts on a WebGL scene and replaces it with a new one when WebGPU opens; the swap carried
+the background but not this flag, so a consumer that parked the animation before WebGPU opened found it running. The
+swap in `Graph` now carries it, on both paths.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
@@ -1295,6 +1356,34 @@ only a `Node` draws (a model, a picture, or anything `batchableOf` refuses); a g
 `StylePainter` needed no change: it already resolves paint by row number. Nothing calls `paintRow` yet: the frame's paint loop
 (`UpdateManager.takeNodeBatch`) keeps dropping a row with no `Node` until the fifth pull request skips `buildNode`, because today such a
 row is one that was removed, and painting it would draw a ghost. That pull request also renumbers `ColumnRow`s on a freeze.
+
+Correction from stage 26's third pull request: the third item is split. Fit and filter go first, alone: they reach a `ColumnRow`
+through `NodeBatches.columnRowIndices()` and the row table, never through a `Node`. A fit frames each visible column row from
+`RowTable.centerOf` and `extentOf` inside the graph root's transform (`nodeFramingBox`'s `columns`), and a filter writes the row
+table's hidden flag (`UpdateManager.applyColumnRows`), which is all a batch reads. Two limits carry to the fifth pull request. A row
+the mask draws faintly in context, or ringed as selected, needs a `Node` (both are a `Node`'s overlays), so ingest must build one for
+such a row; a column row is shown or hidden, nothing else. And `RowTable.measure` takes a `Node`, so a row that never had one has no
+extent to frame until paint measures it from its `NodePaint`. Shipped engines and transitions by row are the next pull request.
+
+Correction from stage 26's fourth pull request: shipped engines are split by kind. Static engines (every `StaticLayoutEngine`,
+which is every `SnapshotLayoutEngine`) go first, alone: they already compute over the element's snapshot by row, and only two
+things reached a `Node`. They found the data manager through `_nodes[0].parentGraph`, and they published node by node through
+`n.index`. The layout manager now hands each one the data manager (`simpleLayoutInternals.attachRows`), and while the data manager
+says `"batched"` the engine arranges with no `Node` at all and publishes every row of its answer (`publishColumn` takes the
+element's array in place of a node). Under `"objects"` it publishes node by node, as before. A third party's static engine is
+still handed every built `Node`. Two limits carry on. A snapshot layout's `nodeSizes`, `nodeExtents` and data columns still read
+a row's `Node`, so a row with none counts as unsized until paint measures it (the fifth pull request). Simulations
+(`SimulationLayoutEngine`, d3, ngraph), which hold per-node state, and layout transitions are the next pull request.
+
+Correction from stage 26's fifth pull request: simulations are split again. `SimulationLayoutEngine` (spring, spring-electrical,
+ForceAtlas2) already loads, steps and draws through the GPU ring by row; only its publish walked `nodes` for row membership.
+Under `"batched"` it now publishes every row of its loaded snapshot (`publishColumn` with the element's array), and under
+`"objects"` node by node, as before. A removed node's row, live until the next freeze, is published too; the batches draw nothing
+for it. Its `nodeGap` radii and `clusterBy` communities still walk `nodes` and read a row's `Node`, so the fifth item must
+materialize nothing there either: a row with no `Node` counts as unsized and in no community until then. d3 and ngraph are
+different in kind: they keep a body per `Node`, fed through `addNode`, so going by row is a rewrite of their bodies onto rows,
+not a change to their publish. They and layout transitions, whose movers are keyed by `Node` and read `drawnPosition`, are the
+next pull request.
 
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

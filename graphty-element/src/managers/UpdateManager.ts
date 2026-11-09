@@ -33,6 +33,7 @@ import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
+import type { RowTable } from "../render/RowTable";
 import type { ElementMask } from "../session/scope/index";
 import type { EdgeAgeFade } from "../session/time/ageFade";
 import type { GraphFraming } from "../session/types";
@@ -79,28 +80,19 @@ interface FramingBox {
  * units out. The cameras pad the fit themselves.
  * @param nodes - The nodes to frame; hidden ones are skipped.
  * @param extent - What each node counts as: the box it is drawn in, or its center alone.
+ * @param columns - The rows drawn with no `Node`, framed by row; hidden ones are skipped.
  * @returns The corners, or undefined when no node is visible.
  */
 export function nodeFramingBox(
     nodes: Iterable<Node>,
     extent: GraphFraming["extent"] = "drawn",
+    columns?: ColumnFraming,
 ): FramingBox | undefined {
     let min: Vector3 | undefined;
     let max: Vector3 | undefined;
     const spots: FramingSpot[] = [];
 
-    for (const node of nodes) {
-        // A node the visibility mask has taken off screen keeps its position, but must not
-        // stretch the box, or zooming to fit a filtered graph would frame what is hidden.
-        if (node.getRenderState() !== "visible") {
-            continue;
-        }
-
-        // WHERE THE NODE IS NOW, not where it was drawn last time: `framingBounds` computes the
-        // world matrix first, because Babylon only refreshes world bounds while it renders and this
-        // runs BEFORE that render. In world space, because a node mesh is parented to the
-        // "graph-root" transform an XR gesture moves, rotates and scales.
-        const box = extent === "centers" ? centerOf(node) : node.framingBounds();
+    for (const box of framedBoxes(nodes, extent, columns)) {
         // A spot is as wide as the node's widest half, so the turning fit keeps all of it in view.
         const half = box.max.subtract(box.min).scaleInPlace(0.5);
         spots.push({ pos: box.min.add(half), half: Math.max(half.x, half.y, half.z) });
@@ -117,10 +109,76 @@ export function nodeFramingBox(
 
     // The centers of one node, or of nodes all in one place, enclose nothing to fit: their drawn box is framed instead.
     if (extent === "centers" && min.x === max.x && min.y === max.y) {
-        return nodeFramingBox(nodes);
+        return nodeFramingBox(nodes, "drawn", columns);
     }
 
     return { min, max, spots };
+}
+
+/**
+ * The rows drawn with no `Node` (`NodeBatches.columnRowIndices`), which a fit frames from the row
+ * table: where each is drawn and its half extents, inside the transform the batches draw in.
+ */
+export interface ColumnFraming {
+    readonly rows: Iterable<number>;
+    readonly table: RowTable;
+    readonly root: TransformNode | null;
+}
+
+/**
+ * The world box of every visible node and column row, as {@link nodeFramingBox} frames them.
+ * @param nodes - The nodes.
+ * @param extent - What each counts as.
+ * @param columns - The rows with no `Node`, if any.
+ * @yields Each box.
+ */
+function* framedBoxes(
+    nodes: Iterable<Node>,
+    extent: GraphFraming["extent"],
+    columns: ColumnFraming | undefined,
+): Iterable<{ min: Vector3; max: Vector3 }> {
+    for (const node of nodes) {
+        // A node the visibility mask has taken off screen keeps its position, but must not
+        // stretch the box, or zooming to fit a filtered graph would frame what is hidden.
+        if (node.getRenderState() !== "visible") {
+            continue;
+        }
+
+        // WHERE THE NODE IS NOW, not where it was drawn last time: `framingBounds` computes the
+        // world matrix first, because Babylon only refreshes world bounds while it renders and this
+        // runs BEFORE that render. In world space, because a node mesh is parented to the
+        // "graph-root" transform an XR gesture moves, rotates and scales.
+        yield extent === "centers" ? centerOf(node) : node.framingBounds();
+    }
+
+    if (columns === undefined) {
+        return;
+    }
+
+    const { rows, table, root } = columns;
+    const world = root?.computeWorldMatrix(true);
+    const scale = root?.absoluteScaling;
+    for (const row of rows) {
+        if (table.isHidden(row)) {
+            continue;
+        }
+
+        const local = table.centerOf(row);
+        const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
+        if (extent === "centers") {
+            yield { min: center, max: center.clone() };
+            continue;
+        }
+
+        // A batched row is never turned and carries no border, so its box is its half extents.
+        const { half } = table.extentOf(row);
+        const size = new Vector3(half.x, half.y, half.z);
+        if (scale !== undefined) {
+            size.multiplyInPlace(scale);
+        }
+
+        yield { min: center.subtract(size), max: center.add(size) };
+    }
 }
 
 /**
@@ -208,14 +266,16 @@ function sameBox(a: FramingBox, b: FramingBox): boolean {
  * @param nodes - The nodes to frame; hidden ones and their labels are skipped.
  * @param edges - The edges whose labels to frame; hidden ones are skipped.
  * @param extent - What each node counts as; with its center alone no label is framed.
+ * @param columns - The rows drawn with no `Node`, which carry no label.
  * @returns The corners, or undefined when no node is visible.
  */
 export function framingBox(
     nodes: Iterable<Node>,
     edges: Iterable<Edge>,
     extent: GraphFraming["extent"] = "drawn",
+    columns?: ColumnFraming,
 ): FramingBox | undefined {
-    const box = nodeFramingBox(nodes, extent);
+    const box = nodeFramingBox(nodes, extent, columns);
 
     // Centers frame no label, as a program that fits node centers lets labels run off the canvas.
     if (!box || extent === "centers") {
@@ -1039,13 +1099,17 @@ export class UpdateManager implements Manager {
         const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
 
         for (const row of rows) {
-            // Showing or hiding a node enables or disables its mesh, which the frozen list must see.
-            if (
-                nodesByIndex[row]?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState) === true
-            ) {
-                this.sceneChanged = true;
+            const node = nodesByIndex[row];
+            // Showing or hiding a node drawn by its own mesh enables or disables that mesh, which the
+            // frozen list must see; a batched row only writes its hidden flag. Asked before and
+            // after, since the change can take an overlay away or bring one back.
+            const ownMeshes = node?.togglesOwnMeshes() === true;
+            if (node?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState) === true) {
+                this.sceneChanged ||= ownMeshes || node.togglesOwnMeshes();
             }
         }
+
+        this.applyColumnRows(rows, nodeVisibility);
     }
 
     /**
@@ -1115,6 +1179,8 @@ export class UpdateManager implements Manager {
                 this.drawnSelectedNodes.add(node);
             }
         }
+
+        this.applyColumnRows(null, nodeVisibility);
     }
 
     /**
@@ -2758,7 +2824,53 @@ export class UpdateManager implements Manager {
      * @returns The box, or undefined when nothing is visible.
      */
     private measure(): FramingBox | undefined {
-        return framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent);
+        return framingBox(
+            this.layoutManager.nodes,
+            this.layoutManager.edges,
+            this.framing?.extent,
+            this.columnFraming(),
+        );
+    }
+
+    /**
+     * The rows drawn with no `Node`, for a fit to frame by row. Only `"batched"` has any.
+     * @returns The rows and the table they are drawn from, or undefined when there are none.
+     * @internal
+     */
+    columnFraming(): ColumnFraming | undefined {
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (batches === null || table === null) {
+            return undefined;
+        }
+
+        return {
+            rows: batches.columnRowIndices(),
+            table,
+            root: this.graphContext.getScene().getTransformNodeByName("graph-root"),
+        };
+    }
+
+    /**
+     * Show or hide the rows drawn with no `Node`, which no walk of the nodes reaches. Their batch
+     * draws them from the row table, so the table's hidden flag is all there is to write. A row
+     * drawn faintly in context, or ringed as selected, needs a `Node`: none of these is.
+     * @param rows - The rows to bring into line, or null for every one.
+     * @param nodeVisibility - The visible nodes.
+     */
+    private applyColumnRows(rows: Rows | null, nodeVisibility: ElementMask<NodeId> | null): void {
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (batches === null || table === null) {
+            return;
+        }
+
+        const drawn = new Set(batches.columnRowIndices());
+        for (const row of rows ?? drawn) {
+            if (drawn.has(row)) {
+                table.hide(row, nodeVisibility !== null && !nodeVisibility.has(row));
+            }
+        }
     }
 
     /**

@@ -84,6 +84,8 @@ interface RenderManagerConfig {
     flushesFrameFence?: () => boolean;
     /** See {@link RenderManager.setPixelRatio}. Left out, 1. */
     pixelRatio?: PixelRatio;
+    /** Whether the WebGL engine built when no `engine` is passed multisamples. Left out, true. */
+    antialias?: boolean;
 }
 
 /**
@@ -207,11 +209,13 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  *     out a WebGPU one.
  * @param sharesDevice - Asked of the adapter, before the device exists, whether the layout's
  *     accelerator will run on it too: that needs every limit and feature the adapter has.
+ * @param antialias - Whether the engine multisamples (4x); the element's `antialias`.
  * @returns The initialised engine, or the reason there is none.
  */
 export async function openWebGPUEngine(
     canvas: HTMLCanvasElement,
     sharesDevice: (adapter: unknown) => boolean = () => false,
+    antialias = true,
 ): Promise<RecoveringWebGPUEngine | string> {
     if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
         return "this browser has no WebGPU (navigator.gpu is undefined)";
@@ -241,7 +245,7 @@ export async function openWebGPUEngine(
 
     const shared = sharesDevice(adapter);
     const engine = new RecoveringWebGPUEngine(canvas, {
-        antialias: true,
+        antialias,
         ...(shared && { setMaximumLimits: true, enableAllFeatures: true, powerPreference: "high-performance" }),
     });
     engine.sharesDevice = shared;
@@ -274,12 +278,13 @@ export async function openWebGPUEngine(
  * data, its session and the work autosave kept would not load either; with it only the picture is
  * missing, which the log reports as E_NO_WEBGL.
  * @param canvas - The element's canvas.
+ * @param antialias - Whether the context multisamples; the element's `antialias`.
  * @returns The engine and the scene.
  */
-function openWebGL(canvas: HTMLCanvasElement): { engine: Engine; scene: Scene } {
+function openWebGL(canvas: HTMLCanvasElement, antialias: boolean): { engine: Engine; scene: Scene } {
     let engine: Engine | undefined;
     try {
-        engine = new Engine(canvas, true, {
+        engine = new Engine(canvas, antialias, {
             preserveDrawingBuffer: true, // Required for screenshots
         });
         return { engine, scene: new Scene(engine) };
@@ -945,7 +950,7 @@ export class RenderManager implements Manager {
         this.flushesFrameFence = this.config.flushesFrameFence ?? ((): boolean => false);
 
         if (this.config.engine === undefined) {
-            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas));
+            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas, this.config.antialias ?? true));
         } else {
             this.engine = this.config.engine;
             this.scene = new Scene(this.engine);

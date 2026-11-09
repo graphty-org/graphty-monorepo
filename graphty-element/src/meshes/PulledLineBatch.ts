@@ -9,7 +9,12 @@ import {
     type ThinEngine,
 } from "@babylonjs/core";
 
-import { JOIN_TEMPLATE_INDICES, JOIN_TEMPLATE_VERTICES } from "./edgeJoinShader";
+import {
+    JOIN_TEMPLATE_INDICES,
+    JOIN_TEMPLATE_VERTICES,
+    LEAN_TEMPLATE_INDICES,
+    LEAN_TEMPLATE_OF,
+} from "./edgeJoinShader";
 import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
 import { curveShape, type CurveSpan } from "./pulledCurve";
@@ -46,6 +51,13 @@ import { curveShape, type CurveSpan } from "./pulledCurve";
  */
 export const pulledEdgesDefault: { value: boolean } = { value: false };
 
+/**
+ * Whether an element with no `antialias` property or attribute multisamples. True, the documented
+ * default; only render-parity's `VITE_PARITY_ANTIALIAS=false` run writes it, so every story's three
+ * loads draw without multisampling and the batched one uses the lean line program.
+ */
+export const antialiasDefault: { value: boolean } = { value: true };
+
 /** Texels across the edge table, as across the row table: texel `i` is at `(i % 1024, i / 1024)`. */
 const TABLE_WIDTH = 1024;
 
@@ -56,8 +68,11 @@ const TABLE_WIDTH = 1024;
 const TEXELS_PER_PIECE = 2;
 const TEXELS_PER_CURVE_PIECE = 4;
 
-/** Indices in the join template, drawn once per piece. */
-const TEMPLATE_INDICES = JOIN_TEMPLATE_INDICES.length;
+/** The join template, drawn once per piece: its index list and its vertices. */
+const JOIN_TEMPLATE = { indices: JOIN_TEMPLATE_INDICES, vertices: JOIN_TEMPLATE_VERTICES };
+
+/** The lean program's rectangle, drawn once per piece of a mesh made with `pulledLean: true`. */
+export const LEAN_TEMPLATE = { indices: LEAN_TEMPLATE_INDICES, vertices: LEAN_TEMPLATE_OF.length };
 
 /** Floats in one texel. */
 const TEXEL_FLOATS = 4;
@@ -117,12 +132,19 @@ export class PulledLineBatch {
      * @param rowPositions - The `rowPosition` texture, asked each frame: the row table replaces it
      *     when it grows.
      * @param curve - Whether its pieces are curves' (a mesh made with `pulledCurve: true`).
+     * @param template - What a piece draws: the join template, the lean program's rectangle
+     *     (`LEAN_TEMPLATE`, for a mesh made with `pulledLean: true`: 4 vertices and 6 indices, not
+     *     the join template's 14 and 30), or another mesh's own (`pulledAnimatedLine.ts`), its
+     *     vertices numbered from 0 a piece.
+     * @param template.indices - Its index list.
+     * @param template.vertices - Its vertices.
      */
     constructor(
         mesh: Mesh,
         private readonly scene: Scene,
         private readonly rowPositions: () => BaseTexture,
         curve = false,
+        private readonly template: { readonly indices: readonly number[]; readonly vertices: number } = JOIN_TEMPLATE,
     ) {
         this.mesh = mesh;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
@@ -211,6 +233,17 @@ export class PulledLineBatch {
         this.rows[at + 4] = look.r;
         this.rows[at + 5] = look.g;
         this.rows[at + 6] = look.b;
+        this.touch(piece);
+    }
+
+    /**
+     * Give an animated line's piece its speed, a multiple of the element's own pace (`pulledAnimatedLine.ts`), in the
+     * slot a straight piece leaves unused.
+     * @param piece - The piece.
+     * @param speed - Its `line.animationSpeed`.
+     */
+    setSpeed(piece: number, speed: number): void {
+        this.rows[piece * this.pieceFloats + 7] = speed;
         this.touch(piece);
     }
 
@@ -431,25 +464,26 @@ export class PulledLineBatch {
         this.index();
     }
 
-    /** The join template once per piece the table has room for, numbered so `gl_VertexID / 14` is the piece. */
+    /** The template once per piece the table has room for, numbered so `gl_VertexID / vertices` is the piece. */
     private index(): void {
         const capacity = this.rows.length / this.pieceFloats;
-        const indices = new Uint32Array(capacity * TEMPLATE_INDICES);
+        const { indices: template, vertices } = this.template;
+        const indices = new Uint32Array(capacity * template.length);
         for (let piece = 0; piece < capacity; piece++) {
-            for (let i = 0; i < TEMPLATE_INDICES; i++) {
-                indices[piece * TEMPLATE_INDICES + i] = JOIN_TEMPLATE_INDICES[i] + piece * JOIN_TEMPLATE_VERTICES;
+            for (let i = 0; i < template.length; i++) {
+                indices[piece * template.length + i] = template[i] + piece * vertices;
             }
         }
 
-        this.mesh.setIndices(indices, capacity * JOIN_TEMPLATE_VERTICES);
+        this.mesh.setIndices(indices, capacity * vertices);
         this.setCount();
     }
 
     /** Draw only the pieces handed out. */
     private setCount(): void {
         const [subMesh] = this.mesh.subMeshes;
-        subMesh.indexCount = this.highWater * TEMPLATE_INDICES;
-        subMesh.verticesCount = this.highWater * JOIN_TEMPLATE_VERTICES;
+        subMesh.indexCount = this.highWater * this.template.indices.length;
+        subMesh.verticesCount = this.highWater * this.template.vertices;
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
 }

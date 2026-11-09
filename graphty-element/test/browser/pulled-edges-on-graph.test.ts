@@ -1,7 +1,9 @@
 /**
  * @file With the internal switch on, a graph's plain straight edges are pulled from the row table
  * (`PulledLineBatch`) and draw the picture the placed lines draw: at rest, after a node is dragged (no
- * edge byte uploaded) and with an edge hidden. An edge with a cap stays an object edge. The bar is
+ * edge byte uploaded) and with an edge hidden. An edge with a cap stays an object edge. With
+ * `antialias` false under renderPath "batched", straight pulled lines draw the lean program (each
+ * piece's rectangle alone, design/rendering/cosmos-gap.md G12) and the same picture. The bar is
  * section 7 of design/rendering/row-renderer.md.
  */
 
@@ -54,14 +56,24 @@ function edgeId(element: Graphty, source: number, target: number): unknown {
  * @param renderer - The renderer.
  * @param pulled - Whether qualifying edges are pulled.
  * @param view - The view.
+ * @param path - The render path and multisampling.
+ * @param path.renderPath - The render path: "batched" pulls edges whatever the switch says.
+ * @param path.antialias - The element's `antialias`.
  * @returns The element.
  */
-async function loaded(renderer: "webgl" | "webgpu", pulled: boolean, view: "2d" | "3d" = "3d"): Promise<Graphty> {
+async function loaded(
+    renderer: "webgl" | "webgpu",
+    pulled: boolean,
+    view: "2d" | "3d" = "3d",
+    { renderPath = "objects", antialias = true }: { renderPath?: "objects" | "batched"; antialias?: boolean } = {},
+): Promise<Graphty> {
     pulledEdgesDefault.value = pulled;
     const element = document.createElement("graphty-element");
+    // Read only when the engine is built, which the next property does.
+    element.antialias = antialias;
     element.renderer = renderer;
     // The placed lines are the objects path's: "batched" pulls them whatever the switch says.
-    element.renderPath = "objects";
+    element.renderPath = renderPath;
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";
@@ -152,6 +164,30 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
         await operationQueueOf(pulled.graph).waitForCompletion();
         assert.equal(overBar(placedHidden, await readCanvas(pulled.graph)), 0, "with an edge hidden");
         assert.notEqual(overBar(placedRest, placedHidden), 0, "hiding the edge changed the picture");
+    });
+
+    it("draw the lean program under antialias false on batched, with the placed picture", async () => {
+        const placed = await loaded(renderer, false, "3d", { antialias: false });
+        const placedRest = await readCanvas(placed.graph);
+        const placedMoved = await moved(placed);
+        placed.remove();
+
+        const lean = await loaded(renderer, false, "3d", { renderPath: "batched", antialias: false });
+        const keys = [...lean.graph.getMeshCache().pulledBatchMap.keys()];
+        assert.deepInclude(lean.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
+        assert.isTrue(keys.length > 0 && keys.every((key) => key.endsWith("|lean")), keys.join(", "));
+        assert.equal(overBar(placedRest, await readCanvas(lean.graph)), 0, "at rest");
+        assert.equal(overBar(placedMoved, await moved(lean)), 0, "after a move");
+        lean.remove();
+
+        // Multisampled, as by default, the batched path keeps the join template.
+        const joined = await loaded(renderer, false, "3d", { renderPath: "batched" });
+        const joinedKeys = [...joined.graph.getMeshCache().pulledBatchMap.keys()];
+        assert.isTrue(joinedKeys.length > 0, "the batched path pulls edges");
+        assert.isFalse(
+            joinedKeys.some((key) => key.endsWith("|lean")),
+            joinedKeys.join(", "),
+        );
     });
 
     it("pull the plain edges in 2D too, with their width in world units", async () => {

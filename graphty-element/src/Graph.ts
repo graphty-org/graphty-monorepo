@@ -954,12 +954,22 @@ export class Graph implements GraphContext {
     private activeCapture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture | null = null;
 
     /**
+     * Whether the canvas multisamples, as the engine was built: the constructor's `antialias`.
+     * Fixed for the life of the graph; WebGPU, when it opens, is built the same way.
+     * @experimental cosmograph
+     */
+    readonly antialias: boolean;
+
+    /**
      * Creates a new Graph instance and initializes the rendering engine and managers.
      * @param element - DOM element or element ID to attach the graph canvas to
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
+     * @param options - How the engine is built; read once, here.
+     * @param options.antialias - Whether the canvas multisamples (4x). Left out, true.
      */
-    constructor(element: Element | string, useMockInput = false) {
+    constructor(element: Element | string, useMockInput = false, options: { readonly antialias?: boolean } = {}) {
         this.useMockInput = useMockInput;
+        this.antialias = options.antialias ?? true;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
 
@@ -1005,6 +1015,7 @@ export class Graph implements GraphContext {
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
             flushesFrameFence: this.#flushesFrameFence,
+            antialias: this.antialias,
         });
 
         this.basemapManager = new BasemapManager(
@@ -2146,7 +2157,11 @@ export class Graph implements GraphContext {
      */
     private async openWebGPU(requested: RendererRequest): Promise<void> {
         const canvas = this.createCanvas();
-        const opened = await openWebGPUEngine(canvas, (adapter) => this.acceleration.sharesDevice(adapter));
+        const opened = await openWebGPUEngine(
+            canvas,
+            (adapter) => this.acceleration.sharesDevice(adapter),
+            this.antialias,
+        );
         // Shut down while the engine was opening: nothing will ever dispose it but this.
         if (this.#teardown.signal.aborted) {
             if (typeof opened !== "string") {
@@ -2173,6 +2188,8 @@ export class Graph implements GraphContext {
             this.reportEngineGone(error);
         };
         const background = this.scene.clearColor;
+        // a consumer that parked the scene's animations before WebGPU opened keeps them parked
+        const animates = this.scene.animationsEnabled;
         const previous = this.renderManager;
         const label = this.canvas.getAttribute("aria-label");
         if (label !== null) {
@@ -2214,6 +2231,7 @@ export class Graph implements GraphContext {
         this.renderManager.applyLighting(this.#lighting);
         NodeEffects.setOutlineWidth(this.scene, this.styles.config.behavior.node.outlineWidth);
         this.scene.clearColor = background;
+        this.scene.animationsEnabled = animates;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
         this.updateManager.rebindScene(this.camera);
         this.graphContext = new DefaultGraphContext(
@@ -4641,6 +4659,16 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether a straight pulled line draws the lean program, each piece's rectangle alone:
+     * `antialias` false under renderPath "batched" (design/rendering/cosmos-gap.md, G12).
+     * @returns True when it does.
+     * @internal
+     */
+    leansLines(): boolean {
+        return !this.antialias && this.#nodeBatches !== null;
+    }
+
+    /**
      * The node batches, on the `"batched"` path.
      * @returns The batches, or null.
      * @internal
@@ -6068,7 +6096,11 @@ export class Graph implements GraphContext {
         if (frame) {
             // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
             // labels are framed by zoom-to-fit, on a data load or a layout change.
-            const box = nodeFramingBox(this.getNodes(), this.session.config.framing?.extent);
+            const box = nodeFramingBox(
+                this.getNodes(),
+                this.session.config.framing?.extent,
+                this.updateManager.columnFraming(),
+            );
             if (box) {
                 this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
             }

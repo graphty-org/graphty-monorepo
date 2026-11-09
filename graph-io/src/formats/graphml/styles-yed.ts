@@ -44,7 +44,13 @@ import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities }
 import type { LossNote } from "../../types.js";
 import { YED_UML_STEREOTYPE_DROP, yedNodePicture, yedUmlClassPicture } from "./styles-yed-drawing.js";
 import { type BpmnDrawing, svgPicture, yedBpmnPicture } from "./styles-yed-live-drawing.js";
-import { YED_GROUP_INSETS, type YedBox, yedGroupBounds, type YedGroupFrame } from "./yed-group-bounds.js";
+import {
+    foldedMembers,
+    YED_GROUP_INSETS,
+    type YedBox,
+    yedGroupBounds,
+    type YedGroupFrame,
+} from "./yed-group-bounds.js";
 
 // ============================================================ the kept trees
 
@@ -1938,7 +1944,8 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
         return;
     }
     if (hasLine(border)) {
-        readColor(treeAttr(border, "color"), "borderColor", null, put, at);
+        // a #RRGGBBAA color's alpha is the line's (yed-graphml-specimen-node-sizes-opacity border-alpha-40)
+        readColor(treeAttr(border, "color"), "borderColor", "borderOpacity", put, at);
         put("borderWidth", yedDrawnWidth(canonNumber(treeAttr(border, "width"), at("borderWidth"))));
     } else {
         put("borderWidth", 0);
@@ -2387,13 +2394,34 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("sourceArrowWidth", yedArrowWidth(treeAttr(arrows, "source")));
         put("targetArrowWidth", yedArrowWidth(treeAttr(arrows, "target")));
     }
+    if (treeAttr(line, "hasColor") === "false") {
+        // a line with no color paints neither itself nor its arrowheads (yed-graphml-specimen-edges-lines
+        // line-has-color-false: yEd draws nothing between the nodes); its labels are drawn as ever
+        noteAt(at("color"), STYLE_ISSUE.NO_STROKE, "hasColor=false");
+        put("opacity", 0);
+        put("sourceArrow", "none");
+        put("targetArrow", "none");
+    }
     put("curved", edgeCurved(real));
     if (real.type === "ArcEdge") {
-        // the bend yEd saves is the arc's apex, `y:Arc height` from the line between the ends (every yEd-saved arc
-        // in the corpus: scala-collection-mutable, Animatron__player__flow), so the arc is the circle through it
-        put("bendCurve", "arc");
+        // yEd draws an arc edge as one quadratic Bezier between its ends (graphml-synthetic-edges' oracle fits one to
+        // 1e-5 px), its control point the one bend `readEdgeRoute` puts
+        put("bendCurve", "bezier");
+    }
+    if (oneCubic(real)) {
+        put("bendCurve", "bezier");
     }
     readLabels(treeChildren(r, "EdgeLabel"), false, put, at);
+}
+
+/**
+ * Whether an edge is a Bezier edge of one cubic piece: its two points are the control points of the cubic from end to
+ * end, drawn as that cubic (`bendCurve` bezier), not flattened (yed-graphml-specimen-edges-lines bezier).
+ * @param real - the edge realizer
+ * @returns true for a BezierEdge with two points
+ */
+function oneCubic(real: Realizer): boolean {
+    return real.type === "BezierEdge" && treeChildren(treeChild(real.r, "Path"), "Point").length === 2;
 }
 
 /**
@@ -2415,8 +2443,9 @@ function edgeCurved(real: Realizer): boolean | null {
         return false;
     }
     if (real.type === "BezierEdge") {
-        // a count of control points no run of cubic pieces takes is not flattened: its corners are rounded
-        return points > 0 && (points + 1) % 3 !== 0;
+        // one cubic piece is drawn as that cubic; a count of control points no run of cubic pieces takes is not
+        // flattened: its corners are rounded
+        return points === 2 || (points > 0 && (points + 1) % 3 !== 0);
     }
     const bent = points > 0;
     if (real.type !== "PolyLineEdge" && real.type !== "GenericEdge") {
@@ -2436,8 +2465,16 @@ function edgeCurved(real: Realizer): boolean | null {
  * @param source - the source node's index
  * @param target - the target node's index
  * @param put - receives the values
+ * @param boxed - the nodes whose outline is their box (`boxOutline`)
  */
-function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, target: number, put: PutValue): void {
+function readEdgeRoute(
+    real: Realizer,
+    nodes: Float64Array,
+    source: number,
+    target: number,
+    put: PutValue,
+    boxed: ReadonlySet<number> = new Set(),
+): void {
     const path = treeChild(real.r, "Path");
     const at = (k: number): BendPoint => [nodes[4 * k], nodes[4 * k + 1]];
     const size = (k: number): BendPoint => [nodes[4 * k + 2], nodes[4 * k + 3]];
@@ -2446,20 +2483,42 @@ function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, targ
         [at(source)[0] + offset("sx"), at(source)[1] + offset("sy")],
         [at(target)[0] + offset("tx"), at(target)[1] + offset("ty")],
     ];
+    const stored = treeChildren(path, "Point").map((p): BendPoint => [
+        Number(treeAttr(p, "x")),
+        Number(treeAttr(p, "y")),
+    ]);
+    // a polyline from a port inside a box node is drawn from where its first leg leaves the box
+    // (graphml-libcitygml-mapping e45, between two UML class boxes); a leg that stays inside is left as it is
+    const leaves = (k: number, end: BendPoint, toward: BendPoint): BendPoint => {
+        const [w, h] = size(k);
+        const inside = (p: BendPoint): boolean =>
+            Math.abs(p[0] - at(k)[0]) < w / 2 - YED_PORT_SLACK && Math.abs(p[1] - at(k)[1]) < h / 2 - YED_PORT_SLACK;
+        const centered = end[0] === at(k)[0] && end[1] === at(k)[1];
+        const clipped = STRAIGHT_FROM_ENDS.has(real.type) && source !== target && boxed.has(k);
+        return clipped && !centered && inside(end) && !inside(toward) ? boxExit([...at(k), w, h], end, toward) : end;
+    };
+    const drawn: readonly [BendPoint, BendPoint] = [
+        leaves(source, ends[0], stored[0] ?? ends[1]),
+        leaves(target, ends[1], stored.at(-1) ?? ends[0]),
+    ];
     const port = (k: number, end: BendPoint): string | null =>
         end[0] === at(k)[0] && end[1] === at(k)[1] ? null : canonNodeOffsets(at(k), size(k), [end], true);
-    put("sourcePort", port(source, ends[0]));
-    put("targetPort", port(target, ends[1]));
+    put("sourcePort", port(source, drawn[0]));
+    put("targetPort", port(target, drawn[1]));
     let points = treeChildren(path, "Point").map((p): BendPoint => [
         Number(treeAttr(p, "x")),
         Number(treeAttr(p, "y")),
     ]);
-    if (points.length > 0 && (real.type === "BezierEdge" || real.type === "QuadCurveEdge")) {
+    if (real.type === "ArcEdge") {
+        points = arcControl(treeChild(real.r, "Arc"), ends) ?? points;
+    } else if (points.length > 0 && !oneCubic(real) && (real.type === "BezierEdge" || real.type === "QuadCurveEdge")) {
         const controls = [ends[0], ...points, ends[1]];
         const curve =
             real.type === "BezierEdge"
                 ? flattenCubic(controls)
-                : flattenQuadSpline(controls, Number(treeAttr(real.r, "straightness") ?? YED_STRAIGHTNESS));
+                : // yEd joins its first and last legs at their middles too, straight from the ends
+                  // (graphml-magiclantern-architecture n0::n1::e4, yed-graphml-specimen-edges-lines' quad curves)
+                  flattenQuadSpline(controls, Number(treeAttr(real.r, "straightness") ?? YED_STRAIGHTNESS), 8, true);
         points = (curve ?? controls).slice(1, -1);
     }
     put(
@@ -2469,6 +2528,49 @@ function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, targ
             : canonBends(at(source), at(target), points, true),
     );
 }
+
+/**
+ * The control point of the quadratic Bezier yEd draws an arc edge as, from its `y:Arc`: the apex sits `height` off
+ * the middle of the line between the ends, to the right of it going from source to target for a positive height
+ * (y down), or, for a `fixedRatio` arc, `ratio` times a quarter of the line, whatever height and point the file stores
+ * (yEd-saved files store that height and that apex: scala-collection-mutable, Animatron__player__flow;
+ * graphml-synthetic-edges stores others, and yEd draws them from the ratio). The control point is twice as far off.
+ * @param arc - the `y:Arc` element
+ * @param ends - the route's two ends
+ * @returns the one control point, or null without a usable arc or line
+ */
+function arcControl(arc: unknown, ends: readonly [BendPoint, BendPoint]): BendPoint[] | null {
+    const [[x0, y0], [x1, y1]] = ends;
+    const length = Math.hypot(x1 - x0, y1 - y0);
+    const ratio = treeAttr(arc, "type") === "fixedRatio";
+    const value = Number(treeAttr(arc, ratio ? "ratio" : "height"));
+    if (arc === undefined || length === 0 || !Number.isFinite(length) || !Number.isFinite(value)) {
+        return null;
+    }
+    const twice = 2 * (ratio ? (value * length) / 4 : value);
+    return [[(x0 + x1) / 2 + (twice * (y1 - y0)) / length, (y0 + y1) / 2 - (twice * (x1 - x0)) / length]];
+}
+
+/**
+ * Whether a node realizer's outline is its box, where an edge from a port inside it is drawn from the box's side: a
+ * UML class or note. ponytail: yEd clips at every node's outline, a rectangle shape node's too, but graph-io's GraphML
+ * writer writes every node as a shape node, so clipping those would read a written file's ports back moved; add the
+ * shape nodes with a writer that keeps the clipped port.
+ * @param real - the node realizer
+ * @returns true for a box
+ */
+function boxOutline(real: Realizer): boolean {
+    return real.type === "UMLClassNode" || real.type === "UMLNoteNode";
+}
+
+/**
+ * The edge realizers whose line runs straight from each end toward its first point: a polyline, a generic (framed)
+ * edge, and a quad curve, whose first and last legs are straight from the ends to their middles.
+ */
+const STRAIGHT_FROM_ENDS: ReadonlySet<string> = new Set(["PolyLineEdge", "GenericEdge", "QuadCurveEdge"]);
+
+/** How far inside a node's side a port must sit to be inside it, not on its outline. */
+const YED_PORT_SLACK = 1e-6;
 
 /** yEd's quad curve straightness when a file gives none. */
 const YED_STRAIGHTNESS = 0.1;
@@ -2817,6 +2919,44 @@ export function graphmlGroupBounds(snapshot: GraphSnapshot): Map<number, YedBox>
     );
 }
 
+/** How much darker, in each 0..255 channel, yEd paints an open group inside another group than its file's fill. */
+const YED_NESTED_GROUP_DARKER = 20;
+
+/**
+ * A put that paints an open group's fill as yEd 3.25 does inside another group: each channel 20 darker
+ * (yed-graphml-specimen-groups' #CAECFF inner group is drawn #B6D8EB; graphml-galaxy-lcms-workflow's and
+ * graphml-magiclantern-architecture's #F5F5F5 groups inside a group #E1E1E1), its border as stored. Only groups one
+ * level down are drawn in the oracles; deeper ones are painted the same.
+ * @param put - where the values go
+ * @returns the put
+ */
+function nestedGroupPut(put: PutValue): PutValue {
+    return (property, value) => {
+        const darker =
+            property === "fill" && typeof value === "string" && HEX_COLOR.test(value)
+                ? hexOf(channelsOf(value).map((c) => Math.max(0, c - YED_NESTED_GROUP_DARKER)))
+                : value;
+        put(property, darker);
+    };
+}
+
+/**
+ * The nodes yEd does not draw because a folder holding them is closed (a `y:ProxyAutoBoundsNode` whose active
+ * realizer's `y:State closed` is true): yEd draws the folder alone (graphml-synthetic-nodes' `grp-closed`).
+ * @param snapshot - the graph, its nesting in the `parent` node role
+ * @returns the hidden nodes' indices
+ */
+function closedFolderMembers(snapshot: GraphSnapshot): Set<number> {
+    const columns = treeColumns(snapshot.nodes);
+    return foldedMembers(snapshot, (row) => {
+        const proxy = columns
+            .map((c) => treeChild(plainCell(snapshot.nodes.value(c, row)), "ProxyAutoBoundsNode"))
+            .find((p) => p !== undefined);
+        const real = proxy === undefined ? null : activeRealizer(proxy);
+        return real !== null && treeAttr(treeChild(real.r, "State"), "closed") === "true";
+    });
+}
+
 /**
  * The box a node takes in its group: its `y:Geometry` and its labels' boxes (`x` and `y` from the node's corner,
  * `width`, `height`), as yEd grows a group round its members' labels too (`graphml-yed-voctomix`'s group reaches 31.8
@@ -2879,6 +3019,13 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     // each node's center, width and height, read with the node, for its edges' routes; NaN without yEd graphics
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
     const groups = graphmlGroupBounds(snapshot);
+    const folded = closedFolderMembers(snapshot);
+    // the nodes whose outline is their box, where an edge from a port inside leaves the box
+    const boxOutlined = new Set<number>();
+    const parent = snapshot.nodes.byRole("parent");
+    const nestedRows = new Set(
+        [...groups.keys()].filter((row) => parent?.isSet(row) === true && typeof parent.value(row) === "number"),
+    );
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -2902,10 +3049,22 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
             const put: PutValue = (property, value) => {
                 out.put(i, property, value);
             };
+            // an edge between two folded nodes is folded away with them; one with an end outside the folder yEd draws
+            // to the folder, which a style cannot, so it is left as it is
+            if (
+                target === "node"
+                    ? folded.has(i)
+                    : folded.has(snapshot.edgeSource(i)) && folded.has(snapshot.edgeTarget(i))
+            ) {
+                put("visible", false);
+            }
             if (target === "node") {
                 const box = groups.get(i);
                 real = box === undefined ? real : realizerAt(real, box);
-                readNode(real, put, at, resources, icons);
+                readNode(real, box !== undefined && nestedRows.has(i) ? nestedGroupPut(put) : put, at, resources, icons);
+                if (boxOutline(real)) {
+                    boxOutlined.add(i);
+                }
                 const geometry = treeChild(real.r, "Geometry");
                 const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
                 boxes.set(
@@ -2914,7 +3073,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
                 );
             } else {
                 readEdge(real, put, at);
-                readEdgeRoute(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
+                readEdgeRoute(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put, boxOutlined);
                 readEdgeLabelPlace(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
             }
         }

@@ -26,6 +26,7 @@ import {
     LayoutEngine,
     layoutEngineInternals,
     type LayoutEngineStatics,
+    simpleLayoutInternals,
     StaticLayoutEngine,
 } from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
@@ -1534,6 +1535,16 @@ export class LayoutManager implements Manager {
 
         if (engine instanceof SnapshotLayoutEngine) {
             this.connectSnapshotEngine(type, engine);
+        }
+
+        // Under renderPath "batched" a static engine lays out every row of the graph, a row
+        // drawn with no Node included; under "objects" it publishes node by node, as before.
+        if (engine instanceof StaticLayoutEngine) {
+            simpleLayoutInternals.attachRows(
+                engine,
+                this.dataManager,
+                () => this.dataManager.renderLimits?.batched() ?? false,
+            );
         }
 
         if (engine) {

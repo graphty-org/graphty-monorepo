@@ -203,7 +203,11 @@ function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): str
  * @returns The sampler names.
  */
 function joinedLineSamplers(options: JoinedLineOptions): string[] {
-    return options.pulled === true ? ["rowPosition", "edgeRows"] : [];
+    if (options.pulled !== true) {
+        return [];
+    }
+
+    return options.pulledCurve === true ? ["rowPosition", "edgeRows", "edgeRoutes"] : ["rowPosition", "edgeRows"];
 }
 
 interface LineGeometry {

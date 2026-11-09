@@ -2307,6 +2307,14 @@ export interface UnionLeaf {
      * loaded). A visibility filter condition must read `"graph"`.
      */
     readonly within: "graph" | "visible";
+    /**
+     * Narrows the base to the nodes and edges these loads supplied (`session.data.sources()`
+     * keys, what `session.data.sourcesOf(id)` lists): a branch that starts with `"all"` starts
+     * with theirs, a step adds only theirs, and a reading's totals count only theirs. Absent:
+     * every load's. A load that is gone supplies nothing.
+     * @since 3.36.0
+     */
+    readonly sources?: readonly SourceKey[];
     /** The branches, in order. */
     readonly branches: readonly UnionBranch[];
 }
@@ -2563,6 +2571,19 @@ export interface FilterCondition {
      * @since 3.36.0
      */
     readonly name?: string;
+    /**
+     * The load the condition belongs to (`session.data.sources()` key): it judges only the nodes
+     * and edges that load supplied (`session.data.sourcesOf(id)`) and leaves every other load's
+     * elements as they are. A keep condition hides only that load's elements its rule does not
+     * match, an exclude condition hides only that load's matches, and a select condition selects
+     * only among that load's elements; `conditionCounts()` counts it over that load's elements.
+     * An element two loads supplied belongs to both. Absent: the condition judges every element.
+     * A load that is gone supplies nothing, so its conditions then do nothing. The `steps` view
+     * shows such a condition's rule without its load. To have a selection's totals read the same
+     * load, narrow its `union` leaf with {@link UnionLeaf.sources}.
+     * @since 3.36.0
+     */
+    readonly source?: SourceKey;
 }
 
 /**

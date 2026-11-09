@@ -146,6 +146,7 @@ import {
     EventCallbackType,
     EventOfType,
     EventType,
+    type LimitsWarningEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
@@ -261,6 +262,7 @@ import {
     setsNotifierOfSession,
 } from "./session/GraphSession";
 import { ISSUES_VALUE } from "./session/issues";
+import { DEFAULT_LIMITS, type LimitsOption, RenderLimits } from "./session/limits";
 import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
@@ -817,6 +819,8 @@ export class Graph implements GraphContext {
     #rowTable: RowTable | null = null;
     /** How nodes are drawn; see {@link Graph.setRenderPath}. */
     #renderPath: RenderPath = renderPathDefault.value;
+    /** The ceilings asked for through `limits`, and those in force on this render path. */
+    readonly #limits = new RenderLimits(this.#renderPath === "batched");
     /** The node batches, once the renderer is open on the `"batched"` path. */
     #nodeBatches: NodeBatches | null = null;
     /** What hover reads on the `"batched"` path. */
@@ -1042,6 +1046,10 @@ export class Graph implements GraphContext {
 
         // Initialize DataManager
         this.dataManager = new DataManager(this.eventManager, this.styles);
+        this.dataManager.renderLimits = {
+            ceilings: () => this.#limits.overrides,
+            batched: () => this.#renderPath === "batched",
+        };
 
         // ONE controller for the element, this graph and its session. Nothing is probed until
         // `start()` is called, which the element does from `connectedCallback`. No `minNodes`
@@ -1076,6 +1084,7 @@ export class Graph implements GraphContext {
             {
                 acceleration: this.acceleration,
                 xr: this.xrAvailability,
+                ceilings: this.#limits,
                 region: (polygon) => this.nodesInRegion(polygon),
                 store: laneStoreOf(this.dataManager),
                 features: () => requestedFeatures.get(this)?.(),
@@ -4691,10 +4700,77 @@ export class Graph implements GraphContext {
             throw new Error(`unknown render path "${String(path)}"`);
         }
 
+        if (path === "objects" && this.#renderPath === "batched") {
+            const refusal = this.#objectsRefusal();
+            if (refusal !== null) {
+                this.eventManager.emitGraphError(this, refusal, "other");
+                return;
+            }
+        }
+
         this.#renderPath = path;
+        this.#limits.honor(path === "batched");
+        if (path === "objects") {
+            this.#warnLimitsIgnored();
+        }
+
         if (this.#renderPathOpen) {
             this.#applyRenderPath();
         }
+    }
+
+    /**
+     * The ceilings asked for: honored under `"batched"`, set aside under `"objects"`.
+     * @returns The ceilings as given.
+     */
+    get limits(): Readonly<LimitsOption> {
+        return this.#limits.requested;
+    }
+
+    /**
+     * Ask for ceilings a load is refused above. Under `"objects"` the shipped ones stand, and
+     * `limits-warning` says so with `W_LIMITS_IGNORED`.
+     * @param value - The ceilings; a field left out keeps its default.
+     * @throws An Error when a value is not a whole number of at least 1.
+     */
+    setLimits(value: LimitsOption): void {
+        this.#limits.request(value);
+        this.#warnLimitsIgnored();
+    }
+
+    /** Say, as a code, that the ceilings asked for are not in force. */
+    #warnLimitsIgnored(): void {
+        if (this.#limits.ignored) {
+            this.eventManager.emit("limits-warning", {
+                code: "W_LIMITS_IGNORED",
+                params: { renderPath: this.#renderPath },
+            } satisfies Omit<LimitsWarningEvent, "type">);
+        }
+    }
+
+    /**
+     * Why the graph held now cannot move to `"objects"`, whose ceilings are the shipped ones.
+     * @returns The `E_TOO_LARGE` refusal, or null when it fits.
+     */
+    #objectsRefusal(): GraphtyError | null {
+        const nodes = this.dataManager.nodes.size;
+        const edges = this.dataManager.edges.size;
+        const over: ["nodes" | "edges", number, number][] = [
+            ["nodes", nodes, DEFAULT_LIMITS.renderCeiling],
+            ["edges", edges, DEFAULT_LIMITS.edgesDrawn],
+        ];
+        const found = over.find(([, count, limit]) => count > limit);
+        if (found === undefined) {
+            return null;
+        }
+
+        const [of, count, limit] = found;
+        return new GraphtyError({
+            code: "E_TOO_LARGE",
+            source: "view",
+            message: `render path "objects" holds at most ${limit} ${of}, and the graph holds ${count}`,
+            details: { limit, count, of, graph: { nodes, edges } },
+        });
     }
 
     /**

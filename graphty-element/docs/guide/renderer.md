@@ -116,6 +116,29 @@ picture or transparency, say) stays a mesh, and so do the other nodes of its sha
 const { batchedNodes, objectNodes } = element.rowCounts;
 ```
 
+### Loading more than 100,000 nodes
+
+A load past 100,000 nodes or 1,000,000 edges is refused with `E_TOO_LARGE`. On the batched path
+you can raise either number with `limits` (experimental):
+
+```html
+<graphty-element view-mode="2d" render-path="batched" layout="random"></graphty-element>
+<script type="module">
+    import "@graphty/graphty-element";
+    const graph = document.querySelector("graphty-element");
+    graph.limits = { renderCeiling: 1_000_000 };
+    const nodes = Array.from({ length: 1_000_000 }, (_, i) => ({ id: `n${i}` }));
+    await graph.session.data.addNodes(nodes);
+    console.log(graph.session.capabilities.limits.renderCeiling); // 1000000
+</script>
+```
+
+`session.capabilities.limits` always holds the numbers in force, and `capabilities:changed` fires
+when they change. On the default `"objects"` path `limits` is ignored, the element fires
+`limits-warning` with the code `W_LIMITS_IGNORED`, and the 100,000 and 1,000,000 stand. Changing
+`renderPath` to `"objects"` while the graph holds more than those is refused: the element fires
+`error` with `E_TOO_LARGE` and stays on `"batched"`.
+
 ## Smoothing (antialias)
 
 The canvas is drawn with 4x multisampling, which smooths the edges of lines and nodes. With very

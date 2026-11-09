@@ -30,10 +30,12 @@ export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX
 /**
  * The Data place, the left sidebar's data (data prototype spec sections 3.2 to 3.4): the graph's
  * name, then Sources, the selected source's Fields, and Filters (tier2-design.md section 1). In the
- * `selection-workspace` experiment the panel's first row is two tabs, Loaded (Sources, the server
- * form, Fields) and Calculated (the results), as Figma's panel tabs are; Filters sit under the tab
- * row in both tabs and stay put, since a filter tests loaded and calculated columns alike, and only
- * the chosen tab's body scrolls. The tab is the reader's, kept per project. Every
+ * `selection-workspace` experiment the panel's first row is two tabs, Sources and Calculated (the
+ * results), as Figma's panel tabs are (the owner, 2026-11-07); only the chosen tab's body scrolls.
+ * Sources holds Data sources, then each load as a section of its own: its node and edge rows, the
+ * columns its rows carry, and its own Filters, which judge only that load's elements. The filters
+ * of no load (made before a second load came, or from the toolbar with several loads) sit under
+ * Data sources. The tab is the reader's, kept per project. Every
  * fact is the element's (`data.sources()`, `data.attributes()`, `visibility.steps`); this only
  * arranges them. The selected source is the reader's pick, kept in the workspace store so a visit to
  * another place keeps it, and the newest load until they pick one; picking one also opens it in the
@@ -59,18 +61,14 @@ export function DataPlace(): React.JSX.Element {
     };
 
     const tab = useWorkspaceState((state) => state.dataTab);
-    const loaded = (
-        <>
-            <Sources sources={sources} selected={selected?.key} onSelect={select} />
-            <ServerPlace />
-            <Fields sources={sources} selected={selected} />
-        </>
-    );
+    const sourcesSection = <Sources sources={sources} selected={selected?.key} onSelect={select} />;
     if (session === null || !selectionWorkspaceOn(session)) {
         return (
             <section className="dp" aria-label="Data place">
                 <h2 className="dp-title">{graphName}</h2>
-                {loaded}
+                {sourcesSection}
+                <ServerPlace />
+                <Fields sources={sources} selected={selected} />
                 <FiltersSection />
             </section>
         );
@@ -90,13 +88,17 @@ export function DataPlace(): React.JSX.Element {
                 }}
             >
                 <Tabs.List aria-label="Data">
-                    <Tabs.Tab value="loaded">Loaded</Tabs.Tab>
+                    {/* The stored value stays "loaded": it is saved per project. */}
+                    <Tabs.Tab value="loaded">Sources</Tabs.Tab>
                     <Tabs.Tab value="calculated">Calculated</Tabs.Tab>
                 </Tabs.List>
-                {/* Under the tab row, so the tabs never move, and drawn for both tabs. */}
-                <FiltersSection />
                 <Tabs.Panel value="loaded" className="dp-tab-body">
-                    {loaded}
+                    {sourcesSection}
+                    {/* Each load's filters sit in its own section; with no load, or several, the
+                        filters of every load sit here, under Data sources. */}
+                    {sources.length === 1 ? null : <FiltersSection unscoped={sources.length > 1} />}
+                    <ServerPlace />
+                    <Fields sources={sources} selected={selected} filters />
                 </Tabs.Panel>
                 <Tabs.Panel value="calculated" className="dp-tab-body">
                     <ResultsList />

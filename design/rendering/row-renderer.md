@@ -719,6 +719,38 @@ holds the GLSL to it within 1e-4; `test/meshes/support-points.test.ts` settles a
 unit), drags a node and lets the points settle, then changes the law to forceAtlas2, at 0 pixels against
 `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, and bends.
 
+As built (stage 21, fourteenth pull request): a straight line through bends (`line.bends`) is pulled too, on
+`"batched"`, from the curve batch, as long as it is not also rounded (`line.bezier`) or a self-loop's ring. Its kind is
+8, and it is the one kind whose path the shader does not work out from the two rows: `Edge.pullSpan` cuts the path in
+doubles (`curvePathPoint`, the ends where it leaves its nodes and the bends between, as `placeBent` places them) and
+writes every point into a ROUTE TABLE (`edgeRoutes`, one (x, y, z) to a texel) that the curve batch keeps beside its
+piece table; the fourth texel of its piece is (endAt, the texel its points start at, 8, 0), and `pulledCurvePoint`
+reads point j from there. Blocks are handed out in powers of two (`PulledLineBatch.writeRoute`, `releaseRoute`), a
+move of either node writes them again, and the table doubles when it runs out. Where no bend clears both nodes, the
+line is drawn as it would be without them, as `transformEdgeMesh` draws it. One defect found on the way, on
+`"batched"` only: the camera frames the graph by `Edge.drawnCurve`, which for a pulled curve gave its points in
+doubles while the object path gives them in the 32-bit floats its slots hold, so the frame sat a last bit off
+(`ThreeDBends`: the view's y translation -0.68700176 against -0.68700153) and one sample flipped at the end of a
+dashed edge that is not pulled at all. The pulled points are now rounded to 32 bits there. A correction: the
+fourteenth pull request's first draft blamed that pixel on the 35-degree solid edge's source end and moved its points
+into the route table to cure it; the route table stays, as it gives the card the object path's exact points, but it
+was not what the pixel needed. `test/pulled-curve.test.ts` holds the mirror to the object path's points;
+`test/browser/pulled-curve-glsl.test.ts` holds the GLSL's read of the route table; `test/browser/pulled-curves-batched.test.ts`
+draws lines through bends at 0 pixels against `"objects"` on WebGL and WebGPU (SwiftShader), and render-parity's
+`ThreeDBends` is at 0 on both. Still an object edge: a curve with caps.
+
+As built (stage 21, fifteenth pull request, closing the stage): a curve with caps stays an object edge, and stage 21 adds
+no pulled cap. A correction to the plan for this pull request, from the code: a cap is not a curve kind but the same
+question as a cap on a straight line. `Edge.pullsLine` refuses any end that draws a cap or words (`noCap`), straight or
+curved, so a capped straight line is an object edge too; `PulledCapBatch` is built by no edge, only by
+`test/browser/pulled-arrow-caps.test.ts`, and throws while `pulledCapsOn` is off, which it is on every path. A pulled cap
+differs from the placed one by one anti-aliasing sample at its tip (stage 17), so it cannot reach 0 pixels, and turning
+it on is the owner's change in section 10. Under the stage's rule a kind stays an object edge until its parity passes, so
+a capped curve stays one with the capped straight line, and a pulled curve cap is built, on the curve batch's span and
+route table, only once that change is made. With that, every curve kind without caps is pulled on `"batched"`: lone and
+fanned curves, `fanSpacing`, `arcRadius`, gaps, raised and great-circle routes, the layout's routes, self-loop
+teardrops, support points and bends. The stage's 40 ms target stays missed by about 6 ms (ninth pull request).
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 
@@ -1116,6 +1148,19 @@ object per element. Stages 26 to 28 remove that reason.
   `session.capabilities` and `capabilities:changed` with `limits` are G2 of `cosmos-gap.md`. Stage 30 adds only `objectRows?` and
   `objectEdges?` to that option, and `W_OBJECT_CAP`. The app's `fitsInBrowser` and `isLarge` take limits as a
   parameter, because the start screens have no element.
+- **As G2 built it** (corrections to cosmos-gap.md section 3.2, which named no channel for the warning). The element had no
+  general `{ code, params }` warning event, so `W_LIMITS_IGNORED` arrives on a new element event, `limits-warning`
+  (`{ code, params }`, shaped like `layout-warning`); stage 30's `W_OBJECT_CAP` can use the same one. A refused switch to
+  `"objects"` is the existing `error` event, its `GraphtyError` carrying `E_TOO_LARGE` with the ingest's `details`
+  (`{ limit, count, of, graph }`). The capability type is published as `SessionCapabilities`. On a session with no renderer
+  (`createGraphSession({ limits })`) nothing draws, so the ceilings are held as given. The effective values live in
+  `RenderLimits` (`session/limits.ts`); the ingest host's `ceilings()` returns nothing while the defaults stand, so `Ingest`
+  still reads `DEFAULT_LIMITS` itself, and `batched()` is the render path alone (true under NullEngine too).
+- **G2 measured** (correction to cosmos-gap.md 3.2's "about 50 s" and 5.4's 850-920 MB heap). With `limits` raised under
+  `"batched"`, 200,000 nodes load (first frame 8.4 s on the RTX), but 500,000 nodes and both million-node rows end the
+  renderer process within about 20 s: its memory climbs past 4 GB, V8's pointer-compression heap cage, which
+  `--max-old-space-size` does not lift. That is about 8 KB of heap per node on the records path, roughly ten times the
+  estimate. The heap measurement and its fix stay with G9 and G11; a million rows cannot load before them.
 - With `"batched"`, that option loads a million nodes. `"objects"` with a higher limit refuses with `E_TOO_LARGE`: its heap reason stands.
   **The default stays 100,000** (section 10).
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or

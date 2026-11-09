@@ -277,6 +277,10 @@ export interface GraphtyElementJSXProps {
      */
     antialias?: Graphty["antialias"];
     /**
+     * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
+     */
+    limits?: Graphty["limits"];
+    /**
      * Sets the threshold and applies it immediately.
      *
      * A value that is not a whole number of 0 or more is reported and then ignored, leaving the
@@ -604,6 +608,10 @@ export interface GraphtyElementJSXProps {
     "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
+    /**
+     * Emitted when the `limits` the element was given are not in force: under `render-path="objects"`
+     */
+    "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
     /**

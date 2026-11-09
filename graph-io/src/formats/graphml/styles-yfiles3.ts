@@ -30,6 +30,7 @@ import {
     putBevelPaint,
     putEdgeLabelAt,
     putNodeDrawing,
+    putOutline,
     putPanelPaint,
     type PutValue,
     type SiteOf,
@@ -52,6 +53,7 @@ import {
     type UmlClass,
     umlDrawing,
 } from "./styles-yed-live-drawing.js";
+import { foldedMembers } from "./yed-group-bounds.js";
 
 /** How deep a chain of shared references is followed. */
 const MAX_REFERENCE_DEPTH = 16;
@@ -676,22 +678,25 @@ function readStyle26(refs: References, style: StyleObject, size: Size | null, pu
             readShinyPlateStyle(refs, style, size, put, at);
             return true;
         case "FlowchartNodeStyle": {
-            fill(prop(style, "fill") ?? FLOWCHART_FILL);
             const type = treeAttr(style.e, "type") ?? "";
+            const outline = type === "" || type === "annotation" ? null : configurationOutline(`flowchart.${type}`);
+            if (outline === null && type !== "" && type !== "annotation") {
+                noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, type.slice(0, MAX_STYLE_VALUE_LENGTH));
+            }
+            // its outline as yEd draws the type, kept to its own proportions in the middle of the box (yEd Live
+            // 8.5.16 draws start2 in a 56 x 36 box as a circle 36 across: yed-live-graphml-specimen-node-shapes-p3)
+            if (outline === null) {
+                put("shape", "rectangle");
+            } else {
+                putOutline(outline, size?.width ?? null, size?.height ?? null, put);
+            }
+            fill(prop(style, "fill") ?? FLOWCHART_FILL);
             // an annotation's box has no outline (its bracket is not drawn); a style without a type draws the same
             // box, outlined
             if (type === "annotation") {
                 put("borderWidth", 0);
             } else {
                 putStroke(strokeOf(refs, prop(style, "stroke") ?? BLACK), put, at);
-            }
-            const outline = type === "" || type === "annotation" ? null : configurationOutline(`flowchart.${type}`);
-            if (outline === null && type !== "" && type !== "annotation") {
-                noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, type.slice(0, MAX_STYLE_VALUE_LENGTH));
-            }
-            put("shape", outline?.shape ?? "rectangle");
-            if (outline?.points !== undefined) {
-                put("shapePoints", outline.points);
             }
             return true;
         }
@@ -1007,6 +1012,9 @@ const GROUP_FRAME = 4;
 /** yFiles' sides of a group's tab, in the order of `stripeFrame`. */
 const TAB_SIDES = ["TOP", "RIGHT", "BOTTOM", "LEFT"];
 
+/** A GroupNodeStyle's corner radius when the file sets none, as yEd Live 8.5.16 draws it. */
+const GROUP_CORNER_RADIUS = 4;
+
 /**
  * Reads what a GroupNodeStyle paints: its panel (`contentAreaFill`, white unset) as the node's fill, and the band its
  * tab leaves round the panel (`tabFill`, #AAAAAA unset), `tabHeight` (18 unset) deeper on the side of its `tabPosition`
@@ -1029,6 +1037,9 @@ function readGroupPanel(
 ): void {
     const tabFill = paintOf(refs, prop(style, "tabFill") ?? "#FFAAAAAA", null);
     const position = treeAttr(style.e, "tabPosition") ?? "TOP";
+    // its corners rounded by `cornerRadius`, 4 unset, collapsed or not (yed-live-graphml-specimen-groups-p2.svg:
+    // arcs of 4, of 12 for corner-radius-12, none for corner-radius-0)
+    putRounded(treeAttr(style.e, "cornerRadius"), GROUP_CORNER_RADIUS, put, at);
     putGroupIcon(refs, style, size, collapsed, position, put, at);
     if (collapsed) {
         putPaint(tabFill, "fill", "fillOpacity", put, at);
@@ -1165,15 +1176,16 @@ function readNodeStyle(
     if (readPictureStyle(refs, style, put, at)) {
         return;
     }
-    putPaint(
-        paintOf(refs, prop(style, "fill"), (g) => {
-            putGradient(refs, g, style.tag, put, at);
-        }),
-        "fill",
-        "fillOpacity",
-        put,
-        at,
-    );
+    const fill = paintOf(refs, prop(style, "fill"), (g) => {
+        putGradient(refs, g, style.tag, put, at);
+    });
+    if (fill === NULL) {
+        // `fill="{x:Null}"` paints nothing inside the outline (yed-live-graphml-specimen-node-fills-borders
+        // fill-null), not the reader's default white
+        noteAt(at("fill"), STYLE_ISSUE.NO_FILL, "{x:Null}");
+        put("fillOpacity", 0);
+    }
+    putPaint(fill, "fill", "fillOpacity", put, at);
     putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
     putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
@@ -1431,7 +1443,9 @@ function readEdgeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
     }
     const stroke = strokeOf(refs, prop(st, "stroke"));
     if (stroke === NULL) {
+        // no line, its arrowheads drawn as ever (yed-live-graphml-specimen-edges-lines stroke-null)
         noteAt(at("color"), STYLE_ISSUE.NO_STROKE, "{x:Null}");
+        put("opacity", 0);
     } else if (stroke !== null) {
         putPaint(stroke.color, "color", "opacity", put, at);
         put("width", canonNumber(stroke.width, at("width")));
@@ -1666,7 +1680,11 @@ function readEdgeGeometry(
         [s[0], s[1]],
         [t[0], t[1]],
     ];
-    if (!loop && st?.tag === "BezierEdgeStyle" && points.length > 0) {
+    if (!loop && st?.tag === "BezierEdgeStyle" && points.length === 2) {
+        // one cubic piece: drawn as that cubic through its two control points
+        put("curved", true);
+        put("bendCurve", "bezier");
+    } else if (!loop && st?.tag === "BezierEdgeStyle" && points.length > 0) {
         // its bends are the control points of cubic pieces from center to center, every third one on the curve
         // (yed-live-graphml-specimen-edges-lines.svg draws bezier-five through its third bend): flattened into points
         // on the curve, drawn straight between them, as yEd's BezierEdge
@@ -2686,12 +2704,18 @@ function readYfiles3Target(
         name === undefined ? undefined : plainCell(table.value(name, i));
     const expanded = isNode ? [...table].find((col) => col.meta.name === "Expanded")?.meta.name : undefined;
     const viewState = isNode ? [...table].find((col) => col.meta.name === "NodeViewState")?.meta.name : undefined;
+    const folded = collapsedMembers(snapshot);
     for (let i = 0; i < n; i++) {
         budget.spend(target, 1);
         const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
         const put: PutValue = (property, value) => {
             out.put(i, property, value);
         };
+        // an edge between two folded nodes is folded away with them; one with an end outside yEd Live draws to the
+        // group, which a style cannot, so it is left as it is
+        if (isNode ? folded.has(i) : folded.has(snapshot.edgeSource(i)) && folded.has(snapshot.edgeTarget(i))) {
+            put("visible", false);
+        }
         if (isNode) {
             const collapsed = cell(expanded, i) === false;
             const folder = collapsed ? folderLayout(cell(viewState, i)) : null;
@@ -2706,6 +2730,19 @@ function readYfiles3Target(
         }
     }
     return out.values;
+}
+
+/**
+ * The nodes yEd Live does not draw because a group holding them is collapsed (its `Expanded` data false): it draws
+ * the group alone (yed-live-graphml-specimen-groups-p3's and -p4's `group-collapsed`).
+ * @param snapshot - the graph, its nesting in the `parent` node role
+ * @returns the hidden nodes' indices
+ */
+function collapsedMembers(snapshot: GraphSnapshot): Set<number> {
+    const expanded = [...snapshot.nodes].find((col) => col.meta.name === "Expanded")?.meta.name;
+    return expanded === undefined
+        ? new Set()
+        : foldedMembers(snapshot, (row) => plainCell(snapshot.nodes.value(expanded, row)) === false);
 }
 
 /**

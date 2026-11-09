@@ -528,6 +528,10 @@ describe("yEd Live GraphML: edge geometry, stroke alpha and hollow arrows", () =
         expect(bezier.length).toBeGreaterThan(5);
         expect(bezier).toContainEqual([0.5, 0]);
         expect(edge("curved", "bezier-five")).toBe(false);
+        // one cubic piece (bezier's two bends) is drawn as that cubic, its bends its control points
+        expect(edge("bendCurve", "bezier")).toBe("bezier");
+        expect(edge("curved", "bezier")).toBe(true);
+        expect(String(edge("bends", "bezier")).split(" ")).toHaveLength(2);
     });
 
     it("starts and ends an edge at its sourceport and targetport, placed by their FreeNodePortLocationModelParameter", async () => {
@@ -652,6 +656,50 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         // a collapsed group has no panel: its face is the tab
         expect(p3.node("fill", "group-collapsed")).toBe("#c8c8c8");
         expect(p3.node("stripeFrame", "group-collapsed")).toBeNull();
+    });
+
+    it("keeps a flowchart type's outline to its own proportions in the middle of its box", async () => {
+        // yed-live-graphml-specimen-node-shapes-p3.svg: start2 in a 56 x 36 box is a circle 36 across, the
+        // off-page reference a pentagon 36 wide; a process box fills its box
+        const { node } = await sheet("specimen-node-shapes-p3.graphml");
+        expect(node("width", "flowchart-start2")).toBe(36);
+        expect(node("height", "flowchart-start2")).toBe(36);
+        expect(node("width", "flowchart-off-page-reference")).toBe(36);
+        expect(node("shape", "flowchart-start2")).toBe("ellipse");
+        expect(node("fill", "flowchart-start2")).toBe("#c8c8c8");
+        expect(node("borderColor", "flowchart-start2")).toBe("#505050");
+    });
+
+    it("paints no fill for a {x:Null} fill", async () => {
+        // yed-live-graphml-specimen-node-fills-borders.svg draws fill-null's rectangle with fill="none"
+        const { node } = await sheet("specimen-node-fills-borders.graphml");
+        expect(node("fillOpacity", "fill-null")).toBe(0);
+    });
+
+    it("paints no line for a {x:Null} edge stroke, and its arrowheads as ever", async () => {
+        // yed-live-graphml-specimen-edges-lines.svg draws stroke-null's target arrowhead and no line
+        const { edge } = await sheet("specimen-edges-lines.graphml");
+        expect(edge("opacity", "stroke-null")).toBe(0);
+        expect(edge("targetArrow", "stroke-null")).toBe("triangle");
+    });
+
+    it("rounds a group's corners by its cornerRadius, 4 unset", async () => {
+        // yed-live-graphml-specimen-groups-p2.svg and -p3.svg: arcs of 4 on every group, 12 and none where set
+        const p2 = await sheet("specimen-groups-p2.graphml");
+        expect(p2.node("shape", "corner-radius-12")).toBe("round-rectangle");
+        expect(p2.node("cornerRadius", "corner-radius-12")).toBe(12);
+        expect(p2.node("shape", "corner-radius-0")).toBe("rectangle");
+        const p3 = await sheet("specimen-groups-p3.graphml");
+        expect(p3.node("shape", "group-collapsed")).toBe("round-rectangle");
+        expect(p3.node("cornerRadius", "group-collapsed")).toBe(4);
+    });
+
+    it("draws nothing inside a collapsed group", async () => {
+        // yed-live-graphml-specimen-groups-p3.svg draws group-collapsed alone, without its member's circle
+        const p3 = await sheet("specimen-groups-p3.graphml");
+        expect(p3.node("visible", "group-collapsed-m0")).toBe(false);
+        expect(p3.node("visible", "group-collapsed")).toBeNull();
+        expect(p3.node("visible", "tab-height-30")).toBeNull();
     });
 
     it("draws the group's icon and its background at the tab, as yEd Live does", async () => {

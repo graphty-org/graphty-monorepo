@@ -1,6 +1,7 @@
 /**
- * A yEd GraphML folder whose active realizer is closed: yEd draws the folder alone, and nothing inside it
- * (graphml-synthetic-nodes' `grp-closed`, whose three members and the edge between two of them yEd 3.25 never draws).
+ * What yEd 3.25 draws of a yEd GraphML file where its drawing is not the file's values one for one: a folder whose
+ * active realizer is closed (graphml-synthetic-nodes' `grp-closed`, whose three members and the edge between two of
+ * them yEd never draws), a group inside another group, and a line with no color.
  */
 
 import { describe, expect, it } from "vitest";
@@ -83,5 +84,28 @@ describe("yEd GraphML closed folders", () => {
         const { nodes, edges } = await visible(doc(false));
         expect(Object.values(nodes).every((v) => v === null)).toBe(true);
         expect(edges).toEqual([null, null]);
+    });
+});
+
+describe("yEd GraphML lines with no color", () => {
+    it("paints neither the line nor its arrowheads of a LineStyle with hasColor false", async () => {
+        // yed-graphml-specimen-edges-lines line-has-color-false: yEd draws nothing between its two nodes
+        const text = `<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
+<key for="node" id="d6" yfiles.type="nodegraphics"/><key for="edge" id="d10" yfiles.type="edgegraphics"/>
+<graph edgedefault="directed" id="G">${shape("a", 0)}${shape("b", 100)}
+<edge source="a" target="b"><data key="d10"><y:PolyLineEdge><y:LineStyle hasColor="false" type="line" width="1.5"/><y:Arrows source="none" target="standard"/></y:PolyLineEdge></data></edge>
+<edge source="a" target="b"><data key="d10"><y:PolyLineEdge><y:LineStyle color="#FF0000" type="line" width="1.5"/><y:Arrows source="none" target="standard"/></y:PolyLineEdge></data></edge>
+</graph></graphml>`;
+        const r = await registry.importGraph(text, { format: "graphml", styles: true });
+        if (!r.styles) {
+            throw new Error("no styles");
+        }
+        const { styles } = r;
+        const edge = (property: "opacity" | "targetArrow"): unknown[] => [
+            ...resolveStyles(styles, "edge", property, r.snapshot),
+        ];
+        expect(edge("opacity")).toEqual([0, null]);
+        expect(edge("targetArrow")).toEqual(["none", "vee"]);
     });
 });

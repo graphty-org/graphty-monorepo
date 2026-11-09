@@ -44,7 +44,13 @@ import type { StyleTarget, StyleValue, StyleWorkBudget, StyleWriteCapabilities }
 import type { LossNote } from "../../types.js";
 import { YED_UML_STEREOTYPE_DROP, yedNodePicture, yedUmlClassPicture } from "./styles-yed-drawing.js";
 import { type BpmnDrawing, svgPicture, yedBpmnPicture } from "./styles-yed-live-drawing.js";
-import { YED_GROUP_INSETS, type YedBox, yedGroupBounds, type YedGroupFrame } from "./yed-group-bounds.js";
+import {
+    foldedMembers,
+    YED_GROUP_INSETS,
+    type YedBox,
+    yedGroupBounds,
+    type YedGroupFrame,
+} from "./yed-group-bounds.js";
 
 // ============================================================ the kept trees
 
@@ -2236,13 +2242,34 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("sourceArrowWidth", yedArrowWidth(treeAttr(arrows, "source")));
         put("targetArrowWidth", yedArrowWidth(treeAttr(arrows, "target")));
     }
+    if (treeAttr(line, "hasColor") === "false") {
+        // a line with no color paints neither itself nor its arrowheads (yed-graphml-specimen-edges-lines
+        // line-has-color-false: yEd draws nothing between the nodes); its labels are drawn as ever
+        noteAt(at("color"), STYLE_ISSUE.NO_STROKE, "hasColor=false");
+        put("opacity", 0);
+        put("sourceArrow", "none");
+        put("targetArrow", "none");
+    }
     put("curved", edgeCurved(real));
     if (real.type === "ArcEdge") {
         // yEd draws an arc edge as one quadratic Bezier between its ends (graphml-synthetic-edges' oracle fits one to
         // 1e-5 px), its control point the one bend `readEdgeRoute` puts
         put("bendCurve", "bezier");
     }
+    if (oneCubic(real)) {
+        put("bendCurve", "bezier");
+    }
     readLabels(treeChildren(r, "EdgeLabel"), false, put, at);
+}
+
+/**
+ * Whether an edge is a Bezier edge of one cubic piece: its two points are the control points of the cubic from end to
+ * end, drawn as that cubic (`bendCurve` bezier), not flattened (yed-graphml-specimen-edges-lines bezier).
+ * @param real - the edge realizer
+ * @returns true for a BezierEdge with two points
+ */
+function oneCubic(real: Realizer): boolean {
+    return real.type === "BezierEdge" && treeChildren(treeChild(real.r, "Path"), "Point").length === 2;
 }
 
 /**
@@ -2264,8 +2291,9 @@ function edgeCurved(real: Realizer): boolean | null {
         return false;
     }
     if (real.type === "BezierEdge") {
-        // a count of control points no run of cubic pieces takes is not flattened: its corners are rounded
-        return points > 0 && (points + 1) % 3 !== 0;
+        // one cubic piece is drawn as that cubic; a count of control points no run of cubic pieces takes is not
+        // flattened: its corners are rounded
+        return points === 2 || (points > 0 && (points + 1) % 3 !== 0);
     }
     const bent = points > 0;
     if (real.type !== "PolyLineEdge" && real.type !== "GenericEdge") {
@@ -2305,7 +2333,7 @@ function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, targ
     ]);
     if (real.type === "ArcEdge") {
         points = arcControl(treeChild(real.r, "Arc"), ends) ?? points;
-    } else if (points.length > 0 && (real.type === "BezierEdge" || real.type === "QuadCurveEdge")) {
+    } else if (points.length > 0 && !oneCubic(real) && (real.type === "BezierEdge" || real.type === "QuadCurveEdge")) {
         const controls = [ends[0], ...points, ends[1]];
         const curve =
             real.type === "BezierEdge"
@@ -2703,39 +2731,14 @@ function nestedGroupPut(put: PutValue): PutValue {
  * @returns the hidden nodes' indices
  */
 function closedFolderMembers(snapshot: GraphSnapshot): Set<number> {
-    const hidden = new Set<number>();
-    const parent = snapshot.nodes.byRole("parent");
     const columns = treeColumns(snapshot.nodes);
-    if (parent === null || columns.length === 0) {
-        return hidden;
-    }
-    const closed = new Map<number, boolean>();
-    const isClosed = (row: number): boolean => {
-        let known = closed.get(row);
-        if (known === undefined) {
-            const proxy = columns
-                .map((c) => treeChild(plainCell(snapshot.nodes.value(c, row)), "ProxyAutoBoundsNode"))
-                .find((p) => p !== undefined);
-            const real = proxy === undefined ? null : activeRealizer(proxy);
-            known = real !== null && treeAttr(treeChild(real.r, "State"), "closed") === "true";
-            closed.set(row, known);
-        }
-        return known;
-    };
-    for (let row = 0; row < parent.length; row++) {
-        // walk up the nesting; a cycle the file should not have ends the walk
-        const seen = new Set<number>([row]);
-        let p = parent.isSet(row) ? parent.value(row) : undefined;
-        while (typeof p === "number" && !seen.has(p)) {
-            if (isClosed(p)) {
-                hidden.add(row);
-                break;
-            }
-            seen.add(p);
-            p = parent.isSet(p) ? parent.value(p) : undefined;
-        }
-    }
-    return hidden;
+    return foldedMembers(snapshot, (row) => {
+        const proxy = columns
+            .map((c) => treeChild(plainCell(snapshot.nodes.value(c, row)), "ProxyAutoBoundsNode"))
+            .find((p) => p !== undefined);
+        const real = proxy === undefined ? null : activeRealizer(proxy);
+        return real !== null && treeAttr(treeChild(real.r, "State"), "closed") === "true";
+    });
 }
 
 /**

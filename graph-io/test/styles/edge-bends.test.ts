@@ -260,8 +260,8 @@ ${edge("a", "a", '<y:PolyLineEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x
             String(v)
                 .split(" ")
                 .map((p) => p.split(",").map(Number));
-        // the cubic's middle: half way, 30 of 100 above the line (y up), not at its control points 40 above
-        expect(pairs(bezier)).toContainEqual([0.5, 0.3]);
+        // one cubic piece is kept as its two control points, 40 above the line (y up), and drawn as that cubic
+        expect(bezier).toBe("0,0.4 1,0.4");
         // yEd curves a quad curve from the middle of its first leg to the middle of its last, straight from the ends:
         // its middle three quarters of the way to its control point, 75 above
         expect(pairs(quad)).toContainEqual([0.5, 0.75]);
@@ -271,8 +271,10 @@ ${edge("a", "a", '<y:PolyLineEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x
     });
 
     it("draws a flattened Bezier or quad curve straight through its points, and an arc as a quadratic curve through its apex", async () => {
-        // the flattened points lie on the curve: rounding their corners cut inside it
-        expect((await bends(doc, "graphml", "curved")).slice(1, 3)).toEqual([false, false]);
+        // the flattened points lie on the curve: rounding their corners cut inside it; one cubic piece is drawn as
+        // the cubic through its two control points (yed-graphml-specimen-edges-lines bezier)
+        expect((await bends(doc, "graphml", "curved")).slice(1, 3)).toEqual([true, false]);
+        expect((await bends(doc, "graphml", "bendCurve")).slice(1, 3)).toEqual(["bezier", null]);
         const arc = (point: string, arcTag: string): string =>
             doc.replace(
                 /<edge source="a" target="b"><data key="d10"><y:PolyLineEdge>.*?<\/edge>/,

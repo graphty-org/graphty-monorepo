@@ -2103,6 +2103,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             updateStyles: RENDER,
             setGraphContext: LIFECYCLE,
             setLayoutEngine: LIFECYCLE,
+            // Wiring the graph sets from its render path and `limits`; the project saves `limits` itself.
+            renderLimits: LIFECYCLE,
             init: LIFECYCLE,
             dispose: LIFECYCLE,
             bindSession: LIFECYCLE,

@@ -175,17 +175,20 @@ describe("AI command result codes", () => {
 
     it("AI_TOOL_UNKNOWN, AI_TOOL_INVALID_ARGUMENTS, AI_TOOL_FAILED and AI_TOOL_THREW name the tool", async () => {
         const cases = [
-            [call("nope"), "AI_TOOL_UNKNOWN", "nope"],
-            [call("addNode", { id: 7 }), "AI_TOOL_INVALID_ARGUMENTS", "addNode"],
-            [call("refuse"), "AI_TOOL_FAILED", "refuse"],
-            [call("explode"), "AI_TOOL_THREW", "explode"],
+            [call("nope"), "AI_TOOL_UNKNOWN", "nope", "AI_TOOL_UNKNOWN"],
+            [call("addNode", { id: 7 }), "AI_TOOL_INVALID_ARGUMENTS", "addNode", "AI_TOOL_INVALID_ARGUMENTS"],
+            // The tool failed without a code of its own, so there is no cause to name.
+            [call("refuse"), "AI_TOOL_FAILED", "refuse", "AI_TOOL_FAILED"],
+            [call("explode"), "AI_TOOL_THREW", "explode", undefined],
         ] as const;
-        for (const [response, code, tool] of cases) {
+        for (const [response, code, tool, cause] of cases) {
             mock.setResponse("go", response);
             const result = seen(await assistant().execute("go"));
             assert.isFalse(result.success, code);
             assert.strictEqual(result.code, code);
-            assert.deepEqual(result.params, { tool });
+            // The tool, and the call's own code (the cause) when it gave one.
+            assert.strictEqual(result.params?.tool, tool, code);
+            assert.strictEqual(result.params?.cause, cause, code);
         }
     });
 
@@ -342,7 +345,13 @@ describe("AI command result codes", () => {
     });
 
     it("AI_CONFIG_INVALID: enableAiControl rejects helpers that cannot run, and builds no assistant", async () => {
-        const graph = { aiManager: null } as unknown as Graph;
+        // A graph's methods with only the fields enableAiControl reads: no scene is needed, since it
+        // rejects before building anything.
+        const graph = Object.assign(Object.create(Graph.prototype) as Graph, {
+            aiManager: null,
+            aiGeneration: 0,
+            aiEnabling: Promise.resolve(),
+        });
 
         const error: unknown = await Graph.prototype.enableAiControl
             .call(graph, {

@@ -353,8 +353,10 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             counts: { nodes: nodeCount, edges: edgeCount, visibleNodes: nodeCount, visibleEdges: edgeCount },
             directed: false,
         },
-        // What the facts block reads: the node ids, in order, and how many there are.
+        // What the facts block reads: the node ids, in order, and how many there are. The history
+        // reads the counts, to tell whether a graph had arrived when it picked a conversation.
         data: {
+            statistics: () => ({ nodeCount, edgeCount }),
             attributes: () => [],
             snapshot: () => ({ nodeCount, ids: { idOf: (index: number) => nodeId(index) } }),
             fingerprint: () => `mock:${String(nodeCount)}:${String(edgeCount)}`,

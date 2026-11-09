@@ -1288,6 +1288,7 @@ export interface FilterCondition {
     readonly name?: string;
     readonly on: boolean;
     readonly rule: RuleTree;
+    readonly source?: SourceKey;
     readonly within?: FilterSelectWithin;
 }
 
@@ -7030,6 +7031,7 @@ export interface UnionLeaf {
     // (undocumented)
     readonly kind: "union";
     readonly side: "nodes" | "edges";
+    readonly sources?: readonly SourceKey[];
     readonly within: "graph" | "visible";
 }
 

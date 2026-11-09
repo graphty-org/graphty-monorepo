@@ -665,6 +665,24 @@ it, so some are drawn straight), drags a node, raises them to 0.6, straightens t
 against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or
 `supportModel`, a raised route the layout picks, bends and self-loops.
 
+As built (stage 21, eleventh pull request): a self-loop's teardrop (`edgeRoute.loopTeardrop`) is pulled too, on
+`"batched"`, from the curve batch, whatever its own curve or route asks for, as `Edge.bundleRoute` draws it:
+`EdgeMesh.pullsCurve` and `EdgeMesh.pulledBatch` take whether the edge is a loop, `Edge.pullsLine` no longer refuses
+one, and `Edge.pullCurve` hands `curveSpan` the loop's controls from its rank and count round its node
+(`DataManager.drawnBundle`) and its node's reach (`Edge.reachOf`). `edgeRoute.loopControls` is `loopTeardrop`'s
+control points, split out unchanged. The span gains `loop`, (x, y, k): the two controls' mean from the center and the
+share k of it they stand either side, turned a quarter, so the shader needs no sine; k is tan(sweep / 2), under
+tan(pi / 5). A teardrop needs three numbers and the fourth texel has two beside the kind, so its kind is 6 plus k:
+the fourth texel of a loop piece is (endAt, mean x, 6 + k, mean y). Its 24 samples are cut where they leave the node,
+as any route is; a teardrop's tip clears its node by construction, so the cut never falls back to the object path's
+circle (`createSelfLoopCurve`). A loop with bends (`line.bends`, the ring) or a dash stays an object edge, as before.
+`test/pulled-curve.test.ts` holds the mirror to `loopTeardrop`'s cut within 1e-9 on 400 seeded loops, one to seven on a
+node, round and stretched nodes; `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` gives one node three loops (two curved) and another four, drags a node,
+then gives the second a fifth, which narrows its loops' share, and takes it away, at 0 pixels against `"objects"`
+each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or `supportModel`, a raised route
+the layout picks, and bends.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

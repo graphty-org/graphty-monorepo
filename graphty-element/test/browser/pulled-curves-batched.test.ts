@@ -8,7 +8,8 @@
  * `sourceNodeGap`, `targetNodeGap`) is pulled too, and follows a new gap, one wide enough that a curve clears
  * neither gapped node and is drawn uncut between its bare ends. A curve raised off the map (`line.route` "arc") is
  * pulled too, and follows a new height (`line.arcHeight`), and so is a curve or a straight line on the great-circle
- * route (`line.route` "great-circle").
+ * route (`line.route` "great-circle"). A self-loop's teardrop is pulled too, and spreads round its node as the node
+ * gains a loop.
  * Stage 21 of design/rendering/row-renderer.md; the bar is its section 7.
  */
 
@@ -466,5 +467,67 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.equal(overBar(before.high, after.high), 0, "height 0.6");
         assert.equal(overBar(before.straight, after.straight), 0, "straight lines at height 0.6");
         assert.equal(overBar(before.flat, after.flat), 0, "height 0, drawn straight");
+    });
+
+    it("pull self-loops, curved or not, and spread them as their node gains one, drawing the objects path's picture", async () => {
+        /**
+         * Give node 4 three loops (two of them curved) and node 8 four, drag node 4, then give node 8 a fifth, which
+         * narrows the share of its loops round it, and take it away again.
+         * @param element - The element.
+         * @returns The pulled rows with the loops, and the pictures.
+         */
+        async function looped(
+            element: Graphty,
+        ): Promise<{ pulled: number; rest: Frame; dragged: Frame; five: Frame; four: Frame }> {
+            const loops = [4, 4, 4, 8, 8, 8, 8].map((id) => ({ src: id, dst: id }));
+            await element.session.data.addEdges(loops);
+            const data = element.graph.getDataManager();
+            const ids = (id: number): unknown[] => data.getEdgesBetween(id, id).map((edge) => edge.id);
+            await element.session.styles.add({
+                name: "loops",
+                target: "edge",
+                selector: { match: "ids", edges: [...ids(4), ...ids(8)] },
+                set: { "edge.arrowHead": "none" },
+            } as never);
+            await element.session.styles.add({
+                name: "curved loops",
+                target: "edge",
+                selector: { match: "ids", edges: ids(4).slice(1) },
+                set: { "edge.curvature": true },
+            } as never);
+            await settled(element);
+            const { pulledEdges: pulled } = element.graph.rowCounts;
+            const rest = await readCanvas(element.graph);
+            const dragged = await moved(element);
+            await element.session.data.addEdges([{ src: 8, dst: 8 }]);
+            const fifth = ids(8).at(-1);
+            await element.session.styles.add({
+                name: "fifth loop",
+                target: "edge",
+                selector: { match: "ids", edges: [fifth] },
+                set: { "edge.arrowHead": "none" },
+            } as never);
+            await settled(element);
+            const five = await readCanvas(element.graph);
+            await element.session.data.removeEdges([fifth as never]);
+            await settled(element);
+            return { pulled, rest, dragged, five, four: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await looped(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await looped(batched);
+        assert.equal(after.pulled, EDGES.length + 7, "the loops are pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length + 7, objectEdges: 0 });
+        const curveBatches = batched.graph.scene.meshes.filter((mesh) => mesh.name.endsWith("|curve"));
+        assert.lengthOf(curveBatches, 1, "the loops are drawn from the curves' batch");
+        assert.isAbove(overBar(before.four, before.five), 0, "a fifth loop spreads its node's loops");
+        assert.equal(overBar(before.rest, after.rest), 0, "at rest");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.five, after.five), 0, "with a fifth loop");
+        assert.equal(overBar(before.four, after.four), 0, "after it is removed");
     });
 });

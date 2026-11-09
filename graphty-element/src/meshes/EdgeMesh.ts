@@ -626,13 +626,14 @@ void main() {
 
     /**
      * Whether a pulled line is drawn from the curve batch: a curve (`line.bezier`), or a line its own style raises
-     * off the map or a globe (`line.route` "arc" or "great-circle"), straight or not.
+     * off the map or a globe (`line.route` "arc" or "great-circle"), straight or not, or a self-loop.
      * @param style - The resolved style.
+     * @param loop - Whether the edge is a self-loop, whose teardrop is a curve whatever its style.
      * @returns True for a pulled curve.
      */
-    static pullsCurve(style: EdgeStyleConfig): boolean {
+    static pullsCurve(style: EdgeStyleConfig, loop = false): boolean {
         const route = style.line?.route;
-        return style.line?.bezier === true || route === "arc" || route === "great-circle";
+        return loop || style.line?.bezier === true || route === "arc" || route === "great-circle";
     }
 
     /**
@@ -647,6 +648,7 @@ void main() {
      * @param style - The resolved style.
      * @param scene - The scene.
      * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
+     * @param loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
      * @returns The batch.
      */
     static pulledBatch(
@@ -655,11 +657,12 @@ void main() {
         style: EdgeStyleConfig,
         scene: Scene,
         rowPositions: () => BaseTexture,
+        loop = false,
     ): PulledLineBatch {
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
-        const curve = this.pullsCurve(style);
+        const curve = this.pullsCurve(style, loop);
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${curve ? "|curve" : ""}`;
         return cache.getPulledBatch(key, () => {
             const mesh = this.createStaticLine(options, style, scene, cache, false, curve ? "curve" : true);

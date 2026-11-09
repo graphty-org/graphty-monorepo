@@ -8,7 +8,14 @@
 import { assert, describe, it } from "vitest";
 
 import type { Xyz } from "../../src/meshes/edgeRoute";
-import { curvePathPoint, curveShape, type CurveSpan, curveSpan, PULLED_CURVE_GLSL } from "../../src/meshes/pulledCurve";
+import {
+    curvePathPoint,
+    curveShape,
+    type CurveSpan,
+    curveSpan,
+    loopShape,
+    PULLED_CURVE_GLSL,
+} from "../../src/meshes/pulledCurve";
 
 const VERTEX = `#version 300 es
 precision highp float;
@@ -106,9 +113,27 @@ function asks(): Ask[] {
     while (out.length === 0 || new Set(out.map((a) => a.dst)).size < 200) {
         // a lone curve, a fanned arc, a center arc (`line.arcRadius`), a gapped lone curve and a raised arc
         // (`line.route` "arc"), a gapped straight line raised in an arc, flat at times, and a great-circle arc over a
-        // globe centered on the origin (`line.route` "great-circle"), curved or straight, in turn
-        const kind = Math.floor(random() * 7);
+        // globe centered on the origin (`line.route` "great-circle"), curved or straight, and a self-loop's teardrop,
+        // in turn
+        const kind = Math.floor(random() * 8);
         const scale = [2, 10, 40][out.length % 3];
+        if (kind === 7) {
+            const centre = { x: (random() - 0.5) * scale, y: (random() - 0.5) * scale, z: (random() - 0.5) * scale };
+            const r = random() * scale * 0.3;
+            const count = 1 + Math.floor(random() * 7);
+            const loop = loopShape(Math.floor(random() * count), count, () => r);
+            const around = (x: number, y: number, z: number): boolean => {
+                const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
+                return d > 0 && d > r;
+            };
+            const span = curveSpan(centre, centre, around, around, { loop });
+            for (let j = 0; span !== null && j <= span.pieces; j++) {
+                out.push({ src: centre, dst: { ...centre }, span, j });
+            }
+
+            continue;
+        }
+
         const src =
             kind === 6
                 ? { x: (random() - 0.5) * scale, y: (random() - 0.5) * scale, z: (random() - 0.5) * scale }
@@ -172,6 +197,7 @@ describe("the pulled curve's GLSL", () => {
             "some raised straight lines are drawn straight between their bare ends",
         );
         assert.isAbove(all.filter((a) => (a.span.angle ?? 0) > 0).length, 0, "some great-circle arcs are drawn cut");
+        assert.isAbove(all.filter((a) => a.span.loop !== null).length, 0, "some self-loops are drawn");
         const got = shaderPoints(all);
         let worst = 0;
         all.forEach(({ src, dst, span, j }, i) => {

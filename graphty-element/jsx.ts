@@ -272,6 +272,11 @@ export interface GraphtyElementJSXProps {
      */
     renderPath?: Graphty["renderPath"];
     /**
+     * Sets whether the canvas multisamples. Once the engine is built a different value changes
+     * nothing and raises `W_ANTIALIAS_LATE`.
+     */
+    antialias?: Graphty["antialias"];
+    /**
      * Sets the threshold and applies it immediately.
      *
      * A value that is not a whole number of 0 or more is reported and then ignored, leaving the
@@ -534,6 +539,7 @@ export interface GraphtyElementJSXProps {
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     /**
      * Emitted when user input on the canvas is switched on or off, by `setInputEnabled`.
      */

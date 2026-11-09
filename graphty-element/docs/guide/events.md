@@ -349,6 +349,12 @@ element.addEventListener("graphty-note-change", (e) => {
 On the session the same change is `note:changed`, whose payload also carries the frozen record as
 `note`. See [Notes](./notes#hearing-about-changes).
 
+### graphty-warning
+
+A notice that stops nothing, as a code and its parameters (`e.detail.code`, `e.detail.params`).
+Today the one code is `W_ANTIALIAS_LATE`: `antialias` was changed after the engine was built. See
+[Renderer](./renderer#smoothing-antialias).
+
 ### style-changed
 
 A layer was added, changed, removed or moved. One event per EDIT rather than one per layer,

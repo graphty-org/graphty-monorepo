@@ -43,6 +43,7 @@ import type { PartialXRConfig } from "./config/xr-config-schema";
 import { CredentialStore } from "./credentials/CredentialStore";
 import { DataSource } from "./data/DataSource";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
+import type { GraphtyWarningCode } from "./errors/codes";
 import { isGraphtyError } from "./errors/GraphtyError";
 import {
     type GraphtyForwardedEventMap,
@@ -114,6 +115,16 @@ const ELEMENT_SOURCE = "element-source";
 const ELEMENT_LAYOUT = "element-layout";
 
 /**
+ * The `antialias` attribute's value: only `"false"` turns multisampling off, and no attribute
+ * leaves it on.
+ * @param value - The attribute, or null when there is none.
+ * @returns Whether to multisample.
+ */
+function antialiasFromAttribute(value: string | null): boolean {
+    return value !== "false";
+}
+
+/**
  * A file name for an export in a format other than a project file: the project's name, or
  * "project" when it has none, and the format's extension.
  * @param name - the project's name.
@@ -180,6 +191,8 @@ export class Graphty extends LitElement {
     }
 
     #builtGraph: Graph | undefined;
+    /** The `antialias` property as set before the engine was built; undefined when it was not. */
+    #antialias: boolean | undefined;
     readonly #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
@@ -234,7 +247,11 @@ export class Graphty extends LitElement {
      */
     get #graph(): Graph {
         if (this.#builtGraph === undefined) {
-            const graph = new Graph(this.#element);
+            // Read here, the one moment the engine is built: an attribute anywhere in the tag is
+            // already present, though its own callback may not have run yet.
+            const graph = new Graph(this.#element, false, {
+                antialias: this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias")),
+            });
             this.#builtGraph = graph;
             waitFirstFor(
                 graph,
@@ -6127,6 +6144,50 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the canvas is drawn with multisampling (4x), which smooths the edges of lines and
+     * nodes. `false` turns it off: harder edges, and faster frames when there are very many edges.
+     * Nothing else about the picture changes. Read once, when the element builds its engine.
+     * @remarks
+     * Set it as an attribute, in any position in the tag, or as a property before using any other
+     * property or method of the element. A later change takes effect only on a new element and
+     * raises the warning `W_ANTIALIAS_LATE`, as a `graphty-warning` event.
+     * @experimental
+     * @example
+     * ```html
+     * <graphty-element render-path="batched" antialias="false"></graphty-element>
+     * ```
+     * @returns Whether the canvas multisamples; true by default.
+     */
+    @property({ attribute: "antialias", converter: { fromAttribute: antialiasFromAttribute } })
+    get antialias(): boolean {
+        return this.#builtGraph?.antialias ?? this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias"));
+    }
+    /**
+     * Sets whether the canvas multisamples. Once the engine is built a different value changes
+     * nothing and raises `W_ANTIALIAS_LATE`.
+     */
+    set antialias(value: boolean) {
+        const oldValue = this.antialias;
+        const built = this.#builtGraph;
+        if (built === undefined) {
+            this.#antialias = value;
+        } else if (value !== built.antialias) {
+            this.#warn({ code: "W_ANTIALIAS_LATE", params: { requested: value, active: built.antialias } });
+            return;
+        }
+
+        this.requestUpdate("antialias", oldValue);
+    }
+
+    /**
+     * Dispatches a warning as a `graphty-warning` event.
+     * @param warning - The code and its parameters.
+     */
+    #warn(warning: CodedFact<GraphtyWarningCode>): void {
+        this.dispatchEvent(new CustomEvent("graphty-warning", { detail: warning, bubbles: true, composed: true }));
+    }
+
+    /**
      * How many nodes and edges each render path is drawing, as of the last frame.
      * @returns The counts.
      */
@@ -6345,6 +6406,7 @@ declare global {
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
+        "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
     }
 
     // Every one bubbles and is composed, so a listener on the document is typed the same way.
@@ -6371,6 +6433,7 @@ declare global {
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
+        "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
     }
 }
 

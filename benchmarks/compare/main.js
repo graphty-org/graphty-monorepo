@@ -445,11 +445,29 @@ async function addShapeStyles(el, mode, curves) {
         });
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, curves, renderPath, renderer }) {
+async function graphtyAdapter({
+    mode,
+    accel,
+    onDemand,
+    dpr,
+    labels,
+    sampled,
+    glyphs,
+    curves,
+    renderPath,
+    renderer,
+    antialias,
+}) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
     const el = document.createElement("graphty-element");
     el.style.cssText = "display:block;width:1200px;height:900px";
+    // First, before any other property builds the engine, which reads it only then.
+    if (antialias !== undefined) {
+        if (!("antialias" in el))
+            throw new Error(`antialias ${antialias} requested, but this build has no antialias option`);
+        el.antialias = antialias;
+    }
     if (renderPath) {
         // The element ignores what it does not know, so without this a build that lacks the option
         // would be measured on its default path and recorded under the requested one.

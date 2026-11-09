@@ -950,12 +950,22 @@ export class Graph implements GraphContext {
     private activeCapture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture | null = null;
 
     /**
+     * Whether the canvas multisamples, as the engine was built: the constructor's `antialias`.
+     * Fixed for the life of the graph; WebGPU, when it opens, is built the same way.
+     * @experimental
+     */
+    readonly antialias: boolean;
+
+    /**
      * Creates a new Graph instance and initializes the rendering engine and managers.
      * @param element - DOM element or element ID to attach the graph canvas to
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
+     * @param options - How the engine is built; read once, here.
+     * @param options.antialias - Whether the canvas multisamples (4x). Left out, true.
      */
-    constructor(element: Element | string, useMockInput = false) {
+    constructor(element: Element | string, useMockInput = false, options: { readonly antialias?: boolean } = {}) {
         this.useMockInput = useMockInput;
+        this.antialias = options.antialias ?? true;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
 
@@ -1001,6 +1011,7 @@ export class Graph implements GraphContext {
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
             flushesFrameFence: this.#flushesFrameFence,
+            antialias: this.antialias,
         });
 
         this.basemapManager = new BasemapManager(
@@ -2137,7 +2148,11 @@ export class Graph implements GraphContext {
      */
     private async openWebGPU(requested: RendererRequest): Promise<void> {
         const canvas = this.createCanvas();
-        const opened = await openWebGPUEngine(canvas, (adapter) => this.acceleration.sharesDevice(adapter));
+        const opened = await openWebGPUEngine(
+            canvas,
+            (adapter) => this.acceleration.sharesDevice(adapter),
+            this.antialias,
+        );
         // Shut down while the engine was opening: nothing will ever dispose it but this.
         if (this.#teardown.signal.aborted) {
             if (typeof opened !== "string") {

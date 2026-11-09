@@ -1,7 +1,7 @@
 // BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [curves] [no-still] [no-move]
 // lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
-// unset, the element keeps its default. See RUNBOOK.md for the other variables.
+// unset, the element keeps its default. BENCH_ANTIALIAS=false sets antialias="false". See RUNBOOK.md for the others.
 import { execFileSync, execSync } from "node:child_process";
 import { appendFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -22,6 +22,7 @@ if (!BASE || !RESULTS) throw new Error("set BENCH_URL and BENCH_RESULTS");
 const DEADLINE_S = Number(process.env.BENCH_DEADLINE_S ?? 570);
 const RENDER_PATH = process.env.BENCH_RENDER_PATH || undefined;
 const RENDERER = process.env.BENCH_RENDERER || undefined;
+const ANTIALIAS = process.env.BENCH_ANTIALIAS === undefined ? undefined : process.env.BENCH_ANTIALIAS !== "false";
 const [lib, mode, accel, n, m, dpr, ...flags] = process.argv.slice(2);
 const skip = flags.includes("skip-layout"),
     labels = flags.includes("labels"),
@@ -87,6 +88,7 @@ const out = {
     accel,
     renderPath: lib === "graphty" ? RENDER_PATH : undefined,
     rendererRequest: lib === "graphty" ? RENDERER : undefined,
+    antialias: lib === "graphty" ? ANTIALIAS : undefined,
     n: N,
     m: M,
     dpr: DPR,
@@ -183,6 +185,7 @@ try {
                     curves,
                     renderPath: RENDER_PATH,
                     renderer: RENDERER,
+                    antialias: ANTIALIAS,
                     onDemand: !!process.env.LAYOUT_ONLY,
                 },
             ],

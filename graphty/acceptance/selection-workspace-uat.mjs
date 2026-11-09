@@ -139,8 +139,19 @@ class Visit {
         return { id, start, steps: [], color: await this.colorOf(at) };
     }
 
+    // A new card is drawn in its input's frame with no color (the neutral border) and takes the
+    // color graphty-element gives it once the edit is handed on, a frame and any transition later.
     async colorOf(at) {
-        return this.card(at).evaluate((c) => c.style.getPropertyValue("--cm-card-color").toUpperCase());
+        const card = await this.card(at).elementHandle();
+        const handle = await this.page.waitForFunction(
+            (c) => {
+                const color = c.style.getPropertyValue("--cm-card-color");
+                return color !== "" && color !== "var(--cm-border)" && color.toUpperCase();
+            },
+            card,
+            { timeout: SETTLE },
+        );
+        return handle.jsonValue();
     }
 
     // What the session holds for this visit: the layer's selector or the filter conditions.

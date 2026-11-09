@@ -8005,6 +8005,8 @@ export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
+    // @internal
+    columnFraming(): ColumnFraming | undefined;
     deriving: () => boolean;
     disableZoomToFit(): void;
     dispose(): void;

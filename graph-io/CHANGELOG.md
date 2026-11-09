@@ -1,3 +1,28 @@
+## 0.3.54 (2026-11-09)
+
+### 🚀 Features
+
+- **graph-format:** share the text grammar, the seeded generator and the plain-object check ([#736](https://github.com/graphty-org/graphty-monorepo/issues/736))
+- **graph-io:** publish the layout a file asks for as a typed fact ([#2496](https://github.com/graphty-org/graphty-monorepo/issues/2496))
+
+### 🩹 Fixes
+
+- **graph-io:** keep a negative cy_radius off the style numbers ([04a1bcea04](https://github.com/graphty-org/graphty-monorepo/commit/04a1bcea04))
+- **graph-io:** draw a vis-network top-left circularImage where vis-network draws it ([#4515](https://github.com/graphty-org/graphty-monorepo/issues/4515))
+- **graph-io:** draw nothing in a DOT table cell styled invis; read long wrapped labels whole ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247))
+- **graph-io:** turn a Pajek cross, man and woman by phi ([#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531))
+- **graph-io:** yEd BPMN data objects as folded pages; name short Cytoscape arrows in references ([#3113](https://github.com/graphty-org/graphty-monorepo/issues/3113))
+- **graphty-element:** draw an off-middle radial gradient, report a node image that fails to load ([#4515](https://github.com/graphty-org/graphty-monorepo/issues/4515))
+- **graph-io,graphty-element:** draw a Pajek ellipse turned by phi ([#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531), [#3113](https://github.com/graphty-org/graphty-monorepo/issues/3113))
+- **graph-io:** draw Cytoscape desktop's gradient and image custom graphics ([#4515](https://github.com/graphty-org/graphty-monorepo/issues/4515))
+- **graph-io:** draw no label on a laid-out gv2gml node written without one ([#5549](https://github.com/graphty-org/graphty-monorepo/issues/5549), [#5572](https://github.com/graphty-org/graphty-monorepo/issues/5572))
+- **graph-io,graphty-element:** round each program's corners by its own share of the shorter side ([#5544](https://github.com/graphty-org/graphty-monorepo/issues/5544))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.41
+- Updated graph-format to 1.5.0
+
 ## 0.3.53 (2026-11-02)
 
 ### 🚀 Features

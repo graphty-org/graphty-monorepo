@@ -1,3 +1,19 @@
+## 0.0.34 (2026-11-09)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** build the package before linting its consumer test ([c9fd8cdfdb](https://github.com/graphty-org/graphty-monorepo/commit/c9fd8cdfdb))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.67
+- Updated graph-samples to 0.1.45
+- Updated visual-review to 0.2.41
+- Updated graph-format to 1.5.0
+- Updated algorithms to 3.4.20
+- Updated graph-io to 0.3.54
+- Updated layout to 2.6.0
+
 ## 0.0.33 (2026-11-02)
 
 ### 🩹 Fixes

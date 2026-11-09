@@ -212,12 +212,12 @@ Tool values are elements drawn with the writing program's default.
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 117 | 0% | 0% | 0 | 1080 | 0 |  |
 | gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 7 | 5 | 87 | 0% | 0% | 0 | 812 | 0 |  |
 | gml/generated/graphics-mix.gml | ok | 60 | 60 | 4 | 1 | 234 | 78% | 0% | 0 | 0 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| gml/generated/graphty-written.gml | ok | 30 | 40 | 7 | 4 | 74 | 14% | 0% | 0 | 160 | 0 | W_STYLE_EXTRA_LABELS |
+| gml/generated/graphty-written.gml | ok | 30 | 40 | 7 | 4 | 74 | 14% | 0% | 0 | 230 | 0 | W_STYLE_EXTRA_LABELS |
 | gml/generated/igraph-flat-attributes.gml | ok | 20 | 25 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | gml/generated/networkx-graphics.gml | ok | 24 | 30 | 3 | 2 | 45 | 33% | 0% | 0 | 0 | 0 |  |
 | gml/generated/ogdf-escaped-labels.gml | ok | 25 | 35 | 10 | 6 | 67 | 18% | 4% | 0 | 240 | 0 |  |
 | gml/generated/tamper-block-truncated.gml | ok | 30 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
-| gml/generated/tamper-native-edited.gml | ok | 30 | 40 | 8 | 4 | 74 | 15% | 1% | 0 | 160 | 0 | W_STYLE_EXTRA_LABELS |
+| gml/generated/tamper-native-edited.gml | ok | 30 | 40 | 8 | 4 | 74 | 15% | 1% | 0 | 230 | 0 | W_STYLE_EXTRA_LABELS |
 | gml/generated/tamper-node-added.gml | ok | 31 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
 | gml/generated/yed-labels-and-arrows.gml | ok | 30 | 40 | 7 | 4 | 34 | 0% | 0% | 0 | 502 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | 5 | 3 | 165 | 12% | 4% | 0 | 9018 | 0 |  |

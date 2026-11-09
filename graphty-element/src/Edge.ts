@@ -1037,10 +1037,12 @@ export class Edge {
     get drawnCurve(): Vector3[] | null {
         const path = this.pulled?.path ?? null;
         if (path !== null) {
-            // a pulled curve's points, as its pieces place them (`meshes/pulledCurve.ts`)
+            // a pulled curve's points, as its pieces place them (`meshes/pulledCurve.ts`), in the floats the card
+            // holds them in, as the object path reads its slots: the camera frames the graph by these points, and a
+            // frame placed from doubles sits a last bit off the object path's and moves a sample (ThreeDBends)
             return Array.from({ length: path.span.pieces + 1 }, (_, j) => {
                 const { x, y, z } = curvePathPoint(path.src, path.dst, path.span, j);
-                return new Vector3(x, y, z);
+                return new Vector3(Math.fround(x), Math.fround(y), Math.fround(z));
             });
         }
 
@@ -2746,8 +2748,7 @@ export class Edge {
         const bends = span?.bends ?? null;
         const kept = pulled.route ?? null;
         // a line through bends' cut path itself, its ends and the bends between, placed in doubles as `placeBent`
-        // places them, so the card draws the very points the object path does: the ends placed on the card in floats
-        // miss them by a pixel of a wide line's end here and there (ThreeDBends)
+        // places them, so the card draws the very points the object path does
         const points =
             span === null || bends === null
                 ? null

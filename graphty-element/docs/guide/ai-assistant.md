@@ -1087,6 +1087,10 @@ sendButton.onclick = () => element.aiCommand(composer.value, spoken);
 A live conversation reaches the model as it is said, so `mode: "live"` beside `review` is refused
 (`AiConfigError`, field `"voice.review"`, reason `"needs-turns"`). The default sends on release.
 
+In an immersive (XR) session the page is out of sight, so `review` does not hold a press there: it
+sends on release, and its final `ai-voice-transcript` carries no `pointing`. A transcript with
+`pointing` is one waiting for you to send it.
+
 ### Pointing: "color this"
 
 While talk is held, the element records the nodes the pointer passes over, in order, and the

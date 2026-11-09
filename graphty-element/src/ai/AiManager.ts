@@ -133,6 +133,7 @@ export interface AiVoiceOptions {
      * True: a finished press sends nothing. Its final `ai-voice-transcript`, the press's only one,
      * carries the text and the pointing, for the application to show and then send with
      * `aiCommand(transcript, { via: "voice", pointing })`. Default false: a press sends on release.
+     * In an immersive (XR) session a press always sends on release, as the page is out of sight.
      * Needs `mode: "turns"` and the `assistant` experiment.
      * @experimental assistant
      */

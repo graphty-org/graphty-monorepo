@@ -577,7 +577,7 @@ export class VoiceSession {
             {
                 onTranscript: (transcript, isFinal) => {
                     // Reviewing, the press's one final transcript comes when it ends, with the pointing.
-                    const final = isFinal && this.host.options.review !== true;
+                    const final = isFinal && !this.reviewing();
                     this.host.emit("ai-voice-transcript", { transcript, isFinal: final });
                 },
                 onLevel: (level) => {
@@ -635,7 +635,7 @@ export class VoiceSession {
             return;
         }
 
-        if (this.host.options.review === true) {
+        if (this.reviewing()) {
             this.host.emit("ai-voice-transcript", {
                 transcript: end.text,
                 isFinal: true,
@@ -649,6 +649,15 @@ export class VoiceSession {
         if (!this.disposed) {
             await this.speak(result);
         }
+    }
+
+    /**
+     * Whether a press waits for the host to send it (`AiVoiceOptions.review`). Never in an immersive
+     * session: the page that would show the transcript is out of sight, so the press sends.
+     * @returns True while reviewing.
+     */
+    private reviewing(): boolean {
+        return this.host.options.review === true && !this.host.immersive();
     }
 
     /**

@@ -51,12 +51,14 @@ interface Harness {
  * @param options - The assistant's `voice`.
  * @param controllerOptions - Approvals or questions.
  * @param speech - How the fake page behaves.
+ * @param immersive - Whether an immersive session runs.
  * @returns The harness.
  */
 async function harness(
     options: AiVoiceOptions = {},
     controllerOptions: Pick<AiControllerOptions, "approvals" | "questions"> = {},
     speech: FakeSpeechOptions = {},
+    immersive = false,
 ): Promise<Harness> {
     const fake = installFakeSpeech(speech);
     const session = await assistantSession();
@@ -81,7 +83,7 @@ async function harness(
         emit: (type, detail) => heard.push([type, detail]),
         transcriber: () => ({ readiness: "unsupported" }),
         speaker: () => (engine.speak === undefined ? { readiness: "unsupported" } : { readiness: "ready", engine }),
-        immersive: () => false,
+        immersive: () => immersive,
     });
     const ends = (): number => heard.filter(([type]) => type === "ai-voice-end").length;
     const finished = (): number =>
@@ -169,6 +171,33 @@ describe("a press sends what was heard as a spoken command", () => {
         });
         await flushMicrotasks();
         assert.strictEqual(h.engine.requests.length, 0);
+    });
+
+    it("review holds a press on a flat page; in an immersive session, where the page is out of sight, it sends", async () => {
+        const flat = await harness({ review: true });
+        flat.voice.talk(true);
+        await vi.waitFor(() => {
+            assert.strictEqual(flat.fake.recognizers.length, 1);
+        });
+        flat.fake.recognizers[0]?.hear("how many nodes are there", true);
+        flat.voice.talk(false);
+        await vi.waitFor(() => {
+            assert.lengthOf(of(flat, "ai-voice-end"), 1);
+        });
+        await flushMicrotasks();
+        assert.strictEqual(flat.engine.requests.length, 0, "nothing was sent");
+        const held = of(flat, "ai-voice-transcript").filter((detail) => detail.isFinal === true);
+        assert.lengthOf(held, 1);
+        assert.isDefined(held[0]?.pointing, "the held transcript carries the pointing");
+
+        const xr = await harness({ review: true }, {}, {}, true);
+        xr.engine.push(textTurn("Five nodes."));
+        await xr.say("how many nodes are there");
+        assert.strictEqual(xr.engine.requests.length, 1, "the press sent its message");
+        assert.isTrue(
+            of(xr, "ai-voice-transcript").every((detail) => detail.pointing === undefined),
+            "no transcript waits to be sent",
+        );
     });
 
     it("talking is on from the press until the release, even while the release is still being written down", async () => {

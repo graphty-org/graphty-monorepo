@@ -461,6 +461,56 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* The shader editor's form: the top fields and its parameter rows. */
+.ws-shader-fields {
+    display: flex;
+    gap: 8px;
+}
+
+.ws-shader-fields > * {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.ws-param-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 104px minmax(0, 1fr) auto auto auto;
+    gap: 4px;
+    align-items: center;
+    padding: 2px 0;
+}
+
+.ws-param-cell {
+    min-width: 0;
+}
+
+.ws-param-gear {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ws-param-choices-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ws-param-choice-index {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+}
+
+/* A field a problem is about. The panel's fields have no error state of their own. */
+.ws-shader-form [data-invalid] input,
+.ws-shader-form [data-invalid] button,
+.ws-shader-form button[data-invalid],
+.ws-param-gear input[aria-invalid="true"],
+.ws-param-choices-edit[data-invalid] input {
+    outline: 1px solid var(--mantine-color-error);
+    outline-offset: -1px;
+}
+
 /* A shader's settings pop-out: the panel's property rows, with a label column of its own (the
    pop-out is outside the tab that sizes the tab's column). A number's name scrubs its value. */
 .ws-shader-params {

@@ -6,7 +6,7 @@ import React, { useEffect, useState } from "react";
 
 import { SettingsPopout } from "../options/SettingsPopout";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { type PasteInit, PasteShaderDialog } from "../style/PasteShaderDialog";
+import { type PasteInit, ShaderEditorDialog } from "../style/ShaderEditorDialog";
 import { ShaderGallery } from "../style/ShaderGallery";
 import { ShaderParams } from "../style/ShaderParams";
 import { copyShaderText } from "../style/shaderSlots";
@@ -166,7 +166,7 @@ export function BackgroundShader({
                 </SettingsPopout>
             )}
             {paste !== null && (
-                <PasteShaderDialog
+                <ShaderEditorDialog
                     session={session}
                     tab="background"
                     put={async (scope, id, values) => {

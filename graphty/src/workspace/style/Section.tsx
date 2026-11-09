@@ -9,9 +9,9 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
 import { shownChannel } from "./offered";
-import { type PasteInit, PasteShaderDialog } from "./PasteShaderDialog";
 import { Field, type RowContext } from "./PropertyRow";
 import { carriedOpacity, lineIn, partlySet, startingAdds, writeIn } from "./row";
+import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
 import { addShader, moveShader, shaderEntries, writeWireframe } from "./shaderSlots";
@@ -480,7 +480,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                 </Popout.Panel>
             </Popout>
             {code !== null && (
-                <PasteShaderDialog
+                <ShaderEditorDialog
                     session={ctx.session}
                     tab={tab}
                     put={(scope, id, params) => addShader({ ...ctx, session: scope }, id, params)}
@@ -555,7 +555,7 @@ export function AddButton({
     expanded,
     inRow = false,
 }: Readonly<{
-    kind: "node" | "edge";
+    kind: "node" | "edge" | "background";
     title: string;
     options: readonly AddOption[];
     onAdd: (key: string) => void;

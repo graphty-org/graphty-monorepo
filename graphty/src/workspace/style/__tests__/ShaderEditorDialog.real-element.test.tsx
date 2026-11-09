@@ -6,7 +6,7 @@
  * shaders, the history.
  */
 
-import { parseShaderText, shaderTemplate } from "@graphty/graphty-element/catalog";
+import { parseShaderText, shaderTemplate, splitShaderText } from "@graphty/graphty-element/catalog";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
@@ -29,7 +29,16 @@ declare module "vitest/browser" {
     }
 }
 
-/** A node shader whose body has a `while` loop, on line 7, column 5. */
+/**
+ * What the code box holds of a shader text: its body, as the form holds the header.
+ * @param text - the whole text.
+ * @returns the body.
+ */
+function bodyOf(text: string): string {
+    return splitShaderText(text).body;
+}
+
+/** A node shader whose body has a `while` loop, on line 7 of the text, line 3 of the body. */
 const WHILE_TEXT = `/* graphty-shader 1
 { "id": "user/pulse-ring", "name": "Pulse ring", "place": "around", "reach": 2,
   "params": [ { "name": "tint", "type": "color", "default": "#FFAA00" } ] }
@@ -123,6 +132,16 @@ async function previewPixels(): Promise<{ src: string; pixels: number[] }> {
     return { src: picture.src, pixels: [...(context?.getImageData(0, 0, bitmap.width, bitmap.height).data ?? [])] };
 }
 
+/**
+ * The open gear's Starts select: its input, not the listbox that shares the name.
+ * @returns the input.
+ */
+async function startsField(): Promise<HTMLElement> {
+    const named = await screen.findAllByLabelText(/^Starts/);
+    const [input] = named.filter((each) => each.tagName === "INPUT");
+    return input;
+}
+
 /** Waits for the checks to settle with Add enabled, then presses it. */
 async function pressAdd(): Promise<void> {
     await waitFor(() => {
@@ -160,17 +179,15 @@ describe("the code dialog on the real element", () => {
         const dialog = screen.getByRole("dialog", { name: "New shader" });
         const place = within(dialog).getByLabelText<HTMLInputElement>(/^Place/);
         assert.strictEqual(place.value, "On the node");
-        assert.strictEqual(box.value, shaderTemplate({ target: "node", place: "paint" }));
+        assert.strictEqual(box.value, bodyOf(shaderTemplate({ target: "node", place: "paint" })));
 
         // The template follows the field until the reader writes over it.
         await userEvent.click(place);
         await userEvent.click(await screen.findByRole("option", { name: "Behind" }));
         await waitFor(() => {
-            assert.strictEqual(box.value, shaderTemplate({ target: "node", place: "behind" }));
+            assert.strictEqual(box.value, bodyOf(shaderTemplate({ target: "node", place: "behind" })));
         });
-        const read = parseShaderText(box.value);
-        assert.isTrue(read.ok);
-        assert.strictEqual(read.ok ? read.registration.descriptor.place : undefined, "behind");
+        assert.strictEqual(place.value, "Behind");
     });
 
     it("a while loop shows one problem row on its line with Add disabled; fixed, Add puts it in the project and on the layer, and one Undo removes both", async () => {
@@ -187,13 +204,13 @@ describe("the code dialog on the real element", () => {
             assert.lengthOf(found, 1, "one problem row");
             return found;
         });
-        assert.include(rows[0]?.textContent ?? "", "Line 7:5");
+        assert.include(rows[0]?.textContent ?? "", "Line 3:5");
         assert.strictEqual(addButton().getAttribute("aria-disabled"), "true");
 
         // The row puts the cursor on its line.
         await userEvent.click(within(rows[0]).getByRole("button"));
         assert.strictEqual(document.activeElement, box);
-        assert.strictEqual(box.selectionStart, WHILE_TEXT.indexOf("while"));
+        assert.strictEqual(box.selectionStart, box.value.indexOf("while"));
         assert.strictEqual(JSON.stringify(session.styles.get(id)), before);
         assert.strictEqual(session.history.position, steps);
         assert.lengthOf(session.shaders.list(), 0);
@@ -230,9 +247,11 @@ describe("the code dialog on the real element", () => {
         await userEvent.click(row, { button: "right" });
         await userEvent.click(await screen.findByRole("menuitem", { name: "Duplicate and edit" }));
         await screen.findByRole("dialog", { name: "Edit shader" });
-        const box = await codeBox();
-        assert.include(box.value, '"user/uncertainty-aura"');
-        assert.include(box.value, '"Aura copy"', "the copy is named apart");
+        await codeBox();
+        const name = within(screen.getByRole("dialog", { name: "Edit shader" })).getByLabelText<HTMLInputElement>(
+            /^Name/,
+        );
+        assert.strictEqual(name.value, "Aura copy", "the copy is named apart");
         await pressAdd();
 
         await waitFor(() => {
@@ -259,7 +278,7 @@ describe("the code dialog on the real element", () => {
         });
 
         const again = await openNew();
-        assert.strictEqual(again.value, FIXED_TEXT);
+        assert.strictEqual(again.value, bodyOf(FIXED_TEXT));
     });
 
     it("Copy code puts its text on the clipboard; Control+V on the section opens it, and Add applies the preset instead of a copy", async () => {
@@ -285,7 +304,7 @@ describe("the code dialog on the real element", () => {
         within(section("node", "shaders")).getByRole("button", { name: "Add to node shaders" }).focus();
         await userEvent.keyboard("{Control>}v{/Control}");
         const box = await codeBox();
-        assert.strictEqual(box.value, text);
+        assert.strictEqual(box.value, bodyOf(text));
         await pressAdd();
 
         await waitFor(() => {
@@ -368,16 +387,16 @@ describe("the code dialog on the real element", () => {
             return shown;
         });
 
-        // A change typed into the box: the tint, from orange to blue.
-        const tint = box.value.indexOf("#FFAA00") + 1;
-        box.setSelectionRange(tint, tint + 6);
-        await userEvent.keyboard("0055FF");
+        // The tint, from orange to blue, through the row's color control.
+        const tint = within(dialog).getByRole("group", { name: "tint" });
+        const hex = within(tint).getByRole<HTMLInputElement>("textbox", { name: /^tint default/ });
+        await userEvent.tripleClick(hex);
+        await userEvent.keyboard("0055FF{Enter}");
         const second = await waitFor(async () => {
             const shown = await previewPixels();
             assert.notDeepEqual(shown.pixels, first.pixels, "the picture follows the edit");
             return shown;
         });
-        assert.include(box.value, '"#0055FF"', "the typed change is in the box");
 
         await userEvent.fill(box, COMPILE_TEXT);
         await waitFor(() => {
@@ -416,5 +435,198 @@ describe("the code dialog on the real element", () => {
         assert.strictEqual(addButton().getAttribute("aria-disabled"), "true");
         assert.deepEqual(usesOn(session, id), []);
         assert.lengthOf(session.shaders.list(), 0);
+    });
+
+    it("a filled row changes what is checked, and Add lists its parameters", async () => {
+        const { session } = await mount();
+        await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Add to node parameters" }));
+        const row = await within(dialog).findByRole("group", { name: "param1" });
+        const name = within(row).getByLabelText<HTMLInputElement>(/param1 name/);
+        await userEvent.fill(name, "glow");
+        await userEvent.tab();
+        await within(dialog).findByRole("group", { name: "glow" });
+        await pressAdd();
+        await waitFor(() => {
+            const id = session.shaders.list().at(0)?.id;
+            assert.deepEqual(
+                session.catalog
+                    .shaders()
+                    .find((each) => each.id === id)
+                    ?.params.map((param) => param.name),
+                ["tint", "glow"],
+            );
+        });
+    });
+
+    it("insert is disabled until the code box has focus, then writes the name at the cursor", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        const row = within(dialog).getByRole("group", { name: "tint" });
+        const insert = within(row).getByRole("button", { name: "Insert tint" });
+        assert.strictEqual(insert.getAttribute("aria-disabled"), "true");
+        await userEvent.click(box);
+        await waitFor(() => {
+            assert.isNull(insert.getAttribute("aria-disabled"));
+        });
+        const before = box.value;
+        box.setSelectionRange(0, 0);
+        await userEvent.click(insert);
+        await waitFor(() => {
+            assert.strictEqual(box.value, `tint${before}`);
+        });
+        assert.strictEqual(document.activeElement, box);
+    });
+
+    it("pasted full text fills the form and the box holds the body; an unreadable header lands in Full text", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.fill(box, FIXED_TEXT);
+        await waitFor(() => {
+            assert.strictEqual(box.value, bodyOf(FIXED_TEXT));
+        });
+        assert.strictEqual(within(dialog).getByLabelText<HTMLInputElement>(/^Name/).value, "Pulse ring");
+
+        const broken = "/* graphty-shader 1\n[1, 2]\n*/\nvec4 shade(NodeInput n) { return n.color; }\n";
+        await userEvent.fill(box, broken);
+        await waitFor(() => {
+            assert.strictEqual(box.value, broken);
+            assert.isNull(within(dialog).queryByLabelText(/^Name/), "Full text hides Name");
+        });
+        assert.strictEqual(
+            within(dialog).getByRole("button", { name: "Full text" }).getAttribute("aria-pressed"),
+            "true",
+        );
+    });
+
+    it("a row with min above max marks its gear and survives a Full text round trip", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        const halfTyped = `/* graphty-shader 1
+{ "id": "user/odd", "name": "Odd", "place": "around",
+  "params": [ { "name": "gain", "type": "number", "default": 1, "min": 5, "max": 2 } ] }
+*/
+vec4 shade(NodeInput n) { return n.color * gain; }
+`;
+        await userEvent.fill(box, halfTyped);
+        const gear = await within(dialog).findByRole("button", { name: "gain settings" });
+        await waitFor(() => {
+            assert.isNotNull(gear.getAttribute("data-invalid"), "the row's gear is marked");
+        });
+
+        await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
+        await waitFor(() => {
+            assert.include(box.value, '"min": 5');
+        });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
+        await waitFor(() => {
+            assert.isNotNull(
+                within(dialog).getByRole("button", { name: "gain settings" }).getAttribute("data-invalid"),
+                "still marked with the form shown",
+            );
+        });
+    });
+
+    it("a non-ASCII Name gives a problem row that opens Full text on that line", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.fill(within(dialog).getByLabelText<HTMLInputElement>(/^Name/), "Caf\u00e9");
+        const row = await waitFor(() => {
+            const found = dialog.querySelector<HTMLElement>('[data-code="shader.not-ascii"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(row);
+        await waitFor(() => {
+            assert.include(box.value, "graphty-shader 1", "the box shows the whole text");
+        });
+        assert.strictEqual(document.activeElement, box);
+    });
+
+    it("an empty Name still adds, under user/shader", async () => {
+        const { session } = await mount();
+        await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.fill(within(dialog).getByLabelText<HTMLInputElement>(/^Name/), "");
+        await pressAdd();
+        await waitFor(() => {
+            assert.strictEqual(session.shaders.list().at(0)?.id, "user/shader");
+        });
+    });
+
+    it("a Number row's Starts writes a clock, a Color row's adds range, and both survive Full text", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "tint settings" }));
+        await userEvent.click(await startsField());
+        await userEvent.click(await screen.findByRole("option", { name: "When selected" }));
+        await waitFor(() => {
+            assert.isNotNull(within(dialog).queryByText(/^Starts: When selected/));
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Close tint settings" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
+        await waitFor(() => {
+            const written = splitShaderText(box.value).draft?.params?.[0]?.default as Record<string, unknown>;
+            assert.strictEqual(written.by, "since.selected");
+            assert.deepEqual(written.domain, [0, 0.3]);
+            assert.lengthOf(written.range as string[], 2);
+        });
+    });
+
+    it("a Number row's Starts writes the clock with no range", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Add to node parameters" }));
+        await userEvent.click(await within(dialog).findByRole("button", { name: "param1 settings" }));
+        await userEvent.click(await startsField());
+        await userEvent.click(await screen.findByRole("option", { name: "When hovered" }));
+        await waitFor(() => {
+            assert.isNotNull(within(dialog).queryByText(/^Starts: When hovered/));
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Close param1 settings" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
+        await waitFor(() => {
+            assert.deepEqual(splitShaderText(box.value).draft?.params?.[1]?.default, {
+                by: "since.hovered",
+                domain: [0, 0.3],
+            });
+        });
+    });
+
+    it("Minimum size writes the key, and its field is absent at a place that cannot use it", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        assert.isNull(within(dialog).queryByLabelText(/^Minimum size/), "On the node has no minimum size");
+
+        const place = within(dialog).getByLabelText<HTMLInputElement>(/^Place/);
+        await userEvent.click(place);
+        await userEvent.click(await screen.findByRole("option", { name: "Around" }));
+        await userEvent.fill(await within(dialog).findByLabelText<HTMLInputElement>(/^Minimum size/), "12");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
+        await waitFor(() => {
+            assert.strictEqual(splitShaderText(box.value).draft?.minSize, 12);
+        });
+    });
+
+    it("Type a Name, choose Around: the box holds the ring starter and the Name stays", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        const name = within(dialog).getByLabelText<HTMLInputElement>(/^Name/);
+        await userEvent.fill(name, "Sun halo");
+        await userEvent.click(within(dialog).getByLabelText<HTMLInputElement>(/^Place/));
+        await userEvent.click(await screen.findByRole("option", { name: "Around" }));
+        await waitFor(() => {
+            assert.strictEqual(box.value, bodyOf(shaderTemplate({ target: "node", place: "around" })));
+        });
+        assert.strictEqual(name.value, "Sun halo");
     });
 });

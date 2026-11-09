@@ -6,9 +6,9 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import type { PasteInit } from "./PasteShaderDialog";
 import type { RowContext } from "./PropertyRow";
 import { type DataChoice, sourceName } from "./row";
+import type { PasteInit } from "./ShaderEditorDialog";
 import { PlaceDiagram } from "./ShaderGallery";
 import { ShaderParams } from "./ShaderParams";
 import {

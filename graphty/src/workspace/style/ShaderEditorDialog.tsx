@@ -1,0 +1,784 @@
+import { ModalFooter, PanelField, PanelLabelsProvider } from "@graphty/compact-mantine";
+import {
+    formatShaderDraft,
+    minSizeApplies,
+    SHADER_MIN_SIZE_RANGE,
+    SHADER_REACH_RANGE,
+    shaderIdForName,
+    type ShaderParams,
+    type ShaderPlace,
+    shaderPlaceUsesReach,
+    type ShaderProblem,
+    shaderTemplate,
+    type ShaderTextDraft,
+    splitShaderText,
+} from "@graphty/graphty-element/catalog";
+import type { GraphSession, ShaderAddResult } from "@graphty/graphty-element/session";
+import { Anchor, Button, Group, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+
+import { useWorkspace } from "../state/WorkspaceContext";
+import { PlaceDiagram } from "./ShaderGallery";
+import { GEAR_FIELDS, NumberTextField, ShaderParamRows } from "./ShaderParamRows";
+import {
+    DIALOG_PLACES,
+    dialogPlaceWords,
+    EDITOR_WORDS,
+    failureWords,
+    FIRST_PLACE,
+    GALLERY_WORDS,
+    PASTE_GUIDE_WORDS,
+    PASTE_WAIT_WORDS,
+    pasteProblemsWord,
+    pasteProblemWords,
+    shaderPlaceWords,
+    type ShaderTab,
+    targetOfPlace,
+} from "./words";
+
+/** The published guide to writing a shader, which the dialog links to. */
+const SHADER_GUIDE_URL = "https://graphty.app/docs/graphty-element/guide/shaders";
+
+/** How long typing pauses before the text is checked. */
+const CHECK_PAUSE_MS = 300;
+
+/**
+ * The working template for a place on a tab, from the element.
+ * @param tab - the tab.
+ * @param place - the place, none for the background.
+ * @returns the template's text.
+ */
+function templateOf(tab: ShaderTab, place: ShaderPlace | undefined): string {
+    const target = targetOfPlace(tab, place);
+    return shaderTemplate(target === "background" ? { target } : { target, place });
+}
+
+/** What the dialog opens with: text to start from, the place, and the shader it duplicates. */
+export interface PasteInit {
+    /** The text it loads; absent: the session's unsent draft, else the place's template. */
+    readonly text?: string;
+    /** The place it starts at (Duplicate and edit: the row's); absent: the tab's first place. */
+    readonly place?: ShaderPlace;
+    /** The shader this text is a copy of (Duplicate and edit): a pick equal to it still adds a copy. */
+    readonly duplicateOf?: string;
+}
+
+/** What the reader is editing: the header as written, the body, and the place shown. */
+interface EditorState {
+    readonly form: ShaderTextDraft;
+    readonly body: string;
+    /** The whole text while Full text is on; else null. */
+    readonly full: string | null;
+    readonly place: ShaderPlace | undefined;
+}
+
+/** The unsent work of each session's dialog, kept when it is closed without adding. */
+const drafts = new WeakMap<GraphSession, EditorState>();
+
+/**
+ * A place's starter, as the form holds it.
+ * @param tab - the tab.
+ * @param place - the place.
+ * @returns the state.
+ */
+function starterState(tab: ShaderTab, place: ShaderPlace | undefined): EditorState {
+    const { draft, body } = splitShaderText(templateOf(tab, place));
+    return { form: draft ?? {}, body, full: null, place };
+}
+
+/**
+ * Text arriving from outside the form: a header fills the form and the box takes the body, a
+ * header that is not a JSON object stays whole in Full text, and text with no header is body.
+ * @param text - the text.
+ * @param tab - the tab.
+ * @param current - the state it replaces.
+ * @returns the state.
+ */
+function stateFromText(text: string, tab: ShaderTab, current: EditorState): EditorState {
+    const parts = splitShaderText(text);
+    if (!parts.headed) {
+        return { ...current, full: null, body: text };
+    }
+    if (parts.draft === undefined) {
+        return { ...current, full: text };
+    }
+    const named = DIALOG_PLACES[tab].find((each) => each === parts.draft?.place);
+    return { form: parts.draft, body: parts.body, full: null, place: named ?? current.place };
+}
+
+/**
+ * A header moved from one starter to another: a key still as the old starter wrote it takes the
+ * new starter's value, and a key the reader changed stays.
+ * @param form - the header.
+ * @param from - the old starter's header.
+ * @param to - the new starter's header.
+ * @returns the header.
+ */
+function swapStarter(form: ShaderTextDraft, from: ShaderTextDraft, to: ShaderTextDraft): ShaderTextDraft {
+    const entries = [...new Set([...Object.keys(form), ...Object.keys(to)])].map((key) => [
+        key,
+        JSON.stringify(form[key]) === JSON.stringify(from[key]) ? to[key] : form[key],
+    ]);
+    return Object.fromEntries(entries.filter(([, value]) => value !== undefined)) as ShaderTextDraft;
+}
+
+/**
+ * The state after choosing a place. An untouched starter becomes the new place's starter; edited
+ * code stays, and takes the new starter's Reach when it has none.
+ * @param state - the state.
+ * @param tab - the tab.
+ * @param next - the place.
+ * @returns the state.
+ */
+function movedToPlace(state: EditorState, tab: ShaderTab, next: ShaderPlace): EditorState {
+    const starterText = templateOf(tab, state.place);
+    const nextText = templateOf(tab, next);
+    if (state.full !== null) {
+        const untouched = state.full.trim() === "" || state.full === starterText;
+        return { ...state, place: next, full: untouched ? nextText : state.full };
+    }
+    const from = splitShaderText(starterText);
+    const to = splitShaderText(nextText);
+    // The Minimum size field leaves with a place that cannot use it, and the key would be refused.
+    const form = minSizeApplies([next]) ? state.form : { ...state.form, minSize: undefined };
+    if (state.body.trim() === "" || state.body === from.body) {
+        return { ...state, place: next, body: to.body, form: swapStarter(form, from.draft ?? {}, to.draft ?? {}) };
+    }
+    const reach = to.draft?.reach;
+    const takesReach = shaderPlaceUsesReach(next) && form.reach === undefined && reach !== undefined;
+    return { ...state, place: next, form: { ...form, place: next, ...(takesReach ? { reach } : {}) } };
+}
+
+/**
+ * The header with a new Name: the hidden id follows it while it is still the one the old name or
+ * the starter gave, and any other id stays.
+ * @param form - the header.
+ * @param name - the new name.
+ * @param starterId - the current starter's id.
+ * @returns the header.
+ */
+function withName(form: ShaderTextDraft, name: string, starterId: unknown): ShaderTextDraft {
+    const previous = typeof form.name === "string" ? form.name : "";
+    const follows = form.id === shaderIdForName(previous) || form.id === starterId;
+    return { ...form, name: name === "" ? undefined : name, ...(follows ? { id: shaderIdForName(name) } : {}) };
+}
+
+/** Where a problem shows, besides the list. */
+type ProblemSite =
+    | { readonly kind: "line"; readonly line: number; readonly column: number }
+    | { readonly kind: "before"; readonly line: number; readonly column: number }
+    | { readonly kind: "field"; readonly field: string }
+    | { readonly kind: "param"; readonly index: number; readonly field: string }
+    | { readonly kind: "full" }
+    | { readonly kind: "plain" };
+
+/** The header keys the form has a field for, besides Place. */
+const FORM_KEYS: ReadonlySet<string> = new Set(["name", "reach", "minSize"]);
+
+/** The parameter fields the form shows. */
+const ROW_FIELDS: ReadonlySet<string> = new Set(["name", "type", "default", ...GEAR_FIELDS]);
+
+/**
+ * The row a problem's `param` names: `#<index>` for one with no name, else the last of that name.
+ * @param param - the name.
+ * @param form - the header.
+ * @returns the row's index, -1 for none.
+ */
+function rowOfProblem(param: unknown, form: ShaderTextDraft): number {
+    if (typeof param !== "string") {
+        return -1;
+    }
+    return param.startsWith("#")
+        ? Number(param.slice(1))
+        : (form.params ?? []).map((row) => row.name).lastIndexOf(param);
+}
+
+/**
+ * Where a parameter's problem belongs.
+ * @param problem - the problem.
+ * @param form - the header.
+ * @returns the site.
+ */
+function paramSite(problem: ShaderProblem, form: ShaderTextDraft): ProblemSite {
+    const index = rowOfProblem(problem.params.param, form);
+    const field = problem.code === "shader.reserved" ? "name" : String(problem.params.field);
+    return index >= 0 && ROW_FIELDS.has(field) ? { kind: "param", index, field } : { kind: "full" };
+}
+
+/**
+ * Where a header key's problem belongs.
+ * @param key - the key.
+ * @param inFull - whether Full text is on.
+ * @returns the site.
+ */
+function keySite(key: unknown, inFull: boolean): ProblemSite {
+    if (key === "place" || (!inFull && FORM_KEYS.has(String(key)))) {
+        return { kind: "field", field: String(key) };
+    }
+    return inFull ? { kind: "plain" } : { kind: "full" };
+}
+
+/**
+ * Where a problem belongs: a line of the box, a field of the form, or the list alone.
+ * @param problem - the problem.
+ * @param form - the header.
+ * @param bodyLine - the line of the composed text the body starts on.
+ * @param inFull - whether Full text is on.
+ * @returns the site.
+ */
+function siteOf(problem: ShaderProblem, form: ShaderTextDraft, bodyLine: number, inFull: boolean): ProblemSite {
+    const { line, column, key } = problem.params;
+    if (typeof line === "number") {
+        const at = typeof column === "number" ? column : 1;
+        if (inFull || line >= bodyLine) {
+            return { kind: "line", line: inFull ? line : line - bodyLine + 1, column: at };
+        }
+        return { kind: "before", line, column: at };
+    }
+    if (problem.code === "shader.place-unsupported") {
+        return { kind: "field", field: "place" };
+    }
+    if (problem.code === "shader.header-key") {
+        return keySite(key, inFull);
+    }
+    if (!inFull && (problem.code === "shader.param-invalid" || problem.code === "shader.reserved")) {
+        return paramSite(problem, form);
+    }
+    return { kind: "plain" };
+}
+
+/**
+ * The character offset of a 1-based line and column in text.
+ * @param text - the text.
+ * @param line - the line.
+ * @param column - the column.
+ * @returns the offset.
+ */
+function offsetOf(text: string, line: number, column: number): number {
+    let at = 0;
+    for (let n = 1; n < line; n++) {
+        const next = text.indexOf("\n", at);
+        if (next < 0) {
+            return text.length;
+        }
+        at = next + 1;
+    }
+    return Math.min(at + Math.max(column - 1, 0), text.length);
+}
+
+/** Props for ShaderEditorDialog. */
+interface ShaderEditorDialogProps {
+    readonly session: GraphSession;
+    /** The list it opens for: a tab's Shaders, or the Background. */
+    readonly tab: ShaderTab;
+    /**
+     * Writes a shader where the opening list draws it (a layer's row at the shader's own place,
+     * the background), through the scope given, so the add and the write are one undo step.
+     */
+    readonly put: (scope: GraphSession, id: string, params: ShaderParams) => Promise<void>;
+    readonly init: PasteInit;
+    readonly onClose: () => void;
+}
+
+/**
+ * The shader editor (New shader, or Edit shader for Duplicate and edit). Place comes first, with
+ * the words and diagrams of the tiles' place badges; Name, Reach, Minimum size and the parameter
+ * rows edit the header, and the code box holds only the body. The form and the body compose the
+ * shader text every check, the preview and Add use, so nothing can differ from a paste. Full text
+ * shows that whole text in the same box. Problems stay in a list and mark what they are about: a
+ * line of the box, a field, a parameter row. Add adds it to the project and puts it where the list
+ * draws it, as one undo step; text whose body equals a known shader's applies that one with the
+ * parameter values it differs by. Escape closes the dialog and keeps the work as an unsent draft.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.tab - the list it opens for
+ * @param props.put - writes a shader where the list draws it
+ * @param props.init - the text and place to start from
+ * @param props.onClose - closes the dialog
+ * @returns The dialog
+ */
+export function ShaderEditorDialog({
+    session,
+    tab,
+    put,
+    init,
+    onClose,
+}: Readonly<ShaderEditorDialogProps>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const problemsId = useId();
+    const places = DIALOG_PLACES[tab];
+    const [state, setState] = useState<EditorState>(() => {
+        const starter = starterState(tab, init.place ?? FIRST_PLACE[tab]);
+        return init.text === undefined ? (drafts.get(session) ?? starter) : stateFromText(init.text, tab, starter);
+    });
+    const { form, body, full, place } = state;
+    // The check of the text as it is now; null while it is pending.
+    const [result, setResult] = useState<ShaderAddResult | null>(null);
+    const [adding, setAdding] = useState(false);
+    // The last picture the element drew of text that passed: kept while the text does not.
+    const [drawn, setDrawn] = useState<Blob | undefined>(undefined);
+    // The element hands the same picture back for the same text, so a re-check makes no new address.
+    const picture = useMemo(() => (drawn === undefined ? undefined : URL.createObjectURL(drawn)), [drawn]);
+    // Whether the box has held focus since its text was last loaded, so its cursor means something.
+    const [hasCursor, setHasCursor] = useState(false);
+    const box = useRef<HTMLTextAreaElement>(null);
+    const fields = useRef<HTMLDivElement>(null);
+    // What to do with the box once the value just set has been drawn: place the caret.
+    const afterDraw = useRef<((area: HTMLTextAreaElement) => void) | null>(null);
+    const text = full ?? formatShaderDraft(form, body);
+    const bodyLine = useMemo(() => splitShaderText(text).bodyLine, [text]);
+    const boxValue = full ?? body;
+    const textNow = useRef(text);
+    textNow.current = text;
+    const target = targetOfPlace(tab, place);
+    const options = {
+        target,
+        ...(place === undefined || place === "group" ? {} : { place }),
+        onTaken: "rename",
+    } as const;
+
+    useEffect(() => {
+        setResult(null);
+        if (boxValue.trim() === "") {
+            return undefined;
+        }
+        const timer = setTimeout(() => {
+            void session.shaders.check(text, { ...options, picture: true }).then((checked) => {
+                if (textNow.current !== text) {
+                    return;
+                }
+                setResult(checked);
+                if (checked.ok && checked.picture !== undefined) {
+                    setDrawn(checked.picture);
+                }
+                // A place the text's own header names is where it draws: the field shows it.
+                const named = checked.ok ? checked.descriptor.place : undefined;
+                if (named !== undefined && named !== place && places.includes(named)) {
+                    setState((now) => ({ ...now, place: named }));
+                }
+            });
+        }, CHECK_PAUSE_MS);
+        return () => {
+            clearTimeout(timer);
+        };
+        // The options are the target and place, which the dependencies name; places follows tab.
+        // boxValue follows text, which is named.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [session, text, target, place]);
+
+    useEffect(
+        () => () => {
+            if (picture !== undefined) {
+                URL.revokeObjectURL(picture);
+            }
+        },
+        [picture],
+    );
+
+    useLayoutEffect(() => {
+        const area = box.current;
+        const act = afterDraw.current;
+        if (area !== null && act !== null) {
+            afterDraw.current = null;
+            act(area);
+        }
+    });
+
+    /**
+     * Loads text from outside the form, which ends the cursor's meaning unless the box still has focus.
+     * @param loaded - the text.
+     */
+    const load = (loaded: string): void => {
+        setState((now) => stateFromText(loaded, tab, now));
+        setHasCursor(document.activeElement === box.current);
+    };
+
+    const setForm = (next: ShaderTextDraft): void => {
+        setState((now) => ({ ...now, form: next }));
+    };
+
+    const typeInBox = (value: string): void => {
+        if (full !== null) {
+            setState((now) => ({ ...now, full: value }));
+        } else if (splitShaderText(value).headed) {
+            load(value);
+        } else {
+            setState((now) => ({ ...now, body: value }));
+        }
+    };
+
+    const caretAt =
+        (line: number, column: number) =>
+        (area: HTMLTextAreaElement): void => {
+            const at = offsetOf(area.value, line, column);
+            area.focus();
+            area.setSelectionRange(at, at);
+        };
+
+    const toggleFull = (): void => {
+        if (full === null) {
+            setState((now) => ({ ...now, full: text }));
+        } else {
+            load(full);
+        }
+    };
+
+    const insertName = (name: string): void => {
+        const area = box.current;
+        if (area === null) {
+            return;
+        }
+        const { selectionStart: start, selectionEnd: end } = area;
+        setState((now) => ({ ...now, body: now.body.slice(0, start) + name + now.body.slice(end) }));
+        afterDraw.current = (drawnArea) => {
+            drawnArea.focus();
+            drawnArea.setSelectionRange(start + name.length, start + name.length);
+        };
+    };
+
+    const copyCode = (): void => {
+        navigator.clipboard
+            .writeText(text)
+            .then(() => {
+                store.set({ announcement: EDITOR_WORDS.copied });
+            })
+            .catch(() => {
+                store.set({ notice: { message: EDITOR_WORDS.copyFailed, error: true } });
+            });
+    };
+
+    const focusSelector = (selector: string): void => {
+        const found = fields.current?.querySelector<HTMLElement>(selector);
+        const control = found?.matches("input, button") === true ? found : found?.querySelector("input, button");
+        (control as HTMLElement | null | undefined)?.focus();
+    };
+
+    const close = (added: boolean): void => {
+        if (added) {
+            drafts.delete(session);
+        } else {
+            drafts.set(session, state);
+        }
+        onClose();
+    };
+
+    let waitWord: string | undefined;
+    if (boxValue.trim() === "") {
+        waitWord = PASTE_WAIT_WORDS.empty;
+    } else if (result === null || adding) {
+        waitWord = PASTE_WAIT_WORDS.checking;
+    } else if (!result.ok) {
+        waitWord = pasteProblemsWord(result.problems.length);
+    }
+    // What the checks found is said once it is found, as the rows show it.
+    const found = result !== null && !result.ok ? pasteProblemsWord(result.problems.length) : undefined;
+    useEffect(() => {
+        if (found !== undefined) {
+            store.set({ announcement: found });
+        }
+    }, [store, found, result]);
+
+    const add = async (): Promise<void> => {
+        setAdding(true);
+        try {
+            const checked = await session.shaders.check(text, options);
+            if (!checked.ok) {
+                setResult(checked);
+                return;
+            }
+            const same = checked.sameAs;
+            if (same !== undefined && same.id !== init.duplicateOf) {
+                // At its own place: the text's header names it, or the field gave it to text that names none.
+                await put(session, same.id, same.params);
+                store.set({ announcement: `${checked.descriptor.plainName} added` });
+                close(true);
+                return;
+            }
+            const added = await session.shaders.add(text, options);
+            if (!added.ok) {
+                setResult(added);
+                return;
+            }
+            const { id } = added.descriptor;
+            // The write joins the add's step, so one Undo takes both back.
+            const { history } = session;
+            const step = history.steps[history.position - 1]?.id;
+            await session.transaction(
+                `Add the shader ${id}`,
+                // The writes reach only the parts a transaction scope has, never its history.
+                (tx) => put(tx as GraphSession, id, {}),
+                step === undefined ? undefined : { after: step },
+            );
+            store.set({ announcement: `${added.descriptor.plainName} added` });
+            close(true);
+        } catch (error) {
+            store.set({ notice: { message: failureWords("The shader", "added", error), error: true } });
+        } finally {
+            setAdding(false);
+        }
+    };
+
+    const problems = result !== null && !result.ok ? result.problems : [];
+    const invalid = problems.length > 0;
+    const sited = problems.map((problem) => ({ problem, site: siteOf(problem, form, bodyLine, full !== null) }));
+    const markedFields = new Set(sited.flatMap(({ site }) => (site.kind === "field" ? [site.field] : [])));
+    const paramMarks = sited.flatMap(({ site }) => (site.kind === "param" ? [site] : []));
+    // After every render, as the box is drawn: Mantine writes the attribute itself when it renders.
+    useLayoutEffect(() => {
+        if (invalid) {
+            box.current?.setAttribute("aria-describedby", problemsId);
+        } else {
+            box.current?.removeAttribute("aria-describedby");
+        }
+    });
+
+    const goToSite = (site: ProblemSite): void => {
+        if (site.kind === "line") {
+            if (box.current !== null) {
+                caretAt(site.line, site.column)(box.current);
+            }
+        } else if (site.kind === "before") {
+            afterDraw.current = caretAt(site.line, site.column);
+            setState((now) => ({ ...now, full: text }));
+        } else if (site.kind === "full") {
+            setState((now) => ({ ...now, full: text }));
+        } else if (site.kind === "field") {
+            focusSelector(`[data-field="${site.field}"]`);
+        } else if (site.kind === "param") {
+            const where = GEAR_FIELDS.has(site.field) ? "gear" : site.field;
+            focusSelector(`[data-param="${String(site.index)}"][data-field="${where}"]`);
+        }
+    };
+
+    const fieldMark = (field: string): { "data-field": string; "data-invalid"?: string } => ({
+        "data-field": field,
+        ...(markedFields.has(field) ? { "data-invalid": "" } : {}),
+    });
+    const usesReach = place !== undefined && shaderPlaceUsesReach(place);
+    const usesMinSize = place !== undefined && minSizeApplies([place]);
+    const starterId = splitShaderText(templateOf(tab, place)).draft?.id;
+    return (
+        <Modal
+            opened
+            onClose={() => {
+                close(false);
+            }}
+            title={init.duplicateOf === undefined ? EDITOR_WORDS.newTitle : EDITOR_WORDS.editTitle}
+            size="xl"
+        >
+            <Stack gap="xs" ref={fields} className="ws-shader-form">
+                <PanelLabelsProvider showLabels>
+                    <div className="ws-shader-fields">
+                        {places.length > 0 && (
+                            <div {...fieldMark("place")}>
+                                <PanelField
+                                    label={GALLERY_WORDS.place}
+                                    kind="select"
+                                    width="fill"
+                                    data-autofocus
+                                    aria-invalid={markedFields.has("place") ? true : undefined}
+                                    value={place ?? null}
+                                    data={places.map((each) => ({ value: each, label: dialogPlaceWords(each, tab) }))}
+                                    glyph={<PlaceDiagram place={place} tab={tab} />}
+                                    optionGlyphs={Object.fromEntries(
+                                        places.map((each) => [
+                                            each,
+                                            <PlaceDiagram key={each} place={each} tab={tab} />,
+                                        ]),
+                                    )}
+                                    onChange={(picked) => {
+                                        const next = places.find((each) => each === picked);
+                                        if (next !== undefined) {
+                                            setState((now) => movedToPlace(now, tab, next));
+                                        }
+                                    }}
+                                />
+                            </div>
+                        )}
+                        {full === null && (
+                            <>
+                                <div {...fieldMark("name")}>
+                                    <PanelField
+                                        label={EDITOR_WORDS.name}
+                                        width="fill"
+                                        aria-invalid={markedFields.has("name") ? true : undefined}
+                                        value={typeof form.name === "string" ? form.name : ""}
+                                        onChange={(next) => {
+                                            setForm(withName(form, String(next), starterId));
+                                        }}
+                                    />
+                                </div>
+                                {usesReach && (
+                                    <div {...fieldMark("reach")}>
+                                        <PanelField
+                                            label={EDITOR_WORDS.reach}
+                                            kind="number"
+                                            width="fill"
+                                            aria-invalid={markedFields.has("reach") ? true : undefined}
+                                            min={SHADER_REACH_RANGE.min}
+                                            max={SHADER_REACH_RANGE.max}
+                                            value={typeof form.reach === "number" ? form.reach : SHADER_REACH_RANGE.min}
+                                            onChange={(next) => {
+                                                setForm({ ...form, reach: Number(next) });
+                                            }}
+                                        />
+                                    </div>
+                                )}
+                                {usesMinSize && (
+                                    <div {...fieldMark("minSize")}>
+                                        <NumberTextField
+                                            label={EDITOR_WORDS.minSize}
+                                            value={form.minSize}
+                                            invalid={markedFields.has("minSize")}
+                                            range={SHADER_MIN_SIZE_RANGE}
+                                            onChange={(next) => {
+                                                setForm({ ...form, minSize: next });
+                                            }}
+                                        />
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </PanelLabelsProvider>
+                <Group align="flex-start" gap="xs" wrap="nowrap">
+                    <Textarea
+                        ref={box}
+                        style={{ flex: 1 }}
+                        aria-label={EDITOR_WORDS.code}
+                        data-autofocus={places.length === 0 ? true : undefined}
+                        autosize
+                        minRows={12}
+                        maxRows={24}
+                        spellCheck={false}
+                        styles={{ input: { fontFamily: "var(--mantine-font-family-monospace)", fontSize: 12 } }}
+                        value={boxValue}
+                        // Mantine's error state: the invalid look and aria-invalid. The problems that
+                        // describe it are tied to it below, as Mantine ties only an error text of its own.
+                        error={invalid}
+                        onFocus={() => {
+                            setHasCursor(true);
+                        }}
+                        onChange={(event) => {
+                            typeInBox(event.currentTarget.value);
+                        }}
+                    />
+                    {/* What the element draws of the text, framed by what it draws on; nothing reaches the graph until Add. */}
+                    {picture === undefined ? (
+                        <span className="ws-gallery-picture ws-paste-preview" aria-hidden />
+                    ) : (
+                        <img className="ws-gallery-picture ws-paste-preview" src={picture} alt={EDITOR_WORDS.preview} />
+                    )}
+                </Group>
+                <Group gap="xs" justify="space-between">
+                    <Group gap={4}>
+                        <Button size="xs" variant="subtle" aria-pressed={full !== null} onClick={toggleFull}>
+                            {EDITOR_WORDS.fullText}
+                        </Button>
+                        <Button size="xs" variant="subtle" onClick={copyCode}>
+                            {EDITOR_WORDS.copyCode}
+                        </Button>
+                    </Group>
+                    <Anchor href={SHADER_GUIDE_URL} target="_blank" rel="noopener noreferrer" size="xs">
+                        {PASTE_GUIDE_WORDS}
+                    </Anchor>
+                </Group>
+                {full === null && (
+                    <ShaderParamRows
+                        draft={form}
+                        tab={tab}
+                        marks={paramMarks}
+                        canInsert={hasCursor}
+                        onChange={setForm}
+                        onInsert={insertName}
+                    />
+                )}
+                {problems.length > 0 && (
+                    <div // NOSONAR(S6819): a list of block buttons and lines styled as one column; a ul would bring its own margin and bullets
+                        role="list"
+                        aria-label={EDITOR_WORDS.problems}
+                        className="ws-paste-problems"
+                        id={problemsId}
+                    >
+                        {sited.map(({ problem, site }, index) => (
+                            <div // NOSONAR(S6819): an item of the ARIA list above, which is a div for the same reason
+                                role="listitem"
+                                key={`${problem.code}:${String(index)}`}
+                            >
+                                <ProblemRow
+                                    problem={problem}
+                                    site={site}
+                                    onGo={() => {
+                                        goToSite(site);
+                                    }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </Stack>
+            <ModalFooter>
+                <Tooltip label={waitWord} disabled={waitWord === undefined}>
+                    <Button
+                        size="xs"
+                        data-disabled={waitWord === undefined ? undefined : true}
+                        aria-disabled={waitWord === undefined ? undefined : true}
+                        onClick={() => {
+                            if (waitWord === undefined) {
+                                void add();
+                            }
+                        }}
+                    >
+                        {EDITOR_WORDS.add}
+                    </Button>
+                </Tooltip>
+            </ModalFooter>
+        </Modal>
+    );
+}
+
+/**
+ * One row of the problem list: a button that goes where the problem belongs, or plain words.
+ * A problem only Full text can reach keeps its words as text, with a Full text button beside it.
+ * @param props - Component props
+ * @param props.problem - the problem
+ * @param props.site - where it belongs
+ * @param props.onGo - goes there
+ * @returns The row
+ */
+function ProblemRow({
+    problem,
+    site,
+    onGo,
+}: Readonly<{ problem: ShaderProblem; site: ProblemSite; onGo: () => void }>): React.JSX.Element {
+    const words = pasteProblemWords(problem);
+    if (site.kind === "plain") {
+        return (
+            <Text className="ws-paste-problem" data-code={problem.code}>
+                {words}
+            </Text>
+        );
+    }
+    if (site.kind === "full") {
+        return (
+            <Group gap={4} wrap="nowrap">
+                <Text className="ws-paste-problem" data-code={problem.code}>
+                    {words}
+                </Text>
+                <Button size="compact-xs" variant="subtle" onClick={onGo}>
+                    {EDITOR_WORDS.fullText}
+                </Button>
+            </Group>
+        );
+    }
+    const where =
+        site.kind === "line"
+            ? shaderPlaceWords({ ...problem, params: { ...problem.params, line: site.line } })
+            : shaderPlaceWords(problem);
+    return (
+        <UnstyledButton className="ws-paste-problem" data-code={problem.code} onClick={onGo}>
+            {where !== undefined && <b>{where}</b>}
+            <span>{words}</span>
+        </UnstyledButton>
+    );
+}

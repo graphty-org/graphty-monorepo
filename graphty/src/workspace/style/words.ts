@@ -1445,6 +1445,58 @@ export const OPTION_TILE_WORDS: Readonly<Record<"node" | "edge", string>> = {
     edge: "Line option",
 };
 
+/** The shader editor's words, each as a reader sees it. */
+export const EDITOR_WORDS = {
+    newTitle: "New shader",
+    editTitle: "Edit shader",
+    code: "Shader code",
+    preview: "Preview",
+    problems: "Problems",
+    add: "Add",
+    name: "Name",
+    reach: "Reach",
+    minSize: "Minimum size",
+    fullText: "Full text",
+    copyCode: "Copy code",
+    copied: "Shader code copied",
+    copyFailed: "The code could not be copied",
+    parameters: "Parameters",
+    unnamedParam: "Parameter",
+    displayName: "Display name",
+    min: "Min",
+    max: "Max",
+    step: "Step",
+    choices: "Choices",
+    varies: "Varies",
+    on: "On",
+    off: "Off",
+    starts: "Starts",
+    startsNone: "None",
+    from: "From",
+    to: "To",
+    insertNeedsCursor: "Click in the code first",
+    paramTypes: {
+        number: "Number",
+        integer: "Integer",
+        boolean: "Switch",
+        enum: "Choice",
+        color: "Color",
+    } as Readonly<Record<string, string>>,
+    seedChoices: ["One", "Two"],
+    nameOf: (param: string): string => `${param} name`,
+    typeOf: (param: string): string => `${param} type`,
+    defaultOf: (param: string): string => `${param} default`,
+    insert: (param: string): string => `Insert ${param}`,
+    settingsOf: (param: string): string => `${param} settings`,
+    closeSettings: (param: string): string => `Close ${param} settings`,
+    removeParam: (param: string): string => `Remove ${param}`,
+    choiceLabel: (param: string, index: number): string => `${param} choice ${String(index)}`,
+    removeChoice: (param: string, index: number): string => `Remove ${param} choice ${String(index)}`,
+    addChoice: (param: string): string => `Add a choice to ${param}`,
+    newChoice: (position: number): string => `Choice ${String(position)}`,
+    rangeColor: (param: string, at: number): string => `${param} color ${String(at + 1)}`,
+} as const;
+
 /** The code dialog's link to the published guide to writing a shader. */
 export const PASTE_GUIDE_WORDS = "How to write one";
 
@@ -1586,7 +1638,7 @@ export function effectOffWords(name: string): string {
 }
 
 /** The moments a clock counts from, as a bound parameter's value shows them. */
-const CLOCK_WORDS: Readonly<Record<string, string>> = {
+export const CLOCK_WORDS: Readonly<Record<string, string>> = {
     "since.matched": "When this layer starts applying",
     "since.unmatched": "When this layer stops applying",
     "since.selected": "When selected",

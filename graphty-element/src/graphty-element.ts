@@ -6137,7 +6137,7 @@ export class Graphty extends LitElement {
      * with an `error` event carrying `E_TOO_LARGE`, and the path stays `"batched"`.
      * `session.capabilities.limits` reports the limits in force.
      * @returns The limits asked for.
-     * @experimental
+     * @experimental cosmograph
      * @example
      * ```js
      * graph.renderPath = "batched";

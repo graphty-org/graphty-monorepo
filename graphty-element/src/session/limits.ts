@@ -123,7 +123,7 @@ export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
  * Honored under `render-path="batched"`, whose rows cost no meshes of their own; under
  * `"objects"` the {@link DEFAULT_LIMITS} stand, because their reason (the heap a node of meshes
  * costs) still holds there. A field left out keeps its default.
- * @experimental
+ * @experimental cosmograph
  */
 export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>;
 

@@ -467,7 +467,7 @@ export interface LayoutWarningEvent {
  * Emitted when the `limits` the element was given are not in force: under `render-path="objects"`
  * the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`). A code and its
  * parameters, never a sentence.
- * @experimental
+ * @experimental cosmograph
  */
 export interface LimitsWarningEvent {
     type: "limits-warning";

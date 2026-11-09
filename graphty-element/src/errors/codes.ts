@@ -770,7 +770,7 @@ export type GraphtyWarningCode =
     /**
      * The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
      * shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
-     * @experimental
+     * @experimental cosmograph
      */
     | "W_LIMITS_IGNORED"
     /**

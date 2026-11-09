@@ -126,7 +126,7 @@ import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange 
 export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
     /**
      * The limits in force.
-     * @experimental
+     * @experimental cosmograph
      */
     readonly limits: Readonly<DefaultableLimits>;
 };
@@ -4382,7 +4382,7 @@ export interface CreateGraphSessionOptions {
      * session with no renderer draws nothing, so it holds them as given; on the element,
      * `limits` is honored only under `render-path="batched"`. `capabilities.limits` reports
      * what is in force.
-     * @experimental
+     * @experimental cosmograph
      */
     readonly limits?: Readonly<LimitsOption>;
     /**

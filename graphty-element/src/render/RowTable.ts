@@ -45,6 +45,8 @@ const KNOWN = 8;
 export interface DrawnTarget {
     readonly table: RowTable;
     readonly device: GPUDevice;
+    /** A layout transition is drawing rows off their lanes: landings go up by upload, not by copy. */
+    readonly suspended?: boolean;
 }
 
 export interface RowExtent {
@@ -347,6 +349,16 @@ export class RowTable {
         this.copied = true;
         this.copies++;
         return true;
+    }
+
+    /**
+     * A layout published by upload after a landing was copied and before the repack: the copy no
+     * longer holds the lane, so the next repack sends every row it writes. Without this a settling
+     * batch that landed in the same frame as the last copy never went up, and the texture rested
+     * on the copied landing while the CPU copy held the settled rows.
+     */
+    dropCopy(): void {
+        this.copied = false;
     }
 
     /**

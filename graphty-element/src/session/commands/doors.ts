@@ -1946,6 +1946,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             paintedSourceMesh: READ,
             drawnByRowScan: READ,
             drawnInBatch: READ,
+            togglesOwnMeshes: READ,
             walksEachFrame: READ,
             drawInBatch: RENDER,
             drawnRayHit: READ,

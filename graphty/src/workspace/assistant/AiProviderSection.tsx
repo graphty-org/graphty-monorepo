@@ -214,6 +214,7 @@ export default function AiProviderSection({
             model,
             remember,
             ...(shownEffort === undefined ? {} : { effort: shownEffort }),
+            ...(saved?.sendSpoken === undefined ? {} : { sendSpoken: saved.sendSpoken }),
         };
         try {
             await link(element, store, choice, typed === "" ? undefined : typed);

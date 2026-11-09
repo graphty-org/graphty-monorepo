@@ -115,10 +115,19 @@ async function graph(count: number): Promise<NonNullable<HTMLElementTagNameMap["
 /**
  * The workspace with the panel open on a graph.
  * @param count - how many nodes.
+ * @param sendSpoken - whether what Talk heard is sent when the press ends; absent, the default.
  * @returns the store and the session.
  */
-async function openOn(count: number): Promise<{ store: WorkspaceStore; session: Awaited<ReturnType<typeof graph>> }> {
-    writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+async function openOn(
+    count: number,
+    sendSpoken?: boolean,
+): Promise<{ store: WorkspaceStore; session: Awaited<ReturnType<typeof graph>> }> {
+    writeAssistantChoice({
+        provider: "mock",
+        model: "mock",
+        remember: false,
+        ...(sendSpoken === undefined ? {} : { sendSpoken }),
+    });
     const store = createWorkspaceStore({ project: { name: "Check", id: 1 } });
     render(<Workspace store={store} />);
     await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
@@ -968,7 +977,7 @@ describe("checking what the Assistant says", () => {
 
     it("a click on Talk latches, and a click on Stop talking stops with the words in the composer", async () => {
         fakeSpeech();
-        await openOn(3);
+        await openOn(3, false);
         const talk = await screen.findByRole("button", { name: "Talk" });
         assert.strictEqual(talk.getAttribute("aria-pressed"), "false");
         await userEvent.click(talk);
@@ -997,7 +1006,7 @@ describe("checking what the Assistant says", () => {
 
     it("Stop talking goes back to Talk at once, while what was heard is still being written down", async () => {
         const finish = fakeSpeech(true);
-        await openOn(3);
+        await openOn(3, false);
         await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
         await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
         await screen.findByRole("button", { name: "Talk" });
@@ -1010,7 +1019,7 @@ describe("checking what the Assistant says", () => {
 
     it("a press ending while a later one listens leaves Stop talking working", async () => {
         const finish = fakeSpeech(true);
-        await openOn(3);
+        await openOn(3, false);
         await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
         await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
         await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
@@ -1080,9 +1089,9 @@ describe("checking what the Assistant says", () => {
         await finished();
     });
 
-    it("Talk lands the words in the composer without sending, and the sent message reads You (spoken)", async () => {
+    it("with Send when I stop talking off, Talk lands the words in the composer without sending, and the sent message reads You (spoken)", async () => {
         fakeSpeech();
-        await openOn(3);
+        await openOn(3, false);
         const talk = await screen.findByRole("button", { name: "Talk" });
         talk.focus();
         await userEvent.keyboard("{Enter}");
@@ -1103,6 +1112,56 @@ describe("checking what the Assistant says", () => {
         const message = within(log()).getByText("color these red");
         assert.isNotNull(message.querySelector("svg"));
         assert.strictEqual(sent[0].via, "voice");
+    });
+
+    it("by default sends what Talk heard when talking ends, as spoken, and leaves the composer empty", async () => {
+        fakeSpeech();
+        await openOn(3);
+        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        await screen.findByRole("heading", { name: "You (spoken)" });
+        assert.isNotNull(within(log()).getByText("color these red"));
+        await finished();
+        assert.strictEqual(model.asked, 1, "one message was sent");
+        assert.lengthOf(sent, 1);
+        assert.strictEqual(sent[0].via, "voice");
+        assert.strictEqual(screen.getByRole<HTMLTextAreaElement>("textbox", COMPOSER).value, "");
+    });
+
+    it("Send when I stop talking in the options takes effect on the next press, each way", async () => {
+        fakeSpeech();
+        await openOn(3);
+        const toggle = async (checked: boolean): Promise<void> => {
+            await userEvent.click(screen.getByRole("button", { name: /^Options/ }));
+            const item = await screen.findByRole("menuitemcheckbox", { name: "Send when I stop talking" });
+            assert.strictEqual(item.getAttribute("aria-checked"), String(checked));
+            await userEvent.click(item);
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("menu"));
+            });
+        };
+        const talkOnce = async (): Promise<void> => {
+            await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
+            await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+            await screen.findByRole("button", { name: "Talk" });
+        };
+        await screen.findByRole("button", { name: "Talk" });
+        await toggle(true);
+        await talkOnce();
+        const field = screen.getByRole<HTMLTextAreaElement>("textbox", COMPOSER);
+        await waitFor(() => {
+            assert.strictEqual(field.value, "color these red");
+        });
+        assert.strictEqual(model.asked, 0, "off: the words wait in the composer");
+
+        // Back on: the next press sends what the composer held with what it heard.
+        await userEvent.clear(field);
+        await toggle(false);
+        await talkOnce();
+        await screen.findByRole("heading", { name: "You (spoken)" });
+        await finished();
+        assert.strictEqual(model.asked, 1, "on: the press sent its words");
+        assert.strictEqual(field.value, "");
     });
 });
 

@@ -1,4 +1,5 @@
 import { EntityChip, MenuCheckItem, TargetTooltip, TooltipShortcut } from "@graphty/compact-mantine";
+import type { AiPointing } from "@graphty/graphty-element/ai";
 import { ActionIcon, Group, Indicator, Menu, Text, Textarea, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
@@ -52,8 +53,8 @@ interface OptionsProps {
 }
 
 /**
- * The cog at the composer's left: what to ask about, the effort level, and the model, which opens
- * Settings. A dot on the cog marks a message about the selection.
+ * The cog at the composer's left: what to ask about, the effort level, whether what Talk heard is
+ * sent when talking ends, and the model, which opens Settings. A dot on the cog marks a message about the selection.
  * @param props - Component props
  * @param props.choice - the provider and model
  * @param props.scope - what the next message is about
@@ -156,6 +157,16 @@ function Options({ choice, scope, running, model }: Readonly<OptionsProps>): Rea
                         </>
                     ) : null}
                     <Menu.Divider />
+                    <MenuCheckItem
+                        checked={choice.sendSpoken !== false}
+                        onClick={() => {
+                            // Read at the end of each press, so the next one goes the new way.
+                            writeAssistantChoice({ ...choice, sendSpoken: choice.sendSpoken === false });
+                        }}
+                    >
+                        {WORDS["assistant.talk.send"]}
+                    </MenuCheckItem>
+                    <Menu.Divider />
                     <Menu.Item
                         onClick={() => {
                             run("settings.assistant");
@@ -213,18 +224,21 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
             ? WORDS["assistant.composer.placeholder.selection"]
             : WORDS["assistant.composer.placeholder"];
     const placeholder = asking ? WORDS["assistant.composer.answer"] : about;
-    const submit = (): void => {
-        if (element === null || running || empty) {
+    const submitText = (text: string, said: { pointing?: AiPointing } | null): void => {
+        if (element === null || running || text.trim() === "") {
             return;
         }
         if (asking) {
-            void answerQuestion(element, store, choice, question.id, draft, draft);
+            void answerQuestion(element, store, choice, question.id, text, text);
             return;
         }
-        void send(element, store, choice, draft, {
+        void send(element, store, choice, text, {
             scope: scope.kind,
-            ...(spoken === null ? {} : { via: "voice" as const, ...spoken }),
+            ...(said === null ? {} : { via: "voice" as const, ...said }),
         });
+    };
+    const submit = (): void => {
+        submitText(draft, spoken);
     };
     const sendName = running ? WORDS["assistant.stop"] : WORDS["assistant.send"];
     // Stop is a gray fill, never the accent: the accent stays on Send alone.
@@ -276,6 +290,11 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                             provider={providerDescriptor(choice.provider).plainName}
                             linked={view.linked}
                             onLine={setVoiceLine}
+                            onHeard={(text, pointing) => {
+                                if (choice.sendSpoken !== false) {
+                                    submitText(text, { pointing });
+                                }
+                            }}
                         />
                         <Tooltip label={<TooltipShortcut label={sendName} shortcut={running ? "Esc" : "Enter"} />}>
                             <ActionIcon

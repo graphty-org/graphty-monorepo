@@ -65,6 +65,7 @@ export const WORDS = {
     "assistant.talk": "Talk",
     "assistant.talk.stop": "Stop talking",
     "assistant.talk.nothing": "Heard nothing.",
+    "assistant.talk.send": "Send when I stop talking",
     "assistant.scope.graph": "Whole graph",
     "assistant.scope.selection": "Selection",
     "assistant.scope.about": "Ask about",

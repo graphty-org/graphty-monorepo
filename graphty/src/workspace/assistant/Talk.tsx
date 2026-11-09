@@ -1,5 +1,6 @@
 import { TooltipShortcut } from "@graphty/compact-mantine";
 import type {
+    AiPointing,
     AiVoiceEndEvent,
     AiVoiceSupport,
     AiVoiceSupportChangeEvent,
@@ -44,19 +45,22 @@ interface TalkProps {
     readonly linked: boolean;
     /** Shows a line under the composer; null clears it. */
     readonly onLine: (line: string | null) => void;
+    /** A press ended with words waiting to be sent: the composer's text and what was pointed at. */
+    readonly onHeard?: (text: string, pointing: AiPointing) => void;
 }
 
 /**
  * Talk: shown only where the element allows input. A press and release latches, a hold over 300 ms
  * stops on release, and Enter, Space or Shift+Mod+Space act as a press. What it hears lands in the
- * composer and waits for Enter, with what the reader pointed at.
+ * composer, with what the reader pointed at, and `onHeard` hears it when the press ends.
  * @param props - Component props
  * @param props.provider - the provider's name
  * @param props.linked - whether the assistant is up
  * @param props.onLine - shows a line under the composer
+ * @param props.onHeard - hears what a press heard, when it ends
  * @returns The button, or nothing where speech cannot be heard
  */
-export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.JSX.Element | null {
+export function Talk({ provider, linked, onLine, onHeard }: Readonly<TalkProps>): React.JSX.Element | null {
     const { element, store } = useWorkspace();
     const asked = useWorkspaceState((state) => state.assistantTalkPress);
     const [support, setSupport] = useState<AiVoiceSupport | null>(null);
@@ -69,6 +73,9 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
     const keyDown = useRef(false);
     /** The draft a transcript adds to. */
     const before = useRef("");
+    // Held in a ref, so a new callback each render never ends the listening below.
+    const heardText = useRef(onHeard);
+    heardText.current = onHeard;
 
     useEffect(() => {
         if (element === null || !linked) {
@@ -111,6 +118,10 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
                     composerCalls: state.composerCalls + 1,
                     announcement: WORDS["assistant.status.transcript"],
                 }));
+            }
+            // Only a transcript held for the app carries the pointing; the element sent any other itself.
+            if (detail.isFinal && detail.pointing !== undefined) {
+                heardText.current?.(text, detail.pointing);
             }
         };
         const listeners = [

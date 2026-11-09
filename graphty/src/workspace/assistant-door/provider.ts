@@ -15,6 +15,8 @@ export interface AssistantChoice {
     readonly remember: boolean;
     /** How hard the model thinks before it answers; absent, the lowest the model takes (`effortLevels`). */
     readonly effort?: EffortLevel;
+    /** Whether what Talk heard is sent when the press ends, rather than waiting in the composer; absent, true. */
+    readonly sendSpoken?: boolean;
 }
 
 /** How hard a model thinks: a reasoning effort, or "off" for a model whose thinking is a budget it may skip. */
@@ -105,16 +107,23 @@ function parseChoice(raw: ReturnType<typeof readRaw>): AssistantChoice | null {
         return null;
     }
     try {
-        const { provider, model, effort } = JSON.parse(raw.text) as {
+        const { provider, model, effort, sendSpoken } = JSON.parse(raw.text) as {
             provider?: unknown;
             model?: unknown;
             effort?: unknown;
+            sendSpoken?: unknown;
         };
         const known = AI_PROVIDER_DESCRIPTORS.find((entry) => entry.id === provider);
         const level = ["off", ...AI_REASONING_EFFORTS].find((each) => each === effort) as EffortLevel | undefined;
         return known === undefined || typeof model !== "string"
             ? null
-            : { provider: known.id, model, remember: raw.remember, ...(level === undefined ? {} : { effort: level }) };
+            : {
+                  provider: known.id,
+                  model,
+                  remember: raw.remember,
+                  ...(level === undefined ? {} : { effort: level }),
+                  ...(sendSpoken === false ? { sendSpoken } : {}),
+              };
     } catch {
         return null;
     }

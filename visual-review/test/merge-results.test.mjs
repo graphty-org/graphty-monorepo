@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { cpuModel } from "../capture/capture.mjs";
 import { mergeResults } from "../capture/merge-results.mjs";
 import { visualStoryTest } from "../capture/story-test.mjs";
 
@@ -38,6 +39,10 @@ describe("merge-results", () => {
             ["b--two", "new"],
         ]);
         expect(readFileSync(join(out, "b--two.png"))).toEqual(png(70));
+        // Each shard says which CPU drew it, and the merge keeps every one (#6351).
+        const cpu = await cpuModel();
+        expect(read(one).environment.cpu).toBe(cpu);
+        expect(merged.results.environment.cpu).toBe(cpu);
 
         const half = await mergeResults({ project: "graphty-element", baselines, out: tempDir("m-"), dirs: [one] });
         expect(half.problems).toEqual([

@@ -16,6 +16,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { nodeFramingBox } from "../../src/managers/UpdateManager";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
@@ -947,5 +948,45 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         );
         await session.visibility.set(null);
         assert.equal(overBar(shown, await readFrame(graph)), 0, "and shows it again");
+    });
+
+    it("lay out rows with no Node by their rows", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        await graph.setLayout("circular", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.isDefined(engine);
+        if (engine === undefined) {
+            return;
+        }
+
+        const positions = layoutEngineInternals.positions(engine);
+        const at = { x: 0, y: 0, z: 0 };
+        const placed = NODES.map((_, row) => {
+            positions.read(row, at);
+            return { ...at };
+        });
+        const nodes = [...graph.getDataManager().nodes.values()];
+
+        // Row 4 first, then every row: the engine is handed no Node for them, as an unbuilt row hands none.
+        for (const gone of [[nodes[4]], nodes]) {
+            for (const node of gone) {
+                layoutEngineInternals.removeNode(engine, node);
+            }
+
+            NODES.forEach((_, row) => {
+                positions.write(row, 999, 999, 999);
+            });
+            engine.publishPositions();
+            NODES.forEach((_, row) => {
+                positions.read(row, at);
+                for (const axis of ["x", "y", "z"] as const) {
+                    assert.closeTo(at[axis], placed[row][axis], 1e-4, `row ${row} of ${gone.length} without a Node`);
+                }
+            });
+        }
     });
 });

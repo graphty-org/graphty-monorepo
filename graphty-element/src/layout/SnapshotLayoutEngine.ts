@@ -287,7 +287,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
     /** An emptied graph has nothing to arrange, so an answer still being computed for it is called off. */
     protected override refresh(): void {
-        if (this.stale && this._nodes.length === 0) {
+        if (this.stale && simpleLayoutInternals.empty(this)) {
             this.#abort();
             this.#ready = null;
         }

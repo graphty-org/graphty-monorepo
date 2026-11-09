@@ -89,6 +89,28 @@ describe("yEd Live GraphML: where a node label's model puts it", () => {
         expect(node("labelShiftY", group)).toBe(-0.5);
     });
 
+    it("lines a group's label off its tab up across the group's top by its alignment, left unset", async () => {
+        const { node } = await sheet("specimen-groups-p4.graphml");
+        const id = "v2-group-label-place-on-tab-false";
+        expect(node("labelOffsetX", id)).toBeNull();
+        expect(node("labelShiftX", id)).toBeNull();
+        expect(node("labelOffsetY", id)).toBe(11);
+        // the same label with no alignment: a 150 wide group, its words 4 in from its left side
+        const text = readFileSync(join(SHEETS, "specimen-groups-p4.graphml"), "utf8").replace(
+            /(<node id="v2-group-label-place-on-tab-false">[\s\S]*?)horizontalTextAlignment="CENTER" /,
+            "$1",
+        );
+        const { snapshot, styles } = await registry.importGraph(new TextEncoder().encode(text), {
+            format: "graphml",
+            styles: { toolDefaults: true },
+            errorLimit: Infinity,
+        });
+        assert(styles !== null && styles !== undefined);
+        const at = snapshot.ids.requireIndex(id);
+        expect(resolveStyles(styles, "node", "labelOffsetX", snapshot)[at]).toBe(-71);
+        expect(resolveStyles(styles, "node", "labelShiftX", snapshot)[at]).toBe(0.5);
+    });
+
     it("holds the words against the sides of a box larger than them", async () => {
         const { node } = await sheet("specimen-labels.graphml");
         expect(node("labelOffsetY", "v-align-top")).toBe(-13);
@@ -673,6 +695,16 @@ describe("yEd Live GraphML: a node label with no layout parameter", () => {
     it("sits below the node, as yEd Live draws it", async () => {
         const { node } = await sheet("specimen-labels.graphml");
         expect(node("labelPosition", "default")).toBe("bottom");
+    });
+
+    it("sets its words in the middle or at the bottom of the box its minimumSize makes", async () => {
+        const { node } = await sheet("specimen-labels-p3.graphml");
+        expect(node("labelOffsetY", "v2-vertical-top")).toBeNull();
+        expect(node("labelShiftY", "v2-vertical-top")).toBeNull();
+        expect(node("labelOffsetY", "v2-vertical-center")).toBe(22);
+        expect(node("labelShiftY", "v2-vertical-center")).toBe(-0.5);
+        expect(node("labelOffsetY", "v2-vertical-bottom")).toBe(44);
+        expect(node("labelShiftY", "v2-vertical-bottom")).toBe(-1);
     });
 
     it("reads a label style's box: its fill, its stroke and how far it stands off the words", async () => {

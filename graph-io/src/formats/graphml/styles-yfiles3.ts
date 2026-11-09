@@ -1818,6 +1818,9 @@ function readLabelPlace(refs: References, label: unknown, position: string, size
     if (parameter.tag === "GroupNodeLabelModelParameter") {
         put("labelOffsetY", GROUP_LABEL_MIDDLE);
         put("labelShiftY", -0.5);
+        if (treeAttr(parameter.e, "PlaceOnTab") === "false" && size !== null) {
+            readOffTabPlace(refs, label, size, put);
+        }
         return true;
     }
     const offset = treeAttr(parameter.e, "LayoutOffset")?.split(",").map(Number) ?? [];
@@ -1853,6 +1856,24 @@ function readLabelPlace(refs: References, label: unknown, position: string, size
 }
 
 /**
+ * Where yFiles writes a group's label off its tab (`PlaceOnTab="false"`): in a box across the group's top, inside its
+ * frame, lined up in it by the label style's `horizontalTextAlignment`, left when unset
+ * (graphml-yfiles-html-ss13-tree: its outer group's words start 3 in from its left, its inner group's are centered;
+ * yed-live-graphml-specimen-groups-p4 v2-group-label-place-on-tab-false is centered).
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @param size - the group's size
+ * @param put - receives the values
+ */
+function readOffTabPlace(refs: References, label: unknown, size: Size, put: PutValue): void {
+    const ls = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
+    const align = typeof ls === "object" && ls !== null ? treeAttr(ls.e, "horizontalTextAlignment") : undefined;
+    const x = { CENTER: 0, RIGHT: 1 }[align ?? ""] ?? -1;
+    put("labelOffsetX", x * (size.width / 2 - GROUP_FRAME) || null);
+    put("labelShiftX", -x / 2 || null);
+}
+
+/**
  * Reads where a label's words stand in a box larger than them: a style's `minimumSize` makes the label's box, and
  * its text alignments hold the words against that box's sides. Read for a label in its node's middle, the box's.
  * @param ls - the label style
@@ -1870,6 +1891,32 @@ function readWordsInBox(ls: StyleObject, put: PutValue): void {
     put("labelShiftX", -x / 2 || null);
     put("labelOffsetY", (y * box[1]) / 2 || null);
     put("labelShiftY", -y / 2 || null);
+}
+
+/**
+ * Reads where the words of a label with no layout parameter stand in a box larger than them: that label's box hangs
+ * below its node, its top where graphty-element puts the words' top, and `verticalTextAlignment` sets the words in the
+ * middle or at the bottom of the box's `minimumSize` (yed-live-graphml-specimen-labels-p3 v2-vertical-*). Across, the
+ * box is centered on the node, as `readWordsInBox` holds the words against its sides.
+ * @param ls - the label style
+ * @param put - receives the values
+ */
+function readWordsBelow(ls: StyleObject, put: PutValue): void {
+    const box = (treeAttr(ls.e, "minimumSize") ?? "").split(",").map(Number);
+    if (box.length !== 2 || !box.every(Number.isFinite)) {
+        return;
+    }
+    const side = (name: string, low: string, high: string): number =>
+        Number(treeAttr(ls.e, name) === high) - Number(treeAttr(ls.e, name) === low);
+    const x = side("horizontalTextAlignment", "LEFT", "RIGHT");
+    // the share of the box's height above the words: 0 at the top (and unset, where graphty-element puts them), a
+    // half in the middle, all of it at the bottom
+    const vertical = treeAttr(ls.e, "verticalTextAlignment");
+    const down = { CENTER: 0.5, BOTTOM: 1 }[vertical ?? ""] ?? 0;
+    put("labelOffsetX", (x * box[0]) / 2 || null);
+    put("labelShiftX", -x / 2 || null);
+    put("labelOffsetY", down * box[1] || null);
+    put("labelShiftY", -down || null);
 }
 
 /** yFiles' edge label sides (`SideOfEdge`, and the nine-position model's middle row), as neutral positions. */
@@ -2220,6 +2267,8 @@ function readLabels(
     putPaint(paintOf(refs, prop(ls, "textFill"), null), "labelColor", null, put, at);
     if (inBox) {
         readWordsInBox(ls, put);
+    } else if (at("label").target === "node" && layoutParameter(refs, label) === null) {
+        readWordsBelow(ls, put);
     }
     readLabelBox(refs, ls, put, at);
     readLabelFont(refs.deref(prop(ls, "font")), put, at);

@@ -15,11 +15,14 @@ let loading: Promise<typeof FrameComponent> | null = null;
  * @returns Settles with the frame once loaded.
  */
 export function loadFrame(): Promise<typeof FrameComponent> {
-    loading ??= import("./frame/Frame").then((module) => {
-        loaded = module.Frame;
-        bootSignal({ line: "frame code loaded" });
-        return module.Frame;
-    });
+    if (loading === null) {
+        bootSignal({ start: "frame code loaded" });
+        loading = import("./frame/Frame").then((module) => {
+            loaded = module.Frame;
+            bootSignal({ line: "frame code loaded" });
+            return module.Frame;
+        });
+    }
     return loading;
 }
 

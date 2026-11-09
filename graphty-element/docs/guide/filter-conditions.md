@@ -78,6 +78,37 @@ A `range`, `categories` or `text` rule on an edge value (such as `data.weight`) 
 A `nodes` reading written in the rule (`"all"`, `"ends"` or `"none"`) wins. Changing a condition's
 effect never needs a rule rewrite.
 
+## One load's conditions
+
+When several files or samples are loaded into one graph, a condition can belong to one of them.
+Give it `source`, a key from `session.data.sources()`, and it judges only the nodes and edges that
+load supplied; every other load's elements are left as they are.
+
+```ts
+const [teams] = session.data.sources();
+await session.visibility.addCondition({
+    effect: "keep",
+    source: teams.key,
+    rule: { kind: "range", attribute: "data.score", min: 0.8 },
+});
+// teams' low scorers are hidden; nothing from any other load is.
+```
+
+| Effect  | With `source`                               |
+| ------- | ------------------------------------------- |
+| keep    | hides that load's elements its rule misses  |
+| exclude | hides that load's elements its rule matches |
+| select  | selects among that load's elements only     |
+
+A node or edge two loads supplied belongs to both (`session.data.sourcesOf(id)`). Its counts are
+over that load's elements: `{ matched, total }` with `total` that load's count. Moving a condition to
+another load is `updateCondition(id, { source })`, one undo step. A condition whose load was
+removed does nothing. The `steps` view shows such a condition's rule without its load.
+
+A selection built for one load can start from that load too: a `union` leaf with
+`sources: [key]` starts its `"all"` branches with that load's elements only, so
+`scope.watchSteps` totals read "N of that load's count".
+
 ## Counts
 
 `conditionCounts()` gives, per condition and in condition order, what its rule matches as written

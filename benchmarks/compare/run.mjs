@@ -1,4 +1,4 @@
-// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [no-still] [no-move]
+// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [curves] [no-still] [no-move]
 // lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
 // unset, the element keeps its default. See RUNBOOK.md for the other variables.
@@ -29,6 +29,8 @@ const skip = flags.includes("skip-layout"),
     sampled = flags.includes("sampled"),
     // labels drawn from the glyph atlas (layoutBehavior.labels.labelText "glyphs"), only with labels
     glyphs = flags.includes("glyphs"),
+    // every edge a curve (edge.curvature) with no caps, in 3D: the curve scenario of stage 21
+    curves = flags.includes("curves"),
     noStill = flags.includes("no-still"),
     noMove = flags.includes("no-move");
 const N = Number(n),
@@ -178,6 +180,7 @@ try {
                     labels,
                     sampled,
                     glyphs,
+                    curves,
                     renderPath: RENDER_PATH,
                     renderer: RENDERER,
                     onDemand: !!process.env.LAYOUT_ONLY,
@@ -195,7 +198,7 @@ try {
         if (lib !== "graphty" || RENDER_PATH !== "batched") return;
         const rows = await page.evaluate(() => document.querySelector("graphty-element")?.rowCounts);
         log(stage === "load" ? "rowCounts" : `rowCounts-${stage}`, rows);
-        if (!rows || rows.objectNodes > 0)
+        if (!rows || rows.objectNodes > 0 || (curves && rows.objectEdges > 0))
             throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
     };
     await checkBatched("load");

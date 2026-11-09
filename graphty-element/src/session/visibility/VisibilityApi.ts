@@ -2303,19 +2303,24 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @param active - The frame.
      * @param rule - The rule.
      * @param drawn - What is drawn, to count among; null for the whole graph.
+     * @param source - The load to count over (a condition's `source`); every element when absent.
      * @returns The count, without an id.
      */
     const countRule = (
         active: VisibilityFrame,
         rule: RuleTree,
         drawn: Drawn | null,
+        source?: SourceKey,
     ): Omit<FilterConditionCount, "id"> => {
         const compiled = compiledOver(active, rule);
+        // A condition of one load is counted over that load's elements.
+        const mine = source === undefined ? null : compiledOver(active, { kind: "source", sources: [source] });
         const tally = (
             test: ((index: number) => boolean) | null,
             count: number,
             among: ElementMask<NodeId> | ElementMask<EdgeId> | undefined,
             visible: ElementMask<NodeId> | ElementMask<EdgeId>,
+            within: ((index: number) => boolean) | null,
         ): FilterConditionMatches | null => {
             if (test === null) {
                 return null;
@@ -2323,19 +2328,26 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             let matched = 0;
             let shown = 0;
+            let total = 0;
             for (let at = 0; at < count; at++) {
+                if (within !== null && !within(at)) {
+                    continue;
+                }
+
+                total++;
                 if ((among === undefined || among.has(at)) && test(at)) {
                     matched++;
                     shown += visible.has(at) ? 1 : 0;
                 }
             }
 
-            // One basis for every condition: the whole graph's count, so a Select card and a Filter
-            // to card beside it are read against the same number.
-            return Object.freeze({ matched, total: count, shown });
+            // One basis for every condition: the whole graph's count (its load's, for a condition
+            // of one load), so a Select card and a Filter to card beside it are read against the
+            // same number.
+            return Object.freeze({ matched, total, shown });
         };
-        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes, nodeMaskValue);
-        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges, edgeMaskValue);
+        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes, nodeMaskValue, mine?.node ?? null);
+        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges, edgeMaskValue, mine?.edge ?? null);
 
         return Object.freeze({ nodes, edges, unresolved: compiled.unresolvedPaths() });
     };
@@ -2393,11 +2405,17 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 const signature = each[at];
                 // A rule reading a set whose inputs cannot be enumerated is counted every time.
                 // By id too, so a condition nothing changed hands back the same object.
+                // A condition of one load reads provenance, which has no revision: counted every time.
                 const key =
-                    signature === null ? null : `${condition.id}\n${JSON.stringify(condition.rule)}\n${signature}`;
+                    signature === null || condition.source !== undefined
+                        ? null
+                        : `${condition.id}\n${JSON.stringify(condition.rule)}\n${signature}`;
                 const drawn = inPicture(condition) ? { nodes: nodeMaskValue, edges: edgeMaskValue } : null;
                 let count = key === null ? undefined : bucket.byRule.get(key);
-                count ??= Object.freeze({ id: condition.id, ...countRule(active, condition.rule, drawn) });
+                count ??= Object.freeze({
+                    id: condition.id,
+                    ...countRule(active, condition.rule, drawn, condition.source),
+                });
 
                 if (key !== null) {
                     kept.set(key, count);
@@ -2860,7 +2878,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                     edits = { ...edits, ...change };
                 },
                 counts(): FilterConditionCount {
-                    return Object.freeze({ id, ...countRule(upToDate(), held().rule, null) });
+                    const now = held();
+                    return Object.freeze({ id, ...countRule(upToDate(), now.rule, null, now.source) });
                 },
                 commit(options: RunOptions = {}): Run<FilterResult & { readonly id: string }> {
                     requireOpen();

@@ -2776,17 +2776,31 @@ function NumberCard({
                     There are only {many(total, side)}, so this keeps all of them.
                 </Text>
             )}
-            {card.match !== "absent" && card.match !== "present" && missing > 0 && (
-                // A fact, not a sentence: the chip, with what it means in its tooltip.
-                <Tooltip
-                    label={`${many(missing, side)} ${missing === 1 ? "has" : "have"} no value and ${missing === 1 ? "is" : "are"} left out`}
-                >
-                    <Text span className="ws-chip" style={{ alignSelf: "flex-start" }}>
-                        Not measured: {missing}
-                    </Text>
-                </Tooltip>
-            )}
+            {card.match !== "absent" && card.match !== "present" && <NotMeasured missing={missing} side={side} />}
         </Stack>
+    );
+}
+
+/**
+ * How many a number or date card leaves out for having no value: a fact, not a sentence -- the
+ * chip, with what it means in its tooltip. Nothing when every one has a value.
+ * @param props - Component props
+ * @param props.missing - how many have no value.
+ * @param props.side - nodes or edges.
+ * @returns the chip, or null.
+ */
+function NotMeasured({ missing, side }: Readonly<{ missing: number; side: Side }>): React.JSX.Element | null {
+    if (missing === 0) {
+        return null;
+    }
+    return (
+        <Tooltip
+            label={`${many(missing, side)} ${missing === 1 ? "has" : "have"} no value and ${missing === 1 ? "is" : "are"} left out`}
+        >
+            <Text span className="ws-chip" style={{ alignSelf: "flex-start" }}>
+                Not measured: {missing}
+            </Text>
+        </Tooltip>
     );
 }
 
@@ -3012,16 +3026,13 @@ function DateCard({
                 </Group>
             )}
             {refused !== null && (
+                // A field message, not a sentence; the box's placeholder says what it takes.
                 <Text id={messageId} size="xs" c="var(--cm-text-danger)" role="alert">
-                    &quot;{(drafts[refused] ?? "").trim()}&quot; is not a date. Type a date or a year, like{" "}
-                    {dates[0] ?? "2005"}.
+                    Not a date
                 </Text>
             )}
-            {card.match !== "absent" && card.match !== "present" && counts.missing > 0 && (
-                <Text size="xs" c="dimmed">
-                    {many(counts.missing, side)} {counts.missing === 1 ? "has" : "have"} no value and{" "}
-                    {counts.missing === 1 ? "is" : "are"} left out.
-                </Text>
+            {card.match !== "absent" && card.match !== "present" && (
+                <NotMeasured missing={counts.missing} side={side} />
             )}
         </Stack>
     );

@@ -519,12 +519,11 @@ drag, on WebGL and on WebGPU (SwiftShader).
 
 Corrections, from the code:
 
-- A curve whose span is null on a later placement (its nodes come to overlap, so no sample is outside both) draws nothing
-  when pulled, where the object path draws a straight line between the cut ends; the edge is not moved back to an object
-  edge, since `Edge.pullsLine` is read only when the line is built.
+- A curve whose route has no sample outside both nodes (its nodes come close or overlap) drew nothing when pulled; the
+  object path draws the lone curve from center to center there. The fourth pull request draws that curve (below).
 - Moving a node still writes edge bytes for a pulled curve: its span changes with its length, so every piece of a moved
   curve is rewritten (16 floats a piece, against the object path's slot plus its matrix), and the CPU still samples the
-  curve to find its cut. The measurement on 100,000 curves waits for a curve scenario in `benchmarks/compare`.
+  curve to find its cut. The measurement on 100,000 curves is in the ninth pull request's paragraph below.
 
 As built (stage 21, second pull request): a fanned curve alone between its two nodes is pulled too, on `"batched"`.
 `Edge.pullsLine` takes `line.bezier: true` with `line.fanned` unset or true when no other edge joins the two nodes in
@@ -538,6 +537,167 @@ adds and removes a parallel edge on a pulled fanned curve: 0 pixels against `"ob
 edges object edges while it is there, every curve pulled after, on WebGL and WebGPU (SwiftShader). Still object edges: a
 curve in a bundle of two or more, a curve with caps, `arcRadius`, `supportModel`, `fanSpacing` or a gap, routes
 (`line.route`), bends, and self-loops.
+
+As built (stage 21, third pull request): a curve fanned out of a bundle is pulled too, on `"batched"`, so every curve
+(`line.bezier`) with no caps, `arcRadius`, `supportModel`, `fanSpacing` or gap is pulled, whatever shares its two nodes.
+A fanned curve's shape is `edgeRoute.fanArc`'s quadratic, which is set by the two centers and one signed number: how far
+its middle bows to the left of its own chord in the x-y plane (`fanOffset`, negated for an edge drawn against its
+bundle's first). `Edge.pullCurve` works that bow out on each placement (`Edge.fanOf`, the code `Edge.bundleRoute` uses),
+and `curveSpan` cuts the arc as it cuts a lone curve, so the span gains `bow`, null for a lone curve. The fourth texel
+of a curve piece is (endAt, bow, 1 for an arc, unused), and the shader samples a quadratic or the lone cubic by that
+flag. The middle of an evenly spread bundle (bow 0) is the 2-piece arc through the midpoint, the object path's route
+there. Since the bundle no longer decides whether a curve is pulled, `Edge.aloneBetween` and `Edge.repullLine` are gone:
+a change to the edge set re-places every edge, and that placement writes the new bow. `test/pulled-curve.test.ts` holds
+the arc mirror to `fanArc`'s cut within 1e-9 on 400 seeded edges, both ways round, bow 0 among them;
+`test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4; `test/browser/pulled-curves-batched.test.ts`
+pulls a bundle of five between two nodes (a curve that does not fan, three fanned curves one drawn the other way, and a
+straight edge) at 0 pixels against `"objects"`, at rest and after a mouse drag, and a fanned curve that gains and loses
+a parallel edge, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, `arcRadius`, `supportModel`,
+`fanSpacing` or a gap, routes (`line.route`), bends and self-loops.
+
+As built (stage 21, fourth pull request): a curve spread by `line.fanSpacing` is pulled too, on `"batched"`. `fanSpacing`
+joins `PULLED_LINE_KEYS` in `Edge.ts`; `Edge.fanOf` already read it for the bow, and a change to it already re-places the edge.
+Correction to the first pull request's, from the code: when no sample of a curve's route is outside both nodes,
+`routeOutside` is null and `Edge.placeLine` falls back to `transformEdgeMesh`, which for a curved line is `Edge.placeCurve`:
+the lone curve (`EdgeMesh.createBezierLine`) from center to center, uncut, whatever the route was, never a straight line.
+A pulled curve drew nothing there, which showed where that uncut curve leaves a node's silhouette (a fanned arc of bow
+-0.25 between two default nodes 1.52 apart missed a 29-pixel sliver beside its target). `curveSpan` now answers that case
+with the lone curve's span (its sample count, first 1, as many pieces, no cut at either end, bow null), so the pulled
+curve draws the same uncut curve; it answers null only for a center outside its own node, as before.
+`test/pulled-curve.test.ts` holds the mirror to that fallback on the seeded edges and arcs (some of each fall back);
+`test/browser/pulled-curves-batched.test.ts` pulls a bundle of three fanned curves at `fanSpacing` 0.25, then 0.5, at 0
+pixels against `"objects"`, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, `arcRadius`,
+`supportModel` or a gap, routes (`line.route`), bends and self-loops.
+
+As built (stage 21, fifth pull request): a curve drawn on a circle through both centers (`line.arcRadius`,
+`edgeRoute.centerArc`) is pulled too, on `"batched"`. `arcRadius` joins `PULLED_LINE_KEYS`; it shapes only a curve that
+does not fan (a fanned curve in a bundle keeps its bow, as on the object path), and a change to it already re-places
+the edge. `edgeRoute.centerCircle` is `centerArc`'s circle, split out unchanged so the mirror samples it the same way;
+`curveSpan` takes the radius and the span gains `radius` and `turn` (the signed angle from source to target, set by the
+radius alone), both null for the other kinds. The fourth texel of a curve piece is (endAt, bow or turn, 0 lone, 1 fanned
+arc, 2 circle, unused), written through `pulledCurve.curveShape`. Two findings from the code: the shader takes the turn,
+not the radius, because a half circle's way round (radius 0.5) is float noise in `centerArc` itself, so float32 must not
+work it out again; and it samples the circle by the chord each sample sweeps from the source, with its own Taylor sine
+and cosine, because SwiftShader's built-in `sin`, `cos` and `atan` put samples up to 9e-3 off at a radius of 40, where
+the bar is 1e-4. `test/pulled-curve.test.ts` holds the mirror to `centerArc`'s cut within 1e-9 on 400 seeded edges (half
+circles among them, some falling back to the uncut lone curve); `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to
+it within 1e-4; `test/browser/pulled-curves-batched.test.ts` draws every curve at radius 0.6, drags a node, then widens
+the radius to 2, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve
+with caps, `supportModel` or a gap, routes (`line.route`), bends and self-loops.
+
+As built (stage 21, sixth pull request): a curve stopped short of its nodes by a gap (`line.nodeGap`, `sourceNodeGap`,
+`targetNodeGap`) is pulled too, on `"batched"`; a straight line with a gap stays an object edge. The cut needs nothing
+new: `Edge.placeRoute` cuts the route where it clears each node grown by its gap, so `Edge.pullCurve` hands `curveSpan`
+the same gapped outside tests. Correction to the fourth pull request's, from the code: the uncut lone curve drawn when
+no sample clears both nodes runs between the line's bare ends (`Edge.bareEnd`), which a gap moves off the centers to
+where the chord leaves the gapped node (`Edge.leaveNode`, never past the other center), not from center to center. So
+`curveSpan` takes the bare ends, asked only for that case, and the span gains `ends`: the shares of the chord where
+that curve starts and stops, null when they are the centers. The fourth texel of a curve piece is (endAt, start share,
+3, stop share) for it, and the shader draws the lone cubic between those two points of the chord. Bare ends within
+0.01 of each other on every axis are drawn by `createBezierLine` as a self-loop; `curveSpan` answers null there, and
+such a pulled curve draws nothing while its nodes stay that close. `test/pulled-curve.test.ts` holds the mirror to the
+object path within 1e-9 on 400 seeded lone curves, fanned arcs and center arcs with a gap at one end or both (many drawn
+uncut); `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4; `test/browser/pulled-curves-batched.test.ts`
+stops every curve 0.15 short of its nodes, drags a node, then widens three source gaps to 1.2, at 0 pixels against
+`"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or `supportModel`, routes
+(`line.route`), bends and self-loops.
+
+As built (stage 21, seventh pull request): a curve raised off the map by its own style (`line.bezier` with `line.route`
+"arc", `edgeRoute.raisedArc`) is pulled too, on `"batched"`. `route` and `arcHeight` join `PULLED_LINE_KEYS`. The raised
+arc wins over a fan and a circle, as `Edge.bundleRoute` draws it, so `Edge.pullCurve` hands `curveSpan` the height
+(`line.arcHeight`, else `DEFAULT_ARC_HEIGHT.arc`) in place of a bow or radius. `curveSpan` now takes its path as one
+object (`{ bow, radius, height }`); the span gains `height`, null for the other kinds, and the fourth texel of a curve
+piece is (endAt, height, 4, unused). A height of 0 is `raisedArc`'s two ends, no sample of which clears both nodes, so it
+is drawn as the uncut lone curve, as on the object path. A change to either key already rebuilds the line. Still object
+edges: a straight line with a raised route, a great-circle route, and a raised route the layout picks (`location-map`
+in 3D) rather than the style, since `Edge.pullsLine` is read only when the line is built and the layout's route can
+change without a rebuild. `Edge.pullsLine` reads the route from the style it is handed (`Edge.routeOf`), not the
+one drawn now: `Edge.paintFrom` asks before it stores the new style, and `line.route` is a content channel that does
+not change the mesh key, so a pulled straight line restyled to "great-circle", or to "arc" with no curvature, would
+otherwise stay pulled and draw straight. `test/pulled-curve.test.ts` holds the mirror to `raisedArc`'s cut within 1e-9 on 400 seeded
+edges (height 0 among them); `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` raises every curve at the default height, drags a node, then raises them
+to 0.6, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). It also restyles pulled straight lines to
+each of those two routes and holds that they leave the pull and match `"objects"` at 0 pixels. Still object edges: a curve with
+caps or `supportModel`, those routes, bends and self-loops.
+
+As built (stage 21, eighth pull request): a straight line raised off the map by its own style (`line.route` "arc"
+with no `line.bezier`) is pulled too, on `"batched"`, from the curve batch: `EdgeMesh.pullsCurve` (a curve, or a
+style-raised route) picks the batch, takes the line's pieces and lets it carry a gap, as `placeRoute` cuts any route
+alike. The one difference from a raised curve is where no sample clears both nodes (height 0, or wide gaps): the
+object path then draws the straight line between the bare ends (`placeLine`, `transformEdgeMesh`), not the lone
+curve, so `curveSpan` takes `straight` and answers a flat raised arc of one piece cut at the two bare ends. A pulled
+line that becomes a curve or stops being one rebuilds (`Edge.paintFrom` compares `EdgeMesh.pullsCurve` with whether
+the pulled piece has a run): `line.route` keys no mesh, so without it a pulled straight line restyled to "arc" kept
+its straight piece. `test/pulled-curve.test.ts` holds the mirror to the object path within 1e-9 on 400 seeded edges,
+gapped and flat among them; `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` straightens every edge, raises it, drags a node, raises it to 0.6 and
+flattens it to 0, at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a
+curve with caps or `supportModel`, a great-circle route, a raised route the layout picks, bends and self-loops.
+
+As built (stage 21, ninth pull request): `benchmarks/compare` has the curve scenario, key `lean-s-curves`: 10,000 boxes
+and 100,000 curves (`edge.curvature`, no caps) in 3D, which under `"batched"` fails if any edge is an object edge. Its
+moving stage orbits the 3D camera, and a run fails if the camera state after that stage equals the state before it, so
+a camera move the view ignores cannot time a still view as a moving one. On the RTX at commit cd1a676863, three runs a
+path interleaved, one-minute load average 1.4 to 2.0: under `"batched"` all 100,000 curves are pulled and the moving
+frame is 46.0 ms median (runs 44.7 to 46.3, p99 49.3), still frame 46.6 ms, drag frame 47.6 ms, renderer and GPU
+processes 5,184 MB (`benchmarks/results/stage-21-curves-batched`); under `"objects"` moving 60.7 ms (60.3 to 62.3, p99
+77.7), still 58.9 ms, drag 124 ms, 2,839 MB (`benchmarks/results/stage-21-curves-objects`). The 40 ms target is missed
+by about 6 ms. Under `"batched"` a moving frame costs what a still one does, so the frame is bound by drawing the curves,
+not by the camera. The pulled path holds 2.3 GB more, which a curve's pieces (one per sample of its longest cut, four
+texels each) and its per-piece vertices would explain but no profile has yet confirmed.
+
+As built (stage 21, tenth pull request): a line on the great-circle route its own style asks for (`line.route`
+"great-circle", `edgeRoute.greatCircleArc`), curve or straight, is pulled too, on `"batched"`, from the curve batch:
+`EdgeMesh.pullsCurve` takes either style route, `Edge.pullsLine` any route the style sets, and `Edge.pullCurve` hands
+`curveSpan` the height (`line.arcHeight`, else `DEFAULT_ARC_HEIGHT["great-circle"]`) with `globe`. `edgeRoute.greatCircle`
+is `greatCircleArc`'s circle, split out unchanged so the mirror samples it the same way; the span gains `angle`, the
+angle between the two centers' directions from the origin (0 where the arc is the straight line: a center at the
+origin, or the centers in one direction from it or opposite ones), null for the other kinds, and the fourth texel of a
+curve piece is (endAt, height, 5, angle). As for the center arc, the shader takes the angle rather than working it out
+with `acos`, and takes each sine from the Taylor series of its half angle (`pulledSin`): with SwiftShader's built-in
+`sin` the GLSL test's farthest point is 6.3e-3 off, against the 1e-4 bar. Where no sample clears both nodes the line
+is drawn as a raised one is (the uncut lone curve, or for a straight line the straight line between the bare ends).
+`test/pulled-curve.test.ts` holds the mirror to the object path within 1e-9 on 400 seeded edges, curved and straight,
+gapped, flat and straight-drawn among them; `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` puts every curve on the route (node 4 at the origin and one edge through
+it, so some are drawn straight), drags a node, raises them to 0.6, straightens them and flattens them to 0, at 0 pixels
+against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or
+`supportModel`, a raised route the layout picks, bends and self-loops.
+
+As built (stage 21, eleventh pull request): a self-loop's teardrop (`edgeRoute.loopTeardrop`) is pulled too, on
+`"batched"`, from the curve batch, whatever its own curve or route asks for, as `Edge.bundleRoute` draws it:
+`EdgeMesh.pullsCurve` and `EdgeMesh.pulledBatch` take whether the edge is a loop, `Edge.pullsLine` no longer refuses
+one, and `Edge.pullCurve` hands `curveSpan` the loop's controls from its rank and count round its node
+(`DataManager.drawnBundle`) and its node's reach (`Edge.reachOf`). `edgeRoute.loopControls` is `loopTeardrop`'s
+control points, split out unchanged. The span gains `loop`, (x, y, k): the two controls' mean from the center and the
+share k of it they stand either side, turned a quarter, so the shader needs no sine; k is tan(sweep / 2), under
+tan(pi / 5). A teardrop needs three numbers and the fourth texel has two beside the kind, so its kind is 6 plus k:
+the fourth texel of a loop piece is (endAt, mean x, 6 + k, mean y). Its 24 samples are cut where they leave the node,
+as any route is; a teardrop's tip clears its node by construction, so the cut never falls back to the object path's
+circle (`createSelfLoopCurve`). A loop with bends (`line.bends`, the ring) or a dash stays an object edge, as before.
+`test/pulled-curve.test.ts` holds the mirror to `loopTeardrop`'s cut within 1e-9 on 400 seeded loops, one to seven on a
+node, round and stretched nodes; `test/browser/pulled-curve-glsl.test.ts` holds the GLSL to it within 1e-4;
+`test/browser/pulled-curves-batched.test.ts` gives one node three loops (two curved) and another four, drags a node,
+then gives the second a fifth, which narrows its loops' share, and takes it away, at 0 pixels against `"objects"`
+each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or `supportModel`, a raised route
+the layout picks, and bends.
+
+As built (stage 21, twelfth pull request): a route the `location-map` layout picks (a raised arc over a flat map in the
+3D view, a great circle on a globe, straight to a node in the tray) is pulled too, on `"batched"`, curve or straight, as
+a route the style asks for is. `Edge.pullCurve` reads the route drawn now (`Edge.route`: the style's, else the layout's),
+`EdgeMesh.pullsCurve` and `EdgeMesh.pulledBatch` take that route, and `Edge.pullsLine` no longer refuses a layout's
+route. Correction to the seventh pull request's, from the code: the layout's route changes with its frame, which keys
+no mesh, but every such change moves the nodes, so the edge is placed again; `Edge.placeLine` first moves a pulled line
+whose route now wants the other batch (straight to curve or back) by rebuilding it (`Edge.followRoute`), then writes
+its span. Two `"batched"` defects found on the way, both fixed there only: a pulled curve gave no points
+(`Edge.drawnCurve` null), so framing (`framingBox`) left its bow out and picking took it for a straight line; it now
+gives its path's points from its last span (`curvePathPoint`). And `Graph.#drawOverMap` ordered only the line batches
+over a map, so pulled lines kept their depth writes and drew under it in the wrong order; it takes the pulled batches
+(`MeshCache.pulledBatchMap`) too. `test/browser/pulled-curves-batched.test.ts` straightens half the edges, lays the graph
+on a flat map, then a globe, then back on its fixed positions (one node has no place, so its edges stay straight on
+the map), at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve
+with caps or `supportModel`, and bends.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
@@ -743,8 +903,38 @@ A settling batch repacks from the lane, so the rest picture matches the upload p
 
 As built (stage 25, first pull request): `layoutDevice` is set when the renderer opens, from the engine's own `sharesDevice` answer:
 `"shared"`, `"separate"` under WebGL and on a software adapter, and null when no accelerator is offered (policy `"off"`, or nothing
-registered before the renderer opened). The type is exported as `LayoutDevice`. `to_drawn`, the ring and the copy at landing follow in
-later pull requests of the stage.
+registered before the renderer opened). The type is exported as `LayoutDevice`.
+
+As built (stage 25, second pull request): webgpu-graph-algorithms has the kernel and the ring; the element does not use them yet.
+`to-drawn` reads the stride-3 scene array `to_scene` already writes, so it applies the element's own formula,
+`(scene - center) * scale + target`, and runs in a pass of its own after the iteration pass of every batch. Correction to the text
+above: the kernel never writes w. The ring is seeded from the owner's stride-4 rows (`setDrawn({ slots, rows })`) and w, like the rows
+in the skip mask (`setDrawnSkip`), is only ever what the owner wrote, through `writeDrawn`, which writes every slot; so a hidden or
+shrunk row keeps its w while it moves, and the element never needs a ring-wide w pass. `setDrawnTransform` sets the uniform the next
+batches use. `landedDrawn` is the slot of the last batch that landed, null after a load, so a batch in flight across a reload never
+lands as one (the stale skip). The methods are optional members of `GpuLayoutSimulation`, so no implementer breaks.
+The element's copy at landing follows; `copyBufferToTexture` needs `bytesPerRow` a multiple of 256, which the `rowPosition`
+texture's width must allow.
+
+As built (stage 25, third pull request): the element fills the table on the card under renderPath "batched" on a shared
+device, and only there (`Graph.getDrawnTarget`, internal). At each load the engine seeds the ring from `rowPosition`
+(4 slots: two batches in flight, the one the frame's step submits, and the landed one, copied at the publish after
+it). Every write `RowTable` makes other than a repack from the lane (`place`, w changes) is mirrored into the ring
+through `writeDrawn`. Each publish sends the skip mask (no row, a held fixed row, a follower, a row the table keeps
+itself) and writes a row that joins it as the table holds it. It copies the landed slot into the texture
+(1024-texel rows are 16384 bytes, so the alignment holds) and sends the next transform. The next repack then sends
+none of those rows. A settling batch still goes up by upload.
+Correction to the text above: the envelope cannot be a single uniform the next batch reads. A batch's commands are
+recorded across awaits, so a transform set at a publish reached a batch the frame before had already submitted, and
+the texture parted from the lane by 2.5% on every row. So each ring slot has its own transform and skip mask, written
+when a batch is recorded into it. The simulation reports the transform of the landed batch
+(`landedDrawnTransform`), and the element publishes that landing with it, so the lane and the texture hold the same
+rows. A row the owner writes while an earlier batch in a slot is still to run is written into that slot again before
+its next batch. The one landing already recorded over it can still show the kernel's value for that row once.
+A second correction: a repack from the lane also changes w, when a row the layout adds while it runs is first placed
+(w 0 to 1) or a row is unplaced. The kernel keeps the ring's w, so such a row stayed at w 0 on the card until the layout
+settled. A repack that changes a row's w now mirrors that row into the ring and uploads it once, since the landing
+already copied holds the old w.
 
 ### 4.6 Columns and load (#3249)
 
@@ -1002,6 +1192,29 @@ before, 326 ms after, against a still frame of 170 ms in the same runs (`benchma
 That run is the static layout (`skip-layout`). Force layouts used to walk every edge on every frame, because their engines hand back an iterator
 that cannot be counted; the walk now reads `DataManager.edgeVersion` for them, so a settled force layout also takes this path and, for the first
 time, freezes its active meshes on a still frame. d3 hands back an array, because it takes an edge up at a later step than the store's version.
+
+Correction from stage 26 (code read at origin/master 8593e8751a): three facts the row did not carry. First, `Edge`'s constructor
+resolves both ends through `nodeCache.get` and stores the `Node`s in plain `srcNode` and `dstNode` fields, so while edges are built
+eagerly every endpoint of every edge is a built `Node`; the count at 0 on a load with edges needs the end accessors, which therefore
+move from stage 27 into this stage. Second, `node-add-before` carries `nodeId` and the record, never a `Node`, so it can be emitted
+for an unbuilt row and needs no gate; and since the element's own DOM forwarder and `Graph`'s click handler always observe the node
+observable, a gate on its observers would never close anyway. Third, under `"batched"` everything that reaches a row today reaches
+it as a `Node`: `NodeBatches` (`groupOf`, `sync`, `roster`, keyed by `Node`), `StylePainter`, the shipped layout engines'
+`addNode`, `RowTable.replaced`, `nodesByIndex` and about 40 internal walks of `nodes`. The stage is therefore several pull requests,
+each changing nothing under `"objects"`: (1) the count, `dataManagerInternals.nodesBuilt`, a test door every later pull request
+asserts on; (2) `NodeBatches` and `StylePainter` keyed by row, painting an unbuilt row from columns; (3) shipped engines, transitions,
+fit and filter by row, with a third party's engine still handed `Node`s; (4) the end accessors; (5) ingest skips `buildNode` for
+rows that need no object, `nodes`, `nodeCache` and `getNode` become materializing views with a strong map for identity, and the
+row's proving test runs.
+
+Correction from stage 26's second pull request: "keyed by row" means keyed by a row object, not by its row number. A freeze renumbers
+rows (`snapshot-replaced` carries `nodeRemap`, and `NodeBatches.rowsMoved` refills from each member's `index`), so a map from row number
+would go stale at every freeze. `NodeBatches` now holds a `BatchRow`, which is a `Node` or a `ColumnRow`: a row with no `Node`, drawn from
+its `NodePaint` and the source mesh `NodeMesh.source` builds for it, with no instance. `paintRow(index, paint)` returns false for a paint
+only a `Node` draws (a model, a picture, or anything `batchableOf` refuses); a group region or a shader path is the caller's to rule out.
+`StylePainter` needed no change: it already resolves paint by row number. Nothing calls `paintRow` yet: the frame's paint loop
+(`UpdateManager.takeNodeBatch`) keeps dropping a row with no `Node` until the fifth pull request skips `buildNode`, because today such a
+row is one that was removed, and painting it would draw a ghost. That pull request also renumbers `ColumnRow`s on a freeze.
 
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

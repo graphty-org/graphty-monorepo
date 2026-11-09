@@ -69,6 +69,7 @@ import { GraphtyError } from "../errors";
 import { layoutDiag, snapshotId, viewSummary } from "../logging/layoutDiagnostics.js";
 import type { DataManager } from "../managers/DataManager";
 import type { Node } from "../Node";
+import type { DrawnTarget } from "../render/RowTable";
 import { readCommunities, sameCommunities } from "./clusterForce";
 import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
@@ -364,10 +365,64 @@ export interface SimulationEngineInit {
      * every weight as a strength.
      */
     readonly weightMeaning?: () => "strength" | "distance" | null;
+    /**
+     * Where an accelerated simulation on the drawing device fills the row table on the card,
+     * asked at every load and publish; null, or absent, publishes through the upload path.
+     */
+    readonly drawnTarget?: () => DrawnTarget | null;
 }
 
 /** The derived edge column a distance weight is inverted into, for the simulation to read. */
 const STRENGTH_COLUMN = "graphty.layoutStrength";
+
+/**
+ * Slots in the drawn ring. A landed slot is copied at the publish after the frame's step, so it must
+ * outlive every batch in flight plus that one (the GPU layouts' default `maxInFlight` is 2).
+ */
+const DRAWN_SLOTS = 4;
+
+/** drawn = (simulation - center) * scale + target: what the drawn ring and a publish apply. */
+interface DrawnTransform {
+    readonly center: readonly [number, number, number];
+    readonly scale: number;
+    readonly target: readonly [number, number, number];
+}
+
+/**
+ * What an accelerated simulation offers to fill the row table on the card
+ * (design/rendering/row-renderer.md 4.5); optional members of the GPU package's simulation.
+ */
+interface DrawnSimulation {
+    readonly landedDrawn?: GPUBuffer | null;
+    readonly landedDrawnTransform?: DrawnTransform | null;
+    setDrawn(output: { slots: number; rows: Float32Array } | null): void;
+    setDrawnTransform(transform: DrawnTransform): void;
+    setDrawnSkip(mask: Uint32Array): void;
+    writeDrawn(index: number, x: number, y: number, z: number, w: number): void;
+}
+
+/**
+ * The drawn ring of a simulation that has one.
+ * @param simulation - The simulation.
+ * @returns It, as one that fills a drawn ring, or null.
+ */
+function drawnOf(simulation: LayoutSimulation): DrawnSimulation | null {
+    const s = simulation as Partial<DrawnSimulation>;
+    return typeof s.setDrawn === "function" &&
+        typeof s.setDrawnTransform === "function" &&
+        typeof s.setDrawnSkip === "function" &&
+        typeof s.writeDrawn === "function"
+        ? (simulation as unknown as DrawnSimulation)
+        : null;
+}
+
+/** A simulation filling the row table on the card, for the rows it was loaded with. */
+interface DrawnRun {
+    readonly simulation: DrawnSimulation;
+    readonly target: DrawnTarget;
+    readonly n: number;
+    skip: Uint32Array;
+}
 
 /**
  * The refusal for a bridge built without a controller, which is what `LayoutEngine.get(type, {})`
@@ -413,6 +468,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #report: (error: GraphtyError) => void;
     readonly #dataManager: DataManager;
     readonly #weightMeaning: () => "strength" | "distance" | null;
+    readonly #drawnTarget: () => DrawnTarget | null;
+    /** The simulation filling the row table on the card, or null on the upload path. */
+    #drawn: DrawnRun | null = null;
     /**
      * The `weight` the running simulation was built with, or undefined for a simulation that reads
      * no weight: a load whose answer differs rebuilds it.
@@ -572,6 +630,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#dataManager = built.dataManager as DataManager;
         this.#fromSeed = built.fromSeed === true;
         this.#weightMeaning = built.weightMeaning ?? ((): "strength" => "strength");
+        this.#drawnTarget = built.drawnTarget ?? ((): null => null);
         this.#targetCentre = resolveCentre(this.#options.model.center ?? this.#options.center);
 
         // THE FIRST ADOPTION IS THE IDENTITY. Nothing has been published yet, so an arrangement
@@ -706,6 +765,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * attached, or whatever `createSimulation` throws.
      */
     load(snapshot: GraphSnapshot, positions: F32): void {
+        this.#detachDrawn();
         this.#simulation?.dispose();
         this.#simulation = null;
         this.#syncWork();
@@ -775,6 +835,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#iterations = this.#resolveIterations(simGraph.nodeCount);
         this.#seed(simGraph, simPositions);
         simulation.load(loadable.graph, simPositions);
+        this.#attachDrawn(snapshot.nodeCount);
 
         // THE STOP FLAG SURVIVES A RELOAD. A simulation whose batch rejected is not made well by
         // a new graph, and only a rebuild clears the flag -- which the controller's next
@@ -805,6 +866,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * the next transition that attaches an accelerator brings it back through this same method.
      */
     replaceSimulation(): void {
+        this.#detachDrawn();
         this.#simulation?.dispose();
         this.#simulation = null;
         this.#syncWork();
@@ -1181,11 +1243,19 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         const store = this.#dataManager[WRITABLE_LANE];
         this.#landedPublished = this.#landed;
+        // ON THE CARD, A LANDING IS PUBLISHED WITH THE TRANSFORM ITS BATCH DREW WITH, so the lane and the
+        // texture the ring is copied into hold the same rows; the envelope measured now is the next batches'.
+        const drawn = this.#drawnRun();
+        const landed = drawn?.simulation.landedDrawn ?? null;
+        const viaCard =
+            landed !== null && !(this.#simulation?.settled ?? true)
+                ? (drawn?.simulation.landedDrawnTransform ?? null)
+                : null;
         this.#fitEnvelope(snapshot, simPositions);
 
-        const scale = this.#envelopeScale;
-        const centre = this.#simCentre;
-        const target = this.#targetCentre;
+        const scale = viaCard?.scale ?? this.#envelopeScale;
+        const centre = viaCard?.center ?? this.#simCentre;
+        const target = viaCard?.target ?? this.#targetCentre;
         const { rows, coords } = this.publishScratch(snapshot.nodeCount);
         let count = 0;
         let first: Node | undefined;
@@ -1211,6 +1281,165 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // coordinate at all and would render at the origin for the rest of its life. So its FIRST
         // coordinate lands as a placement, and every one after that is the reader's to keep.
         this.publishColumn(first, rows, coords, count, true);
+        if (drawn !== null) {
+            this.#publishDrawn(drawn, viaCard === null ? null : landed);
+        }
+    }
+
+    /**
+     * Follows the drawn target: a simulation that has a ring fills the table on the card, while the
+     * graph still offers one (renderPath "batched" on the shared device).
+     * @param nodeCount - The rows the simulation was loaded with.
+     */
+    #attachDrawn(nodeCount: number): void {
+        this.#detachDrawn();
+        const simulation = this.#simulation;
+        const drawn = simulation === null || !this.#accelerated ? null : drawnOf(simulation);
+        const target = drawn === null ? null : this.#drawnTarget();
+        if (simulation === null || drawn === null || target === null || target.table.rows < nodeCount) {
+            return;
+        }
+
+        try {
+            drawn.setDrawn({ slots: DRAWN_SLOTS, rows: target.table.rowPosition.subarray(0, 4 * nodeCount) });
+        } catch (error) {
+            this.#onError(error, simulation);
+            return;
+        }
+
+        const run: DrawnRun = {
+            simulation: drawn,
+            target,
+            n: nodeCount,
+            skip: new Uint32Array(Math.ceil(nodeCount / 32)),
+        };
+        this.#drawn = run;
+        target.table.drawnMirror = (row, x, y, z, w): void => {
+            if (this.#drawn === run && row < nodeCount) {
+                drawn.writeDrawn(row, x, y, z, w);
+            }
+        };
+        this.#sendDrawnTransform(run);
+    }
+
+    /** Back to the upload path: the ring stops, and the table tells no simulation of its writes. */
+    #detachDrawn(): void {
+        const run = this.#drawn;
+        this.#drawn = null;
+        if (run === null) {
+            return;
+        }
+
+        if (run.target.table.drawnMirror !== null) {
+            run.target.table.drawnMirror = null;
+        }
+
+        if (this.#simulation === (run.simulation as unknown)) {
+            try {
+                run.simulation.setDrawn(null);
+            } catch {
+                // a disposed or failed simulation has no ring left to stop
+            }
+        }
+    }
+
+    /**
+     * The run filling the table on the card, while the graph still offers the same target.
+     * @returns The run, or null.
+     */
+    #drawnRun(): DrawnRun | null {
+        const run = this.#drawn;
+        if (run === null) {
+            return null;
+        }
+
+        const target = this.#drawnTarget();
+        if (target?.table !== run.target.table || target.device !== run.target.device) {
+            this.#detachDrawn();
+            return null;
+        }
+
+        return run;
+    }
+
+    /**
+     * After a publish on the card (with the transform the landed batch drew with, which a batch's
+     * commands recorded across awaits make unknowable here): the rows the ring must leave as the element wrote them, the copy of
+     * the landed slot, and the transform the next batches draw with.
+     * @param run - The run.
+     * @param landed - The landed slot to copy, or null when this publish goes up by upload.
+     */
+    #publishDrawn(run: DrawnRun, landed: GPUBuffer | null): void {
+        const simulation = this.#simulation;
+        try {
+            this.#sendDrawnSkip(run);
+            if (landed !== null) {
+                run.target.table.copyLanded(run.target.device, landed, run.n);
+            }
+
+            this.#sendDrawnTransform(run);
+        } catch (error) {
+            if (simulation !== null) {
+                this.#onError(error, simulation);
+            }
+        }
+    }
+
+    /**
+     * Sends the transform the next batches draw with: the envelope last measured.
+     * @param run - The run.
+     */
+    #sendDrawnTransform(run: DrawnRun): void {
+        const transform: DrawnTransform = {
+            center: [this.#simCentre[0], this.#simCentre[1], this.#simCentre[2]],
+            scale: this.#envelopeScale,
+            target: [this.#targetCentre[0], this.#targetCentre[1], this.#targetCentre[2]],
+        };
+        run.simulation.setDrawnTransform(transform);
+    }
+
+    /**
+     * Sends the rows the ring leaves as the element wrote them: no row, held, followers, and what the
+     * table keeps of its own. A row that joins them is written into the ring as the table holds it.
+     * @param run - The run.
+     */
+    #sendDrawnSkip(run: DrawnRun): void {
+        // ponytail: one pass over the rows per publish; a dirty set when held rows churn at a million rows.
+        const store = this.#dataManager[WRITABLE_LANE];
+        const { table } = run.target;
+        const next = new Uint32Array(run.skip.length);
+        let changed = false;
+        for (let row = 0; row < run.n; row++) {
+            const skip =
+                !this.#hasRow(row) ||
+                (this.#fixedRows.has(row) && store.isPlaced(row)) ||
+                this.isFollower(row) ||
+                table.keepsOwnRow(row);
+            if (!skip) {
+                continue;
+            }
+
+            const word = row >>> 5;
+            const bit = 1 << (row & 31);
+            next[word] = (next[word] ?? 0) | bit;
+            if (((run.skip[word] ?? 0) & bit) === 0) {
+                changed = true;
+                const at = 4 * row;
+                const floats = table.rowPosition;
+                run.simulation.writeDrawn(
+                    row,
+                    floats[at] ?? 0,
+                    floats[at + 1] ?? 0,
+                    floats[at + 2] ?? 0,
+                    floats[at + 3] ?? 0,
+                );
+            }
+        }
+
+        if (changed || next.some((word, i) => word !== run.skip[i])) {
+            run.simulation.setDrawnSkip(next);
+            run.skip = next;
+        }
     }
 
     /**
@@ -1347,6 +1576,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * freeze and at shutdown.
      */
     override dispose(): void {
+        this.#detachDrawn();
         this.#simulation?.dispose();
         this.#simulation = null;
         this.#syncWork();
@@ -1615,6 +1845,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // what knows that: callers pass the snapshot `getSnapshot()` handed them.
         this.#simulation.load(undirected, simPositions);
         this.#applyPins();
+        this.#attachDrawn(snapshot.nodeCount);
     }
 
     /**

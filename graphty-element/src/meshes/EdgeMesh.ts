@@ -410,7 +410,8 @@ void main() {
      * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
      * slot in a line batch: every patterned type, laid along whatever route the edge takes
      * (issue #3102), except a dashed or dotted curve, or one through bends or round a self-loop,
-     * which is a joined line in a batch that measures its dashes along the whole route.
+     * which is a joined line in a batch that measures its dashes along the whole route. So is a dashed or dotted line
+     * with a dash length or gap of its own (`line.dashLength`, `line.dashGap`): a pattern element's shape is fixed.
      * @param style - The resolved style.
      * @param loop - Whether the edge is a self-loop, which is never a straight line.
      * @returns True for pattern elements.
@@ -426,7 +427,8 @@ void main() {
             loop ||
             line?.bezier === true ||
             [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
-        return !(routed && (lineType === "dash" || lineType === "dot"));
+        const ownDashes = line?.dashLength !== undefined || line?.dashGap !== undefined;
+        return !((routed || ownDashes) && (lineType === "dash" || lineType === "dot"));
     }
 
     /**
@@ -521,8 +523,11 @@ void main() {
         const lineType = style.line?.type ?? "solid";
         const styleKey = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
         const shared = byShape && !widened;
+        // a program's own dash length and gap (`line.dashLength`, `line.dashGap`) are the batch's pattern, so they
+        // part batches as the line type does
+        const dashes = `${String(style.line?.dashLength ?? "")}|${String(style.line?.dashGap ?? "")}`;
         const key = shared
-            ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}`
+            ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}|${dashes}`
             : styleKey;
         // A batch shared by shape holds edges of many opacities, so its first edge's opacity is not
         // its mesh's visibility: at 0 Babylon would draw none of them. Its translucent slots put it
@@ -556,6 +561,11 @@ void main() {
         if (lineType === "dash" || lineType === "dot") {
             const is2D = this.is2DMode(scene);
             const width = options.width / 40;
+            const { dashLength, dashGap } = style.line ?? {};
+            // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
+            // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
+            const dotShort = lineType === "dot" ? (dashLength ?? 1) - 1 : 0;
+            const gap = dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort);
             return cache.getBatch(
                 `${key}-joined${is2D ? "-2d" : ""}`,
                 made(() =>
@@ -571,8 +581,9 @@ void main() {
                             opaque,
                             pattern: {
                                 kind: lineType,
-                                elementLength: lineType === "dash" ? width * 3 : width,
+                                elementLength: lineType === "dash" ? width * (style.line?.dashLength ?? 3) : width,
                                 count: style.line?.patternCount,
+                                gap,
                             },
                         },
                         scene,
@@ -614,16 +625,31 @@ void main() {
     }
 
     /**
+     * Whether a pulled line is drawn from the curve batch: a curve (`line.bezier`), or a line its own style raises
+     * off the map or a globe (`line.route` "arc" or "great-circle"), straight or not, or a self-loop.
+     * @param style - The resolved style.
+     * @param loop - Whether the edge is a self-loop, whose teardrop is a curve whatever its style.
+     * @param route - The route the edge takes, which the layout picks when its style does not (`Edge.route`).
+     * @returns True for a pulled curve.
+     */
+    static pullsCurve(style: EdgeStyleConfig, loop = false, route = style.line?.route): boolean {
+        return loop || style.line?.bezier === true || route === "arc" || route === "great-circle";
+    }
+
+    /**
      * The batch a plain straight line between node centres is pulled into, drawn from the row table
      * (`PulledLineBatch`). A piece carries its color, width and opacity itself
      * (`PulledLineBatch.setLook`), so they key no batch: one batch per minimum screen width and
      * per pass (translucent lines draw in the transparent pass, as the plain line's do). A lone curve
-     * (`line.bezier`) is pulled into a curve batch of its own, whose pieces are points of its path.
+     * (`line.bezier`), or a line its style raises off the map (`line.route` "arc"), is pulled into a curve batch
+     * of its own, whose pieces are points of its path ({@link EdgeMesh.pullsCurve}).
      * @param cache - The cache that keeps the batches.
      * @param options - The line's look.
      * @param style - The resolved style.
      * @param scene - The scene.
      * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
+     * @param loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
+     * @param route - The route the edge takes ({@link EdgeMesh.pullsCurve}).
      * @returns The batch.
      */
     static pulledBatch(
@@ -632,11 +658,13 @@ void main() {
         style: EdgeStyleConfig,
         scene: Scene,
         rowPositions: () => BaseTexture,
+        loop = false,
+        route = style.line?.route,
     ): PulledLineBatch {
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
-        const curve = style.line?.bezier === true;
+        const curve = this.pullsCurve(style, loop, route);
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${curve ? "|curve" : ""}`;
         return cache.getPulledBatch(key, () => {
             const mesh = this.createStaticLine(options, style, scene, cache, false, curve ? "curve" : true);

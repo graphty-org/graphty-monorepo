@@ -475,6 +475,7 @@ async function graphtyAdapter({
     sampled,
     glyphs,
     curves,
+    threeD,
     renderPath,
     renderer,
     antialias,
@@ -486,9 +487,9 @@ async function graphtyAdapter({
     el.style.cssText = "display:block;width:1200px;height:900px";
     setRequestedOptions(el, { antialias, renderPath, renderer, limits });
     el.layout = "fixed";
-    // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode. The camera
-    // moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.
-    const is2d = mode === "lean" && !curves;
+    // A pulled line is drawn only in 3D, so the curves and 3d flags keep 3D whatever the mode. The
+    // camera moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.
+    const is2d = mode === "lean" && !curves && !threeD;
     el.viewMode = is2d ? "2d" : "3d";
     el.acceleration = accel === "off" ? "off" : "auto";
     if (onDemand) el.renderOnDemand = true;

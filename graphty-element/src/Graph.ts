@@ -4659,6 +4659,16 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether a straight pulled line draws the lean program, each piece's rectangle alone:
+     * `antialias` false under renderPath "batched" (design/rendering/cosmos-gap.md, G12).
+     * @returns True when it does.
+     * @internal
+     */
+    leansLines(): boolean {
+        return !this.antialias && this.#nodeBatches !== null;
+    }
+
+    /**
      * The node batches, on the `"batched"` path.
      * @returns The batches, or null.
      * @internal

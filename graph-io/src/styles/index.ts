@@ -35,6 +35,7 @@ export {
 export {
     TOOL_DEFAULTS,
     type ToolArrowhead,
+    type ToolDash,
     type ToolDefaults,
     toolDefaults,
     type ToolDefaultValue,

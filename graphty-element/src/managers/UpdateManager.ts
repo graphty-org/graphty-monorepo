@@ -2917,13 +2917,25 @@ export class UpdateManager implements Manager {
         // every node on each of a load's thousands of frames, waits for the first frame it releases.
         const walk = !this.dataManager.drawHeld && this.edgesNeedWalking();
         const everyEdge = walk === true;
-        // support points move after their nodes stop, until they come to rest, and their edges with them
+        // support points move after their nodes stop, until they come to rest, and their edges with them; forceAtlas2
+        // finds an edge's nodes among the centers by the very point, and a batched node gives a new one at each read,
+        // so each node's is read once for the whole call
+        const centers = new Map<Node, Readonly<Vector3>>();
+        const centerOf = (node: Node): Readonly<Vector3> => {
+            const known = centers.get(node);
+            if (known !== undefined) {
+                return known;
+            }
+            const center = node.drawnPosition;
+            centers.set(node, center);
+            return center;
+        };
         const bowed =
             !this.dataManager.drawHeld &&
             this.dataManager.supportPoints.update(
-                () => Array.from(this.layoutManager.nodes, (node) => node.drawnPosition),
+                () => Array.from(this.layoutManager.nodes, centerOf),
                 this.layoutManager.edges,
-                (edge) => edge.supportEdge(),
+                (edge) => edge.supportEdge(centerOf),
                 // Only a walk of every edge finds an edge newly bowed, so nothing bowed means a drag
                 // need not read every edge to ask.
                 everyEdge || (walk !== false && this.dataManager.supportPoints.hasEdges),

@@ -12,7 +12,7 @@ import {
 import { JOIN_TEMPLATE_INDICES, JOIN_TEMPLATE_VERTICES } from "./edgeJoinShader";
 import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
-import type { CurveSpan } from "./pulledCurve";
+import { curveShape, type CurveSpan } from "./pulledCurve";
 
 /**
  * @file Straight edges drawn from the row table: a piece is two row numbers, not twenty floats.
@@ -33,6 +33,10 @@ import type { CurveSpan } from "./pulledCurve";
  * bundle: an edge takes a run of pieces, each naming its point along the cut path, and the shader works out
  * the path from the two rows' places and the span the edge writes (`meshes/pulledCurve.ts`). Its pieces
  * take two more texels: (samples, first, pieces, startAt), then (endAt, bow, 1 for a fanned arc, unused).
+ *
+ * A curve batch also keeps a ROUTE TABLE (`edgeRoutes`) for lines through bends (`line.bends`): an edge's
+ * cut path, its ends and the bends between, one (x, y, z) to a texel, in a block of its own that its span names
+ * ({@link PulledLineBatch.writeRoute}). A move of either node writes them again.
  */
 
 /**
@@ -85,6 +89,20 @@ export class PulledLineBatch {
 
     private readonly stopFlush: () => void;
 
+    /** The route table's CPU copy, a curve batch's only: cut paths' points, one to a texel. */
+    private routes: Float32Array<ArrayBuffer> | null = null;
+
+    private routeTable: RawTexture | null = null;
+
+    /** Route texels handed out so far, the size of each block handed out by its first texel, and free blocks by size. */
+    private routeHighWater = 0;
+    private readonly routeSizes = new Map<number, number>();
+    private readonly freeRoutes = new Map<number, number[]>();
+
+    /** The first and last route table line written since the last upload, or -1. */
+    private routesFirst = -1;
+    private routesLast = -1;
+
     /** Floats a piece takes in the table. */
     private readonly pieceFloats: number;
 
@@ -117,6 +135,10 @@ export class PulledLineBatch {
         this.rows = this.emptyTable(this.piecesPerLine);
         this.table = this.build();
         this.index();
+        if (curve) {
+            this.routes = new Float32Array(TABLE_WIDTH * TEXEL_FLOATS);
+            this.routeTable = this.buildRoutes(this.routes);
+        }
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
@@ -198,8 +220,9 @@ export class PulledLineBatch {
      * @param piece - The piece.
      * @param point - Which piece of the path it draws: from point `point` to `point + 1`.
      * @param span - The span (`curveSpan`), or null to draw nothing.
+     * @param route - For a line through bends, its block in the route table ({@link PulledLineBatch.writeRoute}).
      */
-    setCurve(piece: number, point: number, span: CurveSpan | null): void {
+    setCurve(piece: number, point: number, span: CurveSpan | null, route = 0): void {
         const at = piece * this.pieceFloats;
         this.rows[at + 7] = point;
         this.rows[at + 8] = span?.samples ?? 0;
@@ -207,9 +230,101 @@ export class PulledLineBatch {
         this.rows[at + 10] = span?.pieces ?? 0;
         this.rows[at + 11] = span?.startAt ?? 0;
         this.rows[at + 12] = span?.endAt ?? 0;
-        this.rows[at + 13] = span?.bow ?? 0;
-        this.rows[at + 14] = (span?.bow ?? null) === null ? 0 : 1;
+        [this.rows[at + 13], this.rows[at + 14], this.rows[at + 15]] = curveShape(span, route);
         this.touch(piece);
+    }
+
+    /**
+     * Keep a line's cut path in the route table, in the block it holds when it fits there, else in another.
+     * @param at - The block the line holds, or -1.
+     * @param points - The path's points, flat (x, y, z) triples.
+     * @returns The block that holds them now: its first texel.
+     */
+    writeRoute(at: number, points: readonly number[]): number {
+        const count = points.length / 3;
+        const size = 2 ** Math.ceil(Math.log2(Math.max(1, count)));
+        let block = at;
+        if (at < 0 || (this.routeSizes.get(at) ?? 0) < size) {
+            this.releaseRoute(at);
+            block = this.takeRoute(size);
+        }
+
+        const { routes } = this;
+        if (routes === null) {
+            return block;
+        }
+
+        routes.fill(0, block * TEXEL_FLOATS, (block + size) * TEXEL_FLOATS);
+        for (let k = 0; k < count; k++) {
+            routes.set(points.slice(3 * k, 3 * k + 3), (block + k) * TEXEL_FLOATS);
+        }
+        const first = Math.floor(block / TABLE_WIDTH);
+        const last = Math.floor((block + size - 1) / TABLE_WIDTH);
+        this.routesFirst = this.routesFirst < 0 ? first : Math.min(this.routesFirst, first);
+        this.routesLast = Math.max(this.routesLast, last);
+        return block;
+    }
+
+    /**
+     * Hand a route block back.
+     * @param at - Its first texel, or -1 for none.
+     */
+    releaseRoute(at: number): void {
+        const size = this.routeSizes.get(at);
+        if (size === undefined) {
+            return;
+        }
+
+        this.routeSizes.delete(at);
+        const free = this.freeRoutes.get(size) ?? [];
+        free.push(at);
+        this.freeRoutes.set(size, free);
+    }
+
+    /**
+     * A free route block of a size, the table doubled while it has no room.
+     * @param size - Its texels, a power of two.
+     * @returns Its first texel.
+     */
+    private takeRoute(size: number): number {
+        let block = this.freeRoutes.get(size)?.pop();
+        if (block === undefined) {
+            block = this.routeHighWater;
+            this.routeHighWater += size;
+            while (this.routes !== null && this.routeHighWater * TEXEL_FLOATS > this.routes.length) {
+                const grown = new Float32Array(this.routes.length * 2);
+                grown.set(this.routes);
+                this.routes = grown;
+                this.routeTable?.dispose();
+                this.routeTable = this.buildRoutes(grown);
+                this.routesFirst = -1;
+                this.routesLast = -1;
+            }
+        }
+
+        this.routeSizes.set(block, size);
+        return block;
+    }
+
+    /**
+     * Send a route table to the card whole and bind it.
+     * @param routes - Its CPU copy.
+     * @returns The texture.
+     */
+    private buildRoutes(routes: Float32Array<ArrayBuffer>): RawTexture {
+        const texture = RawTexture.CreateRGBATexture(
+            routes,
+            TABLE_WIDTH,
+            routes.length / (TABLE_WIDTH * TEXEL_FLOATS),
+            this.scene,
+            false,
+            false,
+            Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+            Constants.TEXTURETYPE_FLOAT,
+        );
+        (this.mesh.material as ShaderMaterial | null)?.setTexture("edgeRoutes", texture);
+        this.uploadedBytes += routes.byteLength;
+        return texture;
     }
 
     /**
@@ -226,6 +341,7 @@ export class PulledLineBatch {
     flush(): void {
         const material = this.mesh.material as ShaderMaterial | null;
         material?.setTexture("rowPosition", this.rowPositions());
+        this.flushRoutes();
         if (this.dirtyFirst < 0) {
             return;
         }
@@ -245,10 +361,28 @@ export class PulledLineBatch {
         this.dirtyLast = -1;
     }
 
+    /** Send the route table lines written since the last frame. */
+    private flushRoutes(): void {
+        const internal = this.routeTable?.getInternalTexture();
+        if (this.routesFirst < 0 || this.routes === null || !internal) {
+            return;
+        }
+
+        const lines = this.routesLast - this.routesFirst + 1;
+        const floats = TABLE_WIDTH * TEXEL_FLOATS;
+        const bytes = new Float32Array(this.routes.buffer, this.routesFirst * floats * 4, lines * floats);
+        const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
+        engine.updateTextureData(internal, bytes, 0, this.routesFirst, TABLE_WIDTH, lines);
+        this.uploadedBytes += bytes.byteLength;
+        this.routesFirst = -1;
+        this.routesLast = -1;
+    }
+
     /** Stop following the frames and free the mesh and the table. */
     dispose(): void {
         this.stopFlush();
         this.table.dispose();
+        this.routeTable?.dispose();
         // Not its textures: `rowPosition` is the row table's, which outlives this batch.
         this.mesh.material?.dispose(true, false);
         this.mesh.dispose();

@@ -269,9 +269,11 @@ const OFF_SHARDS = [
     // graphty - every project but the stories (uses Playwright for browser-based vitest), in five
     // parts, each its own CI job: about 1,240 tests took 46 minutes in one, past the gate's 30-minute
     // shard limit, and in three parts on a CI runner one part took 15 to 16 minutes (graphty-1: 892 s
-    // and 928 s of vitest, ci.yml runs 39883665524 and 39887583054, 2026-10-23), so five parts are
-    // about 9 minutes each. Each part writes its coverage to its own .coverage-parts/<shard>
-    // (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
+    // and 928 s of vitest, ci.yml runs 39883665524 and 39887583054, 2026-10-23), so five parts. Most of a
+    // part's time is its real-element files, run one at a time (about 20 minutes each by 2026-11-09), so
+    // graphty/test/story-shards.ts splits those by time rather than by vitest's path hash, which once gave
+    // graphty-4 25 minutes of them and ran it into its deadline (#6373). Each part writes its coverage
+    // to its own .coverage-parts/<shard> (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
     // where for the upload. The On twins (tools/features-on.mjs) exist only under GRAPHTY_FEATURES_ON=1, which
     // these commands never set. The projects are named one by one because vitest runs a project that any one
     // --project matches, so a second "!name" would select the project the first one left out.

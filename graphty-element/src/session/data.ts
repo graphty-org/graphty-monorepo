@@ -112,6 +112,7 @@ import {
     NO_ISSUE_STATE,
 } from "./issues";
 import { frozen, type JoinGraph, type JoinPlan, joinReport, planJoin } from "./join";
+import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
@@ -5464,15 +5465,18 @@ function withoutEndpointKeys(record: SessionAttributes, report: ImportReport | n
  * @param store - The store.
  * @param dispatcher - The session's dispatcher.
  * @param readConfig - Reads the data configuration.
+ * @param ceilings - The ceilings a load is refused above.
  * @returns The service.
  */
 export function headlessDataService(
     store: GraphStore,
     dispatcher: Dispatcher,
     readConfig: () => SessionDataConfig,
+    ceilings?: RenderLimits,
 ): DataService {
     const ingest = new Ingest<{ readonly edgeIndex: number }>({
         store: () => store,
+        ceilings: () => ceilings?.overrides,
         dataConfig: readConfig,
         hasNode: (id) => dispatcher.graph.slice.nodes.has(id),
         nodeCount: () => store.builder.nodeCount,

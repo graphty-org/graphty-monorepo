@@ -1757,11 +1757,14 @@ export function SelectionEditor({
         setSelected(null);
         setAdding(null);
     };
-    // A card's keys, as its "..." menu shows them, on its header's controls (its grip, its fold, ...).
+    // A card's keys, as its "..." menu shows them, on the card itself (a click on its blank space
+    // focuses it) or on its header's controls (its grip, its fold, ...).
     const cardKeys = (event: React.KeyboardEvent<HTMLElement>): void => {
         const target = event.target as HTMLElement;
-        const head = target.closest<HTMLElement>("[data-card-id] > .cm-card-head");
-        const branchId = head?.parentElement?.dataset.cardId;
+        const card = target.matches("[data-card-id]")
+            ? target
+            : target.closest<HTMLElement>("[data-card-id] > .cm-card-head")?.parentElement;
+        const branchId = card?.dataset.cardId;
         const branch = rule.branches.find((each) => each.id === branchId);
         if (branch === undefined || isTypingTarget(target)) {
             return;

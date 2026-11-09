@@ -80,7 +80,7 @@ export const ShapesIn2D: Story = {
         await assertShapeVariety(scene, TOOL_SHAPES.length);
     },
     args: {
-        // The flat shapes other programs' files name are the file styles experiment's.
+        // the shapes the file-styles experiment adds (rectangle, round-rectangle, ...) are drawn only with it on
         features: ["file-styles"],
         setup: storySetup({
             viewMode: "2d",
@@ -162,7 +162,7 @@ export const PajekShapesAndMidLineArrows: Story = {
         );
     },
     args: {
-        // Pajek's shapes are the file styles experiment's.
+        // Pajek's shapes and mid-line arrowheads are the file-styles experiment's, drawn only with it on
         features: ["file-styles"],
         setup: storySetup({
             viewMode: "2d",

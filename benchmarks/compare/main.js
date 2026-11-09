@@ -115,6 +115,9 @@ const B = {
         const serial = stats(intervals(await lib.frames(frames + 1, null)));
         return { serial, paced };
     },
+    // The GPU time of each of `frames` still frames, from EXT_disjoint_timer_query_webgl2, to set
+    // beside the serial still frame: a serial interval below it means the stamps run early.
+    gpuFrame: (frames = 60) => lib.gpuFrame?.(frames) ?? null,
     async orbit(frames = 200) {
         const st = await lib.frames(frames + 1, (i) => lib.moveCamera(i));
         await lib.resetCamera?.();
@@ -417,21 +420,76 @@ function labelBehavior(sampled, glyphs) {
     return b;
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, renderPath, renderer }) {
-    await import("@graphty/graphty-element");
-    if (accel !== "off") await import("@graphty/graphty-element/webgpu");
-    const el = document.createElement("graphty-element");
-    el.style.cssText = "display:block;width:1200px;height:900px";
+// the lean mode's boxes and capless edges, and the curves flag's curves
+async function addShapeStyles(el, mode, curves) {
+    if (mode === "lean") {
+        await el.session.styles.add({
+            name: "lean nodes",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": "box" },
+        });
+        await el.session.styles.add({
+            name: "lean edges",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        });
+    }
+    if (curves)
+        await el.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none", "edge.curvature": true },
+        });
+}
+
+// The element ignores what it does not know, so without these checks a build that lacks an option
+// would be measured on its default and recorded under the requested value.
+function setRequestedOptions(el, { antialias, renderPath, renderer, limits }) {
+    // antialias first, before any other property builds the engine, which reads it only then.
+    if (antialias !== undefined) {
+        if (!("antialias" in el))
+            throw new Error(`antialias ${antialias} requested, but this build has no antialias option`);
+        el.antialias = antialias;
+    }
     if (renderPath) {
-        // The element ignores what it does not know, so without this a build that lacks the option
-        // would be measured on its default path and recorded under the requested one.
         if (!("renderPath" in el))
             throw new Error(`renderPath "${renderPath}" requested, but this build has no renderPath option`);
         el.renderPath = renderPath;
     }
     if (renderer) el.renderer = renderer;
+    if (limits) {
+        if (!("limits" in el)) throw new Error("limits requested, but this build has no limits option");
+        el.limits = limits;
+    }
+}
+
+async function graphtyAdapter({
+    mode,
+    accel,
+    onDemand,
+    dpr,
+    labels,
+    sampled,
+    glyphs,
+    curves,
+    renderPath,
+    renderer,
+    antialias,
+    limits,
+}) {
+    await import("@graphty/graphty-element");
+    if (accel !== "off") await import("@graphty/graphty-element/webgpu");
+    const el = document.createElement("graphty-element");
+    el.style.cssText = "display:block;width:1200px;height:900px";
+    setRequestedOptions(el, { antialias, renderPath, renderer, limits });
     el.layout = "fixed";
-    el.viewMode = mode === "lean" ? "2d" : "3d";
+    // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode. The camera
+    // moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.
+    const is2d = mode === "lean" && !curves;
+    el.viewMode = is2d ? "2d" : "3d";
     el.acceleration = accel === "off" ? "off" : "auto";
     if (onDemand) el.renderOnDemand = true;
     if (dpr !== 1) el.setAttribute("pixel-ratio", "device");
@@ -447,20 +505,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
     const graph = el.graph;
     const gl = graph.engine?._gl ?? null;
     let onFrame = null;
-    if (mode === "lean") {
-        await el.session.styles.add({
-            name: "lean nodes",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.shape": "box" },
-        });
-        await el.session.styles.add({
-            name: "lean edges",
-            target: "edge",
-            selector: { match: "everything" },
-            set: { "edge.arrowHead": "none" },
-        });
-    }
+    await addShapeStyles(el, mode, curves);
     if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({
@@ -474,7 +519,8 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
         stamps.push(now());
         if (onFrame) onFrame();
     });
-    let cam0 = null;
+    let cam0 = null,
+        cam0Before = null;
     let moved = null;
     const a = {
         el,
@@ -554,6 +600,29 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
             }
             return stamps.slice(0, count);
         },
+        async gpuFrame(count) {
+            const ext = gl?.getExtension("EXT_disjoint_timer_query_webgl2");
+            if (!ext) return null;
+            const queries = [];
+            const scene = graph.scene;
+            const begin = scene.onBeforeRenderObservable.add(() => {
+                const q = gl.createQuery();
+                gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
+                queries.push(q);
+            });
+            // First, so the query ends before the stamp's readPixels.
+            const end = scene.onAfterRenderObservable.add(() => gl.endQuery(ext.TIME_ELAPSED_EXT), undefined, true);
+            await a.frames(count, null);
+            scene.onBeforeRenderObservable.remove(begin);
+            scene.onAfterRenderObservable.remove(end);
+            const t = now();
+            while (!queries.every((q) => gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) && now() - t < 10000)
+                await raf();
+            const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
+            const ms = queries.map((q) => gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6);
+            for (const q of queries) gl.deleteQuery(q);
+            return { ...stats(ms), disjoint };
+        },
         moveNode(i) {
             moved ??= graph.getNode(0) ?? null;
             if (moved) {
@@ -563,8 +632,11 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
             }
         },
         moveCamera(i) {
-            cam0 ??= graph.getCameraState();
-            if (mode === "lean") {
+            if (!cam0) {
+                cam0 = graph.getCameraState();
+                cam0Before = JSON.stringify(cam0);
+            }
+            if (is2d) {
                 const p = cam0.pan ?? { x: 0, y: 0 };
                 graph.setCameraState({ pan: { x: p.x + 0.05 * 4 * Math.sqrt(G.n) * Math.sin(i / 20), y: p.y } });
             } else {
@@ -586,9 +658,12 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
             }
         },
         async resetCamera() {
+            // A camera move the view ignores would time a still view as a moving one.
+            if (cam0 && JSON.stringify(graph.getCameraState()) === cam0Before)
+                throw new Error("the camera did not move during the moving stage");
             if (cam0)
                 graph.setCameraState(
-                    mode === "lean"
+                    is2d
                         ? { pan: cam0.pan }
                         : { alpha: cam0.alpha, beta: cam0.beta, radius: cam0.radius, target: cam0.target },
                 );

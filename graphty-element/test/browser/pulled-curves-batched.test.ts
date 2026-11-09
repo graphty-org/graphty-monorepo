@@ -3,6 +3,15 @@
  * between the same two nodes, is pulled from the row table (`PulledLineBatch` with curve texels,
  * `meshes/pulledCurve.ts`) and draws the picture the `"objects"` path draws, at rest and after a drag.
  * A fanned curve that gains a parallel edge fans out beside it, and draws as before once it goes.
+ * A bundle spread by `line.fanSpacing` is pulled too, and follows a new spacing, and a curve drawn as an arc of a
+ * circle (`line.arcRadius`) follows a new radius. A curve stopped short of its nodes by a gap (`line.nodeGap`,
+ * `sourceNodeGap`, `targetNodeGap`) is pulled too, and follows a new gap, one wide enough that a curve clears
+ * neither gapped node and is drawn uncut between its bare ends. A curve raised off the map (`line.route` "arc") is
+ * pulled too, and follows a new height (`line.arcHeight`), and so is a curve or a straight line on the great-circle
+ * route (`line.route` "great-circle"). A self-loop's teardrop is pulled too, and spreads round its node as the node
+ * gains a loop. A route the `location-map` layout picks (an arc over a flat map, a great circle on a globe, straight
+ * to a node it could not place) is pulled too, and follows the layout as it changes. A curve through a support point
+ * (`line.supportModel`) is pulled too, and follows the point as it settles and as its model changes.
  * Stage 21 of design/rendering/row-renderer.md; the bar is its section 7.
  */
 
@@ -24,9 +33,11 @@ afterEach(() => {
     document.body.replaceChildren();
 });
 
+/** Each node but the last has a place on a map too, which only the `location-map` layout reads. */
 const NODES = Array.from({ length: 9 }, (_, id) => ({
     id,
     position: { x: (id % 3) * 1.4 - 1.4, y: Math.floor(id / 3) * 1.4 - 1.4, z: (id % 2) * 0.6 },
+    ...(id < 8 ? { latitude: 20 + (id % 3) * 15, longitude: -100 + id * 25 } : {}),
 }));
 
 /** A ring and two crossings; edge 0 fans, alone between its nodes until a parallel edge joins it. */
@@ -204,5 +215,473 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length + 4, objectEdges: 0 });
         assert.equal(overBar(objectsRest, await readCanvas(batched.graph)), 0, "at rest");
         assert.equal(overBar(objectsMoved, await moved(batched)), 0, "after a drag");
+    });
+
+    it("pull a bundle spread by fanSpacing, and follow a new spacing, drawing the objects path's picture", async () => {
+        /**
+         * Join nodes 3 and 4 with three fanned curves spread 0.25 apart, read the frame, then spread them 0.5 apart.
+         * @param element - The element.
+         * @returns The frames at each spacing.
+         */
+        async function spread(element: Graphty): Promise<{ narrow: Frame; wide: Frame }> {
+            await element.session.data.addEdges([
+                { src: 3, dst: 4 },
+                { src: 4, dst: 3 },
+                { src: 3, dst: 4 },
+            ]);
+            const data = element.graph.getDataManager();
+            const added = [...data.getEdgesBetween(3, 4).slice(1), ...data.getEdgesBetween(4, 3)];
+            assert.lengthOf(added, 3);
+            const edges = added.map((edge) => edge.id);
+            await element.session.styles.add({
+                name: "spread",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.arrowHead": "none", "edge.curvature": true, "edge.fanSpacing": 0.25 },
+            } as never);
+            await settled(element);
+            const narrow = await readCanvas(element.graph);
+            await element.session.styles.add({
+                name: "wider",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.fanSpacing": 0.5 },
+            } as never);
+            await settled(element);
+            return { narrow, wide: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await spread(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await spread(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length + 3, objectEdges: 0 });
+        assert.isAbove(overBar(before.narrow, before.wide), 0, "the new spacing moves the arcs");
+        assert.equal(overBar(before.narrow, after.narrow), 0, "spread 0.25 apart");
+        assert.equal(overBar(before.wide, after.wide), 0, "spread 0.5 apart");
+    });
+
+    it("pull curves drawn as circle arcs, and follow a new radius, drawing the objects path's picture", async () => {
+        /**
+         * Draw every lone curve as an arc of radius 0.6, read the frame, drag, then widen the radius to 2 and read again.
+         * @param element - The element.
+         * @returns The frames at each radius.
+         */
+        async function arcs(element: Graphty): Promise<{ tight: Frame; dragged: Frame; wide: Frame }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            await element.session.styles.add({
+                name: "arcs",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.arcRadius": 0.6 },
+            } as never);
+            await settled(element);
+            const tight = await readCanvas(element.graph);
+            const dragged = await moved(element);
+            await element.session.styles.add({
+                name: "wider arcs",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.arcRadius": 2 },
+            } as never);
+            await settled(element);
+            return { tight, dragged, wide: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await arcs(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await arcs(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.tight, before.wide), 0, "the new radius moves the arcs");
+        assert.equal(overBar(before.tight, after.tight), 0, "radius 0.6");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.wide, after.wide), 0, "radius 2");
+    });
+
+    it("pull curves stopped short of their nodes by a gap, and follow a new gap, drawing the objects path's picture", async () => {
+        /**
+         * Stop every curve 0.15 short of its nodes, read the frame, drag, then widen one end's gap and read again.
+         * @param element - The element.
+         * @returns The frames at each gap.
+         */
+        async function gaps(element: Graphty): Promise<{ narrow: Frame; dragged: Frame; wide: Frame }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            await element.session.styles.add({
+                name: "gaps",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.nodeGap": 0.15 },
+            } as never);
+            await settled(element);
+            const narrow = await readCanvas(element.graph);
+            const dragged = await moved(element);
+            // a source gap past the next node: no point of those curves clears both, so each is drawn uncut
+            await element.session.styles.add({
+                name: "wide source gaps",
+                target: "edge",
+                selector: { match: "ids", edges: edges.slice(0, 3) },
+                set: { "edge.sourceNodeGap": 1.2 },
+            } as never);
+            await settled(element);
+            return { narrow, dragged, wide: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await gaps(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await gaps(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.narrow, before.wide), 0, "the wide gaps move the curves");
+        assert.equal(overBar(before.narrow, after.narrow), 0, "a gap of 0.15");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.wide, after.wide), 0, "wide source gaps");
+    });
+    it("pull curves raised in arcs, and follow a new height, drawing the objects path's picture", async () => {
+        /**
+         * Raise every curve, drag a node, then raise them higher.
+         * @param element - The element.
+         * @returns The pictures.
+         */
+        async function raised(element: Graphty): Promise<{ low: Frame; dragged: Frame; high: Frame }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            await element.session.styles.add({
+                name: "raised",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.route": "arc" },
+            } as never);
+            await settled(element);
+            const low = await readCanvas(element.graph);
+            const dragged = await moved(element);
+            await element.session.styles.add({
+                name: "higher",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.arcHeight": 0.6 },
+            } as never);
+            await settled(element);
+            return { low, dragged, high: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await raised(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await raised(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.low, before.high), 0, "the new height moves the arcs");
+        assert.equal(overBar(before.low, after.low), 0, "the default height");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.high, after.high), 0, "height 0.6");
+    });
+
+    it("pull straight lines raised in arcs, and follow a new height down to flat, drawing the objects path's picture", async () => {
+        /**
+         * Straighten and raise every edge, drag a node, raise them higher, then flatten them.
+         * @param element - The element.
+         * @returns The pulled rows after the raise, and the pictures.
+         */
+        async function raised(
+            element: Graphty,
+        ): Promise<{ pulled: number; low: Frame; dragged: Frame; high: Frame; flat: Frame }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            const restyle = async (name: string, set: Record<string, unknown>): Promise<Frame> => {
+                await element.session.styles.add({
+                    name,
+                    target: "edge",
+                    selector: { match: "ids", edges },
+                    set,
+                } as never);
+                await settled(element);
+                return readCanvas(element.graph);
+            };
+            await restyle("straight", { "edge.curvature": false });
+            const low = await restyle("raised", { "edge.route": "arc" });
+            const { pulledEdges: pulled } = element.graph.rowCounts;
+            const dragged = await moved(element);
+            const high = await restyle("higher", { "edge.arcHeight": 0.6 });
+            const flat = await restyle("flat", { "edge.arcHeight": 0 });
+            return { pulled, low, dragged, high, flat };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await raised(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await raised(batched);
+        assert.equal(after.pulled, EDGES.length, "the raised straight lines are pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.low, before.high), 0, "the new height moves the arcs");
+        assert.equal(overBar(before.low, after.low), 0, "the default height");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.high, after.high), 0, "height 0.6");
+        assert.equal(overBar(before.flat, after.flat), 0, "height 0, drawn straight");
+    });
+
+    it("pull straight lines through bends, and follow new bends and gaps, drawing the objects path's picture", async () => {
+        /**
+         * Straighten every edge and bend it, half of them through three bends (one inside its source), drag a node, bend
+         * them again with gaps, put every bend inside the nodes, then take the bends and gaps away.
+         * @param element - The element.
+         * @returns The pulled rows while bent, and the pictures.
+         */
+        async function bent(element: Graphty): Promise<{
+            pulled: number;
+            one: Frame;
+            dragged: Frame;
+            gapped: Frame;
+            inside: Frame;
+            plain: Frame;
+        }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            const restyle = async (name: string, set: Record<string, unknown>, ids = edges): Promise<Frame> => {
+                await element.session.styles.add({
+                    name,
+                    target: "edge",
+                    selector: { match: "ids", edges: ids },
+                    set,
+                } as never);
+                await settled(element);
+                return readCanvas(element.graph);
+            };
+            await restyle("straight", { "edge.curvature": false });
+            await restyle("one bend", { "edge.bends": "0.5,0.9" });
+            const one = await restyle("three bends", { "edge.bends": "0.05,0 0.4,-1 0.6,0.9" }, edges.slice(0, 5));
+            const { pulledEdges: pulled } = element.graph.rowCounts;
+            const dragged = await moved(element);
+            const gapped = await restyle("gapped", { "edge.bends": "0.3,0.8 0.5,-0.8 0.7,0.8", "edge.nodeGap": 0.1 });
+            const inside = await restyle("inside", { "edge.bends": "0.02,0 0.98,0" });
+            // a straight line with a gap is an object edge, so the gap goes with the bends
+            const plain = await restyle("no bends", { "edge.bends": "", "edge.nodeGap": 0 });
+            return { pulled, one, dragged, gapped, inside, plain };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await bent(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await bent(batched);
+        assert.equal(after.pulled, EDGES.length, "the bent lines are pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.one, before.gapped), 0, "the new bends move the lines");
+        assert.isAbove(overBar(before.gapped, before.inside), 0, "bends inside the nodes straighten the lines");
+        assert.equal(overBar(before.one, after.one), 0, "one bend and three");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.gapped, after.gapped), 0, "new bends, gapped");
+        assert.equal(
+            overBar(before.inside, after.inside),
+            0,
+            "every bend inside a node, drawn as the lone curve between the bare ends",
+        );
+        assert.equal(overBar(before.plain, after.plain), 0, "no bends");
+    });
+
+    it("pull curves and straight lines on the great-circle route, and follow a new height, drawing the objects path's picture", async () => {
+        /**
+         * Put every edge on the great-circle route, drag a node, raise them higher, straighten them, then flatten them.
+         * Node 4 starts at the globe's center and edge 2 to 6 runs through it, so some are drawn straight.
+         * @param element - The element.
+         * @returns The pulled rows after the route, and the pictures.
+         */
+        async function routed(
+            element: Graphty,
+        ): Promise<{ pulled: number; low: Frame; dragged: Frame; high: Frame; straight: Frame; flat: Frame }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            const restyle = async (name: string, set: Record<string, unknown>): Promise<Frame> => {
+                await element.session.styles.add({
+                    name,
+                    target: "edge",
+                    selector: { match: "ids", edges },
+                    set,
+                } as never);
+                await settled(element);
+                return readCanvas(element.graph);
+            };
+            const low = await restyle("routed", { "edge.route": "great-circle" });
+            const { pulledEdges: pulled } = element.graph.rowCounts;
+            const dragged = await moved(element);
+            const high = await restyle("higher", { "edge.arcHeight": 0.6 });
+            const straight = await restyle("straight", { "edge.curvature": false });
+            const flat = await restyle("flat", { "edge.arcHeight": 0 });
+            return { pulled, low, dragged, high, straight, flat };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await routed(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await routed(batched);
+        assert.equal(after.pulled, EDGES.length, "the routed curves are pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.low, before.high), 0, "the new height moves the arcs");
+        assert.equal(overBar(before.low, after.low), 0, "the default height");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.high, after.high), 0, "height 0.6");
+        assert.equal(overBar(before.straight, after.straight), 0, "straight lines at height 0.6");
+        assert.equal(overBar(before.flat, after.flat), 0, "height 0, drawn straight");
+    });
+
+    it("pull self-loops, curved or not, and spread them as their node gains one, drawing the objects path's picture", async () => {
+        /**
+         * Give node 4 three loops (two of them curved) and node 8 four, drag node 4, then give node 8 a fifth, which
+         * narrows the share of its loops round it, and take it away again.
+         * @param element - The element.
+         * @returns The pulled rows with the loops, and the pictures.
+         */
+        async function looped(
+            element: Graphty,
+        ): Promise<{ pulled: number; rest: Frame; dragged: Frame; five: Frame; four: Frame }> {
+            const loops = [4, 4, 4, 8, 8, 8, 8].map((id) => ({ src: id, dst: id }));
+            await element.session.data.addEdges(loops);
+            const data = element.graph.getDataManager();
+            const ids = (id: number): unknown[] => data.getEdgesBetween(id, id).map((edge) => edge.id);
+            await element.session.styles.add({
+                name: "loops",
+                target: "edge",
+                selector: { match: "ids", edges: [...ids(4), ...ids(8)] },
+                set: { "edge.arrowHead": "none" },
+            } as never);
+            await element.session.styles.add({
+                name: "curved loops",
+                target: "edge",
+                selector: { match: "ids", edges: ids(4).slice(1) },
+                set: { "edge.curvature": true },
+            } as never);
+            await settled(element);
+            const { pulledEdges: pulled } = element.graph.rowCounts;
+            const rest = await readCanvas(element.graph);
+            const dragged = await moved(element);
+            await element.session.data.addEdges([{ src: 8, dst: 8 }]);
+            const fifth = ids(8).at(-1);
+            await element.session.styles.add({
+                name: "fifth loop",
+                target: "edge",
+                selector: { match: "ids", edges: [fifth] },
+                set: { "edge.arrowHead": "none" },
+            } as never);
+            await settled(element);
+            const five = await readCanvas(element.graph);
+            await element.session.data.removeEdges([fifth as never]);
+            await settled(element);
+            return { pulled, rest, dragged, five, four: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await looped(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await looped(batched);
+        assert.equal(after.pulled, EDGES.length + 7, "the loops are pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length + 7, objectEdges: 0 });
+        const curveBatches = batched.graph.scene.meshes.filter((mesh) => mesh.name.endsWith("|curve"));
+        assert.lengthOf(curveBatches, 1, "the loops are drawn from the curves' batch");
+        assert.isAbove(overBar(before.four, before.five), 0, "a fifth loop spreads its node's loops");
+        assert.equal(overBar(before.rest, after.rest), 0, "at rest");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.five, after.five), 0, "with a fifth loop");
+        assert.equal(overBar(before.four, after.four), 0, "after it is removed");
+    });
+    it("pull the routes the location-map layout picks, and follow the layout as it changes, drawing the objects path's picture", async () => {
+        /**
+         * Straighten half the edges, lay the graph on a flat map (arcs), then on a globe (great circles), then back on
+         * its fixed positions (no route). Node 8 has no place on the map, so its edges stay straight on it.
+         * @param element - The element.
+         * @returns The pulled rows on the map, and the pictures.
+         */
+        async function mapped(element: Graphty): Promise<{ pulled: number; flat: Frame; globe: Frame; fixed: Frame }> {
+            await element.session.styles.add({
+                name: "straight",
+                target: "edge",
+                selector: {
+                    match: "ids",
+                    edges: EDGES.filter((_, i) => i % 2 === 0).map((e) => edgeId(element, e.src, e.dst)),
+                },
+                set: { "edge.curvature": false },
+            } as never);
+            const map = { latitude: "latitude", longitude: "longitude", gazetteer: false } as const;
+            const lay = async (type: string, options: Record<string, unknown>): Promise<Frame> => {
+                await element.graph.setLayout(type, options);
+                await settled(element);
+                return readCanvas(element.graph);
+            };
+            const flat = await lay("location-map", { ...map, mapDimension: "2d" });
+            const { pulledEdges: pulled } = element.graph.rowCounts;
+            const globe = await lay("location-map", { ...map, mapDimension: "3d" });
+            await lay("fixed", { dim: 3 });
+            // the camera still frames the globe, where the graph is a few pixels across
+            element.zoomToFit();
+            await settled(element);
+            const fixed = await readCanvas(element.graph);
+            return { pulled, flat, globe, fixed };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await mapped(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await mapped(batched);
+        assert.equal(after.pulled, EDGES.length, "the edges on the map are pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.equal(overBar(before.flat, after.flat), 0, "arcs over a flat map");
+        assert.equal(overBar(before.globe, after.globe), 0, "great circles on a globe");
+        assert.equal(overBar(before.fixed, after.fixed), 0, "off the map again");
+    });
+    it("pull curves through support points, and follow the points as they settle, drawing the objects path's picture", async () => {
+        /**
+         * Bow every curve through a support point, read the settled frame, drag, then change the force law and read again.
+         * @param element - The element.
+         * @returns The frames: plain curves, then through support points, after a drag, and under forceAtlas2.
+         */
+        async function supported(
+            element: Graphty,
+        ): Promise<{ plain: Frame; barnesHut: Frame; dragged: Frame; forceAtlas2: Frame }> {
+            const plain = await readCanvas(element.graph);
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            await element.session.styles.add({
+                name: "support points",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.supportModel": "barnesHut", "edge.supportScale": "drawing" },
+            } as never);
+            await settled(element);
+            const barnesHut = await readCanvas(element.graph);
+            // the support points settle after the drag, from their edges' middles
+            await moved(element);
+            await settled(element);
+            const dragged = await readCanvas(element.graph);
+            await element.session.styles.add({
+                name: "forceAtlas2",
+                target: "edge",
+                selector: { match: "ids", edges },
+                set: { "edge.supportModel": "forceAtlas2" },
+            } as never);
+            await settled(element);
+            return { plain, barnesHut, dragged, forceAtlas2: await readCanvas(element.graph) };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await supported(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await supported(batched);
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.plain, before.barnesHut), 0, "the support points bow the curves");
+        assert.equal(overBar(before.barnesHut, after.barnesHut), 0, "settled under barnesHut");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.forceAtlas2, after.forceAtlas2), 0, "settled under forceAtlas2");
     });
 });

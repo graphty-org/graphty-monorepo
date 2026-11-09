@@ -57,14 +57,15 @@ function deviceOf(graph: Graph): GPUDevice {
 /**
  * Builds a ring on WebGPU and waits for its picture.
  * @param onDemand - Whether the loop rests once the picture is final.
+ * @param antialias - Whether the engine multisamples.
  * @returns The graph.
  */
-async function openRing(onDemand: boolean): Promise<Graph> {
+async function openRing(onDemand: boolean, antialias = true): Promise<Graph> {
     const container = document.createElement("div");
     container.style.width = "480px";
     container.style.height = "360px";
     document.body.appendChild(container);
-    const graph = new Graph(container);
+    const graph = new Graph(container, false, { antialias });
     mounted.push({ graph, container });
     graph.setRenderer("webgpu");
     await graph.init();
@@ -134,9 +135,14 @@ const DRILLS: Record<string, (device: GPUDevice) => Promise<void>> = {
 
 describe("a lost WebGPU device", () => {
     for (const [drill, loseDevice] of Object.entries(DRILLS)) {
-        for (const onDemand of [false, true]) {
-            it(`draws the same picture after a ${drill}, ${onDemand ? "resting" : "drawing every tick"}`, async () => {
-                const graph = await openRing(onDemand);
+        for (const [onDemand, antialias] of [
+            [false, true],
+            [true, true],
+            [true, false],
+        ]) {
+            const how = `${onDemand ? "resting" : "drawing every tick"}${antialias ? "" : ", antialias off"}`;
+            it(`draws the same picture after a ${drill}, ${how}`, async () => {
+                const graph = await openRing(onDemand, antialias);
                 const before = await commands.canvasPicture();
                 const uncaptured = countUncaptured();
                 const told = vi.fn();
@@ -150,6 +156,7 @@ describe("a lost WebGPU device", () => {
                 // What wakes a resting loop and has the batches upload again. Shaders compiling on
                 // the new device also keep the loop drawing, so the picture alone does not show it.
                 assert.strictEqual(told.mock.calls.length, 1);
+                assert.strictEqual(graph.engine.getCreationOptions().antialias, antialias);
             });
         }
     }

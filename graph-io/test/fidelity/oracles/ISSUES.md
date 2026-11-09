@@ -961,8 +961,9 @@ copy a draw.io mistake into graph-io):
       the event, gateway, task, artifact and data object symbols; it draws nothing for three event characteristics
       (`START_EVENT_SUB_PROCESS_NON_INTERRUPTING`, `INTERMEDIATE_BOUNDARY_NON_INTERRUPTING`, `INTERMEDIATE_THROWING`,
       whose spelling is inferred: `bpmnStyleProperties` in `yed-vocabulary.json`) nor for an `Event` with no
-      properties. graph-io reads only the configuration's outline (`bpmn.event` an ellipse, `bpmn.gateway` a
-      diamond), so every symbol, marker and icon color is a gap: graphty-element has no BPMN symbol to draw yet.
+      properties. graph-io reads the configuration's outline (`bpmn.event` an ellipse, `bpmn.gateway` a diamond)
+      and draws the symbols, markers and icon colors as yEd's own drawings of these sheets show them, as a picture
+      over the node.
     - Older yEd versions write the Modern Nodes ids without their `com.yjava.` prefix (`BevelNode`, `BevelNode2`,
       `BevelNode3`, `BevelNodeWithShadow`: `generic-legacy-*`), and `DemoGroup` (a GenericGroupNode with a
       `headerBackground` property). draw.io draws them as plain boxes.
@@ -2388,10 +2389,15 @@ defects, open:
   of half an inch (`quantum-label`, `quantum-box`); graphty draws them unrounded (`node.width`, `node.height`).
 - `ratio=2` (`dot-specimen-groups-p12`): Graphviz stretches the stored positions to twice as tall as wide; graphty
   keeps them (`node.position`, `node.width`, `node.height` on every node of the page).
-- The root graph's label is never drawn, plain or HTML-like (`stray.present` on `dot-specimen-groups-p4`, `-p5`,
-  `-p7`, `-p13`, `-p14`: Graphviz's "graph-label" at the bottom or top, left, center or right, in its own color and
-  font; `-p8`: the HTML words "graph", "label", "html"). graph-io keeps the label as a graph attribute and
-  graphty-element has no graph-level label to draw it in, so the fix starts in graphty-element.
+- FIXED (2026-11-07) for a laid-out file: the root graph's label was never drawn, plain or HTML-like
+  (`stray.present` on `dot-specimen-groups-p4`, `-p5`, `-p7`, `-p13`, `-p14`: Graphviz's "graph-label" at the
+  bottom or top, left, center or right, in its own color and font; `-p8`: the HTML words "graph", "label", "html").
+  The DOT importer's `annotations()` now gives it as text annotations, one per line or HTML font run, at a stored
+  `lp`, else in the band Graphviz adds beside the root `bb` (`place_root_label`), and graphty-element draws them
+  with the file's other annotations. Still open: a file with no `bb` and no `lp` (`dot-real-crazy`,
+  `dot-real-siblings`, `dot-real-happiness`, `dot-synth-nodes`, `dot-synth-edges-clusters`) has no place for the
+  title until graphty lays it out, and graphty-element paints annotations once at file coordinates; drawing the
+  title there needs a graph-level label placed against the drawn graph's bounding box and moved with the layout.
 - Stored edge `pos` with the tail arrow's `s,x,y` point (`dot-specimen-edges-lines-p11`, `pos-arrow-startpoint`,
   `pos-arrow-both-points`, beside the `e,x,y` row `pos-arrow-endpoint` of `dot-specimen-edges-lines`): Graphviz draws
   a full `normal` triangle from the spline's end to the stored point, but the comparator reads each of these arrows
@@ -2691,15 +2697,24 @@ Rows still open, each with what stops it:
   oracle draws a picture, vis-network draws nothing; oracle limit, to recheck in a browser.
 - yEd (`yed-graphml-specimen-node-shapes-p2` .. `-p6`): the BPMN artifacts, the SBGN nucleic acid feature and perturbing
   agent, the UML class and 3D rectangle's size, the UML note and the shapes that keep their proportions in a box of
-  another shape are read as yEd's own drawings show them (#5788). The lines some shapes draw inside (predefined
-  process, internal storage, direct data's rim, the big entity's header), the strips of a raised border (#5839) and a
-  BPMN intermediate event's and transaction's double line are not drawn.
+  another shape are read as yEd's own drawings show them (#5788). The lines some shapes draw inside (direct data's
+  rim, the big entity's header), the strips of a raised border (#5839) and a BPMN intermediate event's and
+  transaction's double line are not drawn. What yEd draws inside a GenericNode beside its outline -- the BPMN
+  gateway markers, event symbols, task icons, activity markers, a data object's fold and arrow in the icon colors, the
+  lines inside a predefined process and an internal storage -- and a UML note's fold are drawn as a picture over the
+  node, measured from these sheets (`graph-io` `styles-yed-drawing.ts`): `stray.present` -p2 22 to 20, -p3 16 to 15,
+  -p4 30 to 0, -p5 31 to 0, -p6 24 to 0 in each view, `graphml-libcitygml-mapping` 11 to 1, `graphml-synthetic-nodes`
+  12 to 11. Left: an activity's markers past its sides (four markers on a node 56 wide) are cut at the node, and only
+  one size of each node has been drawn, so how the marks scale is unproven.
 - yEd `y:ImageNode` (`yed-graphml-specimen-images-charts`): graphty draws the PNG yEd draws; draw.io, the stand-in,
   draws an empty box, so this sheet's stand-in raster floors (`raster.nodeBody`, `raster.nodeOutline`) fall until
-  the owner's yEd export replaces the stand-in. yEd's own drawings show it paints neither an image node's fill nor its
-  border (`graphml-stm32-func`: 15 nodes, `graphml-synthetic-nodes`), and this sheet's own yEd drawing (2026-11-07,
-  #5792) shows the same: graphty still paints both under the picture, so `node.fill` and `node.stroke` fail for its
-  image and SVG nodes.
+  the owner's yEd export replaces the stand-in. yEd's own drawings show it paints neither an image or SVG node's fill
+  nor its border (`graphml-stm32-func`: 15 `y:ImageNode`s, each with `<y:Fill color="#CCCCFF">`, drawn as an `<image>`
+  alone, #CCCCFF nowhere in the SVG; `graphml-synthetic-nodes` likewise; this sheet's own yEd drawing, 2026-11-07,
+  #5792, the same), so graph-io reads both realizers as a node of no shape with its picture (#5788): stm32-func
+  node.fill and node.stroke 15 more pass in each view. synthetic-nodes `svg-node` now fails node.stroke: its picture is
+  an SVG ellipse that yEd inlines as paths (read as the node's body) and graphty draws as an image, whose contents the
+  comparator does not read.
 - Layouts of files without positions (`unpositioned-layout-scale`): graphty lays such a file out with its own
   force layout (the vis-network samples now pass) and draws the file's lengths at one scale chosen from the file (median node, else median label,
   else median edge). The program lays it out its own way: vis-network's physics (`springLength` 95 px), Gephi's

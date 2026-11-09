@@ -36,7 +36,7 @@ import {
     yedLabelFillsNodeHeight,
 } from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
-import { CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
+import { arrowGap, arrowProportion, CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import {
     parseStyleBlock,
@@ -96,6 +96,8 @@ import {
     yedSpelled,
     yedValue,
 } from "../graphml/styles-yed.js";
+import type { YedBox } from "../graphml/yed-group-bounds.js";
+import { gmlGroupBounds } from "./groups.js";
 import { writtenByGv2gml } from "./positions.js";
 import { KEY_MANGLED_CODE, mangleGmlKey } from "./syntax.js";
 
@@ -826,6 +828,11 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         return;
     }
     readColor(g.fill, "color", "opacity", writer, put, at);
+    if (v === "cytoscape") {
+        // Cytoscape's GML reader paints the whole edge with `fill`, its arrowheads too (gml-specimen-arrows-p4)
+        readColor(g.fill, "sourceArrowColor", null, writer, put, at);
+        readColor(g.fill, "targetArrowColor", null, writer, put, at);
+    }
     const width = v === "ogdf" ? first(g, "lineWidth", "width") : g.width;
     const read = width === undefined ? null : canonNumber(width, at("width"));
     put("width", writer.tool === "yed" ? yedDrawnWidth(read) : read);
@@ -873,11 +880,31 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
                 ? cytoscapeArrow(raw, at(property))
                 : canonEnum("arrow", raw, writer.spelling, at(property)),
         );
+        if (writer.vocabulary === "cytoscape") {
+            readCytoscapeArrowGeometry(property, raw, put, at);
+        }
         if (writer.tool === "yed") {
             put(`${property}Length`, yedArrowLength(raw));
             put(`${property}Width`, yedArrowWidth(raw));
         }
     }
+}
+
+/**
+ * The length, width and stand-off of a Cytoscape arrow drawn otherwise than its shape's neutral one, read from its
+ * name or 2.x number as a CYS session's are (a T stands 4 of its lengths off the node), the neutral values left unset.
+ * @param property - `sourceArrow` or `targetArrow`
+ * @param raw - the arrow's name or number
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readCytoscapeArrowGeometry(property: "sourceArrow" | "targetArrow", raw: unknown, put: Put, at: At): void {
+    const length = arrowProportion("length")(raw, at(`${property}Length`));
+    const width = arrowProportion("width")(raw, at(`${property}Width`));
+    const gap = arrowGap(raw, at(`${property}Gap`));
+    put(`${property}Length`, length === 1 ? null : length);
+    put(`${property}Width`, width === 1 ? null : width);
+    put(`${property}Gap`, gap === 0 ? null : gap);
 }
 
 /** gv2gml's `arrow`, from Graphviz's `dir`: `first` is `dir=forward` (the head's arrow), `last` is `dir=back`. */
@@ -1566,12 +1593,16 @@ function readValues(
         if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare) {
             return out.values;
         }
+        // yEd draws an open group round its members, not at the size the file stores
+        const groups = target === "node" ? gmlGroupBounds(snapshot) : new Map<number, YedBox>();
         for (let i = 0; i < n; i++) {
             context.budget.spend(target, 1);
             const at: At = (property) => ({ notes, target, property, element: i, budget: context.budget });
+            const g = cellOf(table, "graphics", i);
+            const box = groups.get(i);
             readElement(
                 target,
-                cellOf(table, "graphics", i),
+                box === undefined || !isRec(g) ? g : { ...g, w: box[2] - box[0], h: box[3] - box[1] },
                 cellOf(table, "LabelGraphics", i),
                 labelOf(snapshot, writer, target, i),
                 writer,

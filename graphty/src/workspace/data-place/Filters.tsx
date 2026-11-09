@@ -13,6 +13,7 @@ import type {
     FilterConditionCount,
     GraphSession,
     HistoryStepId,
+    SourceKey,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
 import {
@@ -108,10 +109,13 @@ interface Draft {
  * @param session - the element's session.
  * @param side - nodes or edges.
  * @param field - the field, if any.
+ * @param source - the load it is made for, if any.
  * @returns the selection.
  */
-function newFilterSelection(session: GraphSession, side: Side, field?: CardField): UnionLeaf {
-    const made = newSelection(side === "node" ? "nodes" : "edges", "graph");
+function newFilterSelection(session: GraphSession, side: Side, field?: CardField, source?: SourceKey): UnionLeaf {
+    const fresh = newSelection(side === "node" ? "nodes" : "edges", "graph");
+    // A load's filter starts from that load's elements, so its counts read "N of that load's".
+    const made = source === undefined ? fresh : { ...fresh, sources: [source] };
     const all = editBranch(made, made.branches[0].id ?? "", { start: "all" });
     const branch = all.branches[0].id ?? "";
     return field === undefined ? all : addStep(all, branch, "keep", ruleOfField(session, field)).rule;
@@ -127,16 +131,46 @@ const hides = (condition: FilterCondition): boolean => condition.effect !== "sel
 /**
  * The Filters section: one card per condition, in the element's order, the new cards while they
  * have no value, then the time window's row. "+" adds a card. One card is open at a time; the rest
- * rest as their summary.
+ * rest as their summary. A load's section lists that load's filters, and "+" there makes one for
+ * that load (graphty-element's `FilterCondition.source`): it judges only that load's nodes and
+ * edges, and counts "N of that load's". The primary section takes the canvas toolbar's Filters and
+ * an attribute's Filter to..., and holds the time window's row.
+ * @param props - Component props
+ * @param props.source - the load whose filters it lists: those made for it, and, when it is the
+ * only load (`primary`), those of no load too
+ * @param props.unscoped - with no `source`, list only the filters of no load (beside each load's
+ * own section); otherwise every filter
+ * @param props.primary - whether it is the section the toolbar and Filter to... open (default true)
+ * @param props.headingLevel - its heading's level, under a load's own section
  * @returns the section.
  */
-export function FiltersSection(): React.JSX.Element {
+export function FiltersSection({
+    source,
+    unscoped = false,
+    primary = true,
+    headingLevel,
+}: Readonly<{
+    source?: SourceKey;
+    unscoped?: boolean;
+    primary?: boolean;
+    headingLevel?: 2 | 3;
+}> = {}): React.JSX.Element {
     const { session, store } = useWorkspace();
     const version = useVisibilityVersion(session);
     const asked = useWorkspaceState((state) => state.filterDraft);
     const [drafts, setDrafts] = useState<readonly Draft[]>([]);
     const [openId, setOpenId] = useState<string | null>(null);
-    const conditions = session?.visibility.conditions ?? [];
+    const keys = new Set(session?.data.sources().map((each) => each.key) ?? []);
+    // A filter of a load that is gone is listed with the filters of no load, so it can be removed.
+    const ownless = (condition: FilterCondition): boolean =>
+        condition.source === undefined || !keys.has(condition.source);
+    const listed = (condition: FilterCondition): boolean => {
+        if (source !== undefined) {
+            return condition.source === source || (primary && ownless(condition));
+        }
+        return !unscoped || ownless(condition);
+    };
+    const conditions = (session?.visibility.conditions ?? []).filter(listed);
     // Once written, a draft is one of the element's conditions, drawn by the same card, and is let
     // go: removed later, it must not come back as a draft.
     const waiting = drafts.filter((each) => !conditions.some((c) => c.id === each.id));
@@ -198,21 +232,27 @@ export function FiltersSection(): React.JSX.Element {
     };
     const openRef = useRef(open);
     openRef.current = open;
+    const listedRef = useRef(listed);
+    listedRef.current = listed;
     // An attribute's Filter to... opens a card on it; the toolbar's Filters opens "+".
     useEffect(() => {
         if (asked === null || session === null) {
+            return;
+        }
+        // The toolbar's Filters edits the one filter there is, in whichever section lists it, shows
+        // two or more where they are listed, and starts one only when there is none.
+        const saved = session.visibility.conditions;
+        if (asked === PLUS && saved.length === 1 && listedRef.current(saved[0])) {
+            setOpenId(saved[0].id);
+        }
+        if (!primary) {
             return;
         }
         store.set({ filterDraft: null });
         // What held focus when the card was asked for, not whatever holds it a render later.
         const from = takeDraftOpener();
         if (asked === PLUS) {
-            // The toolbar's Filters edits the one filter there is, shows two or more where they are
-            // listed, and starts one only when there is none.
-            const saved = session.visibility.conditions;
-            if (saved.length === 1) {
-                setOpenId(saved[0].id);
-            } else if (saved.length === 0) {
+            if (saved.length === 0) {
                 openRef.current("node", undefined, from);
             }
             return;
@@ -226,11 +266,12 @@ export function FiltersSection(): React.JSX.Element {
                 openRef.current(side, field, from);
             }
         }
-    }, [asked, session, store]);
+    }, [asked, session, store, primary]);
 
     const timeCardAdded = useWorkspaceState((state) => state.timeWindowCard);
     // The Time window card: added from "+" (R5), or a window put on from elsewhere (the dock, a key).
-    const timed = session !== null && session.time.field !== null && (timeCardAdded || session.time.current !== null);
+    const timed =
+        primary && session !== null && session.time.field !== null && (timeCardAdded || session.time.current !== null);
     const plus =
         session === null ? null : (
             <span data-filters-plus="">
@@ -283,7 +324,11 @@ export function FiltersSection(): React.JSX.Element {
             : [...written, ...fresh];
     const empty = cards.length === 0 && !timed;
     // What the cards together leave, on the header: "Passes none" when they empty the picture.
-    const { summary } = session?.visibility ?? { summary: null };
+    // A load's section says what its filters leave of that load.
+    let summary = session?.visibility.summary ?? null;
+    if (session !== null && source !== undefined) {
+        summary = session.visibility.summaryOf(source);
+    }
     // Kept while a card's workspace is open: what the cards leave together is another fact than the
     // card's own count in the workspace's header (spec 3.0, ws-polish 3).
     const together =
@@ -299,6 +344,7 @@ export function FiltersSection(): React.JSX.Element {
     return (
         <ControlSection
             label="Filters"
+            headingLevel={headingLevel}
             actions={
                 <Group gap={4} wrap="nowrap">
                     {together}
@@ -325,6 +371,7 @@ export function FiltersSection(): React.JSX.Element {
                             condition={each.condition}
                             count={counts.find((c) => c.id === each.id)}
                             draft={each.draft}
+                            source={source}
                             timePick={timePick}
                             open={openId === each.id}
                             onOpen={(next) => {
@@ -428,6 +475,7 @@ const NO_SELECTION: UnionLeaf = { kind: "union", side: "nodes", within: "graph",
  * @param props.condition - the condition, or undefined for a draft
  * @param props.count - the element's count of it
  * @param props.draft - a card not yet written: its side and field
+ * @param props.source - the load a new card is made for, or undefined for every load
  * @param props.timePick - the filter's own picker entries, given what to do once one is picked
  * @param props.open - whether its body is shown
  * @param props.onOpen - opens or closes it
@@ -443,6 +491,7 @@ function FilterCard({
     condition,
     count,
     draft: fresh,
+    source,
     timePick,
     open,
     onOpen,
@@ -456,6 +505,7 @@ function FilterCard({
     condition: FilterCondition | undefined;
     count: FilterConditionCount | undefined;
     draft: Draft | undefined;
+    source: SourceKey | undefined;
     timePick: (onPicked: () => void) => readonly PickSection[];
     open: boolean;
     onOpen: (open: boolean) => void;
@@ -481,7 +531,9 @@ function FilterCard({
         }
     }, [open]);
     // A new card's selection: one group starting with All, and a Keep step on its field when it has one.
-    const [draftRule, setDraftRule] = useState(() => newFilterSelection(session, fresh?.side ?? "node", fresh?.field));
+    const [draftRule, setDraftRule] = useState(() =>
+        newFilterSelection(session, fresh?.side ?? "node", fresh?.field, source),
+    );
     const draft = condition === undefined;
     // Added in this card's life: Cancel in the workspace it opened takes it away again, written or not.
     const born = useRef(draft);
@@ -637,6 +689,7 @@ function FilterCard({
                         session={session}
                         store={store}
                         id={id}
+                        source={source}
                         rule={selection}
                         effect={condition?.effect}
                         title={title}
@@ -664,7 +717,14 @@ function FilterCard({
                                     value={side}
                                     onChange={(value) => {
                                         setSwitched(true);
-                                        setDraftRule(newFilterSelection(session, value === "edge" ? "edge" : "node"));
+                                        setDraftRule(
+                                            newFilterSelection(
+                                                session,
+                                                value === "edge" ? "edge" : "node",
+                                                undefined,
+                                                source,
+                                            ),
+                                        );
                                     }}
                                 />
                             ) : undefined

@@ -1,0 +1,36 @@
+name: Install lychee from the Actions cache
+description: >
+    Makes tools/check-links.sh's pinned lychee ready without depending on a GitHub release download
+    at run time. The release tarball is cached across runs, keyed on the LYCHEE_VERSION and
+    LYCHEE_SHA256 the script pins, so a run downloads it only when the version changes: on
+    2026-11-08 release downloads answered 504 for over an hour and failed master, the full run and
+    every pull request's link check three times, retries included (#6308). The script checks the
+    tarball's sha256 before extracting it, whether it was just downloaded or restored here. Run it
+    after checkout and before the first tools/check-links.sh step.
+runs:
+    using: composite
+    steps:
+        - id: key
+          shell: bash
+          run: |
+              version=$(sed -n 's/^LYCHEE_VERSION=//p' tools/check-links.sh)
+              sha=$(sed -n 's/^LYCHEE_SHA256=//p' tools/check-links.sh)
+              echo "version=${version:?}" >> "$GITHUB_OUTPUT"
+              echo "key=lychee-$version-${sha:?}" >> "$GITHUB_OUTPUT"
+
+        # Restore only: the save below runs off pull requests, so a pull request reuses master's
+        # tarball and never stores its own copy in its own cache scope (#3591).
+        - id: cache
+          uses: actions/cache/restore@v6
+          with:
+              path: node_modules/.cache/lychee/${{ steps.key.outputs.version }}/lychee.tar.gz
+              key: ${{ steps.key.outputs.key }}
+
+        - shell: bash
+          run: ./tools/check-links.sh --install
+
+        - if: steps.cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
+          uses: actions/cache/save@v6
+          with:
+              path: node_modules/.cache/lychee/${{ steps.key.outputs.version }}/lychee.tar.gz
+              key: ${{ steps.key.outputs.key }}

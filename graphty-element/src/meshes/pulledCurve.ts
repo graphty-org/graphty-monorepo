@@ -20,6 +20,7 @@
  */
 
 import {
+    bendPoints,
     BEZIER_STEPS,
     centerCircle,
     fanArcPieces,
@@ -96,6 +97,13 @@ export interface CurveSpan {
      * `along`, as `supportPoints` places it; null otherwise ({@link viaShare}).
      */
     readonly via: readonly [number, number] | null;
+    /**
+     * For a straight line through bends (`line.bends`), the bends as `edgeRoute.parseBends` reads them, flat (along,
+     * across) pairs placed between the centers as `edgeRoute.bendPoints` places them: sample 0 is the source center,
+     * sample `samples` the target's and the samples between are the bends; null otherwise. A shader reads the cut path they place from
+     * the batch's route table, not from the span ({@link curveShape}).
+     */
+    readonly bends: readonly number[] | null;
 }
 
 /**
@@ -117,6 +125,24 @@ export function viaShare(src: Xyz, dst: Xyz, via: Xyz): [number, number] {
     const qx = via.x - src.x;
     const qy = via.y - src.y;
     return [(qx * dx + qy * dy) / l2, (dx * qy - dy * qx) / l2];
+}
+
+/**
+ * One sample of a straight line through bends: the source center, a bend, or the target center.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param i - The sample, 0 to `samples`.
+ * @param samples - The bends plus one.
+ * @param bends - The bends, flat (along, across) pairs.
+ * @returns The point.
+ */
+function bendSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, bends: readonly number[]): Xyz {
+    if (i <= 0 || i >= samples) {
+        return i <= 0 ? src : dst;
+    }
+
+    const [x, y, z] = bendPoints(src, dst, bends.slice(2 * i - 2, 2 * i));
+    return { x, y, z };
 }
 
 /**
@@ -342,7 +368,7 @@ function globeSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, height: n
  * Which path a span samples: a lone curve, a fanned arc (`bow`), a center arc (`radius`), a raised arc (`height`) or a
  * great-circle arc (`angle`), a self-loop's teardrop (`loop`), or a curve through a support point (`via`).
  */
-type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "angle" | "ends" | "loop" | "via">;
+type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "angle" | "ends" | "loop" | "via" | "bends">;
 
 /**
  * One sample of the path a span's shape names.
@@ -354,7 +380,11 @@ type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "angle" | "e
  * @returns The point.
  */
 function pathSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, shape: Shape): Xyz {
-    const { ends, loop } = shape;
+    const { ends, loop, bends } = shape;
+    if (bends !== null) {
+        return bendSampleAt(src, dst, i, samples, bends);
+    }
+
     if (loop !== null) {
         return loopSampleAt(src, i, samples, loop);
     }
@@ -398,12 +428,18 @@ function along(src: Xyz, dst: Xyz, t: number): Xyz {
  * 1 for a fanned arc, 2 for a center arc, 3 for a lone curve between two points of the chord, 4 for a raised arc
  * (its height first), 5 for a great-circle arc (its height first), or for a self-loop's teardrop (its controls'
  * mean x first) 6 plus its share k, under tan(pi / 5), 7 for a curve through a support point (its share along
- * first); where that curve stops, a great-circle arc's angle, the teardrop's mean y, or the support point's share
- * across), the last three of a curve piece's fourth texel.
+ * first), 8 for a straight line through bends (the texel its cut path starts at in the route table first); where that
+ * curve stops, a great-circle arc's angle, the teardrop's mean y, or the support point's share across), the last three
+ * of a curve piece's fourth texel.
  * @param span - The span, or null.
+ * @param route - For a line through bends, the route table texel its cut path starts at, one point to a texel.
  * @returns The three numbers.
  */
-export function curveShape(span: Shape | null): [number, number, number] {
+export function curveShape(span: Shape | null, route = 0): [number, number, number] {
+    if ((span?.bends ?? null) !== null) {
+        return [route, 8, 0];
+    }
+
     const loop = span?.loop ?? null;
     if (loop !== null) {
         return [loop[0], 6 + loop[2], loop[1]];
@@ -494,6 +530,7 @@ function crossingAlong(inside: Xyz, outside: Xyz, isOutside: (x: number, y: numb
  * @param path.globe - Whether the height lifts a great-circle arc.
  * @param path.loop - A self-loop's teardrop.
  * @param path.via - A support point.
+ * @param path.bends - The bends.
  * @returns The shape and the pieces it is sampled with.
  */
 function pathShape(
@@ -506,9 +543,10 @@ function pathShape(
         globe?: boolean;
         loop?: readonly [number, number, number] | null;
         via?: readonly [number, number] | null;
+        bends?: readonly number[] | null;
     },
 ): { shape: Shape; samples: number } {
-    const { bow = null, radius = null, height = null, globe = false, loop = null, via = null } = path;
+    const { bow = null, radius = null, height = null, globe = false, loop = null, via = null, bends = null } = path;
     const none: Shape = {
         bow: null,
         radius: null,
@@ -518,7 +556,12 @@ function pathShape(
         ends: null,
         loop: null,
         via: null,
+        bends: null,
     };
+    if (bends !== null) {
+        return { shape: { ...none, bends }, samples: bends.length / 2 + 1 };
+    }
+
     if (loop !== null) {
         return { shape: { ...none, loop }, samples: LOOP_STEPS };
     }
@@ -573,6 +616,7 @@ function pathShape(
  * @param path.loop - The teardrop.
  * @param path.via - A support point ({@link CurveSpan.via}), which a bow and a radius give way to and a height and a
  *     teardrop win over, as `Edge.bundleRoute` draws them.
+ * @param path.bends - A straight line's bends ({@link CurveSpan.bends}), which win over every other path.
  * @param bareEnds - Where the line starts and stops when it is not cut (`Edge.bareEnd`: the centers, or with a gap,
  *     off the nodes along the chord), asked only when no sample is outside both nodes; unset, the centers.
  * @returns The span; the lone curve between the bare ends, uncut, when no sample is outside both nodes, as
@@ -593,6 +637,7 @@ export function curveSpan(
         straight?: boolean;
         loop?: readonly [number, number, number] | null;
         via?: readonly [number, number] | null;
+        bends?: readonly number[] | null;
     } = {},
     bareEnds: (() => readonly [Xyz, Xyz]) | null = null,
 ): CurveSpan | null {
@@ -678,6 +723,7 @@ function uncutSpan(src: Xyz, dst: Xyz, bareEnds: readonly [Xyz, Xyz] | null): Cu
         ends: moved ? ends : null,
         loop: null,
         via: null,
+        bends: null,
     };
 }
 
@@ -713,6 +759,8 @@ export function curvePathPoint(src: Xyz, dst: Xyz, span: CurveSpan, j: number): 
  * (samples, first, pieces, then {@link curveShape}'s third number) and `cut` is (startAt, endAt, then its first two).
  */
 export const PULLED_CURVE_GLSL = `
+uniform highp sampler2D edgeRoutes;
+
 vec3 pulledArcSample(vec3 src, vec3 dst, float i, float samples, float bow) {
     vec2 d = dst.xy - src.xy;
     float chord = length(d);
@@ -831,6 +879,11 @@ vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut, flo
 }
 
 vec3 pulledCurvePoint(vec3 src, vec3 dst, vec4 span, vec4 cut, int j) {
+    if (cut.w > 7.5) {
+        // a straight line through bends: its cut path's point j, read from the route table from texel cut.z
+        int texel = int(cut.z + 0.5) + j;
+        return texelFetch(edgeRoutes, ivec2(texel & 1023, texel >> 10), 0).xyz;
+    }
     if (abs(cut.w - 3.0) < 0.5) {
         // the lone curve between two points of the chord, where a gap moves an uncut curve's ends
         vec3 start = mix(src, dst, cut.z);

@@ -1223,6 +1223,10 @@ jobs:
 
             # Relative links, anchors and links to this repository's own files, against this checkout, with no
             # network (about a second). The network half runs in the full run's Links job.
+            # lychee from the Actions cache, not a GitHub release download on every run (#6308).
+            - name: Install lychee
+              uses: ./.github/actions/lychee
+
             - name: Links (offline)
               run: ./tools/check-links.sh --offline
 
@@ -2090,6 +2094,9 @@ jobs:
 
             - name: Assemble the GitHub Pages site
               run: ./tools/assemble-pages-site.sh "$RUNNER_TEMP/site"
+
+            - name: Install lychee
+              uses: ./.github/actions/lychee
 
             - name: Check links
               run: ./tools/check-links.sh --site "$RUNNER_TEMP/site"

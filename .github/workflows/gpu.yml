@@ -147,13 +147,54 @@ jobs:
             # container reports no adapter; libegl1 because Dawn's NVIDIA ICD dlopen()s libEGL.so.1; sudo because
             # `playwright install --with-deps` shells out to it when it is present and apt otherwise; libatomic1 because
             # pnpm/action-setup v6 installs the standalone @pnpm/exe binary, which links libatomic.so.1 (run 40247287810).
+            # The .deb files apt chose are cached, keyed on the bare image's own package list (every package and
+            # version dpkg reports before anything is installed) and the packages asked for, so a hit installs with
+            # dpkg and never touches archive.ubuntu.com: in run 42555029230 the runner could not reach it, apt
+            # found "no installation candidate" for libvulkan1 and the full run went red (#6390). A new ubuntu:24.04
+            # build changes the key, so its first run fetches once more (with apt's retries) and saves the set.
+            # The image's docker-clean hook deletes every .deb apt downloads; it is removed so the Playwright
+            # system packages below can be cached the same way.
+            - name: Key the container's packages by its image
+              id: t4-debs-key
+              working-directory: /
+              env:
+                  PACKAGES: ca-certificates curl git gnupg sudo xz-utils libvulkan1 libegl1 libgl1 libatomic1
+              run: echo "key=t4-debs-$({ dpkg-query -W -f '${Package} ${Version} ${Architecture}\n'; echo "$PACKAGES"; } | sha256sum | cut -c1-32)" >> "$GITHUB_OUTPUT"
+            - name: Restore the container's packages
+              id: t4-debs
+              uses: actions/cache/restore@v6
+              with:
+                  path: /var/cache/t4-debs
+                  key: ${{ steps.t4-debs-key.outputs.key }}
             - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn, libatomic for pnpm)
               working-directory: /
+              env:
+                  HIT: ${{ steps.t4-debs.outputs.cache-hit }}
+                  PACKAGES: ca-certificates curl git gnupg sudo xz-utils libvulkan1 libegl1 libgl1 libatomic1
               run: |
-                  apt-get update
-                  apt-get install -y --no-install-recommends \
-                      ca-certificates curl git gnupg sudo xz-utils \
-                      libvulkan1 libegl1 libgl1 libatomic1
+                  dir=/var/cache/t4-debs
+                  rm -f /etc/apt/apt.conf.d/docker-clean
+                  # apt drops a connection that stalls for 20 s and retries a download up to 5 times
+                  printf '%s\n' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' 'Acquire::Retries "5";' \
+                      > /etc/apt/apt.conf.d/99-ci-timeouts
+                  if [ "$HIT" = true ]; then
+                      dpkg -i "$dir"/*.deb
+                  else
+                      # apt downloads into $dir and keeps the files there for the save step below
+                      mkdir -p "$dir/partial"
+                      apt-get update
+                      apt-get install -y --no-install-recommends -o Dir::Cache::Archives="$dir" $PACKAGES
+                      rm -rf "$dir/partial" "$dir/lock"
+                  fi
+                  # a hit that held too little fails here, not later as a missing loader or a missing git
+                  missing=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' $PACKAGES 2>&1 | grep -v '^ii ' || true)
+                  if [ -n "$missing" ]; then echo "::error::the container's packages are not all installed: $missing"; exit 1; fi
+            - name: Save the container's packages
+              if: steps.t4-debs.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
+              uses: actions/cache/save@v6
+              with:
+                  path: /var/cache/t4-debs
+                  key: ${{ steps.t4-debs-key.outputs.key }}
             - uses: actions/checkout@v7
               with: { ref: "${{ inputs.ref }}" } # the release train's candidate; empty on a dispatch, which takes the dispatched ref
             # The workspace is owned by the runner's user, not the container's root, so git refuses it ("dubious
@@ -161,6 +202,17 @@ jobs:
             - name: Let git use the checkout inside the container
               working-directory: .
               run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+            # The candidate may predate a fix to .github/actions/playwright-system-deps, used below; run the workflow's
+            # own copy (tools/own-tools-overlay.test.mjs). tools/ stays the candidate's: it is what the lane tests.
+            - name: Use the workflow's own tools and actions
+              working-directory: .
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
             # No modprobe: a container cannot load host kernel modules, and it does not need to -- the host has
             # them up before the job starts (run 35922927676: "modprobe exit=0 nvidia modules before=4 after=4"),
             # and --gpus all fails at container creation if the driver is not there. This step records the
@@ -251,11 +303,15 @@ jobs:
                       key: "playwright-${{ runner.os }}-ubuntu2404-${{ hashFiles('pnpm-lock.yaml') }}",
                   }
             - if: steps.pw.outputs.cache-hit != 'true'
-              run: pnpm exec playwright install chromium --with-deps # a fresh VM each job
-            # The cache holds the browser, not its system libraries, and the container starts bare every job: on a
-            # hit the step above is skipped and chrome-headless-shell cannot load libglib-2.0.so.0 (run 37211866080).
-            - if: steps.pw.outputs.cache-hit == 'true'
-              run: pnpm exec playwright install-deps chromium
+              run: pnpm exec playwright install chromium # a fresh VM each job
+            # The cache holds the browser, not its system libraries, and the container starts bare every job: without
+            # them chrome-headless-shell cannot load libglib-2.0.so.0 (run 37211866080). Their .deb files are cached
+            # like the bootstrap's, keyed on the same image, so a hit never runs apt against archive.ubuntu.com (#6390).
+            - name: Install Chromium's system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  working-directory: webgpu-graph-algorithms
+                  image: ${{ steps.t4-debs-key.outputs.key }}
             - name: Browser smoke on NVIDIA
               if: ${{ !inputs.files }}
               run: node scripts/run-browser-project.js # G0 decides whether this needs `xvfb-run -a` on the T4 image (design 12.2)

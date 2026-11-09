@@ -427,6 +427,65 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.equal(overBar(before.flat, after.flat), 0, "height 0, drawn straight");
     });
 
+    it("pull straight lines through bends, and follow new bends and gaps, drawing the objects path's picture", async () => {
+        /**
+         * Straighten every edge and bend it, half of them through three bends (one inside its source), drag a node, bend
+         * them again with gaps, put every bend inside the nodes, then take the bends and gaps away.
+         * @param element - The element.
+         * @returns The pulled rows while bent, and the pictures.
+         */
+        async function bent(element: Graphty): Promise<{
+            pulled: number;
+            one: Frame;
+            dragged: Frame;
+            gapped: Frame;
+            inside: Frame;
+            plain: Frame;
+        }> {
+            const edges = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            const restyle = async (name: string, set: Record<string, unknown>, ids = edges): Promise<Frame> => {
+                await element.session.styles.add({
+                    name,
+                    target: "edge",
+                    selector: { match: "ids", edges: ids },
+                    set,
+                } as never);
+                await settled(element);
+                return readCanvas(element.graph);
+            };
+            await restyle("straight", { "edge.curvature": false });
+            await restyle("one bend", { "edge.bends": "0.5,0.9" });
+            const one = await restyle("three bends", { "edge.bends": "0.05,0 0.4,-1 0.6,0.9" }, edges.slice(0, 5));
+            const { pulledEdges: pulled } = element.graph.rowCounts;
+            const dragged = await moved(element);
+            const gapped = await restyle("gapped", { "edge.bends": "0.3,0.8 0.5,-0.8 0.7,0.8", "edge.nodeGap": 0.1 });
+            const inside = await restyle("inside", { "edge.bends": "0.02,0 0.98,0" });
+            // a straight line with a gap is an object edge, so the gap goes with the bends
+            const plain = await restyle("no bends", { "edge.bends": "", "edge.nodeGap": 0 });
+            return { pulled, one, dragged, gapped, inside, plain };
+        }
+
+        const objects = await loaded(renderer, "objects");
+        const before = await bent(objects);
+        objects.remove();
+
+        const batched = await loaded(renderer, "batched");
+        const after = await bent(batched);
+        assert.equal(after.pulled, EDGES.length, "the bent lines are pulled");
+        assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.isAbove(overBar(before.one, before.gapped), 0, "the new bends move the lines");
+        assert.isAbove(overBar(before.gapped, before.inside), 0, "bends inside the nodes straighten the lines");
+        assert.equal(overBar(before.one, after.one), 0, "one bend and three");
+        assert.equal(overBar(before.dragged, after.dragged), 0, "after a drag");
+        assert.equal(overBar(before.gapped, after.gapped), 0, "new bends, gapped");
+        assert.equal(
+            overBar(before.inside, after.inside),
+            0,
+            "every bend inside a node, drawn as the lone curve between the bare ends",
+        );
+        assert.equal(overBar(before.plain, after.plain), 0, "no bends");
+    });
+
     it("pull curves and straight lines on the great-circle route, and follow a new height, drawing the objects path's picture", async () => {
         /**
          * Put every edge on the great-circle route, drag a node, raise them higher, straighten them, then flatten them.

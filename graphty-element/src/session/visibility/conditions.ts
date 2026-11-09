@@ -10,7 +10,14 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { AttributeLeafNodes, FilterCondition, FilterEffect, FilterStep, RuleTree } from "../../catalog/types";
+import type {
+    AttributeLeafNodes,
+    FilterCondition,
+    FilterEffect,
+    FilterStep,
+    RuleTree,
+    SourceKey,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { CodedFact } from "../shared";
 import type { HistoryCode } from "../types";
@@ -53,7 +60,7 @@ export function assertConditions(conditions: unknown): asserts conditions is rea
     for (const condition of conditions as unknown[]) {
         if (!wellFormed(condition)) {
             throw bad(
-                'A filter condition is { id: a non-empty string, on: a boolean, effect: "keep", "exclude" or "select", rule: a filter, within?: "graph" or "picture", name?: a string }.',
+                'A filter condition is { id: a non-empty string, on: a boolean, effect: "keep", "exclude" or "select", rule: a filter, within?: "graph" or "picture", name?: a string, source?: a load\'s key }.',
                 { condition },
             );
         }
@@ -75,7 +82,7 @@ export function assertConditions(conditions: unknown): asserts conditions is rea
  * @returns The condition, unfrozen.
  */
 export function conditionOf(condition: FilterCondition, rule: RuleTree): FilterCondition {
-    const { id, on, effect, within, name } = condition;
+    const { id, on, effect, within, name, source } = condition;
     return {
         id,
         on,
@@ -83,6 +90,7 @@ export function conditionOf(condition: FilterCondition, rule: RuleTree): FilterC
         rule,
         ...(within === undefined ? {} : { within }),
         ...(name === undefined ? {} : { name }),
+        ...(source === undefined ? {} : { source }),
     };
 }
 
@@ -103,7 +111,7 @@ export function selectsOverGraph(conditions: readonly FilterCondition[]): boolea
  * @returns True when it is.
  */
 export function wellFormed(condition: unknown): condition is FilterCondition {
-    const { id, on, effect, rule, within, name } = (condition ?? {}) as Partial<FilterCondition>;
+    const { id, on, effect, rule, within, name, source } = (condition ?? {}) as Partial<FilterCondition>;
     return (
         typeof id === "string" &&
         id !== "" &&
@@ -112,7 +120,8 @@ export function wellFormed(condition: unknown): condition is FilterCondition {
         typeof rule === "object" &&
         rule !== null &&
         (within === undefined || within === "graph" || within === "picture") &&
-        (name === undefined || typeof name === "string")
+        (name === undefined || typeof name === "string") &&
+        (source === undefined || (typeof source === "string" && source !== ""))
     );
 }
 
@@ -184,6 +193,47 @@ function inertSelection(rule: RuleTree): boolean {
     );
 }
 
+/**
+ * A rule that judges only the nodes and edges some loads supplied: for theirs it answers as `of`
+ * does, for every other element it answers `outside`. It is written as an `all` of one member, so
+ * every walker that follows a rule's members (dependencies, held runs, signatures) sees the rule
+ * inside; only the compiler reads `withinSources` (`compileOne` in `./filter`). Never accepted
+ * from a consumer: it is made here, from a condition's `source`.
+ */
+export interface SourceScopedRule {
+    readonly kind: "all";
+    readonly of: readonly [RuleTree];
+    /** The loads whose elements the rule judges. */
+    readonly withinSources: readonly SourceKey[];
+    /** What every other element answers: true passes it, false fails it. */
+    readonly outside: boolean;
+}
+
+/**
+ * Whether a rule is a {@link SourceScopedRule}.
+ * @param rule - The rule.
+ * @returns True when it is.
+ */
+export function isSourceScoped(rule: RuleTree): rule is RuleTree & SourceScopedRule {
+    return rule.kind === "all" && Array.isArray((rule as Partial<SourceScopedRule>).withinSources);
+}
+
+/**
+ * A rule that judges only one load's elements, or the rule itself when no load is named.
+ * @param rule - The rule.
+ * @param source - The load, or undefined for every element.
+ * @param outside - What every other element answers.
+ * @returns The rule.
+ */
+function scopedToSource(rule: RuleTree, source: SourceKey | undefined, outside: boolean): RuleTree {
+    if (source === undefined) {
+        return rule;
+    }
+
+    const scoped: SourceScopedRule = { kind: "all", of: [rule], withinSources: [source], outside };
+    return Object.freeze(scoped);
+}
+
 /** The rule last combined from each conditions list, with the filter it was combined with. */
 const combined = new WeakMap<readonly FilterCondition[], { filter: RuleTree | null; rule: RuleTree | null }>();
 
@@ -209,10 +259,11 @@ export function combinedRule(filter: RuleTree | null, conditions: readonly Filte
             continue;
         }
 
+        // A condition of one load leaves every other load's elements as they are.
         if (condition.effect === "keep") {
-            rules.push(effectiveRule(condition));
+            rules.push(scopedToSource(effectiveRule(condition), condition.source, true));
         } else if (condition.effect === "exclude") {
-            rules.push({ kind: "not", of: condition.rule });
+            rules.push(scopedToSource({ kind: "not", of: condition.rule }, condition.source, true));
         }
     }
 
@@ -231,7 +282,9 @@ export function combinedRule(filter: RuleTree | null, conditions: readonly Filte
  * @returns The rule every on select condition's rule ANDs into, or null.
  */
 export function selectRule(conditions: readonly FilterCondition[]): RuleTree | null {
-    const rules = conditions.filter((each) => each.on && each.effect === "select").map((each) => each.rule);
+    const rules = conditions
+        .filter((each) => each.on && each.effect === "select")
+        .map((each) => scopedToSource(each.rule, each.source, false));
     if (rules.length === 0) {
         return null;
     }
@@ -291,6 +344,8 @@ export function conditionsOfSteps(
 ): readonly FilterCondition[] {
     const selects = current.filter((each) => each.effect !== "keep" && each.effect !== "exclude");
     const taken = new Set(selects.map((each) => each.id));
+    // A step keeps the load its condition was made for.
+    const sourceOf = new Map(current.flatMap((each) => (each.source === undefined ? [] : [[each.id, each.source]])));
     const kept = steps.map((step): FilterCondition => {
         if (taken.has(step.id)) {
             throw bad(`The filter step "${step.id}" has the id of a select condition; an id is unique.`, {
@@ -298,11 +353,13 @@ export function conditionsOfSteps(
             });
         }
 
+        const source = sourceOf.get(step.id);
         return Object.freeze({
             id: step.id,
             on: step.on,
             effect: "keep",
             rule: withReading(step.rule, (nodes) => nodes ?? "all"),
+            ...(source === undefined ? {} : { source }),
         });
     });
 
@@ -310,7 +367,10 @@ export function conditionsOfSteps(
 }
 
 /** One condition or step, as a history fact reads it. */
-type Entry = Pick<FilterCondition, "id" | "on" | "rule"> & { readonly effect?: FilterEffect };
+type Entry = Pick<FilterCondition, "id" | "on" | "rule"> & {
+    readonly effect?: FilterEffect;
+    readonly source?: SourceKey;
+};
 
 /**
  * What one conditions or steps edit did, as a history fact: one added, edited, switched on or
@@ -411,7 +471,9 @@ function oneChanged(
 
     // By value: the entries are admitted as new objects on every edit.
     const sameBody = (a: Entry, b: Entry): boolean =>
-        a.effect === b.effect && (a.rule === b.rule || JSON.stringify(a.rule) === JSON.stringify(b.rule));
+        a.effect === b.effect &&
+        a.source === b.source &&
+        (a.rule === b.rule || JSON.stringify(a.rule) === JSON.stringify(b.rule));
     const changed = after.filter((entry, index) => entry.on !== before[index].on || !sameBody(entry, before[index]));
     if (changed.length !== 1) {
         return undefined;

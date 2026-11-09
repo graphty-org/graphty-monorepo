@@ -41,6 +41,7 @@ import type { Draft } from "../session/project/draft";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import {
     type AddEdgesOptions,
+    type Ceilings,
     Ingest,
     type IngestHost,
     isStorableId,
@@ -575,6 +576,13 @@ export class DataManager implements Manager {
 
     /** Turns records and data sources into the graph; this manager draws what it produces. */
     private readonly ingest: Ingest<ExistingEdge> = new Ingest(this.ingestHost());
+
+    /**
+     * Where the ingest reads the ceilings in force and whether rows are drawn batched: the graph
+     * sets it from its render path and `limits`. Unset, a load meets the shipped defaults.
+     * @internal
+     */
+    renderLimits: { ceilings(): Readonly<Ceilings> | undefined; batched(): boolean } | null = null;
 
     /**
      * The graph primitives every write goes through. A data manager on its own has nothing to
@@ -1396,6 +1404,8 @@ export class DataManager implements Manager {
             edgeStored: (edge) => {
                 this.buildEdge(edge);
             },
+            ceilings: () => this.renderLimits?.ceilings(),
+            batched: () => this.renderLimits?.batched() ?? false,
             nodesArrived: (count) => {
                 // Request layout start and zoom to fit
                 this.shouldStartLayout = true;

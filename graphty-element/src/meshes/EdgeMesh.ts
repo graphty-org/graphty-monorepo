@@ -626,14 +626,20 @@ void main() {
 
     /**
      * Whether a pulled line is drawn from the curve batch: a curve (`line.bezier`), or a line its own style raises
-     * off the map or a globe (`line.route` "arc" or "great-circle"), straight or not, or a self-loop.
+     * off the map or a globe (`line.route` "arc" or "great-circle"), straight or not, a straight line through bends (`line.bends`), or a self-loop.
      * @param style - The resolved style.
      * @param loop - Whether the edge is a self-loop, whose teardrop is a curve whatever its style.
      * @param route - The route the edge takes, which the layout picks when its style does not (`Edge.route`).
      * @returns True for a pulled curve.
      */
     static pullsCurve(style: EdgeStyleConfig, loop = false, route = style.line?.route): boolean {
-        return loop || style.line?.bezier === true || route === "arc" || route === "great-circle";
+        return (
+            loop ||
+            style.line?.bezier === true ||
+            route === "arc" ||
+            route === "great-circle" ||
+            parseBends(style.line?.bends) !== null
+        );
     }
 
     /**

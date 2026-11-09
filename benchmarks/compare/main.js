@@ -115,6 +115,9 @@ const B = {
         const serial = stats(intervals(await lib.frames(frames + 1, null)));
         return { serial, paced };
     },
+    // The GPU time of each of `frames` still frames, from EXT_disjoint_timer_query_webgl2, to set
+    // beside the serial still frame: a serial interval below it means the stamps run early.
+    gpuFrame: (frames = 60) => lib.gpuFrame?.(frames) ?? null,
     async orbit(frames = 200) {
         const st = await lib.frames(frames + 1, (i) => lib.moveCamera(i));
         await lib.resetCamera?.();
@@ -442,19 +445,46 @@ async function addShapeStyles(el, mode, curves) {
         });
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, curves, renderPath, renderer }) {
-    await import("@graphty/graphty-element");
-    if (accel !== "off") await import("@graphty/graphty-element/webgpu");
-    const el = document.createElement("graphty-element");
-    el.style.cssText = "display:block;width:1200px;height:900px";
+// The element ignores what it does not know, so without these checks a build that lacks an option
+// would be measured on its default and recorded under the requested value.
+function setRequestedOptions(el, { antialias, renderPath, renderer, limits }) {
+    // antialias first, before any other property builds the engine, which reads it only then.
+    if (antialias !== undefined) {
+        if (!("antialias" in el))
+            throw new Error(`antialias ${antialias} requested, but this build has no antialias option`);
+        el.antialias = antialias;
+    }
     if (renderPath) {
-        // The element ignores what it does not know, so without this a build that lacks the option
-        // would be measured on its default path and recorded under the requested one.
         if (!("renderPath" in el))
             throw new Error(`renderPath "${renderPath}" requested, but this build has no renderPath option`);
         el.renderPath = renderPath;
     }
     if (renderer) el.renderer = renderer;
+    if (limits) {
+        if (!("limits" in el)) throw new Error("limits requested, but this build has no limits option");
+        el.limits = limits;
+    }
+}
+
+async function graphtyAdapter({
+    mode,
+    accel,
+    onDemand,
+    dpr,
+    labels,
+    sampled,
+    glyphs,
+    curves,
+    renderPath,
+    renderer,
+    antialias,
+    limits,
+}) {
+    await import("@graphty/graphty-element");
+    if (accel !== "off") await import("@graphty/graphty-element/webgpu");
+    const el = document.createElement("graphty-element");
+    el.style.cssText = "display:block;width:1200px;height:900px";
+    setRequestedOptions(el, { antialias, renderPath, renderer, limits });
     el.layout = "fixed";
     // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode. The camera
     // moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.
@@ -569,6 +599,29 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
                 await raf();
             }
             return stamps.slice(0, count);
+        },
+        async gpuFrame(count) {
+            const ext = gl?.getExtension("EXT_disjoint_timer_query_webgl2");
+            if (!ext) return null;
+            const queries = [];
+            const scene = graph.scene;
+            const begin = scene.onBeforeRenderObservable.add(() => {
+                const q = gl.createQuery();
+                gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
+                queries.push(q);
+            });
+            // First, so the query ends before the stamp's readPixels.
+            const end = scene.onAfterRenderObservable.add(() => gl.endQuery(ext.TIME_ELAPSED_EXT), undefined, true);
+            await a.frames(count, null);
+            scene.onBeforeRenderObservable.remove(begin);
+            scene.onAfterRenderObservable.remove(end);
+            const t = now();
+            while (!queries.every((q) => gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) && now() - t < 10000)
+                await raf();
+            const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
+            const ms = queries.map((q) => gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6);
+            for (const q of queries) gl.deleteQuery(q);
+            return { ...stats(ms), disjoint };
         },
         moveNode(i) {
             moved ??= graph.getNode(0) ?? null;

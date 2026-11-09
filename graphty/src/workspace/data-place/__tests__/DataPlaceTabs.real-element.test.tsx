@@ -1,8 +1,8 @@
 /**
- * The Data place's Loaded and Calculated tabs, on the REAL graphty-element and Les Miserables,
- * driven by real clicks (the owner's review, 2026-11-07): the tabs come first and Filters under them; Loaded holds
- * the sources and Calculated the results, with no "Runs" heading; the tab chosen is kept; a result's
- * row has no filled tags, only quiet marks (what uses it, a scope other than what is showing), and
+ * The Data place's Sources and Calculated tabs, on the REAL graphty-element and Les Miserables,
+ * driven by real clicks (the owner's review, 2026-11-07): the tabs come first; Sources holds the
+ * sources with Filters directly under Data sources, and Calculated the results, with no "Runs"
+ * heading; the tab chosen is kept; a result's row has no filled tags, only quiet marks (what uses it, a scope other than what is showing), and
  * its "..." holds Apply style, greyed once it is styled, and Remove result; a filter's row says its
  * steps in one structured line.
  */
@@ -20,6 +20,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { sourceName } from "../words";
 
 // The tabs belong to the `selection-workspace` experiment.
 withFeatures(["selection-workspace"]);
@@ -64,26 +65,53 @@ async function calculatedRow(): Promise<HTMLElement> {
     });
 }
 
-describe("the Data place's Loaded and Calculated tabs", () => {
-    it("puts the tabs first, named Data, Filters under them, Loaded first with the sources, and no Runs heading", async () => {
-        await openData();
+describe("the Data place's Sources and Calculated tabs", () => {
+    it("puts the tabs first, named Data, Sources first with the sources, Filters below Data sources there only, and no Runs heading", async () => {
+        const { session } = await openData();
         const list = await within(place()).findByRole("tablist", { name: "Data" });
         const tabs = within(list).getAllByRole("tab");
         assert.deepEqual(
             tabs.map((tab) => tab.textContent),
-            ["Loaded", "Calculated"],
+            ["Sources", "Calculated"],
         );
-        assert.strictEqual(tabs[0].getAttribute("aria-selected"), "true", "Loaded first");
-        const filters = within(place()).getByText("Filters");
-        assert.isTrue(
-            Boolean(tabs[0].compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING),
-            "Filters come after the tabs, so adding one never moves them",
-        );
+        assert.strictEqual(tabs[0].getAttribute("aria-selected"), "true", "Sources first");
         await waitFor(() => {
             const panel = within(place()).getByRole("tabpanel");
-            assert.isNotNull(panel.querySelector("[data-source]"), "the loaded source under Loaded");
+            assert.isNotNull(panel.querySelector("[data-source]"), "the loaded source under Sources");
         });
+        // Filters sit in the Sources tab, under Data sources, in the one load's own section.
+        const panel = within(place()).getByRole("tabpanel");
+        const sources = within(panel).getByRole("group", { name: "Data sources" });
+        const [load] = session.data.sources();
+        const own = within(panel).getByRole("group", { name: sourceName(load) });
+        const filters = within(own).getByRole("group", { name: "Filters" });
+        assert.isTrue(
+            Boolean(sources.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING),
+            "Filters below Data sources",
+        );
+        assert.lengthOf(within(place()).getAllByText("Filters"), 1, "one Filters, none above the tabs");
         assert.isNull(within(place()).queryByText("Runs"), "no Runs heading");
+        // And not in Calculated, even with a filter set.
+        await session.visibility.addCondition({
+            id: "busy",
+            effect: "keep",
+            rule: {
+                kind: "union",
+                side: "nodes",
+                within: "graph",
+                branches: [{ start: "all", steps: [{ op: "keep", rule: { kind: "degree", min: 3 } }] }],
+            },
+        });
+        await within(place()).findByRole("list", { name: "Filters" });
+        await userEvent.click(within(list).getByRole("tab", { name: "Calculated" }));
+        await waitFor(() => {
+            assert.strictEqual(
+                within(list).getByRole("tab", { name: "Calculated" }).getAttribute("aria-selected"),
+                "true",
+            );
+            assert.isNull(within(place()).queryByText("Filters"), "no Filters in Calculated");
+            assert.isNull(within(place()).queryByRole("list", { name: "Filters" }));
+        });
     });
 
     it("an empty Calculated tab offers Analyze with its key, and no sentence", async () => {
@@ -122,7 +150,7 @@ describe("the Data place's Loaded and Calculated tabs", () => {
         const used = await within(row).findByRole("img", { name: /^Styles: / });
         assert.match(used.textContent ?? "", /^\d+$/u, "a count, no words");
         assert.isNotNull(used.querySelector(".lucide-paintbrush"), "a style's own glyph, not a link");
-        assert.isNull(row.querySelector(".lucide-link-2"), "no link glyph, which Loaded uses for a source");
+        assert.isNull(row.querySelector(".lucide-link-2"), "no link glyph, which Sources uses for a source");
 
         await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
         const items = await screen.findAllByRole("menuitem");

@@ -744,6 +744,7 @@ export interface CreateGraphSessionOptions {
         };
     };
     readonly features?: readonly string[];
+    readonly limits?: Readonly<LimitsOption>;
     readonly runs?: SessionRunsOptions;
 }
 
@@ -1288,6 +1289,7 @@ export interface FilterCondition {
     readonly name?: string;
     readonly on: boolean;
     readonly rule: RuleTree;
+    readonly source?: SourceKey;
     readonly within?: FilterSelectWithin;
 }
 
@@ -1494,7 +1496,7 @@ export interface GraphSession {
     readonly assets: AssetsApi;
     readonly canRedo: boolean;
     readonly canUndo: boolean;
-    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
+    readonly capabilities: SessionCapabilities;
     readonly catalog: SessionCatalogApi;
     readonly config: SessionConfig;
     readonly data: SessionDataApi;
@@ -2363,6 +2365,12 @@ export type GraphtyWarningCode =
 */
 | "W_ALPHA_IGNORED"
 /**
+* The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
+* shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
+* @experimental cosmograph
+*/
+| "W_LIMITS_IGNORED"
+/**
 * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
 * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
 * size sits, and `params.value` the size.
@@ -2397,6 +2405,12 @@ export type GraphtyWarningCode =
 * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
 */
 | "W_DIMENSION_OVERRIDDEN"
+/**
+* `antialias` was changed after the element built its engine, which reads it only then: the
+* engine keeps the value it was built with. Raised as a `graphty-warning` event.
+* `params.requested` is the value given, `params.active` the one in use.
+*/
+| "W_ANTIALIAS_LATE"
 /**
 * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
 * `node.modelSourceUp` turns it.
@@ -3078,6 +3092,9 @@ export interface Limits {
     renderCeiling: number;
     selectionCap: number;
 }
+
+// @public
+export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>;
 
 // @public
 export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;
@@ -5384,6 +5401,11 @@ export function selectorStates(selector: Selector_2): readonly ElementState[];
 export type SessionAttributes = Readonly<Record<string, unknown>>;
 
 // @public
+export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
+    readonly limits: Readonly<DefaultableLimits>;
+};
+
+// @public
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
@@ -5516,7 +5538,7 @@ export interface SessionEventMap {
     };
     "canvas:group-outline-click": GroupOutlineClick;
     "capabilities:changed": {
-        readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
+        readonly capabilities: SessionCapabilities;
     };
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
@@ -7030,6 +7052,7 @@ export interface UnionLeaf {
     // (undocumented)
     readonly kind: "union";
     readonly side: "nodes" | "edges";
+    readonly sources?: readonly SourceKey[];
     readonly within: "graph" | "visible";
 }
 

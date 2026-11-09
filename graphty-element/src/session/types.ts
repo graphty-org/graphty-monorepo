@@ -115,7 +115,7 @@ import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { EdgeAgeFade } from "./time/ageFade";
 import type { TimeUnit } from "./time/parse";
 import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
-import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
+import type { HiddenNotDrawn, SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
  * The element's data configuration, parsed: the id and weight paths, the position scale, the
@@ -3035,6 +3035,15 @@ export interface SessionEventMap {
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /**
+     * What `visibility.notDrawn` lists changed: something asked to be drawn outside what is
+     * shown is, or is no longer, kept from drawing by the `workingGraph` option (the option
+     * toggled, `showContext` set, a branches view's hold started or ended, time ghosts asked for).
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.36.0
+     * @beta
+     */
+    "visibility:not-drawn-changed": { readonly notDrawn: readonly HiddenNotDrawn[] };
+    /**
      * The time window moved through `session.time`: where it is now and what entered and left.
      * @experimental timeline
      * @beta
@@ -4161,10 +4170,11 @@ export interface GraphSession {
      * on all of it, and hidden nodes keep their positions, styles and results -- and a reader that
      * names the whole graph (`scope: "graph"`) still reads all of it.
      *
-     * On, nothing outside what is shown is drawn: `visibility.showContext`, and a
-     * `styles.showBranches` view's `hold` and `base: "full"`, are kept but draw no hidden node,
-     * and `visibility.notDrawn` lists each one as a `W_HIDDEN_NOT_DRAWN` fact. Off, they draw as
-     * before.
+     * On, nothing outside what is shown is drawn: `visibility.showContext`, a
+     * `styles.showBranches` view's `hold` and `base: "full"`, and time ghosts (`outside: "ghost"`)
+     * are kept but draw no hidden node, and `visibility.notDrawn` lists each one as a
+     * `W_HIDDEN_NOT_DRAWN` fact (`visibility:not-drawn-changed` tells each change). Off, they draw
+     * as before.
      *
      * Off by default, which keeps every reader on the whole graph. Settable; a session setting that
      * records no undo step and is not saved in a project file. Set it when creating the session with

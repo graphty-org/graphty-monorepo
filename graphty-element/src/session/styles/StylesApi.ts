@@ -470,8 +470,8 @@ export interface BranchesView {
      * full graph is drawn there: what the conditions remove is drawn faint, as ghosts, and a
      * branch's members are drawn in its color even when a condition removes them. What is visible
      * does not change, and nothing is recorded. While the session's `workingGraph` option is on,
-     * `"full"` draws as `"visible"` does, and the view's `notDrawn` says so
-     * (`W_HIDDEN_NOT_DRAWN`, `asked: "full"`).
+     * `"full"` draws as `"visible"` does, and with a `hold` the view's `notDrawn`
+     * says so (`W_HIDDEN_NOT_DRAWN`, `asked: "full"`); with no `hold`, `"full"` lifts nothing.
      * Experimental: may change or be removed in a minor release.
      * @beta
      */
@@ -502,7 +502,8 @@ export interface StylesApi {
      * @param view - What to draw.
      * @returns Ends the view, the stack's picture back in the same repaint; and `notDrawn`, what
      *   the view asked to draw outside what is shown (`hold`, `base: "full"`) that is not drawn
-     *   because the session's `workingGraph` option is on, empty otherwise (since 3.36.0).
+     *   because the session's `workingGraph` option is on, empty otherwise; read when it is read, so
+     *   it follows the option, and empty once the view has ended (since 3.36.0).
      * @throws `E_BAD_COMMAND` for a rule that is not a valid union leaf.
      * @beta
      */
@@ -5050,15 +5051,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             repaintBetween(before, painting(current()));
             // A view that replaces another is a change too: a reader of `shownBranches` hears it.
             sources.onBranchesShown?.(true);
-            // The working graph draws only the view: say what of this one it does not draw.
-            const working = sources.workingGraph?.() === true;
-            const notDrawn = Object.freeze([
-                ...(working && view.hold !== undefined ? [hiddenNotDrawn("hold")] : []),
-                ...(working && view.base === "full" ? [hiddenNotDrawn("full")] : []),
-            ]);
 
             return {
-                notDrawn,
+                // The working graph draws only the view: what of this one it does not draw, now.
+                get notDrawn(): readonly HiddenNotDrawn[] {
+                    if (branchesShown !== shown || sources.workingGraph?.() !== true || shown.view.hold === undefined) {
+                        return Object.freeze([]);
+                    }
+
+                    // With no hold, "full" lifts nothing, so it keeps nothing from drawing.
+                    return Object.freeze([
+                        hiddenNotDrawn("hold"),
+                        ...(shown.view.base === "full" ? [hiddenNotDrawn("full")] : []),
+                    ]);
+                },
                 end(): void {
                     if (branchesShown !== shown) {
                         return;

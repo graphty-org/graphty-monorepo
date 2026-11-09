@@ -3092,6 +3092,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         dropsHiddenSelection: () => working.enabled,
         // On, nothing outside the view is drawn: no context nodes, no held condition's removals.
         workingGraph: () => working.enabled,
+        onNotDrawn: (notDrawn) => {
+            publish(watchers, "visibility:not-drawn-changed", { notDrawn });
+        },
         // Not behind the experiment: a saved window's bounds are instants of the parsed column.
         instants: (path: Path) => timeInternals?.instants(path) ?? null,
         boundZone,

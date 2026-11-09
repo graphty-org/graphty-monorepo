@@ -298,7 +298,12 @@ export interface FilterDraft {
  * - `"hold"`: a `styles.showBranches` view holds a filter condition (`hold`); what it would
  *   remove is not drawn.
  * - `"full"`: a `styles.showBranches` view asked for `base: "full"`; it is drawn over what is
- *   shown, and what the filter removes is not drawn.
+ *   shown, and what the filter removes is not drawn. Reported only for a view that also holds a
+ *   condition: with no `hold`, `"full"` draws nothing outside what is shown anyway.
+ * - `"ghost"`: the time setting `outside` is `"ghost"` and a window is in force; what the window
+ *   leaves out is not drawn.
+ *
+ * `visibility:not-drawn-changed` fires whenever the list in `visibility.notDrawn` changes.
  * Experimental: may change or be removed in a minor release.
  * @since 3.36.0
  * @beta
@@ -307,7 +312,7 @@ export interface HiddenNotDrawn {
     /** What kind of fact this is. */
     readonly code: "W_HIDDEN_NOT_DRAWN";
     /** What was asked for. */
-    readonly params: { readonly asked: "showContext" | "hold" | "full" };
+    readonly params: { readonly asked: "showContext" | "hold" | "full" | "ghost" };
 }
 
 /** No {@link HiddenNotDrawn} fact. */
@@ -570,10 +575,10 @@ export interface VisibilityApi {
     showContext: boolean;
     /**
      * What a consumer asked to draw outside what is shown that is not drawn now, because the
-     * session's `workingGraph` option is on: `showContext`, and a `styles.showBranches` view's
-     * `hold` or `base: "full"` (see {@link HiddenNotDrawn}). Empty while the option is off, or
-     * while nothing of the kind is asked for. Read it after setting one of them, or after
-     * `visibility:changed`.
+     * session's `workingGraph` option is on: `showContext`, a `styles.showBranches` view's
+     * `hold` or `base: "full"`, and time ghosts (see {@link HiddenNotDrawn}). Empty while the
+     * option is off, or while nothing of the kind is asked for. `visibility:not-drawn-changed`
+     * fires each time it changes.
      * Experimental: may change or be removed in a minor release.
      * @since 3.36.0
      * @beta
@@ -818,6 +823,11 @@ export interface VisibilitySources extends FilterSources {
      * @returns True when on.
      */
     readonly workingGraph?: () => boolean;
+    /**
+     * Told when `notDrawn` changes, with the new list.
+     * @param notDrawn - What is not drawn now.
+     */
+    readonly onNotDrawn?: (notDrawn: readonly HiddenNotDrawn[]) => void;
 }
 
 /** The selection as select conditions reach it. */
@@ -1629,25 +1639,28 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * Whether ghosts are drawn now.
+     * Whether the working graph is on: then nothing outside the view is drawn.
+     * @returns True when on.
+     */
+    const workingOn = (): boolean => sources.workingGraph?.() === true;
+    /**
+     * Whether ghosts are asked for.
      * @returns True while the `outside` setting is `"ghost"` and a window is in force.
      */
-    const timeGhosting = (): boolean =>
+    const ghostsAsked = (): boolean =>
         sources.timeline?.() !== false &&
         dispatcher.state.visibility.playback?.outside === "ghost" &&
         (dispatcher.state.visibility.window !== null || slid);
+    /**
+     * Whether ghosts are drawn now: asked for, and the working graph off.
+     * @returns True when drawn.
+     */
+    const timeGhosting = (): boolean => ghostsAsked() && !workingOn();
 
     /** The condition a reader is editing, whose removals stay drawn as ghosts (`hold`). */
     let held: string | null = null;
     /** Whether every condition is lifted while one is held (a view over the full graph). */
     let heldAll = false;
-    /** Whether the branches view asked for the full graph (`base: "full"`), held condition or not. */
-    let fullAsked = false;
-    /**
-     * Whether the working graph is on: then nothing outside the view is drawn.
-     * @returns True when on.
-     */
-    const workingOn = (): boolean => sources.workingGraph?.() === true;
     /** The held condition's rule-less stand-in: the rule the rest draws by, by its inputs. */
     let heldRule: {
         readonly conditions: readonly FilterCondition[];
@@ -1687,6 +1700,34 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         }
 
         return heldRule.rule;
+    };
+
+    /**
+     * What is asked to be drawn outside the view and is not, because the working graph is on.
+     * @returns The facts.
+     */
+    const notDrawnNow = (): readonly HiddenNotDrawn[] => {
+        if (!workingOn()) {
+            return NOTHING_NOT_DRAWN;
+        }
+
+        return Object.freeze([
+            ...(dispatcher.state.visibility.showContext ? [hiddenNotDrawn("showContext")] : []),
+            ...(held === null ? [] : [hiddenNotDrawn("hold")]),
+            ...(heldAll ? [hiddenNotDrawn("full")] : []),
+            ...(ghostsAsked() ? [hiddenNotDrawn("ghost")] : []),
+        ]);
+    };
+    /** What `notDrawn` last told, by its `asked` values. */
+    let toldNotDrawn = "";
+    /** Tell the host when `notDrawn` changed since it was last told. */
+    const tellNotDrawn = (): void => {
+        const now = notDrawnNow();
+        const key = now.map((each) => each.params.asked).join();
+        if (key !== toldNotDrawn) {
+            toldNotDrawn = key;
+            sources.onNotDrawn?.(now);
+        }
     };
 
     const ghostingNow = (): boolean => timeGhosting() || drawnRuleNow() !== ruleNow();
@@ -1905,6 +1946,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         previousDerived?.(change);
         if (change.slices.includes("visibility") && quiet !== true) {
             sources.onChange?.({ ...resultOf(), filterKind: lastKind, cause: change.cause });
+        }
+
+        if (change.slices.includes("visibility")) {
+            // showContext, the window or the ghost setting may have moved what is not drawn.
+            tellNotDrawn();
         }
 
         quiet = undefined;
@@ -3025,7 +3071,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         },
 
         hold(id: string | null, all = false): void {
-            fullAsked = all;
             if (held === id && heldAll === (id !== null && all)) {
                 return;
             }
@@ -3033,6 +3078,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             held = id;
             heldAll = id !== null && all;
             sources.onSlide?.();
+            tellNotDrawn();
         },
 
         get drawsContext(): boolean {
@@ -3040,20 +3086,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         },
 
         get notDrawn(): readonly HiddenNotDrawn[] {
-            if (!workingOn()) {
-                return NOTHING_NOT_DRAWN;
-            }
-
-            return Object.freeze([
-                ...(dispatcher.state.visibility.showContext ? [hiddenNotDrawn("showContext")] : []),
-                ...(held === null ? [] : [hiddenNotDrawn("hold")]),
-                ...(fullAsked ? [hiddenNotDrawn("full")] : []),
-            ]);
+            return notDrawnNow();
         },
 
         workingGraphChanged(): void {
             // The drawn masks are read through calls; only the ghosts' repaint must be told.
             sources.onSlide?.();
+            tellNotDrawn();
         },
     };
 }

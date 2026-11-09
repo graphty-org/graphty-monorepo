@@ -2572,7 +2572,7 @@ export interface GroupOutlineClick {
 export interface HiddenNotDrawn {
     readonly code: "W_HIDDEN_NOT_DRAWN";
     readonly params: {
-        readonly asked: "showContext" | "hold" | "full";
+        readonly asked: "showContext" | "hold" | "full" | "ghost";
     };
 }
 
@@ -5631,6 +5631,10 @@ export interface SessionEventMap {
     // @beta
     "time:step": TimeStepEvent;
     "visibility:changed": VisibilityChange;
+    // @beta
+    "visibility:not-drawn-changed": {
+        readonly notDrawn: readonly HiddenNotDrawn[];
+    };
 }
 
 // @public

@@ -18,7 +18,8 @@ Issue #6201: the design the owner agreed on 2026-11-07; choices he has not seen 
   it is the store's snapshot.
 - **Hidden nodes keep everything** (positions, styles, run results, notes) keyed by original ids;
   nothing syncs when a filter clears. The selection is the exception (decision B).
-- **Ghosts** (outside the time window) are not in the view and keep their positions (decision D).
+- **Ghosts** (outside the time window) are not in the view and keep their positions (decision D);
+  with the option on they are not drawn (section 3).
 
 ## 2. The public API
 
@@ -95,16 +96,19 @@ Advanced: `defineAlgorithm`'s `input()` hands it the view.
 Turning a filter off is a filter change (decision 35). **Nothing outside the view is drawn** while
 the option is on (owner, 2026-11-08, decisions 7 and 12): `visibility.showContext` (faint hidden
 nodes), a `styles.showBranches` view's `hold` (what an edited condition would remove) and its
-`base: "full"` (the view drawn as if no condition were on) are kept but draw no hidden node. Hidden
+`base: "full"` (the view drawn as if no condition were on), and time ghosts (the time setting
+`outside: "ghost"`) are kept but draw no hidden node. Hidden
 nodes have no meaningful position in a layout of only the shown nodes, so faint nodes at their old
 places under a fresh layout would be two layouts on one canvas: the owner's first bug. Each request
 is reported, not silent: `visibility.notDrawn`, and the `notDrawn` of the view `showBranches`
 returns, hold `{ code: "W_HIDDEN_NOT_DRAWN", params: { asked } }`, `asked` being `"showContext"`,
-`"hold"` or `"full"` (type `HiddenNotDrawn`). The flag and the view are kept, so turning the option
+`"hold"`, `"full"` (only with a `hold`: without one, `"full"` lifts nothing) or `"ghost"` (type
+`HiddenNotDrawn`), and `visibility:not-drawn-changed` fires each time that list changes, the
+option toggled included. The flag and the view are kept, so turning the option
 off draws them again and turning it on stops them at once; a project saved with `showContext` on
 opens with the flag on, draws nothing outside the view, and reports it. With the option off they
 draw as before. Only the draft preview fades nodes, in place, and it never re-lays out before
-commit. Ghosts keep their faint look (D).
+commit.
 
 ## 4. Every reader from the audit
 

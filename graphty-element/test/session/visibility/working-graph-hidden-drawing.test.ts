@@ -8,6 +8,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { UnionLeaf } from "../../../src/catalog/types";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createGraphSession } from "../../../src/session";
 import type { ElementSession } from "../../../src/session/types";
 import { lesMiserables } from "../../helpers/les-miserables";
@@ -209,6 +210,116 @@ describe("a branches view over the full graph and the working graph", () => {
         assert.isFalse(drawn(session, "Myriel"), "not even a branch member");
         assert.deepStrictEqual(asked(view.notDrawn), ["hold", "full"]);
         assert.deepStrictEqual(asked(session.visibility.notDrawn), ["hold", "full"]);
+        view.end();
+        await session.styles.settled();
+        session.dispose();
+    });
+});
+
+describe('a base "full" view with no held condition', () => {
+    it("draws nothing extra with the option off, so the option on reports nothing", async () => {
+        const off = await filtered(false);
+        const offView = off.session.styles.showBranches({ rule: NEAR_VALJEAN, base: "full" });
+        await off.session.styles.settled();
+        assert.isFalse(drawn(off.session, "Valjean"), "with no hold, base full lifts nothing");
+
+        const on = await filtered(true);
+        const view = on.session.styles.showBranches({ rule: NEAR_VALJEAN, base: "full" });
+        await on.session.styles.settled();
+        assert.deepStrictEqual(asked(view.notDrawn), [], "nothing was kept from drawing");
+        assert.deepStrictEqual(asked(on.session.visibility.notDrawn), []);
+        offView.end();
+        view.end();
+        await off.session.styles.settled();
+        await on.session.styles.settled();
+        off.session.dispose();
+        on.session.dispose();
+    });
+});
+
+describe("time ghosts and the working graph", () => {
+    /**
+     * A process trace with a window over three of its ten steps, outside drawn as ghosts.
+     * @param workingGraph - Whether the working graph is on.
+     * @returns The session.
+     */
+    async function ghostTrace(workingGraph: boolean): Promise<ElementSession> {
+        setDefaultFeatures(["timeline"]);
+        const session = createGraphSession({ workingGraph }) as ElementSession;
+        const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `s${String(i)}`, step: i }));
+        await session.data.import({
+            type: "json",
+            config: { data: JSON.stringify({ directed: true, nodes, edges: [] }) },
+        });
+        await session.time.setField({ nodes: { start: "step" } });
+        await session.time.window({ from: 3, to: 6 });
+        await session.time.setSettings({ outside: "ghost" });
+        return session;
+    }
+
+    it("draws the nodes outside the window as ghosts with the option off, as before", async () => {
+        const session = await ghostTrace(false);
+        assert.isTrue(session.visibility.ghosting);
+        assert.strictEqual(session.visibility.drawnMasks.nodes().size, 10);
+        assert.deepStrictEqual(asked(session.visibility.notDrawn), []);
+        session.dispose();
+    });
+
+    it("draws nothing outside the window with the option on, says why, and follows the option", async () => {
+        const session = await ghostTrace(true);
+        assert.isFalse(session.visibility.ghosting, "no ghosts");
+        assert.isNull(session.visibility.ghosts());
+        assert.strictEqual(session.visibility.drawnMasks.nodes().size, session.visibility.summary.visibleNodes);
+        assert.deepStrictEqual(asked(session.visibility.notDrawn), ["ghost"]);
+
+        session.workingGraph = false;
+        assert.isTrue(session.visibility.ghosting);
+        assert.strictEqual(session.visibility.drawnMasks.nodes().size, 10);
+        assert.deepStrictEqual(asked(session.visibility.notDrawn), []);
+        session.dispose();
+    });
+});
+
+describe("telling a consumer that what is not drawn moved", () => {
+    it("fires visibility:not-drawn-changed when the option turns on and off, once each", async () => {
+        const { session } = await filtered(false);
+        session.visibility.showContext = true;
+        await session.styles.settled();
+        const heard: string[][] = [];
+        session.on("visibility:not-drawn-changed", ({ notDrawn }) => {
+            heard.push(asked(notDrawn));
+        });
+
+        session.workingGraph = true;
+        session.workingGraph = true;
+        session.workingGraph = false;
+        assert.deepStrictEqual(heard, [["showContext"], []]);
+        session.dispose();
+    });
+
+    it("fires it when a branches view holds a condition under the option, and when it ends", async () => {
+        const { session, condition } = await filtered(true);
+        const heard: string[][] = [];
+        session.on("visibility:not-drawn-changed", ({ notDrawn }) => {
+            heard.push(asked(notDrawn));
+        });
+        const view = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint", hold: condition });
+        await session.styles.settled();
+        view.end();
+        await session.styles.settled();
+        assert.deepStrictEqual(heard, [["hold"], []]);
+        session.dispose();
+    });
+
+    it("keeps a branches view's notDrawn current when the option is toggled while it is shown", async () => {
+        const { session, condition } = await filtered(false);
+        const view = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint", hold: condition });
+        await session.styles.settled();
+        assert.deepStrictEqual(asked(view.notDrawn), []);
+        session.workingGraph = true;
+        assert.deepStrictEqual(asked(view.notDrawn), ["hold"]);
+        session.workingGraph = false;
+        assert.deepStrictEqual(asked(view.notDrawn), []);
         view.end();
         await session.styles.settled();
         session.dispose();

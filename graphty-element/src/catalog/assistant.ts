@@ -236,7 +236,7 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "Data sources",
         core: false,
         profiles: STANDARD,
-        actions: ["list", "of", "remove", "generate", "load_example", "expand", "collapse"],
+        actions: ["list", "of", "remove", "generate", "load_dataset", "load_example", "expand", "collapse"],
     },
     {
         name: "issues",

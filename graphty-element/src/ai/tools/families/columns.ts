@@ -197,7 +197,7 @@ export const sourcesTool: ToolDefinition = {
     plainName: "Data sources",
     core: false,
     description:
-        "The loads the graph came from: list them, take one out, generate a graph, or fetch from a network source (held for approval).",
+        "The loads the graph came from: list them, take one out, generate a graph, or download a sample dataset or fetch from a network source (held for approval).",
     example: { action: "generate", name: "path", params: { n: 10 } },
     actions: [
         {
@@ -260,6 +260,21 @@ export const sourcesTool: ToolDefinition = {
                     tx.data.generate(text(args.name), args.params as GeneratorParams | undefined, { mode: "merge" }),
                 );
                 return loaded(tx);
+            },
+        },
+        {
+            name: "load_dataset",
+            summary: "download a sample dataset (Karate Club, Les Miserables, ...), added to the graph",
+            fields: {
+                name: z.string().max(200).describe('The dataset\'s name, such as "karate" or "les-miserables".'),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.loadDataset" }, { op: "data.import" }],
+            run: async ({ tx, message }, args) => {
+                const name = text(args.name);
+                holdFetch(message, name);
+                await coded(() => tx.data.loadDataset(name, { mode: "merge" }));
+                return loaded(tx, name);
             },
         },
         {

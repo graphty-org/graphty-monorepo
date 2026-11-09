@@ -286,7 +286,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "refresh",
             "more",
             "runPendingSourceLoad",
-            "loadDataset",
         ],
         reason: "network",
         kind: BY_DESIGN,

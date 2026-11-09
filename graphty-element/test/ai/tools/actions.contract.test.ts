@@ -6,8 +6,9 @@
  * when an action has no row, so a new action is contract-tested the day it is generated.
  */
 
+import { fromEdgeArrays } from "@graphty/graph-format";
 import { defineSource, registerSource, registry } from "@graphty/graph-io";
-import { afterAll, assert, describe, it } from "vitest";
+import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { buildToolset, isAssistantTool } from "../../../src/ai/tools/toolset";
@@ -170,6 +171,24 @@ const withSample = (): void => {
         );
     }
 };
+
+/**
+ * Answers every download with a two-node dataset file, until the test ends.
+ * @returns When the file is ready.
+ */
+async function answerDownloads(): Promise<void> {
+    const bytes = fromEdgeArrays({
+        directed: false,
+        nodeCount: 2,
+        src: new Uint32Array([0]),
+        dst: new Uint32Array([1]),
+        ids: ["d1", "d2"],
+    }).toBytes();
+    const zipped = await new Response(
+        new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip")),
+    ).arrayBuffer();
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(zipped)));
+}
 
 /** A reference call for every action, by `tool.action`. */
 const ROWS: Record<string, Row> = {
@@ -426,6 +445,7 @@ const ROWS: Record<string, Row> = {
         gate: false,
     },
     "sources.generate": { args: { action: "generate", name: "path", params: { n: 3 } } },
+    "sources.load_dataset": { args: { action: "load_dataset", name: "karate" }, code: "AI_CONFIRM_REQUIRED" },
     "sources.load_example": {
         args: { action: "load_example", source: "contract-source", id: "contract-sample" },
         setup: withSample,
@@ -811,7 +831,14 @@ describe("every generated action", () => {
 
 /** More calls for an action whose reference call stops short of something it reaches: a held change, a refusal. */
 const MORE: Record<string, Row[]> = {
-    "sources.load_example": [{ args: { action: "load_example", source: "contract-source", id: "contract-sample" }, setup: withSample, gate: false }],
+    "sources.load_dataset": [{ args: { action: "load_dataset", name: "karate" }, setup: answerDownloads, gate: false }],
+    "sources.load_example": [
+        {
+            args: { action: "load_example", source: "contract-source", id: "contract-sample" },
+            setup: withSample,
+            gate: false,
+        },
+    ],
     "sources.expand": [{ args: { action: "expand", ids: ["valjean"] }, session: seededSession, gate: false }],
     "import_data.import": [
         {
@@ -919,6 +946,9 @@ async function stalledSession(): Promise<GraphSession> {
 }
 
 describe("actions whose reference call stops short", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
     afterAll(() => {
         clearRegisteredAlgorithmsForTesting();
     });

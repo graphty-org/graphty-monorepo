@@ -5,7 +5,6 @@ import { Tabs } from "@mantine/core";
 import React from "react";
 
 import { selectionWorkspaceOn } from "../features";
-import { SOURCE_GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
 import { ServerPlace } from "../server/ServerForm";
 import { useNumberFormats } from "../settings/numberFormat";
@@ -14,18 +13,6 @@ import { Fields } from "./Fields";
 import { FiltersSection } from "./Filters";
 import { ResultsList } from "./Runs";
 import { Sources } from "./Sources";
-import type { SourceKind } from "./words";
-
-/**
- * A source's icon, which the source inspector's header draws.
- * @param props - Component props
- * @param props.kind - The source's kind
- * @returns The icon
- */
-export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX.Element {
-    const { icon: Icon, color } = SOURCE_GLYPHS[kind];
-    return <Icon size={14} color={color} aria-hidden />;
-}
 
 /**
  * The Data place, the left sidebar's data (data prototype spec sections 3.2 to 3.4): the graph's

@@ -736,22 +736,25 @@ export function StartScreen(): React.JSX.Element {
                                     </Button>
                                     {/* Without network data, New from data... sits beside Samples. */}
                                     {network ? <div className="ws-land-wide">{newButton}</div> : newButton}
-                                    {/* A graph file at a web address opens as a new project. */}
-                                    <div className="ws-land-wide">
-                                        <FileSource
-                                            variant="row"
-                                            url
-                                            multiple
-                                            placeholder="Web address of a graph file"
-                                            openLabel="Open"
-                                            onUrl={(url) => {
-                                                openUrl(workspace.store, url);
-                                            }}
-                                            onFiles={(files) => {
-                                                openFiles(workspace, files);
-                                            }}
-                                        />
-                                    </div>
+                                    {/* A graph file at a web address opens as a new project; with network
+                                        data on, Open network data holds the box. */}
+                                    {network ? null : (
+                                        <div className="ws-land-wide">
+                                            <FileSource
+                                                variant="row"
+                                                url
+                                                multiple
+                                                placeholder="Web address of a graph file"
+                                                openLabel="Open"
+                                                onUrl={(url) => {
+                                                    openUrl(workspace.store, url);
+                                                }}
+                                                onFiles={(files) => {
+                                                    openFiles(workspace, files);
+                                                }}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                                 {privacy}
                             </Paper>

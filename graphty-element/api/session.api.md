@@ -2775,6 +2775,7 @@ export interface JoinRecord {
         readonly name: string;
         readonly columns: readonly string[];
         readonly rows: readonly Readonly<Record<string, unknown>>[];
+        readonly unreadRows?: number;
     };
 }
 
@@ -2794,6 +2795,7 @@ export interface JoinReport {
     readonly rowFates: readonly JoinRowFate[];
     readonly rowMatches: readonly (readonly (NodeId_2 | EdgeId)[])[];
     readonly unknownEndRows: number;
+    readonly unreadRows: number;
     readonly updatedNodes: number;
     readonly withoutValue: number;
     readonly withoutValueIds: readonly (NodeId_2 | EdgeId)[];
@@ -2809,6 +2811,7 @@ export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "repl
 export interface JoinSuggestion {
     readonly confident: boolean;
     readonly keys: readonly JoinKey[];
+    readonly repeated?: "both";
     readonly shape: JoinShape;
 }
 
@@ -3117,6 +3120,7 @@ export interface LoadChoices extends ImportOptions {
     readonly join?: JoinChoices;
     readonly kindIds?: "shared" | "scoped";
     readonly mapping?: LoadMapping;
+    readonly origin?: "sample";
     readonly styleOptions?: FileStyleOptions;
     readonly styles?: "file" | "none";
     readonly unmatched?: "add" | "leave-out";
@@ -4250,6 +4254,7 @@ export function removeAutosave(key: string, id: string, options?: AutosaveLookup
 
 // @public
 export interface RemoveSourceResult {
+    readonly alsoRemoved: readonly SourceKey[];
     readonly kept: {
         readonly nodes: number;
         readonly edges: number;
@@ -5458,6 +5463,7 @@ export interface SessionDataApi {
     issues(options?: {
         readonly includeIgnored?: boolean;
         readonly includeFixed?: boolean;
+        readonly source?: SourceKey;
     }): readonly DataIssue[];
     joins(): readonly JoinRecord[];
     lastImport(): LoadReport | null;

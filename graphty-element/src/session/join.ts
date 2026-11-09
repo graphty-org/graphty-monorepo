@@ -22,6 +22,8 @@ export interface JoinTable {
     readonly name: string;
     readonly columns: readonly string[];
     readonly rows: readonly Readonly<Record<string, unknown>>[];
+    /** Rows of the file its reader could not read, so they are not in `rows`. */
+    readonly unreadRows?: number;
 }
 
 /** One node or edge as a join reads it: its id and its attributes. */
@@ -142,6 +144,22 @@ function graphValue(element: JoinElement, path: string): unknown {
 }
 
 /**
+ * Add a value to a key's list, in place: a list rebuilt per value makes a key many rows share
+ * quadratic.
+ * @param lists - The lists by key.
+ * @param key - The key.
+ * @param value - The value.
+ */
+function pushTo<K, V>(lists: Map<K, V[]>, key: K, value: V): void {
+    const list = lists.get(key);
+    if (list === undefined) {
+        lists.set(key, [value]);
+    } else {
+        list.push(value);
+    }
+}
+
+/**
  * Elements by their compared key.
  * @param elements - The nodes or edges.
  * @param paths - The graph side of each key pair.
@@ -166,7 +184,7 @@ function indexOf(
         const key = parts.join(PART);
         const reversed = [...parts].reverse().join(PART);
         for (const each of bothWays && reversed !== key ? [key, reversed] : [key]) {
-            out.set(each, [...(out.get(each) ?? []), element.id]);
+            pushTo(out, each, element.id);
         }
     }
 
@@ -302,6 +320,7 @@ export function suggestJoin(
                     Object.freeze({ file: pair.target, graph: "id" }),
                 ]),
                 confident: share >= CONFIDENT,
+                ...(repeatsDiffer(table, pair) ? { repeated: "both" as const } : {}),
             });
         }
     }
@@ -316,6 +335,30 @@ export function suggestJoin(
         keys: Object.freeze([Object.freeze(best.key)]),
         confident: best.share >= CONFIDENT,
     });
+}
+
+/**
+ * Whether some rows name the same source and target but say different things: separate events
+ * (two door entries), not one row repeated.
+ * @param table - The table.
+ * @param pair - Its source and target columns.
+ * @param pair.source - The source column.
+ * @param pair.target - The target column.
+ * @returns True when a repeated pair's rows differ.
+ */
+function repeatsDiffer(table: JoinTable, pair: { readonly source: string; readonly target: string }): boolean {
+    const first = new Map<string, Readonly<Record<string, unknown>>>();
+    for (const row of table.rows) {
+        const key = `${String(row[pair.source])}${PART}${String(row[pair.target])}`;
+        const earlier = first.get(key);
+        if (earlier === undefined) {
+            first.set(key, row);
+        } else if (table.columns.some((column) => row[column] !== earlier[column])) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -591,6 +634,7 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
             withoutValueIds: Object.freeze([]),
             rowFates: Object.freeze([]),
             unknownEndRows: 0,
+            unreadRows: table.unreadRows ?? 0,
             ...counts,
             clashes: Object.freeze(
                 clashesOf(elements, columns).map((column) => Object.freeze({ column, code: "clash" as const })),
@@ -854,7 +898,7 @@ export function planJoin(
     const rowsOf = new Map<NodeId | EdgeId, Readonly<Record<string, unknown>>[]>();
     matching.rowIds.forEach((ids, at) => {
         for (const id of ids) {
-            rowsOf.set(id, [...(rowsOf.get(id) ?? []), table.rows[at]]);
+            pushTo(rowsOf, id, table.rows[at]);
         }
     });
 
@@ -895,11 +939,7 @@ export function planJoin(
             columns: [...written],
             before,
             newNodes: addsRows(choices, chosen)
-                ? newNodeRows(table, matching, choices, (column) =>
-                      clashing.has(column) && (choices.clash?.[column] ?? "both") === "both"
-                          ? bothName(column, table)
-                          : column,
-                  )
+                ? newNodeRows(table, matching, choices, new Set(graph.nodes.map((node) => node.id)))
                 : [],
         },
     };
@@ -928,21 +968,22 @@ function columnValue(
  * @param table - The incoming table.
  * @param matching - What matching found.
  * @param choices - The join: one key.
- * @param nameOf - Each incoming column's name on the graph.
- * @returns The new nodes, in table order.
+ * @param held - The graph's node ids.
+ * @returns The new nodes, in table order. A new node holds no value to clash with, so each column
+ * is written under its own name. A key value that is already another node's id gets a free id.
  */
 function newNodeRows(
     table: JoinTable,
     matching: Matching,
     choices: JoinChoices,
-    nameOf: (column: string) => string,
+    held: ReadonlySet<NodeId | EdgeId>,
 ): RowUpdate<NodeId>[] {
     const [key] = choices.keys;
     const rowsOf = new Map<string, Readonly<Record<string, unknown>>[]>();
     matching.rowIds.forEach((ids, at) => {
         const rowKey = matching.rowKeys[at];
         if (ids.length === 0 && rowKey !== undefined) {
-            rowsOf.set(rowKey, [...(rowsOf.get(rowKey) ?? []), table.rows[at]]);
+            pushTo(rowsOf, rowKey, table.rows[at]);
         }
     });
     return [...rowsOf.values()].map((rows) => {
@@ -950,7 +991,7 @@ function newNodeRows(
         for (const column of columnsOf(table, choices)) {
             const value = columnValue(rows, column, choices);
             if (value !== undefined) {
-                values[nameOf(column)] = value;
+                values[column] = value;
             }
         }
 
@@ -958,7 +999,12 @@ function newNodeRows(
             values[key.graph.slice("data.".length)] = rows[0][key.file];
         }
 
-        return frozen({ id: rows[0][key.file] as NodeId, values });
+        let id = rows[0][key.file] as NodeId;
+        for (let n = 2; held.has(id); n++) {
+            id = `${String(rows[0][key.file])} (${String(n)})`;
+        }
+
+        return frozen({ id, values });
     });
 }
 

@@ -1,5 +1,5 @@
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { ImportReport, LoadedSource } from "@graphty/graphty-element/session";
+import type { LoadedSource } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import {
@@ -15,21 +15,9 @@ import {
     namesOnce,
     noNodeRow,
     sourceFacts,
-    sourceRows,
     sourcesWords,
     typeOf,
 } from "../words";
-
-/**
- * An import report with these counts; the rest of the report is not read.
- * @param counts - the counts.
- * @returns the report.
- */
-function report(counts: Partial<ImportReport["counts"]>): ImportReport {
-    return {
-        counts: { nodes: 0, edges: 0, nodeRecords: 0, edgeRecords: 0, rejected: 0, ...counts },
-    } as ImportReport;
-}
 
 /**
  * One load as `data.sources()` lists it.
@@ -79,77 +67,7 @@ describe("the Data place's words", () => {
         assert.equal(count(1234, "edge"), "1,234 edges");
     });
 
-    it("lists nothing before an import", () => {
-        assert.deepEqual(sourceRows([], null), []);
-        assert.equal(sourcesWords([]), undefined);
-    });
-
-    it("draws a graph file as one row that expands to its node table and edge table", () => {
-        const [file] = sourceRows(
-            [loaded("karate.gml", ["karate.gml"], { nodes: 34, edges: 78 })],
-            report({ nodes: 34, edges: 78, nodeRecords: 34, edgeRecords: 78 }),
-        );
-        assert.equal(file.kind, "file");
-        assert.equal(file.name, "karate.gml");
-        assert.equal(file.quiet, "34 nodes, 78 edges");
-        assert.deepEqual(
-            file.children?.map((t) => [t.kind, t.name, t.quiet]),
-            [
-                ["nodes", "Node table", "34 rows, 34 nodes"],
-                ["edges", "Edge table", "78 rows, 78 edges"],
-            ],
-        );
-    });
-
-    it("draws an edge list as one edge table", () => {
-        const rows = sourceRows(
-            [loaded("edges.csv", ["edges.csv"], { nodes: 30, edges: 254 })],
-            report({ nodes: 30, edges: 254, edgeRecords: 254 }),
-        );
-        assert.deepEqual(
-            rows.map((r) => [r.kind, r.name, r.quiet, r.children]),
-            [["edges", "edges.csv", "30 nodes, 254 edges", undefined]],
-        );
-    });
-
-    it("draws a lone node table with its node count only", () => {
-        const rows = sourceRows(
-            [loaded("les miserables", [], { nodes: 77, edges: 0 })],
-            report({ nodes: 77, nodeRecords: 77 }),
-        );
-        assert.deepEqual(
-            rows.map((r) => [r.kind, r.name, r.quiet]),
-            [["nodes", "les miserables", "77 nodes"]],
-        );
-    });
-
     it("says how many rows a load left out, and why, in the reader's words", () => {
-        const load = {
-            ...loaded(undefined, ["people.csv", "passes.csv"], { nodes: 12, edges: 22 }),
-            leftOut: { rows: 1, values: 1 },
-        };
-        const [row] = sourceRows([load, loaded("more.csv", ["more.csv"], { nodes: 1, edges: 1 })], null);
-        assert.equal(row.quiet, "12 nodes, 22 edges");
-        assert.deepEqual(
-            row.children?.map((t) => [t.id, t.kind, t.name]),
-            [
-                ["source:0:0", "file", "people.csv"],
-                ["source:0:1", "file", "passes.csv"],
-                ["source:0:left-out", "left-out", "1 row left out"],
-            ],
-        );
-        const [lone] = sourceRows([load], null);
-        assert.equal(lone.children?.at(-1)?.name, "1 row left out", "a lone load shows it too");
-        // A load that says what each table held draws each as a node or an edge table.
-        const [kinds] = sourceRows([{ ...load, tableRows: ["nodes", "edges"] }], null);
-        assert.deepEqual(
-            kinds.children?.map((t) => t.kind),
-            ["nodes", "edges", "left-out"],
-        );
-        assert.equal(
-            sourceRows([load, loaded("passes.csv", ["passes.csv"], { nodes: 0, edges: 17 })], null)[1].quiet,
-            "17 edges",
-        );
         assert.equal(
             leftOutSentence({ rows: 1, values: 1 }),
             "1 edge row was left out: it names a node missing from the node rows.",
@@ -185,30 +103,6 @@ describe("the Data place's words", () => {
         assert.equal(noNodeRow(["s11"]), "s11 has no node row");
         assert.equal(noNodeRow(["s11", "p13", "s11"]), "s11 and p13 have no node rows");
         assert.equal(noNodeRow(["a", "b", "c", "d"]), "a, b and 2 more have no node rows");
-    });
-
-    it("lists every load, oldest first, a load of two tables expanding to them", () => {
-        const loads = [
-            loaded(undefined, ["people.csv", "messages.csv"], { nodes: 12, edges: 30 }),
-            loaded("friends.csv", ["friends.csv"], { nodes: 3, edges: 41 }),
-        ];
-        const rows = sourceRows(loads, report({ nodes: 3, edges: 41, edgeRecords: 41 }));
-        assert.deepEqual(
-            rows.map((r) => [r.id, r.kind, r.name, r.quiet, r.children?.map((t) => [t.id, t.name])]),
-            [
-                [
-                    "source:0",
-                    "file",
-                    "people.csv and messages.csv",
-                    "12 nodes, 30 edges",
-                    [
-                        ["source:0:0", "people.csv"],
-                        ["source:0:1", "messages.csv"],
-                    ],
-                ],
-                ["source:1", "file", "friends.csv", "3 nodes, 41 edges", undefined],
-            ],
-        );
     });
 
     it("names the one file the graph came from, or counts them", () => {
@@ -351,7 +245,7 @@ describe("a Sources row's count and join words", () => {
                     join: { matched: 17, rows: 19, shape: "node-values" },
                 } as Partial<LoadedSource>),
             ),
-            "17 nodes matched by 19 rows",
+            "17 nodes matched, 19 table rows",
         );
         assert.isNull(
             joinWords(load({ nodes: 0, edges: 0 }, { join: { matched: 19, rows: 19 } } as Partial<LoadedSource>)),
@@ -375,13 +269,13 @@ describe("what uses a result", () => {
 
 describe("a source's details", () => {
     const facts = (source: LoadedSource): Record<string, string | number> => {
-        const { source: about, statistics } = sourceFacts(source, [source], { columns: 2, issues: 0, waiting: false });
+        const { source: about, statistics } = sourceFacts(source, [source], { issues: 0, waiting: false });
         return Object.fromEntries([...about, ...statistics].map(({ name, value }) => [name, value]));
     };
 
     it("draws no row for a fact a load does not have, such as an older project's time", () => {
         const older = facts(loaded("people.csv", ["people.csv"], { nodes: 3, edges: 0 }));
-        assert.deepEqual(Object.keys(older), ["Type", "Nodes", "Edges", "Columns"]);
+        assert.deepEqual(Object.keys(older), ["Type", "Nodes", "Edges"]);
         assert.strictEqual(older.Nodes, 3);
     });
 

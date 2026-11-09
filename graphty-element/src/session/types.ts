@@ -1171,10 +1171,15 @@ export interface SessionDataApi {
      *     `status: "ignored"` (default false)
      * @param options.includeFixed - list the issues `data.fix` settled too, after the rest, each with
      *     `status: "fixed"` and `fixedBy`, as they stood then (default false)
+     * @param options.source - list only this load's issues
      * @returns the issues, those a load saw first
      * @since 3.30.0
      */
-    issues(options?: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean }): readonly DataIssue[];
+    issues(options?: {
+        readonly includeIgnored?: boolean;
+        readonly includeFixed?: boolean;
+        readonly source?: SourceKey;
+    }): readonly DataIssue[];
     /**
      * Apply one of an issue's fixes, as one undoable step: `session.undo()` puts the data back.
      *
@@ -2196,6 +2201,11 @@ export interface LoadMappingRead {
 
 /** What `import` and `LoadDraft.load` take. */
 export interface LoadChoices extends ImportOptions {
+    /**
+     * Say a load read from a URL is one of the application's own samples, so `data.sources()`
+     * lists it as `"sample"` rather than `"url"`. @since 3.38.0
+     */
+    readonly origin?: "sample";
     /** The column roles; a role left out is the element's own reading. */
     readonly mapping?: LoadMapping;
     /**
@@ -2340,13 +2350,13 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly added: { readonly nodes: number; readonly edges: number };
     /**
      * When this load last read its data, as RFC 3339. Absent in a project saved before it was kept.
-     * @since 3.30.0
+     * @since 3.38.0
      */
     readonly loadedAt?: string;
     /**
      * Where it was read from, without credentials: a URL load's address, or a network load's origin
      * and path. Absent for anything else.
-     * @since 3.30.0
+     * @since 3.38.0
      */
     readonly url?: string;
     /**
@@ -2469,6 +2479,11 @@ export interface JoinSuggestion {
     readonly keys: readonly JoinKey[];
     /** Whether most of the key's values match the graph; ask the reader when false. */
     readonly confident: boolean;
+    /**
+     * For `"edges"`: `"both"` when rows naming the same source and target say different things, so
+     * each is its own event. Absent otherwise. @since 3.38.0
+     */
+    readonly repeated?: "both";
 }
 
 /**
@@ -2518,7 +2533,7 @@ export interface JoinChoices {
      * For `"node-values"` on one key with no `via`: a row matching no node is `"leave-out"`, left
      * out of the join (the default), or `"add"`ed as a new node named by its key. Undone, edited
      * and removed with the join.
-     * @since 3.33.0
+     * @since 3.38.0
      */
     readonly unmatchedRows?: "leave-out" | "add";
 }
@@ -2528,7 +2543,8 @@ export interface JoinChoices {
  *
  * - `"joined"`: its values reach the elements it matches, or (for `"edges"`) it becomes an edge
  *   between two nodes the graph holds.
- * - `"new-end"`: (`"edges"`) it becomes an edge, and an end the graph lacks becomes a new node.
+ * - `"new-end"`: (`"edges"`) it becomes an edge, and an end the graph lacks becomes a new node; or
+ *   (`"node-values"` with `unmatchedRows: "add"`) it matches no node and becomes a new one.
  * - `"repeat"`: its key repeats another row's and `repeated` keeps the other one.
  * - `"left-out"`: the join leaves it out: its key matches nothing, a key value is blank, or (for
  *   `"edges"` with `unknownEnds: "leave-out"`) an end is not in the graph.
@@ -2592,6 +2608,12 @@ export interface JoinReport {
      * @since 3.33.0
      */
     readonly rowFates: readonly JoinRowFate[];
+    /**
+     * Rows of the file its reader could not read (a line with too many or too few fields), so the
+     * join never saw them.
+     * @since 3.38.0
+     */
+    readonly unreadRows: number;
 }
 
 /**
@@ -2619,6 +2641,8 @@ export interface JoinRecord {
         readonly name: string;
         readonly columns: readonly string[];
         readonly rows: readonly Readonly<Record<string, unknown>>[];
+        /** Rows of the file its reader could not read. Absent when there were none. @since 3.38.0 */
+        readonly unreadRows?: number;
     };
     /**
      * For values: each element's values before the join wrote over them, by id, null for a value
@@ -2645,6 +2669,11 @@ export interface RemoveSourceResult {
     readonly removed: { readonly nodes: number; readonly edges: number };
     /** The load's nodes and edges that stayed, because another load also supplied them. */
     readonly kept: { readonly nodes: number; readonly edges: number };
+    /**
+     * The joins that went with it: joined onto it, through it as a mapping table, or keyed on a column it wrote.
+     * @since 3.38.0
+     */
+    readonly alsoRemoved: readonly SourceKey[];
 }
 
 /**

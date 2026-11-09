@@ -146,6 +146,8 @@ export interface WorkspaceState {
         readonly draft: LoadDraft;
         /** What the draft was read from, for Replace data and Open as a separate graph. */
         readonly source?: DataSourceInput;
+        /** One of the app's own samples, for a table added as rows. */
+        readonly origin?: "sample";
         /** The load holding the same columns as this file: the screen opens on Replace of it. */
         readonly matches?: SourceKey;
     } | null;

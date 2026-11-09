@@ -87,7 +87,7 @@ describe("a source's details in the right panel", () => {
         assert.isDefined(facts.Retrieved);
         assert.strictEqual(facts.Nodes, "3");
         assert.strictEqual(facts.Edges, "0");
-        assert.strictEqual(facts.Columns, "2");
+        assert.isUndefined(facts.Columns);
         assert.isUndefined(facts.Address);
     });
 
@@ -121,7 +121,6 @@ describe("a source's details in the right panel", () => {
         assert.strictEqual(facts.Key, "id = Id");
         assert.strictEqual(facts["Table rows"], "3");
         assert.strictEqual(facts["Nodes matched"], "2");
-        assert.strictEqual(facts.Columns, "1");
         assert.isUndefined(facts.Nodes);
     });
 
@@ -152,7 +151,47 @@ describe("a source's details in the right panel", () => {
         });
     });
 
-    it("keeps Retrieved across a save and reopen, and an older project shows none", async () => {
+    it("shows no Retrieved for a project saved before it was kept", async () => {
+        const session = await openProject();
+        await session.project.open(
+            JSON.stringify({
+                kind: "graphty-document",
+                version: 1,
+                generator: { name: "graphty-element", version: "3.29.3" },
+                requires: ["graphty-data", "graphty-session", "graphty-results"],
+                members: [
+                    {
+                        kind: "graphty-data",
+                        version: 1,
+                        format: "json",
+                        dialect: "node-link",
+                        graph: { nodes: [{ id: "a" }], links: [] },
+                        source: { type: "csv", config: {} },
+                        sources: [
+                            {
+                                type: "csv",
+                                name: "genes.csv",
+                                config: {},
+                                key: "s1",
+                                kind: "file",
+                                tables: [],
+                                added: { nodes: 1, edges: 0 },
+                            },
+                        ],
+                        provenance: { s1: { nodes: ["a"], edges: [] } },
+                    },
+                    { kind: "graphty-session", version: 1, config: {} },
+                    { kind: "graphty-results", version: 1, runs: [] },
+                    { kind: "graphty-sources", version: 1, loads: [] },
+                ],
+            }),
+        );
+        const facts = await details("genes.csv");
+        assert.strictEqual(facts.Type, "File");
+        assert.isUndefined(facts.Retrieved);
+    });
+
+    it("keeps Retrieved across a save and reopen", async () => {
         const session = await openProject();
         await session.data.import({ config: { file: new File([PEOPLE], "people.csv") }, name: "people.csv" });
         const [{ loadedAt }] = session.data.sources();

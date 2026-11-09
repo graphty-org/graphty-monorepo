@@ -12,7 +12,6 @@ import type {
     ColumnRole,
     Endpoint,
     GraphSession,
-    ImportReport,
     JoinShape,
     LeftOutEdge,
     LoadedSource,
@@ -26,19 +25,6 @@ import type {
 import { formatNumber, valueText } from "../inspector/words";
 import { kindName } from "../server/words";
 import { formatCount } from "../settings/numberFormat";
-
-/** What a Sources row's glyph shows: a graph file holding both tables, one table, or the rows a load left out. */
-export type SourceKind = "file" | "nodes" | "edges" | "left-out";
-
-/** One Sources row. */
-export interface SourceRow {
-    readonly id: string;
-    readonly kind: SourceKind;
-    readonly name: string;
-    /** The quiet line: "34 nodes, 78 edges"; "30 nodes, 254 edges"; "77 nodes"; a table's "254 rows, 254 edges". */
-    readonly quiet: string;
-    readonly children?: readonly SourceRow[];
-}
 
 /** What an Attributes row's glyph shows: what the column measures, or the run that made it. */
 export type TypeGlyph = "category" | "text" | "number" | "ordinal" | "time" | "yes-no" | "unknown" | "result";
@@ -68,33 +54,6 @@ export interface AttributeRow {
  */
 export function count(n: number, noun: string): string {
     return `${formatCount(n)} ${noun}${n === 1 ? "" : "s"}`;
-}
-
-/**
- * What a load added, as its row's quiet line. A kind it added none of is left out, so a narrow
- * row keeps room for its name.
- * @param added - `LoadedSource.added`.
- * @returns such as "20 nodes, 41 edges", "17 edges", or "0 nodes, 0 edges" for a load that added nothing.
- */
-function addedWords(added: LoadedSource["added"]): string {
-    const parts = [
-        ...(added.nodes > 0 ? [count(added.nodes, "node")] : []),
-        ...(added.edges > 0 ? [count(added.edges, "edge")] : []),
-    ];
-    return parts.length === 0 ? "0 nodes, 0 edges" : parts.join(", ");
-}
-
-/**
- * The row under a load that says how many edge rows it left out, so the count shows however
- * narrow the panel is.
- * @param load - the load, an entry of `data.sources()`.
- * @param id - the load's row id.
- * @returns the rows: one "1 row left out" row, or none when the load left nothing out.
- */
-function leftOutRows(load: LoadedSource, id: string): SourceRow[] {
-    return load.leftOut === undefined
-        ? []
-        : [{ id: `${id}:left-out`, kind: "left-out", name: `${count(load.leftOut.rows, "row")} left out`, quiet: "" }];
 }
 
 /**
@@ -154,109 +113,12 @@ export function leftOutRow(edge: LeftOutEdge, ends?: NonNullable<LoadedSource["l
 }
 
 /**
- * The glyph of a load that read one table: a graph file when it brought both nodes and edges.
- * @param added - `LoadedSource.added`.
- * @returns the kind.
- */
-function kindOf(added: LoadedSource["added"]): SourceKind {
-    if (added.nodes > 0 && added.edges > 0) {
-        return "file";
-    }
-    return added.edges > 0 ? "edges" : "nodes";
-}
-
-/**
- * The Sources rows for what the element says was loaded: one row per load, oldest first
- * (`data.sources()`). A load that read several tables expands to them. A graph that came from one
- * load of one table keeps the tier 1 rows: a graph file expands to its node table and edge table
- * (counted from `data.lastImport()`), and a source that brought one kind of record is that table.
- * @param sources - `data.sources()`.
- * @param report - `data.lastImport()`.
- * @returns the rows, empty when nothing was imported.
- */
-export function sourceRows(sources: readonly LoadedSource[], report: ImportReport | null): SourceRow[] {
-    const [only] = sources;
-    if (sources.length === 1 && only.tables.length <= 1 && report !== null) {
-        return oneTableRows(only.name ?? "Untitled data", report).map((row) => {
-            const leftOut = leftOutRows(only, row.id);
-            return leftOut.length === 0 ? row : { ...row, children: [...(row.children ?? []), ...leftOut] };
-        });
-    }
-    return sources.map((load, index) => {
-        const id = `source:${String(index)}`;
-        const name = loadName(load);
-        if (load.tables.length > 1) {
-            const children = load.tables.map((table, at): SourceRow => ({
-                id: `${id}:${String(at)}`,
-                kind: load.tableRows?.[at] ?? "file",
-                name: table,
-                quiet: "",
-            }));
-            return {
-                id,
-                kind: "file",
-                name,
-                quiet: addedWords(load.added),
-                children: [...children, ...leftOutRows(load, id)],
-            };
-        }
-        const leftOut = leftOutRows(load, id);
-        return {
-            id,
-            kind: kindOf(load.added),
-            name,
-            quiet: addedWords(load.added),
-            ...(leftOut.length === 0 ? {} : { children: leftOut }),
-        };
-    });
-}
-
-/**
  * A load's name: the one it was given, else its tables'.
  * @param load - an entry of `data.sources()`.
  * @returns such as "people.csv and passes.csv".
  */
 export function loadName(load: LoadedSource): string {
     return load.name ?? (load.tables.join(" and ") || "Untitled data");
-}
-
-/**
- * The rows for a graph that came from one load of one table.
- * @param name - the load's name.
- * @param report - `data.lastImport()`.
- * @returns the rows.
- */
-function oneTableRows(name: string, report: ImportReport): SourceRow[] {
-    const { nodes, edges, nodeRecords, edgeRecords } = report.counts;
-    const nodeTable: SourceRow = {
-        id: "source:0:nodes",
-        kind: "nodes",
-        name: "Node table",
-        quiet: `${count(nodeRecords, "row")}, ${count(nodes, "node")}`,
-    };
-    const edgeTable: SourceRow = {
-        id: "source:0:edges",
-        kind: "edges",
-        name: "Edge table",
-        quiet: `${count(edgeRecords, "row")}, ${count(edges, "edge")}`,
-    };
-    if (nodeRecords > 0 && edgeRecords > 0) {
-        return [
-            {
-                id: "source:0",
-                kind: "file",
-                name,
-                quiet: `${count(nodes, "node")}, ${count(edges, "edge")}`,
-                children: [nodeTable, edgeTable],
-            },
-        ];
-    }
-    // A lone table reads what it made: "77 nodes", or "14 nodes, 16 edges" for an edge list.
-    const table =
-        edgeRecords > 0
-            ? { ...edgeTable, quiet: `${count(nodes, "node")}, ${count(edges, "edge")}` }
-            : { ...nodeTable, quiet: count(nodes, "node") };
-    return [{ ...table, id: "source:0", name }];
 }
 
 /**
@@ -473,10 +335,24 @@ function matchedUnit(shape: JoinShape): "node" | "edge" | "row" {
 /**
  * A file's size.
  * @param bytes - how many bytes.
- * @returns such as "12 KB" or "1.4 MB".
+ * @returns such as "45 B", "12 KB" or "1.4 MB".
  */
 function sizeWords(bytes: number): string {
+    if (bytes < 1000) {
+        return `${String(bytes)} B`;
+    }
     return bytes < 1_000_000 ? `${formatNumber(Math.ceil(bytes / 1000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+/**
+ * A load's format as a reader says it. The element reads a .tsv with its CSV reader, so the file's
+ * extension tells the two apart.
+ * @param source - the load.
+ * @returns such as "CSV", "TSV" or "GML".
+ */
+function formatWord(source: LoadedSource): string {
+    const tab = source.type === "csv" && /\.tsv$/i.test(source.fileName ?? source.name ?? "");
+    return tab ? "TSV" : (source.type ?? "").toUpperCase();
 }
 
 /**
@@ -491,8 +367,6 @@ function graphValueWord(graph: string): string {
 
 /** What a load's details say besides its own entry. */
 interface SourceExtras {
-    /** How many columns it brought. */
-    readonly columns: number;
     /** How many open issues it has. */
     readonly issues: number;
     /** It is an opened project's network load that has not run. */
@@ -524,6 +398,7 @@ function joinFacts(source: LoadedSource, sources: readonly LoadedSource[]): Sour
         },
         nameOf(join.choices.via) !== undefined && { name: "Through", value: nameOf(join.choices.via) as string },
         { name: "Table rows", value: join.rows },
+        (join.table.unreadRows ?? 0) > 0 && { name: "Lines not read", value: join.table.unreadRows ?? 0 },
         { name: `${unit.charAt(0).toUpperCase()}${unit.slice(1)}s matched`, value: join.matched },
         join.columns.length > 0 && { name: "Columns added", value: join.columns.join(", ") },
     ];
@@ -549,7 +424,7 @@ export function sourceFacts(
         { name: "Type", value: sourceKindWord(source) },
         local && source.fileName !== undefined && { name: "File", value: source.fileName },
         !local && source.url !== undefined && { name: "Address", value: source.url },
-        !server && source.type !== undefined && { name: "Format", value: source.type.toUpperCase() },
+        !server && source.type !== undefined && { name: "Format", value: formatWord(source) },
         local && source.size !== undefined && { name: "Size", value: sizeWords(source.size) },
         source.loadedAt !== undefined && {
             name: "Retrieved",
@@ -562,7 +437,6 @@ export function sourceFacts(
     const statistics: readonly (SourceFact | false)[] = [
         !values && { name: "Nodes", value: server ? serverCount(nodes, source.total) : nodes },
         !values && { name: "Edges", value: server ? serverCount(edges, source.totalEdges) : edges },
-        { name: "Columns", value: source.join === undefined ? extras.columns : source.join.columns.length },
         source.leftOut !== undefined && { name: "Rows left out", value: source.leftOut.rows },
         extras.issues > 0 && { name: "Open issues", value: extras.issues },
     ];
@@ -598,7 +472,7 @@ export function joinMatch(source: LoadedSource): string | null {
 /**
  * The join match's name and tooltip, with its unit.
  * @param source - the joined load.
- * @returns such as "17 of 19 rows joined" or "52 nodes matched by 70 rows", or null when
+ * @returns such as "17 of 19 rows joined" or "52 nodes matched, 70 table rows", or null when
  * {@link joinMatch} draws nothing.
  */
 export function joinWords(source: LoadedSource): string | null {
@@ -609,7 +483,7 @@ export function joinWords(source: LoadedSource): string | null {
     const unit = matchedUnit(shape);
     return unit === "row"
         ? `${formatNumber(matched)} of ${formatNumber(rows)} rows joined`
-        : `${count(matched, unit)} matched by ${count(rows, "row")}`;
+        : `${count(matched, unit)} matched, ${formatNumber(rows)} table rows`;
 }
 
 /**

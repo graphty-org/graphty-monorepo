@@ -1138,6 +1138,7 @@ export class SessionData implements SessionDataApi {
         sampleLabel?: string,
     ): Promise<void> {
         let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
+        const chosenOrigin = origin ?? options.origin;
         const noted = this.noting(
             dispatch,
             () => (sample === undefined ? bytesFacts(resolvedConfig) : Promise.resolve({ sample })),
@@ -1179,7 +1180,7 @@ export class SessionData implements SessionDataApi {
         await turn.take(() => {
             const step: DataImportCommand = {
                 ...importCommand(resolved, options),
-                ...(origin === undefined ? {} : { origin }),
+                ...(chosenOrigin === undefined ? {} : { origin: chosenOrigin }),
             };
             // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
             // ponytail: only this door and the draft reset it; another replace route keeps the old one.
@@ -2710,9 +2711,16 @@ export class SessionData implements SessionDataApi {
      * @param options.includeIgnored - list the ignored issues too (default false)
      * @param options.includeFixed - list the issues `data.fix` settled too, after the rest, as they
      *     stood then (default false); one the data has again is listed open instead
+     * @param options.source - list only this load's issues
      * @returns the issues, load issues first; never one with a zero count
      */
-    issues(options: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean } = {}): readonly DataIssue[] {
+    issues(
+        options: {
+            readonly includeIgnored?: boolean;
+            readonly includeFixed?: boolean;
+            readonly source?: SourceKey;
+        } = {},
+    ): readonly DataIssue[] {
         this.requireLive("issues");
         const found = this.foundIssues();
         const state = this.issueState();
@@ -2722,11 +2730,12 @@ export class SessionData implements SessionDataApi {
                 const isIgnored = ignored.has(issue.id);
                 return Object.freeze({ ...issue, ignored: isIgnored, status: isIgnored ? "ignored" : "open" });
             })
-            .filter((issue) => options.includeIgnored === true || !issue.ignored);
+            .filter((issue) => options.includeIgnored === true || !issue.ignored)
+            .filter((issue) => options.source === undefined || issue.source === options.source);
         if (options.includeFixed === true) {
             const open = new Set(found.map(({ issue }) => issue.id));
             for (const record of state.fixed ?? []) {
-                if (!open.has(record.id)) {
+                if (!open.has(record.id) && (options.source === undefined || record.source === options.source)) {
                     listed.push(Object.freeze({ ...record, fixes: [], ignored: false, status: "fixed" }));
                 }
             }
@@ -2918,15 +2927,22 @@ export class SessionData implements SessionDataApi {
         }
 
         const provenance = this.provenance();
-        const index = provenanceIndex(provenance);
         const snapshot = this.current();
         const space = edgeSpaceOf(snapshot);
-        const shared = (keys: readonly SourceKey[] | undefined): boolean => keys?.some((k) => k !== key) === true;
-        const nodes = (provenance?.[key]?.nodes ?? []).filter((id) => snapshot.ids.has(id));
-        const edges = (provenance?.[key]?.edges ?? []).filter((id) => space.indexOf(id) !== INVALID_INDEX);
-        const goingNodes = nodes.filter((id) => !shared(index.nodes.get(id)));
-        const goingEdges = edges.filter((id) => !shared(index.edges.get(id)));
-        const left = sources.filter((each) => each.key !== key);
+        const going = withJoinsResting(sources, key);
+        const left = sources.filter((each) => !going.includes(each));
+        const staying = broughtBy(left, provenance);
+        const brought = broughtBy(going, provenance);
+        const nodes = [...brought.nodes].filter((id) => snapshot.ids.has(id));
+        const edges = [...brought.edges].filter((id) => space.indexOf(id) !== INVALID_INDEX);
+        const goingNodes = nodes.filter((id) => !staying.nodes.has(id));
+        const goingEdges = edges.filter((id) => !staying.edges.has(id));
+        // Each join's values back, newest join first, so the oldest join's "before" is what remains.
+        const restored = new Map<string, Readonly<Record<string, unknown>>>();
+        const valuesBack = going
+            .filter((each) => each.join !== undefined && each.join.shape !== "edges")
+            .flatMap((each) => this.unjoin(each, restored).steps)
+            .filter((step) => step.op === "data.apply" && step.mutation.kind === "update-rows");
         const last = left.at(-1);
         if (this.writes.send === undefined) {
             throw new GraphtyError({
@@ -2942,13 +2958,14 @@ export class SessionData implements SessionDataApi {
             label: `Removed ${entry.name ?? key}`,
             fact: { code: "data.remove-source", params: { key, name: entry.name ?? null } },
             steps: [
+                ...valuesBack,
                 { op: "data.apply", mutation: { kind: "remove-edges", ids: goingEdges } },
                 { op: "data.apply", mutation: { kind: "remove-nodes", ids: goingNodes } },
                 {
                     op: "data.setSource",
                     source: last === undefined ? (this.source() ?? {}) : describeLoaded(last),
                     sources: left,
-                    provenance: withoutSource(provenance, key),
+                    provenance: going.reduce((held, each) => withoutSource(held, each.key), provenance),
                 },
             ],
         });
@@ -2960,6 +2977,7 @@ export class SessionData implements SessionDataApi {
                 nodes: nodes.length - goingNodes.length,
                 edges: edges.filter((id) => edgeSpaceOf(after).indexOf(id) !== INVALID_INDEX).length,
             }),
+            alsoRemoved: Object.freeze(going.map((each) => each.key).filter((each) => each !== key)),
         });
     }
 
@@ -3476,15 +3494,18 @@ export class SessionData implements SessionDataApi {
      * What taking a join back takes: its edges and the nodes only it made removed, the values it
      * wrote put back as they were.
      * @param previous - the joined table's load
+     * @param restored - the values a newer join's taking back has put back already, added to
      * @returns the steps, and the restored values and the elements that go, for planning anew
      */
-    private unjoin(previous: LoadedSource): {
+    private unjoin(
+        previous: LoadedSource,
+        restored = new Map<string, Readonly<Record<string, unknown>>>(),
+    ): {
         steps: SessionCommand[];
         restored: Map<string, Readonly<Record<string, unknown>>>;
         gone: Set<string>;
     } {
         const { join } = previous;
-        const restored = new Map<string, Readonly<Record<string, unknown>>>();
         const gone = new Set<string>();
         if (join?.shape === "edges") {
             const provenance = this.provenance();
@@ -3515,7 +3536,9 @@ export class SessionData implements SessionDataApi {
             }
 
             const record = Object.fromEntries(
-                Object.entries({ ...row.data, ...values }).filter(([name]) => values[name] !== null),
+                Object.entries({ ...(restored.get(`${kind}:${id}`) ?? row.data), ...values }).filter(
+                    ([name]) => values[name] !== null,
+                ),
             );
 
             rows.push({ id: row.id, values: record });
@@ -3523,14 +3546,10 @@ export class SessionData implements SessionDataApi {
         }
 
         // The nodes `unmatchedRows: "add"` made, which the rest of the graph did not supply.
-        const before = join?.before ?? {};
         const provenance = this.provenance();
         const index = provenanceIndex(provenance);
-        const made = (provenance?.[previous.key]?.nodes ?? []).filter(
-            (id) =>
-                join?.choices.unmatchedRows === "add" &&
-                before[String(id)] === undefined &&
-                index.nodes.get(id)?.every((each) => each === previous.key) !== false,
+        const made = nodesJoinMade(previous, provenance).filter(
+            (id) => index.nodes.get(id)?.every((each) => each === previous.key) !== false,
         );
         made.forEach((id) => gone.add(`node:${String(id)}`));
         return {
@@ -3597,7 +3616,12 @@ export class SessionData implements SessionDataApi {
             rows: table.rows.length,
             matched: planned.matched,
             columns: plan.columns,
-            table: { name: table.name, columns: [...table.columns], rows: [...table.rows] },
+            table: {
+                name: table.name,
+                columns: [...table.columns],
+                rows: [...table.rows],
+                ...(table.unreadRows ? { unreadRows: table.unreadRows } : {}),
+            },
             ...(plan.kind === "values" ? { before: plan.before } : {}),
         });
         const left = stored.filter((each) => each.key !== key);
@@ -5341,6 +5365,66 @@ function recordsSource(graph: SampleGraph | GraphSnapshot, name: string): DataSo
 function sampleLabelOf(graph: SampleGraph | GraphSnapshot): string | undefined {
     const { nodes } = toElementData(graph) as { nodes: readonly Readonly<Record<string, unknown>>[] };
     return LABEL_COLUMNS.find((column) => nodes.some((node) => typeof node[column] === "string"));
+}
+
+/**
+ * A load and every join resting on it (joined onto it, through it as a mapping table, or keyed on
+ * a column it wrote), newest first. A join has nothing to stand on without them, so it goes with them.
+ * @param sources - the loads, oldest first
+ * @param key - the load being removed
+ * @returns the loads that go
+ */
+function withJoinsResting(sources: readonly LoadedSource[], key: SourceKey): LoadedSource[] {
+    const going = new Set([key]);
+    const columns = new Set<string>();
+    for (const { join, key: each } of sources) {
+        const keyed = join?.choices.keys.some(({ graph }) => columns.has(graph.replace(/^data\./, ""))) === true;
+        if (each === key || going.has(join?.onto ?? "") || going.has(join?.choices.via ?? "") || keyed) {
+            going.add(each);
+            join?.columns.forEach((column) => columns.add(column));
+        }
+    }
+
+    return sources.filter((each) => going.has(each.key)).reverse();
+}
+
+/**
+ * The nodes a values join made with `unmatchedRows: "add"`: what it supplied that it wrote no
+ * value over.
+ * @param load - the joined table's load
+ * @param provenance - what each load supplied
+ * @returns the node ids
+ */
+function nodesJoinMade(load: LoadedSource, provenance: Provenance | undefined): NodeId[] {
+    const { join } = load;
+    return join?.choices.unmatchedRows === "add"
+        ? (provenance?.[load.key]?.nodes ?? []).filter((id) => join.before?.[String(id)] === undefined)
+        : [];
+}
+
+/**
+ * What some loads brought into the graph. A values join only wrote onto what it matched, so of
+ * that it brought just the nodes it made.
+ * @param loads - the loads
+ * @param provenance - what each load supplied
+ * @returns the node ids and the edge ids
+ */
+function broughtBy(
+    loads: readonly LoadedSource[],
+    provenance: Provenance | undefined,
+): { readonly nodes: Set<NodeId>; readonly edges: Set<EdgeId> } {
+    const nodes = new Set<NodeId>();
+    const edges = new Set<EdgeId>();
+    for (const load of loads) {
+        const supplied = provenance?.[load.key];
+        const values = load.join !== undefined && load.join.shape !== "edges";
+        (values ? nodesJoinMade(load, provenance) : (supplied?.nodes ?? [])).forEach((id) => nodes.add(id));
+        if (!values) {
+            supplied?.edges.forEach((id) => edges.add(id));
+        }
+    }
+
+    return { nodes, edges };
 }
 
 /**

@@ -58,8 +58,7 @@ export function SourceValues({ row }: Readonly<{ row: string }>): React.JSX.Elem
         );
     }
     const facts = sourceFacts(load, sources, {
-        columns: session.data.attributes().filter((each) => each.sources?.includes(key)).length,
-        issues: session.data.issues().filter((each) => each.source === key).length,
+        issues: session.data.issues({ source: key }).length,
         waiting: session.data.pendingSourceLoads().some((each) => each.id === load.loadKey),
     });
     const { leftOut } = load;

@@ -1154,6 +1154,7 @@ export class Draft implements LoadDraft {
         const starts = historyMark(choices);
         const command: DataImportCommand = {
             ...importCommand(read.source, choices, plan.held),
+            ...(choices.origin === undefined ? {} : { origin: choices.origin }),
             tables: [...named.keys()],
             // A graph file's one name holds both kinds, so it says nothing of what it held.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
@@ -1450,11 +1451,13 @@ function joinedHeld(read: ReadSource): HeldTable {
  * @returns The table.
  */
 function tableOf(read: ReadSource, held: HeldTable): JoinedTable {
+    const unreadRows = read.errors.filter((each) => each.params?.issue === "E_CSV_FIELD_COUNT").length;
     return {
         name: read.source.name ?? held.table.name,
         columns: held.order,
         rows: held.rows,
         source: read.source,
+        ...(unreadRows === 0 ? {} : { unreadRows }),
     };
 }
 

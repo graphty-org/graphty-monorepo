@@ -631,7 +631,7 @@ export async function previewSource(
         if (!(error instanceof GraphtyError) || error.code !== "E_SOURCE_LIMIT") {
             throw error;
         }
-        return readUpTo(rest.limits?.maxNodes ?? DEFAULT_LIMITS.renderCeiling);
+        return readUpTo(rest.limits?.maxNodes ?? (host.ceilings?.() ?? DEFAULT_LIMITS).renderCeiling);
     });
     // The `_source.` facts are the element's bookkeeping, not the source's data.
     const nodes = read.held.nodes.slice(0, maxNodes).map(withoutSourceFacts);

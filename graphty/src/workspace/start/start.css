@@ -1137,6 +1137,7 @@ html.ws-land-page #root {
 .ws-land-net-sources {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 1fr;
     gap: 10px;
 }
 

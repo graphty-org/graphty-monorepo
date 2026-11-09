@@ -1,11 +1,14 @@
-import { Modal, UnstyledButton, useComputedColorScheme } from "@mantine/core";
+import { FileSource } from "@graphty/compact-mantine";
+import { Button, Kbd, Modal, Text, UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import type React from "react";
 
 import { GLYPHS } from "../glyphs";
+import { ariaKey, formatKey } from "../keys/keys";
 import { openServerForm, serverKinds } from "../server/commands";
 import { kindName } from "../server/words";
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import NETWORK_SAMPLES from "./network-samples.json";
+import { openFiles, openUrl } from "./open";
 
 /** The workspace dialog id of Open network data. */
 export const NETWORK_DIALOG = "network";
@@ -20,12 +23,15 @@ const CARD_WORDS: Readonly<Record<string, { readonly badge: string; readonly wha
 
 /**
  * Open network data, the start page's door to data on the network: one card for each kind of
- * network the start page has a sample of. A card opens the app on an empty project with the
- * network form popped up on that kind.
+ * network the start page has a sample of, a web address box and Open a file. A card opens the app
+ * on an empty project with the network form popped up on that kind.
  * @returns The chooser, open while the workspace dialog is "network"
  */
 export function NetworkDataDialog(): React.JSX.Element {
-    const { store } = useWorkspace();
+    const ctx = useWorkspace();
+    const { store } = ctx;
+    const openDoor = useCommand("file.open");
+    const openFileKey = openDoor?.command.keys?.[0];
     const scheme = useComputedColorScheme("dark");
     const opened = useWorkspaceState((state) => state.dialog === NETWORK_DIALOG);
     const close = (): void => {
@@ -66,6 +72,37 @@ export function NetworkDataDialog(): React.JSX.Element {
                                 </UnstyledButton>
                             ))}
                         </div>
+                        {/* The field's accessible name starts with these words (WCAG 2.5.3). */}
+                        <Text size="sm" fw={500} aria-hidden>
+                            Web address
+                        </Text>
+                        <FileSource
+                            variant="row"
+                            url
+                            multiple
+                            placeholder="Web address of a graph file"
+                            openLabel="Open"
+                            onUrl={(url) => {
+                                close();
+                                openUrl(store, url);
+                            }}
+                            onFiles={(files) => {
+                                close();
+                                openFiles(ctx, files);
+                            }}
+                        />
+                        <Button
+                            variant="default"
+                            leftSection={<GLYPHS.openFile size={16} aria-hidden />}
+                            rightSection={openFileKey === undefined ? undefined : <Kbd>{formatKey(openFileKey)}</Kbd>}
+                            aria-keyshortcuts={openFileKey === undefined ? undefined : ariaKey(openFileKey)}
+                            onClick={() => {
+                                close();
+                                openDoor?.run();
+                            }}
+                        >
+                            Open a file
+                        </Button>
                     </div>
                 </div>
             </Modal.Content>

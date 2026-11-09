@@ -1,6 +1,6 @@
 import { EntityChip } from "@graphty/compact-mantine";
 import type { JoinChoices, JoinReport } from "@graphty/graphty-element/session";
-import { Button, Chip, Menu } from "@mantine/core";
+import { Badge, Button, Chip, Menu } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -253,6 +253,13 @@ export function MatchChips({
                     <CountChip which="not-in-graph" show={show} onShow={onShow}>
                         {`${formatNumber(report.notInGraph)} not in graph`}
                     </CountChip>
+                </li>
+            ) : null}
+            {report.unreadRows > 0 ? (
+                <li>
+                    <Badge size="sm" variant="light" color="yellow" tt="none">
+                        {counted(report.unreadRows, "line not read", "lines not read")}
+                    </Badge>
                 </li>
             ) : null}
             <NewRowsChip report={report} choices={choices} onChange={onChange} />

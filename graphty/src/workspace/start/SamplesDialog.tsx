@@ -114,7 +114,7 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
     const open = (target: Target): void => {
         if (source.kind === "sample") {
             const { name, url } = source.sample;
-            bringFile(ctx, { name, source: { config: { url }, name } }, target);
+            bringFile(ctx, { name, source: { config: { url }, name }, origin: "sample" }, target);
         } else if (source.kind === "generator") {
             configure(source.generator, target);
         } else if (isLarge(source.dataset)) {
@@ -141,7 +141,7 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
 function sampleEntries(ctx: CommandContext, timeline: boolean, asks: Asks): SampleEntry[] {
     const fileEntry = (sample: PrototypeSample, group: string, hook: string, field: string): SampleEntry => {
         const name = sampleName(sample);
-        const incoming = { name, source: { config: { url: sampleUrl(sample) }, name } };
+        const incoming: Incoming = { name, source: { config: { url: sampleUrl(sample) }, name }, origin: "sample" };
         return {
             key: `${group}:${hook}:${sample.path}`,
             group,

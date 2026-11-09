@@ -82,6 +82,12 @@ type ProblemCode = GraphtyErrorCode | GraphtyWarningCode;
 /** A problem with the member, as a code and the values it is about. */
 type SourcesProblem = CodedFact<ProblemCode>;
 
+/**
+ * The saved `loadedAt` of a load upgraded from version 1, which kept no time for a file, a URL or a
+ * sample: the member requires a time, and `data.sources()` publishes none for this one.
+ */
+const NO_TIME = "1970-01-01T00:00:00.000Z";
+
 /** What the session keeps about one load beside `data.sources()`: what an entry records that a listed load does not. */
 export interface LoadFacts {
     /** When the load finished, RFC 3339, as read or as `toISOString()` wrote it. */
@@ -809,6 +815,7 @@ const JOIN: Shape = {
                 name: text(0, 1024),
                 columns,
                 rows: (value) => Array.isArray(value) && value.every(isObject),
+                unreadRows: count,
             },
             required: ["name", "columns", "rows"],
         },
@@ -1058,7 +1065,7 @@ function loadedOf(raw: Record<string, unknown>): Record<string, unknown> {
         name: typeof raw.name === "string" ? raw.name : undefined,
         size: typeof size === "number" ? size : undefined,
         fileName: typeof fileName === "string" ? fileName : undefined,
-        loadedAt: typeof raw.loadedAt === "string" ? raw.loadedAt : undefined,
+        loadedAt: typeof raw.loadedAt === "string" && raw.loadedAt !== NO_TIME ? raw.loadedAt : undefined,
         key: raw.id,
         kind: joinedOnto === undefined && join === undefined ? (kinds[kind] ?? kind) : "join",
         joinedOnto,
@@ -1585,9 +1592,9 @@ function entryFromItem(
 ): Record<string, unknown> {
     const config = isObject(item.config) ? item.config : {};
     const { url: _url, ...options } = config;
-    const loadedAt = (joined?.loadedAt as string | undefined) ?? ctx.now;
+    const loadedAt = (joined?.loadedAt as string | undefined) ?? NO_TIME;
     const name = typeof item.name === "string" ? item.name : undefined;
-    const part = itemPart(item, joined, ctx, loadedAt);
+    const part = itemPart(item, joined, ctx, joined === undefined ? ctx.now : loadedAt);
     const kind = Object.keys(part)[0];
     return defined({
         id: item.key,

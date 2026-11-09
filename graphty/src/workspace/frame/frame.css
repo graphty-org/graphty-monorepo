@@ -206,6 +206,14 @@
     overflow: hidden auto;
 }
 
+/* A phone has no room for both panels: the body scrolls sideways, so the inspector's values can
+   be read. */
+@media (max-width: 720px) {
+    .ws-body {
+        overflow-x: auto;
+    }
+}
+
 @media (max-width: 720px) {
     .ws-dialog-columns {
         grid-template-columns: minmax(0, 1fr);

@@ -5,7 +5,6 @@
  */
 
 import { pickFiles as pickFromBrowser, useFileDrop } from "@graphty/compact-mantine";
-import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import {
     DATASET_DESCRIPTORS,
     type DatasetMeta,
@@ -50,7 +49,7 @@ import { panelsInView } from "../time/timeActions";
 export function openProject(
     workspace: WorkspaceStore,
     name: string,
-    load: (session: GraphSession, element: GraphtyElement) => Promise<void>,
+    load: (session: GraphSession) => Promise<void>,
 ): void {
     workspace.set((state) => ({
         project: { name, id: newProjectId(state) },
@@ -64,9 +63,9 @@ export function openProject(
         // before the load, which starts the history, so Undo never takes the name back.
         ...startOpening({
             name,
-            load: async (session, element) => {
+            load: async (session) => {
                 await session.config.set({ name });
-                await load(session, element);
+                await load(session);
             },
         }),
         ends: null,
@@ -78,8 +77,8 @@ export function openProject(
 
 /**
  * Opens a new project and, once its load is in, the Style panel on the row that paints the whole
- * graph. Where a form Load and a network sample land. Inside the load because opening clears what
- * is inspected and the row exists only once the project's element is up.
+ * graph. Where a network sample lands. Inside the load because opening clears what is inspected
+ * and the row exists only once the project's element is up.
  * @param workspace - the workspace store.
  * @param name - the project's name.
  * @param load - what to load into the new element.
@@ -87,10 +86,10 @@ export function openProject(
 export function openWithStylePanel(
     workspace: WorkspaceStore,
     name: string,
-    load: (session: GraphSession, element: GraphtyElement) => Promise<void>,
+    load: (session: GraphSession) => Promise<void>,
 ): void {
-    openProject(workspace, name, async (session, element) => {
-        await load(session, element);
+    openProject(workspace, name, async (session) => {
+        await load(session);
         workspace.set({ inspected: { ...labelRow(session, null).inspected, tab: "style" } });
     });
 }
@@ -232,6 +231,8 @@ export function openGenerated(
 export interface Incoming {
     readonly name: string;
     readonly source: DataSourceInput;
+    /** One of the app's own samples, read from its web address. */
+    readonly origin?: "sample";
 }
 
 /**
@@ -263,6 +264,7 @@ export function incomingFiles(files: readonly File[]): Incoming {
  * @param source - what to load.
  * @param fresh - whether it is a new project's first load, which starts its history.
  * @param read - the source already read into a draft (by `project.open`), else it is read here.
+ * @param origin - "sample" for one of the app's own samples.
  */
 async function drawFirst(
     workspace: WorkspaceStore,
@@ -270,6 +272,7 @@ async function drawFirst(
     source: DataSourceInput,
     fresh = false,
     read?: LoadDraft,
+    origin?: "sample",
 ): Promise<void> {
     const draft = read ?? (await session.data.prepare(source, { guess: "values" }));
     const fixed = draft.tables.every((table) => table.fixed);
@@ -282,6 +285,7 @@ async function drawFirst(
         ...(styled ? { styles: fileStylesChoice(), styleOptions: FILE_STYLE_OPTIONS } : {}),
         ...(fixed ? {} : { mapping }),
         ...(fresh ? { history: "start" as const } : {}),
+        ...(origin === undefined ? {} : { origin }),
     });
     if (styled) {
         noticeFileStyles(workspace, session);
@@ -326,6 +330,7 @@ async function takeIn(
             name: incoming.name,
             draft,
             source: incoming.source,
+            ...(incoming.origin === undefined ? {} : { origin: incoming.origin }),
             ...(held === undefined ? {} : { matches: held.key }),
         },
     });
@@ -339,7 +344,7 @@ async function takeIn(
  */
 export function openSeparate(workspace: WorkspaceStore, incoming: Incoming): void {
     openProject(workspace, incoming.name.replace(/\.[^.]*$/, "") || incoming.name, (next) =>
-        drawFirst(workspace, next, incoming.source, true),
+        drawFirst(workspace, next, incoming.source, true, undefined, incoming.origin),
     );
 }
 
@@ -349,7 +354,11 @@ export function openSeparate(workspace: WorkspaceStore, incoming: Incoming): voi
  * @param sample - the sample.
  */
 export function openSample(workspace: WorkspaceStore, sample: StartSample): void {
-    openSeparate(workspace, { name: sample.name, source: { config: { url: sample.url }, name: sample.name } });
+    openSeparate(workspace, {
+        name: sample.name,
+        source: { config: { url: sample.url }, name: sample.name },
+        origin: "sample",
+    });
 }
 
 /**
@@ -392,7 +401,7 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
     }
     const first = session.data.sources().length === 0;
     const work = first
-        ? drawFirst(workspace, session, incoming.source, false, read)
+        ? drawFirst(workspace, session, incoming.source, false, read, incoming.origin)
         : takeIn(workspace, session, incoming, read);
     if (first) {
         // The project's first graph: an open, which `opened` follows as a new project's.
@@ -420,7 +429,7 @@ async function openFirst({ workspace, session }: CommandContext, incoming: Incom
     }
     const focusLater = focusOpenedGraphLater();
     try {
-        await drawFirst(workspace, session, incoming.source, true, read);
+        await drawFirst(workspace, session, incoming.source, true, read, incoming.origin);
         focusLater();
     } catch (error) {
         focusLater(false);

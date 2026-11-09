@@ -1,6 +1,6 @@
 {
     "site": "nightly",
-    "features": [],
+    "features": ["network-data"],
     "datasets": "https://nightly.graphty.app/data/graph-samples/v1/",
     "sentryEnvironment": "nightly"
 }

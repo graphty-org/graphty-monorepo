@@ -32,6 +32,8 @@
                 --boot-accent: #97c800;
                 position: fixed;
                 inset: 0;
+                z-index: 10000;
+                overflow-y: auto;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
@@ -50,7 +52,7 @@
                     --boot-accent: #c4f23a;
                 }
             }
-            #boot svg {
+            #boot > svg {
                 width: 64px;
                 height: 64px;
             }
@@ -85,9 +87,12 @@
                     width: 100%;
                     opacity: 0.5;
                 }
+                #boot .log-toggle svg {
+                    transition: none;
+                }
             }
             #boot .failed,
-            #boot.failed .bar {
+            #boot.failed .bar::after {
                 display: none;
             }
             #boot.failed .failed {
@@ -96,7 +101,7 @@
                 align-items: center;
                 gap: 12px;
             }
-            #boot button {
+            #boot .failed button {
                 font: inherit;
                 padding: 6px 14px;
                 border: 1px solid currentColor;
@@ -105,98 +110,410 @@
                 color: inherit;
                 cursor: pointer;
             }
+            #boot .row {
+                position: relative;
+                display: block;
+                width: 96px;
+                height: 3px;
+            }
+            #boot .log-toggle {
+                position: absolute;
+                right: 100%;
+                top: 50%;
+                margin: -12px 2px 0 0;
+                width: 24px;
+                height: 24px;
+                padding: 0;
+                border: 0;
+                background: none;
+                cursor: pointer;
+                display: grid;
+                place-items: center;
+                color: color-mix(in srgb, var(--boot-ink) 75%, transparent);
+            }
+            #boot .log-toggle:hover,
+            #boot .log-toggle:focus-visible {
+                color: var(--boot-ink);
+            }
+            #boot .log-toggle:focus-visible {
+                outline: 2px solid var(--boot-ink);
+                outline-offset: 2px;
+            }
+            #boot .log-toggle svg {
+                width: 8px;
+                height: 8px;
+                transition: transform 120ms;
+            }
+            #boot .log-toggle[aria-expanded="true"] svg {
+                transform: rotate(90deg);
+            }
+            #boot-log {
+                position: absolute;
+                top: calc(100% + 12px);
+                left: 50%;
+                transform: translateX(-50%);
+                box-sizing: border-box;
+                width: min(560px, calc(100vw - 32px));
+                height: clamp(96px, calc(50dvh - 112px - env(safe-area-inset-bottom, 0px)), 280px);
+                padding: 8px;
+                resize: none;
+                white-space: pre;
+                overflow: auto;
+                font:
+                    11px/1.5 ui-monospace,
+                    SFMono-Regular,
+                    Menlo,
+                    Consolas,
+                    monospace;
+                color: var(--boot-ink);
+                background: color-mix(in srgb, var(--boot-ink) 6%, transparent);
+                border: 1px solid color-mix(in srgb, var(--boot-ink) 20%, transparent);
+                border-radius: 4px;
+            }
         </style>
         <script>
-            // A script that fails to load leaves the loading screen up with nothing coming, so
-            // say so instead. Load errors do not bubble, hence the capture phase.
+            // The loading screen's log: real events only, in order, written here so that it works
+            // before any bundle runs. Each line also goes to the console, for the remote logger.
+            // Without this the browser stops recording requests at 250.
+            performance.setResourceTimingBufferSize(5000);
+            var bootLines = [];
+            var bootLast = 0;
+            var bootHeld = false;
+            var bootGone = false;
+            var bootEntryFailed = false;
+            var BOOT_NEXT = [
+                "entry script loaded",
+                "entry script ran",
+                "React first commit",
+                "kept work checked",
+                "frame code loaded",
+                "graphty-element defined",
+                "graph-started",
+                "project opened",
+            ];
+
+            // The log is for reading and sharing, so no query string, userinfo or credential gets in.
+            function bootClean(s) {
+                return String(s)
+                    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\/\s@]*@/gi, "$1")
+                    .replace(/\b([a-z][a-z0-9+.-]*:\/\/[^\s?#"')]*)[?#][^\s"')]*/gi, "$1")
+                    .replace(
+                        /\b(bearer\s+|(?:token|api[_-]?key|secret|password|authorization)\s*[=:]\s*)\S+/gi,
+                        "$1[removed]",
+                    )
+                    .slice(0, 500);
+            }
+            function bootLine(text, took, isError) {
+                var now = performance.now();
+                var line =
+                    ("      " + Math.round(now)).slice(-7) +
+                    "  +" +
+                    ("     " + Math.round(took === undefined ? now - bootLast : took)).slice(-6) +
+                    "  " +
+                    (isError ? "ERROR " : "") +
+                    bootClean(text);
+                bootLast = now;
+                if (bootLines.length < 500) {
+                    bootLines.push(line);
+                }
+                console[isError ? "error" : "info"]("[graphty loading] " + line);
+                bootRender();
+            }
+            function bootRender() {
+                var ta = document.getElementById("boot-log");
+                // Writing the value would clear what the reader has selected.
+                if (!ta || ta.selectionStart !== ta.selectionEnd) {
+                    return;
+                }
+                var all = bootLines.join("\n");
+                var next = BOOT_NEXT.filter(function (n) {
+                    return all.indexOf(n) < 0;
+                });
+                var atEnd = ta.scrollTop + ta.clientHeight >= ta.scrollHeight - 4;
+                ta.value =
+                    "  at ms     +ms  (+ms: since the previous line, or a file's own load time)\n" +
+                    all +
+                    (next.length ? "\n\nNext:\n  " + next.join("\n  ") : "");
+                if (atEnd) {
+                    ta.scrollTop = ta.scrollHeight;
+                }
+            }
+            function bootFail() {
+                var boot = document.getElementById("boot");
+                if (boot) {
+                    boot.className = "failed";
+                    boot.setAttribute("aria-label", "Could not load graphty");
+                }
+            }
+            function bootRequests() {
+                var own = performance.getEntriesByType("resource").filter(function (r) {
+                    return r.name.indexOf(location.origin) === 0;
+                });
+                var bytes = 0;
+                var slowest = null;
+                var failed = 0;
+                own.forEach(function (r) {
+                    bytes += r.encodedBodySize || 0;
+                    slowest = !slowest || r.duration > slowest.duration ? r : slowest;
+                    failed += r.responseStatus === 0 || r.responseStatus >= 400 ? 1 : 0;
+                });
+                bootLine(
+                    "requests: " +
+                        own.length +
+                        ", " +
+                        Math.round(bytes / 1024) +
+                        " KB" +
+                        // Safari keeps no status in its timings, so it cannot say how many failed.
+                        (own.length && own[0].responseStatus === undefined ? "" : ", " + failed + " failed") +
+                        (slowest ? ", slowest " + Math.round(slowest.duration) + " ms " + slowest.name : ""),
+                );
+            }
+            function bootDone() {
+                if (bootGone) {
+                    return;
+                }
+                bootGone = true;
+                bootRequests();
+                bootLine("loading screen removed");
+                var boot = document.getElementById("boot");
+                if (boot) {
+                    boot.remove();
+                }
+            }
+            function bootShow(open) {
+                document.getElementById("boot-log").hidden = !open;
+                document.querySelector("#boot .log-toggle").setAttribute("aria-expanded", String(open));
+                bootRender();
+            }
+            function bootFold() {
+                var open = document.getElementById("boot-log").hidden;
+                bootShow(open);
+                try {
+                    sessionStorage.setItem("graphty-boot-log-open", open ? "1" : "");
+                } catch (e) {
+                    // Without storage the fold is not remembered; nothing else depends on it.
+                }
+            }
+            // What the app says once it runs (src/bootSignal.ts).
+            document.addEventListener("graphty-boot", function (e) {
+                var d = e.detail;
+                if (d.hold) {
+                    bootHeld = true;
+                }
+                if (d.line) {
+                    bootLine(d.line, undefined, d.error);
+                }
+                if (d.done) {
+                    bootDone();
+                }
+            });
+            // A script the app needs failing leaves the loading screen up with nothing coming, so
+            // say so instead. Which requests failed shows only in the browser's resource timings,
+            // a moment after the script's own error, which names only the entry point.
+            function bootReportRequests(entry) {
+                setTimeout(function () {
+                    var all = performance.getEntriesByType("resource").filter(function (r) {
+                        // Another origin's status reads 0 whether it failed or not.
+                        return r.name.indexOf(location.origin) === 0;
+                    });
+                    var report = function (how, failed) {
+                        bootLine(
+                            "graphty failed to load " +
+                                entry +
+                                ": " +
+                                failed.length +
+                                " of " +
+                                all.length +
+                                " requests failed (" +
+                                how +
+                                ")",
+                            undefined,
+                            true,
+                        );
+                        failed.slice(0, 20).forEach(function (f) {
+                            bootLine(f, undefined, true);
+                        });
+                    };
+                    if (all.length === 0 || all[0].responseStatus !== undefined) {
+                        report(
+                            "as loaded",
+                            all
+                                .filter(function (r) {
+                                    return r.responseStatus === 0 || r.responseStatus >= 400;
+                                })
+                                .map(function (r) {
+                                    return r.responseStatus + " " + r.name;
+                                }),
+                        );
+                        return;
+                    }
+                    // Safari keeps no status in its timings, so ask for each file again.
+                    // A file that loads now failed only for a moment.
+                    Promise.all(
+                        all.map(function (r) {
+                            return fetch(r.name, { cache: "no-store" }).then(
+                                function (res) {
+                                    return res.ok ? null : res.status + " " + r.name;
+                                },
+                                function (err) {
+                                    return String(err) + " " + r.name;
+                                },
+                            );
+                        }),
+                    ).then(function (results) {
+                        report("asked again", results.filter(Boolean));
+                    });
+                }, 500);
+            }
+            // Load errors do not bubble, hence the capture phase.
             addEventListener(
                 "error",
                 function (e) {
-                    var boot = document.getElementById("boot");
-                    // Only the app's own scripts count. Another origin's script, such as the dev
-                    // server's remote logger, failing says nothing about whether the app loads.
-                    var own = e.target instanceof HTMLScriptElement && e.target.src.indexOf(location.origin) === 0;
-                    if (boot && own) {
-                        boot.className = "failed";
-                        boot.setAttribute("aria-label", "Could not load graphty");
-                        // The script's own error names only the entry point: a module it imports
-                        // that failed shows only in the browser's resource timings, a moment later.
-                        var entry = e.target.src;
-                        setTimeout(function () {
-                            var all = performance.getEntriesByType("resource").filter(function (r) {
-                                // Another origin's status reads 0 whether it failed or not.
-                                return r.name.indexOf(location.origin) === 0;
-                            });
-                            var report = function (how, failed) {
-                                console.error(
-                                    "graphty failed to load " +
-                                        entry +
-                                        ": " +
-                                        failed.length +
-                                        " of " +
-                                        all.length +
-                                        " requests failed (" +
-                                        how +
-                                        ")",
-                                    failed.slice(0, 20),
-                                );
-                            };
-                            if (all.length === 0 || all[0].responseStatus !== undefined) {
-                                report(
-                                    "as loaded",
-                                    all
-                                        .filter(function (r) {
-                                            return r.responseStatus === 0 || r.responseStatus >= 400;
-                                        })
-                                        .map(function (r) {
-                                            return r.responseStatus + " " + r.name;
-                                        }),
-                                );
-                                return;
-                            }
-                            // Safari keeps no status in its timings, so ask for each file again.
-                            // A file that loads now failed only for a moment.
-                            Promise.all(
-                                all.map(function (r) {
-                                    return fetch(r.name, { cache: "no-store" }).then(
-                                        function (res) {
-                                            return res.ok ? null : res.status + " " + r.name;
-                                        },
-                                        function (err) {
-                                            return String(err) + " " + r.name;
-                                        },
-                                    );
-                                }),
-                            ).then(function (results) {
-                                report("asked again", results.filter(Boolean));
-                            });
-                        }, 500);
+                    if (bootGone) {
+                        return;
+                    }
+                    if (e.detail) {
+                        // graphty-element's own error event.
+                        var cause = e.detail.error;
+                        bootLine(
+                            "graphty-element " + e.detail.context + ": " + ((cause && cause.message) || cause),
+                            undefined,
+                            true,
+                        );
+                        if (bootHeld) {
+                            bootFail();
+                        }
+                    } else if (e.target instanceof Element) {
+                        bootLine("could not load " + (e.target.src || e.target.href), undefined, true);
+                        // Only the app's own scripts count. Another origin's script, such as the dev
+                        // server's remote logger, failing says nothing about whether the app loads.
+                        if (e.target instanceof HTMLScriptElement && e.target.src.indexOf(location.origin) === 0) {
+                            bootEntryFailed = true;
+                            bootFail();
+                            bootReportRequests(e.target.src);
+                        }
+                    } else {
+                        bootLine(e.message + " (" + e.filename + ":" + e.lineno + ")", undefined, true);
+                        // An exception thrown as the app starts would otherwise leave the bar running forever.
+                        if (e.filename && e.filename.indexOf(location.origin) === 0) {
+                            bootEntryFailed = true;
+                            bootFail();
+                        }
                     }
                 },
                 true,
             );
+            addEventListener("unhandledrejection", function (e) {
+                if (bootGone) {
+                    return;
+                }
+                bootLine("unhandled rejection: " + ((e.reason && e.reason.message) || e.reason), undefined, true);
+                if (bootHeld) {
+                    bootFail();
+                }
+            });
         </script>
     </head>
     <body>
-        <div id="root">
-            <output id="boot" aria-label="Loading graphty">
-                <!-- The mark from public/favicon.svg -->
-                <svg viewBox="0 0 64 64" aria-hidden="true">
-                    <g stroke="currentColor" fill="none">
-                        <line x1="40.32" y1="18.47" x2="54.25" y2="12.9" stroke-width="5.5" />
-                        <line x1="27.76" y1="30.73" x2="23.05" y2="41.73" stroke-width="5.5" />
-                        <circle cx="31.5" cy="22" r="9.5" stroke-width="6" />
-                        <circle cx="19.5" cy="50" r="9" stroke-width="6" />
-                    </g>
-                    <circle cx="54.25" cy="12.9" r="6" fill="var(--boot-accent)" />
-                </svg>
+        <div id="root"></div>
+        <output id="boot" aria-label="Loading graphty">
+            <!-- The mark from public/favicon.svg -->
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+                <g stroke="currentColor" fill="none">
+                    <line x1="40.32" y1="18.47" x2="54.25" y2="12.9" stroke-width="5.5" />
+                    <line x1="27.76" y1="30.73" x2="23.05" y2="41.73" stroke-width="5.5" />
+                    <circle cx="31.5" cy="22" r="9.5" stroke-width="6" />
+                    <circle cx="19.5" cy="50" r="9" stroke-width="6" />
+                </g>
+                <circle cx="54.25" cy="12.9" r="6" fill="var(--boot-accent)" />
+            </svg>
+            <span class="failed">
+                Could not load graphty
+                <button type="button" onclick="location.reload()">Reload</button>
+            </span>
+            <span class="row">
+                <button
+                    type="button"
+                    class="log-toggle"
+                    aria-expanded="false"
+                    aria-controls="boot-log"
+                    aria-label="Loading details"
+                    onclick="bootFold()"
+                >
+                    <svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1 0l6 4-6 4z" fill="currentColor" /></svg>
+                </button>
                 <span class="bar"></span>
-                <span class="failed">
-                    Could not load graphty
-                    <button type="button" onclick="location.reload()">Reload</button>
-                </span>
-            </output>
-        </div>
+                <textarea
+                    id="boot-log"
+                    readonly
+                    hidden
+                    wrap="off"
+                    aria-label="Loading details"
+                    spellcheck="false"
+                ></textarea>
+            </span>
+        </output>
+        <script>
+            (function () {
+                var nav = performance.getEntriesByType("navigation")[0];
+                var build = document.querySelector('meta[name="graphty-build"]');
+                bootLine(
+                    "HTML received (" +
+                        (nav ? nav.type : "unknown") +
+                        ", discarded tab: " +
+                        (document.wasDiscarded ? "yes" : "no") +
+                        ", build " +
+                        (build ? build.content : "none") +
+                        ")",
+                    // responseEnd is still 0 while the HTML is arriving.
+                    nav ? nav.responseEnd || nav.responseStart : undefined,
+                );
+                bootLine("screen drawn");
+                try {
+                    if (sessionStorage.getItem("graphty-boot-log-open")) {
+                        bootShow(true);
+                    }
+                } catch (e) {
+                    // Without storage the log starts folded.
+                }
+                document.addEventListener("DOMContentLoaded", function () {
+                    var scripts = document.querySelectorAll("script[type=module][src]");
+                    var src = scripts.length ? scripts[scripts.length - 1].src : "";
+                    if (!bootEntryFailed) {
+                        var entry = performance.getEntriesByName(src)[0];
+                        bootLine("entry script loaded " + src, entry ? entry.duration : undefined);
+                        bootLine("entry script ran");
+                    }
+                    bootRequests();
+                });
+                new MutationObserver(function (records, observer) {
+                    observer.disconnect();
+                    bootLine("React first commit");
+                    // The app holds the screen in this same commit when it has more to decide.
+                    if (!bootHeld) {
+                        bootDone();
+                    }
+                }).observe(document.getElementById("root"), { childList: true });
+                customElements.whenDefined("graphty-element").then(function () {
+                    bootLine("graphty-element defined");
+                });
+                ["render-initialized", "lifecycle-initialized", "graph-started", "graph-first-frame"].forEach(
+                    function (name) {
+                        document.addEventListener(
+                            name,
+                            function () {
+                                bootLine(name);
+                                // A reopened project is on screen: no reason to cover it while the rest loads.
+                                if (name === "graph-first-frame") {
+                                    bootDone();
+                                }
+                            },
+                            { once: true },
+                        );
+                    },
+                );
+            })();
+        </script>
         <script type="module" src="/src/main.tsx"></script>
     </body>
 </html>

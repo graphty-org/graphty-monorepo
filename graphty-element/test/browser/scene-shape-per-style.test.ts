@@ -175,7 +175,8 @@ describe("the scene grows with styles and nodes, not with edges", () => {
     });
 
     it("adds exactly one line batch for a second edge style", async () => {
-        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        // A head keeps the line in the line batch: "batched" pulls a capless straight line, whose width keys no batch.
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
         await frame();
         const oneStyle = graph.scene.meshes.length;
 

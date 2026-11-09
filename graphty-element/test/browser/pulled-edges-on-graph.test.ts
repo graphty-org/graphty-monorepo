@@ -154,13 +154,13 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
         assert.notEqual(overBar(placedRest, placedHidden), 0, "hiding the edge changed the picture");
     });
 
-    it("pull no edge in 2D, where lines are flat rectangles", async () => {
+    it("pull the plain edges in 2D too, with their width in world units", async () => {
         const placed = await loaded(renderer, false, "2d");
         const placedRest = await readCanvas(placed.graph);
         placed.remove();
 
         const pulled = await loaded(renderer, true, "2d");
-        assert.equal(pulled.graph.rowCounts.pulledEdges, 0);
+        assert.deepInclude(pulled.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
         assert.equal(overBar(placedRest, await readCanvas(pulled.graph)), 0);
     });
 });

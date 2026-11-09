@@ -157,7 +157,8 @@
                 height: clamp(96px, calc(50dvh - 112px - env(safe-area-inset-bottom, 0px)), 280px);
                 padding: 8px;
                 resize: none;
-                white-space: pre;
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
                 overflow: auto;
                 font:
                     11px/1.5 ui-monospace,
@@ -181,7 +182,7 @@
             var bootHeld = false;
             var bootGone = false;
             var bootEntryFailed = false;
-            var BOOT_NEXT = [
+            var bootNext = [
                 "entry script loaded",
                 "entry script ran",
                 "React first commit",
@@ -193,69 +194,88 @@
             ];
 
             // The log is for reading and sharing, so no query string, userinfo or credential gets in.
+            // ponytail: this works on the text, so "a?b" or "div#c" in an error message loses its end
+            // too. Better to lose words than to show a secret.
             function bootClean(s) {
                 return String(s)
                     .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\/\s@]*@/gi, "$1")
-                    .replace(/\b([a-z][a-z0-9+.-]*:\/\/[^\s?#"')]*)[?#][^\s"')]*/gi, "$1")
+                    .replace(/\?\S+|(\S)#\S+/g, "$1")
                     .replace(
-                        /\b(bearer\s+|(?:token|api[_-]?key|secret|password|authorization)\s*[=:]\s*)\S+/gi,
+                        /((?:token|api[_-]?key|secret|password|authorization)[\w-]*["']?\s*[=:]\s*)(?:(?:bearer|basic)\s+)?(?:"[^"]*"|'[^']*'|\S+)/gi,
                         "$1[removed]",
                     )
+                    .replace(/\b(bearer\s+)\S+/gi, "$1[removed]")
                     .slice(0, 500);
             }
-            function bootLine(text, took, isError) {
-                var now = performance.now();
+            // "at" is when the step finished, if that was before now.
+            function bootLine(text, at, isError) {
+                var when = at === undefined ? performance.now() : Math.max(at, bootLast);
                 var line =
-                    ("      " + Math.round(now)).slice(-7) +
+                    ("      " + Math.round(when)).slice(-7) +
                     "  +" +
-                    ("     " + Math.round(took === undefined ? now - bootLast : took)).slice(-6) +
+                    ("     " + Math.round(when - bootLast)).slice(-6) +
                     "  " +
                     (isError ? "ERROR " : "") +
                     bootClean(text);
-                bootLast = now;
-                if (bootLines.length < 500) {
-                    bootLines.push(line);
+                bootLast = when;
+                bootNext = bootNext.filter(function (n) {
+                    return text.indexOf(n) < 0;
+                });
+                bootLines.push(line);
+                if (bootLines.length > 500) {
+                    // The start says which steps ran and the end how it finished, so the middle goes.
+                    bootLines.splice(100, 2, "  ... lines removed here ...");
                 }
                 console[isError ? "error" : "info"]("[graphty loading] " + line);
                 bootRender();
             }
             function bootRender() {
                 var ta = document.getElementById("boot-log");
-                // Writing the value would clear what the reader has selected.
-                if (!ta || ta.selectionStart !== ta.selectionEnd) {
+                if (!ta) {
                     return;
                 }
-                var all = bootLines.join("\n");
-                var next = BOOT_NEXT.filter(function (n) {
-                    return all.indexOf(n) < 0;
-                });
-                var atEnd = ta.scrollTop + ta.clientHeight >= ta.scrollHeight - 4;
+                var start = ta.selectionStart;
+                var end = ta.selectionEnd;
+                var top = ta.scrollTop;
+                var atEnd = top + ta.clientHeight >= ta.scrollHeight - 4;
+                // A screen that has given up has no next steps.
+                var next = document.querySelector("#boot.failed") ? [] : bootNext;
                 ta.value =
-                    "  at ms     +ms  (+ms: since the previous line, or a file's own load time)\n" +
-                    all +
+                    "  at ms     +ms  (+ms: since the previous line)\n" +
+                    bootLines.join("\n") +
                     (next.length ? "\n\nNext:\n  " + next.join("\n  ") : "");
-                if (atEnd) {
-                    ta.scrollTop = ta.scrollHeight;
+                // Writing the value clears what the reader has selected.
+                if (start !== end) {
+                    ta.setSelectionRange(start, end);
                 }
+                ta.scrollTop = atEnd ? ta.scrollHeight : top;
             }
             function bootFail() {
                 var boot = document.getElementById("boot");
                 if (boot) {
                     boot.className = "failed";
                     boot.setAttribute("aria-label", "Could not load graphty");
+                    bootRender();
                 }
             }
-            function bootRequests() {
-                var own = performance.getEntriesByType("resource").filter(function (r) {
+            // Another origin's status reads 0 whether it failed or not, so only the app's own count.
+            function bootOwnRequests() {
+                return performance.getEntriesByType("resource").filter(function (r) {
                     return r.name.indexOf(location.origin) === 0;
                 });
+            }
+            function bootRequestFailed(r) {
+                return r.responseStatus === 0 || r.responseStatus >= 400;
+            }
+            function bootRequests() {
+                var own = bootOwnRequests();
                 var bytes = 0;
                 var slowest = null;
                 var failed = 0;
                 own.forEach(function (r) {
                     bytes += r.encodedBodySize || 0;
                     slowest = !slowest || r.duration > slowest.duration ? r : slowest;
-                    failed += r.responseStatus === 0 || r.responseStatus >= 400 ? 1 : 0;
+                    failed += bootRequestFailed(r) ? 1 : 0;
                 });
                 bootLine(
                     "requests: " +
@@ -274,6 +294,8 @@
                 }
                 bootGone = true;
                 bootRequests();
+                // Back to the browser's own limit, now that the log has what it needs.
+                performance.setResourceTimingBufferSize(250);
                 bootLine("loading screen removed");
                 var boot = document.getElementById("boot");
                 if (boot) {
@@ -312,10 +334,7 @@
             // a moment after the script's own error, which names only the entry point.
             function bootReportRequests(entry) {
                 setTimeout(function () {
-                    var all = performance.getEntriesByType("resource").filter(function (r) {
-                        // Another origin's status reads 0 whether it failed or not.
-                        return r.name.indexOf(location.origin) === 0;
-                    });
+                    var all = bootOwnRequests();
                     var report = function (how, failed) {
                         bootLine(
                             "graphty failed to load " +
@@ -337,13 +356,9 @@
                     if (all.length === 0 || all[0].responseStatus !== undefined) {
                         report(
                             "as loaded",
-                            all
-                                .filter(function (r) {
-                                    return r.responseStatus === 0 || r.responseStatus >= 400;
-                                })
-                                .map(function (r) {
-                                    return r.responseStatus + " " + r.name;
-                                }),
+                            all.filter(bootRequestFailed).map(function (r) {
+                                return r.responseStatus + " " + r.name;
+                            }),
                         );
                         return;
                     }
@@ -395,7 +410,8 @@
                     } else {
                         bootLine(e.message + " (" + e.filename + ":" + e.lineno + ")", undefined, true);
                         // An exception thrown as the app starts would otherwise leave the bar running forever.
-                        if (e.filename && e.filename.indexOf(location.origin) === 0) {
+                        // A browser notice, such as a ResizeObserver loop, names the page at line 0.
+                        if (e.lineno > 0 && e.filename && e.filename.indexOf(location.origin) === 0) {
                             bootEntryFailed = true;
                             bootFail();
                         }
@@ -443,14 +459,7 @@
                     <svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1 0l6 4-6 4z" fill="currentColor" /></svg>
                 </button>
                 <span class="bar"></span>
-                <textarea
-                    id="boot-log"
-                    readonly
-                    hidden
-                    wrap="off"
-                    aria-label="Loading details"
-                    spellcheck="false"
-                ></textarea>
+                <textarea id="boot-log" readonly hidden aria-label="Loading details" spellcheck="false"></textarea>
             </span>
         </output>
         <script>
@@ -481,7 +490,21 @@
                     var src = scripts.length ? scripts[scripts.length - 1].src : "";
                     if (!bootEntryFailed) {
                         var entry = performance.getEntriesByName(src)[0];
-                        bootLine("entry script loaded " + src, entry ? entry.duration : undefined);
+                        // It cannot run until the last of its imports has arrived.
+                        var arrived = Math.max.apply(
+                            null,
+                            bootOwnRequests().map(function (r) {
+                                return r.responseEnd;
+                            }),
+                        );
+                        bootLine(
+                            "entry script loaded " +
+                                src +
+                                (entry
+                                    ? " (" + Math.round(entry.duration) + " ms for this file, the rest its imports)"
+                                    : ""),
+                            arrived,
+                        );
                         bootLine("entry script ran");
                     }
                     bootRequests();

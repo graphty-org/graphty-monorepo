@@ -129,7 +129,7 @@ describe("the loading screen's log", () => {
     });
 
     it("shows a file that failed to load, without its query string", async () => {
-        await serve(page, 404, HTML.replace('src="/src/main.tsx"', 'src="/src/main.tsx?token=abc"'));
+        await serve(page, 404, HTML.replace('src="/src/main.tsx"', 'src="/src/main.tsx?key=abc"'));
         await open(page);
 
         await reload().waitFor();
@@ -138,7 +138,110 @@ describe("the loading screen's log", () => {
         await logSays("ERROR could not load https://boot.test/src/main.tsx");
         const text = await log().inputValue();
         assert.notInclude(text, "abc");
-        assert.notInclude(text.split("Next:")[0], "entry script ran");
+        assert.notInclude(text, "entry script ran");
+        assert.notInclude(text, "Next:");
+    });
+
+    it("keeps writing while the reader's selection stays put", async () => {
+        await serve(page, null);
+        await open(page);
+        await triangle().click();
+        await logSays("screen drawn");
+        const box = await log().boundingBox();
+        assert.isNotNull(box);
+        await page.mouse.move(box.x + 12, box.y + 14);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 120, box.y + 14);
+        await page.mouse.up();
+        const selected = (): Promise<string> =>
+            log().evaluate((el: HTMLTextAreaElement) => el.value.slice(el.selectionStart, el.selectionEnd));
+        const before = await selected();
+        assert.isNotEmpty(before);
+        await page.mouse.click(5, 5);
+
+        await page.evaluate(() => {
+            void Promise.reject(new Error("written late"));
+        });
+
+        await logSays("written late");
+        assert.strictEqual(await selected(), before);
+    });
+
+    it("wraps a long failing address instead of cutting it off", async () => {
+        const end = `${"a".repeat(300)}.js`;
+        await serve(page, 404, HTML.replace('src="/src/main.tsx"', `src="/src/main.tsx/${end}"`));
+        await open(page);
+
+        await triangle().click();
+        await logSays(`ERROR could not load https://boot.test/src/main.tsx/${end}`);
+
+        const fits = await log().evaluate((el) => el.scrollWidth <= el.clientWidth);
+        assert.isTrue(fits);
+    });
+
+    it("charges the wait for the entry's imports to the entry's line", async () => {
+        await serve(page, 'import "/dep.js";');
+        await page.route(`${ORIGIN}dep.js`, async (route) => {
+            await page.waitForFunction(() =>
+                (document.getElementById("boot-log") as HTMLTextAreaElement | null)?.value.includes("screen drawn"),
+            );
+            await route.fulfill({ contentType: "text/javascript", body: "" });
+        });
+        await open(page);
+
+        await logSays("requests:");
+
+        const lines = (await log().inputValue()).split("\n");
+        const at = lines.findIndex((l) => l.includes("entry script loaded"));
+        const parse = (l: string): number[] => (/^\s*(\d+)\s+\+\s*(\d+)/.exec(l) ?? []).slice(1).map(Number);
+        const [when, took] = parse(lines[at]);
+        const [previous] = parse(lines[at - 1]);
+        assert.approximately(took, when - previous, 1);
+        const depEnd = await page.evaluate(
+            () =>
+                (performance.getEntriesByName("https://boot.test/dep.js")[0] as PerformanceResourceTiming).responseEnd,
+        );
+        assert.isAtLeast(when, Math.round(depEnd) - 1);
+    });
+
+    it("keeps credentials and query strings out", async () => {
+        const secret = [
+            "Authorization: Bearer SECRET",
+            "authorization=Basic SECRET",
+            "access_token=SECRET",
+            "id_token: SECRET",
+            '{"token":"SECRET"}',
+            "Bearer SECRET",
+            "GET /api/graph?sig=SECRET",
+            "dev.ato.ms/a?code=SECRET",
+            "/data?key=SECRET",
+            "https://h/p?x=1)SECRET",
+            "https://user:SECRET@h/p",
+            "https://h/p#SECRET",
+        ];
+        const script = secret.map((s) => `Promise.reject(new Error(${JSON.stringify(s)}));`).join("");
+        await serve(page, `${script}Promise.reject(new Error("END"));`);
+        await open(page);
+
+        await logSays("END");
+
+        const text = await log().inputValue();
+        assert.notInclude(text, "SECRET");
+        assert.include(text, "GET /api/graph");
+    });
+
+    it("keeps the newest lines when there are too many, and marks the gap", async () => {
+        const say = (line: string): string =>
+            `document.dispatchEvent(new CustomEvent("graphty-boot", { detail: { line: ${line} } }));`;
+        await serve(page, `for (let i = 0; i < 600; i++) { ${say('"flood " + i')} } ${say('"the last line"')}`);
+        await open(page);
+
+        await logSays("the last line");
+
+        const text = await log().inputValue();
+        assert.include(text, "screen drawn");
+        assert.include(text, "lines removed here");
+        assert.isAtMost(text.split("\n").length, 520);
     });
 
     it("shows an exception thrown as the app starts, with Reload", async () => {
@@ -161,6 +264,27 @@ describe("when the loading screen goes", () => {
         await open(page);
 
         await page.waitForFunction(() => document.getElementById("boot") === null);
+    });
+
+    it("goes at a reopened project's first frame while held", async () => {
+        await serve(page, `${HOLD}${COMMIT}document.dispatchEvent(new Event("graph-first-frame"));`);
+        await open(page);
+
+        await page.waitForFunction(() => document.getElementById("boot") === null);
+    });
+
+    it("is not turned to Reload by a browser notice that names the page", async () => {
+        const LOOP = `
+            const box = document.body.appendChild(document.createElement("div"));
+            let wide = 10;
+            new ResizeObserver(() => { wide += 10; box.style.width = wide + "px"; }).observe(box);
+        `;
+        await serve(page, HOLD + COMMIT + LOOP);
+        await open(page);
+
+        await logSays("ResizeObserver");
+
+        assert.isFalse(await reload().isVisible());
     });
 
     it("stays while held, turns to Reload on a rejection, and goes when told", async () => {

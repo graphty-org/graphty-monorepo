@@ -1116,6 +1116,14 @@ object per element. Stages 26 to 28 remove that reason.
   `session.capabilities` and `capabilities:changed` with `limits` are G2 of `cosmos-gap.md`. Stage 30 adds only `objectRows?` and
   `objectEdges?` to that option, and `W_OBJECT_CAP`. The app's `fitsInBrowser` and `isLarge` take limits as a
   parameter, because the start screens have no element.
+- **As G2 built it** (corrections to cosmos-gap.md section 3.2, which named no channel for the warning). The element had no
+  general `{ code, params }` warning event, so `W_LIMITS_IGNORED` arrives on a new element event, `limits-warning`
+  (`{ code, params }`, shaped like `layout-warning`); stage 30's `W_OBJECT_CAP` can use the same one. A refused switch to
+  `"objects"` is the existing `error` event, its `GraphtyError` carrying `E_TOO_LARGE` with the ingest's `details`
+  (`{ limit, count, of, graph }`). The capability type is published as `SessionCapabilities`. On a session with no renderer
+  (`createGraphSession({ limits })`) nothing draws, so the ceilings are held as given. The effective values live in
+  `RenderLimits` (`session/limits.ts`); the ingest host's `ceilings()` returns nothing while the defaults stand, so `Ingest`
+  still reads `DEFAULT_LIMITS` itself, and `batched()` is the render path alone (true under NullEngine too).
 - With `"batched"`, that option loads a million nodes. `"objects"` with a higher limit refuses with `E_TOO_LARGE`: its heap reason stands.
   **The default stays 100,000** (section 10).
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or

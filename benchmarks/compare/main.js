@@ -445,19 +445,39 @@ async function addShapeStyles(el, mode, curves) {
         });
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, curves, renderPath, renderer }) {
-    await import("@graphty/graphty-element");
-    if (accel !== "off") await import("@graphty/graphty-element/webgpu");
-    const el = document.createElement("graphty-element");
-    el.style.cssText = "display:block;width:1200px;height:900px";
+// The element ignores what it does not know, so without these checks a build that lacks an option
+// would be measured on its default and recorded under the requested value.
+function setRequestedOptions(el, { renderPath, renderer, limits }) {
     if (renderPath) {
-        // The element ignores what it does not know, so without this a build that lacks the option
-        // would be measured on its default path and recorded under the requested one.
         if (!("renderPath" in el))
             throw new Error(`renderPath "${renderPath}" requested, but this build has no renderPath option`);
         el.renderPath = renderPath;
     }
     if (renderer) el.renderer = renderer;
+    if (limits) {
+        if (!("limits" in el)) throw new Error("limits requested, but this build has no limits option");
+        el.limits = limits;
+    }
+}
+
+async function graphtyAdapter({
+    mode,
+    accel,
+    onDemand,
+    dpr,
+    labels,
+    sampled,
+    glyphs,
+    curves,
+    renderPath,
+    renderer,
+    limits,
+}) {
+    await import("@graphty/graphty-element");
+    if (accel !== "off") await import("@graphty/graphty-element/webgpu");
+    const el = document.createElement("graphty-element");
+    el.style.cssText = "display:block;width:1200px;height:900px";
+    setRequestedOptions(el, { renderPath, renderer, limits });
     el.layout = "fixed";
     // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode. The camera
     // moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.

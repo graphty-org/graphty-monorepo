@@ -222,6 +222,7 @@ export interface GraphtyElementJSXProps {
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     // (undocumented)
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
+    "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     // (undocumented)
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     // (undocumented)
@@ -298,6 +299,7 @@ export interface GraphtyElementJSXProps {
     layoutConfig?: Graphty["layoutConfig"];
     layoutScope?: Graphty["layoutScope"];
     lighting?: Graphty["lighting"];
+    limits?: Graphty["limits"];
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];

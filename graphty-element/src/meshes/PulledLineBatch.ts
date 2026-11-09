@@ -56,8 +56,8 @@ const TABLE_WIDTH = 1024;
 const TEXELS_PER_PIECE = 2;
 const TEXELS_PER_CURVE_PIECE = 4;
 
-/** Indices in the join template, drawn once per piece. */
-const TEMPLATE_INDICES = JOIN_TEMPLATE_INDICES.length;
+/** The join template, drawn once per piece: its index list and its vertices. */
+const JOIN_TEMPLATE = { indices: JOIN_TEMPLATE_INDICES, vertices: JOIN_TEMPLATE_VERTICES };
 
 /** Floats in one texel. */
 const TEXEL_FLOATS = 4;
@@ -117,12 +117,17 @@ export class PulledLineBatch {
      * @param rowPositions - The `rowPosition` texture, asked each frame: the row table replaces it
      *     when it grows.
      * @param curve - Whether its pieces are curves' (a mesh made with `pulledCurve: true`).
+     * @param template - What a piece draws: the join template, or another mesh's own
+     *     (`pulledAnimatedLine.ts`), its vertices numbered from 0 a piece.
+     * @param template.indices - Its index list.
+     * @param template.vertices - Its vertices.
      */
     constructor(
         mesh: Mesh,
         private readonly scene: Scene,
         private readonly rowPositions: () => BaseTexture,
         curve = false,
+        private readonly template: { readonly indices: readonly number[]; readonly vertices: number } = JOIN_TEMPLATE,
     ) {
         this.mesh = mesh;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
@@ -211,6 +216,17 @@ export class PulledLineBatch {
         this.rows[at + 4] = look.r;
         this.rows[at + 5] = look.g;
         this.rows[at + 6] = look.b;
+        this.touch(piece);
+    }
+
+    /**
+     * Give an animated line's piece its speed, a multiple of the element's own pace (`pulledAnimatedLine.ts`), in the
+     * slot a straight piece leaves unused.
+     * @param piece - The piece.
+     * @param speed - Its `line.animationSpeed`.
+     */
+    setSpeed(piece: number, speed: number): void {
+        this.rows[piece * this.pieceFloats + 7] = speed;
         this.touch(piece);
     }
 
@@ -431,25 +447,26 @@ export class PulledLineBatch {
         this.index();
     }
 
-    /** The join template once per piece the table has room for, numbered so `gl_VertexID / 14` is the piece. */
+    /** The template once per piece the table has room for, numbered so `gl_VertexID / vertices` is the piece. */
     private index(): void {
         const capacity = this.rows.length / this.pieceFloats;
-        const indices = new Uint32Array(capacity * TEMPLATE_INDICES);
+        const { indices: template, vertices } = this.template;
+        const indices = new Uint32Array(capacity * template.length);
         for (let piece = 0; piece < capacity; piece++) {
-            for (let i = 0; i < TEMPLATE_INDICES; i++) {
-                indices[piece * TEMPLATE_INDICES + i] = JOIN_TEMPLATE_INDICES[i] + piece * JOIN_TEMPLATE_VERTICES;
+            for (let i = 0; i < template.length; i++) {
+                indices[piece * template.length + i] = template[i] + piece * vertices;
             }
         }
 
-        this.mesh.setIndices(indices, capacity * JOIN_TEMPLATE_VERTICES);
+        this.mesh.setIndices(indices, capacity * vertices);
         this.setCount();
     }
 
     /** Draw only the pieces handed out. */
     private setCount(): void {
         const [subMesh] = this.mesh.subMeshes;
-        subMesh.indexCount = this.highWater * TEMPLATE_INDICES;
-        subMesh.verticesCount = this.highWater * JOIN_TEMPLATE_VERTICES;
+        subMesh.indexCount = this.highWater * this.template.indices.length;
+        subMesh.verticesCount = this.highWater * this.template.vertices;
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
 }

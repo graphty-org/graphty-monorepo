@@ -683,6 +683,22 @@ then gives the second a fifth, which narrows its loops' share, and takes it away
 each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps or `supportModel`, a raised route
 the layout picks, and bends.
 
+As built (stage 21, twelfth pull request): a route the `location-map` layout picks (a raised arc over a flat map in the
+3D view, a great circle on a globe, straight to a node in the tray) is pulled too, on `"batched"`, curve or straight, as
+a route the style asks for is. `Edge.pullCurve` reads the route drawn now (`Edge.route`: the style's, else the layout's),
+`EdgeMesh.pullsCurve` and `EdgeMesh.pulledBatch` take that route, and `Edge.pullsLine` no longer refuses a layout's
+route. Correction to the seventh pull request's, from the code: the layout's route changes with its frame, which keys
+no mesh, but every such change moves the nodes, so the edge is placed again; `Edge.placeLine` first moves a pulled line
+whose route now wants the other batch (straight to curve or back) by rebuilding it (`Edge.followRoute`), then writes
+its span. Two `"batched"` defects found on the way, both fixed there only: a pulled curve gave no points
+(`Edge.drawnCurve` null), so framing (`framingBox`) left its bow out and picking took it for a straight line; it now
+gives its path's points from its last span (`curvePathPoint`). And `Graph.#drawOverMap` ordered only the line batches
+over a map, so pulled lines kept their depth writes and drew under it in the wrong order; it takes the pulled batches
+(`MeshCache.pulledBatchMap`) too. `test/browser/pulled-curves-batched.test.ts` straightens half the edges, lays the graph
+on a flat map, then a globe, then back on its fixed positions (one node has no place, so its edges stay straight on
+the map), at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve
+with caps or `supportModel`, and bends.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

@@ -61,7 +61,7 @@ import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } 
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { batchUploadFrames } from "./meshes/FrameRoster";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
-import { type CurveSpan, curveSpan, loopShape } from "./meshes/pulledCurve";
+import { curvePathPoint, type CurveSpan, curveSpan, loopShape } from "./meshes/pulledCurve";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -686,6 +686,8 @@ export class Edge {
         run: number[] | null;
         /** The look its pieces are given, for the pieces a curve takes later. */
         look: { color: Color3; opacity: number; width: number };
+        /** A curve's last span and the centres it was cut between, null while it draws nothing ({@link Edge.drawnCurve}). */
+        path?: { src: Vector3; dst: Vector3; span: CurveSpan } | null;
     } | null = null;
 
     /**
@@ -1023,6 +1025,15 @@ export class Edge {
      * @returns The points, in order along the curve, as fresh vectors.
      */
     get drawnCurve(): Vector3[] | null {
+        const path = this.pulled?.path ?? null;
+        if (path !== null) {
+            // a pulled curve's points, as its pieces place them (`meshes/pulledCurve.ts`)
+            return Array.from({ length: path.span.pieces + 1 }, (_, j) => {
+                const { x, y, z } = curvePathPoint(path.src, path.dst, path.span, j);
+                return new Vector3(x, y, z);
+            });
+        }
+
         if (this.mesh instanceof PatternedLineMesh) {
             const route = this.mesh.drawnRoute();
             return route !== null && route.length > 2 ? route : null;
@@ -1383,6 +1394,7 @@ export class Edge {
         laid?: readonly number[],
         laidEnds?: EdgePosition["lineEnds"],
     ): boolean {
+        this.followRoute();
         this.pullCurve(src, dst);
         const lays = this.laysRoute();
         const batch = lays ? this.lineBatch : null;
@@ -1813,7 +1825,7 @@ export class Edge {
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
         const samePull =
             this.wantsPull(style) === (this.pulled !== null) &&
-            (this.pulled === null || (this.pulled.run !== null) === EdgeMesh.pullsCurve(style, this.isLoop));
+            (this.pulled === null || (this.pulled.run !== null) === this.pullsCurve(style));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
@@ -2517,7 +2529,7 @@ export class Edge {
      * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
      * radius (`arcRadius`), or for one raised off the map or a globe (`line.route` "arc" or "great-circle", which wins
      * over both, and pulls a straight line as a curve too, `EdgeMesh.pullsCurve`), its height
-     * (`arcHeight`; a route the layout picks keeps it an object edge), which each placement writes; a self-loop is
+     * (`arcHeight`), the style's route or the one the layout picks (followed as it is placed), which each placement writes; a self-loop is
      * pulled as its teardrop, whatever its curve or route asks for
      * (`meshes/pulledCurve.ts`, {@link Edge.pullCurve}). Read when the line is built.
      * @param style - The resolved style.
@@ -2532,16 +2544,37 @@ export class Edge {
             !EdgeMesh.drawsFlat(this.context.getScene()) &&
             setsOnly(style, PULLED_STYLE_KEYS) &&
             setsOnly(line, PULLED_LINE_KEYS) &&
-            (EdgeMesh.pullsCurve(style, this.isLoop) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
+            (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (line.type ?? "solid") === "solid" &&
             !line.animationSpeed &&
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
             noCap(style.arrowTail) &&
             style.band?.color === undefined &&
-            (this.routeOf(style) === "straight" || line.route !== undefined) &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
+    }
+
+    /**
+     * Whether a pulled line with this style is drawn from a curve batch ({@link EdgeMesh.pullsCurve}), on the route
+     * it takes now, its style's or the layout's.
+     * @param style - The resolved style.
+     * @returns True for a pulled curve.
+     */
+    private pullsCurve(style: EdgeStyleConfig): boolean {
+        return EdgeMesh.pullsCurve(style, this.isLoop, this.routeOf(style));
+    }
+
+    /**
+     * Move a pulled line between the straight and the curve batch, as it is placed, when the route the layout picks
+     * for it has changed ({@link Edge.routeOf}): the layout's map came or went, or changed surface, which keys no
+     * mesh, so no restyle would. The placement then writes the route's shape ({@link Edge.pullCurve}).
+     */
+    private followRoute(): void {
+        const style = this.drawnStyle;
+        if (this.pulled !== null && style !== null && (this.pulled.run !== null) !== this.pullsCurve(style)) {
+            this.updateStyle();
+        }
     }
 
     /**
@@ -2570,13 +2603,14 @@ export class Edge {
             scene,
             () => rows.positionTexture,
             this.isLoop,
+            this.routeOf(style),
         );
         const piece = batch.acquire();
         // As `createStaticLine` hands the plain line's material its look.
         const opacity = EdgeMesh.opacityOf(style);
         const look = { color: Color3.FromHexString(options.color), opacity, width: options.width * 20 };
         batch.setLook(piece, look.color, look.opacity, look.width);
-        const curve = EdgeMesh.pullsCurve(style, this.isLoop);
+        const curve = this.pullsCurve(style);
         if (curve) {
             // nothing drawn until the first placement writes the span
             batch.setCurve(piece, 0, null);
@@ -2617,13 +2651,12 @@ export class Edge {
             const { rank, count } = this.context.getDataManager().drawnBundle(this);
             const around = Edge.outside(this.srcNode, src);
             const loop = loopShape(rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
-            this.pullSpan(curveSpan(src, src, around, around, { loop }));
+            this.pullSpan(curveSpan(src, src, around, around, { loop }), src, src);
             return;
         }
 
-        // a raised or great-circle arc the style asks for wins over a fan and a circle, as `bundleRoute` draws it; one
-        // the layout asks for keeps the line an object edge (`pullsLine`)
-        const route = this.drawnStyle?.line?.route ?? "straight";
+        // a raised or great-circle arc, the style's or the layout's, wins over a fan and a circle, as `bundleRoute` draws it
+        const { route } = this;
         const raised = route !== "straight";
         const height = raised ? (this.drawnStyle?.line?.arcHeight ?? DEFAULT_ARC_HEIGHT[route]) : null;
         const fan = raised ? null : this.fanOf(src, dst);
@@ -2643,19 +2676,23 @@ export class Edge {
             { bow, radius, height, globe: route === "great-circle", straight: this.drawnStyle?.line?.bezier !== true },
             () => [this.bareEnd("source", src, dst), this.bareEnd("target", dst, src)],
         );
-        this.pullSpan(span);
+        this.pullSpan(span, src, dst);
     }
 
     /**
      * Write a pulled curve's span to its pieces, taking more while the span needs more than they hold.
      * @param span - The span, or null to draw nothing.
+     * @param src - The source centre it was cut between.
+     * @param dst - The target centre.
      */
-    private pullSpan(span: CurveSpan | null): void {
+    private pullSpan(span: CurveSpan | null, src: Vector3, dst: Vector3): void {
         const { pulled } = this;
         const run = pulled?.run ?? null;
         if (pulled === null || run === null) {
             return;
         }
+
+        pulled.path = span === null ? null : { src: src.clone(), dst: dst.clone(), span };
 
         const { batch, look } = pulled;
         while (run.length + 1 < (span?.pieces ?? 0)) {

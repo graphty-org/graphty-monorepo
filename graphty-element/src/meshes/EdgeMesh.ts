@@ -629,10 +629,10 @@ void main() {
      * off the map or a globe (`line.route` "arc" or "great-circle"), straight or not, or a self-loop.
      * @param style - The resolved style.
      * @param loop - Whether the edge is a self-loop, whose teardrop is a curve whatever its style.
+     * @param route - The route the edge takes, which the layout picks when its style does not (`Edge.route`).
      * @returns True for a pulled curve.
      */
-    static pullsCurve(style: EdgeStyleConfig, loop = false): boolean {
-        const route = style.line?.route;
+    static pullsCurve(style: EdgeStyleConfig, loop = false, route = style.line?.route): boolean {
         return loop || style.line?.bezier === true || route === "arc" || route === "great-circle";
     }
 
@@ -649,6 +649,7 @@ void main() {
      * @param scene - The scene.
      * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
      * @param loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
+     * @param route - The route the edge takes ({@link EdgeMesh.pullsCurve}).
      * @returns The batch.
      */
     static pulledBatch(
@@ -658,11 +659,12 @@ void main() {
         scene: Scene,
         rowPositions: () => BaseTexture,
         loop = false,
+        route = style.line?.route,
     ): PulledLineBatch {
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
-        const curve = this.pullsCurve(style, loop);
+        const curve = this.pullsCurve(style, loop, route);
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${curve ? "|curve" : ""}`;
         return cache.getPulledBatch(key, () => {
             const mesh = this.createStaticLine(options, style, scene, cache, false, curve ? "curve" : true);

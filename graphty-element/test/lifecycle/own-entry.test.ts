@@ -137,20 +137,20 @@ describe.each(ENGINES)("%s", (engine) => {
         // Held until the reloaded page's own request is queued behind it: that event, in the page
         // holding the lock, is what lets go, so no round trip stands between it and the reader's wait.
         await other.evaluate(
-            `window.heldLock = new Promise((granted) => {
-                navigator.locks.request(${JSON.stringify(lock)}, () => {
-                    granted(true);
-                    return new Promise((release) => {
-                        const check = () => navigator.locks.query().then((q) =>
-                            (q.pending ?? []).some((l) => l.name === ${JSON.stringify(lock)}) ? release() : setTimeout(check));
-                        check();
+            `(() => {
+                const lock = ${JSON.stringify(lock)};
+                const pending = () => navigator.locks.query().then((q) => (q.pending ?? []).some((l) => l.name === lock));
+                const whenQueued = () => pending().then((yes) => (yes ? true : whenQueued()));
+                window.queued = whenQueued();
+                window.heldLock = new Promise((granted) => {
+                    navigator.locks.request(lock, () => {
+                        granted(true);
+                        return whenQueued();
                     });
                 });
-            })`,
+            })()`,
         );
-        await other.waitForFunction(
-            `navigator.locks.query().then((q) => (q.pending ?? []).some((l) => l.name === ${JSON.stringify(lock)}))`,
-        );
+        await other.evaluate("window.queued");
 
         const beforeReload = fx.log.length;
         await page.reload();

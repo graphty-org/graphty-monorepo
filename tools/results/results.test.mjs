@@ -442,6 +442,27 @@ describe("records", () => {
             ["error"],
         );
     });
+
+    // #6374: a run stopped at its deadline writes no JUnit report; what hung is its failure, which the bisect reads
+    it("records what a run stopped at its deadline left running as its failures", () => {
+        const file = "graphty/src/workspace/selection/__tests__/cardPalette.test.ts";
+        const text = "[HANG] the run reached the job's deadline and was stopped";
+        const [rec] = recordsOf({
+            id: "9.1.test.graphty-4",
+            head: { commit: "c", tree: "t", base: "b", dirty: false },
+            variant: "graphty|flags=off|whole",
+            inputs: "i",
+            env: "e",
+            code: 124,
+            result: { firstCode: 124, firstOutcome: "infra", retried: false, hung: [{ file, name: "(hung)", text }] },
+            startedAt: 1000,
+            endedAt: 9000,
+            dir: join(TMP, "no-reports"),
+            runId: "run1",
+        });
+        assert.equal(rec.outcome, "infra");
+        assert.deepEqual(rec.failures, [{ file, name: "(hung)", status: "fail", message: text }]);
+    });
 });
 
 describe("runShape", () => {

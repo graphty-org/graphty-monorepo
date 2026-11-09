@@ -699,6 +699,26 @@ on a flat map, then a globe, then back on its fixed positions (one node has no p
 the map), at 0 pixels against `"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve
 with caps or `supportModel`, and bends.
 
+As built (stage 21, thirteenth pull request): a curve through a support point (`line.supportModel`, the quadratic
+`Edge.bundleRoute` draws through `supportPoints`' point with `bezierThroughControls`) is pulled too, on `"batched"`,
+from the curve batch. The support points place a point in x-y and give it the chord's z at its share along, so two
+numbers hold it: `CurveSpan.via`, its share along the chord and across it (`viaShare`, `supportPoints`' `toRel`),
+which wins over a fan and a circle and gives way to a raised route and a teardrop, as `bundleRoute` has them. Its kind
+is 7: the fourth texel of its piece is (endAt, along, 7, across), sampled with `bezierThroughControls`' 24 pieces and
+cut where it leaves its nodes, as any route is. `Edge.pullsLine` takes the `line.support*` keys, and the placement that
+follows a moved point (`Edge.update`, every edge while the points settle) writes the new span. Two defects found on
+the way. On `"batched"` only: forceAtlas2's degrees (`degreeWeights`) find an edge's nodes among the centres by the
+point object, and a batched node's `drawnPosition` is a new point at each read, so every degree was lost and the
+curves settled elsewhere; `UpdateManager` now reads each node's centre once per support update and hands it to
+`Edge.supportEdge` too. On both paths: `SupportPoints.endsChanged` ignored a move under 1e-6, so a drag's last move
+(its place rounded to 32 bits, 2.5e-8) left the settle begun a frame early from ends a hair off, and where the points
+rested, a few pixels, hung on the drag's last frames; it compares exactly now. `test/pulled-curve.test.ts` holds the
+mirror to the object path within 1e-9 on 400 seeded edges, gapped among them; `test/browser/pulled-curve-glsl.test.ts`
+holds the GLSL to it within 1e-4; `test/meshes/support-points.test.ts` settles a last move of a hair afresh;
+`test/browser/pulled-curves-batched.test.ts` bows every curve through a support point (barnesHut, the drawing's
+unit), drags a node and lets the points settle, then changes the law to forceAtlas2, at 0 pixels against
+`"objects"` each time, on WebGL and WebGPU (SwiftShader). Still object edges: a curve with caps, and bends.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

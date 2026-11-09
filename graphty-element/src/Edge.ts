@@ -61,7 +61,7 @@ import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } 
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { batchUploadFrames } from "./meshes/FrameRoster";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
-import { curvePathPoint, type CurveSpan, curveSpan, loopShape } from "./meshes/pulledCurve";
+import { curvePathPoint, type CurveSpan, curveSpan, loopShape, viaShare } from "./meshes/pulledCurve";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -140,6 +140,13 @@ const PULLED_LINE_KEYS = new Set([
     "nodeGap",
     "sourceNodeGap",
     "targetNodeGap",
+    "supportModel",
+    "supportSpringLength",
+    "supportSpringConstant",
+    "supportRepulsion",
+    "supportCentralGravity",
+    "supportUnit",
+    "supportScale",
 ]);
 
 /**
@@ -2525,7 +2532,7 @@ export class Edge {
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, label, band or any other line
      * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
-     * too, with no `supportModel`, and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centres' and, for one that fans out of a
+     * too, through its support point when it has one (`line.supportModel`), and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centres' and, for one that fans out of a
      * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
      * radius (`arcRadius`), or for one raised off the map or a globe (`line.route` "arc" or "great-circle", which wins
      * over both, and pulls a straight line as a curve too, `EdgeMesh.pullsCurve`), its height
@@ -2634,7 +2641,7 @@ export class Edge {
     /**
      * Write a pulled curve's span for its two centres, as `placeRoute` would cut the curve there -- a lone
      * curve, the arc it fans out of its bundle on ({@link Edge.fanOf}), its circle (`line.arcRadius`), or its raised arc (`line.route`
-     * "arc"), or a self-loop's teardrop round its node -- taking pieces while the cut
+     * "arc"), the quadratic through its support point (`line.supportModel`), or a self-loop's teardrop round its node -- taking pieces while the cut
      * needs more than it holds, each node grown by its gap (`line.nodeGap`). A curve no point of which clears both nodes is drawn as the lone
      * curve between its bare ends ({@link Edge.bareEnd}), uncut, as the object path draws it (`placeCurve`); one it would draw another way
      * (`curveSpan` null: a centre outside its own node, or bare ends that meet) draws nothing.
@@ -2659,21 +2666,31 @@ export class Edge {
         const { route } = this;
         const raised = route !== "straight";
         const height = raised ? (this.drawnStyle?.line?.arcHeight ?? DEFAULT_ARC_HEIGHT[route]) : null;
-        const fan = raised ? null : this.fanOf(src, dst);
+        // a support point wins over a fan and a circle, as `bundleRoute` draws it
+        const support = raised ? null : this.supportVia();
+        const via = support === null ? null : viaShare(src, dst, support);
+        const fan = raised || via !== null ? null : this.fanOf(src, dst);
         // `fanArc` bows to the left of the bundle's first edge; the span's bow is to the left of this one
         let bow: number | null = null;
         if (fan !== null) {
             bow = fan.forward ? fan.offset : -fan.offset;
         }
         // a curve that does not fan is drawn on its circle when it has a radius, as `bundleRoute` draws it
-        const radius = fan === null ? (this.drawnStyle?.line?.arcRadius ?? null) : null;
+        const radius = fan === null && via === null ? (this.drawnStyle?.line?.arcRadius ?? null) : null;
         const span = curveSpan(
             src,
             dst,
             Edge.outside(this.srcNode, src, this.gapAt("source")),
             Edge.outside(this.dstNode, dst, this.gapAt("target")),
             // a straight line raised off the map that clears neither node is drawn straight (`placeLine`)
-            { bow, radius, height, globe: route === "great-circle", straight: this.drawnStyle?.line?.bezier !== true },
+            {
+                bow,
+                radius,
+                height,
+                via,
+                globe: route === "great-circle",
+                straight: this.drawnStyle?.line?.bezier !== true,
+            },
             () => [this.bareEnd("source", src, dst), this.bareEnd("target", dst, src)],
         );
         this.pullSpan(span, src, dst);
@@ -3643,18 +3660,20 @@ export class Edge {
     /**
      * What this edge's support point settles under, for the update loop: its two nodes' centers and its style's
      * forces. Null for an edge without one: not curved, no `line.supportModel`, a self-loop, or not drawn.
+     * @param centerOf - A node's center; the same point for a node each time it is asked within one update, as the
+     *     forces find an edge's nodes among the centers by the point itself (forceAtlas2's degrees).
      * @returns The edge's ends and forces, or null.
      * @internal
      */
-    supportEdge(): SupportEdge | null {
+    supportEdge(centerOf: (node: Node) => Readonly<Vector3> = (node) => node.drawnPosition): SupportEdge | null {
         const line = this.drawnStyle?.line;
         const model = line?.supportModel;
         if (model === undefined || !this.curved || this.srcNode === this.dstNode || !this.renderVisible) {
             return null;
         }
         return {
-            src: this.srcNode.drawnPosition,
-            dst: this.dstNode.drawnPosition,
+            src: centerOf(this.srcNode),
+            dst: centerOf(this.dstNode),
             forces: {
                 model,
                 springLength: line?.supportSpringLength ?? SUPPORT_DEFAULTS.springLength,

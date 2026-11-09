@@ -14,10 +14,21 @@
  * its radius, a raised arc (`line.route` "arc", `edgeRoute.raisedArc`) as its height, and a great-circle arc over a
  * globe (`line.route` "great-circle", `edgeRoute.greatCircleArc`) as its height and the angle it turns through. A
  * self-loop's teardrop (`edgeRoute.loopTeardrop`) is the cut of a cubic from its node's center back to it, kept as
- * its two control points ({@link loopShape}). Nothing here reads Babylon.js, so it runs in Node.
+ * its two control points ({@link loopShape}). A curve through a support point (`line.supportModel`, `Edge.bundleRoute`'s
+ * `bezierThroughControls`) is the cut of a quadratic through it, kept as the point's share along the chord and across
+ * it ({@link viaShare}). Nothing here reads Babylon.js, so it runs in Node.
  */
 
-import { centerCircle, fanArcPieces, greatCircle, LOOP_STEPS, loopControls, routeOutside, type Xyz } from "./edgeRoute";
+import {
+    BEZIER_STEPS,
+    centerCircle,
+    fanArcPieces,
+    greatCircle,
+    LOOP_STEPS,
+    loopControls,
+    routeOutside,
+    type Xyz,
+} from "./edgeRoute";
 
 /** How far the two control points stand off the chord, a share of its length (`EDGE_CONSTANTS.BEZIER_CONTROL_POINT_OFFSET`). */
 const CONTROL_OFFSET = 0.3;
@@ -79,6 +90,61 @@ export interface CurveSpan {
      * second); null otherwise ({@link loopShape}).
      */
     readonly loop: readonly [number, number, number] | null;
+    /**
+     * For a curve through a support point (`line.supportModel`), the point as (along, across): its share along the chord
+     * from source to target and its share of the chord turned a quarter left, in the x-y plane, its z the chord's at
+     * `along`, as `supportPoints` places it; null otherwise ({@link viaShare}).
+     */
+    readonly via: readonly [number, number] | null;
+}
+
+/**
+ * A support point as {@link CurveSpan.via} keeps it, as `supportPoints`' `toRel` has it: an edge of no length in x-y
+ * keeps it at its middle.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param via - The support point.
+ * @returns Its (along, across).
+ */
+export function viaShare(src: Xyz, dst: Xyz, via: Xyz): [number, number] {
+    const dx = dst.x - src.x;
+    const dy = dst.y - src.y;
+    const l2 = dx * dx + dy * dy;
+    if (l2 === 0) {
+        return [0.5, 0];
+    }
+
+    const qx = via.x - src.x;
+    const qy = via.y - src.y;
+    return [(qx * dx + qy * dy) / l2, (dx * qy - dy * qx) / l2];
+}
+
+/**
+ * One sample of a curve through a support point, as `bezierThroughControls` computes it for one control: the quadratic
+ * through the point {@link CurveSpan.via} names.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param i - The sample, 0 to `samples`.
+ * @param samples - The pieces the curve is sampled with.
+ * @param via - The point's (along, across).
+ * @returns The point.
+ */
+function viaSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, via: readonly [number, number]): Xyz {
+    const [along, across] = via;
+    const dx = dst.x - src.x;
+    const dy = dst.y - src.y;
+    const c = {
+        x: src.x + along * dx - across * dy,
+        y: src.y + along * dy + across * dx,
+        z: src.z + (dst.z - src.z) * along,
+    };
+    const t = i / samples;
+    // de Casteljau, as `bezierThroughControls` interpolates
+    const at = (a: number, b: number, d: number): number => {
+        const near = a + (b - a) * t;
+        return near + (b + (d - b) * t - near) * t;
+    };
+    return { x: at(src.x, c.x, dst.x), y: at(src.y, c.y, dst.y), z: at(src.z, c.z, dst.z) };
 }
 
 /**
@@ -274,9 +340,9 @@ function globeSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, height: n
 
 /**
  * Which path a span samples: a lone curve, a fanned arc (`bow`), a center arc (`radius`), a raised arc (`height`) or a
- * great-circle arc (`angle`), or a self-loop's teardrop (`loop`).
+ * great-circle arc (`angle`), a self-loop's teardrop (`loop`), or a curve through a support point (`via`).
  */
-type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "angle" | "ends" | "loop">;
+type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "angle" | "ends" | "loop" | "via">;
 
 /**
  * One sample of the path a span's shape names.
@@ -305,6 +371,10 @@ function pathSampleAt(src: Xyz, dst: Xyz, i: number, samples: number, shape: Sha
         return raisedSampleAt(src, dst, i, samples, shape.height);
     }
 
+    if (shape.via !== null) {
+        return viaSampleAt(src, dst, i, samples, shape.via);
+    }
+
     if (shape.radius !== null) {
         return circleSampleAt(src, dst, i, samples, shape.radius);
     }
@@ -327,8 +397,9 @@ function along(src: Xyz, dst: Xyz, t: number): Xyz {
  * The span's shape as the shader's three numbers: (bow, turn or where an uncut curve starts; 0 for a lone curve,
  * 1 for a fanned arc, 2 for a center arc, 3 for a lone curve between two points of the chord, 4 for a raised arc
  * (its height first), 5 for a great-circle arc (its height first), or for a self-loop's teardrop (its controls'
- * mean x first) 6 plus its share k, under tan(pi / 5); where that curve stops, a great-circle arc's angle, or the
- * teardrop's mean y), the last three of a curve piece's fourth texel.
+ * mean x first) 6 plus its share k, under tan(pi / 5), 7 for a curve through a support point (its share along
+ * first); where that curve stops, a great-circle arc's angle, the teardrop's mean y, or the support point's share
+ * across), the last three of a curve piece's fourth texel.
  * @param span - The span, or null.
  * @returns The three numbers.
  */
@@ -341,6 +412,11 @@ export function curveShape(span: Shape | null): [number, number, number] {
     const ends = span?.ends ?? null;
     if (ends !== null) {
         return [ends[0], 3, ends[1]];
+    }
+
+    const via = span?.via ?? null;
+    if (via !== null) {
+        return [via[0], 7, via[1]];
     }
 
     const height = span?.height ?? null;
@@ -417,6 +493,7 @@ function crossingAlong(inside: Xyz, outside: Xyz, isOutside: (x: number, y: numb
  * @param path.height - The height.
  * @param path.globe - Whether the height lifts a great-circle arc.
  * @param path.loop - A self-loop's teardrop.
+ * @param path.via - A support point.
  * @returns The shape and the pieces it is sampled with.
  */
 function pathShape(
@@ -428,10 +505,20 @@ function pathShape(
         height?: number | null;
         globe?: boolean;
         loop?: readonly [number, number, number] | null;
+        via?: readonly [number, number] | null;
     },
 ): { shape: Shape; samples: number } {
-    const { bow = null, radius = null, height = null, globe = false, loop = null } = path;
-    const none: Shape = { bow: null, radius: null, turn: null, height: null, angle: null, ends: null, loop: null };
+    const { bow = null, radius = null, height = null, globe = false, loop = null, via = null } = path;
+    const none: Shape = {
+        bow: null,
+        radius: null,
+        turn: null,
+        height: null,
+        angle: null,
+        ends: null,
+        loop: null,
+        via: null,
+    };
     if (loop !== null) {
         return { shape: { ...none, loop }, samples: LOOP_STEPS };
     }
@@ -446,6 +533,10 @@ function pathShape(
         // `raisedArc`: a flat route is its two ends
         const chord = Math.hypot(dst.x - src.x, dst.y - src.y);
         return { shape: { ...none, height }, samples: height * chord > 0 ? fanArcPieces(chord, height * chord) : 1 };
+    }
+
+    if (via !== null) {
+        return { shape: { ...none, via }, samples: BEZIER_STEPS };
     }
 
     if (radius !== null) {
@@ -480,6 +571,8 @@ function pathShape(
  * @param path.straight - Whether the line is straight (no `line.bezier`): a route no sample of which clears both
  *     nodes is then the straight line between the bare ends, not the lone curve.
  * @param path.loop - The teardrop.
+ * @param path.via - A support point ({@link CurveSpan.via}), which a bow and a radius give way to and a height and a
+ *     teardrop win over, as `Edge.bundleRoute` draws them.
  * @param bareEnds - Where the line starts and stops when it is not cut (`Edge.bareEnd`: the centers, or with a gap,
  *     off the nodes along the chord), asked only when no sample is outside both nodes; unset, the centers.
  * @returns The span; the lone curve between the bare ends, uncut, when no sample is outside both nodes, as
@@ -499,6 +592,7 @@ export function curveSpan(
         globe?: boolean;
         straight?: boolean;
         loop?: readonly [number, number, number] | null;
+        via?: readonly [number, number] | null;
     } = {},
     bareEnds: (() => readonly [Xyz, Xyz]) | null = null,
 ): CurveSpan | null {
@@ -583,6 +677,7 @@ function uncutSpan(src: Xyz, dst: Xyz, bareEnds: readonly [Xyz, Xyz] | null): Cu
         angle: null,
         ends: moved ? ends : null,
         loop: null,
+        via: null,
     };
 }
 
@@ -706,7 +801,20 @@ vec3 pulledLoopSample(vec3 center, float i, float samples, vec2 p, float k) {
     return vec3(center.xy + (p + q) * (3.0 * u * u * t) + (p - q) * (3.0 * u * t * t), center.z);
 }
 
+// a curve through a support point: the quadratic through the point a share along the chord and across it, its z the
+// chord's there, by de Casteljau
+vec3 pulledViaSample(vec3 src, vec3 dst, float i, float samples, vec2 via) {
+    vec2 d = dst.xy - src.xy;
+    vec3 c = vec3(src.xy + via.x * d + via.y * vec2(-d.y, d.x), src.z + (dst.z - src.z) * via.x);
+    float t = i / samples;
+    vec3 near = src + (c - src) * t;
+    return near + (c + (dst - c) * t - near) * t;
+}
+
 vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut, float angle) {
+    if (cut.w > 6.9) {
+        return pulledViaSample(src, dst, i, samples, vec2(cut.z, angle));
+    }
     if (cut.w > 5.5) {
         return pulledLoopSample(src, i, samples, vec2(cut.z, angle), cut.w - 6.0);
     }

@@ -299,7 +299,7 @@ export function curveThroughMidpoints(flat: readonly number[]): number[] {
 }
 
 /** How many pieces a curve through its control points (`line.bendCurve` "bezier") is drawn with. */
-const BEZIER_STEPS = 24;
+export const BEZIER_STEPS = 24;
 
 /**
  * A polyline drawn as one Bezier curve whose control points are its interior points (`line.bendCurve` "bezier"):

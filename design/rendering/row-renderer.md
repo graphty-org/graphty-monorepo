@@ -739,6 +739,18 @@ was not what the pixel needed. `test/pulled-curve.test.ts` holds the mirror to t
 draws lines through bends at 0 pixels against `"objects"` on WebGL and WebGPU (SwiftShader), and render-parity's
 `ThreeDBends` is at 0 on both. Still an object edge: a curve with caps.
 
+As built (stage 21, fifteenth pull request, closing the stage): a curve with caps stays an object edge, and stage 21 adds
+no pulled cap. A correction to the plan for this pull request, from the code: a cap is not a curve kind but the same
+question as a cap on a straight line. `Edge.pullsLine` refuses any end that draws a cap or words (`noCap`), straight or
+curved, so a capped straight line is an object edge too; `PulledCapBatch` is built by no edge, only by
+`test/browser/pulled-arrow-caps.test.ts`, and throws while `pulledCapsOn` is off, which it is on every path. A pulled cap
+differs from the placed one by one anti-aliasing sample at its tip (stage 17), so it cannot reach 0 pixels, and turning
+it on is the owner's change in section 10. Under the stage's rule a kind stays an object edge until its parity passes, so
+a capped curve stays one with the capped straight line, and a pulled curve cap is built, on the curve batch's span and
+route table, only once that change is made. With that, every curve kind without caps is pulled on `"batched"`: lone and
+fanned curves, `fanSpacing`, `arcRadius`, gaps, raised and great-circle routes, the layout's routes, self-loop
+teardrops, support points and bends. The stage's 40 ms target stays missed by about 6 ms (ninth pull request).
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

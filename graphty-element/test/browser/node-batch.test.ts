@@ -17,6 +17,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { nodeFramingBox } from "../../src/managers/UpdateManager";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
@@ -988,5 +989,38 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
                 }
             });
         }
+    });
+
+    it("publish a simulation's rows with no Node by their rows", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        await graph.setLayout("spring", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.instanceOf(engine, SimulationLayoutEngine);
+        if (!(engine instanceof SimulationLayoutEngine)) {
+            return;
+        }
+
+        const positions = layoutEngineInternals.positions(engine);
+        const at = { x: 0, y: 0, z: 0 };
+        const manager = graph.getDataManager();
+        // The graph hands out no Node for any row, as a graph of unbuilt rows hands none.
+        Object.defineProperty(manager, "nodes", { configurable: true, get: () => new Map() });
+        try {
+            NODES.forEach((_, row) => {
+                positions.write(row, 999, 999, 999);
+            });
+            engine.publishPositions();
+        } finally {
+            Reflect.deleteProperty(manager, "nodes");
+        }
+
+        NODES.forEach((_, row) => {
+            positions.read(row, at);
+            assert.notEqual(at.x, 999, `row ${row} is published with no Node`);
+        });
     });
 });

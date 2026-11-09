@@ -201,6 +201,33 @@ describe("the date condition card", () => {
         assert.strictEqual(session.styles.counts(layer.id).matched, 3);
     });
 
+    it.each([
+        ["the inline editor", ["timeline"]],
+        ["the selection workspace", ["timeline", "selection-workspace"]],
+    ])(
+        "in %s: says how many have no date as a chip, and a typed non-date as a short field message",
+        async (_where, features) => {
+            await siteFeatures(features);
+            await openWithDates("data");
+            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            await userEvent.click(await screen.findByRole("option", { name: /^installed(,|$)/ }));
+            const card = await waitFor(() => {
+                const found = document.querySelector<HTMLElement>("[data-card-body]");
+                assert.isNotNull(found);
+                return found;
+            });
+            // Eight nodes, six with an install date.
+            await within(card ?? document.body).findByText("Not measured: 2");
+            assert.notInclude(card?.textContent ?? "", "left out");
+            await userEvent.click(
+                within(card ?? document.body).getByRole("combobox", { name: "installed before, a date or a year" }),
+            );
+            await userEvent.keyboard("abc{Enter}");
+            const alert = await within(card ?? document.body).findByRole("alert");
+            assert.strictEqual(alert.textContent, "Not a date");
+        },
+    );
+
     it("keeps the mode picked, and the date typed, across Before, After and Between", async () => {
         const session = await openWithDates("graph");
         const layer = await session.styles.add({

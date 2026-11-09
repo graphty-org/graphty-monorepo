@@ -22,6 +22,7 @@ if (!BASE || !RESULTS) throw new Error("set BENCH_URL and BENCH_RESULTS");
 const DEADLINE_S = Number(process.env.BENCH_DEADLINE_S ?? 570);
 const RENDER_PATH = process.env.BENCH_RENDER_PATH || undefined;
 const RENDERER = process.env.BENCH_RENDERER || undefined;
+const LIMITS = process.env.BENCH_LIMITS ? JSON.parse(process.env.BENCH_LIMITS) : undefined;
 const [lib, mode, accel, n, m, dpr, ...flags] = process.argv.slice(2);
 const skip = flags.includes("skip-layout"),
     labels = flags.includes("labels"),
@@ -87,6 +88,7 @@ const out = {
     accel,
     renderPath: lib === "graphty" ? RENDER_PATH : undefined,
     rendererRequest: lib === "graphty" ? RENDERER : undefined,
+    limits: lib === "graphty" ? LIMITS : undefined,
     n: N,
     m: M,
     dpr: DPR,
@@ -183,6 +185,7 @@ try {
                     curves,
                     renderPath: RENDER_PATH,
                     renderer: RENDERER,
+                    limits: LIMITS,
                     onDemand: !!process.env.LAYOUT_ONLY,
                 },
             ],

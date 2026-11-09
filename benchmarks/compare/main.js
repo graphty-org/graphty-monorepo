@@ -442,7 +442,19 @@ async function addShapeStyles(el, mode, curves) {
         });
 }
 
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, glyphs, curves, renderPath, renderer }) {
+async function graphtyAdapter({
+    mode,
+    accel,
+    onDemand,
+    dpr,
+    labels,
+    sampled,
+    glyphs,
+    curves,
+    renderPath,
+    renderer,
+    limits,
+}) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
     const el = document.createElement("graphty-element");
@@ -455,6 +467,10 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, sampled, gly
         el.renderPath = renderPath;
     }
     if (renderer) el.renderer = renderer;
+    if (limits) {
+        if (!("limits" in el)) throw new Error("limits requested, but this build has no limits option");
+        el.limits = limits;
+    }
     el.layout = "fixed";
     // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode. The camera
     // moves below follow the same choice: a 2D pan does nothing to the 3D orbit camera.

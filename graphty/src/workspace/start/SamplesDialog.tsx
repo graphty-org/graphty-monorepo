@@ -14,7 +14,7 @@ import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { addGraph, addSource, datasetBase, type GraphLoad, type Incoming, openProject, openSeparate } from "./open";
 import { SampleCard } from "./SampleCard";
 import { type LibraryTile, offeredTiles, type SampleCardData } from "./sampleLibrary";
-import { PROTOTYPE_SAMPLES, type PrototypeSample, sampleName, sampleUrl } from "./samples";
+import { JOIN_WALKS, PROTOTYPE_SAMPLES, type PrototypeSample, sampleName, sampleUrl } from "./samples";
 
 /** Where a picked sample goes: into this project (the {@link addSource} rule), or a new project. */
 type Target = "add" | "separate";
@@ -139,28 +139,37 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
  * @returns the cards, in order.
  */
 function sampleEntries(ctx: CommandContext, timeline: boolean, asks: Asks): SampleEntry[] {
-    const files = PROTOTYPE_SAMPLES.map((sample): SampleEntry => {
+    const fileEntry = (sample: PrototypeSample, group: string, hook: string, field: string): SampleEntry => {
         const name = sampleName(sample);
         const incoming = { name, source: { config: { url: sampleUrl(sample) }, name } };
         return {
-            key: sample.path,
-            group: sample.group,
+            key: `${group}:${hook}:${sample.path}`,
+            group,
             card: {
                 name,
-                hook: name,
-                field: sample.group,
+                hook,
+                field,
                 size: fileSize(sample),
                 sentence: name,
                 picture: () => undefined,
                 note: undefined,
             },
-            words: `${name} ${sample.group}`.toLowerCase(),
+            words: `${name} ${group} ${hook}`.toLowerCase(),
             open: (target) => {
                 bringFile(ctx, incoming, target);
             },
         };
-    });
-    return [...files, ...offeredTiles(timeline).map((tile) => libraryEntry(ctx, tile, asks))];
+    };
+    const files = PROTOTYPE_SAMPLES.map((sample) => fileEntry(sample, sample.group, sampleName(sample), sample.group));
+    const joins = JOIN_WALKS.flatMap((walk) =>
+        walk.files.flatMap((path, at) => {
+            const sample = PROTOTYPE_SAMPLES.find((each) => each.path === path);
+            return sample === undefined
+                ? []
+                : [fileEntry(sample, "Join", `${walk.name} ${String(at + 1)} of ${String(walk.files.length)}`, "Join")];
+        }),
+    );
+    return [...files, ...joins, ...offeredTiles(timeline).map((tile) => libraryEntry(ctx, tile, asks))];
 }
 
 /**

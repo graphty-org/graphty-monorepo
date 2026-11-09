@@ -2161,6 +2161,8 @@ export interface TableMapping {
     readonly edgeId?: string | null;
     /** The column naming each row's kind, which loads as the node's or edge's `kind` attribute. */
     readonly kind?: string | null;
+    /** A node table's kind: a kind name every row takes, as its `kind` attribute. Wins over `kind`. */
+    readonly kindName?: string | null;
     /**
      * An edge table's source nodes' kind: a kind name every source node takes, or `{ column }`
      * whose values name each row's. The node loads with it as its `kind` attribute. Unlike every
@@ -2340,13 +2342,13 @@ export interface LoadedSource extends DataSourceDescriptor {
      * When this load last read its data, as RFC 3339. Absent in a project saved before it was kept.
      * @since 3.30.0
      */
-    readonly retrievedAt?: string;
+    readonly loadedAt?: string;
     /**
      * Where it was read from, without credentials: a URL load's address, or a network load's origin
      * and path. Absent for anything else.
      * @since 3.30.0
      */
-    readonly address?: string;
+    readonly url?: string;
     /**
      * Edge rows the load left out because they named a node no node row held (`unmatched:
      * "leave-out"`), and how many distinct such names, as `LoadReport.unmatched` counts them.
@@ -2449,7 +2451,10 @@ export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "repl
 export interface JoinKey {
     /** The incoming table's column. */
     readonly file: string;
-    /** The graph value: `"id"` (the node id, or the edge id) or `"data.<column>"`. */
+    /**
+     * The graph value: `"id"` (the node id, or the edge id), an edge's `"source"` or `"target"`, or
+     * `"data.<column>"`.
+     */
     readonly graph: Path;
 }
 
@@ -2509,6 +2514,13 @@ export interface JoinChoices {
      * @since 3.33.0
      */
     readonly unknownEnds?: "add" | "leave-out";
+    /**
+     * For `"node-values"` on one key with no `via`: a row matching no node is `"leave-out"`, left
+     * out of the join (the default), or `"add"`ed as a new node named by its key. Undone, edited
+     * and removed with the join.
+     * @since 3.33.0
+     */
+    readonly unmatchedRows?: "leave-out" | "add";
 }
 
 /**
@@ -3194,7 +3206,7 @@ export interface SessionEventMap {
     "source:expanded": SourceExpanded;
     /** An expansion failed: the source's code and params. Mirrored as `graphty-source-expand-failed`. Experimental. */
     "source:expand-failed": SourceExpandFailed;
-    /** A network load read its source again (More or Refresh), so its `retrievedAt` moved. Experimental. */
+    /** A network load read its source again (More or Refresh), so its `loadedAt` moved. Experimental. */
     "source:refreshed": { readonly load: string };
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)

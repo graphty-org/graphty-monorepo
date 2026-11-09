@@ -49,6 +49,8 @@ export interface JoinSubject {
     readonly draft?: LoadDraft;
     /** What the file was read from; present when Replace data and Open as a separate graph can run. */
     readonly source?: DataSourceInput;
+    /** The load this file matches, which Replace data opens on. */
+    readonly matches?: SourceKey;
     /** The joined table's load, when editing its join. */
     readonly edit?: SourceKey;
 }
@@ -97,12 +99,14 @@ function suggested(draft: LoadDraft): { choices: JoinChoices; how: JoinHow } {
  * @param joining.name - the file's name.
  * @param joining.draft - the draft.
  * @param joining.source - what it was read from.
+ * @param joining.matches - the load holding the same columns, if any.
  * @returns the subject.
  */
 export function draftSubject(joining: {
     readonly name: string;
     readonly draft: LoadDraft;
     readonly source?: DataSourceInput;
+    readonly matches?: SourceKey;
 }): JoinSubject {
     const { draft } = joining;
     const table = draft.tables[0];
@@ -115,10 +119,11 @@ export function draftSubject(joining: {
                 ? []
                 : (await draft.rows(table.id, { limit: Infinity })).records.map((row) => row.values),
         initial: choices,
-        how,
+        how: joining.matches === undefined ? how : "replace",
         report: (next) => draft.joinReport(next),
         draft,
         ...(joining.source === undefined ? {} : { source: joining.source }),
+        ...(joining.matches === undefined ? {} : { matches: joining.matches }),
     };
 }
 

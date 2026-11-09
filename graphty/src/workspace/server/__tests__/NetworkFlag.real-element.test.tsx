@@ -70,7 +70,7 @@ describe("network data behind its experiment", () => {
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
         await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
-        const card = await screen.findByRole("button", { name: /^NDNDEx/ });
+        const card = await screen.findByRole("button", { name: /^NDEx/ });
         assert.isNull(store.get().project, "the chooser opens on the start page, with no project");
         await userEvent.click(card);
         await screen.findByRole("form", { name: "Network data" });

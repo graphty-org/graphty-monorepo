@@ -1072,12 +1072,10 @@ as busy, so a failure leaves the reader on the start page with a notice and no p
 read opens a new project on the graph, with the Style panel open on the row that paints the whole
 graph.
 
-The form behaves the same way before a project exists. Open network data shows the same `ServerForm`
-component the app shows on its Data place, beside the button, with no project and no example or
-sample in it. Test and Preview run on a session with no canvas, and Load calls
-`session.data.readSource`. A refused read keeps the form and its error and opens nothing, closing
-the form during a read aborts it, and a successful read goes to `data.import` on the new project
-with no second fetch.
+Open network data on the start page pops up a chooser with one card per kind of network; a card
+opens the app on an empty project with the `ServerForm` popped up on that kind, with no example or
+sample in it. Closing the form with nothing loaded returns to the start page, and closing it during
+a Load aborts the Load.
 
 **The dependable set (2026-11-07).** Every one loaded live that day with the counts shown, from
 Node (`scripts/live-examples.ts`) and from the graphty app in Chromium through

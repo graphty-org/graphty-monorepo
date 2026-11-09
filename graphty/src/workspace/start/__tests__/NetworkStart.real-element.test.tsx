@@ -96,7 +96,7 @@ async function openForm(kind: RegExp = /^NDEx/): Promise<{
         "graphty-element:not([data-start-page])",
     )?.session;
     assert.isDefined(session);
-    return { store, session: session as GraphSession, form };
+    return { store, session: session, form };
 }
 
 /**
@@ -164,10 +164,10 @@ describe("network data from the start page", () => {
     });
 
     for (const [card, kind] of [
-        [/^NDNDEx/, "NDEx"],
-        [/^N4jNeo4j/, "Neo4j"],
-        [/^SPSPARQL/, "SPARQL endpoint"],
-        [/^APIWeb API/, "Web API"],
+        [/^NDEx/, "NDEx"],
+        [/^Neo4j/, "Neo4j"],
+        [/^SPARQL/, "SPARQL endpoint"],
+        [/^Web API/, "Web API"],
     ] as const) {
         it(`opens the app with the form on ${kind}, with no samples in it`, async () => {
             const { store, form } = await openForm(card);
@@ -207,7 +207,7 @@ describe("network data from the start page", () => {
         await reopen();
         const backdrop = document.querySelector<HTMLElement>(".mantine-Modal-overlay");
         assert.isNotNull(backdrop);
-        await userEvent.click(backdrop as HTMLElement, { position: { x: 5, y: 5 } });
+        await userEvent.click(backdrop, { position: { x: 5, y: 5 } });
         await closed();
     });
 

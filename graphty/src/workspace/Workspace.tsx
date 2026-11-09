@@ -19,8 +19,8 @@ import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import { useDropToOpen } from "./start/open";
 import { NetworkDataDialog } from "./start/NetworkDataDialog";
+import { useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import {

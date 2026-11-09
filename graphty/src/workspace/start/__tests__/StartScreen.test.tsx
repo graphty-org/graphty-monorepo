@@ -243,7 +243,7 @@ describe("the start screen", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
 
-        await screen.findByRole("button", { name: /^N4jNeo4j/ });
+        await screen.findByRole("button", { name: /^Neo4j/ });
         assert.isNull(store.get().project);
     });
 

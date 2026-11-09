@@ -9,16 +9,8 @@ import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { IssuesList } from "../table/IssuesList";
+import { KIND_ICONS } from "./sourceKindIcons";
 import { countWords, joinMatch, joinWords, serverCount, sourceName } from "./words";
-
-/** The glyph of each kind of load. */
-export const KIND_ICONS: Readonly<Record<LoadedSource["kind"], React.ReactNode>> = {
-    file: <GLYPHS.file size={14} aria-hidden />,
-    url: <GLYPHS.webAddress size={14} aria-hidden />,
-    server: <GLYPHS.server size={14} aria-hidden />,
-    sample: <GLYPHS.sampleSource size={14} aria-hidden />,
-    join: <GLYPHS.webAddress size={14} aria-hidden />,
-};
 
 const HOVER_ICONS: Readonly<Record<NonNullable<SourceRowCommand["icon"]>, React.ReactNode>> = {
     more: <GLYPHS.loadMore size={14} aria-hidden />,

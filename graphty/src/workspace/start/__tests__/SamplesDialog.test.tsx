@@ -57,7 +57,12 @@ describe("the Samples dialog", () => {
         const headings = within(dialog)
             .getAllByRole("region")
             .map((section) => section.getAttribute("aria-label"));
-        assert.includeMembers(headings, ["Proteins", "Supply chain", "Samples", "Generated"]);
+        assert.includeMembers(headings, ["Proteins", "Supply chain", "Door entries", "Join", "Samples", "Generated"]);
+        // Each file of a join walk says which walk it belongs to and where it comes in it.
+        const join = within(dialog).getByRole("region", { name: "Join" });
+        assert.include(tile(join, "people.csv").textContent, "Door entries 1 of 3");
+        assert.include(tile(join, "door-entries.csv").textContent, "Door entries 3 of 3");
+        assert.include(tile(join, "contracts-2024-09.csv").textContent, "Values onto edges 3 of 3");
         // A network server's examples are not samples: they belong to the network data form.
         assert.notInclude(headings, "Live");
         assert.throws(() => tile(dialog, "Neo4j demo: movies"));

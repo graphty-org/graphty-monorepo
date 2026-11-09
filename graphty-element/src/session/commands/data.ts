@@ -354,6 +354,8 @@ export interface HeldRows {
     readonly weight?: string | null;
     /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
     readonly repeated?: DuplicatePolicy;
+    /** `"held"`: `repeated` covers only pairs held before this load; its own repeats follow the configuration. */
+    readonly repeatedScope?: "held";
 }
 
 /** The load choices a `data.import` command carries. */

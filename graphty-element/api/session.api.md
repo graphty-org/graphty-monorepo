@@ -774,6 +774,7 @@ export interface DataIssue {
 // @public
 export interface DataSourceDescriptor {
     readonly config?: Readonly<Record<string, unknown>>;
+    readonly fileName?: string;
     readonly name?: string;
     readonly size?: number;
     readonly type?: string;
@@ -2750,6 +2751,7 @@ export interface JoinChoices {
     readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
     readonly unknownEnds?: "add" | "leave-out";
+    readonly unmatchedRows?: "leave-out" | "add";
     readonly via?: SourceKey;
 }
 
@@ -3167,6 +3169,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         };
         readonly edges?: readonly LeftOutEdge[];
     };
+    readonly loadedAt?: string;
     readonly loadKey?: string;
     readonly mapping?: LoadMappingRead;
     readonly reloadable?: true;
@@ -3174,6 +3177,7 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tables: readonly string[];
     readonly total?: number;
     readonly totalEdges?: number;
+    readonly url?: string;
 }
 
 // @public
@@ -5486,7 +5490,6 @@ export interface SessionDataApi {
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
     readableValues(): readonly ReadableValue[];
     readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
-    readSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceRead>;
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
@@ -5586,6 +5589,9 @@ export interface SessionEventMap {
     "source:expand-failed": SourceExpandFailed;
     "source:expand-start": SourceExpandStart;
     "source:expanded": SourceExpanded;
+    "source:refreshed": {
+        readonly load: string;
+    };
     "style:batch-changed": StyleBatchChange;
     // @beta
     "style:branches-shown-changed": {
@@ -6635,6 +6641,7 @@ export interface TableMapping {
     readonly edgeId?: string | null;
     readonly key?: string | null;
     readonly kind?: string | null;
+    readonly kindName?: string | null;
     readonly label?: string | null;
     readonly rowsAre?: "nodes" | "edges";
     readonly source?: string | Endpoint;

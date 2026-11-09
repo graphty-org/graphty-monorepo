@@ -146,6 +146,8 @@ export interface WorkspaceState {
         readonly draft: LoadDraft;
         /** What the draft was read from, for Replace data and Open as a separate graph. */
         readonly source?: DataSourceInput;
+        /** The load holding the same columns as this file: the screen opens on Replace of it. */
+        readonly matches?: SourceKey;
     } | null;
     /** A joined table whose join the join screen is editing (its row's Edit join), or null. */
     readonly editingJoin: SourceKey | null;

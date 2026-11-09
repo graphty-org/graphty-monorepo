@@ -134,7 +134,7 @@ export const ReturningReader: Story = {
     },
 };
 
-/** Open network data: the network form beside its button, with nothing opened yet. */
+/** Open network data: the chooser of the kinds of network, over the start page. */
 export const NetworkData: Story = {
     // Network data is an experiment: the story switches it on, as a site's site.json does, and puts
     // the page's own configuration back afterwards.

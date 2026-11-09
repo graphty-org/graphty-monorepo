@@ -46,7 +46,7 @@ interface Covered {
 
 const INVENTORY: Record<string, Covered> = {
     "src/Graph.ts": {
-        count: 12,
+        count: 11,
         kind: "load",
         reason:
             "format detection and a URL's download run inside a load that holds a place in the load line; " +

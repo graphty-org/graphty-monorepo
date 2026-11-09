@@ -31,7 +31,7 @@ import { fileStylesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { notReadWords } from "../project/words";
-import { routeToReplace } from "../replace/commands";
+import { replaceWith } from "../replace/commands";
 import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
 import { newProjectId, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
 import { labelRow } from "../style/row";
@@ -311,12 +311,24 @@ async function takeIn(
     incoming: Incoming,
     read?: LoadDraft,
 ): Promise<void> {
-    if (await routeToReplace(workspace, session, incoming)) {
+    // The same columns: the same file again replaces at once; another file (next month's) opens
+    // the join screen on Replace, with Add as rows beside it.
+    const matches = await session.data.matchesSource(incoming.source);
+    const held = session.data.sources().find((each) => each.key === matches);
+    if (held !== undefined && (held.fileName ?? held.name) === incoming.name) {
+        await replaceWith(workspace, session, held.key, incoming);
         read?.dispose();
         return;
     }
     const draft = read ?? (await session.data.prepare(incoming.source, { onto: "graph", guess: "values" }));
-    workspace.set({ joining: { name: incoming.name, draft, source: incoming.source } });
+    workspace.set({
+        joining: {
+            name: incoming.name,
+            draft,
+            source: incoming.source,
+            ...(held === undefined ? {} : { matches: held.key }),
+        },
+    });
 }
 
 /**

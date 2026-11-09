@@ -193,6 +193,7 @@ export function MatchChips({
     const edges = shape === "edges";
     const kind = shape === "edge-values" ? "edge" : "node";
     const toggles = shownChips(report, choices);
+    const canAdd = shape === "node-values" && choices.keys.length === 1 && choices.via === undefined;
     return (
         <ul className="jn-chips" aria-label="Matches" id={id}>
             {edges ? (
@@ -214,6 +215,26 @@ export function MatchChips({
                         {`${formatNumber(report.notInGraph)} not in graph`}
                     </CountChip>
                 </li>
+            ) : null}
+            {canAdd && report.notInGraph > 0 ? (
+                <MenuChip label={choices.unmatchedRows === "add" ? "Add as new nodes" : "Leave those rows out"}>
+                    <ChoiceItem
+                        checked={choices.unmatchedRows === "add"}
+                        onClick={() => {
+                            onChange({ ...choices, unmatchedRows: "add" });
+                        }}
+                    >
+                        Add as new nodes
+                    </ChoiceItem>
+                    <ChoiceItem
+                        checked={choices.unmatchedRows !== "add"}
+                        onClick={() => {
+                            onChange({ ...choices, unmatchedRows: "leave-out" });
+                        }}
+                    >
+                        Leave those rows out
+                    </ChoiceItem>
+                </MenuChip>
             ) : null}
             {report.withoutValue > 0 && !edges ? (
                 <li>

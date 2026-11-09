@@ -9,7 +9,7 @@ import { useAttributeActions } from "../data-place/attributeActions";
 import { TIME_ROW } from "../data-place/filterCards";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { useSourceActions } from "../data-place/sourceActions";
-import { KIND_ICONS } from "../data-place/SourceRow";
+import { KIND_ICONS } from "../data-place/sourceKindIcons";
 import { SourceValues } from "../data-place/SourceValues";
 import { TimeCard } from "../data-place/TimeCard";
 import { TypeGlyphIcon } from "../data-place/TypeGlyphIcon";

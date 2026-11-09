@@ -548,12 +548,12 @@ export function sourceFacts(
     const facts: readonly (SourceFact | false)[] = [
         { name: "Type", value: sourceKindWord(source) },
         local && source.fileName !== undefined && { name: "File", value: source.fileName },
-        !local && source.address !== undefined && { name: "Address", value: source.address },
+        !local && source.url !== undefined && { name: "Address", value: source.url },
         !server && source.type !== undefined && { name: "Format", value: source.type.toUpperCase() },
         local && source.size !== undefined && { name: "Size", value: sizeWords(source.size) },
-        source.retrievedAt !== undefined && {
+        source.loadedAt !== undefined && {
             name: "Retrieved",
-            value: new Date(source.retrievedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }),
+            value: new Date(source.loadedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }),
         },
         extras.waiting && { name: "Status", value: "Not fetched yet" },
     ];
@@ -630,7 +630,17 @@ export type FieldSide = "nodes" | "edges";
 
 /** What a Fields row sets. */
 export type FieldKey =
-    "key" | "label" | "kind" | "time" | "source" | "target" | "weight" | "edgeId" | "sourceKind" | "targetKind";
+    | "key"
+    | "label"
+    | "kind"
+    | "kindName"
+    | "time"
+    | "source"
+    | "target"
+    | "weight"
+    | "edgeId"
+    | "sourceKind"
+    | "targetKind";
 
 /** One fixed structure row: it always holds a value, so it is never a "+" entry. */
 export interface FieldRow {
@@ -648,7 +658,8 @@ export const FIELD_ROWS: readonly FieldRow[] = [
 ];
 
 /** What a Fields "+" entry is. */
-export type EntryId = "label" | "kind" | "weight" | "time" | LocationKind | "edgeId" | "sourceKind" | "targetKind";
+export type EntryId =
+    "label" | "kind" | "kindName" | "weight" | "time" | LocationKind | "edgeId" | "sourceKind" | "targetKind";
 
 /** One kind of Fields "+" entry. */
 export interface FieldEntry {
@@ -676,6 +687,7 @@ export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> =
     nodes: [
         { id: "label", name: "Label", role: "label" },
         { id: "kind", name: "Kind", load: "kind" },
+        { id: "kindName", name: "Kind of node", load: "kindName" },
         { id: "weight", name: "Weight", role: "weight" },
         { id: "time", name: "Time", role: "time" },
         ...LOCATION_ENTRIES,
@@ -827,6 +839,18 @@ export function kindChoices(roles: TableMappingRead | undefined, current: string
         (name): name is string => name !== null,
     );
     return [...new Set(names)];
+}
+
+/**
+ * The kind names a node file's Kind of node row offers: the file's name without its extension,
+ * which is what a reader calls the rows in it, and the current kind.
+ * @param source - the load.
+ * @param current - the kind now, or null.
+ * @returns the names.
+ */
+export function fileKindChoices(source: LoadedSource | undefined, current: string | null): string[] {
+    const file = source === undefined ? null : sourceName(source).replace(/\.[^.]*$/, "");
+    return [...new Set([file, current].filter((name) => name !== null && name !== ""))] as string[];
 }
 
 /**

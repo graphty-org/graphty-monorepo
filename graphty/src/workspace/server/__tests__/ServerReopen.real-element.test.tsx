@@ -92,7 +92,7 @@ describe("a network load reopened from autosave", () => {
     it("draws every node it loaded and asks for no approval", async () => {
         const first = mountWorkspace();
         await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
-        const card = await screen.findByRole("button", { name: /^NDNDEx/ });
+        const card = await screen.findByRole("button", { name: /^NDEx/ });
         await userEvent.click(card);
         const form = await screen.findByRole("form", { name: "Network data" });
         await userEvent.type(within(form).getByRole("textbox", { name: "Network UUID" }), WP5483);

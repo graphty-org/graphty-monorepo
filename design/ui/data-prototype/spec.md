@@ -261,6 +261,9 @@ source, or by the header menu `Match on this`.
 - The element suggests the key pair and the shape (values for nodes, edges between nodes, or new
   nodes). The reader changes the key with the Match dropdowns or with `Match on this` on either
   side's header, which moves the key icon.
+- When rows match no node and the join is on one key with no mapping table, a menu chip beside
+  the counts offers Add as new nodes or Leave those rows out (the default), as an edge join's unknown
+  ends do. The new nodes are undone, edited and removed with the join.
 - Match chips update live from the element's join report: matched, not in graph, nodes with no
   value, repeated keys (warning, hover fixes: Keep first, Keep both, Ignore), extra matches if
   case or spaces are ignored with `[Use]`.
@@ -309,8 +312,9 @@ the prior design (`structure-b-refined.md` section 12.1):
 ### 3.9 Server sources
 
 `+` > Server... opens a pop-over form in the left sidebar (not a modal), Figma-style rows. The start
-page's Open network data opens the same form beside its button, and only Load opens a project. The
-form never lists an example or a sample:
+page's Open network data pops up a chooser of the kinds of network; picking one opens the app on an
+empty project with this form popped up on that kind. Closing it with nothing loaded returns to the
+start page. The form never lists an example or a sample:
 
 ```
 Kind      [Neo4j / Cypher v]     (Cypher, SPARQL, NDEx, OpenAlex, REST mapping)
@@ -341,13 +345,12 @@ Expand    [x] on double-click   (pop-over: depth 1, direction both, edge types a
   (row menu) sets the changed dot without loading, for sources whose check is cheap.
 - What a source cannot do is absent: no Load more for NDEx and STRING; no Expand for a REST
   mapping without `expand`.
-- **From the start page:** Test and Load work before any project exists. A successful Load opens a
-  new project on the graph with the Style panel open. A refused Load keeps the form and its error
-  and opens nothing, and closing the form during a Load stops it.
+- **From the start page:** the form runs inside the empty project the chooser opened. A refused
+  Load keeps the form and its error, and closing the form during a Load stops it.
 - **Network samples** are not in the form. The start page's "Load network data" section, immediately
   before "Generate a graph", has one tile for each kind of network (NDEx, Neo4j, SPARQL endpoint,
   Web API), with a thumbnail of its graph. A tile reads its graph first, shows as busy while it
-  does, and then lands where a form Load lands. With the `network-data` experiment off, neither the
+  does, and then lands on the graph with the Style panel open. With the `network-data` experiment off, neither the
   button nor the section appears.
 
 ### 3.10 Timeline

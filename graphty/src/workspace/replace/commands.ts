@@ -102,27 +102,6 @@ export async function replaceWith(
 }
 
 /**
- * Where a source the reader brought goes when graphty-element says it is a copy of a loaded one
- * (`data.matchesSource`): it replaces that source.
- * @param workspace - the workspace store.
- * @param session - the project's session.
- * @param incoming - the source.
- * @returns true when it replaced a source, false when it matches none.
- */
-export async function routeToReplace(
-    workspace: WorkspaceStore,
-    session: GraphSession,
-    incoming: Incoming,
-): Promise<boolean> {
-    const key = await session.data.matchesSource(incoming.source);
-    if (key === null) {
-        return false;
-    }
-    await replaceWith(workspace, session, key, incoming);
-    return true;
-}
-
-/**
  * Replace with file...: the browser's file picker, then the chosen file replaces the row's source.
  * @param ctx - the command context.
  * @param key - the row's source.

@@ -337,8 +337,20 @@ describe("a Sources row's count and join words", () => {
 
     it("says how many rows joined only when some did not", () => {
         assert.equal(
-            joinWords(load({ nodes: 0, edges: 0 }, { join: { matched: 17, rows: 19 } } as Partial<LoadedSource>)),
+            joinWords(
+                load({ nodes: 0, edges: 0 }, {
+                    join: { matched: 17, rows: 19, shape: "edges" },
+                } as Partial<LoadedSource>),
+            ),
             "17 of 19 rows joined",
+        );
+        assert.equal(
+            joinWords(
+                load({ nodes: 0, edges: 0 }, {
+                    join: { matched: 17, rows: 19, shape: "node-values" },
+                } as Partial<LoadedSource>),
+            ),
+            "17 nodes matched by 19 rows",
         );
         assert.isNull(
             joinWords(load({ nodes: 0, edges: 0 }, { join: { matched: 19, rows: 19 } } as Partial<LoadedSource>)),

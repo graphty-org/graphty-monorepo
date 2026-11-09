@@ -174,6 +174,7 @@ describe("the timeline dock on a phone", () => {
         await openDock();
 
         await tap(screen.getByRole("button", { name: "Quick actions" }));
+        await userEvent.keyboard("filter");
         await tap(await screen.findByRole("option", { name: /^Filters/ }));
 
         await waitFor(() => {

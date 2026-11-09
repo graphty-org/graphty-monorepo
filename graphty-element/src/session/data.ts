@@ -3250,7 +3250,7 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        return this.replaceSourceNow(key, input, overChoices(entry.choices ?? {}, choices));
+        return this.replaceSourceNow(key, input, overChoices(withReadRoles(entry), choices));
     }
 
     /**
@@ -5235,6 +5235,32 @@ function movesRows(
     later: { readonly rowsAre?: unknown },
 ): boolean {
     return later.rowsAre !== undefined && earlier?.rowsAre !== undefined && later.rowsAre !== earlier.rowsAre;
+}
+
+/**
+ * The choices a load is read again with: its own, or, for a load given no mapping (a file added as
+ * rows), what its one table's rows were read as, so a role laid over them does not read them anew.
+ * @param entry - The load.
+ * @returns The choices.
+ */
+function withReadRoles(entry: LoadedSource): LoadChoices {
+    const choices = entry.choices ?? {};
+    const tables = Object.values(entry.mapping?.tables ?? {});
+    const [read] = tables;
+    if (choices.mapping !== undefined || read === undefined || tables.length !== 1) {
+        return choices;
+    }
+
+    const { rowsAre, key, source, target } = read;
+    return {
+        ...choices,
+        mapping: {
+            rowsAre,
+            ...(key === undefined || key === null ? {} : { key }),
+            ...(source === undefined ? {} : { source }),
+            ...(target === undefined ? {} : { target }),
+        },
+    };
 }
 
 /**

@@ -173,7 +173,9 @@ describe("network data from the start page", () => {
             const { store, form } = await openForm(card);
             assert.strictEqual(store.get().project?.name, "Untitled");
             assert.strictEqual(store.get().place, "data");
-            assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }));
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }));
+            });
             assert.strictEqual(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).value, kind);
             assert.isNull(within(form).queryByRole("combobox", { name: "Example" }));
             assert.isNull(within(form).queryByText("Example"));

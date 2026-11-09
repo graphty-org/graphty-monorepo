@@ -657,6 +657,27 @@ describe("joining by an edge's two ends, new rows and a file's own kind", () => 
         assert.strictEqual(session.data.node("p2")?.kind, "people");
     });
 
+    it("reads a file added as rows the same way when a kind is laid over it", async () => {
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "csv", config: { file: new File(["id,name\np1,Ana"], "people.csv") }, name: "people.csv" },
+            { mapping: { rowsAre: "nodes", key: "id" } },
+        );
+        const draft = await session.data.prepare(
+            {
+                config: { file: new File(["building_id,address\nb1,Harbor\nb2,Canal"], "buildings.csv") },
+                name: "buildings.csv",
+            },
+            { onto: "graph", guess: "values" },
+        );
+        await draft.load({ mode: "merge" });
+        const { key } = session.data.sources()[1];
+        await session.data.reloadSource(key, { mapping: { kindName: "buildings" } });
+        assert.strictEqual(session.data.node("b1")?.kind, "buildings");
+        assert.strictEqual(session.data.node("b2")?.kind, "buildings");
+        assert.isUndefined(session.data.node("p1")?.kind);
+    });
+
     it("keeps every row when different kinds of node split an id across a reload", async () => {
         const session = createGraphSession();
         const rows = [

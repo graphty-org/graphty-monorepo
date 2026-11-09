@@ -9,6 +9,7 @@ import { assert, describe, it } from "vitest";
 
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
 import {
+    bendPoints,
     bezierThroughControls,
     centerArc,
     crossingOf,
@@ -485,5 +486,57 @@ describe("a pulled curve's path", () => {
 
         assert.isAtLeast(drawn, 150, "most cases draw a line");
         assert.isAbove(uncut, 0, "some clear neither node and are drawn as the lone curve, uncut");
+    });
+
+    it("puts every point of a straight line through bends where the object path has it, gaps and all", () => {
+        const random = seeded(6391);
+        let drawn = 0;
+        let uncut = 0;
+        let skipped = 0;
+        for (const [i, { src, dst, rSrc, rDst }] of cases().entries()) {
+            // `line.bends` pairs, one to six, some inside a node (passed over, as `Edge.placeBent` does) and some
+            // cases with every bend inside, drawn as the lone curve between the bare ends (`Edge.transformEdgeMesh`)
+            const count = 1 + (i % 6);
+            const bends: number[] = [];
+            for (let k = 0; k < count; k++) {
+                bends.push(i % 13 === 0 ? 0.5 : (random() - 0.25) * 1.5, i % 13 === 0 ? 0 : (random() - 0.5) * 2);
+            }
+            const length = Vector3.Distance(src, dst);
+            const gSrc = i % 3 === 0 ? random() * length * 0.6 : 0;
+            const gDst = i % 3 === 0 ? random() * length * 0.6 : 0;
+            const route = [src.x, src.y, src.z, ...bendPoints(src, dst, bends), dst.x, dst.y, dst.z];
+            const want = objectPath(src, dst, rSrc, rDst, route, gSrc, gDst);
+            const span = curveSpan(
+                src,
+                dst,
+                outsideOf(src, rSrc + gSrc),
+                outsideOf(dst, rDst + gDst),
+                { bends },
+                () => [bareEnd(src, dst, rSrc, gSrc), bareEnd(dst, src, rDst, gDst)],
+            );
+            assert.strictEqual(
+                span === null,
+                want === null,
+                `case ${String(i)}: a span exactly when the object path has one`,
+            );
+            if (span === null || want === null) {
+                continue;
+            }
+
+            drawn++;
+            uncut += span.bends === null ? 1 : 0;
+            const inside = route.length / 3 - 1 - (want.length - 2);
+            skipped += span.bends !== null && inside > 1 ? 1 : 0;
+            assert.strictEqual(span.pieces, want.length - 1, `case ${String(i)}`);
+            want.forEach((p, j) => {
+                const q = curvePathPoint(src, dst, span, j);
+                const off = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+                assert.isAtMost(off, 1e-9 * (1 + Math.hypot(p.x, p.y, p.z)), `case ${String(i)} point ${String(j)}`);
+            });
+        }
+
+        assert.isAtLeast(drawn, 150, "most cases draw a line");
+        assert.isAbove(uncut, 0, "some clear neither node and are drawn as the lone curve, uncut");
+        assert.isAbove(skipped, 0, "some pass over a bend inside a node");
     });
 });

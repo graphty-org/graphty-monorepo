@@ -147,6 +147,7 @@ const PULLED_LINE_KEYS = new Set([
     "supportCentralGravity",
     "supportUnit",
     "supportScale",
+    "bends",
 ]);
 
 /**
@@ -695,6 +696,8 @@ export class Edge {
         look: { color: Color3; opacity: number; width: number };
         /** A curve's last span and the centres it was cut between, null while it draws nothing ({@link Edge.drawnCurve}). */
         path?: { src: Vector3; dst: Vector3; span: CurveSpan } | null;
+        /** A line through bends' block in the batch's route table and the cut path it holds ({@link Edge.pullSpan}). */
+        route?: { at: number; points: readonly number[] } | null;
     } | null = null;
 
     /**
@@ -2554,6 +2557,8 @@ export class Edge {
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (line.type ?? "solid") === "solid" &&
             !line.animationSpeed &&
+            // a line through bends is pulled straight, not rounded or round a self-loop's ring
+            (parseBends(line.bends) === null || (line.bezier !== true && !this.isLoop)) &&
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
             noCap(style.arrowTail) &&
@@ -2662,8 +2667,27 @@ export class Edge {
             return;
         }
 
-        // a raised or great-circle arc, the style's or the layout's, wins over a fan and a circle, as `bundleRoute` draws it
+        // a straight line through bends wins over every route, as `placeLine` lays it; where no bend clears both nodes it
+        // is drawn as it would be without them (`bundleRoute`) when raised off the map, else as the lone curve between its
+        // bare ends, as `transformEdgeMesh` draws a line with a route (`lineIsCurve`)
         const { route } = this;
+        const bends = this.lineRoute?.bends ?? null;
+        if (bends !== null) {
+            const bent = curveSpan(
+                src,
+                dst,
+                Edge.outside(this.srcNode, src, this.gapAt("source")),
+                Edge.outside(this.dstNode, dst, this.gapAt("target")),
+                { bends },
+                () => [this.bareEnd("source", src, dst), this.bareEnd("target", dst, src)],
+            );
+            if (route === "straight" || (bent?.bends ?? null) !== null) {
+                this.pullSpan(bent, src, dst);
+                return;
+            }
+        }
+
+        // a raised or great-circle arc, the style's or the layout's, wins over a fan and a circle, as `bundleRoute` draws it
         const raised = route !== "straight";
         const height = raised ? (this.drawnStyle?.line?.arcHeight ?? DEFAULT_ARC_HEIGHT[route]) : null;
         // a support point wins over a fan and a circle, as `bundleRoute` draws it
@@ -2719,9 +2743,29 @@ export class Edge {
             run.push(piece);
         }
 
-        batch.setCurve(pulled.piece, 0, span);
+        const bends = span?.bends ?? null;
+        const kept = pulled.route ?? null;
+        // a line through bends' cut path itself, its ends and the bends between, placed in doubles as `placeBent`
+        // places them, so the card draws the very points the object path does: the ends placed on the card in floats
+        // miss them by a pixel of a wide line's end here and there (ThreeDBends)
+        const points =
+            span === null || bends === null
+                ? null
+                : Array.from({ length: span.pieces + 1 }, (_, j) => curvePathPoint(src, dst, span, j)).flatMap((p) => [
+                      p.x,
+                      p.y,
+                      p.z,
+                  ]);
+        if (points === null) {
+            batch.releaseRoute(kept?.at ?? -1);
+            pulled.route = null;
+        } else if (kept?.points.length !== points.length || kept.points.some((v, i) => v !== points[i])) {
+            pulled.route = { at: batch.writeRoute(kept?.at ?? -1, points), points };
+        }
+        const at = pulled.route?.at ?? 0;
+        batch.setCurve(pulled.piece, 0, span, at);
         run.forEach((piece, i) => {
-            batch.setCurve(piece, i + 1, span);
+            batch.setCurve(piece, i + 1, span, at);
         });
     }
 
@@ -2830,6 +2874,8 @@ export class Edge {
             for (const piece of this.pulled.run ?? []) {
                 this.pulled.batch.release(piece);
             }
+
+            this.pulled.batch.releaseRoute(this.pulled.route?.at ?? -1);
 
             this.pulled = null;
             return;
@@ -3085,9 +3131,10 @@ export class Edge {
             return false;
         }
 
-        // a patterned line holds no slots: its elements are laid along the new route when it is placed
+        // a patterned line holds no slots: its elements are laid along the new route when it is placed, as a pulled
+        // line's span is
         if (batch === null) {
-            if (this.mesh instanceof PatternedLineMesh) {
+            if (this.mesh instanceof PatternedLineMesh || this.pulled !== null) {
                 this.readRoute(style);
                 return true;
             }

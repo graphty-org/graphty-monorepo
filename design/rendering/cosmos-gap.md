@@ -38,10 +38,9 @@ replaces its projection with a measurement.
 
 ### 2.1 The interim measurement
 
-Committed at `benchmarks/results/interim-gap/` (`results.jsonl`, 78 rows, and `summary.md`), measuring origin/master
-02d59ed614 on 2026-11-08: RTX 4070 SUPER through ANGLE/Vulkan, headless Chromium, the 2D lean look (box nodes, plain
-lines), the static layout, every run holding the GPU lock, load average 2-24. Five interleaved rounds rotate cosmos.gl, the
-batched path and the objects path; three rounds at a million nodes. Medians of the runs, with the range in brackets:
+Committed at `benchmarks/results/interim-gap/`, measuring origin/master 02d59ed614 on 2026-11-08: RTX 4070 SUPER through
+ANGLE/Vulkan, headless Chromium, the 2D lean look (box nodes, plain lines), the static layout, the GPU lock held, load
+average 2-24. Five interleaved rounds of cosmos.gl, batched and objects; three at a million nodes. Medians, range in brackets:
 
 | Graph      | Metric               | cosmos.gl       | batched                | objects      |
 | ---------- | -------------------- | --------------- | ---------------------- | ------------ |
@@ -61,9 +60,8 @@ batched path and the objects path; three rounds at a million nodes. Medians of t
 | 1M + 1M    | First frame / frames | 1.09 s / 29 ms  | refused, `E_TOO_LARGE` | refused      |
 | 1M + 10k   | First frame / frames | 0.67 s / 1.5 ms | refused, `E_TOO_LARGE` | refused      |
 
-What was and was not on in those batched runs: every node was on a batch; no edge was pulled (drawn from the row table),
-because `Edge.pullsLine` (`Edge.ts:2538`) refuses any line in the 2D view through `EdgeMesh.drawsFlat`; so every edge was an
-object edge in a placed line batch. The benchmark hands graphty-element arrays of record objects and hands cosmos.gl typed
+In those batched runs every node was on a batch and no edge was pulled (drawn from the row table): `Edge.pullsLine`
+(`Edge.ts:2538`) refuses any 2D line, so every edge was an object edge in a placed line batch. The benchmark hands graphty-element arrays of record objects and hands cosmos.gl typed
 arrays (`benchmarks/compare/main.js`), so the load comparison is not yet like for like.
 
 ### 2.2 Where the load goes
@@ -130,12 +128,10 @@ each:
 | 10k + 100 | 17.6 ms (p95 19.0)         | 1.5 ms (p95 1.5) | 0.9 ms    |
 | 100k + 1k | 23.2 ms (p95 24.1)         | 1.1 ms (p95 6.1) | 1.3 ms    |
 
-The 1.1 ms median is below that graph's 2.4 ms of GPU time, so the harness's serial stage may be stamping frames before they
-finish; p95 is the safer figure until G1 checks it. This floor is not one of the three gaps, but it inflates every
-small-graph ratio (6-32x) and hides the drawing cost the later stages need to measure, so it is fixed first.
+The 1.1 ms median is below that graph's 2.4 ms of GPU time, so the harness may stamp frames early; p95 is the safer
+figure. This floor inflates every small-graph ratio (6-32x) and hides the drawing cost later stages measure, so it goes first.
 
-The probe scripts and profiles are in the working tree's `tmp/cosmos-gap/`; G1 commits the GPU timer probe and the floor
-probe into `benchmarks/compare/` so later Proofs can rerun them.
+G1 commits the GPU timer probe and the floor probe into `benchmarks/compare/` so later Proofs can rerun them.
 
 ## 3. The mechanism
 
@@ -162,9 +158,8 @@ measured long before stage 30's other dependencies land:
 - The same stage gives the ingest's host a `batched` flag. Nothing in `session/` reads the render path today, and G4 and G8
   need it.
 
-The graphty app does not change here. Its `fitsInBrowser` and `isLarge` (`graphty/src/workspace/start/library.ts:33`)
-compare against `DEFAULT_LIMITS` directly, so the app keeps refusing million-node samples until stage 30 passes them
-limits. Stage 30 then adds only the object budgets (`objectRows`, `objectEdges`, `W_OBJECT_CAP`) to G2's option.
+The graphty app does not change here; its `fitsInBrowser` and `isLarge` keep refusing million-node samples until stage 30
+passes them limits. Stage 30 then adds only the object budgets (`objectRows`, `objectEdges`, `W_OBJECT_CAP`).
 
 ### 3.3 Load: remove each per-row bucket with the cheapest change that removes it
 
@@ -178,17 +173,16 @@ limits. Stage 30 then adds only the object budgets (`objectRows`, `objectEdges`,
    `DataManager.reconcile`. G4 builds on both and adds no second entry format: under `"batched"`, a forward `addNodes` or
    `addEdges` batch of records is recorded as one stage-28 range entry, and touches one range key
    (`e+:<firstIndex>:<count>`) instead of one operation and one `e:<id>` string per edge. Every reader of the per-row keys
-   learns the range form: stage 27's `reconcile` (which then skips a forward range it already drew and walks it only on undo,
-   redo or restore), `session/GraphSession.ts` (`:3570`, `:3658`, `:3999`, `:4248`,
-   `:4272`, including `editedRows` and `changesRowsOnly`), `session/project/derive.ts` (`:100`, `:108`),
-   `session/project/arrangement.ts:631`, and the `graph/` keys built in `session/commands/data.ts:816`. Removes `touch` and
+   learns the range form: stage 27's `reconcile` (which then walks a forward range only on undo, redo or restore),
+   `session/GraphSession.ts` (`editedRows`, `changesRowsOnly` and three more), `session/project/derive.ts`,
+   `session/project/arrangement.ts:631` and `session/commands/data.ts:816`. Removes `touch` and
    `reconcile` (7.5 s profiled) and a million operation objects. Under `"objects"` every edge is recorded and touched as today.
 3. **Paint once per mesh key, and a uniform mesh-key fill (G6, on stage 26).** Stage 26 builds no `Node` for a row that needs
    none and paints it as a `ColumnRow` through `NodeBatches.paintRow`. G6 makes that paint cost per mesh key, not per row:
    it caches one `NodePaint` per key from `meshStyleOf(key)` instead of building a channel bag, a key array and a style
    object per row (`StylePainter.nodePaint`, `managers/StylePainter.ts:1191`), and writes the row's color straight from the
-   color column into the batch buffer. And when every mesh channel of a target is absent or constant over the rows being
-   painted, the repaint interns one sequence and fills `meshKeys` with it instead of hashing per row; a data-driven size or
+   color column into the batch buffer. And under `"batched"` (G2's flag; `repaint.ts` also runs for `"objects"`), when every
+   mesh channel of a target is absent or constant over the rows being painted, the repaint interns one sequence and fills `meshKeys` with it instead of hashing per row; a data-driven size or
    shape keeps the per-row path. Removes most of `drawArrivedPaint`, the per-node Babylon instance work and the interning.
 4. **Lazy edges, 2D included (G7, on stage 27).** Stage 27 as planned, for pulled edges in both views now that G3 pulls 2D
    ones, painted from columns as nodes are.
@@ -215,10 +209,9 @@ No CPU change moves a fill-bound frame. Two picture changes do, so both are opt-
 
 - **`antialias` (G5)**, default `true`. Only G5 adds it; stage 15 uses it. Today `antialias: true` is hard-wired where the engine is created
   (`managers/RenderManager.ts:237` for WebGPU, `:275` for WebGL). `false` creates the canvas without 4x multisampling, on
-  either render path, and means only that. It is read once, when the element creates its engine: graphty-element has no
-  engine rebuild (a live `renderPath` change keeps the engine and every row), and building one for this would put context
-  loss, XR and WebGPU at risk. A later change is reported as a warning code on the existing `{ code, params }` event and takes
-  effect on the next element. Projected 100k + 1M still frame: about 60-65 ms.
+  either render path, and means only that. It is read from the element when the engine is built (section 6 says when that
+  is); graphty-element has no engine rebuild, and one would put context loss, XR and WebGPU at risk. Projected 100k + 1M
+  still frame: about 60-65 ms.
 - **The 6-vertex straight program (G12)**, stage 15's remaining pull request. It stays behind stage 15's internal switch
   until the stray pixel is traced or the owner accepts it. After that ruling it is used for plain straight pulled lines when
   `antialias` is `false` on `"batched"`, and the `antialias` documentation says so in one sentence. Projected 25-40 ms.
@@ -232,9 +225,8 @@ recovers part of the 18 ms between the harness's 89.6 ms and the GPU's 71.5 ms.
   0.4-0.8%, and `scene.render()` is 0.5 ms of CPU at 10k nodes. Leaving Babylon would save under a millisecond and cost XR,
   WebGPU, render order, picking and context restore.
 - **Records as a view over columns, edge ids as a range, and no anchor for a batched row that keeps a `Node`.** Each cuts
-  heap, each touches code with wide reach (the edge-id map is copied through keep, restore, aside and `remapEdgeIds`,
-  `data/GraphStore.ts:1690-1799, 2096`; 29 internal readers iterate `slice.nodes` or `slice.edges`; `Node.#anchor` sits in the
-  file stage 26 is editing). They are G11, built only if G9 measures the million-row heap over its target.
+  heap and touches code with wide reach (`data/GraphStore.ts:1690-1799`, 29 readers of `slice.nodes`). They are G11, built
+  only if G9 measures the million-row heap over its target.
 
 No feature is removed. A row or edge that needs a `Node`, an `Edge`, a mesh, a cap, a label, a group or any style a batch
 cannot draw stays an object row or edge, as today.
@@ -255,7 +247,7 @@ build on one are follow-on pull requests after its last pull request merges, nev
 
 **G2. Ceilings as an option.** `limits: { renderCeiling?, edgesDrawn? }` on the element and session; `Ingest` reads the effective value; `session.capabilities.limits`; the ingest host's `batched` flag.
 
-- Depends on: none.
+- Depends on: this document merged into master, so stage 30's builder reads the narrowed scope.
 - Proving test: Default refusal unchanged (code and text at 100,001 nodes); `"objects"` with a raised limit still refuses; `"batched"` with a raised limit loads 200,000 nodes on SwiftShader with `objectNodes` 0; `capabilities.limits` and `capabilities:changed` follow a `renderPath` change; blind-author example compiled against the built types.
 - Measured target: 1M + 10k and 1M + 1M load on the RTX (records, so slow: about 50 s); the time is recorded, not targeted.
 
@@ -271,16 +263,16 @@ build on one are follow-on pull requests after its last pull request merges, nev
 - Proving test: Graph digest (`session/project/digest.ts`) and undo, redo, restore and autosave equal the per-edge form, including a load followed by per-edge edits and a restore across it; the lane's dirty set after a 1M-edge load holds a count of keys independent of the edge count (test door); `"objects"` records per edge, unchanged.
 - Measured target: 100k + 1M records: `touch` plus `reconcile` under 0.1 s profiled; first frame recorded against stage 28's.
 
-**G5. `antialias` option.** Property and attribute, default `true`, read at engine creation; warning code on a later change.
+**G5. `antialias` option.** Property and attribute, default `true`, read from the element when its engine is built; `W_ANTIALIAS_LATE` on a later change.
 
 - Depends on: none.
-- Proving test: `true`: 0 pixels different from today on every story; `false`: only multisampling changes; device-loss and context-restore tests run with it set either way.
+- Proving test: `true`: 0 pixels different from today on every story; `false`: only multisampling changes, both as the last attribute after `view-mode` and `render-path` and as a property set before `appendChild`; device-loss and context-restore tests run with it set either way.
 - Measured target: 100k + 1M still frame, `antialias: false`: at most 65 ms.
 
 **G6. Paint by mesh key, uniform keys (2 PRs).** `StylePainter` paint cache by key and color column to batch buffer; `repaint.ts` uniform mesh-key fill; scene-object guard.
 
-- Depends on: all of stage 26's pull requests.
-- Proving test: `dataManagerInternals.nodesBuilt` 0 after load; `render-parity` under `"batched"`; paint objects counted per mesh key; a data-driven size still interns per row; scene-object guard: `scene.transformNodes` count at 1k and 10k rows equal within a constant, after hover, select and drag (100,002 at 100k today).
+- Depends on: G2 (the `batched` flag); all of stage 26's pull requests.
+- Proving test: `dataManagerInternals.nodesBuilt` 0 after load; `render-parity` under `"batched"`; paint objects counted per mesh key; a data-driven size still interns per row; under `"objects"` the mesh keys and retain/release counts equal today's; scene-object guard: `scene.transformNodes` count at 1k and 10k rows equal within a constant, after hover, select and drag (100,002 at 100k today).
 - Measured target: 100k + 1k records: first frame at most 2.0 s.
 
 **G7. Lazy edges, 2D included.** Stage 27 extended to G3's 2D pulled edges, painted from columns.
@@ -319,7 +311,7 @@ build on one are follow-on pull requests after its last pull request merges, nev
 - Proving test: Stage 15's `render-parity` with the program on; the stray-pixel picture to the owner.
 - Measured target: 100k + 1M still frame with `antialias: false`: at most 40 ms.
 
-G1, G2 and G5 depend on nothing in flight and can start now; G3 waits only for the open `Edge.ts` pull requests of stages
+G1 and G5 depend on nothing in flight and can start now, G2 once this document is in master; G3 waits only for the open `Edge.ts` pull requests of stages
 20 and 21. G6 waits for stage 26, G4 and G7 for stage 27 (G4 also for 28), and G8 for 28. Stage 30 then depends on G2 as
 well as its own stages (18, 21, 22, 23, 25, 28), and adds only the object budgets to G2's option and the app's limits.
 
@@ -345,13 +337,19 @@ collection, the graph-format builder and engine start. graph-format builds this 
 (`design/graph-format/STATUS.md`), so the builder is not the floor; the session is. The fixed floor is real: the 10k + 100
 load already takes 0.61 s against cosmos.gl's 0.13 s, and G1's floor probe measures it.
 
+**These projections replace `row-renderer.md`'s stage 27 and 28 load targets** (8 s and, for typed input, 2 s), and its
+stage table now points here. Those targets were estimated before this profile existed, by counting the objects each stage
+removes. The profile shows what no stage removes: the session's history, the derivation pass's other hooks, garbage
+collection and Babylon's first render, about 3.5 s together. So stage 27's Proof is measured against G7's 12 s (with G3
+and G6) and stage 28's against G8's 5 s typed.
+
 Heap: no heap profile was taken. The row renderer's estimates stand (600 MB after stage 27, 400 MB after stage 28, from
 1,994 MB). G4 also drops one operation object per edge.
 
 ### 5.2 First load, 100k nodes + 1k edges (today 5.2 s; cosmos.gl 0.16 s)
 
-G6 removes `drawArrivedPaint` (1.58 s of 1.63 s), the per-node Babylon instance work (1.11 s, of which the 348 ms of
-`notifyObservers` is attributed by inference), `nodeStored` (0.23 s) and interning (0.43 s), leaving about 1.9 s. G8's typed
+G6 removes `drawArrivedPaint` (1.58 s of 1.63 s), the per-node Babylon instance work (1.11 s),
+`nodeStored` (0.23 s) and interning (0.43 s), leaving about 1.9 s. G8's typed
 input removes about 0.2 s more: about 1.7 s, or 1.3 s if garbage collection halves. **About 1.3-1.9 s, 8-12x cosmos.gl**,
 mostly fixed cost.
 
@@ -381,31 +379,42 @@ derivation pass over a million rows, the style repaint's column writes, the posi
 ## 6. Public API
 
 All additive, so under the root `CLAUDE.md` rule no owner approval is needed. Each gets a `doors.ts` entry, an API report
-update and a blind-author example compiled against the published types.
+update, a blind-author example compiled against the published types, and an `@experimental` tag in its first pull
+request, kept until G9 has measured it, so a revert or a reshape stays a minor release.
 
 - **`limits`** (G2): a property on `<graphty-element>` and an option on the session, typed
-  `Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>` from the existing `Limits` interface. Honored under
-  `renderPath: "batched"`; under `"objects"` the defaults stand and a larger load still refuses with `E_TOO_LARGE`. Defaults
-  are today's 100,000 nodes and 1,000,000 edges. Stage 30 later widens it with `objectRows` and `objectEdges`.
-- **`session.capabilities.limits`** (G2): the effective limits for the current render path, and `capabilities:changed`
-  fires when they change. The getter's return type becomes
-  `Pick<Capabilities, "acceleration" | "xr"> & { readonly limits: Readonly<DefaultableLimits> }`. This deliberately differs
-  from `Capabilities.limits` (`Readonly<Limits>`): `DefaultableLimits` is the published type that leaves out
-  `graphMemoryBudgetBytes`, which `Limits` requires and the session cannot report, because it has no defensible default.
-- **`antialias`** (G5): boolean property and attribute, default `true`, read when the element creates its engine. `false`
-  turns off multisampling; after G12 it also selects the cheaper straight-line program on `"batched"`, which its
-  documentation states.
-- **`session.data.importColumns`** and **`session.data.count()`**: stage 28's. Like `nodeData`, `importColumns` places rows
-  with the element's `layout` (default: the force layout); it does not run the recommended-layout step that
-  `session.data.import` runs. A force simulation over a million rows does not settle, so the example sets a static layout,
-  and every projection here assumes one.
-- **The import report's path fact** (G8): which path a load took and why, as `{ code, params }`, on the report the load
-  already returns.
+  `Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>`. Honored under `render-path="batched"`; under `"objects"` the
+  defaults (100,000 nodes, 1,000,000 edges) stand and a larger load still refuses with `E_TOO_LARGE`. Stage 30 later adds
+  `objectRows` and `objectEdges`.
+- **`session.capabilities.limits`** (G2): the effective limits; `capabilities:changed` fires when they change. Its type:
+  `Pick<Capabilities, "acceleration" | "xr"> & { readonly limits: Readonly<DefaultableLimits> }` (no
+  `graphMemoryBudgetBytes`, which the session cannot report).
+- **`antialias`** (G5): boolean property and attribute, default `true`; `false` turns off multisampling, and after G12 also
+  selects the cheaper straight-line program on `"batched"`. The documentation says, in these words: "Set it as an attribute,
+  in any position in the tag, or as a property before using any other property or method of the element. A later change
+  takes effect only on a new element and raises the warning `W_ANTIALIAS_LATE`." The engine is built when any property,
+  attribute or method first reaches the element, so G5 reads the attribute or stored property itself at that moment.
+- **`session.data.importColumns(columns): Promise<LoadReport>`** and **`session.data.count()`**: stage 28's. `columns`
+  holds `nodeCount`, and `sources` and `targets` (`Uint32Array`, one entry per edge, zero-based node numbers); optional
+  `ids` (one string per node), `weights` (`Float64Array`, per edge), `positions` (`Float32Array`, x, y and z per node) and
+  `attributes` (per-node columns by name). It refuses with `E_TOO_LARGE` above the effective limits, which under `"objects"`
+  are the defaults, and with `E_INVALID_COLUMNS` when a length disagrees or a node number is out of range. Like
+  `nodeData`, it places rows with the element's `layout`.
+- **The load report's path** (G8): `LoadReport.path`, read through `session.data.lastImport()`, is
+  `{ code: "PATH_COLUMNS", params: {} }` or `{ code: "PATH_RECORDS", params: { reason } }`, where `reason` is
+  `"objects"`, `"duplicateIds"`, `"repeatedEdges"`, `"endpoints"`, `"weights"` or `"records"`.
 
-The simple path is unchanged in shape and gets faster: under `render-path="batched"`, `nodeData`, `edgeData`, `addNodes`,
-`addEdges`, `session.data.import` and `loadSample` take the column door when they qualify, with no new consumer code.
+Under `render-path="batched"`, `nodeData`, `edgeData`, `addNodes`, `addEdges`, `session.data.import` and `loadSample` take
+the fast path with no new code when the load meets every condition below; otherwise it takes the usual path, whole, and
+`reason` names the first condition that failed:
 
-Canonical example, a million nodes from typed arrays (13 lines):
+- `duplicate-ids` is `"first"` (the default) or `"refuse"`;
+- `repeated-edges` is `"keep"` (the default) or `"sum"`;
+- every edge record in the batch names its endpoints with the same keys;
+- weights, if any, come from one attribute;
+- every record is a plain object, not a class instance.
+
+Canonical example, a million nodes from records (14 lines):
 
 ```html
 <!-- A static layout: a force layout over a million nodes would not settle. -->
@@ -414,56 +423,60 @@ Canonical example, a million nodes from typed arrays (13 lines):
     import "@graphty/graphty-element";
     const graph = document.querySelector("graphty-element");
     graph.limits = { renderCeiling: 1_000_000 };
-    const nodeCount = 1_000_000;
-    const sources = new Uint32Array(nodeCount);
-    const targets = new Uint32Array(nodeCount);
-    for (let i = 0; i < nodeCount; i++) [sources[i], targets[i]] = [i, (i * 7919) % nodeCount];
-    // Edge i joins node sources[i] to node targets[i]; nodes are numbered 0 to nodeCount - 1.
-    await graph.session.data.importColumns({ nodeCount, sources, targets });
+    const n = 1_000_000;
+    const nodes = Array.from({ length: n }, (_, i) => ({ id: `n${i}` }));
+    const edges = nodes.map((_, i) => ({ source: `n${i}`, target: `n${(i * 7919) % n}` }));
+    await graph.session.data.addNodes(nodes);
+    await graph.session.data.addEdges(edges);
+    console.log(graph.session.data.lastImport()?.path); // { code: "PATH_COLUMNS", params: {} }
 </script>
 ```
 
-For faster frames at a million edges, a consumer adds `antialias="false"` to the tag, accepting harder line edges.
+The advanced path, for data already in typed arrays, replaces the four lines that build and add `nodes` and `edges`:
+
+```js
+const sources = new Uint32Array(n),
+    targets = new Uint32Array(n);
+for (let i = 0; i < n; i++) [sources[i], targets[i]] = [i, (i * 7919) % n];
+await graph.session.data.importColumns({ nodeCount: n, sources, targets });
+```
+
+For faster frames at a million edges, add `antialias="false"` to the tag (harder line edges).
 
 ## 7. Rollback
 
 - **G1** runs only under `"batched"`; the objects path's fence and pacing are untouched. Undoing it removes one call.
 - **G2**'s defaults equal `DEFAULT_LIMITS` and it is ignored under `"objects"`. A consumer who sets nothing reads the same
   numbers and the same refusals as today.
-- **G3, G6, G7, G10** run only when the graph keeps node batches, which happens only under `"batched"` (`pullsLine` already
+- **G3, G6's paint cache, G7, G10** run only when the graph keeps node batches, which happens only under `"batched"` (`pullsLine` already
   reads it that way). Each sits behind an internal switch in the style of `pulledEdgesDefault`
   (`meshes/PulledLineBatch.ts:43`), so one line turns it off.
-- **G4** and **G8** act only when the ingest host's `batched` flag is set; under `"objects"` every write, key and record is
-  as today, and `columnsEligible` is never consulted.
+- **G4**, **G6's uniform fill** and **G8** act only when the ingest host's `batched` flag is set, their session-level switch;
+  under `"objects"` every write, key, mesh key and record is as today, and `columnsEligible` is never consulted.
 - **G5**'s default `true` creates the engine exactly as today. **G12** runs only under `antialias: false` and `"batched"`.
 - **G11**'s parts change only rows a batch draws.
-- Every stage is its own pull request, so `git revert -m 1 <merge sha>` takes any one out. Existing tests run unedited, and
+- Every stage is its own pull request, so `git revert -m 1 <merge sha>` takes any one out. For G2, G5 and G8, which add
+  public API, that holds while the member is `@experimental`; once the tag is dropped, a rollback keeps the member and
+  changes its behavior, through the owner. Existing tests run unedited, and
   `render-parity` holds the objects picture in every stage. No default changes; making `"batched"` the default or raising the
   default ceilings stays with the owner (`row-renderer.md` section 10).
 
 ## 8. Risks
 
-- **The projections are arithmetic on one profile per size**, under profiler overhead and machine load 2-24, with minified
-  helpers grouped by hand. The garbage-collection and bulk-builder figures are assumptions and are labelled as such.
-- **The flush probe is one run per size**, and its 100k + 1k median is below that graph's GPU time. G1's Proof repeats it in
-  5 rounds and checks the harness's serial frame stamping before any number is quoted.
-- **A flush per frame on a software GPU** may move frame time into the loop's tick. The pacing tests and a SwiftShader row in
-  G1's Proof check it.
+- **The projections are arithmetic on one profile per size**, under profiler overhead and load 2-24; the
+  garbage-collection and bulk-builder figures are labelled assumptions.
+- **The flush probe is one run per size**, with a median below the GPU time; G1 repeats it and checks frame stamping.
+- **A flush per frame on a software GPU** may cost frame time; G1's pacing tests and SwiftShader row check it.
 - **The uniform mesh-key fill flatters the benchmark**, whose styles give every node one shape. A data-driven encoding keeps
   per-row interning and its 0.4-1.8 s.
-- **Range keys change the session's lane and history**, which undo, redo, restore, autosave and the timeline read, and which
-  other sessions edit. G4's tests cover a load mixed with later per-edge edits and a restore across it.
-- **Two ingest paths can drift.** G8 holds them together with digest and import-report equality on every sample dataset and
-  every graph-io fixture in CI, and sends any load it cannot express down the records path whole.
-- **Pulled 2D lines** must keep the rule that a line thinner than a pixel draws one pixel wide and fainter. It lives in the
-  shared join shader; G3's sub-pixel parity case proves it.
+- **Range keys change the session's lane and history**, which undo, redo, restore, autosave and the timeline read; G4's
+  tests cover a load mixed with later per-edge edits and a restore across it.
+- **Two ingest paths can drift.** G8's digest and report equality on every sample and graph-io fixture holds them together.
+- **Pulled 2D lines** must keep drawing a sub-pixel line one pixel wide and fainter; G3's sub-pixel parity case proves it.
 - **The stray pixel may survive stage 15's trace** and the owner may refuse it. The million-edge frame then stops at G5's
   60-65 ms.
-- **`antialias` read only at creation** may surprise a consumer who sets it late; the warning code and the documentation
-  say so. A live engine rebuild is out of scope.
 - **A million-node frame has never been drawn here**, and the node batch's cost follows covered pixels, which overlap at a
   million rows; G9 replaces the 6-18 ms extrapolation with a measurement.
-- **Line width**: cosmos.gl's links and graphty-element's lean lines may not cover the same pixels, which the fill
-  comparison assumes and nobody has checked. G9's Proof compares one captured frame of each.
-- **Work in flight**: row-renderer stages 20-30 are landing now in `Node.ts`, `NodeBatch.ts`, `Edge.ts` and `DataManager.ts`.
-  G3, G4, G6, G7 and G8 start only after the stage each builds on has merged its last pull request.
+- **Line width**: the fill comparison assumes cosmos.gl's links and the lean lines cover the same pixels; G9 checks it.
+- **Work in flight**: row-renderer stages 20-30 are landing now; G3, G4, G6, G7 and G8 start only after the stage each builds
+  on has merged its last pull request.

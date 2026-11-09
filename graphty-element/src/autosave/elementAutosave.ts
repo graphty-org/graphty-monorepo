@@ -1071,15 +1071,17 @@ export function listAutosaves(key: string, options: AutosaveLookupOptions = {}):
             return [];
         }
 
-        const metas = await store.list(key);
         const candidate = ownEntries.get(key) ?? readOwnItem(env, key);
         const leaving = takeLeaving(env, key);
         const waited = candidate !== null && leaving === candidate;
+        // Before the list: the page that left may still be writing this entry's final commit.
+        if (waited) {
+            await env.locks.own?.(lockName(key, candidate), LEAVING_WAIT_MS);
+        }
+
+        const metas = await store.list(key);
         const exists = metas.some((meta) => meta.id === candidate);
-        const owned =
-            candidate !== null &&
-            exists &&
-            ((await env.locks.own?.(lockName(key, candidate), waited ? LEAVING_WAIT_MS : undefined)) ?? true);
+        const owned = candidate !== null && exists && ((await env.locks.own?.(lockName(key, candidate))) ?? true);
         const held = await env.locks.held();
         logger.info("kept work listed", {
             noted: candidate !== null,

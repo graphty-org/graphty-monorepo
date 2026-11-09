@@ -12,7 +12,7 @@ import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
  * "diag" logging channel at debug level, whose records reach the console and so the server.
  */
 export function startRemoteLogIfAsked(): void {
-    const value = new URLSearchParams(window.location.search).get("remoteLog");
+    const value = new URLSearchParams(globalThis.location.search).get("remoteLog");
     if (value === null) {
         return;
     }
@@ -34,7 +34,7 @@ export function startRemoteLogIfAsked(): void {
 
 /** Once the logger is forwarding the console: say who this is, and listen for failures. */
 function onLoggerLoaded(): void {
-    window.addEventListener("error", (event) => {
+    globalThis.addEventListener("error", (event) => {
         console.error(
             "[remoteLog] uncaught error",
             event.message,
@@ -42,7 +42,7 @@ function onLoggerLoaded(): void {
             String(event.error?.stack ?? ""),
         );
     });
-    window.addEventListener("unhandledrejection", (event) => {
+    globalThis.addEventListener("unhandledrejection", (event) => {
         const { reason } = event as { reason: unknown };
         console.error(
             "[remoteLog] unhandled rejection",
@@ -51,15 +51,15 @@ function onLoggerLoaded(): void {
         );
     });
 
-    const remote = (window as { __remoteLogger__?: { client: { sessionId: string } } }).__remoteLogger__;
+    const remote = (globalThis as { __remoteLogger__?: { client: { sessionId: string } } }).__remoteLogger__;
     const { gpu } = navigator as { gpu?: unknown };
     console.warn("[remoteLog] session start", {
         session: remote?.client.sessionId,
-        url: window.location.href,
+        url: globalThis.location.href,
         userAgent: navigator.userAgent,
         webgpu: gpu !== undefined,
         build: document.querySelector('meta[name="graphty-build"]')?.getAttribute("content") ?? null,
-        screen: `${window.innerWidth}x${window.innerHeight}@${window.devicePixelRatio}`,
+        screen: `${globalThis.innerWidth}x${globalThis.innerHeight}@${globalThis.devicePixelRatio}`,
     });
 
     void GraphtyLogger.configure({ enabled: true, level: LogLevel.DEBUG, modules: ["diag"] });

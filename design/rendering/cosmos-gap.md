@@ -11,14 +11,14 @@ cosmos.gl is the WebGL engine under Cosmograph: two draw calls that read positio
 per node or edge. graphty-element's opt-in batched render path (`renderPath: "batched"`) draws nodes from shared batches
 and a GPU row table, but still builds per-row JavaScript on load. Measured side by side on one machine, three gaps stand out:
 
-| Gap                                | cosmos.gl                  | graphty-element, batched, today | After this design (projected)                                                                             |
-| ---------------------------------- | -------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| First load, 100k nodes + 1M edges  | 0.63 s                     | 27.1 s (43x)                    | 3.5-5 s for typed input, files and samples; about 5-6 s for record arrays                                 |
-| First load, 100k nodes + 1k edges  | 0.16 s                     | 5.2 s (33x)                     | 1.3-1.9 s                                                                                                 |
-| Still frame, 100k nodes + 1M edges | 28.4 ms                    | 89.6 ms (3.2x)                  | 72-90 ms by default; 60-65 ms with `antialias: false`; 25-40 ms once the 6-vertex line program is allowed |
-| 1M nodes + 10k edges               | 0.67 s load, 1.5 ms frames | refused with `E_TOO_LARGE`      | loads; 8.5-14.5 s typed; frames 6-18 ms of GPU                                                            |
-| 1M nodes + 1M edges                | 1.09 s load, 29 ms frames  | refused with `E_TOO_LARGE`      | loads; frames 77-90 ms by default, 27-58 ms with the faster line options                                  |
-| Still frame, 10k nodes + 100 edges | 0.9 ms                     | 19.0 ms                         | about 1.5 ms                                                                                              |
+| Gap                                | cosmos.gl                  | graphty-element, batched, today | After this design (projected)                                               |
+| ---------------------------------- | -------------------------- | ------------------------------- | --------------------------------------------------------------------------- |
+| First load, 100k nodes + 1M edges  | 0.63 s                     | 27.1 s (43x)                    | 3.5-5 s typed, files and samples; 4.7-6.3 s record arrays                   |
+| First load, 100k nodes + 1k edges  | 0.16 s                     | 5.2 s (33x)                     | 1.3-1.9 s                                                                   |
+| Still frame, 100k nodes + 1M edges | 28.4 ms                    | 89.6 ms (3.2x)                  | 72-90 ms default; 60-65 ms with `antialias: false`; 25-40 ms 6-vertex lines |
+| 1M nodes + 10k edges               | 0.67 s load, 1.5 ms frames | refused with `E_TOO_LARGE`      | loads; 8.5-14.5 s typed; frames 6-21 ms of GPU                              |
+| 1M nodes + 1M edges                | 1.09 s load, 29 ms frames  | refused with `E_TOO_LARGE`      | loads; frames 77-92 ms default, 27-61 ms with faster lines                  |
+| Still frame, 10k nodes + 100 edges | 0.9 ms                     | 19.0 ms                         | about 1.5 ms                                                                |
 
 The verdict, in three lines:
 
@@ -27,12 +27,11 @@ The verdict, in three lines:
   remain. Going further needs ingest off the main thread or a load that skips the session's history, which this design
   does not attempt.
 - **Million-edge frame**: the frame is bound by GPU fill, not JavaScript. Only drawing cheaper lines moves it, and that
-  changes the picture, so it is an option a consumer turns on. With the default picture it stays about 2.5-3x cosmos.gl.
+  changes the picture, so it is an option a consumer turns on. With the default picture it stays about 2.5-3.2x cosmos.gl.
 - **Million nodes**: a consumer option makes them loadable on the batched path. The node batch should draw them in
-  single-digit to high-teens milliseconds of GPU. The load is the per-row cost above, times ten.
+  6-21 ms of GPU. The load is the per-row cost above, times ten.
 
-Every number in that table is arithmetic on the measurements in section 2, all taken with a static layout. None is measured yet; each stage's Proof
-replaces its projection with a measurement.
+Every projection is arithmetic on section 2's measurements (static layout); each stage's Proof replaces one with a measurement.
 
 ## 2. The evidence
 
@@ -131,16 +130,13 @@ each:
 The 1.1 ms median is below that graph's 2.4 ms of GPU time, so the harness may stamp frames early; p95 is the safer
 figure. This floor inflates every small-graph ratio (6-32x) and hides the drawing cost later stages measure, so it goes first.
 
-G1 commits the GPU timer probe and the floor probe into `benchmarks/compare/` so later Proofs can rerun them.
-
 ## 3. The mechanism
 
 ### 3.1 Frames: flush the fence (G1)
 
 Under `"batched"`, `fenceFrame` calls `gl.flush()` right after `gl.fenceSync`. Pacing stays one frame deep, so the software
 GPU guard holds. No pixel changes. `RenderManager` does not know the render path today, so `Graph` passes it in (and again on
-a live `renderPath` change). Keeping two frames in flight instead was considered and rejected: without a flush the older fence
-also waits for Chrome's flush, so it would at best halve the 18 ms floor.
+a live `renderPath` change). Two frames in flight without a flush would at best halve the 18 ms floor.
 
 ### 3.2 Million nodes: the ceilings become an option (G2)
 
@@ -152,6 +148,8 @@ measured long before stage 30's other dependencies land:
 - The element computes the effective ceilings (the consumer's value under `"batched"`, the defaults under `"objects"`, whose
   heap reason stands) and hands the session plain numbers; `Ingest` reads them instead of `DEFAULT_LIMITS`. The session stays
   free of Babylon.
+- `limits` set off `"batched"` raises `W_LIMITS_IGNORED` (`{ renderPath }`). A live switch to `"objects"` above its
+  defaults is refused with `E_TOO_LARGE` on the element's `{ code, params }` event, and the path stays `"batched"`.
 - `session.capabilities` gains `limits`, reporting the effective values for the current render path, and
   `capabilities:changed` fires when either `limits` or `renderPath` changes them. Today no capability reports the ceilings,
   so a consumer has nothing to read once they can change.
@@ -193,7 +191,7 @@ passes them limits. Stage 30 then adds only the object budgets (`objectRows`, `o
     - `nodeData`/`edgeData` and `addNodes`/`addEdges` record arrays are turned into columns by one read pass when every record
       is plain enough;
     - which loads qualify is one pure function, `columnsEligible(load)` in `session/project/ingest.ts`, with a test table. A
-      load qualifies when every policy it uses has a column form (duplicate ids `"first"` or `"refuse"`, repeats `"keep"` or
+      load qualifies when every policy it uses has a column form (`session.data.import`'s `duplicateIds` `"first"` or `"refuse"`, repeats `"keep"` or
       `"sum"`, one endpoint spelling for the batch, weights from one column). Anything else takes today's records path as a
       whole load, never row by row;
     - the import report states which path ran and why, as a neutral fact (`{ code, params }`), so a consumer who gets the slow
@@ -216,7 +214,7 @@ No CPU change moves a fill-bound frame. Two picture changes do, so both are opt-
   until the stray pixel is traced or the owner accepts it. After that ruling it is used for plain straight pulled lines when
   `antialias` is `false` on `"batched"`, and the `antialias` documentation says so in one sentence. Projected 25-40 ms.
 
-With the default picture the frame stays at 68-83 ms at best, about 2.4-3x cosmos.gl. G1's Proof checks whether the flush also
+With the default picture the frame stays at 72-90 ms (71.5 ms of GPU, 89.6 ms measured), about 2.5-3.2x cosmos.gl. G1's Proof checks whether the flush also
 recovers part of the 18 ms between the harness's 89.6 ms and the GPU's 71.5 ms.
 
 ### 3.5 What is kept out on purpose
@@ -248,7 +246,7 @@ build on one are follow-on pull requests after its last pull request merges, nev
 **G2. Ceilings as an option.** `limits: { renderCeiling?, edgesDrawn? }` on the element and session; `Ingest` reads the effective value; `session.capabilities.limits`; the ingest host's `batched` flag.
 
 - Depends on: this document merged into master, so stage 30's builder reads the narrowed scope.
-- Proving test: Default refusal unchanged (code and text at 100,001 nodes); `"objects"` with a raised limit still refuses; `"batched"` with a raised limit loads 200,000 nodes on SwiftShader with `objectNodes` 0; `capabilities.limits` and `capabilities:changed` follow a `renderPath` change; blind-author example compiled against the built types.
+- Proving test: Default refusal unchanged (code and text at 100,001 nodes); `"objects"` with a raised limit still refuses; `"batched"` with a raised limit loads 200,000 nodes on SwiftShader with `objectNodes` 0; `capabilities.limits` and `capabilities:changed` follow a `renderPath` change; `limits` under `"objects"` raises `W_LIMITS_IGNORED`; a switch to `"objects"` above its defaults is refused and the path stays `"batched"`; blind-author example compiled against the built types.
 - Measured target: 1M + 10k and 1M + 1M load on the RTX (records, so slow: about 50 s); the time is recorded, not targeted.
 
 **G3. Pulled 2D straight lines.** `Edge.pullsLine`, `EdgeMesh.pulledBatch` width units and view key.
@@ -261,7 +259,7 @@ build on one are follow-on pull requests after its last pull request merges, nev
 
 - Depends on: G2 (the `batched` flag); stage 27 (`reconcile`) and stage 28 (the bulk history entry).
 - Proving test: Graph digest (`session/project/digest.ts`) and undo, redo, restore and autosave equal the per-edge form, including a load followed by per-edge edits and a restore across it; the lane's dirty set after a 1M-edge load holds a count of keys independent of the edge count (test door); `"objects"` records per edge, unchanged.
-- Measured target: 100k + 1M records: `touch` plus `reconcile` under 0.1 s profiled; first frame recorded against stage 28's.
+- Measured target: 100k + 1M records: `touch` plus `reconcile` under 0.1 s profiled; first frame recorded; whichever of G4 and G7 lands second: first frame at most 12 s.
 
 **G5. `antialias` option.** Property and attribute, default `true`, read from the element when its engine is built; `W_ANTIALIAS_LATE` on a later change.
 
@@ -279,7 +277,7 @@ build on one are follow-on pull requests after its last pull request merges, nev
 
 - Depends on: stage 27, G3, G6.
 - Proving test: Stage 27's counted test (`Edge`s built 0 on the lean load), in 2D and 3D; undo across a load.
-- Measured target: 100k + 1M records: first frame at most 12 s.
+- Measured target: 100k + 1M records: first frame at most 17 s (12 s needs G4 too, which does not depend on G7).
 
 **G8. Every feeder through the column door.** `columnsEligible`; record arrays routed under `"batched"` (stage 28 already routes graph-io and graph-samples); path in the import report; install as a load; harness `columns` mode.
 
@@ -311,9 +309,7 @@ build on one are follow-on pull requests after its last pull request merges, nev
 - Proving test: Stage 15's `render-parity` with the program on; the stray-pixel picture to the owner.
 - Measured target: 100k + 1M still frame with `antialias: false`: at most 40 ms.
 
-G1 and G5 depend on nothing in flight and can start now, G2 once this document is in master; G3 waits only for the open `Edge.ts` pull requests of stages
-20 and 21. G6 waits for stage 26, G4 and G7 for stage 27 (G4 also for 28), and G8 for 28. Stage 30 then depends on G2 as
-well as its own stages (18, 21, 22, 23, 25, 28), and adds only the object budgets to G2's option and the app's limits.
+G1 and G5 can start now. Stage 30 depends on G2 as well as its own stages (18, 21, 22, 23, 25, 28), and adds only the object budgets to G2's option and the app's limits.
 
 ## 5. Projections, and where each gap stops
 
@@ -323,13 +319,13 @@ except where a bucket is said to shrink.
 
 ### 5.1 First load, 100k nodes + 1M edges (today 27.1 s; cosmos.gl 0.63 s)
 
-| After                                                                              | Removed (profiled)                                                                                                  | Projected    | Against cosmos.gl |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------ | ----------------- |
-| G4                                                                                 | `touch` 4.64 s, `reconcile` 2.82 s                                                                                  | about 21.8 s | 35x               |
-| G3, G6, G7                                                                         | `edgeStored` 4.72, `nodeStored` 0.76, `drawArrivedPaint` 4.89, placement 2.31 (0.27 kept for nodes), interning 1.77 | about 11.4 s | 18x               |
-| G8, typed                                                                          | session `addEdge` 7.06, `addEdgeRecord` 1.62, row loops 0.52; 0.4 s kept for the bulk builder (assumed)             | about 5.1 s  | 8x                |
-| G8, typed, with garbage collection falling with the JavaScript removed (about 75%) | 2.2 s of the 2.97 s                                                                                                 | about 3.5 s  | 5.6x              |
-| G8, record arrays                                                                  | as typed, plus one read pass over the records, bounded by `addEdgeRecord`'s 1.62 s profiled                         | about 5-6 s  | 8-10x             |
+| After                                             | Removed (profiled)                                                                                    | Projected    | Against cosmos.gl |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------ | ----------------- |
+| G4                                                | `touch` 4.64 s, `reconcile` 2.82 s                                                                    | about 21.8 s | 35x               |
+| G3, G6, G7                                        | `edgeStored` 4.72, `nodeStored` 0.76, `drawArrivedPaint` 4.89, placement 2.31 of 2.58, interning 1.77 | about 11.4 s | 18x               |
+| G8, typed                                         | `addEdge` 7.06, `addEdgeRecord` 1.62, row loops 0.52; 0.4 kept for the builder (assumed)              | about 5.1 s  | 8x                |
+| G8, typed, garbage collection 75% lower (assumed) | 2.2 s of the 2.97 s                                                                                   | about 3.5 s  | 5.6x              |
+| G8, record arrays                                 | typed (3.5-5.1 s) plus a read pass of at most `addEdgeRecord`'s 1.16 s unprofiled                     | 4.7-6.3 s    | 7.5-10x           |
 
 Files, samples and generators get the typed figure, because stage 28 hands their snapshots over directly. **It stops at about
 3.5-5 s**: Babylon's render of the first frames (1.3 s profiled), the derivation pass's other hooks (1.2 s), garbage
@@ -338,10 +334,11 @@ collection, the graph-format builder and engine start. graph-format builds this 
 load already takes 0.61 s against cosmos.gl's 0.13 s, and G1's floor probe measures it.
 
 **These projections replace `row-renderer.md`'s stage 27 and 28 load targets** (8 s and, for typed input, 2 s), and its
-stage table now points here. Those targets were estimated before this profile existed, by counting the objects each stage
-removes. The profile shows what no stage removes: the session's history, the derivation pass's other hooks, garbage
-collection and Babylon's first render, about 3.5 s together. So stage 27's Proof is measured against G7's 12 s (with G3
-and G6) and stage 28's against G8's 5 s typed.
+stage table now points here. The profile shows what no stage removes: the session's history, the derivation pass's other hooks, garbage
+collection and Babylon's first render, about 3.5 s together. Stages 27 and 28 land before the stages that remove most
+buckets (in 2D lean, stage 27 alone removes nothing, since 2D edges are not pulled until G3), so their Proofs record the
+first frame with no gate. The 12 s target is met when both G4 and G7 have landed (G7 alone about 16.7 s), the 5 s typed
+target by G8.
 
 Heap: no heap profile was taken. The row renderer's estimates stand (600 MB after stage 27, 400 MB after stage 28, from
 1,994 MB). G4 also drops one operation object per edge.
@@ -362,10 +359,10 @@ mostly fixed cost.
 | 10k + 100k still | 25.8 ms | about 7.5 ms (G1)                                            | 3.9 ms    | 7.07 ms of GPU plus 0.5 ms of CPU           |
 | 100k + 1M still  | 89.6 ms | 72-90 ms (G1); about 60-65 ms (G5, `false`); 25-40 ms (G12)  | 28.4 ms   | 71.5 ms of GPU; line program spike          |
 | 100k + 1M drag   | 107 ms  | at most the still frame (G3)                                 | -         | Placement per edge removed                  |
-| 1M + 10k still   | refused | 6-18 ms of GPU plus about 0.5 ms of CPU (G2, measured in G9) | 1.5 ms    | Node batch 0.6-1.8 ms per 100k rows, linear |
-| 1M + 1M still    | refused | 77-90 ms; 27-58 ms with G5 and G12                           | 29.1 ms   | Edges plus nodes, as above                  |
+| 1M + 10k still   | refused | 6-21 ms of GPU plus about 0.5 ms of CPU (G2, measured in G9) | 1.5 ms    | Node batch alone 0.61-2.05 ms per 100k rows |
+| 1M + 1M still    | refused | 77-92 ms; 27-61 ms with G5 and G12                           | 29.1 ms   | Edges plus nodes, as above                  |
 
-**The million-edge frame stops** at the fill of multisampled lines with the default picture, about 2.4-3x cosmos.gl. Near
+**The million-edge frame stops** at the fill of multisampled lines with the default picture, 72-90 ms, about 2.5-3.2x cosmos.gl. Near
 parity needs a consumer to set `antialias: false` and, for the last step, the owner's ruling on the stray pixel.
 
 ### 5.4 Million nodes (today refused)
@@ -384,7 +381,9 @@ request, kept until G9 has measured it, so a revert or a reshape stays a minor r
 
 - **`limits`** (G2): a property on `<graphty-element>` and an option on the session, typed
   `Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>`. Honored under `render-path="batched"`; under `"objects"` the
-  defaults (100,000 nodes, 1,000,000 edges) stand and a larger load still refuses with `E_TOO_LARGE`. Stage 30 later adds
+  defaults (100,000 nodes, 1,000,000 edges) stand, a larger load still refuses with `E_TOO_LARGE`, and setting `limits`
+  raises `W_LIMITS_IGNORED` (`{ renderPath }`). Switching to `"objects"` above those defaults is refused, and the path stays
+  `"batched"`. Stage 30 later adds
   `objectRows` and `objectEdges`.
 - **`session.capabilities.limits`** (G2): the effective limits; `capabilities:changed` fires when they change. Its type:
   `Pick<Capabilities, "acceleration" | "xr"> & { readonly limits: Readonly<DefaultableLimits> }` (no
@@ -402,22 +401,22 @@ request, kept until G9 has measured it, so a revert or a reshape stays a minor r
   `nodeData`, it places rows with the element's `layout`.
 - **The load report's path** (G8): `LoadReport.path`, read through `session.data.lastImport()`, is
   `{ code: "PATH_COLUMNS", params: {} }` or `{ code: "PATH_RECORDS", params: { reason } }`, where `reason` is
-  `"objects"`, `"duplicateIds"`, `"repeatedEdges"`, `"endpoints"`, `"weights"` or `"records"`.
+  `"objects"`, `"duplicateIds"` (import only), `"repeatedEdges"`, `"endpoints"`, `"weights"` or `"records"`.
 
 Under `render-path="batched"`, `nodeData`, `edgeData`, `addNodes`, `addEdges`, `session.data.import` and `loadSample` take
 the fast path with no new code when the load meets every condition below; otherwise it takes the usual path, whole, and
 `reason` names the first condition that failed:
 
-- `duplicate-ids` is `"first"` (the default) or `"refuse"`;
+- `session.data.import`'s `duplicateIds` option is `"first"` (the default) or `"refuse"`; `nodeData`, `addNodes`,
+  `edgeData` and `addEdges` have no such option and always use `"first"`, so they never fail this condition;
 - `repeated-edges` is `"keep"` (the default) or `"sum"`;
 - every edge record in the batch names its endpoints with the same keys;
 - weights, if any, come from one attribute;
 - every record is a plain object, not a class instance.
 
-Canonical example, a million nodes from records (14 lines):
+Canonical example, a million nodes from records (13 lines; a static layout, since force would not settle):
 
 ```html
-<!-- A static layout: a force layout over a million nodes would not settle. -->
 <graphty-element view-mode="2d" render-path="batched" layout="random"></graphty-element>
 <script type="module">
     import "@graphty/graphty-element";
@@ -455,7 +454,10 @@ For faster frames at a million edges, add `antialias="false"` to the tag (harder
   under `"objects"` every write, key, mesh key and record is as today, and `columnsEligible` is never consulted.
 - **G5**'s default `true` creates the engine exactly as today. **G12** runs only under `antialias: false` and `"batched"`.
 - **G11**'s parts change only rows a batch draws.
-- Every stage is its own pull request, so `git revert -m 1 <merge sha>` takes any one out. For G2, G5 and G8, which add
+- A stage with no landed dependents comes out with `git revert -m 1 <merge sha>`. One with dependents comes out through
+  its internal switch (G3, G6, G7, G10) or the `batched` flag (G4, G6's fill, G8), or by reverting in reverse dependency
+  order. G2 cannot be reverted alone once stage 30 lands; its fallback keeps the option and resets the effective ceilings
+  to `DEFAULT_LIMITS`. For G2, G5 and G8, which add
   public API, that holds while the member is `@experimental`; once the tag is dropped, a rollback keeps the member and
   changes its behavior, through the owner. Existing tests run unedited, and
   `render-parity` holds the objects picture in every stage. No default changes; making `"batched"` the default or raising the
@@ -476,7 +478,7 @@ For faster frames at a million edges, add `antialias="false"` to the tag (harder
 - **The stray pixel may survive stage 15's trace** and the owner may refuse it. The million-edge frame then stops at G5's
   60-65 ms.
 - **A million-node frame has never been drawn here**, and the node batch's cost follows covered pixels, which overlap at a
-  million rows; G9 replaces the 6-18 ms extrapolation with a measurement.
+  million rows; G9 replaces the 6-21 ms extrapolation with a measurement.
 - **Line width**: the fill comparison assumes cosmos.gl's links and the lean lines cover the same pixels; G9 checks it.
 - **Work in flight**: row-renderer stages 20-30 are landing now; G3, G4, G6, G7 and G8 start only after the stage each builds
   on has merged its last pull request.

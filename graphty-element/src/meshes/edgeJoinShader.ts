@@ -149,8 +149,9 @@ export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
  *
  * The LEAN program (`EDGE_PULLED_LEAN`, straight pieces only) draws each piece from
  * `LEAN_TEMPLATE_OF`'s four vertices and six indices, `piece * 4 + k`, instead of the join template's
- * 14 and 30: the same rectangle, the same shader after this, so the same pixels, at fewer vertex
- * invocations a piece.
+ * 14 and 30: the same rectangle and the same vertex shader after this, at fewer vertex
+ * invocations a piece. Its fragment stage skips the ownership test and the pattern (a lean piece
+ * has no neighbour and is solid), so it never discards: the rasterizer's coverage is its shape.
  *
  * A CURVE's piece (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its point along the
  * edge's cut path, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Its six
@@ -774,6 +775,9 @@ void main() {
     // drawn by whichever piece reaches it. Each pair of pieces is compared from the same point by the same arithmetic in
     // both, so exactly one of them takes the pixel.
     // ponytail: a piece three away (two short pieces in a row) is not read, and can still overlap.
+#ifndef EDGE_PULLED_LEAN
+    // The lean program's straight solid piece has no neighbour and no pattern: the rasterizer's
+    // coverage of its rectangle is its whole shape, with no ownership test and no discard.
     float lenOwn = vOwn2.x;
     vec2 uA = x - vOwn.xy;
     vec2 uB = x - vEndB.xy;
@@ -868,6 +872,7 @@ void main() {
         }
     }
 
+#endif
 #ifdef EDGE_SHADED
     // Where this pixel is on the whole edge: t along it from its source, side across the line's
     // own width (beyond +-1 on an effect's wider ribbon), and the edge's length on screen.

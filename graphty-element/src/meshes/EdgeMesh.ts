@@ -673,11 +673,12 @@ void main() {
         const curve = this.pullsCurve(style, loop, route);
         // a 2D line's width is in world units, so the view keys the batch and a 2D/3D switch builds another
         const flat = this.drawsFlat(scene);
+        const shape = curve ? "curve" : true;
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${curve ? "|curve" : ""}${flat ? "|2d" : ""}`;
         return cache.getPulledBatch(key, () => {
             const mesh = flat
                 ? this.createFlatPulledLine(options, style, scene)
-                : this.createStaticLine(options, style, scene, cache, false, curve ? "curve" : true);
+                : this.createStaticLine(options, style, scene, cache, false, shape);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
             return new PulledLineBatch(mesh, scene, rowPositions, curve);

@@ -13,7 +13,7 @@ import { afterEach, assert, describe, test } from "vitest";
 
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
 import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
-import { PulledLineBatch } from "../../src/meshes/PulledLineBatch";
+import { LEAN_TEMPLATE, PulledLineBatch } from "../../src/meshes/PulledLineBatch";
 
 const SIZE = 240;
 const ROWS = 30;
@@ -135,7 +135,7 @@ describe("pulled edge lines", () => {
                         scene,
                         () => rowTexture,
                         false,
-                        lean,
+                        lean ? LEAN_TEMPLATE : undefined,
                     );
                     const plainSlots = pairs.map(() => plain.acquire());
                     const pieces = pairs.map(() => pulled.acquire());

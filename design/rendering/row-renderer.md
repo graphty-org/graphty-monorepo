@@ -782,6 +782,36 @@ route table, only once that change is made. With that, every curve kind without 
 fanned curves, `fanSpacing`, `arcRadius`, gaps, raised and great-circle routes, the layout's routes, self-loop
 teardrops, support points and bends. The stage's 40 ms target stays missed by about 6 ms (ninth pull request).
 
+Correction from stage 22 (code read at origin/master 8593e8751a): the row's "fragment scroll" cannot ride the join shader.
+A straight animated line (`line.animationSpeed`, 3D only: in 2D `EdgeMesh` draws it flat and unanimated before it asks)
+is a Babylon greased line with a two-texel moving texture (`#D3D3D3` and the edge's color, nearest, `uScale` 5), one batch
+and one `animatedEdgeFrames` callback a look, each moving its texture's `uOffset`. Measured on SwiftShader WebGL with the
+nine-node scene of `test/browser/pulled-animated-lines.test.ts` (every edge animated, parked), the greased line's
+silhouette and a solid join-shader line's of the same width and color differ by 173 pixels: the join line's
+anti-aliased fringe, which the greased line has not. So a scroll added to `EDGE_PULLED` misses the section 7 bar before
+its colors are compared. The pulled animated line instead takes the greased line's own arithmetic: four vertices a piece
+(each end at its row's place, offset by `0.5 * width * normal`, the normal multiplied by `projection`, as Babylon's
+greased line plugin does with `sizeAttenuation` off), `u` 0 to 1 along the edge, and the texel `floor(fract(5u +
+offset) * 2)` in the fragment stage, from the rows and the edge table `PulledLineBatch` already keeps, with its look in
+the table as stage 19 keeps a pulled line's. One `animatedEdgeFrames` callback moves the one `offset` uniform for every
+pulled animated line, which is the row's "CPU per animated edge per frame at 0": today a frame costs one callback a
+look, and a move rewrites a thin-instance matrix an edge.
+
+Correction from stage 22: the greased line drew with the render size its material was built at, not the canvas's.
+Babylon's greased line plugin reads `engine.getRenderWidth()` and `getRenderHeight()` once, in its constructor, into its
+`resolution` (and so its aspect), and never again. The first element on a page builds its lines before its first resize,
+while its canvas still has the default 300 by 150, so it drew every greased line with aspect 2 on a 400 by 300 canvas;
+a later element on the same page, or any resize, gave another picture. That is a defect on both paths (the batched path
+still draws curved and capped animated lines as greased lines), so the fix applies to both: `EdgeMesh` hands every
+greased line the render size now and after every `engine.onResizeObservable`, and the pulled animated line's `aspect`
+uniform follows the same size. On the `"objects"` path this changes the picture of a page's first element with animated
+or fallback greased lines.
+
+Correction from stage 22: `scene.animationsEnabled`, the switch that parks an animated line, did not survive WebGPU
+opening. `renderer: "webgpu"` starts on a WebGL scene and replaces it with a new one when WebGPU opens; the swap carried
+the background but not this flag, so a consumer that parked the animation before WebGPU opened found it running. The
+swap in `Graph` now carries it, on both paths.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 
@@ -1315,6 +1345,14 @@ only a `Node` draws (a model, a picture, or anything `batchableOf` refuses); a g
 `StylePainter` needed no change: it already resolves paint by row number. Nothing calls `paintRow` yet: the frame's paint loop
 (`UpdateManager.takeNodeBatch`) keeps dropping a row with no `Node` until the fifth pull request skips `buildNode`, because today such a
 row is one that was removed, and painting it would draw a ghost. That pull request also renumbers `ColumnRow`s on a freeze.
+
+Correction from stage 26's third pull request: the third item is split. Fit and filter go first, alone: they reach a `ColumnRow`
+through `NodeBatches.columnRowIndices()` and the row table, never through a `Node`. A fit frames each visible column row from
+`RowTable.centerOf` and `extentOf` inside the graph root's transform (`nodeFramingBox`'s `columns`), and a filter writes the row
+table's hidden flag (`UpdateManager.applyColumnRows`), which is all a batch reads. Two limits carry to the fifth pull request. A row
+the mask draws faintly in context, or ringed as selected, needs a `Node` (both are a `Node`'s overlays), so ingest must build one for
+such a row; a column row is shown or hidden, nothing else. And `RowTable.measure` takes a `Node`, so a row that never had one has no
+extent to frame until paint measures it from its `NodePaint`. Shipped engines and transitions by row are the next pull request.
 
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

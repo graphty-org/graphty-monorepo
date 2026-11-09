@@ -286,6 +286,15 @@ export class RowTable {
     }
 
     /**
+     * Whether a row is filtered out or hidden by a style ({@link RowTable.hide}).
+     * @param row - The row.
+     * @returns True when it is hidden.
+     */
+    isHidden(row: number): boolean {
+        return ((this.flags[row] ?? 0) & HIDDEN) !== 0;
+    }
+
+    /**
      * Whether a row is drawn from its own writes rather than repacked from the lane: held or shrunk.
      * @param row - The row.
      * @returns True when the repack leaves it alone.

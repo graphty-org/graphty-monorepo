@@ -2188,6 +2188,8 @@ export class Graph implements GraphContext {
             this.reportEngineGone(error);
         };
         const background = this.scene.clearColor;
+        // a consumer that parked the scene's animations before WebGPU opened keeps them parked
+        const animates = this.scene.animationsEnabled;
         const previous = this.renderManager;
         const label = this.canvas.getAttribute("aria-label");
         if (label !== null) {
@@ -2229,6 +2231,7 @@ export class Graph implements GraphContext {
         this.renderManager.applyLighting(this.#lighting);
         NodeEffects.setOutlineWidth(this.scene, this.styles.config.behavior.node.outlineWidth);
         this.scene.clearColor = background;
+        this.scene.animationsEnabled = animates;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
         this.updateManager.rebindScene(this.camera);
         this.graphContext = new DefaultGraphContext(
@@ -6093,7 +6096,11 @@ export class Graph implements GraphContext {
         if (frame) {
             // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
             // labels are framed by zoom-to-fit, on a data load or a layout change.
-            const box = nodeFramingBox(this.getNodes(), this.session.config.framing?.extent);
+            const box = nodeFramingBox(
+                this.getNodes(),
+                this.session.config.framing?.extent,
+                this.updateManager.columnFraming(),
+            );
             if (box) {
                 this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
             }

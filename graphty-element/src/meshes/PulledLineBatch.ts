@@ -68,6 +68,12 @@ const TABLE_WIDTH = 1024;
 const TEXELS_PER_PIECE = 2;
 const TEXELS_PER_CURVE_PIECE = 4;
 
+/** The join template, drawn once per piece: its index list and its vertices. */
+const JOIN_TEMPLATE = { indices: JOIN_TEMPLATE_INDICES, vertices: JOIN_TEMPLATE_VERTICES };
+
+/** The lean program's rectangle, drawn once per piece of a mesh made with `pulledLean: true`. */
+export const LEAN_TEMPLATE = { indices: LEAN_TEMPLATE_INDICES, vertices: LEAN_TEMPLATE_OF.length };
+
 /** Floats in one texel. */
 const TEXEL_FLOATS = 4;
 
@@ -118,12 +124,6 @@ export class PulledLineBatch {
     /** Pieces in one line of the edge table. */
     private readonly piecesPerLine: number;
 
-    /** The template drawn once per piece: the join template, or the lean program's rectangle. */
-    private readonly template: readonly number[];
-
-    /** Vertices a piece's indices are numbered over. */
-    private readonly pieceVertices: number;
-
     /**
      * Start a batch on a joined line mesh made with `pulled: true`.
      * @param mesh - The mesh (`CustomLineRenderer.createJoinedLineMesh`), parented as the rows'
@@ -132,19 +132,21 @@ export class PulledLineBatch {
      * @param rowPositions - The `rowPosition` texture, asked each frame: the row table replaces it
      *     when it grows.
      * @param curve - Whether its pieces are curves' (a mesh made with `pulledCurve: true`).
-     * @param lean - Whether its mesh draws the lean program (made with `pulledLean: true`): each
-     *     piece's rectangle alone, 4 vertices and 6 indices, not the join template's 14 and 30.
+     * @param template - What a piece draws: the join template, the lean program's rectangle
+     *     (`LEAN_TEMPLATE`, for a mesh made with `pulledLean: true`: 4 vertices and 6 indices, not
+     *     the join template's 14 and 30), or another mesh's own (`pulledAnimatedLine.ts`), its
+     *     vertices numbered from 0 a piece.
+     * @param template.indices - Its index list.
+     * @param template.vertices - Its vertices.
      */
     constructor(
         mesh: Mesh,
         private readonly scene: Scene,
         private readonly rowPositions: () => BaseTexture,
         curve = false,
-        lean = false,
+        private readonly template: { readonly indices: readonly number[]; readonly vertices: number } = JOIN_TEMPLATE,
     ) {
         this.mesh = mesh;
-        this.template = lean ? LEAN_TEMPLATE_INDICES : JOIN_TEMPLATE_INDICES;
-        this.pieceVertices = lean ? LEAN_TEMPLATE_OF.length : JOIN_TEMPLATE_VERTICES;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
         this.pieceFloats = texels * TEXEL_FLOATS;
         this.piecesPerLine = TABLE_WIDTH / texels;
@@ -231,6 +233,17 @@ export class PulledLineBatch {
         this.rows[at + 4] = look.r;
         this.rows[at + 5] = look.g;
         this.rows[at + 6] = look.b;
+        this.touch(piece);
+    }
+
+    /**
+     * Give an animated line's piece its speed, a multiple of the element's own pace (`pulledAnimatedLine.ts`), in the
+     * slot a straight piece leaves unused.
+     * @param piece - The piece.
+     * @param speed - Its `line.animationSpeed`.
+     */
+    setSpeed(piece: number, speed: number): void {
+        this.rows[piece * this.pieceFloats + 7] = speed;
         this.touch(piece);
     }
 
@@ -451,26 +464,26 @@ export class PulledLineBatch {
         this.index();
     }
 
-    /** The template once per piece the table has room for, numbered so `gl_VertexID / 14` (4 when lean) is the piece. */
+    /** The template once per piece the table has room for, numbered so `gl_VertexID / vertices` is the piece. */
     private index(): void {
         const capacity = this.rows.length / this.pieceFloats;
-        const per = this.template.length;
-        const indices = new Uint32Array(capacity * per);
+        const { indices: template, vertices } = this.template;
+        const indices = new Uint32Array(capacity * template.length);
         for (let piece = 0; piece < capacity; piece++) {
-            for (let i = 0; i < per; i++) {
-                indices[piece * per + i] = this.template[i] + piece * this.pieceVertices;
+            for (let i = 0; i < template.length; i++) {
+                indices[piece * template.length + i] = template[i] + piece * vertices;
             }
         }
 
-        this.mesh.setIndices(indices, capacity * this.pieceVertices);
+        this.mesh.setIndices(indices, capacity * vertices);
         this.setCount();
     }
 
     /** Draw only the pieces handed out. */
     private setCount(): void {
         const [subMesh] = this.mesh.subMeshes;
-        subMesh.indexCount = this.highWater * this.template.length;
-        subMesh.verticesCount = this.highWater * this.pieceVertices;
+        subMesh.indexCount = this.highWater * this.template.indices.length;
+        subMesh.verticesCount = this.highWater * this.template.vertices;
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
 }

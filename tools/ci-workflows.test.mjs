@@ -1622,7 +1622,7 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(ci, "story-tests"), /RESULTS_PART: \$\{\{ matrix\.part \}\}/);
         assert.match(job(ci, "story-tests"), /name: story-parts-\$\{\{ matrix\.name \}\}-/);
         // every attempt's parts, then each part's newest attempt: a re-run of failed jobs re-runs only the failed parts
-        assert.match(job(ci, "story-tests-merge"), /pattern: story-parts-\$\{\{ matrix\.project \}\}-\*\n/);
+        assert.match(job(ci, "story-tests-merge"), /pattern: story-parts-\$\{\{ matrix\.project \}\}-\[0-9\]\*\n/);
         assert.match(job(ci, "story-tests-merge"), /sort -V \| awk .*sub\(\/-\[0-9\]\+\$\/, "", part\)/);
         assert.match(job(ci, "story-tests-merge"), /merge-results --project .* "\$RUNNER_TEMP"\/parts\/\*\/part-\*\//);
         assert.match(
@@ -1630,7 +1630,10 @@ describe("verification runs of ci.yml", () => {
             /name: visual-\$\{\{ matrix\.project \}\}-\$\{\{ github\.run_attempt \}\}/,
         );
         // One matrix leg per project, each skipped when the run does not test its storybook shard.
-        assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
+        assert.match(
+            job(ci, "story-tests"),
+            /- project: graphty-element\n\s+name: graphty-element-1\n\s+part: 1\n\s+parts: 3\n\s+shard: graphty-element-storybook-1\n/,
+        );
         assert.match(
             job(ci, "story-tests"),
             /- project: graphty\n\s+name: graphty-1\n\s+part: 1\n\s+parts: 2\n\s+shard: graphty-storybook\n/,
@@ -1667,7 +1670,7 @@ describe("verification runs of ci.yml", () => {
         const jobs = parseYaml(ci).jobs;
         const include = jobs["story-tests"].strategy.matrix.include;
         const split = [...new Set(include.filter((r) => r.parts).map((r) => r.project))].sort();
-        assert.deepEqual(split, ["graph-io-fidelity", "graphty"]);
+        assert.deepEqual(split, ["graph-io-fidelity", "graphty", "graphty-element"]);
         assert.deepEqual([...jobs["story-tests-merge"].strategy.matrix.project].sort(), split);
         for (const project of split) {
             const legs = include.filter((r) => r.project === project);
@@ -1685,11 +1688,14 @@ describe("verification runs of ci.yml", () => {
             // and every leg tests the same files of the same project
             assert.equal(new Set(legs.map((r) => r.command.replace(/ --shard=\S+$/, ""))).size, 1, project);
         }
-        // story-tests-merge's artifact pattern for one split project never matches another project's parts
+        // story-tests-merge's artifact pattern for one split project (story-parts-<project>-[0-9]*) never matches
+        // another project's parts: graphty's must not take graphty-element's (#6178)
         for (const a of split)
-            for (const b of include.map((r) => r.name).filter(Boolean)) {
-                if (!b.startsWith(`${a}-`)) continue;
-                assert.match(b.slice(a.length + 1), /^\d+$/, `story-parts-${a}-* would match ${b}`);
+            for (const r of include.filter((x) => x.name)) {
+                const artifact = `story-parts-${r.name}-1`;
+                const matches =
+                    artifact.startsWith(`story-parts-${a}-`) && /^\d/.test(artifact.slice(`story-parts-${a}-`.length));
+                assert.equal(matches, r.project === a, `story-parts-${a}-[0-9]* and ${artifact}`);
             }
     });
 

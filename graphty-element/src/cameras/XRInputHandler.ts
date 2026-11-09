@@ -678,9 +678,8 @@ export class XRInputHandler {
         const ray = new Ray(Vector3.Zero(), Vector3.Forward(), 100);
         for (const controller of this.xr.input.controllers) {
             controller.getWorldPointerRayToRef(ray);
-            const pick = this.scene.pickWithRay(ray, (mesh) => mesh.isPickable && mesh.isEnabled());
-            const id = (pick?.pickedMesh?.metadata as { graphNode?: { id?: NodeId } } | null | undefined)?.graphNode
-                ?.id;
+            const { mesh } = pickRayAsDrawn(this.scene, ray);
+            const id = (mesh?.metadata as { graphNode?: { id?: NodeId } } | null | undefined)?.graphNode?.id;
             if (id !== undefined && this.pointedBy.get(controller.uniqueId) !== id) {
                 this.pointedBy.set(controller.uniqueId, id);
                 assistant.pointed(id);

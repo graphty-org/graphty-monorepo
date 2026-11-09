@@ -139,6 +139,26 @@ when they change. On the default `"objects"` path `limits` is ignored, the eleme
 `renderPath` to `"objects"` while the graph holds more than those is refused: the element fires
 `error` with `E_TOO_LARGE` and stays on `"batched"`.
 
+## Smoothing (antialias)
+
+The canvas is drawn with 4x multisampling, which smooths the edges of lines and nodes. With very
+many edges, multisampling is most of each frame's cost; `antialias="false"` turns it off, for
+harder edges and faster frames. Nothing else about the picture changes.
+
+```html
+<graphty-element render-path="batched" antialias="false"></graphty-element>
+```
+
+Set it as an attribute, in any position in the tag, or as a property before using any other
+property or method of the element. A later change takes effect only on a new element and raises
+the warning `W_ANTIALIAS_LATE`:
+
+```js
+element.addEventListener("graphty-warning", (e) => {
+    const { code, params } = e.detail; // "W_ANTIALIAS_LATE", { requested, active }
+});
+```
+
 ## Drawing only when something changes
 
 Whichever renderer draws, the element draws a new frame on every animation frame by default, even

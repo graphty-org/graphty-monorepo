@@ -90,6 +90,24 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "labelPosition", snapshot)[n5]).toBe("bottom");
     });
 
+    it("keeps a preserved label's leading line break, which yEd draws as a blank first line", async () => {
+        // graphml-stm32-func n30: "\nCS" is stored two Times New Roman lines tall (35.0 = 2 x 15.5 + 4), and yEd
+        // draws "CS" on the second line; a trailing break adds no line (crocs-muni scrutiny "User's\nprofile\n" is
+        // stored two lines tall), and text without xml:space is trimmed as before
+        const node = (id: string, attrs: string, text: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+            `<y:NodeLabel ${attrs}>${text}</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("lead", 'xml:space="preserve"', "\nCS"),
+            node("trail", 'xml:space="preserve"', "User's\nprofile\n"),
+            node("plain", "", "\n  padded  "),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["\nCS", "User's\nprofile", "padded"]);
+    });
+
     it("draws Java's logical fonts in the faces Java draws them in, and writes them back as yEd names them", async () => {
         const node = (id: string, label: string): string =>
             `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +

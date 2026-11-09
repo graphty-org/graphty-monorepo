@@ -2182,13 +2182,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     #publishRows(): boolean {
         const loaded = this.#loaded;
         const column = this.#column;
-        if (
-            loaded === null ||
-            loaded.source === null ||
-            loaded.positions === null ||
-            column.length === 0 ||
-            this.#rowSource() === null
-        ) {
+        if (!loaded?.source || loaded.positions === null || column.length === 0 || this.#rowSource() === null) {
             return false;
         }
 

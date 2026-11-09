@@ -422,6 +422,17 @@ head, which waits for stage 17. One `lean-m` run each under `"batched"`, RTX, in
 load average 5.4) moving 87.6 ms (p99 90.6), layout frame 942 ms; after (`benchmarks/results/stage-16`, 4.2) moving 86.9 ms (p99 89.5),
 layout frame 997 ms, `rowCounts.pulledEdges` 0 in both. The 2D targets need a pulled 2D line, which no stage yet builds.
 
+As built (stage G3 of `cosmos-gap.md`): a plain solid straight 2D line is pulled too. `EdgeMesh.pulledBatch` builds a 2D batch's
+mesh as the 2D line's joined program (`worldWidth`, a piece's width `edge.width / 40`, as `Simple2DLineRenderer` takes it), and
+the view keys the batch (`|2d`), so a 2D/3D switch builds another. Correction to `cosmos-gap.md` section 3.3 item 1, which drops
+the `drawsFlat` refusal whole: two refusals stay in 2D. A 2D curve (`EdgeMesh.pullsCurve`) stays an object edge, since no parity
+case covers a pulled 2D curve yet; and `Edge.pullsLine` now refuses an end at a node drawn behind every edge
+(`Node.isDrawnBehindEdges`, which a 2D node below z-index 0 is, not only a group), because that line ends at the node's outline
+(`Edge.groupEnd`) where a pulled line runs to its centre. `test/browser/pulled-edges-batched.test.ts` holds 2D to the objects
+picture, 0 pixels, at rest, after a mouse drag, across a 2D/3D switch and at a sub-pixel width. One `lean-m` run under
+`"batched"`, RTX, load average 3.0 (`benchmarks/results/stage-g3`): `rowCounts.pulledEdges` 1,000,000, drag 79.9 ms median
+(p99 89.6; 107 ms median before), still serial 72.1 ms (p99 74.3), paced 87.3 ms (p99 89.8).
+
 Also fixed in stage 16 (a `"batched"`-only defect already on master): a node source mesh whose batch group lost its last member
 stayed in `MeshCache.batchedSources` until the next flush, but the cache prunes right after the repaint, before that flush, so a
 toggled node size left one mesh and one material behind per look (`session-style-paint.test.ts` under the `forced-batched`

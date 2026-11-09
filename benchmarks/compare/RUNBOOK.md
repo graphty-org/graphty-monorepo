@@ -104,6 +104,9 @@ needed `lean-m-tail` three times and `lean-m-dpr2-tail` twice.
 To see where a frame's CPU goes, set `BENCH_PROFILE=<path prefix>`: the run also profiles 60 still and 60 moving
 frames, outside the timed stages, into `<prefix>-still.cpuprofile` and `<prefix>-orbit.cpuprofile`.
 
+The `3d` flag keeps the lean mode's straight edges in 3D, where `batched` pulls them (a 2D line is not pulled), and
+fails the run if any edge is an object edge: the million-edge line program (cosmos-gap.md G12) is measured with it.
+
 The curve target (100,000 curved edges moving) is `lean-s-curves`: 10,000 boxes and 100,000 curves with no caps,
 in 3D. Under `batched` it also fails if any edge is an object edge. Run it once per render path, interleaved:
 

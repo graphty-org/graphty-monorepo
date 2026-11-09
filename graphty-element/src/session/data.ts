@@ -2911,9 +2911,9 @@ export class SessionData implements SessionDataApi {
         }
 
         // A joined table's values go with it: what it wrote is removed, what it overwrote comes back.
-        // An edges join's elements are the provenance removal below, so only a values join unjoins.
+        // What a join added is the provenance removal below, so only the values it wrote are put back.
         const joined = this.storedSources().find((each) => each.key === key);
-        const unjoin = joined?.join === undefined || joined.join.shape === "edges" ? [] : this.unjoin(joined).steps;
+        const unjoin = joined === undefined ? [] : this.restoreValues(joined).steps;
         const before = { nodes: snapshot.nodeCount, edges: snapshot.edgeCount };
         await this.writes.send({
             op: "batch",
@@ -3453,30 +3453,48 @@ export class SessionData implements SessionDataApi {
         restored: Map<string, Readonly<Record<string, unknown>>>;
         gone: Set<string>;
     } {
-        const { join } = previous;
-        const restored = new Map<string, Readonly<Record<string, unknown>>>();
-        const gone = new Set<string>();
-        if (join?.shape === "edges") {
-            const provenance = this.provenance();
-            const index = provenanceIndex(provenance);
-            const only = (keys: readonly SourceKey[] | undefined): boolean =>
-                keys?.every((each) => each === previous.key) !== false;
-            const edges = (provenance?.[previous.key]?.edges ?? []).filter((id) => only(index.edges.get(id)));
-            const nodes = (provenance?.[previous.key]?.nodes ?? []).filter((id) => only(index.nodes.get(id)));
-            edges.forEach((id) => gone.add(`edge:${id}`));
-            nodes.forEach((id) => gone.add(`node:${String(id)}`));
-            return {
-                steps: [
-                    { op: "data.apply", mutation: { kind: "remove-edges", ids: edges } },
-                    { op: "data.apply", mutation: { kind: "remove-nodes", ids: nodes } },
-                ],
-                restored,
-                gone,
-            };
+        const values = this.restoreValues(previous);
+        const shape = previous.join?.shape;
+        if (shape !== "edges" && shape !== "link" && shape !== "merge") {
+            return { ...values, gone: new Set() };
         }
 
+        // What only this join added: its edges and the nodes no other load supplied.
+        const gone = new Set<string>();
+        const provenance = this.provenance();
+        const index = provenanceIndex(provenance);
+        const only = (keys: readonly SourceKey[] | undefined): boolean =>
+            keys?.every((each) => each === previous.key) !== false;
+        const edges = (provenance?.[previous.key]?.edges ?? []).filter((id) => only(index.edges.get(id)));
+        const nodes = (provenance?.[previous.key]?.nodes ?? []).filter((id) => only(index.nodes.get(id)));
+        edges.forEach((id) => gone.add(`edge:${id}`));
+        nodes.forEach((id) => gone.add(`node:${String(id)}`));
+        return {
+            steps: [
+                ...values.steps,
+                { op: "data.apply", mutation: { kind: "remove-edges", ids: edges } },
+                { op: "data.apply", mutation: { kind: "remove-nodes", ids: nodes } },
+            ],
+            restored: values.restored,
+            gone,
+        };
+    }
+
+    /**
+     * The values a join wrote over, put back as they were: what its record's `before` holds.
+     * @param previous - the joined table's load
+     * @returns the step, and the restored values by `<kind>:<id>`
+     */
+    private restoreValues(previous: LoadedSource): {
+        steps: SessionCommand[];
+        restored: Map<string, Readonly<Record<string, unknown>>>;
+    } {
+        const { join } = previous;
+        const restored = new Map<string, Readonly<Record<string, unknown>>>();
         const kind = join?.shape === "edge-values" ? "edge" : "node";
-        const held = new Map(this.joinRows(kind).map((row) => [String(row.id), row]));
+        const held = new Map(
+            join?.before === undefined ? [] : this.joinRows(kind).map((row) => [String(row.id), row] as const),
+        );
         const rows: RowUpdate<NodeId | EdgeId>[] = [];
         for (const [id, values] of Object.entries(join?.before ?? {})) {
             const row = held.get(id);
@@ -3498,7 +3516,6 @@ export class SessionData implements SessionDataApi {
                     ? []
                     : [{ op: "data.apply", mutation: { kind: "update-rows", target: kind, rows, replace: true } }],
             restored,
-            gone,
         };
     }
 
@@ -3548,7 +3565,7 @@ export class SessionData implements SessionDataApi {
             matched: planned.matched,
             columns: plan.columns,
             table: { name: table.name, columns: [...table.columns], rows: [...table.rows] },
-            ...(plan.kind === "values" ? { before: plan.before } : {}),
+            ...(plan.kind === "values" || Object.keys(plan.before).length > 0 ? { before: plan.before } : {}),
         });
         const left = stored.filter((each) => each.key !== key);
         const leftProvenance = withoutSource(provenance, key);
@@ -3599,14 +3616,17 @@ export class SessionData implements SessionDataApi {
             source: described,
             mode: "merge",
             held: {
-                nodes: [],
+                nodes: plan.nodes,
                 edges: plan.edges,
                 declaredDirection: null,
                 errors: [],
                 errorLimit: 100,
+                idPath: "id",
                 source: keyExpression(plan.source),
                 target: keyExpression(plan.target),
             },
+            // A merge's records carry the values fused into the nodes they name.
+            ...(plan.nodes.length === 0 ? {} : { existing: "update" as const }),
             origin: "join",
             ...(onto === null ? {} : { joinedOnto: onto }),
             join: record,
@@ -3672,6 +3692,9 @@ export class SessionData implements SessionDataApi {
             countHeldEnds(plan, graph, (end) => {
                 count(index.nodes.get(end));
             });
+            for (const id of plan.matchedIds) {
+                count(index.nodes.get(id));
+            }
         } else {
             for (const id of plan.matchedIds) {
                 count(plan.target === "edge" ? index.edges.get(String(id)) : index.nodes.get(id));
@@ -3968,7 +3991,7 @@ export class SessionData implements SessionDataApi {
                 continue;
             }
 
-            const kind = join.shape === "node-values" ? "node" : "edge";
+            const kind = join.shape === "node-values" || join.shape === "merge" ? "node" : "edge";
             for (const name of join.columns) {
                 const rule = join.choices.clash?.[name];
                 if (rule !== "overwrite" && rule !== "keep") {

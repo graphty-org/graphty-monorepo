@@ -2741,15 +2741,18 @@ export type ItemKey = {
 
 // @public
 export interface JoinChoices {
+    readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
     readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
     readonly columns?: readonly string[];
     readonly ignore?: readonly JoinWarning[];
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly keys: readonly JoinKey[];
+    readonly link?: JoinLink;
     readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
     readonly unknownEnds?: "add" | "leave-out";
+    readonly unmatchedFrom?: "keep" | "drop";
     readonly via?: SourceKey;
 }
 
@@ -2757,6 +2760,15 @@ export interface JoinChoices {
 export interface JoinKey {
     readonly file: string;
     readonly graph: Path;
+}
+
+// @public
+export interface JoinLink {
+    readonly as?: "edges" | "nodes";
+    readonly columns: readonly string[];
+    readonly kind?: string;
+    readonly maxShared?: number;
+    readonly minShared?: number;
 }
 
 // @public
@@ -2777,6 +2789,9 @@ export interface JoinRecord {
 }
 
 // @public
+export type JoinReduce = "count" | "sum" | "min" | "max" | "mean" | "first" | "last" | "list";
+
+// @public
 export interface JoinReport {
     readonly clashes: readonly {
         readonly column: string;
@@ -2784,24 +2799,31 @@ export interface JoinReport {
     }[];
     readonly extraIgnoringCase: number;
     readonly extraIgnoringSpaces: number;
+    readonly fanOut: number;
     readonly matched: number;
+    readonly merged: number;
     readonly newEdges: number;
     readonly newNodes: number;
     readonly notInGraph: number;
+    readonly onlyFrom: number;
+    readonly onlyOnto: number;
+    readonly pairsBelowMin: number;
+    readonly pairsLinked: number;
     readonly repeatedKeys: number;
     readonly rowFates: readonly JoinRowFate[];
     readonly rowMatches: readonly (readonly (NodeId_2 | EdgeId)[])[];
     readonly unknownEndRows: number;
     readonly updatedNodes: number;
+    readonly valuesOverCap: number;
     readonly withoutValue: number;
     readonly withoutValueIds: readonly (NodeId_2 | EdgeId)[];
 }
 
 // @public
-export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out";
+export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out" | "merged" | "linked" | "over-cap";
 
 // @public
-export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace";
+export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link";
 
 // @public
 export interface JoinSuggestion {

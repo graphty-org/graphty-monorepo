@@ -10,6 +10,7 @@ import type {
     JoinChoices,
     JoinKey,
     JoinRecord,
+    JoinReduce,
     JoinReport,
     JoinRowFate,
     JoinShape,
@@ -50,10 +51,16 @@ export type JoinPlan =
       }
     | {
           readonly kind: "edges";
+          /** Node records to load (`id` their id): new nodes, and for `"merge"` the nodes merged into. */
+          readonly nodes: readonly Record<string, unknown>[];
           readonly edges: readonly Record<string, unknown>[];
           readonly source: string;
           readonly target: string;
           readonly columns: readonly string[];
+          /** For `"merge"`: the merged nodes' values before, as for values. */
+          readonly before: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+          /** For `"merge"`: the nodes merged into. */
+          readonly matchedIds: readonly NodeId[];
       }
     | { readonly kind: "rows" };
 
@@ -334,6 +341,20 @@ function checked(table: JoinTable, choices: JoinChoices, shape: JoinShape): Join
         }
     }
 
+    for (const column of [...Object.keys(choices.aggregate ?? {}), ...(choices.link?.columns ?? [])]) {
+        if (!table.columns.includes(column)) {
+            throw badJoin(`The table has no column ${JSON.stringify(column)}.`, {
+                reason: "unknown-column",
+                column,
+                columns: [...table.columns],
+            });
+        }
+    }
+
+    if (chosen === "link" && (choices.link === undefined || choices.link.columns.length === 0)) {
+        throw badJoin("A join of link takes link.columns.", { reason: "link", shape: chosen });
+    }
+
     const needs = chosen === "edges" ? 2 : 1;
     if ((chosen === "edges" && choices.keys.length !== 2) || (chosen !== "rows" && choices.keys.length < needs)) {
         throw badJoin(`A join of ${chosen} takes ${chosen === "edges" ? "two keys" : "a key"}.`, {
@@ -449,7 +470,106 @@ function matchEdges(table: JoinTable, graph: JoinGraph, choices: JoinChoices, lo
  */
 function columnsOf(table: JoinTable, choices: JoinChoices): string[] {
     const keys = new Set(choices.keys.map((key) => key.file));
-    return (choices.columns ?? table.columns).filter((column) => table.columns.includes(column) && !keys.has(column));
+    const brought = (choices.columns ?? table.columns).filter(
+        (column) => table.columns.includes(column) && !keys.has(column),
+    );
+    // An aggregated column is brought even when it is a key column (to count the rows).
+    return [...new Set([...brought, ...Object.keys(choices.aggregate ?? {})])];
+}
+
+/**
+ * One value from many: see {@link JoinReduce}.
+ * @param rule - The reduction.
+ * @param values - The values, blanks dropped, in table order.
+ * @returns The value, or undefined when there is none.
+ */
+function reduce(rule: JoinReduce, values: readonly unknown[]): unknown {
+    if (rule === "count") {
+        return values.length;
+    }
+
+    if (values.length === 0) {
+        return undefined;
+    }
+
+    if (rule === "first" || rule === "last" || rule === "list") {
+        return { first: values[0], last: values.at(-1), list: [...values] }[rule];
+    }
+
+    const numbers = values.map(Number).filter((value) => Number.isFinite(value));
+    if (rule === "min" || rule === "max") {
+        if (numbers.length < values.length) {
+            const texts = values.map(String).sort((a, b) => a.localeCompare(b));
+            return rule === "min" ? texts[0] : texts.at(-1);
+        }
+
+        return rule === "min" ? Math.min(...numbers) : Math.max(...numbers);
+    }
+
+    if (numbers.length === 0) {
+        return undefined;
+    }
+
+    const sum = numbers.reduce((total, value) => total + value, 0);
+    return rule === "sum" ? sum : sum / numbers.length;
+}
+
+/** One value a group of rows writes: the incoming column, the name written, the value. */
+interface Written {
+    readonly column: string;
+    readonly name: string;
+    readonly value: unknown;
+}
+
+/**
+ * The values a group of rows (one key's, or one pair's) writes: with `aggregate`, each column
+ * reduced; otherwise the first value, the last with `repeated: "last"`, or every distinct value
+ * with `repeated: "both"`.
+ * @param rows - The rows, in table order.
+ * @param columns - The incoming columns brought.
+ * @param choices - The join.
+ * @param nameOf - The name a column is written under.
+ * @returns The values, blanks left out.
+ */
+function groupValues(
+    rows: readonly Readonly<Record<string, unknown>>[],
+    columns: readonly string[],
+    choices: JoinChoices,
+    nameOf: (column: string) => string,
+): Written[] {
+    const out: Written[] = [];
+    for (const column of columns) {
+        const given = rows.map((row) => row[column]).filter((value) => !absent(value));
+        if (choices.aggregate !== undefined) {
+            const rules = choices.aggregate[column] ?? "first";
+            for (const rule of typeof rules === "string" ? [rules] : rules) {
+                const name = typeof rules === "string" ? nameOf(column) : `${nameOf(column)} (${rule})`;
+                const value = reduce(rule, given);
+                if (value !== undefined) {
+                    out.push({ column, name, value });
+                }
+            }
+            continue;
+        }
+
+        const distinct = [...new Set(given)];
+        const one = choices.repeated === "last" ? given.at(-1) : given[0];
+        const value = choices.repeated === "both" && distinct.length > 1 ? distinct : one;
+        if (value !== undefined) {
+            out.push({ column, name: nameOf(column), value });
+        }
+    }
+
+    return out;
+}
+
+/**
+ * Whether every row of a key is kept, not one: `repeated: "both"` or `aggregate`.
+ * @param choices - The join.
+ * @returns True when no row repeats another.
+ */
+function keepsEveryRow(choices: JoinChoices): boolean {
+    return choices.repeated === "both" || choices.aggregate !== undefined;
 }
 
 /**
@@ -502,6 +622,13 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
             withoutValueIds: Object.freeze([]),
             rowFates: Object.freeze([]),
             unknownEndRows: 0,
+            fanOut: 0,
+            merged: 0,
+            onlyFrom: 0,
+            onlyOnto: 0,
+            pairsLinked: 0,
+            valuesOverCap: 0,
+            pairsBelowMin: 0,
             ...counts,
             clashes: Object.freeze(
                 clashesOf(elements, columns).map((column) => Object.freeze({ column, code: "clash" as const })),
@@ -515,7 +642,7 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
         return edgeReport(table, graph, choices, report);
     }
 
-    const elements = chosen === "node-values" ? graph.nodes : graph.edges;
+    const elements = chosen === "edge-values" ? graph.edges : graph.nodes;
     const via = choices.via === undefined ? undefined : graph.joins.get(choices.via);
     const now = matchValues(table, elements, choices, looseOf(choices), via);
     const loosest = matchValues(table, elements, choices, { ignoreCase: true, ignoreSpaces: true }, via);
@@ -528,21 +655,41 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
         }
     }
 
-    return report(
-        {
-            matched: now.matched.size,
-            notInGraph: loosest.rowIds.filter((ids) => ids.length === 0).length,
-            withoutValue: elements.length - now.matched.size,
-            repeatedKeys: [...seen.values()].filter((count) => count > 1).length,
-            extraIgnoringCase: choices.ignoreCase === true ? 0 : extra({ ignoreCase: true }),
-            extraIgnoringSpaces: choices.ignoreSpaces === true ? 0 : extra({ ignoreSpaces: true }),
-            updatedNodes: chosen === "node-values" ? changedCount(table, graph, choices, chosen) : 0,
-            rowMatches: frozen(now.rowIds.map((ids) => [...ids])),
-            withoutValueIds: frozen(elements.map((element) => element.id).filter((id) => !now.matched.has(id))),
-            rowFates: frozen(valueFates(now.rowKeys, now.rowIds, choices)),
-        },
-        elements,
-    );
+    const base: Partial<JoinReport> = {
+        matched: now.matched.size,
+        notInGraph: loosest.rowIds.filter((ids) => ids.length === 0).length,
+        withoutValue: elements.length - now.matched.size,
+        repeatedKeys: [...seen.values()].filter((count) => count > 1).length,
+        extraIgnoringCase: choices.ignoreCase === true ? 0 : extra({ ignoreCase: true }),
+        extraIgnoringSpaces: choices.ignoreSpaces === true ? 0 : extra({ ignoreSpaces: true }),
+        updatedNodes: chosen === "edge-values" || chosen === "link" ? 0 : changedCount(table, graph, choices, chosen),
+        rowMatches: frozen(now.rowIds.map((ids) => [...ids])),
+        withoutValueIds: frozen(elements.map((element) => element.id).filter((id) => !now.matched.has(id))),
+        rowFates: frozen(valueFates(now.rowKeys, now.rowIds, choices)),
+        fanOut: now.rowIds.filter((ids) => ids.length > 1).length,
+    };
+    if (chosen === "merge") {
+        const merge = mergeOf(table, graph, choices);
+        const kept = choices.unmatchedFrom === "drop" ? 0 : merge.onlyFrom;
+        return report(
+            {
+                ...base,
+                rowFates: frozen(merge.fates),
+                merged: now.matched.size,
+                onlyFrom: merge.onlyFrom,
+                onlyOnto: elements.length - now.matched.size,
+                newNodes: kept,
+            },
+            elements,
+        );
+    }
+
+    if (chosen === "link") {
+        const link = linkOf(table, graph, choices);
+        return report({ ...base, ...link.counts, rowFates: frozen(link.fates) }, []);
+    }
+
+    return report(base, elements);
 }
 
 /**
@@ -568,7 +715,7 @@ function valueFates(
         if (key === undefined || rowIds[at].length === 0) {
             return "left-out";
         }
-        return choices.repeated === "both" || kept.get(key) === at ? "joined" : "repeat";
+        return keepsEveryRow(choices) || kept.get(key) === at ? "joined" : "repeat";
     });
 }
 
@@ -583,12 +730,17 @@ function valueFates(
  */
 function changedCount(table: JoinTable, graph: JoinGraph, choices: JoinChoices, shape: JoinShape): number {
     const { plan } = planJoin(table, graph, choices, shape);
-    if (plan.kind !== "values") {
+    if (plan.kind === "rows") {
         return 0;
     }
 
-    const held = new Map((plan.target === "node" ? graph.nodes : graph.edges).map((each) => [each.id, each.data]));
-    return plan.rows.filter((row) =>
+    const elements = plan.kind === "values" && plan.target === "edge" ? graph.edges : graph.nodes;
+    const held = new Map(elements.map((each) => [each.id, each.data]));
+    const rows =
+        plan.kind === "values"
+            ? plan.rows
+            : plan.nodes.map(({ id, ...values }) => ({ id: id as NodeId, values })).filter((row) => held.has(row.id));
+    return rows.filter((row) =>
         Object.entries(row.values).some(
             ([name, value]) => JSON.stringify(held.get(row.id)?.[name]) !== JSON.stringify(value),
         ),
@@ -624,7 +776,7 @@ function edgeFates(count: number, rows: readonly EdgeRow[], choices: JoinChoices
     const fates: JoinRowFate[] = Array.from({ length: count }, () => "left-out");
     for (const row of rows) {
         const loadedFate = bothFound(row) ? "joined" : "new-end";
-        const repeat = choices.repeated !== "both" && keptAt.get(pairOf(row)) !== row.at;
+        const repeat = !keepsEveryRow(choices) && keptAt.get(pairOf(row)) !== row.at;
         fates[row.at] = repeat ? "repeat" : loadedFate;
     }
     return fates;
@@ -665,7 +817,7 @@ function edgeReport(
     }
 
     const rowFates = edgeFates(table.rows.length, rows, choices);
-    const kept = choices.repeated === "both" ? rows.length : pairs.size;
+    const kept = choices.repeated === "both" && choices.aggregate === undefined ? rows.length : pairs.size;
     const matched = both(rows);
     return report(
         {
@@ -728,12 +880,60 @@ export function planJoin(
         return { shape: chosen, ...planEdges(table, graph, choices, columns) };
     }
 
+    if (chosen === "merge") {
+        const merge = mergeOf(table, graph, choices);
+        return { shape: chosen, plan: merge.plan, matched: merge.plan.matchedIds.length };
+    }
+
+    if (chosen === "link") {
+        const link = linkOf(table, graph, choices);
+        return { shape: chosen, plan: link.plan, matched: link.matched };
+    }
+
     const target = chosen === "node-values" ? "node" : "edge";
     const elements = target === "node" ? graph.nodes : graph.edges;
-    const byId = new Map(elements.map((element) => [element.id, element]));
     const via = choices.via === undefined ? undefined : graph.joins.get(choices.via);
     const matching = matchValues(table, elements, choices, looseOf(choices), via);
+    const { rows, before, written } = valuesOf(table, elements, matching, columns, choices);
+    return {
+        shape: chosen,
+        matched: matching.matched.size,
+        plan: {
+            kind: "values",
+            target,
+            rows,
+            matchedIds: [...matching.matched],
+            columns: [...written],
+            before,
+        },
+    };
+}
+
+/**
+ * The values a join writes onto the elements its rows matched, and what they held before.
+ * @param table - The incoming table.
+ * @param elements - The nodes or edges.
+ * @param matching - Each row's matches.
+ * @param columns - The incoming columns brought.
+ * @param choices - The join.
+ * @returns Each element's values, the values before, and the names written.
+ */
+function valuesOf(
+    table: JoinTable,
+    elements: readonly JoinElement[],
+    matching: Matching,
+    columns: readonly string[],
+    choices: JoinChoices,
+): {
+    readonly rows: RowUpdate<NodeId | EdgeId>[];
+    readonly before: Record<string, Record<string, unknown>>;
+    readonly written: Set<string>;
+} {
+    const byId = new Map(elements.map((element) => [element.id, element]));
     const clashing = new Set(clashesOf(elements, columns));
+    const ruleOf = (column: string): "keep" | "overwrite" | "both" =>
+        clashing.has(column) ? (choices.clash?.[column] ?? "both") : "overwrite";
+    const nameOf = (column: string): string => (ruleOf(column) === "both" ? bothName(column, table) : column);
     // Each element's rows, in table order.
     const rowsOf = new Map<NodeId | EdgeId, Readonly<Record<string, unknown>>[]>();
     matching.rowIds.forEach((ids, at) => {
@@ -748,14 +948,8 @@ export function planJoin(
     for (const [id, matchedRows] of rowsOf) {
         const held = byId.get(id)?.data ?? {};
         const values: Record<string, unknown> = {};
-        for (const column of columns) {
-            const rule = clashing.has(column) ? (choices.clash?.[column] ?? "both") : "overwrite";
-            const name = rule === "both" ? bothName(column, table) : column;
-            const given = matchedRows.map((row) => row[column]).filter((value) => !absent(value));
-            const distinct = [...new Set(given)];
-            const one = choices.repeated === "last" ? given.at(-1) : given[0];
-            const value = choices.repeated === "both" && distinct.length > 1 ? distinct : one;
-            if (value === undefined || (rule === "keep" && !absent(held[name]))) {
+        for (const { column, name, value } of groupValues(matchedRows, columns, choices, nameOf)) {
+            if (ruleOf(column) === "keep" && !absent(held[name])) {
                 continue;
             }
 
@@ -771,16 +965,203 @@ export function planJoin(
         }
     }
 
+    return { rows, before, written };
+}
+
+/** What a merge does: its plan, each row's fate, and the keys only the table holds. */
+interface Merge {
+    readonly plan: Extract<JoinPlan, { kind: "edges" }>;
+    readonly matching: Matching;
+    readonly fates: JoinRowFate[];
+    readonly onlyFrom: number;
+}
+
+/**
+ * Plan a merge: a row naming a node is fused into it as values are; the rows of each key naming
+ * no node become one new node, its id the key's value (`<value> (<table>)` when a node already has
+ * that id), carrying the key under the graph column it matched.
+ * @param table - The incoming table.
+ * @param graph - The graph.
+ * @param choices - The join.
+ * @returns The merge.
+ */
+function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merge {
+    const columns = columnsOf(table, choices);
+    const via = choices.via === undefined ? undefined : graph.joins.get(choices.via);
+    const matching = matchValues(table, graph.nodes, choices, looseOf(choices), via);
+    const { rows, before, written } = valuesOf(table, graph.nodes, matching, columns, choices);
+    const valuesById = new Map(rows.map((row) => [row.id, row.values]));
+    const nodes: Record<string, unknown>[] = [...matching.matched].map((id) => ({
+        ...valuesById.get(id),
+        id,
+    }));
+    // The rows of each key no node holds, in table order.
+    const unmatched = new Map<string, number[]>();
+    matching.rowKeys.forEach((key, at) => {
+        if (key !== undefined && matching.rowIds[at].length === 0) {
+            unmatched.set(key, [...(unmatched.get(key) ?? []), at]);
+        }
+    });
+
+    const fates = valueFates(matching.rowKeys, matching.rowIds, choices).map((fate) =>
+        fate === "joined" ? "merged" : fate,
+    );
+    if (choices.unmatchedFrom !== "drop") {
+        const ids = new Set(graph.nodes.map((node) => String(node.id)));
+        const nameOf = (column: string): string => (column === "id" ? bothName(column, table) : column);
+        for (const ats of unmatched.values()) {
+            const first = table.rows[ats[0]];
+            const given = choices.keys.map((key) => String(first[key.file])).join(" ");
+            const record: Record<string, unknown> = {};
+            for (const key of choices.keys.filter((each) => each.graph !== "id")) {
+                record[key.graph.replace(/^data\./, "")] = first[key.file];
+            }
+
+            for (const { name, value } of groupValues(
+                ats.map((at) => table.rows[at]),
+                columns,
+                choices,
+                nameOf,
+            )) {
+                record[name] = value;
+                written.add(name);
+            }
+
+            nodes.push({ ...record, id: ids.has(given) ? bothName(given, table) : given });
+            const kept = keepsEveryRow(choices) ? ats : [choices.repeated === "last" ? ats[ats.length - 1] : ats[0]];
+            for (const at of ats) {
+                fates[at] = kept.includes(at) ? "new-end" : "repeat";
+            }
+        }
+    }
+
     return {
-        shape: chosen,
-        matched: matching.matched.size,
         plan: {
-            kind: "values",
-            target,
-            rows,
-            matchedIds: [...matching.matched],
+            kind: "edges",
+            nodes,
+            edges: [],
+            source: "source",
+            target: "target",
             columns: [...written],
             before,
+            matchedIds: [...matching.matched] as NodeId[],
+        },
+        matching,
+        fates,
+        onlyFrom: unmatched.size,
+    };
+}
+
+/** What linking by shared values does: its plan, each row's fate, and its counts. */
+interface Link {
+    readonly plan: Extract<JoinPlan, { kind: "edges" }>;
+    readonly matched: number;
+    readonly fates: JoinRowFate[];
+    readonly counts: Pick<JoinReport, "pairsLinked" | "valuesOverCap" | "pairsBelowMin" | "newNodes" | "newEdges">;
+}
+
+/** The hub cap when `link.maxShared` is absent (Neo4j's fraud examples use 10). */
+const MAX_SHARED = 10;
+
+/**
+ * Plan a link: each row's node holds the row's values in the link columns; a value two to
+ * `maxShared` nodes hold links them, as edges between each pair sharing at least `minShared`
+ * values, or as one node per value with an edge from each holder.
+ * ponytail: pairs per value are quadratic in its holders, bounded by maxShared.
+ * @param table - The incoming table.
+ * @param graph - The graph.
+ * @param choices - The join.
+ * @returns The link.
+ */
+function linkOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Link {
+    const link = choices.link ?? { columns: [] };
+    const loose = looseOf(choices);
+    const via = choices.via === undefined ? undefined : graph.joins.get(choices.via);
+    const matching = matchValues(table, graph.nodes, choices, loose, via);
+    const order = new Map(graph.nodes.map((node, at) => [node.id, at]));
+    // Each value's holders, by column and compared value.
+    const values = new Map<string, { column: string; given: unknown; ids: Set<NodeId | EdgeId> }>();
+    const valueKeysOf: string[][] = table.rows.map(() => []);
+    matching.rowIds.forEach((ids, at) => {
+        for (const column of ids.length === 0 ? [] : link.columns) {
+            const compared = norm(table.rows[at][column], loose);
+            if (compared === undefined) {
+                continue;
+            }
+
+            const key = `${column}${PART}${compared}`;
+            const entry = values.get(key) ?? { column, given: table.rows[at][column], ids: new Set() };
+            ids.forEach((id) => entry.ids.add(id));
+            values.set(key, entry);
+            valueKeysOf[at].push(key);
+        }
+    });
+
+    const cap = link.maxShared ?? MAX_SHARED;
+    const used = new Set(
+        [...values].filter(([, each]) => each.ids.size > 1 && each.ids.size <= cap).map(([key]) => key),
+    );
+    const overCap = [...values.values()].filter((each) => each.ids.size > cap).length;
+    const pairs = new Map<string, { a: NodeId | EdgeId; b: NodeId | EdgeId; count: number }>();
+    for (const key of used) {
+        const ids = [...(values.get(key)?.ids ?? [])].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+        ids.forEach((a, at) => {
+            for (const b of ids.slice(at + 1)) {
+                const pair = `${String(a)}${PART}${String(b)}`;
+                const entry = pairs.get(pair) ?? { a, b, count: 0 };
+                entry.count++;
+                pairs.set(pair, entry);
+            }
+        });
+    }
+
+    const min = link.minShared ?? 1;
+    const linked = [...pairs.values()].filter((pair) => pair.count >= min);
+    const inPair = new Set(linked.flatMap((pair) => [pair.a, pair.b]));
+    const asNodes = link.as === "nodes";
+    const kind = link.kind === undefined ? {} : { kind: link.kind };
+    const nodes: Record<string, unknown>[] = [];
+    const edges: Record<string, unknown>[] = [];
+    if (asNodes) {
+        for (const key of used) {
+            const { column, given, ids } = values.get(key) ?? { column: "", given: "", ids: new Set() };
+            const id = `${column}:${String(given)}`;
+            nodes.push({ id, kind: link.kind ?? column, [column]: given });
+            ids.forEach((holder) => edges.push({ source: holder, target: id, ...kind }));
+        }
+    } else {
+        linked.forEach((pair) => edges.push({ source: pair.a, target: pair.b, shared: pair.count, ...kind }));
+    }
+
+    const fates = matching.rowIds.map((ids, at): JoinRowFate => {
+        const keys = valueKeysOf[at];
+        if (keys.some((key) => used.has(key)) && (asNodes || ids.some((id) => inPair.has(id)))) {
+            return "linked";
+        }
+
+        return keys.some((key) => (values.get(key)?.ids.size ?? 0) > cap) ? "over-cap" : "left-out";
+    });
+    return {
+        plan: {
+            kind: "edges",
+            nodes,
+            edges,
+            source: "source",
+            target: "target",
+            columns: [...new Set(edges.flatMap((edge) => Object.keys(edge)))].filter(
+                (name) => name !== "source" && name !== "target",
+            ),
+            before: {},
+            matchedIds: [],
+        },
+        matched: matching.matched.size,
+        fates,
+        counts: {
+            pairsLinked: linked.length,
+            valuesOverCap: overCap,
+            pairsBelowMin: pairs.size - linked.length,
+            newNodes: nodes.length,
+            newEdges: edges.length,
         },
     };
 }
@@ -801,32 +1182,38 @@ function planEdges(
 ): { readonly plan: JoinPlan; readonly matched: number } {
     const [source, target] = choices.keys.map((key) => key.file);
     const clashing = new Set(clashesOf(graph.edges, columns));
-    // One edge per pair, the first row's or the last row's, or one per row with "both"; a Map
-    // keeps the pair where it first appeared either way.
-    const byPair = new Map<string, { edge: Record<string, unknown>; both: boolean }>();
+    const nameOf = (column: string): string =>
+        clashing.has(column) && (choices.clash?.[column] ?? "both") === "both" ? bothName(column, table) : column;
+    // The rows of each pair, or of each row with "both"; a Map keeps the pair where it first
+    // appeared. Without aggregate, one row is kept: the first, or the last with "last".
+    const groups = new Map<string, EdgeRow[]>();
     const loaded = matchEdges(table, graph, choices, looseOf(choices)).filter(
         (row) => choices.unknownEnds !== "leave-out" || bothFound(row),
     );
-    // An edge's own values: each brought column, under its clash name.
-    const valuesOf = (row: EdgeRow): Record<string, unknown> => {
-        const values: Record<string, unknown> = {};
-        for (const column of columns) {
-            const rule = clashing.has(column) ? (choices.clash?.[column] ?? "both") : "overwrite";
-            const value = table.rows[row.at][column];
-            if (!absent(value)) {
-                values[rule === "both" ? bothName(column, table) : column] = value;
-            }
-        }
-        return values;
-    };
     for (const [at, row] of loaded.entries()) {
-        const pair = choices.repeated === "both" ? String(at) : `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
-        if (choices.repeated !== "last" && byPair.has(pair)) {
-            continue;
+        const pair =
+            choices.repeated === "both" && choices.aggregate === undefined
+                ? String(at)
+                : `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
+        groups.set(pair, [...(groups.get(pair) ?? []), row]);
+    }
+
+    const byPair = new Map<string, { edge: Record<string, unknown>; both: boolean }>();
+    for (const [pair, group] of groups) {
+        const rows = choices.aggregate !== undefined ? group : [choices.repeated === "last" ? group.at(-1) : group[0]];
+        const kept = rows.filter((row) => row !== undefined);
+        const values = groupValues(
+            kept.map((row) => table.rows[row.at]),
+            columns,
+            choices,
+            nameOf,
+        );
+        const edge: Record<string, unknown> = { [source]: group[0].ends[0], [target]: group[0].ends[1] };
+        for (const { name, value } of values) {
+            edge[name] = value;
         }
 
-        const edge: Record<string, unknown> = { [source]: row.ends[0], [target]: row.ends[1], ...valuesOf(row) };
-        byPair.set(pair, { edge, both: bothFound(row) });
+        byPair.set(pair, { edge, both: bothFound(group[0]) });
     }
 
     const edges = [...byPair.values()].map((each) => each.edge);
@@ -835,7 +1222,10 @@ function planEdges(
     const written = new Set(
         edges.flatMap((edge) => Object.keys(edge)).filter((key) => key !== source && key !== target),
     );
-    return { matched, plan: { kind: "edges", edges, source, target, columns: [...written] } };
+    return {
+        matched,
+        plan: { kind: "edges", nodes: [], edges, source, target, columns: [...written], before: {}, matchedIds: [] },
+    };
 }
 
 /**

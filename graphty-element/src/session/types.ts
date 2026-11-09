@@ -2410,11 +2410,48 @@ export interface LoadedSource extends DataSourceDescriptor {
  *   lacks becomes a new node.
  * - `"rows"`: rows of the same kind the graph already holds, added as a plain merge.
  * - `"replace"`: a newer copy of a loaded source (decided by the reader; never suggested here).
+ * - `"merge"`: one row per node, merged into the node its key names (on any graph value, not
+ *   only the id): its values fused in as for `"node-values"`; a row naming no node becomes a new
+ *   node (`JoinChoices.unmatchedFrom`). Removing the join splits them back. Never suggested.
+ * - `"link"`: one row per node, matched by a key; nodes whose rows share a value in
+ *   `JoinChoices.link.columns` are linked. Never suggested.
  *
  * OPEN UNION: shapes may be added in a minor release.
  * @since 3.30.0
  */
-export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace";
+export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link";
+
+/**
+ * How many rows become one value ({@link JoinChoices.aggregate}): `"count"` the rows with a value,
+ * `"sum"`, `"min"`, `"max"` and `"mean"` of the numbers (`"min"` and `"max"` compare text when a
+ * value is not a number), `"first"` and `"last"` value in table order, `"list"` every value in
+ * table order. Blank values are skipped.
+ *
+ * OPEN UNION: reductions may be added in a minor release.
+ * @since 3.37.0
+ */
+export type JoinReduce = "count" | "sum" | "min" | "max" | "mean" | "first" | "last" | "list";
+
+/**
+ * Linking nodes whose rows share a value ({@link JoinChoices.link}, shape `"link"`).
+ * @since 3.37.0
+ */
+export interface JoinLink {
+    /** The columns whose values link nodes: a phone, a device, an email. */
+    readonly columns: readonly string[];
+    /**
+     * `"edges"` (the default): one edge per linked pair, its `shared` attribute the number of
+     * values the pair shares. `"nodes"`: one node per shared value, id `<column>:<value>`, its
+     * `kind` the column and the value under the column's name, with an edge from each holder.
+     */
+    readonly as?: "edges" | "nodes";
+    /** A value more nodes than this hold links none of them (a hub). Default 10. */
+    readonly maxShared?: number;
+    /** For `"edges"`: the values a pair must share to be linked. Default 1. */
+    readonly minShared?: number;
+    /** The `kind` the new edges, and with `"nodes"` the new nodes, carry. */
+    readonly kind?: string;
+}
 
 /**
  * One pair of a join's key: a column of the incoming table and the graph value it matches.
@@ -2483,6 +2520,23 @@ export interface JoinChoices {
      * @since 3.33.0
      */
     readonly unknownEnds?: "add" | "leave-out";
+    /**
+     * Reduce the rows of one key (for `"edges"`, of one source and target pair) to one value per
+     * column instead of keeping one row: the reduction for each column named, written under the
+     * column's name, or several, each written as `<column> (<reduction>)`. A column may be a key
+     * column (count the rows). A brought column named here takes its first value. When present,
+     * `repeated` is ignored and every row of a key counts; for `"edges"`, one edge per pair.
+     * @since 3.37.0
+     */
+    readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
+    /** For `"link"`: what links nodes. Required for `"link"`. @since 3.37.0 */
+    readonly link?: JoinLink;
+    /**
+     * For `"merge"`: a row naming no node is kept as a new node (`"keep"`, the default), its id
+     * the key's value, or `"drop"`ped.
+     * @since 3.37.0
+     */
+    readonly unmatchedFrom?: "keep" | "drop";
 }
 
 /**
@@ -2492,13 +2546,19 @@ export interface JoinChoices {
  *   between two nodes the graph holds.
  * - `"new-end"`: (`"edges"`) it becomes an edge, and an end the graph lacks becomes a new node.
  * - `"repeat"`: its key repeats another row's and `repeated` keeps the other one.
- * - `"left-out"`: the join leaves it out: its key matches nothing, a key value is blank, or (for
- *   `"edges"` with `unknownEnds: "leave-out"`) an end is not in the graph.
+ * - `"left-out"`: the join leaves it out: its key matches nothing, a key value is blank, (for
+ *   `"edges"` with `unknownEnds: "leave-out"`) an end is not in the graph, (for `"merge"` with
+ *   `unmatchedFrom: "drop"`) it names no node, or (for `"link"`) no value of it is shared.
+ * - `"merged"`: (`"merge"`) it merges into the node its key names; a row naming no node and kept
+ *   is `"new-end"`.
+ * - `"linked"`: (`"link"`) a value of it links its node to another.
+ * - `"over-cap"`: (`"link"`) it links nothing because each value it shares is held by more
+ *   nodes than `link.maxShared`.
  *
  * OPEN UNION: fates may be added in a minor release.
  * @since 3.33.0
  */
-export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out";
+export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out" | "merged" | "linked" | "over-cap";
 
 /**
  * A {@link JoinReport} count a reader can choose to ignore (`JoinChoices.ignore`).
@@ -2554,6 +2614,20 @@ export interface JoinReport {
      * @since 3.33.0
      */
     readonly rowFates: readonly JoinRowFate[];
+    /** Rows whose key matches more than one element. @since 3.37.0 */
+    readonly fanOut: number;
+    /** For `"merge"`: the nodes rows merge into. 0 otherwise. @since 3.37.0 */
+    readonly merged: number;
+    /** For `"merge"`: the keys only the table holds, kept or dropped. 0 otherwise. @since 3.37.0 */
+    readonly onlyFrom: number;
+    /** For `"merge"`: the nodes no row merges into. 0 otherwise. @since 3.37.0 */
+    readonly onlyOnto: number;
+    /** For `"link"`: the node pairs linked. 0 otherwise. @since 3.37.0 */
+    readonly pairsLinked: number;
+    /** For `"link"`: the shared values left unused because more than `maxShared` nodes hold them. @since 3.37.0 */
+    readonly valuesOverCap: number;
+    /** For `"link"`: the pairs sharing fewer values than `minShared`, so not linked. @since 3.37.0 */
+    readonly pairsBelowMin: number;
 }
 
 /**

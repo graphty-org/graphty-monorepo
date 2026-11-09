@@ -3571,7 +3571,7 @@ export function associate(
         lines.filter((e) => atCenter(e, "source") && atCenter(e, "target")).length > 0.5 * lines.length;
     // arrowheads: small closed shapes at an edge's end -- not a box drawn tight behind words (a label's background
     // near an edge's end), which the labels take below
-    const wordsDrawn = free().flatMap((p) => (p.text === null ? [] : [p.text]));
+    const wordsDrawn = free().flatMap((p) => (p.text === null ? [] : [{ t: p.text, index: p.index }]));
     // the annotations graphty draws, carried into the oracle's frame: a shape under one is that annotation, judged as
     // such, even at a line's end (cx2-wp1449-tlr: a circle annotation where lines meet at an anchor)
     const annotated = frame === null ? [] : guide.strays.map((x) => carryBox(frame, x.box));
@@ -3598,7 +3598,15 @@ export function associate(
             Math.max(bw(p.box), bh(p.box)) > HEAD_MOST * Math.max(width, height) ||
             annotated.some((b) => boxIoU(b, p.box) >= 0.5) ||
             noteHeads.has(p) ||
-            wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))
+            // a box under words, drawn before them: tight round them, or the band they sit on across a node or group
+            // (graphml-open-archaeo's group band, read as the head of a line ending under it); a shape drawn over the
+            // words is still a head (gml-synthetic-coverage 38: a diamond over its node's label)
+            wordsDrawn.some(
+                ({ t, index }) =>
+                    t.sizePx > 0 &&
+                    index > p.index &&
+                    (backsText(p, t) || (within(t.box, p.box) && bandsGroup(p, t, p.box))),
+            )
         ) {
             continue;
         }
@@ -3999,8 +4007,23 @@ export function associate(
             .filter((a) => a.kind === "shape")
             .map((a) => boxOfPoints([at(a.box.x0, a.box.y0), at(a.box.x1, a.box.y1)]));
     };
+    // a background is painted before its words: a shape drawn over them is not behind them (the label box of the next
+    // node over a label beside it, graphml-synthetic-nodes label-sides-e; an arrowhead over a node's label,
+    // gml-synthetic-coverage 38). A label read from no text of the drawing has no such order.
+    const drawnWords = prims.filter((p) => p.text !== null);
+    const wordsFrom = (t: PText): number =>
+        Math.min(
+            ...drawnWords
+                .filter((p) => {
+                    // its own words, not another label's set over it
+                    const words = p.text?.content.trim() ?? "";
+                    return words !== "" && t.content.includes(words) && inside([cx(p.box), cy(p.box)], t.box);
+                })
+                .map((p) => p.index),
+        );
     const labelled: { t: PText | null; n?: PNode; group?: PBox }[] = [
-        ...nodeList.map((n) => ({ t: n.label, n })),
+        // a node's label band runs its node's width as a group's does (a closed yEd group, drawn as a node)
+        ...nodeList.map((n) => ({ t: n.label, n, group: nodeBox(n) })),
         ...[...edges].sort((a, b) => compareIds(a.id, b.id)).map((e) => ({ t: e.label })),
         ...[...groups].sort((a, b) => compareIds(a.id, b.id)).map((g) => ({ t: g.label, group: g.box })),
     ];
@@ -4009,10 +4032,12 @@ export function associate(
             continue;
         }
         const framed = guideAnnotations(n, t);
+        const words = wordsFrom(t);
         const backs = free()
             .filter(
                 (p) =>
                     p.kind === "shape" &&
+                    (p.index < words || p.fill === null) &&
                     (backsText(p, t) || (group !== undefined && bandsGroup(p, t, group))) &&
                     !framed.some((b) => boxIoU(b, p.box) >= 0.5),
             )
@@ -4021,7 +4046,14 @@ export function associate(
         // the outline is the one drawn round the fill, else the smallest: a table's cell outlines are drawn inside its
         // own (Graphviz's HTML-like table label, BORDER round CELLBORDER, the table's fill and outline one box), and
         // stay shapes of their own, which graphty draws as its cells
-        const strokes = backs.filter((p) => p.stroke !== null && (filled === undefined || p.fill === null));
+        // an outline drawn after the words is theirs only round their fill (Graphviz strokes a table's border after its
+        // cells' words: dot-specimen-edge-labels), not alone (the next label's box beside them)
+        const strokes = backs.filter(
+            (p) =>
+                p.stroke !== null &&
+                (filled === undefined || p.fill === null) &&
+                (p.index < words || (filled !== undefined && boxIoU(p.box, filled.box) >= ROUND_THE_FILL)),
+        );
         const bordered =
             strokes.find((p) => filled !== undefined && boxIoU(p.box, filled.box) >= ROUND_THE_FILL) ?? strokes[0];
         const parts = [filled, bordered].filter((p): p is Prim => p !== undefined);
@@ -4145,7 +4177,18 @@ export function bandsGroup(p: Prim, t: PText, group: PBox): boolean {
     const b = p.box;
     const across = bw(b) >= BAND_OF_GROUP * bw(group) && b.y0 >= t.box.y0 - reach && b.y1 <= t.box.y1 + reach;
     const down = bh(b) >= BAND_OF_GROUP * bh(group) && b.x0 >= t.box.x0 - reach && b.x1 <= t.box.x1 + reach;
-    return p.fill !== null && inside([cx(t.box), cy(t.box)], b) && (across || down);
+    // a band is a box running one way, about inside its node or group (a group's drop shadow offset under it,
+    // graphml-magiclantern-architecture): a box the whole of it both ways is a fill of it, and a disc round a node (an
+    // underlay, a ghost) no band of its label
+    const inBox = within(b, { x0: group.x0 - reach, y0: group.y0 - reach, x1: group.x1 + reach, y1: group.y1 + reach });
+    const box = shapeOf(p);
+    return (
+        p.fill !== null &&
+        (box === "rect" || box === "roundrect") &&
+        inBox &&
+        inside([cx(t.box), cy(t.box)], b) &&
+        across !== down
+    );
 }
 
 /** Intersection over union of two boxes. */

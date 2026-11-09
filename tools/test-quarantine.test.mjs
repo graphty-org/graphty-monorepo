@@ -22,6 +22,8 @@ import {
     failedFirst,
     emptyState,
     HANG_CODE,
+    HANG_NAME,
+    hangFailures,
     quarantineEnabled,
     runShard,
     shardOfRun,
@@ -428,6 +430,11 @@ describe("runShard", () => {
         const printed = log.mock.calls.map((call) => call.arguments[0]).join("\n");
         assert.equal(code, HANG_CODE);
         assert.match(printed, /^::error::\[HANG\] .*still running: a\.test\.ts > stuck$/mu);
+        // #6374: the store, and so a full run's bisect, learns what hung
+        assert.deepEqual(
+            result.hung.map((f) => [f.file, f.name]),
+            [["graphty/a.test.ts", "stuck"]],
+        );
         assert.equal(result.retried, false);
         assert.equal(existsSync(join(c.root, "retry-command")), false, "no retry ran");
     });
@@ -442,9 +449,37 @@ describe("runShard", () => {
         const stuck = await running;
         assert.equal(stuck.code, HANG_CODE);
         assert.match(log.mock.calls.map((call) => call.arguments[0]).join("\n"), /last output: installing$/mu);
+        assert.deepEqual(
+            stuck.result.hung.map((f) => [f.file, f.name]),
+            [["graphty", HANG_NAME]],
+        );
         const late = await run({ ...c, first: "touch started" }, env);
         assert.equal(late.code, HANG_CODE);
         assert.equal(existsSync(join(c.root, "started")), false);
+        assert.deepEqual(
+            late.result.hung.map((f) => f.file),
+            ["graphty"],
+        );
+    });
+
+    // #6374: CI / Test (graphty-4) ended "[HANG] the run reached the job's deadline and was stopped; still running:
+    // src/workspace/selection/__tests__/cardPalette.test.ts", and the bisect named no failing test
+    it("names a hung file and test by their repo paths, and the package when nothing was running", () => {
+        assert.deepEqual(
+            hangFailures(
+                ["src/workspace/selection/__tests__/cardPalette.test.ts", "src/a.test.ts > suite works"],
+                "graphty",
+            ).map((f) => [f.file, f.name]),
+            [
+                ["graphty/src/workspace/selection/__tests__/cardPalette.test.ts", HANG_NAME],
+                ["graphty/src/a.test.ts", "suite works"],
+            ],
+        );
+        assert.deepEqual(
+            hangFailures([], "graphty").map((f) => [f.file, f.name]),
+            [["graphty", HANG_NAME]],
+        );
+        assert.deepEqual(hangFailures(["src/a.test.ts"], undefined), []);
     });
 
     it("reads the tests still running, and the files with none, from the running-tests reporter's record", () => {

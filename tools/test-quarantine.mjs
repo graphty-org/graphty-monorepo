@@ -220,11 +220,36 @@ export function stillRunning(file) {
     return ids.filter((id) => !ids.some((other) => other.startsWith(`${id} > `)));
 }
 
+/** The failure name of a hung file no test of which had started, or of a run no test of which is named. */
+export const HANG_NAME = "(still running at the job's deadline)";
+
+/**
+ * The failures a run stopped at its deadline leaves: each test or file still running, so the results store, and the
+ * bisect of a red full run that reads it (tools/full-run.mjs bisectPlan()), name what hung (#6374). With none
+ * named (no test running, or the run never started) the package stands for the whole shard: the bisect runs a
+ * target whose file is not under the shard's directory as the whole shard (tools/test-select.mjs selectedCommand()).
+ * @param names stillRunning()'s ids, relative to the package
+ * @param pkg the shard's package directory, or undefined
+ * @returns `[{ file, name, text }]`, repo-relative files as parseJunit() names them
+ */
+export function hangFailures(names, pkg) {
+    if (!pkg) return [];
+    const text = `[HANG] the run reached the job's deadline and was stopped`;
+    if (names.length === 0) return [{ file: pkg, name: HANG_NAME, text }];
+    return names.map((id) => {
+        const at = id.indexOf(" > ");
+        return at === -1
+            ? { file: `${pkg}/${id}`, name: HANG_NAME, text }
+            : { file: `${pkg}/${id.slice(0, at)}`, name: id.slice(at + 3), text };
+    });
+}
+
 /**
  * Reports a run stopped at its deadline. It is an annotation as well as a log line because GitHub keeps no log of
  * a job it cancels, which is why this stops the run before the job's limit does.
  * @param running the record of tools/running-tests.mjs
  * @param chunks the run's output so far
+ * @returns the ids still running
  */
 function reportHang(running, chunks) {
     const names = stillRunning(running);
@@ -232,6 +257,7 @@ function reportHang(running, chunks) {
     const what =
         names.length > 0 ? `still running: ${names.join("; ")}` : `no test running; last output: ${output.at(-1)}`;
     console.log(`::error::[HANG] the run reached the job's deadline and was stopped; ${what}`);
+    return names;
 }
 
 /**
@@ -251,17 +277,17 @@ function signalGroup(child, signal) {
  * Runs a shell command, its output passed through and kept. It ends when the command has exited and its output is
  * read; a process the command left behind can hold the pipes open for ever, so that wait is PIPE_DRAIN_MS at most.
  * With DEADLINE_ENV set (run-group.mjs, in CI's test job) the command is stopped at that time and exits HANG_CODE,
- * with what was running named; past that time it does not start.
+ * with what was running named (and returned as `hung`); past that time it does not start (`hung` is empty).
  * @param command the command
  * @param env its environment
  * @param cwd its directory
- * @returns `{ code, text }`
+ * @returns `{ code, text, hung }`: `hung` the ids still running when it was stopped, undefined when it was not
  */
 function sh(command, env, cwd) {
     const deadline = Number(env[DEADLINE_ENV] ?? 0);
     if (deadline && Date.now() >= deadline) {
         console.log(`::error::[HANG] not run, the job's deadline has passed: ${command}`);
-        return Promise.resolve({ code: HANG_CODE, text: "" });
+        return Promise.resolve({ code: HANG_CODE, text: "", hung: [] });
     }
     const running = deadline ? join(tmpdir(), `running-tests-${process.pid}-${Date.now()}.log`) : null;
     return new Promise((resolve) => {
@@ -288,10 +314,10 @@ function sh(command, env, cwd) {
             timers.forEach(clearTimeout);
             child.stdout.destroy();
             child.stderr.destroy();
-            if (hung) reportHang(running, chunks);
+            const names = hung ? reportHang(running, chunks) : undefined;
             if (running) rmSync(running, { force: true });
             const own = code ?? (signal ? 128 : 1);
-            resolve({ code: hung ? HANG_CODE : own, text: Buffer.concat(chunks).toString("utf8") });
+            resolve({ code: hung ? HANG_CODE : own, text: Buffer.concat(chunks).toString("utf8"), hung: names });
         };
         child.on("close", finish);
         child.on("exit", (code, signal) => {
@@ -381,6 +407,7 @@ export async function runShard(
             SHARDS.find((s) => s.shard === shardName) ?? SHARDS.find((s) => familyOf(s.shard) === familyOf(shardName));
         const shard = shardOfRun(root, listed, command);
         reports.pkg = shard?.package;
+        if (r1.hung) result.hung = hangFailures(r1.hung, shard?.package);
         const first = newReports(reports, "");
         result.ran = [...(first?.files ?? [])];
         result.failed = brief(first?.failures ?? []);

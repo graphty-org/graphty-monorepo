@@ -16,7 +16,9 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
+import { nodeFramingBox } from "../../src/managers/UpdateManager";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
@@ -883,5 +885,108 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const bordered = { ...paint, style: { ...paint.style, border: { width: 0.2, color: "#000000" } } };
         assert.isFalse(batches.paintRow(4, bordered));
         assert.equal(batches.batchedNodes, NODES.length - 1);
+    });
+
+    it("frame and filter a row with no Node by its row", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph, session } = element;
+        await frameOn(graph, "batched");
+        const manager = graph.getDataManager();
+        const batches = graph.getNodeBatches();
+        const table = graph.getRowTable();
+        const root = graph.getScene().getTransformNodeByName("graph-root");
+        const node = manager.nodes.get(4);
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(batches);
+        assert.isNotNull(table);
+        assert.isDefined(node);
+        assert.isNotNull(paint);
+        if (batches === null || table === null || node === undefined || paint === null) {
+            return;
+        }
+
+        // What a Node draws when the filter hides its row, and the box the Nodes frame.
+        const greenless = { kind: "categories", attribute: "data.tone", values: ["red", "blue"] } as const;
+        await session.visibility.set(greenless);
+        const filtered = await readFrame(graph);
+        await session.visibility.set(null);
+        const shown = await readFrame(graph);
+        const all = nodeFramingBox(manager.nodes.values());
+        assert.isDefined(all);
+
+        // Row 4 is drawn with no Node, and its Node no longer answers the mask, as a row without one could not.
+        batches.leave(node);
+        node.drawInBatch(node.paintedSourceMesh);
+        assert.isTrue(batches.paintRow(4, paint));
+        vi.spyOn(node, "setRenderState").mockReturnValue(false);
+        const others = [...manager.nodes.values()].filter((other) => other !== node);
+        const columns = { rows: batches.columnRowIndices(), table, root };
+
+        const byRow = nodeFramingBox(others, "drawn", columns);
+        assert.isDefined(byRow);
+        if (all === undefined || byRow === undefined) {
+            return;
+        }
+
+        assert.equal(byRow.spots.length, all.spots.length, "the row is framed");
+        for (const axis of ["x", "y", "z"] as const) {
+            assert.closeTo(byRow.min[axis], all.min[axis], 1e-4);
+            assert.closeTo(byRow.max[axis], all.max[axis], 1e-4);
+        }
+
+        const spot = (box: typeof all): (typeof all.spots)[number] | undefined =>
+            box.spots.find((s) => Vector3.Distance(s.pos, node.drawnWorldPosition) < 1e-3);
+        assert.closeTo(spot(byRow)?.half ?? 0, spot(all)?.half ?? -1, 1e-4);
+
+        await session.visibility.set(greenless);
+        assert.equal(overBar(filtered, await readFrame(graph)), 0, "the filter hides the row");
+        assert.equal(
+            nodeFramingBox(others, "drawn", columns)?.spots.length,
+            all.spots.length - 4,
+            "and fit leaves it out",
+        );
+        await session.visibility.set(null);
+        assert.equal(overBar(shown, await readFrame(graph)), 0, "and shows it again");
+    });
+
+    it("lay out rows with no Node by their rows", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        await graph.setLayout("circular", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.isDefined(engine);
+        if (engine === undefined) {
+            return;
+        }
+
+        const positions = layoutEngineInternals.positions(engine);
+        const at = { x: 0, y: 0, z: 0 };
+        const placed = NODES.map((_, row) => {
+            positions.read(row, at);
+            return { ...at };
+        });
+        const nodes = [...graph.getDataManager().nodes.values()];
+
+        // Row 4 first, then every row: the engine is handed no Node for them, as an unbuilt row hands none.
+        for (const gone of [[nodes[4]], nodes]) {
+            for (const node of gone) {
+                layoutEngineInternals.removeNode(engine, node);
+            }
+
+            NODES.forEach((_, row) => {
+                positions.write(row, 999, 999, 999);
+            });
+            engine.publishPositions();
+            NODES.forEach((_, row) => {
+                positions.read(row, at);
+                for (const axis of ["x", "y", "z"] as const) {
+                    assert.closeTo(at[axis], placed[row][axis], 1e-4, `row ${row} of ${gone.length} without a Node`);
+                }
+            });
+        }
     });
 });

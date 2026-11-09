@@ -297,6 +297,21 @@ function validatorsOf(values: unknown): Record<string, unknown> {
 }
 
 /**
+ * A mapping request's relative path, redacted as {@link redactRelative} does.
+ * @param path - The path.
+ * @param dropped - Collects the parameter names left out.
+ * @returns The path.
+ */
+function relativeOf(path: string, dropped: Set<string>): string {
+    const redacted = redactRelative(path);
+    for (const name of redacted.dropped) {
+        dropped.add(name);
+    }
+
+    return redacted.address;
+}
+
+/**
  * A JSON value with every absolute URL in it redacted ({@link redactUrl}): a cursor's next-page
  * link, which a service may write with a key in it.
  * @param value - The value.
@@ -367,6 +382,7 @@ function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string
             isObject(request)
                 ? defined({
                       ...request,
+                      path: typeof request.path === "string" ? relativeOf(request.path, dropped) : request.path,
                       query: request.query === undefined ? undefined : withoutSecretNames(request.query, dropped),
                       body: request.body === undefined ? undefined : withoutSecretNames(request.body, dropped),
                   })

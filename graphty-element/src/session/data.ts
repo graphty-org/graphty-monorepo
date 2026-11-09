@@ -139,10 +139,17 @@ import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
-import { isSourceFactKey, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
+import { isSourceFactKey, SOURCE_ATTR, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
-import { type LoadFacts, redactUrl, type SourcesRead, type SourcesWrite, writeSourcesMember } from "./sources/member";
-import { pendingSourceLoads } from "./sources/pending";
+import {
+    type LoadFacts,
+    redactedParams,
+    redactUrl,
+    type SourcesRead,
+    type SourcesWrite,
+    writeSourcesMember,
+} from "./sources/member";
+import { pendingSourceLoads, targetOf } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
 import type {
     CollapseResult,
@@ -160,6 +167,7 @@ import type {
     SourcePreviewOptions,
     SourceRead,
     SourceRefreshReport,
+    SourceSettings,
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import { asksFileStyles } from "./styles/fileStyles/apply";
@@ -1475,6 +1483,35 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * What a network load connects to and fetches, for showing it or filling a form to edit it.
+     * The params are redacted as a saved file has them; no credential is in it.
+     * @param key - the `sources()` entry's key
+     * @returns the settings, or undefined for a source that is not a network load, or with the
+     *     network-data feature off.
+     * @experimental
+     */
+    sourceSettings(key: SourceKey): SourceSettings | undefined {
+        if (this.networkOff("sourceSettings") !== null) {
+            return undefined;
+        }
+
+        const load = this.sources().find((each) => each.key === key)?.loadKey;
+        const record = this.ledger.loads().find((each) => each.key === load);
+        if (record === undefined) {
+            return undefined;
+        }
+
+        const { limits } = record.options as Pick<SourceSettings, "limits">;
+        return frozen({
+            source: record.source,
+            endpoint: targetOf(record),
+            config: redactedParams(record.config),
+            ...(record.expand === undefined ? {} : { expand: record.expand }),
+            ...(limits === undefined ? {} : { limits }),
+        });
+    }
+
+    /**
      * The loads from network sources this graph holds: a load or an expansion is listed while a
      * node it brought is in the graph, so undo and redo take its record away and back with it.
      * @returns The records, in load order.
@@ -2558,7 +2595,8 @@ export class SessionData implements SessionDataApi {
                 const supplied = provenance?.[key];
                 const kind = (each as Partial<LoadedSource>).kind ?? "file";
                 // An opened project's network load keeps its entry's key; one loaded here is found by its rows.
-                const found = records.has(key) ? key : this.networkLoadOf(supplied?.nodes ?? []);
+                // The rows say which load they are now (after an edit, a newer record than the entry's key).
+                const found = this.networkLoadOf(supplied?.nodes ?? []) ?? (records.has(key) ? key : undefined);
                 const loadKey = kind === "server" && found !== undefined && records.has(found) ? found : undefined;
                 const { input, ...entry } = each as LoadedSource & { readonly input?: string };
                 return Object.freeze({
@@ -2990,8 +3028,16 @@ export class SessionData implements SessionDataApi {
      * @returns what was added, removed and changed, and what no longer matches anything
      * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
      */
-    async replaceSource(key: SourceKey, source: DataSourceInput, choices: LoadChoices = {}): Promise<ReplaceReport> {
+    async replaceSource(
+        key: SourceKey,
+        source: DataSourceInput,
+        choices: LoadChoices & SourceLoadOptions = {},
+    ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
+        if (source.source !== undefined) {
+            this.requireNetwork("replaceSource");
+        }
+
         return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
     }
 
@@ -3005,7 +3051,7 @@ export class SessionData implements SessionDataApi {
     private async replaceSourceNow(
         key: SourceKey,
         source: DataSourceInput,
-        choices: LoadChoices = {},
+        choices: LoadChoices & SourceLoadOptions = {},
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
         const send = this.sender("replace a load");
@@ -3019,6 +3065,10 @@ export class SessionData implements SessionDataApi {
                 source: "data",
                 details: { key, known: this.sources().map((each) => each.key) },
             });
+        }
+
+        if (source.source !== undefined) {
+            return this.replaceWithNetwork(key, entry, { ...source, source: source.source }, choices);
         }
 
         // The command a draft of the copy would load, held back here: its rows are the copy's rows.
@@ -3144,6 +3194,158 @@ export class SessionData implements SessionDataApi {
                 },
             ],
         });
+        return frozen({ nodes: plan.nodes, edges: plan.edges, unbound });
+    }
+
+    /**
+     * replaceSource with a network source: read outside any command, then one batch that takes
+     * away what the new read lacks and merges the rest under the same key. Every row the load kept
+     * is stamped with the new load, so a refresh goes on recognizing it.
+     * @param key - the load's key
+     * @param entry - its entry
+     * @param source - the network source and its params
+     * @param choices - as replaceSource takes it
+     * @returns what replaceSource returns
+     */
+    private async replaceWithNetwork(
+        key: SourceKey,
+        entry: LoadedSource,
+        source: SourceInput,
+        choices: LoadChoices & SourceLoadOptions,
+    ): Promise<ReplaceReport> {
+        const send = this.sender("replace a load");
+        const old = this.sources().find((each) => each.key === key)?.loadKey;
+        const mode = this.ledger.loads().find((each) => each.key === old)?.options.mode as
+            SourceLoadOptions["mode"] | undefined;
+        const { networkDraft } = await import("./sources/load");
+        const draft = await networkDraft(
+            this.sourceHost(),
+            { ...source, ...(entry.name === undefined ? {} : { name: entry.name }) },
+            choices,
+            key,
+            mode ?? "merge",
+        );
+        const snapshot = this.current();
+        const space = edgeSpaceOf(snapshot);
+        const provenance = this.provenance();
+        const index = provenanceIndex(provenance);
+        const supplied = provenance?.[key] ?? { nodes: [], edges: [] };
+        const isOld = (load: string): boolean => load === old || load.startsWith(`${old ?? ""}/`);
+        const others = (keys: readonly SourceKey[] | undefined): boolean => keys?.some((k) => k !== key) === true;
+        // A load's own rows: those it supplied and those its expansions brought, which carry no provenance.
+        const ownNodes = new Set(supplied.nodes.filter((id) => snapshot.ids.has(id)));
+        for (let row = 0; row < snapshot.nodeCount; row++) {
+            const id = snapshot.ids.idOf(row);
+            if (sourceLoadsOf(this.records?.nodeAttributes(row, id)).some(isOld)) {
+                ownNodes.add(id);
+            }
+        }
+
+        const ownEdges = new Set(supplied.edges);
+        for (const { id } of this.edges()) {
+            if (sourceLoadsOf(this.records?.edgeAttributes(space.indexOf(id))).some(isOld)) {
+                ownEdges.add(id);
+            }
+        }
+
+        const nodes = [...ownNodes].map((id) => ({
+            id,
+            data: this.records?.nodeAttributes(snapshot.ids.indexOf(id), id) ?? {},
+        }));
+        const edges = [...ownEdges].flatMap((id) => {
+            const record = this.edge(id);
+            return record === undefined
+                ? []
+                : [
+                      {
+                          id,
+                          source: record.source,
+                          target: record.target,
+                          data: this.records?.edgeAttributes(space.indexOf(id)) ?? {},
+                      },
+                  ];
+        });
+        const plan = planReplace({
+            nodes,
+            edges,
+            shared: {
+                nodes: new Set(nodes.filter((each) => others(index.nodes.get(each.id))).map((each) => each.id)),
+                edges: new Set(edges.filter((each) => others(index.edges.get(each.id))).map((each) => each.id)),
+            },
+            graphPairs: new Set(this.edges().map((each) => pairKey(each.source, each.target, snapshot.directed))),
+            hasNode: (id) => rowOfEitherSpelling(snapshot.ids, id) !== INVALID_INDEX,
+            directed: snapshot.directed,
+            held: draft.held,
+            paths: { nodeId: "id", source: "source", target: "target" },
+        });
+        const unbound = this.unboundBy(key, nodes, edges, draft.held);
+        const readIds = new Set(draft.held.nodes.map((row) => String(row.id)));
+        const pair = (from: unknown, to: unknown): string => pairKey(String(from), String(to), snapshot.directed);
+        const readPairs = new Set(draft.held.edges.map((row) => pair(row.source, row.target)));
+        const loadsAfter = (data: Readonly<Record<string, unknown>>, read: boolean): readonly string[] => [
+            ...(read ? [draft.key] : []),
+            ...sourceLoadsOf(data).filter((load) => !isOld(load)),
+        ];
+        const stampNodes = nodes
+            .filter((each) => !plan.removeNodes.includes(each.id))
+            .map((each) => ({
+                id: each.id,
+                values: {
+                    [SOURCE_ATTR.loads]: loadsAfter(each.data, readIds.has(String(each.id))),
+                    [SOURCE_ATTR.expansion]: "none",
+                },
+            }));
+        const stampEdges = edges
+            .filter((each) => !plan.removeEdges.includes(each.id))
+            .map((each) => ({
+                id: each.id,
+                values: { [SOURCE_ATTR.loads]: loadsAfter(each.data, readPairs.has(pair(each.source, each.target))) },
+            }));
+        const update = <Id extends NodeId | EdgeId>(
+            target: "node" | "edge",
+            rows: readonly RowUpdate<Id>[],
+        ): SessionCommand[] =>
+            rows.length === 0 ? [] : [{ op: "data.apply", mutation: { kind: "update-rows", target, rows: [...rows] } }];
+        try {
+            await send({
+                op: "batch",
+                label: `Replaced ${entry.name ?? key}`,
+                fact: {
+                    code: "data.replace-source",
+                    params: {
+                        key,
+                        name: entry.name ?? null,
+                        added: plan.nodes.added + plan.edges.added,
+                        removed: plan.nodes.removed + plan.edges.removed,
+                        changed: plan.nodes.changed + plan.edges.changed,
+                    },
+                },
+                steps: [
+                    { op: "data.apply", mutation: { kind: "remove-edges", ids: [...plan.removeEdges] } },
+                    { op: "data.apply", mutation: { kind: "remove-nodes", ids: [...plan.removeNodes] } },
+                    ...update("edge", plan.edgeRows),
+                    ...update("node", plan.nodeRows),
+                    ...update("edge", stampEdges),
+                    ...update("node", stampNodes),
+                    {
+                        op: "data.setSource",
+                        source: this.source() ?? describeLoaded(entry),
+                        sources: this.storedSources().filter((each) => each.key !== key),
+                        provenance: withoutSource(provenance, key),
+                    },
+                    {
+                        ...draft.command,
+                        // A pair the graph holds is that edge again: the merge keeps it and notes it supplied.
+                        held: { ...draft.command.held, repeated: "first", repeatedScope: "held" },
+                        origin: entry.kind,
+                    },
+                ],
+            });
+        } catch (error) {
+            draft.rollback();
+            throw error;
+        }
+
         return frozen({ nodes: plan.nodes, edges: plan.edges, unbound });
     }
 

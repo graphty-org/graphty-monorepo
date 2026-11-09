@@ -347,3 +347,13 @@ export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 
 /** What `source:expand-failed` carries: the source code and its params. Experimental. */
 export type SourceExpandFailed = CodedFact;
+
+/**
+ * What a network load connects to and fetches, for showing it or filling a form to edit it: the
+ * params redacted as a saved file has them, no credential.
+ * @experimental
+ */
+export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "config" | "expand"> & {
+    /** The limits the load ran under. */
+    readonly limits?: SourceLimitOptions;
+};

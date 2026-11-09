@@ -316,3 +316,24 @@ const fetch = replayFetch([{ url: "https://example.com/api/people?team=core", bo
 await element.loadFromSource("people", { team: "core" }, { endpoint: "https://example.com", fetch });
 fetch.calls.length; // 1
 ```
+
+## Showing and changing what a load fetches
+
+`session.data.sourceSettings(key)` says what a load connects to and fetches: its `source`, `endpoint`,
+`config`, `limits` and `expand`. The params are redacted as a saved file has them and no credential
+is in it, so it is safe to show. It is `undefined` for anything that is not a network load.
+
+To change a load, read it again with new settings through `replaceSource`. The key and the name stay,
+styles and filters stay, and it is one undo step:
+
+```javascript
+const [{ key }] = session.data.sources();
+const settings = session.data.sourceSettings(key);
+await session.data.replaceSource(key, {
+    source: settings.source,
+    config: { ...settings.config, query: "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100" },
+});
+```
+
+With no `credential` given, the one remembered for that endpoint is used. A `credential` is taken in
+the third argument, with `endpoint`, `limits` and `signal`, as `import` takes them.

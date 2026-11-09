@@ -345,6 +345,83 @@ export async function readSource(
 }
 
 /**
+ * What the ledger records of a finished read.
+ * @param input - the source and its params
+ * @param read - the rows and graph-io's facts
+ * @param access - the endpoint and the credential
+ * @param options - the load options
+ * @param known - how many nodes the source holds, when the caller knows
+ * @returns the facts
+ */
+function loadFacts(
+    input: SourceInput,
+    read: Read,
+    access: Access,
+    options: SourceLoadOptions,
+    known?: number,
+): Parameters<SourceHost["ledger"]["addLoad"]>[0] {
+    return {
+        source: input.source,
+        version: read.info?.version ?? descriptorOf(input.source)?.version ?? 1,
+        config: input.config,
+        endpoint: read.info?.endpoint ?? access.endpoint,
+        // The ledger keeps only the recordable choices; the credential and `write` never reach it.
+        // The mode is the one the load ran with, as an opened project's record says it.
+        options: { ...options, mode: options.mode ?? "replace" },
+        next: read.info?.next ?? null,
+        validators: read.info?.validators ?? {},
+        credential: access.credential ?? null,
+        credentialSlot: access.slot,
+        ...totalOf(read, known),
+        ...(options.expand === undefined ? {} : { expand: options.expand }),
+    };
+}
+
+/** What `replaceSource` needs from a read of a network source, before it plans. */
+export interface NetworkDraft {
+    /** The new load's key; the rows are stamped with it. */
+    readonly key: string;
+    /** The rows as read, unstamped, to compare with the graph's. */
+    readonly held: HeldRows;
+    /** The step that merges the rows. */
+    readonly command: DataImportSourceCommand;
+    /** Takes the new load's record back, when its step failed. */
+    rollback(): void;
+}
+
+/**
+ * Read a source to replace a load with, outside any command, and record the new load. A new record
+ * and never an edit of the old one: the ledger is outside undo, so undoing the replace brings the
+ * old rows back and they name the old record, whose query a refresh then uses.
+ * @param host - the session pieces
+ * @param input - the source and its params
+ * @param options - the load options
+ * @param sourceKey - the `data.sources()` entry the rows go under
+ * @param mode - what the record says the load ran with: the replaced load's mode
+ * @returns the draft
+ */
+export async function networkDraft(
+    host: SourceHost,
+    input: SourceInput,
+    options: SourceLoadOptions,
+    sourceKey: SourceKey,
+    mode: SourceLoadOptions["mode"],
+): Promise<NetworkDraft> {
+    const access = await accessFor(host, input.source, options, input.config);
+    const read = await readRows(input.source, input.config, access, options);
+    const before = host.ledger.toMember();
+    const record = host.ledger.addLoad(loadFacts(input, read, access, { ...options, mode }));
+    return {
+        key: record.key,
+        held: read.held,
+        command: importCommand(host, record.key, input, read, { ...options, mode: "merge", sourceKey }),
+        rollback: () => {
+            host.ledger.fromMember(before);
+        },
+    };
+}
+
+/**
  * Load from a source as one undoable step, and record the load.
  * @param host - the session pieces
  * @param input - the source and its params, or what `readExample` read, which loads without a fetch
@@ -374,21 +451,7 @@ export async function importSource(
 
     // The ledger keeps every record; `data.loads()` lists the ones whose rows the graph holds, so
     // undoing this load (or the load it replaces) takes its record away (or back) with the rows.
-    const record = host.ledger.addLoad({
-        source: input.source,
-        version: read.info?.version ?? descriptorOf(input.source)?.version ?? 1,
-        config: input.config,
-        endpoint: read.info?.endpoint ?? access.endpoint,
-        // The ledger keeps only the recordable choices; the credential and `write` never reach it.
-        // The mode is the one the load ran with, as an opened project's record says it.
-        options: { ...options, mode: options.mode ?? "replace" },
-        next: read.info?.next ?? null,
-        validators: read.info?.validators ?? {},
-        credential: access.credential ?? null,
-        credentialSlot: access.slot,
-        ...totalOf(read, total ?? held?.known),
-        ...(options.expand === undefined ? {} : { expand: options.expand }),
-    });
+    const record = host.ledger.addLoad(loadFacts(input, read, access, options, total ?? held?.known));
     try {
         await dispatchRows(host, record.key, input, read, options);
     } catch (error) {

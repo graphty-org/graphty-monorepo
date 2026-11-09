@@ -386,6 +386,7 @@ export interface AutosaveOptions {
     readonly dataMaxWaitMs: number;
     readonly delayMs: number;
     readonly keep: number;
+    readonly keepCamera: boolean;
     readonly key: string;
     readonly maxWaitMs: number;
     readonly persist: boolean;
@@ -7880,6 +7881,11 @@ export { SourceRuntimeReason }
 
 // @public
 export const SOURCES_MEMBER_VERSION = 2;
+
+// @public
+export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "config" | "expand"> & {
+    readonly limits?: SourceLimitOptions;
+};
 
 export { SourceValidators }
 

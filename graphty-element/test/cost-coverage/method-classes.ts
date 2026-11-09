@@ -1040,6 +1040,7 @@ export const READ_ONLY: readonly string[] = [
     "SessionDataApi.nodeSource",
     "SessionDataApi.nodes",
     "SessionDataApi.pendingSourceLoads",
+    "SessionDataApi.sourceSettings",
     "SessionDataApi.previewSource",
     "SessionDataApi.readExample",
     "SessionDataApi.prepare",

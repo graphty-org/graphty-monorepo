@@ -111,6 +111,7 @@ import type {
     SourcePreviewOptions,
     SourceRead,
     SourceRefreshReport,
+    SourceSettings,
 } from "./sources/types";
 import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
@@ -1291,13 +1292,21 @@ export interface SessionDataApi {
      * }
      * ```
      * @param key - The load's key, from {@link SessionDataApi.sources}.
-     * @param source - The newer copy, as `import` takes it.
-     * @param choices - How to read it, as `draft.load` takes them; `mode` is ignored.
+     * @param source - The newer copy, as `import` takes it. A network source (`source: "<id>"`, needing
+     *     the network-data feature) is read with the options below and replaces the load under the
+     *     same key and name; with no credential given, the one remembered for the endpoint is used.
+     *     See {@link SessionDataApi.sourceSettings} for what such a load holds now.
+     * @param choices - How to read it, as `draft.load` takes them; `mode` is ignored. For a network
+     *     source, the same load options `import` takes (`endpoint`, `limits`, `credential`, `signal`).
      * @returns What was added, removed and changed, and what no longer matches anything.
      * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
      * @since 3.30.0
      */
-    replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices): Promise<ReplaceReport>;
+    replaceSource(
+        key: SourceKey,
+        source: DataSourceInput,
+        choices?: LoadChoices & SourceLoadOptions,
+    ): Promise<ReplaceReport>;
     /**
      * Read one load again from what it was read from, with changed choices -- another id, source
      * or target column, the kinds of its ends, kept or scoped ids -- as one undoable step that
@@ -1775,6 +1784,15 @@ export interface SessionDataApi {
      * @returns The records.
      */
     loads(): readonly SourceLoadRecord[];
+    /**
+     * What a network source connects to and fetches, for showing it or filling a form to edit it:
+     * its source id, address, params, limits and expand behavior. The params are redacted as a
+     * saved file has them and no credential is in it, so it is safe to display. Experimental.
+     * @param key - The entry's key, from {@link SessionDataApi.sources}.
+     * @returns The settings, or undefined for a source that is not a network load, or with the
+     *     network-data feature off.
+     */
+    sourceSettings(key: SourceKey): SourceSettings | undefined;
     /**
      * The source loads an opened project holds but has not run: nothing fetches by itself.
      * Experimental.

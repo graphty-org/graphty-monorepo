@@ -37,6 +37,7 @@ export type {
     SourcePreviewRow,
     SourceRead,
     SourceRefreshReport,
+    SourceSettings,
 } from "./types";
 export type {
     AwsCredentials,

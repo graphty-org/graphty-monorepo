@@ -225,7 +225,7 @@ export function isSourceScoped(rule: RuleTree): rule is RuleTree & SourceScopedR
  * @param outside - What every other element answers.
  * @returns The rule.
  */
-export function scopedToSource(rule: RuleTree, source: SourceKey | undefined, outside: boolean): RuleTree {
+function scopedToSource(rule: RuleTree, source: SourceKey | undefined, outside: boolean): RuleTree {
     if (source === undefined) {
         return rule;
     }

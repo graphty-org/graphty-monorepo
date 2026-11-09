@@ -776,6 +776,11 @@ greased line the render size now and after every `engine.onResizeObservable`, an
 uniform follows the same size. On the `"objects"` path this changes the picture of a page's first element with animated
 or fallback greased lines.
 
+Correction from stage 22: `scene.animationsEnabled`, the switch that parks an animated line, did not survive WebGPU
+opening. `renderer: "webgpu"` starts on a WebGL scene and replaces it with a new one when WebGPU opens; the swap carried
+the background but not this flag, so a consumer that parked the animation before WebGPU opened found it running. The
+swap in `Graph` now carries it, on both paths.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 

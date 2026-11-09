@@ -89,6 +89,8 @@ async function loaded(renderer: "webgl" | "webgpu", path: RenderPath): Promise<G
 
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
+    // parked before WebGPU opened its own scene, and still parked on that scene
+    assert.isFalse(element.graph.scene.animationsEnabled, "the animation stays parked");
     return element;
 }
 

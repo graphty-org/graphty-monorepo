@@ -445,6 +445,15 @@ async function addShapeStyles(el, mode, curves) {
         });
 }
 
+// Sets an option the run asked for. The element ignores what it does not know, so without the check
+// a build that lacks the option would be measured on its default and recorded under the requested one.
+function setRequested(el, name, value) {
+    if (value === undefined) return;
+    if (!(name in el))
+        throw new Error(`${name} ${JSON.stringify(value)} requested, but this build has no ${name} option`);
+    el[name] = value;
+}
+
 async function graphtyAdapter({
     mode,
     accel,
@@ -462,19 +471,9 @@ async function graphtyAdapter({
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
     const el = document.createElement("graphty-element");
     el.style.cssText = "display:block;width:1200px;height:900px";
-    // First, before any other property builds the engine, which reads it only then.
-    if (antialias !== undefined) {
-        if (!("antialias" in el))
-            throw new Error(`antialias ${antialias} requested, but this build has no antialias option`);
-        el.antialias = antialias;
-    }
-    if (renderPath) {
-        // The element ignores what it does not know, so without this a build that lacks the option
-        // would be measured on its default path and recorded under the requested one.
-        if (!("renderPath" in el))
-            throw new Error(`renderPath "${renderPath}" requested, but this build has no renderPath option`);
-        el.renderPath = renderPath;
-    }
+    // antialias first, before any other property builds the engine, which reads it only then.
+    setRequested(el, "antialias", antialias);
+    setRequested(el, "renderPath", renderPath || undefined);
     if (renderer) el.renderer = renderer;
     el.layout = "fixed";
     // A pulled curve is drawn only in 3D, so the curves flag keeps 3D whatever the mode. The camera

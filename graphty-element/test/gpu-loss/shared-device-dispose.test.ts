@@ -9,7 +9,7 @@
 import { EngineStore } from "@babylonjs/core";
 import { assert, describe, it, vi } from "vitest";
 
-import { adapterSays, deviceOf, nextFrame, open, startLayout, unmount } from "./shared-device";
+import { adapterSays, deviceOf, nextFrame, open, submitLayout, unmount } from "./shared-device";
 
 describe("disposing a graph on a shared device", () => {
     it("lets the accelerator go before the engine, ten times over, leaving nothing resident", async () => {
@@ -32,7 +32,8 @@ describe("disposing a graph on a shared device", () => {
 
         for (let cycle = 0; cycle < 10; cycle++) {
             const graph = await open();
-            await startLayout(graph);
+            // disposed with its first batch in flight, which must keep what it reads until it settles
+            await submitLayout(graph);
             const device = await deviceOf(graph);
             let controllerGone = false;
             const dispose = graph.engine.dispose.bind(graph.engine);

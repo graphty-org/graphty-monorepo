@@ -414,6 +414,8 @@ interface DrawnRun {
     readonly target: DrawnTarget;
     readonly n: number;
     skip: Uint32Array;
+    /** As the target said at the last publish: no copy while a transition draws the rows. */
+    suspended: boolean;
 }
 
 /**
@@ -1227,7 +1229,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const drawn = this.#drawnRun();
         const landed = drawn?.simulation.landedDrawn ?? null;
         const viaCard =
-            landed !== null && !(this.#simulation?.settled ?? true)
+            landed !== null && drawn?.suspended === false && !(this.#simulation?.settled ?? true)
                 ? (drawn?.simulation.landedDrawnTransform ?? null)
                 : null;
         this.#fitEnvelope(snapshot, simPositions);
@@ -1305,6 +1307,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             target,
             n: nodeCount,
             skip: new Uint32Array(Math.ceil(nodeCount / 32)),
+            suspended: false,
         };
         this.#drawn = run;
         target.table.drawnMirror = (row, x, y, z, w): void => {
@@ -1352,6 +1355,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return null;
         }
 
+        run.suspended = target.suspended === true;
         return run;
     }
 

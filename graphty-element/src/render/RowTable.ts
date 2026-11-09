@@ -45,6 +45,8 @@ const KNOWN = 8;
 export interface DrawnTarget {
     readonly table: RowTable;
     readonly device: GPUDevice;
+    /** A layout transition is drawing rows off their lanes: landings go up by upload, not by copy. */
+    readonly suspended?: boolean;
 }
 
 export interface RowExtent {

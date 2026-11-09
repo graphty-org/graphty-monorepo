@@ -111,10 +111,38 @@ export async function nextFrame(): Promise<void> {
  * @param graph - The graph.
  */
 export async function startLayout(graph: Graph): Promise<void> {
+    await submitLayout(graph);
+    await landed(graph);
+}
+
+/**
+ * Starts a layout that will not come to rest during the test, and waits for the accelerator to take
+ * its first batch, without waiting for one to land.
+ * @param graph - The graph.
+ */
+export async function submitLayout(graph: Graph): Promise<void> {
+    // Boxes and no arrowheads, not the default icosphere and arrows: on SwiftShader with two cores the
+    // icosphere's 960 vertices a node cost about 70 ms of a 90 ms frame and the arrows another 15, and
+    // the device queue runs some 300 frames behind the page, so every landing waited out 300 of those
+    // frames. A frame is about 20 ms this way. Nothing here is about the shape or the arrows.
+    await graph.getSession().styles.add({
+        name: "box nodes",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.shape": "box" },
+    });
+    await graph.getSession().styles.add({
+        name: "no arrows",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.arrowHead": "none" },
+    });
     await graph.addNodes(NODES);
     await graph.addEdges(EDGES);
     await graph.setLayout("forceatlas2", { maxIter: 1_000_000 });
-    await landed(graph);
+    while (!layoutOf(graph).isAccelerated || layoutOf(graph).iterationsDone === 0) {
+        await nextFrame();
+    }
 }
 
 /**
@@ -124,6 +152,21 @@ export async function startLayout(graph: Graph): Promise<void> {
 export async function landed(graph: Graph): Promise<void> {
     const before = layoutOf(graph).landedBatchesPublished;
     while (!layoutOf(graph).isAccelerated || layoutOf(graph).landedBatchesPublished <= before) {
+        await nextFrame();
+    }
+}
+
+/**
+ * Waits for the layout to copy a landing into the `rowPosition` texture, after this call: the ring is
+ * attached a batch after a load, so this is the real moment the copy starts, which a fixed number of
+ * landings only stands in for.
+ * @param graph - The graph.
+ */
+export async function copied(graph: Graph): Promise<void> {
+    const table = graph.getRowTable();
+    assert.isNotNull(table);
+    const before = table.copies;
+    while (table.copies <= before) {
         await nextFrame();
     }
 }
@@ -157,4 +200,43 @@ export function errorsOf(graph: Graph): Error[] {
         errors.push(event.error);
     });
     return errors;
+}
+
+/**
+ * Opens a graph on the given path with a running layout.
+ * @param path - The render path.
+ * @returns The graph.
+ */
+export async function running(path: "objects" | "batched"): Promise<Graph> {
+    adapterSays("test-hardware");
+    const graph = await open();
+    graph.setRenderPath(path);
+    await startLayout(graph);
+    assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
+    return graph;
+}
+
+/**
+ * The worst relative difference between the `rowPosition` texture and the CPU copy, read with no frame
+ * between them. The frame's publish reaches the CPU copy at the next frame's repack, so that repack is
+ * run here.
+ * @param graph - The graph.
+ * @returns The worst difference over every lane, and over the w lanes alone.
+ */
+export async function textureDiff(graph: Graph): Promise<{ worst: number; wWorst: number }> {
+    const table = graph.getRowTable();
+    assert.isNotNull(table);
+    graph.engine.stopRenderLoop();
+    table.flush();
+    const cpu = table.rowPosition.slice(0, 4 * table.rows);
+    const gpu = (await table.positionTexture.readPixels()) as Float32Array;
+    let worst = 0;
+    let wWorst = 0;
+    for (let i = 0; i < cpu.length; i++) {
+        const d = Math.abs((gpu[i] ?? Number.NaN) - (cpu[i] ?? 0)) / Math.max(1, Math.abs(cpu[i] ?? 0));
+        worst = Math.max(worst, d);
+        wWorst = i % 4 === 3 ? Math.max(wWorst, d) : wWorst;
+    }
+
+    return { worst, wWorst };
 }

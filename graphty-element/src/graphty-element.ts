@@ -53,6 +53,7 @@ import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/Lab
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
+import { antialiasDefault } from "./meshes/PulledLineBatch";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -123,7 +124,7 @@ const ELEMENT_LAYOUT = "element-layout";
  * @returns Whether to multisample.
  */
 function antialiasFromAttribute(value: string | null): boolean {
-    return value !== "false";
+    return value === null ? antialiasDefault.value : value !== "false";
 }
 
 /**

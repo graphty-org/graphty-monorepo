@@ -51,6 +51,13 @@ import { curveShape, type CurveSpan } from "./pulledCurve";
  */
 export const pulledEdgesDefault: { value: boolean } = { value: false };
 
+/**
+ * Whether an element with no `antialias` property or attribute multisamples. True, the documented
+ * default; only render-parity's `VITE_PARITY_ANTIALIAS=false` run writes it, so every story's three
+ * loads draw without multisampling and the batched one uses the lean line program.
+ */
+export const antialiasDefault: { value: boolean } = { value: true };
+
 /** Texels across the edge table, as across the row table: texel `i` is at `(i % 1024, i / 1024)`. */
 const TABLE_WIDTH = 1024;
 

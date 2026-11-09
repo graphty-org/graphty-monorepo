@@ -401,6 +401,13 @@ Two corrections, from the code:
   its 100k + 1M scene draws 1,000,000 object lines and neither G5 nor this program reaches it. The `3d` flag
   (`run.mjs graphty lean on 100000 1000000 1 skip-layout 3d no-move`) keeps it in 3D, where every edge is pulled, and
   fails a run with an object edge; the numbers above are its. The 2D scene reaches this program with G3.
+- Stage 15's render-parity could not switch the program on: no story sets `antialias`, so every batched load multisampled.
+  `VITE_PARITY_ANTIALIAS=false` builds every load of a run without multisampling (through the internal `antialiasDefault`,
+  read only when an element has no `antialias` property or attribute), and each load asserts `Graph.leansLines` is true on
+  `"batched"` and false on `"objects"`. With it, on SwiftShader: WebGL 324 passed, 1 failed; WebGPU 283 passed, 1 failed.
+  The one failure is `FileStyles.stories.ts Gexf`, 676 pixels, the same 676 with `leansLines` forced false, so the lean
+  program adds none: it is issue #6392 (1488 pixels with `antialias` true, on either parity mode), where the objects and
+  pulled pictures differ in the blended colors of overlapping translucent edges.
 
 As built (stage 16, first pull request): `Edge.pullsLine` passes on the `"batched"` path, read as the graph keeping node batches,
 so `pulledEdgesDefault` is needed only to pull on `"objects"`. A line's rebuild test (`Edge.paintFrom`) compares whether it is

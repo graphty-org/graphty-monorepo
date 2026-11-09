@@ -19,6 +19,7 @@ declare -A C=(
   [lean-m]="graphty lean on 100000 1000000 1"
   [lean-l]="graphty lean on 1000000 1000000 1 skip-layout"
   [lean-s-few]="graphty lean on 10000 100 1 skip-layout"
+  [lean-10-few]="graphty lean on 10 10 1 skip-layout"
   [lean-m-few]="graphty lean on 100000 1000 1 skip-layout"
   [default-s]="graphty default on 10000 100000 1"
   [default-m]="graphty default on 100000 1000000 1"

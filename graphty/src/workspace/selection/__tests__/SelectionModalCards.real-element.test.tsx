@@ -6,7 +6,8 @@
  * to its card; "+ Card" starts a new colored card; a node clicked on the drawing is a step's reference;
  * Done keeps every edit and Cancel restores the selection as it was. The owner's review of
  * 2026-11-04: cards fold to their header (a new card folds the others), reorder by their grip or
- * the arrow keys, no "or" between them; a new number step passes its whole range at once; the
+ * by Ctrl+] and Ctrl+[ as their "..." menu shows them (the grip takes no arrow keys), no "or"
+ * between them; a new number step passes its whole range at once; the
  * matches table tints each row in its group's color, with no Group column; and the preview draws
  * the edges between a group's members in its color.
  */
@@ -371,7 +372,7 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         assert.match(cards().at(-1)?.getAttribute("aria-label") ?? "", /^D, /, "the last card reads D");
     });
 
-    it("a card dragged by its grip, or moved with the arrow keys, takes its new place", async () => {
+    it("a card dragged by its grip, or moved with Ctrl+[ and Ctrl+] on it, takes its new place; arrows do not", async () => {
         const { session, layer } = await twoCards();
         const idsNow = (): string[] => (unionOf(session, layer.id)?.branches ?? []).map((each) => each.id ?? "");
         const [first, second] = idsNow();
@@ -381,12 +382,22 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         await waitFor(() => {
             assert.deepEqual(idsNow(), [second, first], "dragged above A");
         });
-        // The keyboard: Down on the first card's grip moves it back down.
+        // The keyboard, with the grip focused: the arrows move nothing (no button shows them).
         const moved = within(cards()[0]).getByRole("button", { name: /^Move / });
         moved.focus();
         await userEvent.keyboard("{ArrowDown}");
+        assert.deepEqual(idsNow(), [second, first], "the arrows leave the order");
+        // Ctrl+[ (Move down, as the card's menu shows it) moves it back down, focus kept on its grip.
+        await userEvent.keyboard("{Control>}[{/Control}");
         await waitFor(() => {
-            assert.deepEqual(idsNow(), [first, second], "moved down by its key");
+            assert.deepEqual(idsNow(), [first, second], "moved down by Ctrl+[");
+        });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement?.getAttribute("data-card-grip"), second);
+        });
+        await userEvent.keyboard("{Control>}]{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(idsNow(), [second, first], "moved up by Ctrl+]");
         });
     });
 

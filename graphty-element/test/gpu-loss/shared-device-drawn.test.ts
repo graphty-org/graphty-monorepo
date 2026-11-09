@@ -3,12 +3,24 @@
  * renderPath "batched" on a shared device, a landing copies the batch's drawn ring slot into the
  * `rowPosition` texture, so a running layout uploads no positions, and the texture holds what the CPU
  * copy holds. Under "objects" nothing changes. A software adapter never shares, so it is made to say
- * it is hardware.
+ * it is hardware. At rest the texture holds what the upload path would have sent, and a click while
+ * the layout runs picks the node where the card shows it.
  */
 
 import { assert, describe, it } from "vitest";
 
-import { adapterSays, copied, landed, nextFrame, open, running, startLayout, textureDiff } from "./shared-device";
+import { click } from "../helpers/real-input";
+import {
+    adapterSays,
+    copied,
+    landed,
+    layoutOf,
+    nextFrame,
+    open,
+    running,
+    startLayout,
+    textureDiff,
+} from "./shared-device";
 
 describe("the layout filling the row table on a shared device", () => {
     it("copies each landing into the texture and uploads no positions while it runs", async () => {
@@ -70,5 +82,59 @@ describe("the layout filling the row table on a shared device", () => {
         assert.strictEqual(table.copies, 0);
         assert.isNull(table.drawnMirror);
         assert.isAbove(table.positionUploads - uploads, 0);
+    });
+
+    it("rests with the texture equal to what the upload path sends", async () => {
+        const graph = await running("batched", 150);
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        await copied(graph);
+        const { copies } = table;
+        while (!layoutOf(graph).isSettled) {
+            await nextFrame();
+        }
+        // the settling batch repacks from the lane, which is the upload path
+        await graph.waitForSettled();
+
+        assert.isAbove(table.copies, 0);
+        assert.isAtLeast(table.copies, copies);
+        const diff = await textureDiff(graph);
+        assert.isBelow(diff.worst, 1e-6);
+        assert.isBelow(diff.wWorst, 1e-6);
+    });
+
+    it("selects the node a click lands on while the layout copies", async () => {
+        const graph = await running("batched");
+        await copied(graph);
+        // the node farthest from its nearest neighbour on screen, framed whole, so the click can only
+        // land on it
+        const shown = Array.from({ length: 200 }, (_, i) => `n${String(i)}`).flatMap((id) => {
+            const at = graph.nodeScreenPosition(id);
+            return at?.visible === true ? [{ id, x: at.x, y: at.y }] : [];
+        });
+        const gap = (node: { x: number; y: number }): number =>
+            Math.min(
+                ...shown
+                    .filter((other) => other !== node)
+                    .map((other) => Math.hypot(other.x - node.x, other.y - node.y)),
+            );
+        const target = shown.reduce((best, node) => (gap(node) > gap(best) ? node : best)).id;
+        await graph.zoomToNodes(target, { extent: "drawn" });
+        await copied(graph);
+        // textureDiff stops the frames, so the node stands where the card shows it while the pointer
+        // travels; the layout is still mid-run, with its batch in flight
+        assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+        assert.isFalse(layoutOf(graph).isSettled);
+        const at = graph.nodeScreenPosition(target);
+        assert.isTrue(at?.visible);
+        assert.isNull(graph.getSelectedNode());
+
+        await click(graph.canvas, { x: at?.x ?? 0, y: at?.y ?? 0 });
+        // Babylon tells a tap from a double tap after the release, so the selection follows it
+        while (graph.getSelectedNode() === null) {
+            await nextFrame();
+        }
+
+        assert.strictEqual(graph.getSelectedNode()?.id, target);
     });
 });

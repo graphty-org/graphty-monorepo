@@ -1075,6 +1075,14 @@ agree. The mechanism is not yet explained (a batch of the replaced simulation, o
 the swap is the likely one). `shared-device-drawn-moves.test.ts` compares at the second copy and points here; until
 this is fixed the texture can hold the wrong rows for one landing after a layout is replaced. Issue #6422.
 
+As built (stage 25, fifth pull request): a correction to "a settling batch repacks from the lane, so the rest
+picture matches the upload path". It did not always. `RowTable` remembers a copied landing with one flag until
+the next repack, which then sends no row; when the settling batch was published by upload after a copy and before
+that repack, the flag hid it too, and the texture rested on the copied landing while the CPU copy held the settled
+rows (2 runs in 8, every x, y and z lane, worst relative difference 0.2). A publish that goes up by upload now drops
+the flag (`RowTable.dropCopy`), so the repack sends every row. The texture at rest now equals the CPU copy, which is
+what the upload path sends, within 1e-6, and a click while the layout copies selects the node under the pointer.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,

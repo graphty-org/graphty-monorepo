@@ -109,9 +109,10 @@ export async function nextFrame(): Promise<void> {
 /**
  * Starts a layout that will not come to rest during the test, and waits for its batches to land.
  * @param graph - The graph.
+ * @param maxIter - Iterations before it rests; by default more than any test waits for.
  */
-export async function startLayout(graph: Graph): Promise<void> {
-    await submitLayout(graph);
+export async function startLayout(graph: Graph, maxIter = 1_000_000): Promise<void> {
+    await submitLayout(graph, maxIter);
     await landed(graph);
 }
 
@@ -119,8 +120,9 @@ export async function startLayout(graph: Graph): Promise<void> {
  * Starts a layout that will not come to rest during the test, and waits for the accelerator to take
  * its first batch, without waiting for one to land.
  * @param graph - The graph.
+ * @param maxIter - Iterations before it rests; by default more than any test waits for.
  */
-export async function submitLayout(graph: Graph): Promise<void> {
+export async function submitLayout(graph: Graph, maxIter = 1_000_000): Promise<void> {
     // Boxes and no arrowheads, not the default icosphere and arrows: on SwiftShader with two cores the
     // icosphere's 960 vertices a node cost about 70 ms of a 90 ms frame and the arrows another 15, and
     // the device queue runs some 300 frames behind the page, so every landing waited out 300 of those
@@ -139,7 +141,7 @@ export async function submitLayout(graph: Graph): Promise<void> {
     });
     await graph.addNodes(NODES);
     await graph.addEdges(EDGES);
-    await graph.setLayout("forceatlas2", { maxIter: 1_000_000 });
+    await graph.setLayout("forceatlas2", { maxIter });
     while (!layoutOf(graph).isAccelerated || layoutOf(graph).iterationsDone === 0) {
         await nextFrame();
     }
@@ -205,13 +207,14 @@ export function errorsOf(graph: Graph): Error[] {
 /**
  * Opens a graph on the given path with a running layout.
  * @param path - The render path.
+ * @param maxIter - Iterations before the layout rests; by default more than any test waits for.
  * @returns The graph.
  */
-export async function running(path: "objects" | "batched"): Promise<Graph> {
+export async function running(path: "objects" | "batched", maxIter?: number): Promise<Graph> {
     adapterSays("test-hardware");
     const graph = await open();
     graph.setRenderPath(path);
-    await startLayout(graph);
+    await startLayout(graph, maxIter);
     assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
     return graph;
 }

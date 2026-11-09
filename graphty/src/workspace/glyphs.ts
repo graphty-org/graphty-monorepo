@@ -128,7 +128,6 @@ import {
     Upload,
     Waypoints,
     Weight,
-    Workflow,
     X,
     Zap,
     ZoomOut,
@@ -140,7 +139,8 @@ import type { InspectedKindId } from "./inspector/inspected";
 /** The icon of each concept the workspace draws. */
 export const GLYPHS = {
     // Things in the graph.
-    graph: Workflow,
+    // A graph: nodes joined by edges.
+    graph: Waypoints,
     node: CircleDot,
     edge: Spline,
     // A style layer that paints nodes and edges: a dot on a line.
@@ -271,6 +271,7 @@ export const GLYPHS = {
     gridView: LayoutGrid,
     listView: List,
     generated: Shuffle,
+    // A graph with no picture yet shows the graph icon itself.
     noPicture: Waypoints,
     gpu: Zap,
     developer: Code,

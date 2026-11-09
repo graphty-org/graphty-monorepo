@@ -1844,6 +1844,9 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color = cssColor(fields.color).hex;
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
+    } else if ((edge as unknown as { pulled: { run: unknown[] | null } | null }).pulled?.run === null) {
+        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres
+        world = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
     }
     // An arrow is part of the edge as drawn: its tip, not the line it caps, is where the edge ends.
     // The line stops short of a tip by the arrow's length, which on a short edge between two ports

@@ -2,7 +2,9 @@
  * @file Under `renderPath: "batched"` a graph's plain straight edges are pulled from the row table
  * (`PulledLineBatch`) with no internal switch, and draw the picture the `"objects"` path draws. The
  * default path pulls nothing, and switching the path live moves the edges between the two forms.
- * Stage 16 of design/rendering/row-renderer.md; the bar is its section 7.
+ * Stage 16 of design/rendering/row-renderer.md; the bar is its section 7. In 2D too, with the line's
+ * width in world units, across a 2D/3D switch and at a sub-pixel width (stage G3 of
+ * design/rendering/cosmos-gap.md).
  */
 
 import "../../src/graphty-element";
@@ -48,13 +50,22 @@ function edgeId(element: Graphty, source: number, target: number): unknown {
     return edge.id;
 }
 
+type View = "2d" | "3d";
+
 /**
  * Mount an element on a render path with the graph loaded.
  * @param renderer - The renderer.
  * @param path - The render path.
+ * @param view - The view mode.
+ * @param width - A line width for every edge, or undefined for the default.
  * @returns The element.
  */
-async function loaded(renderer: "webgl" | "webgpu", path: RenderPath): Promise<Graphty> {
+async function loaded(
+    renderer: "webgl" | "webgpu",
+    path: RenderPath,
+    view: View = "3d",
+    width?: number,
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = renderer;
     element.renderPath = path;
@@ -67,13 +78,13 @@ async function loaded(renderer: "webgl" | "webgpu", path: RenderPath): Promise<G
     await element.session.data.addNodes(NODES);
     await element.session.data.addEdges(EDGES);
     await element.graph.setLayout("fixed", { dim: 3 });
-    await element.setViewMode("3d");
+    await element.setViewMode(view);
     // The graph is directed, so every edge starts with a head: take them off, then put one back.
     await element.session.styles.add({
         name: "uncapped",
         target: "edge",
         selector: { match: "ids", edges: EDGES.map((edge) => edgeId(element, edge.src, edge.dst)) },
-        set: { "edge.arrowHead": "none" },
+        set: { "edge.arrowHead": "none", ...(width === undefined ? {} : { "edge.width": width }) },
     } as never);
     await element.session.styles.add({
         name: "capped",
@@ -110,17 +121,53 @@ async function moved(element: Graphty): Promise<Frame> {
 }
 
 describe.each(RENDERERS)("pulled edges on the batched path on %s", (renderer) => {
-    it("pull every plain edge and draw the objects path's picture, at rest and after a drag", async () => {
-        const objects = await loaded(renderer, "objects");
-        assert.deepInclude(objects.graph.rowCounts, { pulledEdges: 0, objectEdges: EDGES.length });
+    it.each(["3d", "2d"] as const)(
+        "pull every plain edge in %s and draw the objects path's picture, at rest and after a drag",
+        async (view) => {
+            const objects = await loaded(renderer, "objects", view);
+            assert.deepInclude(objects.graph.rowCounts, { pulledEdges: 0, objectEdges: EDGES.length });
+            const objectsRest = await readCanvas(objects.graph);
+            const objectsMoved = await moved(objects);
+            objects.remove();
+
+            const batched = await loaded(renderer, "batched", view);
+            assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
+            assert.equal(overBar(objectsRest, await readCanvas(batched.graph)), 0, "at rest");
+            assert.equal(overBar(objectsMoved, await moved(batched)), 0, "after a drag");
+        },
+    );
+
+    it("draw a sub-pixel 2D line one pixel wide and fainter, as the objects path does", async () => {
+        const objects = await loaded(renderer, "objects", "2d", 0.1);
         const objectsRest = await readCanvas(objects.graph);
-        const objectsMoved = await moved(objects);
         objects.remove();
 
-        const batched = await loaded(renderer, "batched");
+        const batched = await loaded(renderer, "batched", "2d", 0.1);
         assert.deepInclude(batched.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
-        assert.equal(overBar(objectsRest, await readCanvas(batched.graph)), 0, "at rest");
-        assert.equal(overBar(objectsMoved, await moved(batched)), 0, "after a drag");
+        assert.equal(overBar(objectsRest, await readCanvas(batched.graph)), 0, "sub-pixel");
+    });
+
+    it("keep the objects path's picture across a 2D/3D switch", async () => {
+        const pictures: Frame[] = [];
+        for (const path of ["objects", "batched"] as const) {
+            const element = await loaded(renderer, path, "3d");
+            await element.setViewMode("2d");
+            await settled(element);
+            const flat = await readCanvas(element.graph);
+            const pulled = path === "batched" ? EDGES.length - 1 : 0;
+            assert.deepInclude(element.graph.rowCounts, { pulledEdges: pulled, objectEdges: EDGES.length - pulled });
+            await element.setViewMode("3d");
+            await settled(element);
+            const deep = await readCanvas(element.graph);
+            assert.deepInclude(element.graph.rowCounts, { pulledEdges: pulled, objectEdges: EDGES.length - pulled });
+            element.remove();
+            if (pictures.length === 0) {
+                pictures.push(flat, deep);
+            } else {
+                assert.equal(overBar(pictures[0], flat), 0, "in 2D");
+                assert.equal(overBar(pictures[1], deep), 0, "back in 3D");
+            }
+        }
     });
 
     it("move the edges between the two forms when the path changes live", async () => {

@@ -2537,7 +2537,7 @@ export class Edge {
      * Whether this edge's line is pulled from the row table (`PulledLineBatch`): on the `"batched"`
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centres -- no cap, gap, group, bend, label, band or any other line
-     * key -- in 3D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
+     * key -- in 3D, or in 2D when it is not a curve, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
      * too, through its support point when it has one (`line.supportModel`), and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centres' and, for one that fans out of a
      * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
      * radius (`arcRadius`), or for one raised off the map or a globe (`line.route` "arc" or "great-circle", which wins
@@ -2552,9 +2552,11 @@ export class Edge {
         const line = style.line ?? {};
         return (
             (pulledEdgesDefault.value || (this.context.getNodeBatches?.() ?? null) !== null) &&
-            !this.srcNode.isDrawnAsGroup &&
-            !this.dstNode.isDrawnAsGroup &&
-            !EdgeMesh.drawsFlat(this.context.getScene()) &&
+            // a group, or a 2D node below z-index 0, ends the line at its outline (`Edge.groupEnd`), not its centre
+            !this.srcNode.isDrawnBehindEdges &&
+            !this.dstNode.isDrawnBehindEdges &&
+            // in 2D only a straight line, with its width in world units (`EdgeMesh.pulledBatch`)
+            !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
             setsOnly(style, PULLED_STYLE_KEYS) &&
             setsOnly(line, PULLED_LINE_KEYS) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
@@ -2641,10 +2643,12 @@ export class Edge {
         const opacity = EdgeMesh.opacityOf(style);
         const animationSpeed = style.line?.animationSpeed ?? 0;
         const color = Color3.FromHexString(options.color);
-        // an animated line's width and color as its greased line takes them (`EdgeMesh.createAnimatedLine`)
-        const look = animationSpeed
-            ? { color: movingTexel(color), opacity, width: options.width / 40 }
-            : { color, opacity, width: options.width * 20 };
+        // an animated line's width and color as its greased line takes them (`EdgeMesh.createAnimatedLine`);
+        // in 2D a world width, as `Simple2DLineRenderer.createBatchMesh` is handed it
+        let look = { color, opacity, width: EdgeMesh.drawsFlat(scene) ? options.width / 40 : options.width * 20 };
+        if (animationSpeed) {
+            look = { color: movingTexel(color), opacity, width: options.width / 40 };
+        }
         batch.setLook(piece, look.color, look.opacity, look.width);
         if (animationSpeed) {
             batch.setSpeed(piece, animationSpeed);

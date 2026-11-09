@@ -683,7 +683,10 @@ void main() {
             );
         }
 
-        const leanLine = lean && !curve;
+        // a 2D line's width is in world units, so the view keys the batch and a 2D/3D switch builds another;
+        // the 2D batch draws the joined program, never the lean one
+        const flat = this.drawsFlat(scene);
+        const leanLine = lean && !curve && !flat;
         let kind: "curve" | "lean" | true = true;
         let suffix = "";
         if (curve) {
@@ -694,13 +697,38 @@ void main() {
             suffix = "|lean";
         }
 
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}`;
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}${flat ? "|2d" : ""}`;
         return cache.getPulledBatch(key, () => {
-            const mesh = this.createStaticLine(options, style, scene, cache, false, kind);
+            const mesh = flat
+                ? this.createFlatPulledLine(options, style, scene)
+                : this.createStaticLine(options, style, scene, cache, false, kind);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
             return new PulledLineBatch(mesh, scene, rowPositions, curve, leanLine ? LEAN_TEMPLATE : undefined);
         });
+    }
+
+    /**
+     * A 2D pulled batch's mesh: the 2D line's joined program (`Simple2DLineRenderer.createBatchMesh`), its width in
+     * world units, reading its pieces from the row table.
+     * @param options - The line's look.
+     * @param style - The resolved style.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static createFlatPulledLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): Mesh {
+        return CustomLineRenderer.createJoinedLineMesh(
+            {
+                width: options.width / 40,
+                color: options.color,
+                opacity: this.opacityOf(style),
+                worldWidth: true,
+                minScreenWidth: style.line?.minScreenWidth,
+                opaque: this.drawsOpaque(style),
+                pulled: true,
+            },
+            scene,
+        );
     }
 
     /**

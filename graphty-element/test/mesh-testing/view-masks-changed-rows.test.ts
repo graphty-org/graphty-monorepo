@@ -50,6 +50,11 @@ class CountingNode {
         this.selected = next;
         return changed;
     }
+
+    /** Drawn from a shared batch with no label or overlay: no mesh of its own to toggle. */
+    togglesOwnMeshes(): boolean {
+        return false;
+    }
 }
 
 /** An edge as the pass sees it. */

@@ -676,13 +676,16 @@ void main() {
         const curve = this.pullsCurve(style, loop, route);
         const leanLine = lean && !curve;
         let kind: "curve" | "lean" | true = true;
+        let suffix = "";
         if (curve) {
             kind = "curve";
+            suffix = "|curve";
         } else if (leanLine) {
             kind = "lean";
+            suffix = "|lean";
         }
 
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${kind === true ? "" : `|${kind}`}`;
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}`;
         return cache.getPulledBatch(key, () => {
             const mesh = this.createStaticLine(options, style, scene, cache, false, kind);
             // The rows are in graph-root's space, as a line batch's slots are.

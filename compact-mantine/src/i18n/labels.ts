@@ -184,7 +184,7 @@ export interface CompactMantineLabels {
 
     // CardList
 
-    /** CardList: accessible name of a card's grip, which drags it or moves it with Up and Down. */
+    /** CardList: accessible name of a card's grip, which drags it. */
     moveCard: (title: string) => string;
     /** CardList: tooltip of a card's grip. */
     reorderCard: string;
@@ -570,7 +570,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     no: "No",
 
     moveCard: (title: string): string => `Move ${title}`,
-    reorderCard: "Drag, or Up and Down arrows, to reorder",
+    reorderCard: "Drag to reorder",
     expandCard: (title: string): string => `Expand ${title}`,
     collapseCard: (title: string): string => `Collapse ${title}`,
     renameCard: (title: string): string => `Rename ${title}`,

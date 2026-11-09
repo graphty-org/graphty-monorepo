@@ -984,6 +984,7 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
         [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
     ),
     showContext: assigns(true, [{ op: "visibility.context", show: true }]),
+    notDrawn: READ,
     steps: READ,
     setSteps: calls(
         [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
@@ -3559,6 +3560,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             passingBytes: READ,
             hold: exempt(
                 "Draws a condition's removals as ghosts while a reader edits it; the conditions are unchanged.",
+            ),
+            drawsContext: READ,
+            workingGraphChanged: exempt(
+                "Tells the drawn masks the working graph option moved; a session setting, not saved.",
             ),
             commitWindow: calls(
                 [{ attribute: "data.t", from: 0, to: 1 }],

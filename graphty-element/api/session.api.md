@@ -2568,6 +2568,14 @@ export interface GroupOutlineClick {
     readonly shader: string;
 }
 
+// @beta
+export interface HiddenNotDrawn {
+    readonly code: "W_HIDDEN_NOT_DRAWN";
+    readonly params: {
+        readonly asked: "showContext" | "hold" | "full";
+    };
+}
+
 // @public
 export interface HighlightSpec {
     readonly field?: string;
@@ -6555,6 +6563,7 @@ export interface StylesApi {
     // @beta
     showBranches(view: BranchesView): {
         end(): void;
+        readonly notDrawn: readonly HiddenNotDrawn[];
     };
     // @beta
     readonly showingBranches: boolean;
@@ -7181,6 +7190,8 @@ export interface VisibilityApi {
     isVisible(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
+    // @beta
+    readonly notDrawn: readonly HiddenNotDrawn[];
     // @beta
     removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;

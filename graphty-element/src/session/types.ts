@@ -4161,6 +4161,11 @@ export interface GraphSession {
      * on all of it, and hidden nodes keep their positions, styles and results -- and a reader that
      * names the whole graph (`scope: "graph"`) still reads all of it.
      *
+     * On, nothing outside what is shown is drawn: `visibility.showContext`, and a
+     * `styles.showBranches` view's `hold` and `base: "full"`, are kept but draw no hidden node,
+     * and `visibility.notDrawn` lists each one as a `W_HIDDEN_NOT_DRAWN` fact. Off, they draw as
+     * before.
+     *
      * Off by default, which keeps every reader on the whole graph. Settable; a session setting that
      * records no undo step and is not saved in a project file. Set it when creating the session with
      * `createGraphSession({ workingGraph: true })`, or on the element with the `working-graph`

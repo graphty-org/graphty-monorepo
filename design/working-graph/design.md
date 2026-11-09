@@ -92,11 +92,19 @@ Advanced: `defineAlgorithm`'s `input()` hands it the view.
   once over it with the animated transition, and the existing auto-framing frames what is shown.
   **Cancel is `cancel()`** and writes nothing.
 
-Turning a filter off is a filter change (decision 35). **The app draws no node outside the view**:
-for a filter draft it passes neither `styles.showBranches` `hold` nor `base: "full"`, and it does
-not turn `showContext` on. Those keep their meaning in the element, so a consumer that asks for
-them gets hidden nodes drawn at their last positions (decision 7). Only the draft preview fades
-nodes, in place, and it never re-lays out before commit. Ghosts keep their faint look (D).
+Turning a filter off is a filter change (decision 35). **Nothing outside the view is drawn** while
+the option is on (owner, 2026-11-08, decisions 7 and 12): `visibility.showContext` (faint hidden
+nodes), a `styles.showBranches` view's `hold` (what an edited condition would remove) and its
+`base: "full"` (the view drawn as if no condition were on) are kept but draw no hidden node. Hidden
+nodes have no meaningful position in a layout of only the shown nodes, so faint nodes at their old
+places under a fresh layout would be two layouts on one canvas: the owner's first bug. Each request
+is reported, not silent: `visibility.notDrawn`, and the `notDrawn` of the view `showBranches`
+returns, hold `{ code: "W_HIDDEN_NOT_DRAWN", params: { asked } }`, `asked` being `"showContext"`,
+`"hold"` or `"full"` (type `HiddenNotDrawn`). The flag and the view are kept, so turning the option
+off draws them again and turning it on stops them at once; a project saved with `showContext` on
+opens with the flag on, draws nothing outside the view, and reports it. With the option off they
+draw as before. Only the draft preview fades nodes, in place, and it never re-lays out before
+commit. Ghosts keep their faint look (D).
 
 ## 4. Every reader from the audit
 
@@ -202,7 +210,9 @@ off and before any filter (decision 77).
   option on and a filter hiding a known node, a reader naming no scope answers as on the graph
   without it, and with its whole-graph word over the whole graph; a layout leaves the node
   unmoved and gives one slot per shown node; an algorithm gives it no value. An unclassified
-  reader fails, as does any reader that fails the view.
+  reader fails, as does any reader that fails the view. It also turns on every drawing that asks
+  for hidden nodes (`showContext`, a view's `hold` and `base: "full"`) and checks that the hidden
+  node is not drawn and that each request is reported as `W_HIDDEN_NOT_DRAWN`.
 - **`graphty-element/test/browser/working-graph-gpu.test.ts`** (browser project) runs a GPU algorithm and the GPU force driver with a filter on: the
   hidden node gets no value and does not move.
 - **`graphty-element/working-graph-whole-readers.json`** lists the readers that read the whole graph
@@ -230,7 +240,7 @@ off and before any filter (decision 77).
 8. **App**: set `working-graph`; the filter editor on `FilterDraft` (section 3); `within:
 "visible"`; the whole-graph word on readers labeled "Full graph" or "All"; the dock's code unchanged (decision 67).
 9. **The owner's path** (decision 36): no layout starts while editing; Circle and Grid place 49.
-10. **Docs**: a guide page with the canonical example; the drawings that show hidden nodes (decision 7); the flip on #6124.
+10. **Docs**: a guide page with the canonical example; that the drawings that show hidden nodes draw nothing outside the view with the option on, and `W_HIDDEN_NOT_DRAWN` (decision 7); the flip on #6124.
 
 ## 11. Decisions the owner has not seen
 
@@ -249,9 +259,9 @@ off and before any filter (decision 77).
    outline-and-pane editor (the selection workspace experiment off) has no Done: it keeps writing
    each edit, the layout follows each one, and it too draws no hidden node.
 6. **Nodes the draft would bring back are counted, not drawn**, until commit.
-7. **`hold`, `base: "full"` and `showContext` keep their meaning with the option on**: they are
-   the consumer's choice to draw hidden nodes, at their last positions; the app asks for none of
-   them for a filter draft, so it draws no node outside the view.
+7. **Decided by the owner (2026-11-08): with the option on, `hold`, `base: "full"` and
+   `showContext` draw nothing outside the view**, each reported as `W_HIDDEN_NOT_DRAWN` in
+   `visibility.notDrawn` (and the view's `notDrawn`); with it off they draw as before (section 3).
 8. **The layout re-runs on a filter or window change** or its undo, never on a data edit; filter
    changes animate.
 9. **Framing after a filter re-layout** is today's auto-framing.
@@ -259,7 +269,7 @@ off and before any filter (decision 77).
 11. **Layout scope `"graph"` lays out the view** with the option on, as naming no scope does: a
     layout never moves a hidden node (agreed point 7).
 12. **Context nodes (`showContext`) are not in the view**: no reader or layout counts them, and
-    they are drawn only when a consumer turns `showContext` on (decision 7).
+    with the option on they are not drawn (decision 7, decided by the owner 2026-11-08).
 13. **The pause rule** (section 8); playback steps rebuild as they land.
 14. **During a drag, counts read the view**, on the pause under the pause rule.
 15. **Every algorithm class computes over the view**, mask-back classes included; legacy plugins

@@ -1587,7 +1587,8 @@ export class Graph implements GraphContext {
                 edges: () => this.session.selection.edgeMembers(),
                 nodes: () => this.session.selection.nodeMembers(),
             },
-            showContext: () => this.session.visibility.showContext,
+            // Off while the working graph is on: nothing outside the view is drawn.
+            showContext: () => this.session.visibility.drawsContext,
             // What is drawn: the visible elements, plus the ghosts outside the time window when
             // the timeline draws them. Visible stays the data scope everything else reads.
             visibility: this.session.visibility.drawnMasks,

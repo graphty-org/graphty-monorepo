@@ -43,6 +43,8 @@ export {
     type FilterConditionMatches,
     type FilterDraft,
     type FilterResult,
+    type HiddenNotDrawn,
+    hiddenNotDrawn,
     type SessionVisibilityApi,
     type StepCounts,
     type VisibilityApi,

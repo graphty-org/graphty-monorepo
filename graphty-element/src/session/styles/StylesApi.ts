@@ -143,6 +143,7 @@ import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { inertReason } from "../visibility/union";
+import { type HiddenNotDrawn, hiddenNotDrawn } from "../visibility/VisibilityApi";
 import { beneathAuthored, placementLayers } from "./autoApply";
 import {
     channelDescriptor,
@@ -450,6 +451,9 @@ export interface BranchesView {
     /**
      * A filter condition the reader is editing, by id: what it would remove stays drawn, faint,
      * while the view is shown (it still decides what is visible). Absent, nothing is held.
+     * While the session's `workingGraph` option is on, nothing outside what is shown is drawn:
+     * the condition is held but its removals are not drawn, and the view's `notDrawn` says so
+     * (`W_HIDDEN_NOT_DRAWN`, `asked: "hold"`).
      */
     readonly hold?: string;
     /**
@@ -465,7 +469,9 @@ export interface BranchesView {
      * `"full"` lifts every filter condition while the view is shown, so a selection counted on the
      * full graph is drawn there: what the conditions remove is drawn faint, as ghosts, and a
      * branch's members are drawn in its color even when a condition removes them. What is visible
-     * does not change, and nothing is recorded.
+     * does not change, and nothing is recorded. While the session's `workingGraph` option is on,
+     * `"full"` draws as `"visible"` does, and the view's `notDrawn` says so
+     * (`W_HIDDEN_NOT_DRAWN`, `asked: "full"`).
      * Experimental: may change or be removed in a minor release.
      * @beta
      */
@@ -494,11 +500,13 @@ export interface StylesApi {
      * first, whose `end()` then does nothing. Not a layer, not saved.
      * Experimental: may change or be removed in a minor release.
      * @param view - What to draw.
-     * @returns Ends the view, the stack's picture back in the same repaint.
+     * @returns Ends the view, the stack's picture back in the same repaint; and `notDrawn`, what
+     *   the view asked to draw outside what is shown (`hold`, `base: "full"`) that is not drawn
+     *   because the session's `workingGraph` option is on, empty otherwise (since 3.36.0).
      * @throws `E_BAD_COMMAND` for a rule that is not a valid union leaf.
      * @beta
      */
-    showBranches(view: BranchesView): { end(): void };
+    showBranches(view: BranchesView): { end(): void; readonly notDrawn: readonly HiddenNotDrawn[] };
     /**
      * Whether a branches view is drawn now; `style:branches-shown-changed` tells each change.
      * Experimental: may change or be removed in a minor release.
@@ -5025,7 +5033,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return listLayers();
         },
 
-        showBranches(view: BranchesView): { end(): void } {
+        showBranches(view: BranchesView): { end(): void; readonly notDrawn: readonly HiddenNotDrawn[] } {
             const made = branchLayers(view);
             // A layer that draws what the view drawn now draws is kept, the same object, so a view
             // that changes nothing on the canvas repaints nothing (a step with no test, the same
@@ -5042,8 +5050,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             repaintBetween(before, painting(current()));
             // A view that replaces another is a change too: a reader of `shownBranches` hears it.
             sources.onBranchesShown?.(true);
+            // The working graph draws only the view: say what of this one it does not draw.
+            const working = sources.workingGraph?.() === true;
+            const notDrawn = Object.freeze([
+                ...(working && view.hold !== undefined ? [hiddenNotDrawn("hold")] : []),
+                ...(working && view.base === "full" ? [hiddenNotDrawn("full")] : []),
+            ]);
 
             return {
+                notDrawn,
                 end(): void {
                     if (branchesShown !== shown) {
                         return;

@@ -286,6 +286,42 @@ export interface FilterDraft {
     cancel(): void;
 }
 
+/**
+ * Something a consumer asked to draw outside what is shown, which is not drawn because the
+ * session's `workingGraph` option is on. Hidden nodes have no place in a layout of only the shown
+ * nodes, so a faint node at its old position under a fresh layout would draw two layouts on one
+ * canvas. The request is kept (a saved `showContext` stays saved) and draws again as soon as the
+ * option is off.
+ *
+ * `code` is always `"W_HIDDEN_NOT_DRAWN"`. `params.asked` names what was asked for:
+ * - `"showContext"`: `visibility.showContext` is on; hidden nodes are not drawn faintly.
+ * - `"hold"`: a `styles.showBranches` view holds a filter condition (`hold`); what it would
+ *   remove is not drawn.
+ * - `"full"`: a `styles.showBranches` view asked for `base: "full"`; it is drawn over what is
+ *   shown, and what the filter removes is not drawn.
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.36.0
+ * @beta
+ */
+export interface HiddenNotDrawn {
+    /** What kind of fact this is. */
+    readonly code: "W_HIDDEN_NOT_DRAWN";
+    /** What was asked for. */
+    readonly params: { readonly asked: "showContext" | "hold" | "full" };
+}
+
+/** No {@link HiddenNotDrawn} fact. */
+const NOTHING_NOT_DRAWN: readonly HiddenNotDrawn[] = Object.freeze([]);
+
+/**
+ * One {@link HiddenNotDrawn} fact, frozen.
+ * @param asked - What was asked for.
+ * @returns The fact.
+ */
+export function hiddenNotDrawn(asked: HiddenNotDrawn["params"]["asked"]): HiddenNotDrawn {
+    return Object.freeze({ code: "W_HIDDEN_NOT_DRAWN", params: Object.freeze({ asked }) });
+}
+
 // ---------------------------------------------------------------------------------------------
 // The surface
 // ---------------------------------------------------------------------------------------------
@@ -526,8 +562,23 @@ export interface VisibilityApi {
      * Turning it on changes NOTHING about the masks: a context node is still hidden, still
      * outside every run's default scope, and still absent from `nodes`. Changing it is one
      * undoable step.
+     *
+     * While the session's `workingGraph` option is on, the flag is kept (and saved) but nothing
+     * is drawn for it: `notDrawn` then holds `{ code: "W_HIDDEN_NOT_DRAWN", params: { asked:
+     * "showContext" } }`. Turning the option off draws the context nodes again.
      */
     showContext: boolean;
+    /**
+     * What a consumer asked to draw outside what is shown that is not drawn now, because the
+     * session's `workingGraph` option is on: `showContext`, and a `styles.showBranches` view's
+     * `hold` or `base: "full"` (see {@link HiddenNotDrawn}). Empty while the option is off, or
+     * while nothing of the kind is asked for. Read it after setting one of them, or after
+     * `visibility:changed`.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.36.0
+     * @beta
+     */
+    readonly notDrawn: readonly HiddenNotDrawn[];
 }
 
 /**
@@ -660,6 +711,13 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @param all - Lift every condition, not only this one: the view is drawn over the full graph.
      */
     hold(id: string | null, all?: boolean): void;
+    /**
+     * Whether hidden nodes are drawn faintly now: `showContext`, unless the working graph is on.
+     * What the renderer reads.
+     */
+    readonly drawsContext: boolean;
+    /** Told when the session's working graph option changes: what is drawn may move. */
+    workingGraphChanged(): void;
 }
 
 /** What is drawn, one mask per kind. */
@@ -754,6 +812,12 @@ export interface VisibilitySources extends FilterSources {
      * @returns True when it drops them.
      */
     readonly dropsHiddenSelection?: () => boolean;
+    /**
+     * Whether the session's working graph option is on: nothing outside the view is drawn, so
+     * `showContext` and a held condition draw no hidden node. Absent or false, they draw as asked.
+     * @returns True when on.
+     */
+    readonly workingGraph?: () => boolean;
 }
 
 /** The selection as select conditions reach it. */
@@ -1577,6 +1641,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let held: string | null = null;
     /** Whether every condition is lifted while one is held (a view over the full graph). */
     let heldAll = false;
+    /** Whether the branches view asked for the full graph (`base: "full"`), held condition or not. */
+    let fullAsked = false;
+    /**
+     * Whether the working graph is on: then nothing outside the view is drawn.
+     * @returns True when on.
+     */
+    const workingOn = (): boolean => sources.workingGraph?.() === true;
     /** The held condition's rule-less stand-in: the rule the rest draws by, by its inputs. */
     let heldRule: {
         readonly conditions: readonly FilterCondition[];
@@ -1595,7 +1666,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const { filter, conditions } = dispatcher.state.visibility;
         const holding = conditions.find((each) => each.id === held);
         const lifts = heldAll ? held !== null : holding !== undefined && holding.on && holding.effect !== "select";
-        if (held === null || !lifts) {
+        // The working graph draws only the view: a held condition lifts nothing.
+        if (held === null || !lifts || workingOn()) {
             return ruleNow();
         }
 
@@ -2953,12 +3025,34 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         },
 
         hold(id: string | null, all = false): void {
+            fullAsked = all;
             if (held === id && heldAll === (id !== null && all)) {
                 return;
             }
 
             held = id;
             heldAll = id !== null && all;
+            sources.onSlide?.();
+        },
+
+        get drawsContext(): boolean {
+            return dispatcher.state.visibility.showContext && !workingOn();
+        },
+
+        get notDrawn(): readonly HiddenNotDrawn[] {
+            if (!workingOn()) {
+                return NOTHING_NOT_DRAWN;
+            }
+
+            return Object.freeze([
+                ...(dispatcher.state.visibility.showContext ? [hiddenNotDrawn("showContext")] : []),
+                ...(held === null ? [] : [hiddenNotDrawn("hold")]),
+                ...(fullAsked ? [hiddenNotDrawn("full")] : []),
+            ]);
+        },
+
+        workingGraphChanged(): void {
+            // The drawn masks are read through calls; only the ghosts' repaint must be told.
             sources.onSlide?.();
         },
     };

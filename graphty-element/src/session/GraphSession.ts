@@ -1001,6 +1001,9 @@ class Session implements ElementSession {
                     ? (...args: unknown[]) => this.dispatcher.routed(via, () => Reflect.apply(value, part, args))
                     : value;
             },
+            // A setter (`tx.visibility.showContext = true`) dispatches too: without this trap the
+            // write landed on the proxy's own empty target and the part never heard it.
+            set: (_target, key, value) => this.dispatcher.routed(via, () => Reflect.set(part, key, value, part)),
             has: (_target, key) => key in part,
         });
     }
@@ -1125,7 +1128,12 @@ class Session implements ElementSession {
      * @param value - True for the working graph.
      */
     set workingGraph(value: boolean) {
+        if (this.working.enabled === value) {
+            return;
+        }
+
         this.working.enabled = value;
+        this.visibility.workingGraphChanged();
     }
 
     /**
@@ -3082,6 +3090,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         // Read through a call: the working graph is built below.
         dropsHiddenSelection: () => working.enabled,
+        // On, nothing outside the view is drawn: no context nodes, no held condition's removals.
+        workingGraph: () => working.enabled,
         // Not behind the experiment: a saved window's bounds are instants of the parsed column.
         instants: (path: Path) => timeInternals?.instants(path) ?? null,
         boundZone,

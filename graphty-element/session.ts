@@ -539,6 +539,7 @@ export type {
     FilterResult,
     FilterSelectWithin,
     FilterStep,
+    HiddenNotDrawn,
     RuleTree,
     StepCounts,
     TimePlayback,

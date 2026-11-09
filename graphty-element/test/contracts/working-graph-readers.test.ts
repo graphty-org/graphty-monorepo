@@ -31,6 +31,7 @@ import type { LegendBlock } from "../../session";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
+import type { ElementSession } from "../../src/session/types";
 
 /** The rows of the whole-readers list. */
 interface WholeRow {
@@ -588,6 +589,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "visibility.isVisible()": "names its target",
     "visibility.nodeMask()": "the filter's own",
     "visibility.nodes": "the filter's own",
+    "visibility.notDrawn": "state",
     "visibility.removeCondition()": "writes",
     "visibility.set()": "writes",
     "visibility.setConditions()": "writes",
@@ -877,4 +879,37 @@ describe("a listed whole reader reads the whole graph", () => {
             assert.notDeepEqual(whole.filtered, whole.without, `${member} is stale: it reads the view now`);
         });
     }
+});
+
+describe("nothing outside the view is drawn", () => {
+    // The drawing that asks for hidden nodes -- showContext, a held condition, a branches view
+    // over the full graph -- draws none of them with the option on, and says so with a code.
+    it("draws only what is shown, and reports each request it does not draw", async () => {
+        const session = (await sessionOf(true, null)) as ElementSession;
+        const { id } = await session.visibility.addCondition({
+            effect: "exclude",
+            rule: { kind: "member", of: { nodes: [HIDDEN.id] } },
+        });
+        session.visibility.showContext = true;
+        const view = session.styles.showBranches({
+            rule: { kind: "union", side: "nodes", within: "graph", branches: [] },
+            hold: id,
+            base: "full",
+        });
+        await session.styles.settled();
+
+        assert.isFalse(session.visibility.drawnMasks.nodes().hasId(HIDDEN.id), "the hidden node is not drawn");
+        assert.isFalse(session.visibility.drawsContext, "nor drawn faintly");
+        assert.deepStrictEqual(
+            session.visibility.notDrawn.map((fact) => [fact.code, fact.params.asked]),
+            [
+                ["W_HIDDEN_NOT_DRAWN", "showContext"],
+                ["W_HIDDEN_NOT_DRAWN", "hold"],
+                ["W_HIDDEN_NOT_DRAWN", "full"],
+            ],
+        );
+        view.end();
+        await session.styles.settled();
+        session.dispose();
+    });
 });

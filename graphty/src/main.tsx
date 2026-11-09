@@ -30,20 +30,26 @@ if (import.meta.env.DEV) {
     });
 }
 
+/** Logs what a remote log reader needs to tie a session to a server, a browser and a navigation. */
+function logPageStart(): void {
+    const [navigation] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+    GraphtyLogger.getLogger(["graphty", "workspace"]).info("page start", {
+        origin: location.origin,
+        path: location.pathname,
+        features: new URLSearchParams(location.search).get("features"),
+        userAgent: navigator.userAgent,
+        navigationType: navigation?.type ?? null,
+    });
+}
+
 // A dev server with the remote logger attached: enough facts to tell afterwards what a page did.
 if (import.meta.env.VITE_REMOTE_LOG_URL) {
-    void GraphtyLogger.configure({ enabled: true, level: LogLevel.INFO, modules: ["autosave", "workspace"] }).then(
-        () => {
-            const [navigation] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
-            GraphtyLogger.getLogger(["graphty", "workspace"]).info("page start", {
-                origin: location.origin,
-                path: location.pathname,
-                features: new URLSearchParams(location.search).get("features"),
-                userAgent: navigator.userAgent,
-                navigationType: navigation?.type ?? null,
-            });
-        },
-    );
+    const logging = GraphtyLogger.configure({
+        enabled: true,
+        level: LogLevel.INFO,
+        modules: ["autosave", "workspace"],
+    });
+    void logging.then(logPageStart); // NOSONAR(S7785): a top-level await would hold the first paint for the logger
 }
 
 const rootElement = document.getElementById("root");

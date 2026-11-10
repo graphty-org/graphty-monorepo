@@ -24,6 +24,8 @@ export interface JoinTable {
     readonly name: string;
     readonly columns: readonly string[];
     readonly rows: readonly Readonly<Record<string, unknown>>[];
+    /** After a `split` of an edges join: each row's row in the table as given. */
+    readonly origin?: readonly number[];
 }
 
 /** One node or edge as a join reads it: its id and its attributes. */
@@ -838,12 +840,15 @@ function groupValues(
     nameOf: (column: string) => string,
 ): Written[] {
     const out: Written[] = [];
+    const keys = new Set(choices.keys.map((key) => key.file));
     for (const column of columns) {
         const given = rows.map((row) => row[column]).filter((value) => !absent(value));
         if (choices.aggregate !== undefined) {
             const rules = choices.aggregate[column] ?? "first";
+            // A key column's reduction never takes the key's own name, which holds the match.
+            const plain = typeof rules === "string" && !keys.has(column);
             for (const rule of typeof rules === "string" ? [rules] : rules) {
-                const name = typeof rules === "string" ? nameOf(column) : named(choices, `${nameOf(column)} (${rule})`);
+                const name = plain ? nameOf(column) : named(choices, `${nameOf(column)} (${rule})`);
                 const value = reduce(rule, given);
                 if (value !== undefined) {
                     out.push({ column, name, value });
@@ -925,20 +930,29 @@ function splitTable(table: JoinTable, choices: JoinChoices, shape: JoinShape): J
             .filter((part) => part !== "");
     };
     let rows: Readonly<Record<string, unknown>>[] = [...table.rows];
+    let origin = rows.map((_row, at) => at);
     for (const [column, separator] of split) {
-        rows =
-            shape === "edges"
-                ? rows.flatMap((row) => {
-                      const parts = partsOf(row[column], separator);
-                      return parts.length === 0 ? [row] : parts.map((part) => ({ ...row, [column]: part }));
-                  })
-                : rows.map((row) => {
-                      const parts = partsOf(row[column], separator);
-                      return parts.length === 0 ? row : { ...row, [column]: parts };
-                  });
+        if (shape === "edges") {
+            const next: Readonly<Record<string, unknown>>[] = [];
+            const from: number[] = [];
+            rows.forEach((row, at) => {
+                const parts = partsOf(row[column], separator);
+                for (const each of parts.length === 0 ? [row] : parts.map((part) => ({ ...row, [column]: part }))) {
+                    next.push(each);
+                    from.push(origin[at]);
+                }
+            });
+            rows = next;
+            origin = from;
+        } else {
+            rows = rows.map((row) => {
+                const parts = partsOf(row[column], separator);
+                return parts.length === 0 ? row : { ...row, [column]: parts };
+            });
+        }
     }
 
-    return { ...table, rows };
+    return { ...table, rows, origin };
 }
 
 /**
@@ -1334,12 +1348,12 @@ export function planJoin(
     graph: JoinGraph,
     choices: JoinChoices,
     shape: JoinShape,
-): { readonly shape: JoinShape; readonly plan: JoinPlan; readonly matched: number } {
+): { readonly shape: JoinShape; readonly plan: JoinPlan; readonly matched: number; readonly joinedRows: number } {
     const chosen = checked(given, choices, shape);
     const table = splitTable(given, choices, chosen);
     const columns = columnsOf(table, choices);
     if (chosen === "rows" || chosen === "replace") {
-        return { shape: chosen, plan: { kind: "rows" }, matched: 0 };
+        return { shape: chosen, plan: { kind: "rows" }, matched: 0, joinedRows: 0 };
     }
 
     if (chosen === "edges") {
@@ -1348,12 +1362,14 @@ export function planJoin(
 
     if (chosen === "merge") {
         const merge = mergeOf(table, graph, choices);
-        return { shape: chosen, plan: merge.plan, matched: merge.plan.matchedIds.length };
+        const joinedRows = merge.fates.filter((fate) => fate !== "left-out").length;
+        return { shape: chosen, plan: merge.plan, matched: merge.plan.matchedIds.length, joinedRows };
     }
 
     if (chosen === "link") {
         const link = linkOf(table, graph, choices);
-        return { shape: chosen, plan: link.plan, matched: link.matched };
+        const joinedRows = link.fates.filter((fate) => fate === "linked").length;
+        return { shape: chosen, plan: link.plan, matched: link.matched, joinedRows };
     }
 
     const target = chosen === "node-values" ? "node" : "edge";
@@ -1364,6 +1380,7 @@ export function planJoin(
     return {
         shape: chosen,
         matched: matching.matched.size,
+        joinedRows: matching.rowIds.filter((ids) => ids.length > 0).length,
         plan: {
             kind: "values",
             target,
@@ -1704,7 +1721,7 @@ function planEdges(
     graph: JoinGraph,
     choices: JoinChoices,
     columns: readonly string[],
-): { readonly plan: JoinPlan; readonly matched: number } {
+): { readonly plan: JoinPlan; readonly matched: number; readonly joinedRows: number } {
     const [source, target] = choices.keys.map((key) => key.file);
     const clashing = new Set(clashesOf(graph.edges, columns));
     const nameOf = (column: string): string =>
@@ -1745,6 +1762,7 @@ function planEdges(
 
     const edges = [...byPair.values()].map((each) => each.edge);
     const matched = [...byPair.values()].filter((each) => each.both).length;
+    const joinedRows = new Set(loaded.map((row) => table.origin?.[row.at] ?? row.at)).size;
     // The ends the join makes, with the kind named for their side.
     const kinds = endKindsOf(choices);
     const made = new Map<string, Record<string, unknown>>();
@@ -1762,6 +1780,7 @@ function planEdges(
     );
     return {
         matched,
+        joinedRows,
         plan: {
             kind: "edges",
             nodes: [...made.values()],

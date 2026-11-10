@@ -352,7 +352,10 @@ describe("a Sources row's count and join words", () => {
         assert.isNull(joinWords(load({ nodes: 0, edges: 0 })));
         assert.isNull(
             joinMatch(load({ nodes: 0, edges: 0 }, { join: { matched: 19, rows: 19 } } as Partial<LoadedSource>)),
-        );
+        ); // An edges join whose ends it makes matched no row's two ends, but read 39 of the 60 rows.
+        const split = { join: { matched: 0, joinedRows: 39, rows: 60 } } as Partial<LoadedSource>;
+        assert.equal(joinWords(load({ nodes: 45, edges: 66 }, split)), "39 of 60 rows joined");
+        assert.equal(joinMatch(load({ nodes: 45, edges: 66 }, split)), "39/60");
     });
 });
 

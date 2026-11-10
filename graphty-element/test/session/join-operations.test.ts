@@ -108,6 +108,29 @@ describe("JoinChoices.aggregate", () => {
         assert.deepInclude(pair, { "time (count)": 3, "time (first)": "t1", "time (last)": "t2" });
         session.dispose();
     });
+
+    it("counts a pair's rows by a key column without overwriting the pair's ends", async () => {
+        const session = await suppliers();
+        const orders = "supplier,plant,amount\nS1,Tulsa,1\nS1,Tulsa,2\nS2,Boise,5\n";
+        const draft = await table(session, "orders.csv", orders);
+        const keys = [
+            { file: "supplier", graph: "id" },
+            { file: "plant", graph: "id" },
+        ];
+        const choices = {
+            keys,
+            shape: "edges" as const,
+            endKinds: { target: "plant" },
+            aggregate: { supplier: "count", amount: "sum" },
+        } as const;
+        assert.deepInclude(draft.joinReport(choices), { newEdges: 2, newNodes: 2 });
+
+        await draft.load({ join: choices });
+        assert.lengthOf(session.data.nodes(), 42, "only the two plants are new");
+        const pair = session.data.edges().find((edge) => edge.target === "Tulsa");
+        assert.deepInclude(pair, { source: "S1", "supplier (count)": 2, amount: 3 });
+        session.dispose();
+    });
 });
 
 /**

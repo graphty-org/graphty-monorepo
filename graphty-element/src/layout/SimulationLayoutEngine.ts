@@ -416,6 +416,14 @@ interface DrawnRun {
     skip: Uint32Array;
     /** As the target said at the last publish: no copy while a transition draws the rows. */
     suspended: boolean;
+    /**
+     * Rows the table told the ring, each with the batches submitted by then. The ring writes a told
+     * row into every slot at once, so a batch already in flight lands holding the told row while its
+     * readback moves the row on the CPU: its copy must not stand for those rows.
+     */
+    readonly told: Map<number, number>;
+    /** The mirror this run gave the table, which only this run takes back. */
+    readonly mirror: (row: number, x: number, y: number, z: number, w: number) => void;
 }
 
 /**
@@ -1328,13 +1336,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
             n: nodeCount,
             skip: new Uint32Array(Math.ceil(nodeCount / 32)),
             suspended: false,
+            told: new Map(),
+            mirror: (row, x, y, z, w): void => {
+                if (this.#drawn === run && row < nodeCount) {
+                    drawn.writeDrawn(row, x, y, z, w);
+                    run.told.set(row, this.#landed + this.#inFlight);
+                }
+            },
         };
         this.#drawn = run;
-        target.table.drawnMirror = (row, x, y, z, w): void => {
-            if (this.#drawn === run && row < nodeCount) {
-                drawn.writeDrawn(row, x, y, z, w);
-            }
-        };
+        target.table.drawnMirror = run.mirror;
         this.#sendDrawnTransform(run);
     }
 
@@ -1346,7 +1357,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        if (run.target.table.drawnMirror !== null) {
+        // Only its own: a layout set over this one attaches its ring before this engine is disposed,
+        // and clearing the table's mirror then left the new ring told of no write the table made.
+        if (run.target.table.drawnMirror === run.mirror) {
             run.target.table.drawnMirror = null;
         }
 
@@ -1394,12 +1407,29 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 run.target.table.dropCopy();
             } else {
                 run.target.table.copyLanded(run.target.device, landed, run.n);
+                this.#resendTold(run);
             }
 
             this.#sendDrawnTransform(run);
         } catch (error) {
             if (simulation !== null) {
                 this.#onError(error, simulation);
+            }
+        }
+    }
+
+    /**
+     * After a copy of the newest landing: sends the rows told to the ring while that batch was in
+     * flight, whose copied rows are the told ones and not what the publish wrote, and forgets the
+     * rows told before it was submitted, which every later landing holds.
+     * @param run - The run.
+     */
+    #resendTold(run: DrawnRun): void {
+        for (const [row, submitted] of run.told) {
+            if (submitted >= this.#landed) {
+                run.target.table.resend(row);
+            } else {
+                run.told.delete(row);
             }
         }
     }

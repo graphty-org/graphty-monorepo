@@ -482,3 +482,40 @@ For faster frames at a million edges, add `antialias="false"` to the tag (harder
 - **Line width**: the fill comparison assumes cosmos.gl's links and the lean lines cover the same pixels; G9 checks it.
 - **Work in flight**: row-renderer stages 20-30 are landing now; G3, G4, G6, G7 and G8 start only after the stage each builds
   on has merged its last pull request.
+
+## 9. Re-profile, 2026-11-09: what the plan missed, and the revised order
+
+A second profile of master d8da5debd1 (batched path, 2D lean look, RTX 4070 SUPER), each finding re-measured by an
+independent run, found one blocker no stage planned and several costs no stage targets.
+
+- **WebGPU frames were never paced.** The WebGL loop skips a tick while the last frame's fence is unsignalled; on WebGPU
+  that check did not exist. A still 100k + 1M scene queued a frame every 0.8-3 ms against about 89 ms of GPU work, a
+  backlog of minutes built, and every GPU readback waited behind it: hover never answered, the GPU layout's position
+  readback never landed so the layout stopped moving, and a fresh 256-byte buffer map did not answer in 120 s. The
+  benchmark still counted iterations requested, so the 187-205 ms "layout frame" was the zoom-to-fit walk over a stalled
+  layout. Paced, hover answered in 0.17-0.4 s still and 1.6-3.0 s during the layout, and the real layout frame was
+  1.07-1.28 s, CPU-bound: about 617 ms in the per-`Edge` update walk, 230 ms in the zoom-to-fit walk, 152 ms in garbage
+  collection, with the 89 ms line draw overlapped.
+- **Lazy Node is partial**: a `Node` is still built for every stored row, and each batched row gets a Babylon anchor. A
+  million nodes crash at about 450-500k rows in.
+- **Costs no stage targets**: the zoom-to-fit walk over every row each layout frame (about 70% of the 10k-node layout
+  frame); about 6.5 s of the 100k + 1M load (garbage collection 3.2 s, first render 1.3 s, `publishPositions` 1.0 s); and
+  about 500 B per node and 290 B per edge of heap.
+
+Stage 113 paces WebGPU frames under renderPath "batched": the loop skips a tick while the last frame's
+`queue.onSubmittedWorkDone()` is unresolved, the WebGPU twin of G1's fence, and `benchmarks/compare` counts landed layout
+batches, refuses a layout-frame row where none landed, and measures hover during the layout as well as before it.
+
+The revised order:
+
+1. Pace WebGPU frames, with the benchmark fixes.
+2. Lazy Node, with a load-peak heap gate (moved up; it unblocks a million nodes).
+3. Paint by mesh key.
+4. Lazy Edge, with the placement credit and a layout-frame gate (a counted test that the per-frame update walk visits
+   no pulled edge).
+5. Bulk history keys.
+6. Fit without a per-row walk: zoom-to-fit bounds from the layout's own envelope, not a walk over every row.
+7. The column door and every feeder through it, with a bulk `publishPositions`.
+8. The million-row run, then the heap trims, now expected to be needed.
+
+Raw data and the full write-up stay outside the repository, in the main checkout's `tmp/cosmos-profile-2/`.

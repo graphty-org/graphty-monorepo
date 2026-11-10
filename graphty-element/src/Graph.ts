@@ -898,12 +898,14 @@ export class Graph implements GraphContext {
     private readonly drawsOnDemand = (): boolean =>
         this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
-     * Whether the render loop flushes after each frame's fence: only under renderPath "batched",
-     * whose frames are short enough that waiting for the browser's own flush set their floor.
-     * Asked each frame, so a live path change takes effect on the next one.
+     * Whether the render loop flushes after each frame's WebGL fence, and keeps one WebGPU frame in
+     * flight: only under renderPath "batched". Its frames are short enough that waiting for the
+     * browser's own flush set their floor, and its million-row frames are long enough on the GPU
+     * that unpaced WebGPU frames queued minutes of work ahead of every readback. Asked each frame,
+     * so a live path change takes effect on the next one.
      * @returns True under renderPath "batched".
      */
-    readonly #flushesFrameFence = (): boolean => this.#renderPath === "batched";
+    readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
     /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
@@ -1019,7 +1021,8 @@ export class Graph implements GraphContext {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
-            flushesFrameFence: this.#flushesFrameFence,
+            flushesFrameFence: this.#batchedFrames,
+            pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.antialias,
         });
 
@@ -2220,7 +2223,8 @@ export class Graph implements GraphContext {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
-            flushesFrameFence: this.#flushesFrameFence,
+            flushesFrameFence: this.#batchedFrames,
+            pacesWebGpuFrames: this.#batchedFrames,
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;

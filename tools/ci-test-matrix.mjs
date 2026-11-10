@@ -361,13 +361,17 @@ const OFF_SHARDS = [
     })),
     // The element drawn on WebGPU, on SwiftShader because no shard has a card: the five shards above launch
     // Chromium with no WebGPU, so a shader only WebGPU refuses blanked every canvas with edges unseen (#5847).
+    // The frame rate is unlimited, as on the benchmark's card, so the frame-pacing tests can build a queue of frames.
     {
         shard: "graphty-element-webgpu",
         package: "graphty-element",
-        "test-command": `cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader pnpm exec vitest run --project=browser test/browser/webgpu-renderer.test.ts ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader-unthrottled pnpm exec vitest run --project=browser test/browser/webgpu-renderer.test.ts test/browser/webgpu-frame-pacing.test.ts ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         local: "when-paths-change",
-        "local-paths": ["graphty-element/test/browser/webgpu-renderer.test.ts"],
+        "local-paths": [
+            "graphty-element/test/browser/webgpu-renderer.test.ts",
+            "graphty-element/test/browser/webgpu-frame-pacing.test.ts",
+        ],
     },
     // The WebGPU device destroyed and the GPU process crashed under the element, on the full Chromium build.
     {

@@ -832,6 +832,26 @@ const runsToMiddle = (n: PNode, end: Pt | undefined): end is Pt =>
     Math.hypot(end[0] - n.cx, end[1] - n.cy) < FIGURE_MIDDLE * Math.min(n.w, n.h);
 
 /**
+ * One graphty render pixel or so in oracle pixels: the least any distance tolerance allows. Between unrelated layouts
+ * the size-fitted scale says how much larger the program draws its nodes, not how large a render pixel is: a drawing
+ * at a ninth of the program's size made a render pixel 14 oracle pixels (cx-radiation-bibliography), and an arrowhead
+ * twice the program's size passed. There both drawings fill a canvas, and a render pixel is no larger than the
+ * canvases' ratio.
+ * @param oracle - the oracle's drawing
+ * @param graphty - graphty's
+ * @param lengthScale - the scale lengths are judged by
+ * @param unrelatedLayout - whether each program laid the file out itself
+ * @returns the pixel, in oracle pixels
+ */
+export function renderPixel(oracle: PScene, graphty: PScene, lengthScale: number, unrelatedLayout: boolean): number {
+    const canvasRatio = Math.max(
+        oracle.width / Math.max(graphty.width, 1e-9),
+        oracle.height / Math.max(graphty.height, 1e-9),
+    );
+    return ORACLE_TOLERANCES.pixel * (unrelatedLayout ? Math.min(lengthScale, canvasRatio) : lengthScale);
+}
+
+/**
  * How far an arrowhead's size is from the oracle's: by their ratio (`arrowRatio`), but alike within a pixel, which a
  * rounding on a head a few pixels long moves by more than the ratio allows.
  * @param o - the oracle's size, in oracle pixels
@@ -839,7 +859,7 @@ const runsToMiddle = (n: PNode, end: Pt | undefined): end is Pt =>
  * @param pixel - a render pixel, in oracle pixels
  * @returns the miss, 0 when alike
  */
-function arrowMiss(o: number, g: number, pixel: number): number {
+export function arrowMiss(o: number, g: number, pixel: number): number {
     return Math.abs(g - o) <= pixel ? 0 : ratioMiss(g / Math.max(o, 1e-9), ORACLE_TOLERANCES.arrowRatio);
 }
 
@@ -2055,16 +2075,7 @@ export function compareOracle(
         const b = apply(local, v);
         return [b[0] - a[0], b[1] - a[1]];
     };
-    // One graphty render pixel or so in oracle pixels: the least any distance tolerance allows. Between unrelated
-    // layouts the size-fitted scale says how much larger the program draws its nodes, not how large a render pixel is:
-    // a drawing at a ninth of the program's size made a render pixel 14 oracle pixels (cx-radiation-bibliography), and
-    // an arrowhead twice the program's size passed. There both drawings fill a canvas, and a render pixel is no larger
-    // than the canvases' ratio.
-    const canvasRatio = Math.max(
-        oracle.width / Math.max(graphty.width, 1e-9),
-        oracle.height / Math.max(graphty.height, 1e-9),
-    );
-    const pixel = T.pixel * (transform?.unrelatedLayout === true ? Math.min(lengthScale, canvasRatio) : lengthScale);
+    const pixel = renderPixel(oracle, graphty, lengthScale, transform?.unrelatedLayout === true);
     // the layout's own extent, over the node centers: a node's size against it says how large the node is beside
     // the whole drawing, which node sizes themselves must not inflate
     const centersO = boxOfPoints(pairs.map(([o]): Pt => [o.cx, o.cy]));

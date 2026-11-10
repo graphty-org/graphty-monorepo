@@ -459,6 +459,21 @@ const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
         "--use-vulkan=swiftshader",
         "--disable-vulkan-surface",
     ],
+    // SwiftShader with the frame rate unlimited, as `benchmarks/compare/run.mjs` launches the
+    // real card: the loop's ticks then outrun the GPU, so a test can build a queue of frames on
+    // the device (test/browser/webgpu-frame-pacing.test.ts). With the limit on, Chromium holds
+    // the page's frames to the GPU's pace and no queue builds.
+    "swiftshader-unthrottled": [
+        "--enable-unsafe-webgpu",
+        "--use-angle=swiftshader",
+        "--enable-unsafe-swiftshader",
+        "--use-webgpu-adapter=swiftshader",
+        "--enable-features=Vulkan",
+        "--use-vulkan=swiftshader",
+        "--disable-vulkan-surface",
+        "--disable-gpu-vsync",
+        "--disable-frame-rate-limit",
+    ],
     // The host matrix on macOS: Dawn's Metal backend when headless Chromium reaches the VM's
     // device with the blocklist ignored, SwiftShader otherwise.
     metal: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--use-angle=metal"],

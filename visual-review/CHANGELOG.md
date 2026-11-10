@@ -1,3 +1,15 @@
+## 0.2.42 (2026-11-10)
+
+### 🩹 Fixes
+
+- **visual-review:** record which CPU each story-test shard drew on ([#6351](https://github.com/graphty-org/graphty-monorepo/issues/6351))
+- **visual-review:** fail a story test when its two shots disagree and the second matches ([#3389](https://github.com/graphty-org/graphty-monorepo/issues/3389))
+- **visual-review:** let a story's own globals win over the capture mode in story tests ([#5836](https://github.com/graphty-org/graphty-monorepo/issues/5836))
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 0.2.41 (2026-11-09)
 
 ### 🩹 Fixes

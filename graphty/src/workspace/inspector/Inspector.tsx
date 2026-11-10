@@ -1,28 +1,20 @@
 import { PopoutManager, TargetTooltip } from "@graphty/compact-mantine";
-import type { GraphSession, Run } from "@graphty/graphty-element/session";
+import type { GraphSession, LoadedSource, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, ColorSwatch, Group, Menu, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { wordsFor } from "../analyze/words";
 import type { InspectedKind } from "../commands/registry";
 import { useAttributeActions } from "../data-place/attributeActions";
-import { SourceGlyph } from "../data-place/DataPlace";
 import { TIME_ROW } from "../data-place/filterCards";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { useSourceActions } from "../data-place/sourceActions";
+import { KIND_ICONS } from "../data-place/sourceKindIcons";
 import { SourceValues } from "../data-place/SourceValues";
 import { TimeCard } from "../data-place/TimeCard";
 import { TypeGlyphIcon } from "../data-place/TypeGlyphIcon";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
-import {
-    columnGlyph,
-    loadIndexOf,
-    loadName,
-    type SourceKind,
-    sourceRowOf,
-    sourcesWords,
-    type TypeGlyph,
-} from "../data-place/words";
+import { columnGlyph, loadName, sourceKeyOf, sourceKindWord, sourcesWords, type TypeGlyph } from "../data-place/words";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
@@ -49,17 +41,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import {
-    count,
-    edgeName,
-    groupName,
-    KIND_WORDS,
-    leftOutOf,
-    nodeName,
-    PATH_WORD,
-    runTime,
-    selectionWords,
-} from "./words";
+import { count, edgeName, groupName, KIND_WORDS, nodeName, PATH_WORD, runTime, selectionWords } from "./words";
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -73,8 +55,8 @@ interface Header {
     readonly swatch?: string;
     /** The provenance link: its words and what it opens. */
     readonly from?: { readonly words: string; readonly open?: () => void };
-    /** For a Sources row, the row's kind, so the header draws the row's own icon. */
-    readonly source?: SourceKind;
+    /** For a load, its kind, so the header draws its Sources row's own icon. */
+    readonly loadKind?: LoadedSource["kind"];
     /** For an attribute, its Attributes row's type, so the header draws the row's own icon. */
     readonly glyph?: TypeGlyph;
     /** The heading's spoken name, when it says more than the name drawn (the graph's size). */
@@ -134,7 +116,7 @@ function isGone(session: GraphSession | null, resolved: Resolved): boolean {
             return resolved.rows.every((id) => findTreeRow(tree, id) === undefined);
         }
         case "source":
-            return session.data.sources()[loadIndexOf(resolved.row) ?? -1] === undefined;
+            return !session.data.sources().some((each) => each.key === sourceKeyOf(resolved.row));
         default:
             return false;
     }
@@ -371,11 +353,11 @@ function HeaderGlyph({
         <>
             {treeRow !== undefined && <KindGlyph session={session} row={treeRow.row} />}
             {header.glyph !== undefined && <TypeGlyphIcon glyph={header.glyph} />}
-            {treeRow === undefined && header.source === undefined && header.glyph === undefined && (
+            {treeRow === undefined && header.loadKind === undefined && header.glyph === undefined && (
                 // A long name never squeezes the glyph.
                 <KindIcon size={14} aria-hidden style={{ flexShrink: 0 }} />
             )}
-            {header.source !== undefined && <SourceGlyph kind={header.source} />}
+            {header.loadKind !== undefined && KIND_ICONS[header.loadKind]}
             {header.swatch !== undefined && (
                 <ColorSwatch color={header.swatch} size={12} withShadow={false} aria-hidden />
             )}
@@ -506,11 +488,14 @@ export function Inspector(): React.JSX.Element {
     const opened = resolveInspected(inspected, selection);
     const gone = isGone(session, opened);
     const resolved = gone ? resolveInspected(null, selection) : opened;
+    // A source stays open while it is briefly unlisted: a Replace takes the load off the list and
+    // lists it again in one step, and the row must come back to the same source.
+    const closes = gone && opened?.kind !== "source";
     useEffect(() => {
-        if (gone) {
+        if (closes) {
             store.set({ inspected: null });
         }
-    }, [gone, store]);
+    }, [closes, store]);
     const identity = identityOf(resolved);
     const run = runOf(session, resolved);
     const barRun = run ?? layerRunOf(session, resolved);
@@ -728,24 +713,16 @@ function runRowHeader(session: GraphSession, run: Run | undefined, openAnalyze: 
 }
 
 /**
- * A source row's header: a child row ("people.csv", "1 row left out") is named as its row reads.
+ * A load's header: its name, the kind of source it is, and its Sources row's glyph.
  * @param session - the session.
- * @param row - the source row's id.
+ * @param row - the inspected id.
  * @returns the header.
  */
 function sourceHeader(session: GraphSession, row: string): Header {
-    const sources = session.data.sources();
-    const load = sources[loadIndexOf(row) ?? -1];
-    const child = row.split(":").length > 2 ? sourceRowOf(sources, session.data.lastImport(), row) : undefined;
-    if (load === undefined) {
-        return { name: "Gone" };
-    }
-    // The left-out row is not a source of its own: its subtitle names the load it came from.
-    return {
-        name: child?.name ?? loadName(load),
-        source: child?.kind ?? "file",
-        ...(child?.kind === "left-out" ? { kind: leftOutOf(loadName(load)) } : {}),
-    };
+    const load = session.data.sources().find((each) => each.key === sourceKeyOf(row));
+    return load === undefined
+        ? { name: "Gone" }
+        : { name: loadName(load), kind: sourceKindWord(load), loadKind: load.kind };
 }
 
 /**

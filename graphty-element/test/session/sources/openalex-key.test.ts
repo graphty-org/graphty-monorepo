@@ -112,7 +112,7 @@ function standIn(input: RequestInfo | URL, init?: RequestInit): Promise<Response
  * @returns the session
  */
 function fresh(): GraphSession {
-    const session = createGraphSession({ features: ["network-data"] });
+    const session = createGraphSession();
     sessions.push(session);
     return session;
 }

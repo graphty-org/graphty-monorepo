@@ -133,7 +133,6 @@ import {
     ZoomOut,
 } from "lucide-react";
 
-import type { SourceKind } from "./data-place/words";
 import type { InspectedKindId } from "./inspector/inspected";
 
 /** The icon of each concept the workspace draws. */
@@ -341,16 +340,4 @@ export const VALUE_GLYPHS: Readonly<Record<ReadableValueKind, LucideIcon>> = {
     category: GLYPHS.category,
     text: GLYPHS.text,
     "yes-no": GLYPHS.yesNo,
-};
-
-/**
- * The icon of each kind of Sources row, and its color when it is not the text's. The Sources tree
- * and the inspector opened from a row both draw it, so the two cannot drift apart.
- */
-export const SOURCE_GLYPHS: Readonly<Record<SourceKind, { readonly icon: LucideIcon; readonly color?: string }>> = {
-    file: { icon: GLYPHS.file },
-    nodes: { icon: GLYPHS.node },
-    edges: { icon: GLYPHS.edge },
-    // The warning the import page draws for the same rows.
-    "left-out": { icon: GLYPHS.warning, color: "var(--cm-text-danger)" },
 };

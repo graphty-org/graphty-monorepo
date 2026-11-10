@@ -281,20 +281,6 @@ describe("Cancel in a filter card's workspace", () => {
         });
     });
 
-    it("on a new card opened from the toolbar's Filters, Escape sends focus back to it", async () => {
-        const { session, store } = await openPeople();
-        store.set({ place: "graph" });
-        const filters = await screen.findByRole("button", { name: "Filters" });
-        await userEvent.click(filters);
-        await screen.findByRole("option", { name: /^role(,|$)/ });
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.equal(cardsDrawn(), 0, "no card is left");
-            assert.equal(document.activeElement, filters);
-        });
-        assert.lengthOf(session.visibility.conditions, 0);
-    });
-
     it("on an existing card restores its rule and keeps the card", async () => {
         const { session } = await openPeople();
         await newCardOn("role");

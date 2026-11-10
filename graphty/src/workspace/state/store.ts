@@ -8,6 +8,7 @@
  */
 
 import type { AutosaveEntry, Graphty as GraphtyElement, Lighting } from "@graphty/graphty-element";
+import type { GeneratorParams } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
@@ -19,7 +20,18 @@ import type {
 } from "@graphty/graphty-element/session";
 import { type ReactNode, useSyncExternalStore } from "react";
 
+import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
+
+/**
+ * How the open project was opened, when opening it again gives the same project: one of the app's
+ * samples, a dataset, a generated graph or a network sample. Never a file, a form or a credential.
+ */
+export type Opener =
+    | { readonly kind: "sample"; readonly sample: StartSample }
+    | { readonly kind: "dataset"; readonly dataset: string }
+    | { readonly kind: "generator"; readonly generator: string; readonly params: GeneratorParams }
+    | { readonly kind: "network"; readonly name: string; readonly source: string; readonly example: string };
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
 type Place = "graph" | "data" | "notes";
@@ -57,7 +69,19 @@ export interface WorkspaceState {
      * project file (#301, tier1-real-app/plan.md section 2 item 10); the Project package moves it.
      * `id` changes when another project opens, which mounts a fresh element.
      */
-    readonly project: { readonly name: string; readonly id: number } | null;
+    /**
+     * The open project; `blank` when it opened empty, so a reload brings it back even with nothing
+     * written; `opened` when opening it again gives it back, for a reload before graphty-element's
+     * autosave wrote it.
+     */
+    readonly project: {
+        readonly name: string;
+        readonly id: number;
+        readonly blank?: true;
+        readonly opened?: Opener;
+        /** The autosave entry its work was written to, once one was. */
+        readonly entry?: string;
+    } | null;
     readonly page: Page;
     readonly place: Place;
     /** The open modal, by the id its package gives it ("export", "settings"), or null. */
@@ -121,8 +145,8 @@ export interface WorkspaceState {
     } | null;
     /**
      * A new filter card to open once the Filters section shows it: on a field
-     * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the toolbar's
-     * Filters); cleared by the section. Null when none is asked for.
+     * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the Filters
+     * command); cleared by the section. Null when none is asked for.
      */
     readonly filterDraft: string | null;
     /**
@@ -146,6 +170,10 @@ export interface WorkspaceState {
         readonly draft: LoadDraft;
         /** What the draft was read from, for Replace data and Open as a separate graph. */
         readonly source?: DataSourceInput;
+        /** One of the app's own samples, for a table added as rows. */
+        readonly origin?: "sample";
+        /** The load holding the same columns as this file: the screen opens on Replace of it. */
+        readonly matches?: SourceKey;
     } | null;
     /** A joined table whose join the join screen is editing (its row's Edit join), or null. */
     readonly editingJoin: SourceKey | null;
@@ -230,8 +258,8 @@ export interface WorkspaceState {
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
     readonly serverKind: string | null;
-    /** Whether the server form opened the project it sits in (the start screen's Open network data). */
-    readonly serverFromStart: boolean;
+    /** The network source the server form edits (its key); null when the form adds a new one. */
+    readonly serverEdit: SourceKey | null;
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
@@ -332,7 +360,7 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     exportSource: null,
     serverKind: null,
-    serverFromStart: false,
+    serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,
@@ -502,7 +530,24 @@ export function keepPlace(store: WorkspaceStore): () => void {
     let last = "";
     const write = (): void => {
         const { project, page, place, inspected, tabs, styleSide, dataTab } = store.get();
-        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide, dataTab });
+        const blank = project?.blank === true ? { blank: true } : {};
+        const opened = project?.opened === undefined ? {} : { opened: project.opened };
+        const entry = project?.entry === undefined ? {} : { entry: project.entry };
+        const text =
+            project === null
+                ? ""
+                : JSON.stringify({
+                      page,
+                      place,
+                      inspected,
+                      tabs,
+                      styleSide,
+                      dataTab,
+                      name: project.name,
+                      ...blank,
+                      ...opened,
+                      ...entry,
+                  });
         if (text === last) {
             return;
         }
@@ -520,14 +565,114 @@ export function keepPlace(store: WorkspaceStore): () => void {
     return store.subscribe(write);
 }
 
+/** The name the reader's place is stashed under with graphty-element's autosaved work. */
+const PLACE_STASH = "app.graphty.workspace.place";
+
+/**
+ * Stashes the reader's place with the open project's autosaved work as it changes, so work
+ * restored in another tab opens where the reader left it.
+ * @param store - the workspace store.
+ * @param element - the project's element.
+ * @returns a function that stops it.
+ */
+export function stashPlace(store: WorkspaceStore, element: GraphtyElement): () => void {
+    let last = "";
+    // Not while the project opens: restored work brings its own place, which the opening puts back.
+    let ready = false;
+    const put = (): void => {
+        // Only with work already written: a stash on its own would start an entry for a project
+        // that holds nothing to keep.
+        if (!ready || element.autosaver.status.entry === null) {
+            return;
+        }
+        const { page, place, inspected, tabs, styleSide, dataTab } = store.get();
+        const kept: KeptPlace = { page, place, inspected, tabs, styleSide, dataTab };
+        const text = JSON.stringify(kept);
+        if (text !== last) {
+            last = text;
+            element.autosaver.stash(PLACE_STASH, kept);
+        }
+    };
+    void (store.get().opened ?? Promise.resolve())
+        .catch(() => undefined)
+        .finally(() => {
+            ready = true;
+            put();
+        });
+    element.addEventListener("graphty-autosave-status", put);
+    const stop = store.subscribe(put);
+    return () => {
+        stop();
+        element.removeEventListener("graphty-autosave-status", put);
+    };
+}
+
+/**
+ * The reader's place stashed with work graphty-element restored.
+ * @param element - the element it was restored into.
+ * @returns the place, or an empty change when none was stashed.
+ */
+export function stashedPlace(element: GraphtyElement): Partial<KeptPlace> {
+    const kept = element.autosaver.stashed(PLACE_STASH);
+    return typeof kept === "object" && kept !== null ? kept : {};
+}
+
 /**
  * The place this tab kept before it was reloaded.
  * @returns the place, or an empty change when none was kept.
  */
 export function keptPlace(): Partial<KeptPlace> {
+    const { blank: _blank, opened: _opened, name: _name, entry: _entry, ...place } = readKept();
+    return place;
+}
+
+/**
+ * The autosave entry the project this tab kept its place for was written to.
+ * @returns the entry's id, or null when nothing was written.
+ */
+export function keptEntry(): string | null {
+    return readKept().entry ?? null;
+}
+
+/**
+ * The name the project this tab kept its place for had in the header.
+ * @returns the name, or null.
+ */
+export function keptName(): string | null {
+    return readKept().name ?? null;
+}
+
+/**
+ * How the project this tab kept its place for was opened, when opening it again gives it back.
+ * @returns the opener, or null.
+ */
+export function keptOpener(): Opener | null {
+    return readKept().opened ?? null;
+}
+
+/**
+ * Whether the project this tab kept its place for opened empty.
+ * @returns true for a blank project.
+ */
+export function keptBlank(): boolean {
+    return readKept().blank === true;
+}
+
+/**
+ * What this tab kept before it was reloaded.
+ * @returns the place and whether the project was blank, or an empty object when none was kept.
+ */
+function readKept(): Partial<KeptPlace> & { blank?: boolean; opened?: Opener; name?: string; entry?: string } {
     try {
         const text = sessionStorage.getItem(PLACE_ITEM);
-        return text === null ? {} : (JSON.parse(text) as Partial<KeptPlace>);
+        return text === null
+            ? {}
+            : (JSON.parse(text) as Partial<KeptPlace> & {
+                  blank?: boolean;
+                  opened?: Opener;
+                  name?: string;
+                  entry?: string;
+              });
     } catch {
         return {};
     }

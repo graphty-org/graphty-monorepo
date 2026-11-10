@@ -7,11 +7,7 @@ import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import { type GraphtyError, isGraphtyError } from "../../extend";
 import { defineSource, registerSource } from "../../session";
 import type { DataLoadingErrorEvent } from "../../src/events.js";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph } from "../../src/Graph.js";
-
-// Loads from a registered source sit behind the network-data experiment.
-setDefaultFeatures(["network-data"]);
 
 /** Opened by the test: the held source's read waits for it. */
 let openHeldRead = (): void => undefined;

@@ -941,6 +941,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "setScopeSource",
             "releaseDetachedScope",
             "clustersChanged",
+            "relayoutForVisibility",
         ],
         reason: "internal-handle",
         kind: BY_DESIGN,

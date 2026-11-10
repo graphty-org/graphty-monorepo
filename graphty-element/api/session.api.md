@@ -2981,6 +2981,7 @@ export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "repl
 export interface JoinStep {
     readonly choices: JoinChoices;
     readonly from: string;
+    readonly name?: string;
 }
 
 // @beta

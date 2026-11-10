@@ -390,7 +390,12 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
         return found;
     };
     const frozenStep = (id: string, step: JoinStep): JoinStepEntry =>
-        Object.freeze({ id, from: step.from, choices: step.choices });
+        Object.freeze({
+            id,
+            from: step.from,
+            choices: step.choices,
+            ...(step.name === undefined ? {} : { name: step.name }),
+        });
 
     const draft: JoinsDraft = {
         get inputs(): readonly JoinInput[] {
@@ -588,7 +593,8 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
                     lookup === undefined
                         ? each.choices
                         : { ...rest, lookup: { name: lookup.name, columns: lookup.columns, rows: lookup.rows } };
-                return [{ table: each.table, choices }];
+                const name = each.entry.name ?? each.table.name;
+                return [{ table: { ...each.table, name }, choices }];
             });
             done = true;
             if (steps.length > 0) {

@@ -11,6 +11,7 @@ import {
     SHADER_MIN_SIZE_RANGE,
     SHADER_REACH_RANGE,
     shaderIdForName,
+    shaderParamClock,
     type ShaderParams,
     type ShaderPlace,
     shaderPlaceUsesReach,
@@ -22,6 +23,7 @@ import {
 import { type GraphSession, GraphtyError, type ShaderAddResult } from "@graphty/graphty-element/session";
 import { Anchor, Button, Group, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { ariaKey, formatKey, isMac } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -168,6 +170,8 @@ const MY_CODE = ":my-code";
 interface DraftBook {
     readonly drafts: Map<Target, EditorState>;
     last: Target | undefined;
+    /** The Node tab's target (node or group) when the reader last left that tab. */
+    onNode: Target | undefined;
 }
 
 const books = new WeakMap<GraphSession, DraftBook>();
@@ -180,7 +184,7 @@ const books = new WeakMap<GraphSession, DraftBook>();
 function bookOf(session: GraphSession): DraftBook {
     let book = books.get(session);
     if (book === undefined) {
-        book = { drafts: new Map(), last: undefined };
+        book = { drafts: new Map(), last: undefined, onNode: undefined };
         books.set(session, book);
     }
     return book;
@@ -374,7 +378,12 @@ function rowOfProblem(param: unknown, form: ShaderTextDraft): number {
 function paramSite(problem: ShaderProblem, form: ShaderTextDraft): ProblemSite {
     const index = rowOfProblem(problem.params.param, form);
     const field = problem.code === "shader.reserved" ? "name" : String(problem.params.field);
-    return index >= 0 && ROW_FIELDS.has(field) ? { kind: "param", index, field } : { kind: "full" };
+    const row = form.params?.[index];
+    // A default bound to a clock is edited in the gear's Starts fields, not in the row's cell.
+    const bound = field === "default" && row !== undefined && shaderParamClock(row) !== undefined;
+    return index >= 0 && ROW_FIELDS.has(field)
+        ? { kind: "param", index, field: bound ? "clock" : field }
+        : { kind: "full" };
 }
 
 /**
@@ -490,6 +499,9 @@ export function ShaderEditorDialog({
     const [tab, setTab] = useState<ShaderTab>(() => listTab ?? tabOfTarget(book.last ?? "node"));
     const places = DIALOG_PLACES[tab];
     const [state, setState] = useState<EditorState>(() => openingState(book, tab, init));
+    // The state as last drawn, for closing from a listener registered by an earlier render.
+    const stateNow = useRef(state);
+    stateNow.current = state;
     const { form, body, full, place, edited } = state;
     // The check of the text as it is now; null while it is pending.
     const [result, setResult] = useState<ShaderAddResult | null>(null);
@@ -498,7 +510,8 @@ export function ShaderEditorDialog({
     const [drawn, setDrawn] = useState<Blob | undefined>(undefined);
     // The element hands the same picture back for the same text, so a re-check makes no new address.
     const picture = useMemo(() => (drawn === undefined ? undefined : URL.createObjectURL(drawn)), [drawn]);
-    // Whether the box has held focus since its text was last loaded, so its cursor means something.
+    // Whether the reader has clicked or typed in the box since its text was last loaded, so its
+    // cursor means something; focus alone (autofocus) leaves the caret before the code.
     const [hasCursor, setHasCursor] = useState(false);
     const box = useRef<HTMLTextAreaElement>(null);
     const editor = useRef<ShaderCodeEditorHandle>(null);
@@ -514,26 +527,31 @@ export function ShaderEditorDialog({
     const textNow = useRef(text);
     textNow.current = text;
     const target = targetOfPlace(tab, place);
+    const onList = put !== undefined && tab === listTab;
+    // With no list to write the values to, a changed default is kept only by joining as new.
+    const defaultsChanged =
+        !onList && JSON.stringify(form.params ?? []) !== JSON.stringify(state.loaded.draft.params ?? []);
     // A known copy stays the element's decision until the reader makes this text something else.
-    const asNew = init.duplicateOf !== undefined || edited;
+    const asNew = init.duplicateOf !== undefined || edited || defaultsChanged;
     const options = {
         target,
         ...(place === undefined || place === "group" ? {} : { place }),
         ...(asNew ? { asNew } : {}),
         onTaken: "rename",
     } as const;
-    const onList = put !== undefined && tab === listTab;
 
     useEffect(() => {
         setResult(null);
         if (boxValue.trim() === "") {
             return undefined;
         }
+        // A check finished after the text, target, place or asNew moved on describes nothing shown.
+        let current = true;
         const timer = setTimeout(() => {
             session.shaders
                 .check(text, { ...options, picture: true })
                 .then((checked) => {
-                    if (textNow.current !== text) {
+                    if (!current) {
                         return;
                     }
                     setResult(checked);
@@ -554,6 +572,7 @@ export function ShaderEditorDialog({
                 });
         }, CHECK_PAUSE_MS);
         return () => {
+            current = false;
             clearTimeout(timer);
         };
         // The options are the target and place, which the dependencies name; places follows tab.
@@ -578,15 +597,33 @@ export function ShaderEditorDialog({
         }
     });
 
-    /**
-     * Loads text from outside the form, which ends the cursor's meaning unless the box still has focus.
-     * @param loaded - the text.
-     */
-    /** A whole text just replaced what the box held: the cursor means something only if it still has focus. */
+    /** A whole text just replaced what the box held, and its caret went back to the start. */
     const textReplaced = (): void => {
-        setHasCursor(editor.current?.hasFocus() ?? document.activeElement === box.current);
+        setHasCursor(false);
     };
 
+    // The editor replacing the plain box starts its caret at 0, unless it took the box's caret over.
+    useEffect(() => {
+        if (Editor !== null && takeFocusAt === undefined) {
+            setHasCursor(false);
+        }
+    }, [Editor, takeFocusAt]);
+
+    /**
+     * A click or a key in the code box, which places its caret where the reader means.
+     * @param event - the event.
+     */
+    const touchBox = (event: React.PointerEvent | React.KeyboardEvent): void => {
+        const inPreview = event.target instanceof Element && event.target.closest(".ws-paste-preview") !== null;
+        if (!inPreview && !("key" in event && event.key === "Tab")) {
+            setHasCursor(true);
+        }
+    };
+
+    /**
+     * Loads text from outside the form.
+     * @param loaded - the text.
+     */
     const load = (loaded: string): void => {
         setState((now) => loadedAs(stateFromText(loaded, tab, now), MY_CODE));
         textReplaced();
@@ -607,6 +644,9 @@ export function ShaderEditorDialog({
      */
     const showDraft = (nextTab: ShaderTab, next: EditorState): void => {
         book.drafts.set(target, state);
+        if (tab === "node" && nextTab !== "node") {
+            book.onNode = target;
+        }
         book.last = targetOfPlace(nextTab, next.place);
         setTab(nextTab);
         setState(next);
@@ -630,7 +670,10 @@ export function ShaderEditorDialog({
 
     const switchTab = (next: ShaderTab): void => {
         if (next !== tab) {
-            showDraft(next, book.drafts.get(next) ?? starterState(next, FIRST_PLACE[next]));
+            // The Node tab comes back at the target the reader left it on, a group outline included.
+            const nextTarget = next === "node" ? (book.onNode ?? "node") : next;
+            const firstPlace = nextTarget === "group" ? "group" : FIRST_PLACE[next];
+            showDraft(next, book.drafts.get(nextTarget) ?? starterState(next, firstPlace));
         }
     };
 
@@ -707,8 +750,14 @@ export function ShaderEditorDialog({
         if (full === null) {
             setState((now) => ({ ...now, full: text }));
         } else {
-            // Leaving Full text is not new text arriving: what the form was loaded from stands.
-            setState((now) => stateFromText(full, tab, now));
+            // Leaving Full text is not new text arriving: what the form was loaded from stands. A
+            // text whose header the reader deleted has the placeholder header, not the old form.
+            const parts = splitShaderText(full);
+            setState((now) =>
+                parts.headed
+                    ? stateFromText(full, tab, now)
+                    : { ...now, form: parts.draft ?? {}, body: parts.body, full: null },
+            );
             textReplaced();
         }
     };
@@ -752,21 +801,27 @@ export function ShaderEditorDialog({
         if (added) {
             book.drafts.delete(target);
         } else {
-            book.drafts.set(target, state);
+            book.drafts.set(target, stateNow.current);
         }
         onClose();
     };
 
     // Temporary: Mantine's Modal hears Escape first, on window in the capture phase, before a Popout
     // it contains, so Escape in a popout would close the whole dialog. Until the shared components
-    // fix that defect (see the branch issue #6478), the Modal's own handling is off and this listener
-    // closes the dialog unless a popout is open or the target opted out as Mantine's own check does.
+    // fix that defect (issue #6488), the Modal's own handling is off and this listener closes the
+    // dialog unless a popout is open or the target opted out as Mantine's own check does.
     useEffect(() => {
         const onEscape = (event: KeyboardEvent): void => {
             const optedOut =
                 event.target instanceof Element &&
                 event.target.getAttribute("data-mantine-stop-propagation") === "true";
             if (event.key === "Escape" && !event.isComposing && !optedOut && !hasOpenPopouts()) {
+                // A parameter's Name commits when it loses focus: blur first, so the saved draft has it.
+                flushSync(() => {
+                    if (document.activeElement instanceof HTMLElement) {
+                        document.activeElement.blur();
+                    }
+                });
                 close(false);
             }
         };
@@ -801,10 +856,16 @@ export function ShaderEditorDialog({
                 return;
             }
             const same = checked.sameAs;
-            if (same !== undefined && put !== undefined && onList) {
-                // At its own place: the text's header names it, or the field gave it to text that names none.
-                await put(session, same.id, same.params);
-                store.set({ announcement: `${checked.descriptor.plainName} added` });
+            if (same !== undefined) {
+                if (put !== undefined && onList) {
+                    // At its own place: the text's header names it, or the field gave it to text that names none.
+                    await put(session, same.id, same.params);
+                    store.set({ announcement: `${checked.descriptor.plainName} added` });
+                } else {
+                    // No list to write to, and the text is a shader already known: nothing joins.
+                    const known = session.catalog.shaders().find((each) => each.id === same.id) ?? checked.descriptor;
+                    store.set({ notice: shaderAddedNotice(store, session, known) });
+                }
                 close(true);
                 return;
             }
@@ -1018,7 +1079,7 @@ export function ShaderEditorDialog({
                         )}
                     </div>
                 </PanelLabelsProvider>
-                <Group align="flex-start" gap="xs" wrap="nowrap">
+                <Group align="flex-start" gap="xs" wrap="nowrap" onPointerDown={touchBox} onKeyDown={touchBox}>
                     {Editor === null ? (
                         <Textarea
                             ref={box}
@@ -1034,9 +1095,6 @@ export function ShaderEditorDialog({
                             // Mantine's error state: the invalid look and aria-invalid. The problems that
                             // describe it are tied to it below, as Mantine ties only an error text of its own.
                             error={invalid}
-                            onFocus={() => {
-                                setHasCursor(true);
-                            }}
                             onChange={(event) => {
                                 typeInBox(event.currentTarget.value);
                             }}
@@ -1051,9 +1109,6 @@ export function ShaderEditorDialog({
                             describedBy={invalid ? problemsId : undefined}
                             takeFocusAt={takeFocusAt}
                             onChange={typeInBox}
-                            onFocus={() => {
-                                setHasCursor(true);
-                            }}
                             onTabMode={setTabMoves}
                         />
                     )}

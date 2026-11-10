@@ -50,7 +50,7 @@ interface LiveProps {
     readonly autoFocus: boolean;
     readonly describedBy: string | undefined;
     readonly onChange: (text: string) => void;
-    readonly onFocus: () => void;
+    readonly onFocus?: () => void;
     readonly onTabMode: (moves: boolean) => void;
 }
 
@@ -175,7 +175,7 @@ function editorExtensions(live: React.RefObject<LiveProps>, toggleTab: Command):
                 });
             }
             if (update.focusChanged && update.view.hasFocus) {
-                live.current.onFocus();
+                live.current.onFocus?.();
             }
         }),
     ];

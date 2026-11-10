@@ -1,10 +1,12 @@
 import { ControlSection, PanelField, PanelLabelsProvider, Popout, PopoutButton } from "@graphty/compact-mantine";
 import {
-    changeShaderParamType,
+    bindShaderParamClock,
     removeShaderParam,
     renameShaderParam,
+    retypeShaderParam,
     SHADER_CLOCKS,
     SHADER_PARAM_TYPES,
+    shaderParamClock,
     type ShaderParamDescriptor,
     type ShaderParamDraft,
     shaderParamPlainName,
@@ -23,14 +25,22 @@ import { CLOCK_WORDS, clockWords, EDITOR_WORDS, type ShaderTab } from "./words";
 /** The gear's width, as the style rows' pop-outs. */
 const GEAR_WIDTH = 240;
 
-/** The seconds a new clock binding maps, as the element's starters write it. */
-const NEW_DOMAIN: readonly [number, number] = [0, 0.3];
-
 /** The value of the Starts select that means no clock. */
 const NO_CLOCK = "none";
 
-/** The fields in a row's gear, whose problems mark the gear. */
-export const GEAR_FIELDS: ReadonlySet<string> = new Set(["plainName", "min", "max", "step", "values", "varies"]);
+/**
+ * The fields in a row's gear, whose problems mark the gear. `clock` is the dialog's name for a
+ * problem with a default bound to a clock, which the gear's Starts fields edit.
+ */
+export const GEAR_FIELDS: ReadonlySet<string> = new Set([
+    "plainName",
+    "min",
+    "max",
+    "step",
+    "values",
+    "varies",
+    "clock",
+]);
 
 /** A problem on one field of one parameter row. */
 export interface ParamMark {
@@ -39,17 +49,27 @@ export interface ParamMark {
 }
 
 /**
- * What a number typed as text is written as: nothing when empty, the number when it reads as one,
- * else the text as typed so a half-typed value survives and the check reports it.
+ * What a number typed as text is written as: nothing when empty, the number when it reads as a
+ * finished one ("0.50", "1.0", ".5" included), else the text as typed ("-", ".", "1e") so a
+ * half-typed value survives and the check reports it.
  * @param text - the field's text.
  * @returns the value to write.
  */
 function numberOrText(text: string): number | string | undefined {
-    if (text === "") {
+    if (text.trim() === "") {
         return undefined;
     }
     const number = Number(text);
-    return String(number) === text ? number : text;
+    return Number.isFinite(number) ? number : text;
+}
+
+/**
+ * The text a header value shows as in a number field.
+ * @param value - the header's value.
+ * @returns the text.
+ */
+function numberText(value: unknown): string {
+    return typeof value === "number" || typeof value === "string" ? String(value) : "";
 }
 
 /** Props for NumberTextField. */
@@ -63,8 +83,10 @@ interface NumberTextFieldProps {
 }
 
 /**
- * A number field that can be emptied, for a key whose absence means something; the panel's number
- * field reverts on empty.
+ * A number field that can be emptied, for a key whose absence means something. Temporary: the
+ * shared number field puts its last value back when emptied, and until it has a mode that allows
+ * empty (issue #6489) this text field stands in for it. It keeps the text as typed, so "0." is not
+ * rewritten while the reader is still typing.
  * @param props - Component props
  * @param props.label - its name
  * @param props.value - the header's value
@@ -80,19 +102,25 @@ export function NumberTextField({
     range,
     onChange,
 }: Readonly<NumberTextFieldProps>): React.JSX.Element {
+    const [typed, setTyped] = useState(() => numberText(value));
+    // A value from elsewhere (a load, a clamp) replaces the text unless the text already reads as it.
+    useEffect(() => {
+        setTyped((now) => (numberOrText(now) === value ? now : numberText(value)));
+    }, [value]);
     return (
         <PanelField
             label={label}
             width="fill"
             inputMode="decimal"
             aria-invalid={invalid ? true : undefined}
-            value={typeof value === "number" || typeof value === "string" ? String(value) : ""}
+            value={typed}
             onChange={(next) => {
-                const typed = numberOrText(String(next));
+                setTyped(String(next));
+                const read = numberOrText(String(next));
                 onChange(
-                    typeof typed === "number" && range !== undefined
-                        ? Math.min(range.max, Math.max(range.min, typed))
-                        : typed,
+                    typeof read === "number" && range !== undefined
+                        ? Math.min(range.max, Math.max(range.min, read))
+                        : read,
                 );
             }}
         />
@@ -111,23 +139,6 @@ function withKey(row: ShaderParamDraft, key: string, value: unknown): ShaderPara
         return { ...row, [key]: value };
     }
     return Object.fromEntries(Object.entries(row).filter(([each]) => each !== key));
-}
-
-/**
- * A row's default bound to a clock, or undefined for a plain value.
- * @param value - the default as written.
- * @returns the binding.
- */
-function clockOf(value: unknown): { by: string; domain: [number, number]; range?: [string, string] } | undefined {
-    if (typeof value !== "object" || value === null || !("by" in value)) {
-        return undefined;
-    }
-    const { by, domain, range } = value as { by: unknown; domain?: unknown; range?: unknown };
-    return {
-        by: String(by),
-        domain: Array.isArray(domain) ? (domain as [number, number]) : [...NEW_DOMAIN],
-        ...(Array.isArray(range) ? { range: range as [string, string] } : {}),
-    };
 }
 
 /**
@@ -255,26 +266,15 @@ interface StartsFieldsProps {
  * @returns The fields
  */
 function StartsFields({ row, rowName, onChange }: Readonly<StartsFieldsProps>): React.JSX.Element {
-    const clock = clockOf(row.default);
+    const clock = shaderParamClock(row);
     const isColor = row.type === "color";
-    const plainDefault = (): unknown => {
-        const first = clock?.range?.[0];
-        return isColor && first !== undefined ? first : shaderParamShape(row.type as "number").default;
-    };
-    const bind = (by: string): void => {
-        if (by === NO_CLOCK) {
-            onChange({ ...row, default: plainDefault() });
-            return;
-        }
-        const color = typeof row.default === "string" ? row.default : "#ffffff";
-        onChange({
-            ...row,
-            default: {
-                by,
-                domain: clock?.domain ?? [...NEW_DOMAIN],
-                ...(isColor ? { range: clock?.range ?? [color, color] } : {}),
-            },
-        });
+    const bind = (picked: string): void => {
+        onChange(
+            bindShaderParamClock(
+                row,
+                SHADER_CLOCKS.find((by) => by === picked),
+            ),
+        );
     };
     const writeBinding = (patch: Record<string, unknown>): void => {
         onChange({ ...row, default: { ...clock, ...patch } });
@@ -321,7 +321,7 @@ function StartsFields({ row, rowName, onChange }: Readonly<StartsFieldsProps>): 
                                     label={EDITOR_WORDS.rangeColor(rowName, at)}
                                     shown={clock.range?.[at]}
                                     write={(next) => {
-                                        const range = [...(clock.range ?? ["#ffffff", "#ffffff"])];
+                                        const range = [...(clock.range ?? [])];
                                         range[at] = typeof next === "string" ? next : range[at];
                                         writeBinding({ range });
                                     }}
@@ -428,7 +428,7 @@ function ParamGear({ row, rowName, marked, onChange }: Readonly<ParamGearProps>)
                                     }}
                                 />
                             )}
-                            {(row.type === "number" || row.type === "color") && (
+                            {type !== undefined && shaderParamShape(type).clock && (
                                 <StartsFields row={row} rowName={rowName} onChange={onChange} />
                             )}
                         </div>
@@ -446,6 +446,7 @@ interface ParamRowProps {
     readonly marked: ReadonlySet<string>;
     readonly canInsert: boolean;
     readonly onRow: (row: ShaderParamDraft) => void;
+    readonly onRetype: (type: ShaderParamDescriptor["type"]) => void;
     readonly onRename: (from: string, to: string) => void;
     readonly onRemove: (name: string) => void;
     readonly onInsert: (name: string) => void;
@@ -473,7 +474,7 @@ function DefaultCell({
     onChange: (value: ShaderParamValue) => void;
 }>): React.JSX.Element {
     const label = EDITOR_WORDS.defaultOf(rowName);
-    const clock = clockOf(row.default);
+    const clock = shaderParamClock(row);
     if (clock !== undefined) {
         const words = clockWords(clock);
         return (
@@ -516,6 +517,7 @@ function DefaultCell({
  * @param props.marked - its fields with a problem
  * @param props.canInsert - whether the code box has a cursor to insert at
  * @param props.onRow - writes the row
+ * @param props.onRetype - changes its type
  * @param props.onRename - renames it
  * @param props.onRemove - removes it
  * @param props.onInsert - puts the name at the code box's cursor
@@ -527,6 +529,7 @@ function ParamRow({
     marked,
     canInsert,
     onRow,
+    onRetype,
     onRename,
     onRemove,
     onInsert,
@@ -582,7 +585,7 @@ function ParamRow({
                     onChange={(picked) => {
                         const type = SHADER_PARAM_TYPES.find((each) => each === picked);
                         if (type !== undefined) {
-                            onRow(changeShaderParamType(row, type, EDITOR_WORDS.seedChoices));
+                            onRetype(type);
                         }
                     }}
                 />
@@ -694,11 +697,14 @@ export function ShaderParamRows({
                     onRow={(next) => {
                         onChange({ ...draft, params: rows.map((each, at) => (at === index ? next : each)) });
                     }}
+                    onRetype={(type) => {
+                        onChange(retypeShaderParam(draft, index, type, EDITOR_WORDS.seedChoices));
+                    }}
                     onRename={(from, to) => {
-                        onChange(renameShaderParam(draft, from, to));
+                        onChange(renameShaderParam(draft, from, to, index));
                     }}
                     onRemove={(name) => {
-                        onChange(removeShaderParam(draft, name));
+                        onChange(removeShaderParam(draft, name, index));
                     }}
                     onInsert={onInsert}
                 />

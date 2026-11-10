@@ -213,6 +213,21 @@ describe("data.prepareJoins", () => {
         assert.deepEqual(session.data.joins(), []);
     });
 
+    it("commits no step that changes nothing, so a key matching nothing adds no source", async () => {
+        const session = await doors();
+        const before = session.data.sources().map((source) => source.name);
+        const recipe = session.data.prepareJoins();
+        const sites = recipe.hold({ name: "sites.csv", rows: [{ building: "bldg-99", site: "Campus Z" }] });
+        recipe.add({ from: sites, choices: { shape: "node-values", keys: [{ file: "building", graph: "id" }] } });
+        await recipe.commit();
+
+        assert.deepEqual(session.data.joins(), []);
+        assert.deepEqual(
+            session.data.sources().map((source) => source.name),
+            before,
+        );
+    });
+
     it("names each committed step's load by the step's own name, else by its input's", async () => {
         const session = await doors();
         const recipe = session.data.prepareJoins();

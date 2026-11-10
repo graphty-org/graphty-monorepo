@@ -547,8 +547,15 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
         },
         async commit(): Promise<void> {
             live("commit");
+            // A step that changes nothing (a key matching no row) is not joined: it would leave an
+            // empty source behind.
             const steps = run().flatMap((each) => {
-                if (each.table === undefined || each.choices === undefined || each.outcome.error !== undefined) {
+                if (
+                    each.table === undefined ||
+                    each.choices === undefined ||
+                    each.outcome.error !== undefined ||
+                    each.fates.size === 0
+                ) {
                     return [];
                 }
 

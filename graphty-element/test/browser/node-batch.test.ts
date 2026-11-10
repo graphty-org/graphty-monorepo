@@ -994,6 +994,24 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         }
     });
 
+    it("find a location map's locations in rows with no Node", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "loaded with no Node");
+        const errors: string[] = [];
+        graph.on("error", (event) => {
+            errors.push(event.error.message);
+        });
+
+        await graph.setLayout("location-map", { mapDimension: "2d" });
+        await operationQueueOf(graph).waitForCompletion();
+        assert.deepEqual(errors, [], "the layout found the latitude and longitude columns");
+        assert.equal(graph.getLayoutManager().layoutEngine?.type, "location-map");
+    });
+
     it("publish a simulation's rows with no Node by their rows", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");

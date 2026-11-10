@@ -537,6 +537,21 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      * @param n - the number of rows
      * @returns the node of each row, or undefined for a row no node answers
      */
+    /**
+     * Each row's data: its `Node`'s, or, for a row stored with no `Node` (the batched path), its stored record.
+     * Reading it builds no `Node`.
+     * @param n - The number of rows.
+     * @returns The records, by row.
+     */
+    protected rowRecords(n: number): (Record<string | number, unknown> | undefined)[] {
+        const nodes = this.#nodesByRow(n);
+        return Array.from(
+            { length: n },
+            (_, row) =>
+                (nodes[row]?.data as Record<string | number, unknown> | undefined) ?? this.#host?.rowData?.(row),
+        );
+    }
+
     #nodesByRow(n: number): (Node | undefined)[] {
         const out = new Array<Node | undefined>(n);
         const { ids } = this.graph;

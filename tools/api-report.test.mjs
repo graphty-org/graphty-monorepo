@@ -416,7 +416,7 @@ export interface Unrelated {
             assert.match(
                 message,
                 new RegExp(
-                    `^AiManagerConfig\\.\\w+ is a new open-ended member \\(${kind.replace(/[<>|()]/g, "\\$&")}\\)`,
+                    `^AiManagerConfig\\.\\w+ is a new open-ended member \\(${kind.replaceAll(/[\\^$.*+?()[\]{}|]/g, String.raw`\$&`)}\\)`,
                 ),
             );
         }

@@ -1,4 +1,4 @@
-import type { F32 } from "@graphty/graph-format";
+import { type F32, INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema, parseOptions } from "../config";
@@ -266,7 +266,9 @@ async function computeWith(
     // The DOT names nodes by row, so a root given as a node's id is given as its row.
     if (attributes.root !== undefined) {
         const { ids } = input.stored;
-        const row = [attributes.root, Number(attributes.root)].map((id) => ids.indexOf(id)).find((index) => index >= 0);
+        const row = [attributes.root, Number(attributes.root)]
+            .map((id) => ids.indexOf(id))
+            .find((index) => index !== INVALID_INDEX);
         if (row !== undefined) {
             attributes.root = `n${row}`;
         }
@@ -392,6 +394,11 @@ export function layoutStructure(
     const data = new Map<number, Readonly<Record<string, unknown>>>();
     for (const node of nodes) {
         const row = ids.indexOf(node.id);
+        // A node the run leaves out (hidden under `layout.visibleOnly`) has no row in its graph.
+        if (row === INVALID_INDEX) {
+            continue;
+        }
+
         if (followers.has(row)) {
             groups.set(row, node.data);
         } else if (withOutlines || labelSized) {

@@ -270,6 +270,18 @@ const GraphLayoutOpts = z.strictObject({
      * box either way. Unset means true.
      */
     groupsFollowMembers: z.boolean().optional(),
+
+    /*
+     * Whether a layout runs over only what the visibility filter shows.
+     *
+     * True: a node the filter hides takes no part in the layout -- it pushes and pulls nothing,
+     * its edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot
+     * -- and it stays where it was, so taking the filter away shows it where it was. The layout
+     * runs again whenever what the filter shows changes, and when this is switched. Every layout
+     * honours it. Unset or false, the default, a layout runs over the whole graph, hidden nodes
+     * included.
+     */
+    visibleOnly: z.boolean().optional(),
 });
 
 /** How the element drives a layout, as the behaviour configuration resolves it. */

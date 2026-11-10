@@ -1884,6 +1884,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             refreshFonts: RENDER,
             refitPicture: RENDER,
             applySessionPaint: RENDER,
+            takeDrawnPaint: RENDER,
             dispose: RENDER,
             isDisposed: READ,
             modelDrawn: READ,
@@ -2020,6 +2021,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPulled: READ,
             togglesOwnMeshes: READ,
             columnEnd: READ,
+            endRow: READ,
         },
     },
     {
@@ -2221,6 +2223,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             releaseDetachedScope: DERIVED,
             // A run's results changed; a layout clustering by them moves, and rests in its own step.
             clustersChanged: TRANSPORT,
+            // What the filter shows changed; a layout over what it shows moves, and rests in its own step.
+            relayoutForVisibility: TRANSPORT,
         },
     },
     {

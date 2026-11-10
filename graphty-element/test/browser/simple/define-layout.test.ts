@@ -521,3 +521,36 @@ describe("defineLayout on a rendered graph", () => {
         });
     });
 });
+
+describe("defineLayout set on an empty graph", () => {
+    it("does not run place() before the graph holds a node, as on renderPath objects before row layout", async () => {
+        const calls: number[] = [];
+        defineLayout({
+            id: "acme-needs-a-node",
+            dimensions: 2,
+            options: {},
+            place(view) {
+                const count = [...view.nodes()].length;
+                calls.push(count);
+                if (count === 0) {
+                    throw new Error("needs a node");
+                }
+
+                return new Map();
+            },
+        });
+        const container = document.createElement("div");
+        container.style.width = "300px";
+        container.style.height = "300px";
+        document.body.appendChild(container);
+        const graph = new Graph(container);
+        try {
+            await graph.init();
+            await graph.setLayout("acme-needs-a-node");
+            assert.deepEqual(calls, [], "place() is not run over an empty graph");
+        } finally {
+            graph.dispose();
+            container.remove();
+        }
+    });
+});

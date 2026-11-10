@@ -55,16 +55,70 @@ export function readCommunities(
     skip: (row: number) => boolean,
     graph?: GraphSnapshot,
 ): Map<Node, number> {
+    return readMembers(
+        path,
+        nodes,
+        (node) => node.index,
+        (node) => node.data,
+        column,
+        skip,
+        graph,
+    );
+}
+
+/**
+ * {@link readCommunities} over rows rather than `Node`s, for renderPath "batched", where a row may have no `Node`.
+ * @param path - The option's value.
+ * @param rowCount - How many rows the snapshot has.
+ * @param dataOf - A row's record.
+ * @param column - Reads a session path; null when nothing can.
+ * @param skip - Answers true for a row the force must leave alone.
+ * @param graph - The snapshot the rows belong to.
+ * @returns The community of every row that is in one.
+ */
+export function readRowCommunities(
+    path: string,
+    rowCount: number,
+    dataOf: (row: number) => unknown,
+    column: ClusterColumn | null,
+    skip: (row: number) => boolean,
+    graph?: GraphSnapshot,
+): Map<number, number> {
+    const rows = Array.from({ length: rowCount }, (_, row) => row);
+    return readMembers(path, rows, (row) => row, dataOf, column, skip, graph);
+}
+
+/**
+ * The reading both {@link readCommunities} and {@link readRowCommunities} share.
+ * @param path - The option's value.
+ * @param members - The nodes or rows, in the order communities are numbered.
+ * @param rowOf - A member's row.
+ * @param dataOf - A member's record.
+ * @param column - Reads a session path; null when nothing can.
+ * @param skip - Answers true for a row the force must leave alone.
+ * @param graph - The snapshot the rows belong to.
+ * @returns The community of every member that is in one.
+ */
+function readMembers<M>(
+    path: string,
+    members: Iterable<M>,
+    rowOf: (member: M) => number,
+    dataOf: (member: M) => unknown,
+    column: ClusterColumn | null,
+    skip: (row: number) => boolean,
+    graph?: GraphSnapshot,
+): Map<M, number> {
     const fromSession = path.startsWith("results.") || path.startsWith("data.");
     const values = fromSession ? (column?.(path, graph) ?? null) : null;
     const numbers = new Map<unknown, number>();
-    const communities = new Map<Node, number>();
-    for (const node of nodes) {
-        const value = fromSession ? values?.[node.index] : atPath(node.data, path);
-        if (value !== undefined && value !== null && !skip(node.index)) {
+    const communities = new Map<M, number>();
+    for (const member of members) {
+        const row = rowOf(member);
+        const value = fromSession ? values?.[row] : atPath(dataOf(member), path);
+        if (value !== undefined && value !== null && !skip(row)) {
             const community = numbers.get(value) ?? numbers.size;
             numbers.set(value, community);
-            communities.set(node, community);
+            communities.set(member, community);
         }
     }
 
@@ -77,8 +131,8 @@ export function readCommunities(
  * @param b - The other.
  * @returns True when every node is in the same community in both.
  */
-export function sameCommunities(a: ReadonlyMap<Node, number>, b: ReadonlyMap<Node, number>): boolean {
-    return a.size === b.size && [...a].every(([node, community]) => b.get(node) === community);
+export function sameCommunities<M>(a: ReadonlyMap<M, number>, b: ReadonlyMap<M, number>): boolean {
+    return a.size === b.size && [...a].every(([member, community]) => b.get(member) === community);
 }
 
 /** A body with a position, in the shape both d3's nodes and ngraph's body positions have. */

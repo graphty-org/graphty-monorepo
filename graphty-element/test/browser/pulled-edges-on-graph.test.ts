@@ -14,6 +14,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
+import { poolGrowths } from "../../src/meshes/poolReserve";
 import { pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
 import { drag } from "../helpers/real-input";
 import { edgeBetween } from "../helpers/testSetup";
@@ -162,6 +163,55 @@ async function draggedAndRenumbered(element: Graphty): Promise<Frame> {
     return readCanvas(element.graph);
 }
 
+/**
+ * Load 3,000 edges on 100 nodes (more than the pools start with) and count how often the edge pools grew.
+ * @param renderer - The renderer.
+ * @param renderPath - The render path.
+ * @param capped - Whether the edges keep their heads (object edges with caps) or are plain (pulled lines).
+ * @returns The pools' growths during the load.
+ */
+async function loadGrowths(
+    renderer: "webgl" | "webgpu",
+    renderPath: "objects" | "batched",
+    capped: boolean,
+): Promise<{ lines: number; caps: number }> {
+    const element = document.createElement("graphty-element");
+    element.renderer = renderer;
+    element.renderPath = renderPath;
+    element.style.display = "block";
+    element.style.width = "400px";
+    element.style.height = "300px";
+    document.body.appendChild(element);
+    await element.updateComplete;
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.graph.setLayout("fixed", { dim: 3 });
+    if (!capped) {
+        await element.session.styles.add({
+            name: "uncapped",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        } as never);
+    }
+
+    const nodes = Array.from({ length: 100 }, (_, id) => ({
+        id,
+        position: { x: id % 10, y: Math.floor(id / 10), z: 0 },
+    }));
+    const edges = nodes.flatMap((node) =>
+        Array.from({ length: 30 }, (_, k) => ({ src: node.id, dst: (node.id + k + 1) % 100 })),
+    );
+    await element.session.data.addNodes(nodes);
+    poolGrowths.lines = 0;
+    poolGrowths.caps = 0;
+    await element.session.data.addEdges(edges);
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+    const growths = { ...poolGrowths };
+    element.remove();
+    return growths;
+}
+
 describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
     afterEach(() => {
         vi.restoreAllMocks();
@@ -250,5 +300,11 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
         const pulled = await loaded(renderer, true, "2d");
         assert.deepInclude(pulled.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
         assert.equal(overBar(placedRest, await readCanvas(pulled.graph)), 0);
+    });
+    it("grow the line and cap pools once for a load, and by doubling on the objects path", async () => {
+        assert.strictEqual((await loadGrowths(renderer, "batched", false)).lines, 1, "the pulled line table grew once");
+        assert.strictEqual((await loadGrowths(renderer, "batched", true)).caps, 1, "the cap batch grew once");
+        // 3,000 heads from 32 slots double seven times; the objects path is left as it was
+        assert.strictEqual((await loadGrowths(renderer, "objects", true)).caps, 7, "the objects path doubles");
     });
 });

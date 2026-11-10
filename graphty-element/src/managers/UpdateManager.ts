@@ -30,6 +30,7 @@ import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
+import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
@@ -1488,6 +1489,9 @@ export class UpdateManager implements Manager {
     /** Whether the repaint under way has painted an edge with a support point. */
     private paintedSupportPoint = false;
 
+    /** Whether this paint run has told the edge pools its size ({@link UpdateManager.syncEdgeStyles}). */
+    private edgePoolsArmed = false;
+
     /** What a repaint looks up on each of its frames, kept until it ends; a version says when it went stale. */
     private paintIndex: {
         rows: { version: number; map: Map<number, Node> } | null;
@@ -1514,6 +1518,13 @@ export class UpdateManager implements Manager {
         this.sceneChanged = true;
         let painted = 0;
         const least = minimumWorkPerFrame() ? 0 : Math.ceil(this.dataManager.edges.size / REPAINT_FRAMES);
+        // A paint run's first frame tells the edge pools how many edges it will paint, so a pool that
+        // must grow grows once ("batched" only: `poolReserve.ts`).
+        const scene = this.graphContext.getScene();
+        if (!this.edgePoolsArmed && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+            armPoolReserve(scene, painter.pendingEdgeCount);
+            this.edgePoolsArmed = true;
+        }
 
         do {
             painted += this.paintEdgeBatch(painter);
@@ -1525,6 +1536,11 @@ export class UpdateManager implements Manager {
         // places is all of it, unless it painted an edge with a support point: a layer can change
         // who has one and the forces on it.
         if (!painter.hasPendingEdges) {
+            if (this.edgePoolsArmed) {
+                clearPoolReserve(scene);
+                this.edgePoolsArmed = false;
+            }
+
             if (!painter.takeEdgesRowsOnly() || this.paintedSupportPoint) {
                 this.forceEdgeWalk();
             }

@@ -10,8 +10,10 @@
  * `queue.onSubmittedWorkDone()` is unresolved, the WebGPU twin of the WebGL frame fence; under
  * "objects" it draws as it always has.
  *
- * Runs only when `GRAPHTY_BROWSER_GPU` names a flag set (see `vitest.config.ts`). Every assertion
- * is a count of frames drawn, never a time.
+ * Runs only when `GRAPHTY_BROWSER_GPU` names a flag set (see `vitest.config.ts`); CI runs it with
+ * `swiftshader-unthrottled`, the frame rate unlimited as on the benchmark's real card, because with
+ * the limit on Chromium holds the page's frames to the GPU's pace and no queue of frames builds.
+ * Every assertion is a count of frames drawn, never a time.
  */
 
 import "../../src/graphty-element";
@@ -219,9 +221,9 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
     it("answers a 256-byte map within 2 frames once a still scene has had time to fill the queue", async () => {
         const graph = await open("batched", false, HEAVY);
         loadEveryFrame(graph);
-        // Unpaced on a real card, these frames sit on the device queue and a map waits for all of
-        // them. SwiftShader's Chromium holds the page's frames to the GPU's pace, so there this
-        // test bounds the map but would pass unpaced too; the hover tests are the ones that fail.
+        // Unpaced, these frames sit on the device queue and a map waits for all of them (27 frames
+        // drawn on SwiftShader with the frame rate unlimited, where Chromium does not hold the
+        // page's frames to the GPU's pace).
         await drawn(graph, 60);
         const device = (graph.engine as WebGPUEngine)._device;
         const source = device.createBuffer({ size: 256, usage: GPUBufferUsage.COPY_SRC });
@@ -253,9 +255,15 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
         await graph.setLayout("forceatlas2", { maxIter: 1_000_000 });
         const engine = graph.getLayoutManager().layoutEngine;
         assert.instanceOf(engine, SimulationLayoutEngine);
-        while (!engine.isAccelerated || engine.landedBatchesPublished === 0) {
+        const { ticks } = renderManagerOf(graph);
+        const opened = ticks.drawn;
+        // Bounded by frames drawn: unpaced, the first batch waits behind the queue and never lands.
+        while ((!engine.isAccelerated || engine.landedBatchesPublished === 0) && ticks.drawn - opened < LAYOUT_FRAMES) {
             await nextFrame();
         }
+
+        assert.isTrue(engine.isAccelerated, "the layout runs on the GPU");
+        assert.isAbove(engine.landedBatchesPublished, 0, "the first layout batch landed within the frames allowed");
 
         const sample = (): number[] => {
             const point = { x: 0, y: 0, z: 0 };
@@ -265,7 +273,6 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
             });
         };
         loadEveryFrame(graph);
-        const { ticks } = renderManagerOf(graph);
         // Let an unpaced loop fill the queue before sampling.
         await drawn(graph, 30);
         const first = sample();

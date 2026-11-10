@@ -1,5 +1,5 @@
 import { DataTable, type DataTableColumn } from "@graphty/compact-mantine";
-import type { JoinPreviewRow } from "@graphty/graphty-element/session";
+import type { JoinPreviewRow, JoinRowFate } from "@graphty/graphty-element/session";
 import { Button, Group, Text } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useMemo, useState } from "react";
@@ -11,9 +11,11 @@ import { ROW_FATE_WORDS, ROWS_PAGE } from "./words";
 /**
  * The rows the shown step reads, a page at a time, each with its fate (graphty-element's
  * `draft.rows`): never more than one page is drawn, whatever the table holds.
+ * @param props - Component props
+ * @param props.fate - read only the rows of this fate; every row when absent.
  * @returns the pane.
  */
-export function RowsPane(): React.JSX.Element {
+export function RowsPane({ fate }: Readonly<{ fate?: JoinRowFate }> = {}): React.JSX.Element {
     const api = useJoinWorkspace();
     const { draft, version } = api;
     const step = shownStep(api);
@@ -21,11 +23,11 @@ export function RowsPane(): React.JSX.Element {
     // A new step, or a new edit, starts on the first page.
     useEffect(() => {
         setOffset(0);
-    }, [step]);
+    }, [step, fate]);
     // Read again on every edit to the draft.
     const { page } = useMemo(
-        () => ({ version, page: step === undefined ? null : draft.rows(step, { offset, limit: ROWS_PAGE }) }),
-        [draft, version, step, offset],
+        () => ({ version, page: step === undefined ? null : draft.rows(step, { offset, limit: ROWS_PAGE, fate }) }),
+        [draft, version, step, offset, fate],
     );
     const { ref, height } = useElementSize();
     const items = useMemo(() => page?.items ?? [], [page]);

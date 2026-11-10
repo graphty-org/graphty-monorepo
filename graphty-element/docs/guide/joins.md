@@ -220,6 +220,9 @@ await recipe.commit(); // or recipe.discard()
 `fuse` combines a clashing column's two values (`{ rating: "max" }`), `flag` marks what a
 reference list names (`{ columns: [], flag: "watchlisted" }`), and `split` reads a cell holding
 several values (`{ tags: ";" }`). `recipe.clashes(step, column)` lists the clashes of a column.
+Each input's `lists` names the columns that look like lists, by separator, ready for `split`.
+`recipe.estimate(step)` counts a step without adding it, so each choice can show its numbers
+before the reader picks one.
 
 ## Naming what a join writes
 

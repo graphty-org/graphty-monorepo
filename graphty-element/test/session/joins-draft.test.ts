@@ -255,6 +255,45 @@ describe("data.prepareJoins", () => {
         assert.strictEqual(session.data.nodes().filter((node) => node.kind === "tag").length, 5);
     });
 
+    it("estimates a step without adding it", async () => {
+        const session = await doors();
+        const recipe = session.data.prepareJoins();
+        const entries = recipe.hold({ name: "door_entries.csv", rows: ENTRIES });
+        const estimate = recipe.estimate({ from: entries, choices: EDGES });
+
+        assert.strictEqual(estimate.report?.newNodes, 3);
+        assert.deepEqual(recipe.steps, []);
+        assert.isFalse(recipe.canUndo);
+        const step = recipe.add({ from: entries, choices: EDGES });
+        // At the step's place: what the step does; after it, the ends it made are in the graph.
+        assert.deepEqual(recipe.estimate({ from: entries, choices: EDGES }, 0).report, recipe.outcome(step).report);
+        assert.isBelow(recipe.estimate({ from: entries, choices: EDGES }).report?.newNodes ?? 3, 3);
+        assert.strictEqual(
+            recipe.estimate({ from: entries, choices: { keys: [{ file: "x", graph: "id" }] } }).error?.code,
+            "E_BAD_COMMAND",
+        );
+        recipe.discard();
+    });
+
+    it("names each input's list columns by their separator", async () => {
+        const session = await doors();
+        const recipe = session.data.prepareJoins();
+        recipe.hold({
+            name: "orders.csv",
+            rows: [
+                { po: "1", plants: "a|b" },
+                { po: "2", plants: "c|d|e" },
+                { po: "3", plants: "f" },
+            ],
+        });
+
+        assert.deepEqual(
+            recipe.inputs.map((input) => input.lists),
+            [{ tags: ";" }, {}, { plants: "|" }],
+        );
+        recipe.discard();
+    });
+
     it("fuses a clashing column and pages its clashes", async () => {
         const session = await doors();
         const recipe = session.data.prepareJoins();

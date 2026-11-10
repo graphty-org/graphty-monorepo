@@ -208,6 +208,34 @@ function applied(
     return { graph: { nodes, edges }, fates };
 }
 
+/** The separators a list column's cells are split at, in the order they are tried. */
+const LIST_SEPARATORS = [";", "|"] as const;
+
+/**
+ * A table's columns holding several values in one cell: at least two cells, and a tenth of the
+ * column's non-empty cells, hold the separator between non-empty parts.
+ * @param table - The table.
+ * @returns The list columns, by separator.
+ */
+function listColumns(table: JoinTable | undefined): Readonly<Record<string, string>> {
+    const lists: Record<string, string> = {};
+    for (const column of table?.columns ?? []) {
+        const cells = (table?.rows ?? []).flatMap((row) => {
+            const cell = row[column];
+            return typeof cell === "string" && cell.trim() !== "" ? [cell] : [];
+        });
+        const separator = LIST_SEPARATORS.find((each) => {
+            const split = cells.filter((cell) => cell.split(each).filter((part) => part.trim() !== "").length > 1);
+            return split.length >= 2 && split.length * 10 >= cells.length;
+        });
+        if (separator !== undefined) {
+            lists[column] = separator;
+        }
+    }
+
+    return Object.freeze(lists);
+}
+
 /**
  * Open a join recipe draft over a session's graph.
  * @param host - What it reads from the session, and how it commits.
@@ -222,6 +250,8 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
     let serial = 0;
     let done = false;
     let cached: readonly StepRun[] | null = null;
+    // `inputs` read again only after the recipe runs again.
+    let inputsOf: { readonly runs: readonly StepRun[]; readonly inputs: readonly JoinInput[] } | null = null;
 
     const live = (verb: string): void => {
         if (done) {
@@ -277,6 +307,64 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
         table: (key) => tableOf(key, graph),
     });
 
+    /**
+     * Run one step against the graph the steps before it leave.
+     * @param entry - The step.
+     * @param before - The graph before it.
+     * @returns What it found and the graph it leaves.
+     */
+    const runStep = (entry: JoinStepEntry, before: DraftGraph): StepRun => {
+        const table = tableOf(entry.from, before);
+        if (table === undefined) {
+            return {
+                entry,
+                outcome: Object.freeze({
+                    id: entry.id,
+                    error: Object.freeze({
+                        code: "E_SOURCE_UNKNOWN",
+                        details: Object.freeze({ from: entry.from }),
+                    }),
+                }),
+                before,
+                after: before,
+                fates: new Map(),
+            };
+        }
+
+        try {
+            const read = joinGraph(before);
+            const shape = entry.choices.shape ?? suggestJoin(table, read).shape;
+            const choices: JoinChoices = { ...entry.choices, shape };
+            const report = joinReport(table, read, choices, shape);
+            const { plan } = planJoin(table, read, choices, shape);
+            if (plan.kind === "rows") {
+                throw refuse("E_BAD_COMMAND", `Rows read as ${shape} are a load, not a join.`, {
+                    reason: "not-a-join",
+                    shape,
+                });
+            }
+
+            const { graph: after, fates } = applied(before, plan, entry.id);
+            return { entry, outcome: Object.freeze({ id: entry.id, report }), table, choices, before, after, fates };
+        } catch (error) {
+            if (!(error instanceof GraphtyError)) {
+                throw error;
+            }
+
+            return {
+                entry,
+                outcome: Object.freeze({
+                    id: entry.id,
+                    error: Object.freeze({ code: error.code, details: Object.freeze({ ...error.details }) }),
+                }),
+                table,
+                before,
+                after: before,
+                fates: new Map(),
+            };
+        }
+    };
+
     const run = (): readonly StepRun[] => {
         if (cached !== null) {
             return cached;
@@ -285,66 +373,9 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
         const runs: StepRun[] = [];
         let graph = start;
         for (const entry of state().steps) {
-            const before = graph;
-            const table = tableOf(entry.from, before);
-            if (table === undefined) {
-                runs.push({
-                    entry,
-                    outcome: Object.freeze({
-                        id: entry.id,
-                        error: Object.freeze({
-                            code: "E_SOURCE_UNKNOWN",
-                            details: Object.freeze({ from: entry.from }),
-                        }),
-                    }),
-                    before,
-                    after: before,
-                    fates: new Map(),
-                });
-                continue;
-            }
-
-            try {
-                const read = joinGraph(before);
-                const shape = entry.choices.shape ?? suggestJoin(table, read).shape;
-                const choices: JoinChoices = { ...entry.choices, shape };
-                const report = joinReport(table, read, choices, shape);
-                const { plan } = planJoin(table, read, choices, shape);
-                if (plan.kind === "rows") {
-                    throw refuse("E_BAD_COMMAND", `Rows read as ${shape} are a load, not a join.`, {
-                        reason: "not-a-join",
-                        shape,
-                    });
-                }
-
-                const { graph: after, fates } = applied(before, plan, entry.id);
-                graph = after;
-                runs.push({
-                    entry,
-                    outcome: Object.freeze({ id: entry.id, report }),
-                    table,
-                    choices,
-                    before,
-                    after,
-                    fates,
-                });
-            } catch (error) {
-                if (!(error instanceof GraphtyError)) {
-                    throw error;
-                }
-
-                runs.push({
-                    entry,
-                    outcome: Object.freeze({
-                        id: entry.id,
-                        error: Object.freeze({ code: error.code, details: Object.freeze({ ...error.details }) }),
-                    }),
-                    table,
-                    before,
-                    after: before,
-                    fates: new Map(),
-                });
-            }
+            const ran = runStep(entry, graph);
+            graph = ran.after;
+            runs.push(ran);
         }
 
         cached = runs;
@@ -383,8 +414,13 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
 
     const draft: JoinsDraft = {
         get inputs(): readonly JoinInput[] {
-            const now = run().at(-1)?.after ?? start;
-            return Object.freeze([
+            const runs = run();
+            if (inputsOf?.runs === runs) {
+                return inputsOf.inputs;
+            }
+
+            const now = runs.at(-1)?.after ?? start;
+            const inputs: readonly JoinInput[] = Object.freeze([
                 ...loads.map((load) => {
                     const table = tableOf(load.key, now);
                     return Object.freeze({
@@ -393,6 +429,7 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
                         held: false,
                         columns: Object.freeze([...(table?.columns ?? [])]),
                         rows: table?.rows.length ?? 0,
+                        lists: listColumns(table),
                     });
                 }),
                 ...[...held].map(([key, table]) =>
@@ -402,9 +439,12 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
                         held: true,
                         columns: Object.freeze([...table.columns]),
                         rows: table.rows.length,
+                        lists: listColumns(table),
                     }),
                 ),
             ]);
+            inputsOf = { runs, inputs };
+            return inputs;
         },
         hold(table: JoinLookup): string {
             live("hold a table");
@@ -412,6 +452,7 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
             const columns = table.columns ?? [...new Set(table.rows.flatMap((row) => Object.keys(row)))];
             held.set(key, Object.freeze({ name: table.name ?? key, columns, rows: table.rows }));
             cached = null;
+            inputsOf = null;
             return key;
         },
         get steps(): readonly JoinStepEntry[] {
@@ -477,6 +518,14 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
         outcome(id: string): JoinStepOutcome {
             live("count a step");
             return stepRun(id).outcome;
+        },
+        estimate(step: JoinStep, position?: number): JoinStepOutcome {
+            live("estimate a step");
+            checkFrom(step);
+            const runs = run();
+            const index = Math.max(0, Math.min(position ?? runs.length, runs.length));
+            const before = index < runs.length ? runs[index].before : (runs.at(-1)?.after ?? start);
+            return runStep(frozenStep("", step), before).outcome;
         },
         rows(id, page = {}): JoinPage<JoinPreviewRow> {
             live("read a step's rows");

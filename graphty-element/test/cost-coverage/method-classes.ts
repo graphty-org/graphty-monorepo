@@ -877,6 +877,7 @@ export const READ_ONLY: readonly string[] = [
     "JoinsDraft.change",
     "JoinsDraft.clashes",
     "JoinsDraft.discard",
+    "JoinsDraft.estimate",
     "JoinsDraft.hold",
     "JoinsDraft.move",
     "JoinsDraft.outcome",

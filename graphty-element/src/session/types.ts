@@ -2850,6 +2850,12 @@ export interface JoinInput {
     readonly columns: readonly string[];
     /** How many rows a step reads from it. */
     readonly rows: number;
+    /**
+     * Its columns holding several values in one cell (`"a;b;c"`), by the separator they use: what
+     * {@link JoinChoices.split} takes. A column is one when at least two cells, and a tenth of its
+     * non-empty cells, hold `;` (or `|`) between values.
+     */
+    readonly lists: Readonly<Record<string, string>>;
 }
 
 /**
@@ -3051,6 +3057,15 @@ export interface JoinsDraft {
      * @returns The outcome.
      */
     outcome(id: string): JoinStepOutcome;
+    /**
+     * What a step would do, without adding it: its outcome against the graph the steps before
+     * `at` leave, so each choice can show its counts before one is picked. Its `id` is empty.
+     * @param step - The step.
+     * @param at - The position it would take; the end when absent.
+     * @returns The outcome.
+     * @throws `E_SOURCE_UNKNOWN` for a `from` no input has.
+     */
+    estimate(step: JoinStep, at?: number): JoinStepOutcome;
     /**
      * The rows a step reads, a page at a time, each with its fate.
      * @param id - The step.

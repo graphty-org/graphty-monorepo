@@ -69,7 +69,7 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
     const [version, setVersion] = useState(0);
     const [step, select] = useState<string | null>(null);
     const [side, setSide] = useState<JoinSide>("after");
-    const [closing, setClosing] = useState(false);
+    const [closing, setClosing] = useState<"done" | "cancel" | null>(null);
     const api: JoinWorkspaceApi = useMemo(
         () => ({
             session,
@@ -98,17 +98,24 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
     );
 
     const close = (how: "done" | "cancel"): void => {
-        if (closing) {
+        if (closing !== null) {
             return;
         }
-        setClosing(true);
+        setClosing(how);
         if (how === "cancel") {
             draft.discard();
             onClose();
             return;
         }
-        void draft.commit().finally(onClose);
     };
+    // Done takes the body down first (it reads the draft, which commit() ends), then commits.
+    const committed = useRef(false);
+    useEffect(() => {
+        if (closing === "done" && !committed.current) {
+            committed.current = true;
+            void draft.commit().finally(onClose);
+        }
+    }, [closing, draft, onClose]);
     const closeRef = useRef(close);
     closeRef.current = close;
     const editRef = useRef(api.edit);
@@ -225,7 +232,7 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
                     <Button
                         size="compact-xs"
                         aria-keyshortcuts={ariaKey(JOIN_KEYS.done)}
-                        loading={closing}
+                        loading={closing === "done"}
                         rightSection={
                             <Text span size="sm" className="sel-key">
                                 {formatKey(JOIN_KEYS.done)}
@@ -238,7 +245,7 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
                         Done
                     </Button>
                 </header>
-                <JoinBody />
+                {closing === null ? <JoinBody /> : <div className="jw-body" />}
             </section>
         </JoinWorkspaceContext.Provider>,
         frame,

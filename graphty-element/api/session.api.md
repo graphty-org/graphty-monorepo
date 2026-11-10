@@ -2785,6 +2785,7 @@ export interface JoinInput {
     readonly columns: readonly string[];
     readonly held: boolean;
     readonly key: string;
+    readonly lists: Readonly<Record<string, string>>;
     readonly name: string;
     readonly rows: number;
 }
@@ -2937,6 +2938,7 @@ export interface JoinsDraft {
     clashes(id: string, column: string, options?: JoinPageOptions): JoinPage<JoinClash>;
     commit(): Promise<void>;
     discard(): void;
+    estimate(step: JoinStep, at?: number): JoinStepOutcome;
     hold(table: JoinLookup): string;
     readonly inputs: readonly JoinInput[];
     move(id: string, to: number): void;

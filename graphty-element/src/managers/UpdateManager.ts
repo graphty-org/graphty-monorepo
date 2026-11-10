@@ -1167,7 +1167,7 @@ export class UpdateManager implements Manager {
         const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
         this.drawnSelectedNodes.clear();
 
-        for (const node of this.dataManager.nodes.values()) {
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
             const { index } = node;
             const placed = index !== INVALID_INDEX;
             const visible = nodeVisibility === null || !placed || nodeVisibility.has(index);
@@ -3627,7 +3627,7 @@ export class UpdateManager implements Manager {
 
         const resized = new Set<Node>();
         // A border keeps a row on the object path, so a batched row has none to resize.
-        for (const node of this.roster() ?? this.dataManager.nodes.values()) {
+        for (const node of this.roster() ?? dataManagerInternals.builtNodes(this.dataManager)) {
             if (node.refreshScreenBorder()) {
                 resized.add(node);
             }

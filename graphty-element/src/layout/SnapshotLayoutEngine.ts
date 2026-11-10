@@ -160,6 +160,10 @@ interface SnapshotLayoutHost {
     drawPaint(): void;
     /** What the stored edge weights mean; see {@link SnapshotLayoutInput.weightMeaning}. */
     weightMeaning?(): "strength" | "distance" | null;
+    /** The data of a row drawn with no `Node` (renderPath "batched"), which the engine holds none for. */
+    rowData?(row: number): Record<string | number, unknown> | undefined;
+    /** The element's `data.knownFields.positionScale`. */
+    positionScale?(): number;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -421,6 +425,8 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         }
 
         const nodes = this.#nodesByRow(n);
+        const dataOf = (row: number): Record<string | number, unknown> | undefined =>
+            (nodes[row]?.data as Record<string | number, unknown> | undefined) ?? this.#host?.rowData?.(row);
         const { options } = this;
         return {
             graph,
@@ -451,19 +457,26 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                     }
                 }
 
-                return nodes.map((node) => (node === undefined ? undefined : atPath(node.data, path)));
+                return Array.from(nodes, (_, row) => {
+                    const data = dataOf(row);
+                    return data === undefined ? undefined : atPath(data, path);
+                });
             },
             dataPositions: () => {
                 const out = new Float32Array(dim * n).fill(Number.NaN);
-                nodes.forEach((node, row) => {
-                    const seed = node === undefined ? null : readSeedPosition(node.data as Record<string, unknown>);
+                for (let row = 0; row < n; row++) {
+                    const data = dataOf(row);
+                    const seed = data === undefined ? null : readSeedPosition(data);
                     if (seed !== null) {
-                        const scale = node?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ?? 1;
+                        const scale =
+                            this.#host?.positionScale?.() ??
+                            nodes[row]?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ??
+                            1;
                         for (let k = 0; k < dim; k++) {
                             out[dim * row + k] = seed[k] * scale;
                         }
                     }
-                });
+                }
                 return out;
             },
             // The sizes as the nodes are about to be drawn: paint that has arrived is drawn first.

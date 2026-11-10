@@ -1588,6 +1588,8 @@ export class LayoutManager implements Manager {
             },
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
             weightMeaning: this.weightMeaningFor(type),
+            rowData: (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row),
+            positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale ?? 1,
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },

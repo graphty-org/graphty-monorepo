@@ -368,6 +368,8 @@ export const dataManagerInternals = {} as {
     unbuiltRows(manager: DataManager): number[];
     /** The id of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltAt(manager: DataManager, index: number): NodeIdType | undefined;
+    /** The record of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
+    unbuiltRecord(manager: DataManager, index: number): Record<string | number, unknown> | undefined;
     /** Build the `Node` of a row stored with no `Node` yet, and hand it back. */
     buildRow(manager: DataManager, id: NodeIdType): Node | undefined;
     /** Build the `Node` of every row stored with no `Node` yet. */
@@ -525,6 +527,7 @@ export class DataManager implements Manager {
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
         dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
+        dataManagerInternals.unbuiltRecord = (manager, index) => manager.unbuilt.get(index)?.record;
         dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
         dataManagerInternals.buildAll = (manager) => {
             for (const id of manager.unbuiltRows.ids()) {
@@ -2076,7 +2079,8 @@ export class DataManager implements Manager {
      * @param node - the raw record
      * @param index - the row the store gave it; INVALID_INDEX for an id graph-format will not
      *     take, and the node renders anyway. See the class comment.
-     * @param announce - emit `node-add-before`; false for a row stored earlier, which already did
+     * @param announce - emit `node-add-before` and hold the draw for the pass that paints the row;
+     *     false for a row stored earlier, which already did both
      * @returns the `Node`
      */
     private buildNode(
@@ -2091,8 +2095,16 @@ export class DataManager implements Manager {
 
         // The element's own defaults, because the row index the session's paint is addressed
         // by is assigned on the line below this one. The pass that paints the row replaces it,
-        // and no frame is drawn before then.
-        this.builtUnpainted(`n:${JSON.stringify(nodeId)}`, "node", index);
+        // and no frame is drawn before then. A row stored earlier with no Node keeps its key
+        // among the unpainted until a pass paints it; once painted, no pass will come for it,
+        // so its paint is queued and only the next frame's update is waited for.
+        if (announce) {
+            this.builtUnpainted(`n:${JSON.stringify(nodeId)}`, "node", index);
+        } else {
+            this.graphContext.getStylePainter?.()?.queue("node", index);
+            this.paintUndrawn = true;
+        }
+
         const n = new Node(this.graphContext, nodeId, bootstrapNodePaint(), node as AdHocData, {
             pinOnDrag: this.graphContext.getConfig().pinOnDrag,
         });

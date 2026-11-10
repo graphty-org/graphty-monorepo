@@ -111,19 +111,34 @@ const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
 const NODE_ID_COLUMNS: readonly string[] = ["id", "Id", "ID"];
 
 /**
- * Type every text cell of the records on its own, as a number, a boolean or text.
+ * Type the text cells of the records, as a number, a boolean or text, column by column.
  *
  * graph-io types a CSV column as a whole, so one cell that is not a number (`n/a`) turns every
  * number in its column into text. The element has always typed a cell by what it holds, which is
- * what numeric styling and weights read.
+ * what numeric styling and weights read -- except in a column that is mostly text (phone numbers
+ * spelled `+15550142` beside `+1 555 0123` and names), where every cell is kept as the file writes
+ * it, so a `+` or a leading zero is never lost.
  * @param imported - the records, typed in place
  * @returns the records
  */
 function typeCells(imported: ImportedRecords): ImportedRecords {
-    for (const { data } of [...imported.nodes, ...imported.edges]) {
-        for (const [key, value] of Object.entries(data)) {
-            if (typeof value === "string") {
-                data[key] = parseTextCell(value);
+    for (const records of [imported.nodes, imported.edges]) {
+        // Per column: how many text cells stay text, less how many read as a number or boolean.
+        const textLead = new Map<string, number>();
+        for (const { data } of records) {
+            for (const [key, value] of Object.entries(data)) {
+                if (typeof value === "string" && value !== "") {
+                    const typed = typeof parseTextCell(value) !== "string";
+                    textLead.set(key, (textLead.get(key) ?? 0) + (typed ? -1 : 1));
+                }
+            }
+        }
+
+        for (const { data } of records) {
+            for (const [key, value] of Object.entries(data)) {
+                if (typeof value === "string" && (textLead.get(key) ?? 0) <= 0) {
+                    data[key] = parseTextCell(value);
+                }
             }
         }
     }

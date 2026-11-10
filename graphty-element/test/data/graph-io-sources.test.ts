@@ -171,7 +171,7 @@ describe("CSV read through graph-io", () => {
         assert.deepStrictEqual(pair.nodes, [{ id: "1", label: "A" }]);
     });
 
-    test("types every cell on its own, whatever else its column holds", async () => {
+    test("types every cell on its own in a column that is not mostly text", async () => {
         const { edges } = await collect(
             new CSVDataSource({ data: "source,target,weight,v\n1,2,1.5,1e3\n2,3,n/a,Infinity\n" }),
         );
@@ -182,6 +182,22 @@ describe("CSV read through graph-io", () => {
                 [1.5, 1000],
                 ["n/a", "Infinity"],
             ],
+        );
+    });
+
+    test("keeps every cell of a column that is mostly text as the file writes it", async () => {
+        const data = "value,type\n+15550142,phone\n+1 555 0123,phone\nZoe Reyes,name\n007,device\n";
+        const { nodes } = await collect(new CSVDataSource({ data, variant: "node-list" }));
+        const { rows } = (await new CSVDataSource({ data }).readRows())?.rows ?? { rows: [] };
+
+        const written = ["+15550142", "+1 555 0123", "Zoe Reyes", "007"];
+        assert.deepStrictEqual(
+            nodes.map(({ value }) => value),
+            written,
+        );
+        assert.deepStrictEqual(
+            rows.map(({ value }) => value),
+            written,
         );
     });
 

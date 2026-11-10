@@ -512,7 +512,7 @@ function keptSource(source: ViewSource, kept: NodeMask, keptEdges: EdgeMask | nu
     const { nodeOrigin } = derived;
     const edgeOrigin = (row: number): number => {
         const inFiltered = derived.edgeOrigin === null ? row : derived.edgeOrigin[row];
-        return filtered === null || filtered.edgeOrigin === null ? inFiltered : filtered.edgeOrigin[inFiltered];
+        return filtered?.edgeOrigin?.[inFiltered] ?? inFiltered;
     };
     return {
         snapshot: derived.snapshot,

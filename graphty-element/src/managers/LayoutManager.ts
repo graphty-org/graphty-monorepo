@@ -588,6 +588,17 @@ interface LayoutScopeSource {
      * @returns The values, or null when nothing carries the path.
      */
     nodeValues?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
+    /**
+     * The ids of the edges the filter shows now.
+     * @returns The ids.
+     */
+    visibleEdges?(): ReadonlySet<string>;
+}
+
+/** What the filter shows, under `layout.visibleOnly`: its nodes, and the edges it hides between two of them. */
+interface Shown {
+    readonly nodes: ReadonlySet<NodeIdType>;
+    readonly hiddenEdges: ReadonlySet<Edge>;
 }
 
 /**
@@ -791,7 +802,7 @@ export class LayoutManager implements Manager {
      * null when it leaves nothing out: every other node takes no part in it. See
      * `LayoutEngine.setLeftOut`.
      */
-    private visibleIds: ReadonlySet<NodeIdType> | null = null;
+    private visibleIds: Shown | null = null;
 
     /** The engine and the rows {@link syncFollowers} last handed it. */
     private followersOf: LayoutEngine | null = null;
@@ -2228,29 +2239,39 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * The nodes the filter shows now, when `layout.visibleOnly` is on and it hides any.
-     * @returns The shown nodes, or null when the layout leaves nothing out.
+     * What the filter shows now, when `layout.visibleOnly` is on and it hides any node or edge.
+     * @returns The shown nodes and the edges hidden between them, or null when the layout leaves nothing out.
      */
-    private captureVisible(): ReadonlySet<NodeIdType> | null {
+    private captureVisible(): Shown | null {
         const source = this.scopeSource;
         if (this.styles.config.behavior.layout.visibleOnly !== true || source === null) {
             return null;
         }
 
-        const visible = new Set(source.members("visible"));
-        return visible.size >= this.dataManager.nodes.size ? null : visible;
+        const nodes = new Set(source.members("visible"));
+        const shownEdges = source.visibleEdges?.();
+        const hiddenEdges = new Set<Edge>();
+        for (const edge of shownEdges === undefined ? [] : this.dataManager.edges.values()) {
+            // An edge with a hidden end is left out with that end; only an edge filter's own pick is kept here.
+            if (!shownEdges?.has(edge.id) && nodes.has(edge.srcNode.id) && nodes.has(edge.dstNode.id)) {
+                hiddenEdges.add(edge);
+            }
+        }
+
+        return nodes.size >= this.dataManager.nodes.size && hiddenEdges.size === 0 ? null : { nodes, hiddenEdges };
     }
 
     /**
-     * Tell an engine which rows take no part: every node outside the shown ones.
+     * Tell an engine which rows and edges take no part: every node outside the shown ones, and
+     * every edge the filter hides.
      * @param engine - The engine.
-     * @param visible - The shown nodes, or null to leave nothing out.
+     * @param visible - What the filter shows, or null to leave nothing out.
      */
-    private leaveOut(engine: LayoutEngine, visible: ReadonlySet<NodeIdType> | null): void {
+    private leaveOut(engine: LayoutEngine, visible: Shown | null): void {
         if (visible === null) {
             layoutEngineInternals.setLeftOut(engine, null, 0);
         } else {
-            layoutEngineInternals.setLeftOut(engine, ...this.holdMaskOf(visible));
+            layoutEngineInternals.setLeftOut(engine, ...this.holdMaskOf(visible.nodes), visible.hiddenEdges);
         }
     }
 
@@ -2268,7 +2289,7 @@ export class LayoutManager implements Manager {
         }
 
         const visible = this.captureVisible();
-        if (sameIds(visible, this.visibleIds)) {
+        if (sameShown(visible, this.visibleIds)) {
             return;
         }
 
@@ -3077,17 +3098,19 @@ export interface GroupBox {
 const WHAT_RELAYOUT_IS = "the layout is being run again over what the filter shows";
 
 /**
- * Whether two captures of the shown nodes hold the same nodes.
+ * Whether two captures of what the filter shows hold the same nodes and hidden edges.
  * @param a - One capture, or null for none.
  * @param b - The other.
  * @returns True when they are the same.
  */
-function sameIds(a: ReadonlySet<NodeIdType> | null, b: ReadonlySet<NodeIdType> | null): boolean {
+function sameShown(a: Shown | null, b: Shown | null): boolean {
     if (a === null || b === null) {
         return a === b;
     }
 
-    return a.size === b.size && [...a].every((id) => b.has(id));
+    const same = <T>(x: ReadonlySet<T>, y: ReadonlySet<T>): boolean =>
+        x.size === y.size && [...x].every((v) => y.has(v));
+    return same(a.nodes, b.nodes) && same(a.hiddenEdges, b.hiddenEdges);
 }
 
 /**

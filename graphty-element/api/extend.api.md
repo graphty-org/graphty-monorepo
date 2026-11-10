@@ -2005,12 +2005,14 @@ export abstract class LayoutEngine {
     static honoursWeights: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
+    protected isEdgeLeftOut(edge: Edge): boolean;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
     protected isLeftOut(index: number): boolean;
     isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
+    protected keptEdges(graph: GraphSnapshot): EdgeMask | null;
     protected keptRows(rows: number): NodeMask | null;
     loadArrangement(): void;
     // (undocumented)
@@ -2048,7 +2050,7 @@ export abstract class LayoutEngine {
     static scoped: boolean;
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
-    protected setLeftOut(mask: NodeMask | null, rows: number): void;
+    protected setLeftOut(mask: NodeMask | null, rows: number, edges?: ReadonlySet<Edge> | null): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // @internal
     get spacesBySize(): boolean;

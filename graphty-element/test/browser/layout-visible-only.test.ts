@@ -267,3 +267,46 @@ describe("a force layout over only what the filter shows", () => {
         });
     }
 });
+
+/**
+ * Lay the twenty-node path out with d3, its middle edge (n9 to n10) hidden by an edge filter that
+ * shows every node, and read how far apart the two ends of that edge settle.
+ * @param visibleOnly - Whether the layout runs over what is shown only.
+ * @returns The distance between n9 and n10.
+ */
+async function cutEdgeLength(visibleOnly: boolean): Promise<number> {
+    const container = document.createElement("div");
+    container.style.width = "400px";
+    container.style.height = "300px";
+    document.body.appendChild(container);
+    const graph = new Graph(container);
+    try {
+        await graph.init();
+        graph.setLayoutBehavior({ layout: { visibleOnly } });
+        await graph.addNodes(IDS.map((id) => ({ id })));
+        await graph.addEdges(IDS.slice(1).map((id, index) => ({ src: IDS[index], dst: id, cut: id === "n10" })));
+        const session = graph.getSession() as ElementSession;
+        await session.visibility.set({ kind: "not", of: { kind: "edges", where: "data.cut == `true`" } });
+        assert.strictEqual(session.visibility.nodes.size, IDS.length, "the edge filter shows every node");
+        assert.strictEqual(session.visibility.edges.size, IDS.length - 2, "and hides one edge");
+
+        await graph.setLayout("d3", { seed: 3 });
+        await graph.waitForStableFrame();
+        const at = positionsOf(graph);
+        const [a, b] = [at.get("n9"), at.get("n10")].map((p) => p ?? [Number.NaN, Number.NaN, Number.NaN]);
+        return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    } finally {
+        graph.dispose();
+        container.remove();
+    }
+}
+
+describe("a layout over only the edges the filter shows", () => {
+    it("lets an edge the filter hides between two shown nodes pull nothing", async () => {
+        const whole = await cutEdgeLength(false);
+        const visible = await cutEdgeLength(true);
+
+        // Held by its link, the cut pair sits a link apart; without it the two halves push apart.
+        assert.isAbove(visible, whole * 2, `the hidden edge pulled nothing (${String(visible)} vs ${String(whole)})`);
+    });
+});

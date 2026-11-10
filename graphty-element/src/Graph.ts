@@ -1666,6 +1666,7 @@ export class Graph implements GraphContext {
             nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
+            visibleEdges: () => this.session.visibility.edges,
             detached: (scope) => {
                 try {
                     const { freshness } = this.session.sets.status(scope);

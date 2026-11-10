@@ -66,6 +66,11 @@ export type JoinPlan =
           readonly before: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
           /** For `"merge"`: the nodes merged into. */
           readonly matchedIds: readonly NodeId[];
+          /**
+           * Of `nodes`, the graph's own that only take a value from the join and are not among
+           * what it supplies (a compare's `"only-onto"` nodes).
+           */
+          readonly marked?: readonly NodeId[];
       }
     | { readonly kind: "rows" };
 
@@ -1536,7 +1541,8 @@ function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merg
     const fates = valueFates(matching.rowKeys, matching.rowIds, choices).map((fate) =>
         fate === "joined" ? "merged" : fate,
     );
-    const region = regionWriter(graph, choices, matching, nodes, before, written);
+    const marked: NodeId[] = [];
+    const region = regionWriter(graph, choices, matching, { nodes, before, written, marked });
     if (choices.unmatchedFrom !== "drop") {
         const ids = new Set(graph.nodes.map((node) => String(node.id)));
         // Comparing two graphs keeps the table's clashing values in their own columns on every node.
@@ -1581,6 +1587,7 @@ function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merg
             columns: [...written],
             before,
             matchedIds: [...matching.matched] as NodeId[],
+            ...(marked.length === 0 ? {} : { marked }),
         },
         matching,
         fates,
@@ -1595,19 +1602,25 @@ function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merg
  * @param graph - The graph.
  * @param choices - The join.
  * @param matching - Which nodes rows merge into.
- * @param nodes - The merge's node records, added to.
- * @param before - The values before, added to.
- * @param written - The names written, added to.
+ * @param into - What the merge collects, added to.
+ * @param into.nodes - The merge's node records.
+ * @param into.before - The values before.
+ * @param into.written - The names written.
+ * @param into.marked - The `"only-onto"` nodes, which take the column but are not supplied by the join.
  * @returns The membership value of a region, as a record to spread; empty without `compare`.
  */
 function regionWriter(
     graph: JoinGraph,
     choices: JoinChoices,
     matching: Matching,
-    nodes: Record<string, unknown>[],
-    before: Record<string, Record<string, unknown>>,
-    written: Set<string>,
+    into: {
+        readonly nodes: Record<string, unknown>[];
+        readonly before: Record<string, Record<string, unknown>>;
+        readonly written: Set<string>;
+        readonly marked: NodeId[];
+    },
 ): (region: JoinRegion) => Record<string, unknown> {
+    const { nodes, before, written, marked } = into;
     if (choices.compare !== true) {
         return () => ({});
     }
@@ -1620,6 +1633,7 @@ function regionWriter(
         const record = byId.get(node.id);
         if (record === undefined) {
             nodes.push({ id: node.id, [column]: region });
+            marked.push(node.id);
         } else {
             record[column] = region;
         }

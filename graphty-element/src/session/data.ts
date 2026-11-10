@@ -3716,12 +3716,28 @@ export class SessionData implements SessionDataApi {
             });
         }
 
+        // A node the join only marks takes its value here, so the load does not count it as supplied.
+        const marked = new Set(plan.marked);
+        const nodes = marked.size === 0 ? plan.nodes : plan.nodes.filter((node) => !marked.has(node.id as NodeId));
+        if (marked.size > 0) {
+            steps.push({
+                op: "data.apply",
+                mutation: {
+                    kind: "update-rows",
+                    target: "node",
+                    rows: plan.nodes
+                        .filter((node) => marked.has(node.id as NodeId))
+                        .map(({ id, ...values }) => ({ id: id as NodeId, values })),
+                },
+            });
+        }
+
         steps.push({
             op: "data.import",
             source: described,
             mode: "merge",
             held: {
-                nodes: plan.nodes,
+                nodes,
                 edges: plan.edges,
                 declaredDirection: null,
                 errors: [],
@@ -3731,7 +3747,7 @@ export class SessionData implements SessionDataApi {
                 target: keyExpression(plan.target),
             },
             // A merge's records carry the values fused into the nodes they name.
-            ...(plan.nodes.length === 0 ? {} : { existing: "update" as const }),
+            ...(nodes.length === 0 ? {} : { existing: "update" as const }),
             origin: "join",
             ...(onto === null ? {} : { joinedOnto: onto }),
             join: record,

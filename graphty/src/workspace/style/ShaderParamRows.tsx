@@ -43,7 +43,7 @@ export const GEAR_FIELDS: ReadonlySet<string> = new Set([
 ]);
 
 /** A problem on one field of one parameter row. */
-export interface ParamMark {
+interface ParamMark {
     readonly index: number;
     readonly field: string;
 }

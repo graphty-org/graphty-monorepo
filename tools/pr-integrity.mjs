@@ -8,7 +8,8 @@
  *     weakened; an agent review of the head that answers the finding clears it (`agentCleared`), and so does
  *     a code owner's approval of the head; a finding about screenshot capture settings needs the owner;
  *   - no breaking change: a `!` in the title or a commit subject, or a `BREAKING CHANGE:` footer, fails
- *     unless a code owner approved the head;
+ *     unless a code owner approved the head; a commit master's release-not-breaking.json lists is the owner's
+ *     ruling that it is not breaking, and is skipped;
  *   - baselines signed: a change to a PNG or story settings file under visual-baselines/ (review
  *     records aside) needs the owner's signed approval of the head's tree, checked with master's own
  *     visual-review/trusted/gate.mjs (`git archive`, never the pull request's copy);
@@ -40,6 +41,7 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { check as testIntegrity } from "./check-test-integrity.mjs";
+import { ruledNotBreaking } from "./release-not-breaking.mjs";
 
 export const AGENT = "graphty-agent";
 /** The repository owner: the only account whose approval counts as a code owner's. */
@@ -265,10 +267,15 @@ function agentProblems(cwd, pr) {
 export function prIntegrity(cwd, pr) {
     const mergeBase = git(cwd, ["merge-base", pr.base, pr.head]).trim();
     const files = git(cwd, ["diff", "--name-only", "--no-renames", mergeBase, pr.head]).split("\n").filter(Boolean);
-    const messages = git(cwd, ["log", "--format=%B%x00", `${mergeBase}..${pr.head}`])
+    const commits = git(cwd, ["log", "--format=%H %B%x00", `${mergeBase}..${pr.head}`])
         .split("\0")
         .map((m) => m.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        .map((m) => ({ id: m.slice(0, 40), message: m.slice(41).trim() }));
+    const messages = commits.map((c) => c.message);
+    // master's list, never the head's: a pull request cannot rule its own commit not breaking
+    const notBreaking = ruledNotBreaking(pr.base, cwd);
+    const breaking = [pr.title, ...commits.filter((c) => !notBreaking.has(c.id)).map((c) => c.message)];
     const full = { ...pr, mergeBase, files, text: [pr.title, pr.body ?? "", ...messages].join("\n") };
     const kind = classify(cwd, full);
     const approved = ownerApproved(pr.reviews, pr.owners, pr.head);
@@ -288,7 +295,7 @@ export function prIntegrity(cwd, pr) {
             }
         }
     }
-    if (!approved && [pr.title, ...messages].some(isBreaking)) {
+    if (!approved && breaking.some(isBreaking)) {
         problems.push(
             "Breaking change: the title or a commit is marked `!` or has a BREAKING CHANGE footer; it needs a code owner's approval of the head",
         );

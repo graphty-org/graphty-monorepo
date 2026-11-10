@@ -30,8 +30,11 @@
                 --boot-bg: #ffffff;
                 --boot-ink: #2a3045;
                 --boot-accent: #97c800;
+                --boot-error: #c92a2a;
                 position: fixed;
                 inset: 0;
+                z-index: 10000;
+                overflow-y: auto;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
@@ -48,9 +51,10 @@
                     --boot-bg: #14161f;
                     --boot-ink: #9aa3b8;
                     --boot-accent: #c4f23a;
+                    --boot-error: #ff8787;
                 }
             }
-            #boot svg {
+            #boot > svg {
                 width: 64px;
                 height: 64px;
             }
@@ -80,14 +84,18 @@
                 }
             }
             @media (prefers-reduced-motion: reduce) {
-                #boot .bar::after {
+                #boot .bar::after,
+                #boot-log .is-running .meter::after {
                     animation: none;
                     width: 100%;
                     opacity: 0.5;
                 }
+                #boot .log-toggle svg {
+                    transition: none;
+                }
             }
             #boot .failed,
-            #boot.failed .bar {
+            #boot.failed .bar::after {
                 display: none;
             }
             #boot.failed .failed {
@@ -96,7 +104,7 @@
                 align-items: center;
                 gap: 12px;
             }
-            #boot button {
+            #boot .failed button {
                 font: inherit;
                 padding: 6px 14px;
                 border: 1px solid currentColor;
@@ -105,98 +113,780 @@
                 color: inherit;
                 cursor: pointer;
             }
+            #boot .row {
+                position: relative;
+                display: block;
+                width: 96px;
+                height: 3px;
+            }
+            #boot .log-toggle {
+                position: absolute;
+                right: 100%;
+                top: 50%;
+                margin: -12px 2px 0 0;
+                width: 24px;
+                height: 24px;
+                padding: 0;
+                border: 0;
+                background: none;
+                cursor: pointer;
+                display: grid;
+                place-items: center;
+                color: color-mix(in srgb, var(--boot-ink) 75%, transparent);
+            }
+            #boot .log-toggle:hover,
+            #boot .log-toggle:focus-visible {
+                color: var(--boot-ink);
+            }
+            #boot .log-toggle:focus-visible {
+                outline: 2px solid var(--boot-ink);
+                outline-offset: 2px;
+            }
+            #boot .log-toggle svg {
+                width: 8px;
+                height: 8px;
+                transition: transform 120ms;
+            }
+            #boot .log-toggle[aria-expanded="true"] svg {
+                transform: rotate(90deg);
+            }
+            #boot-log {
+                position: absolute;
+                top: calc(100% + 12px);
+                left: 50%;
+                transform: translateX(-50%);
+                box-sizing: border-box;
+                width: min(560px, calc(100vw - 32px));
+                max-height: clamp(96px, calc(50dvh - 112px - env(safe-area-inset-bottom, 0px)), 280px);
+                display: flex;
+                flex-direction: column;
+                cursor: copy;
+                font:
+                    11px/1.5 ui-monospace,
+                    SFMono-Regular,
+                    Menlo,
+                    Consolas,
+                    monospace;
+                color: var(--boot-ink);
+                background: color-mix(in srgb, var(--boot-ink) 6%, transparent);
+                border: 1px solid color-mix(in srgb, var(--boot-ink) 20%, transparent);
+                border-radius: 4px;
+            }
+            #boot-log[hidden] {
+                display: none;
+            }
+            #boot-log ul {
+                flex: 1 1 auto;
+                min-height: 0;
+                margin: 0;
+                padding: 8px;
+                list-style: none;
+                overflow: auto;
+                overflow-wrap: anywhere;
+                display: grid;
+                grid-template-columns: auto minmax(0, max-content) minmax(48px, 1fr) auto;
+                align-content: start;
+                column-gap: 8px;
+                row-gap: 2px;
+            }
+            #boot-log li {
+                grid-column: 1 / -1;
+            }
+            #boot-log .step {
+                display: grid;
+                grid-template-columns: subgrid;
+                align-items: center;
+            }
+            #boot-log .step::before {
+                content: "\2022";
+            }
+            #boot-log .is-waiting,
+            #boot-log .detail {
+                color: color-mix(in srgb, var(--boot-ink) 85%, transparent);
+            }
+            #boot-log .is-waiting .meter,
+            #boot-log .is-waiting .time,
+            #boot.failed #boot-log .is-waiting {
+                display: none;
+            }
+            #boot-log .detail,
+            #boot-log .error,
+            #boot-log .gap {
+                grid-column: 2 / -1;
+            }
+            #boot-log .is-failed,
+            #boot-log .error {
+                color: var(--boot-error);
+            }
+            #boot-log .time {
+                white-space: nowrap;
+                text-align: right;
+            }
+            #boot-log .meter {
+                display: block;
+                height: 3px;
+                border-radius: 2px;
+                overflow: hidden;
+                background: color-mix(in srgb, var(--boot-ink) 20%, transparent);
+            }
+            #boot-log .meter::after {
+                content: "";
+                display: block;
+                height: 100%;
+                border-radius: 2px;
+                background: var(--boot-accent);
+            }
+            #boot-log .is-running .meter::after {
+                width: 40%;
+                animation: boot-slide 1.2s ease-in-out infinite;
+            }
+            #boot-log .is-done .meter::after,
+            #boot-log .is-failed .meter::after {
+                width: 100%;
+            }
+            #boot-log .is-failed .meter::after {
+                background: var(--boot-error);
+            }
+            #boot-log .log-copy {
+                align-self: flex-end;
+                margin: 0 4px 4px;
+                padding: 0 4px;
+                border: 0;
+                border-radius: 2px;
+                background: none;
+                font: inherit;
+                color: color-mix(in srgb, var(--boot-ink) 85%, transparent);
+                cursor: pointer;
+            }
+            #boot-log .log-copy:hover,
+            #boot-log .log-copy:focus-visible {
+                color: var(--boot-ink);
+            }
+            #boot-log .log-copy:focus-visible {
+                outline: 2px solid var(--boot-ink);
+            }
         </style>
         <script>
-            // A script that fails to load leaves the loading screen up with nothing coming, so
-            // say so instead. Load errors do not bubble, hence the capture phase.
+            // The loading screen's log: one row per step, written here so that it works before any
+            // bundle runs. Each line also goes to the console, for the remote logger.
+            // Without this the browser stops recording requests at 250.
+            performance.setResourceTimingBufferSize(5000);
+            var bootItems = [];
+            var bootLast = 0;
+            var bootHeld = false;
+            var bootGone = false;
+            var bootEntryFailed = false;
+            var bootTicker = 0;
+            var bootCopyReset = 0;
+            // The log must never be why the page fails to load.
+            function bootGuard(f) {
+                return function (...args) {
+                    try {
+                        return f(...args);
+                    } catch (e) {
+                        console.warn("[graphty loading] the log failed: " + e);
+                    }
+                };
+            }
+
+            // The log is for reading and sharing, so no query string, userinfo or credential gets in.
+            // ponytail: this works on the text, so "a?b" or "div#c" in an error message loses its end
+            // too. Better to lose words than to show a secret.
+            function bootClean(s) {
+                return String(s)
+                    .replaceAll(/\b([a-z][a-z0-9+.-]*:\/\/)[^/\s@]*@/gi, "$1")
+                    .replaceAll(/\?\S+|(\S)#\S+/g, "$1")
+                    .replaceAll(
+                        /((?:token|api[_-]?key|secret|password|authorization)[\w-]*["']?\s*[=:]\s*)(?:(?:bearer|basic)\s+)?(?:"[^"]*"|'[^']*'|\S+)/gi,
+                        "$1[removed]",
+                    )
+                    .replaceAll(/\b(bearer\s+)\S+/gi, "$1[removed]")
+                    .slice(0, 500);
+            }
+            function bootEl(tag, className, text) {
+                var el = document.createElement(tag);
+                el.className = className;
+                el.textContent = text;
+                return el;
+            }
+            function bootList() {
+                return document.querySelector("#boot-log ul");
+            }
+            function bootConsole(text, when, isError) {
+                console[isError ? "error" : "info"](
+                    "[graphty loading] " +
+                        ("      " + Math.round(when)).slice(-7) +
+                        "  +" +
+                        ("     " + Math.round(when - bootLast)).slice(-6) +
+                        "  " +
+                        text,
+                );
+            }
+            // A step that has neither finished nor been given up on comes first; the rest wait their turn.
+            function bootFind(test) {
+                return bootItems.filter(function (i) {
+                    return i.kind === "step" && test(i);
+                });
+            }
+            function bootRunning() {
+                return bootFind(function (r) {
+                    return r.status === "running";
+                });
+            }
+            function bootNamed(name) {
+                return bootFind(function (r) {
+                    return r.name === name;
+                })[0];
+            }
+            // Errors with no step running go after the most recent row.
+            function bootAnchor() {
+                return (
+                    // Steps overlap, and an error belongs to the one that started most recently.
+                    bootRunning().pop() ||
+                    bootFind(function (r) {
+                        return r.status === "failed";
+                    }).pop() ||
+                    bootFind(function (r) {
+                        return r.status === "done";
+                    }).pop()
+                );
+            }
+            function bootPlace(item, index) {
+                var list = bootList();
+                var next = bootItems[index];
+                var atEnd = list && list.scrollTop + list.clientHeight >= list.scrollHeight - 4;
+                bootItems.splice(index, 0, item);
+                if (list) {
+                    list.insertBefore(item.el, next ? next.el : null);
+                    if (atEnd) {
+                        list.scrollTop = list.scrollHeight;
+                    }
+                }
+                if (bootItems.length > 500) {
+                    // The start says which steps ran and the end how it finished, so the middle goes.
+                    var at = 100;
+                    while (bootItems[at].status === "running" || bootItems[at].status === "waiting") {
+                        at++;
+                    }
+                    var gap = { kind: "gap", text: "... lines removed here ...", el: null };
+                    gap.el = bootEl("li", "gap", gap.text);
+                    bootItems.splice(at, 2, gap).forEach(function (old, i) {
+                        if (i === 0 && list) {
+                            list.insertBefore(gap.el, old.el);
+                        }
+                        old.el.remove();
+                    });
+                }
+            }
+            function bootAfter(owner, kind, text) {
+                var at = bootItems.indexOf(owner) + 1;
+                while (bootItems[at] && bootItems[at].owner === owner) {
+                    at++;
+                }
+                bootPlace({ kind: kind, text: text, owner: owner, el: bootEl("li", kind, text) }, at);
+            }
+            // On a short screen the error is the one thing the reader must not have to scroll to find.
+            function bootReveal() {
+                var list = bootList();
+                var errors = list.querySelectorAll(".error");
+                var mark = errors[errors.length - 1] || list.querySelector(".is-failed, .is-running");
+                if (mark) {
+                    var bottom = mark.offsetTop - list.offsetTop + mark.offsetHeight + 8;
+                    list.scrollTop = Math.max(list.scrollTop, bottom - list.clientHeight);
+                }
+            }
+            function bootTime(ms) {
+                return ms < 1000 ? Math.round(ms) + " ms" : (ms / 1000).toFixed(1) + " s";
+            }
+            // In place, because replacing the elements would clear what the reader has selected.
+            function bootPaint(row) {
+                row.el.className = "step is-" + row.status;
+                row.time.data = row.status === "waiting" ? "" : bootTime(row.took);
+            }
+            function bootMakeStep(name, status) {
+                var row = { kind: "step", name: name, status: status, took: 0, el: bootEl("li", "", "") };
+                var time = bootEl("span", "time", "");
+                row.time = document.createTextNode("");
+                time.appendChild(row.time);
+                row.el.append(bootEl("span", "name", name), bootEl("span", "meter", ""), time);
+                bootPaint(row);
+                return row;
+            }
+            function bootAdvance() {
+                var next = bootFind(function (r) {
+                    return r.status === "waiting" || r.status === "running";
+                })[0];
+                if (next && next.status === "waiting" && !document.querySelector("#boot.failed")) {
+                    next.status = "running";
+                    next.start = bootLast;
+                    bootPaint(next);
+                }
+            }
+            [
+                "HTML received",
+                "screen drawn",
+                "entry script loaded",
+                "entry script ran",
+                "React first commit",
+                "kept work checked",
+                "frame code loaded",
+                "graphty-element defined",
+                "graph-started",
+                "project opened",
+            ].forEach(function (name) {
+                bootItems.push(bootMakeStep(name, "waiting"));
+            });
+            bootAdvance();
+            function bootBuild() {
+                bootItems.forEach(function (i) {
+                    bootList().append(i.el);
+                });
+                // Copy's own button is the keyboard's way to the click; the list scrolls, so it takes focus.
+                bootList().tabIndex = 0;
+                document.getElementById("boot-log").addEventListener("click", bootPanelClick);
+            }
+            // A step has finished. "at" is when, if that was before now. Words after a step's name
+            // are a detail; a line that names no step is a row of its own, in the order it happened.
+            var bootStep = bootGuard(function (text, at) {
+                var when = at === undefined ? performance.now() : Math.max(at, bootLast);
+                var clean = bootClean(text);
+                bootConsole(clean, when, false);
+                if (bootGone) {
+                    return;
+                }
+                var row = bootFind(function (r) {
+                    return r.status !== "done" && clean.indexOf(r.name) === 0;
+                })[0];
+                if (!row) {
+                    row = bootMakeStep(clean, "done");
+                    var first = bootFind(function (r) {
+                        return r.status === "running" || r.status === "waiting";
+                    })[0];
+                    bootPlace(row, first ? bootItems.indexOf(first) : bootItems.length);
+                } else if (clean.length > row.name.length) {
+                    bootAfter(row, "detail", clean.slice(row.name.length).replace(/^[:\s]+/, ""));
+                }
+                row.took = when - (row.start === undefined ? bootLast : row.start);
+                row.status = "done";
+                bootLast = when;
+                bootPaint(row);
+                bootAdvance();
+            });
+            // Something went wrong, under the step that was under way.
+            var bootError = bootGuard(function (text) {
+                var clean = "ERROR " + bootClean(text);
+                bootConsole(clean, performance.now(), true);
+                if (!bootGone) {
+                    bootAfter(bootAnchor(), "error", clean);
+                    bootReveal();
+                }
+            });
+            // A fact that is not a step, under the step it belongs to.
+            var bootDetail = bootGuard(function (text, name) {
+                var clean = bootClean(text);
+                bootConsole(clean, performance.now(), false);
+                if (!bootGone) {
+                    bootAfter(name ? bootNamed(name) : bootAnchor(), "detail", clean);
+                }
+            });
+            // A step that overlaps the one before it says when it started (src/bootSignal.ts).
+            var bootBegin = bootGuard(function (name) {
+                var row = bootNamed(name);
+                if (row && row.status === "waiting") {
+                    row.status = "running";
+                    row.start = performance.now();
+                    bootPaint(row);
+                }
+            });
+            var bootTick = bootGuard(function () {
+                var running = bootRunning();
+                running.forEach(function (row) {
+                    row.took = performance.now() - row.start;
+                    bootPaint(row);
+                });
+                if (!running.length) {
+                    clearInterval(bootTicker);
+                }
+            });
+            var bootFail = bootGuard(function () {
+                var boot = document.getElementById("boot");
+                if (boot) {
+                    boot.className = "failed";
+                    boot.setAttribute("aria-label", "Could not load graphty");
+                    bootRunning().forEach(function (row) {
+                        row.status = "failed";
+                        row.took = performance.now() - row.start;
+                        bootPaint(row);
+                    });
+                }
+            });
+            function bootPad(word) {
+                return ("[" + word + "]            ").slice(0, 14);
+            }
+            // Plain text to paste into a chat: the steps with their errors, then the facts.
+            function bootText() {
+                var gaveUp = document.querySelector("#boot.failed");
+                var words = { done: "done", running: "running", failed: "failed", waiting: "not started" };
+                var lines = ["graphty loading log"];
+                var facts = [];
+                bootItems.forEach(function (i) {
+                    if (i.kind === "detail") {
+                        facts.push(i.owner.name + ": " + i.text);
+                    } else if (i.kind !== "step") {
+                        lines.push("    " + i.text);
+                    } else if (i.status !== "waiting") {
+                        lines.push(bootPad(words[i.status]) + i.name + "  " + bootTime(i.took));
+                    } else if (!gaveUp) {
+                        lines.push(bootPad(words.waiting) + i.name);
+                    }
+                });
+                return lines
+                    .concat(
+                        ["", "Facts:"],
+                        facts,
+                        "page: " + bootClean(location.pathname),
+                        "browser: " + bootClean(navigator.userAgent),
+                        "time: " + new Date().toISOString(),
+                    )
+                    .join("\n");
+            }
+            function bootSaid(word) {
+                var button = document.querySelector("#boot-log .log-copy");
+                button.textContent = word;
+                clearTimeout(bootCopyReset);
+                bootCopyReset = setTimeout(function () {
+                    button.textContent = "Copy";
+                }, 1500);
+            }
+            // navigator.clipboard exists only on secure pages, and dev servers can be plain http.
+            function bootCopyByHand(text) {
+                var hold = document.createElement("textarea");
+                var focused = document.activeElement;
+                hold.value = text;
+                hold.style.position = "fixed";
+                hold.style.opacity = "0";
+                document.body.append(hold);
+                hold.select();
+                var copied = document.execCommand("copy");
+                hold.remove();
+                if (focused) {
+                    focused.focus();
+                }
+                bootSaid(copied ? "Copied" : "Could not copy");
+            }
+            // Selecting part of the list is still possible: a drag ends in a click with text selected.
+            var bootPanelClick = bootGuard(function (e) {
+                var selection = getSelection();
+                if (e.detail > 0 && selection && !selection.isCollapsed) {
+                    return;
+                }
+                var text = bootText();
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(text).then(
+                        function () {
+                            bootSaid("Copied");
+                        },
+                        bootGuard(function () {
+                            bootCopyByHand(text);
+                        }),
+                    );
+                } else {
+                    bootCopyByHand(text);
+                }
+            });
+            // Another origin's status reads 0 whether it failed or not, so only the app's own count.
+            function bootOwnRequests() {
+                return performance.getEntriesByType("resource").filter(function (r) {
+                    return r.name.indexOf(location.origin) === 0;
+                });
+            }
+            function bootRequestFailed(r) {
+                return r.responseStatus === 0 || r.responseStatus >= 400;
+            }
+            var bootRequests = bootGuard(function () {
+                var own = bootOwnRequests();
+                var bytes = 0;
+                var slowest = null;
+                var failed = 0;
+                own.forEach(function (r) {
+                    bytes += r.encodedBodySize || 0;
+                    slowest = !slowest || r.duration > slowest.duration ? r : slowest;
+                    failed += bootRequestFailed(r) ? 1 : 0;
+                });
+                bootDetail(
+                    "requests: " +
+                        own.length +
+                        ", " +
+                        Math.round(bytes / 1024) +
+                        " KB" +
+                        // Safari keeps no status in its timings, so it cannot say how many failed.
+                        (own.length && own[0].responseStatus === undefined ? "" : ", " + failed + " failed") +
+                        (slowest ? ", slowest " + Math.round(slowest.duration) + " ms " + slowest.name : ""),
+                    "entry script loaded",
+                );
+            });
+            function bootDone() {
+                if (bootGone) {
+                    return;
+                }
+                bootGone = true;
+                clearInterval(bootTicker);
+                clearTimeout(bootCopyReset);
+                var boot = document.getElementById("boot");
+                if (boot) {
+                    boot.remove();
+                }
+                bootRequests();
+                // Back to the browser's own limit, now that the log has what it needs.
+                performance.setResourceTimingBufferSize(250);
+                bootConsole("loading screen removed", performance.now(), false);
+            }
+            function bootShow(open) {
+                document.getElementById("boot-log").hidden = !open;
+                document.querySelector("#boot .log-toggle").setAttribute("aria-expanded", String(open));
+                clearInterval(bootTicker);
+                if (open) {
+                    bootReveal();
+                    bootTick();
+                    bootTicker = setInterval(bootTick, 100);
+                }
+            }
+            function bootFold() {
+                var open = document.getElementById("boot-log").hidden;
+                bootShow(open);
+                try {
+                    sessionStorage.setItem("graphty-boot-log-open", open ? "1" : "");
+                } catch (e) {
+                    bootDetail("the fold cannot be remembered: " + e);
+                }
+            }
+            // What the app says once it runs (src/bootSignal.ts).
+            document.addEventListener("graphty-boot", function (e) {
+                var d = e.detail;
+                if (d.hold) {
+                    bootHeld = true;
+                }
+                if (d.start) {
+                    bootBegin(d.start);
+                }
+                if (d.line) {
+                    (d.error ? bootError : bootStep)(d.line);
+                }
+                if (d.done) {
+                    bootDone();
+                }
+            });
+            // The entry cannot run until the last of its imports has arrived, so its step ends then.
+            var bootEntryArrived = bootGuard(function (onlyIfFetched) {
+                var scripts = document.querySelectorAll("script[type=module][src]");
+                var src = scripts.length ? scripts[scripts.length - 1].src : "";
+                var entry = performance.getEntriesByName(src)[0];
+                if ((onlyIfFetched && !entry) || bootNamed("entry script loaded").status === "done") {
+                    return;
+                }
+                bootStep(
+                    "entry script loaded " +
+                        src +
+                        (entry ? " (" + Math.round(entry.duration) + " ms for this file, the rest its imports)" : ""),
+                    Math.max(
+                        ...bootOwnRequests().map(function (r) {
+                            return r.responseEnd;
+                        }),
+                    ),
+                );
+            });
+            // A script the app needs failing leaves the loading screen up with nothing coming, so
+            // say so instead. Which requests failed shows only in the browser's resource timings,
+            // a moment after the script's own error, which names only the entry point.
+            function bootReportRequests(entry) {
+                setTimeout(function () {
+                    var all = bootOwnRequests();
+                    var report = function (how, failed) {
+                        bootError(
+                            "graphty failed to load " +
+                                entry +
+                                ": " +
+                                failed.length +
+                                " of " +
+                                all.length +
+                                " requests failed (" +
+                                how +
+                                ")",
+                        );
+                        failed.slice(0, 20).forEach(function (f) {
+                            bootError(f);
+                        });
+                    };
+                    if (all.length === 0 || all[0].responseStatus !== undefined) {
+                        report(
+                            "as loaded",
+                            all.filter(bootRequestFailed).map(function (r) {
+                                return r.responseStatus + " " + r.name;
+                            }),
+                        );
+                        return;
+                    }
+                    // Safari keeps no status in its timings, so ask for each file again.
+                    // A file that loads now failed only for a moment.
+                    Promise.all(
+                        all.map(function (r) {
+                            return fetch(r.name, { cache: "no-store" }).then(
+                                function (res) {
+                                    return res.ok ? null : res.status + " " + r.name;
+                                },
+                                function (err) {
+                                    return String(err) + " " + r.name;
+                                },
+                            );
+                        }),
+                    ).then(function (results) {
+                        report("asked again", results.filter(Boolean));
+                    });
+                }, 500);
+            }
+            // Load errors do not bubble, hence the capture phase.
             addEventListener(
                 "error",
                 function (e) {
-                    var boot = document.getElementById("boot");
-                    // Only the app's own scripts count. Another origin's script, such as the dev
-                    // server's remote logger, failing says nothing about whether the app loads.
-                    var own = e.target instanceof HTMLScriptElement && e.target.src.indexOf(location.origin) === 0;
-                    if (boot && own) {
-                        boot.className = "failed";
-                        boot.setAttribute("aria-label", "Could not load graphty");
-                        // The script's own error names only the entry point: a module it imports
-                        // that failed shows only in the browser's resource timings, a moment later.
-                        var entry = e.target.src;
-                        setTimeout(function () {
-                            var all = performance.getEntriesByType("resource").filter(function (r) {
-                                // Another origin's status reads 0 whether it failed or not.
-                                return r.name.indexOf(location.origin) === 0;
-                            });
-                            var report = function (how, failed) {
-                                console.error(
-                                    "graphty failed to load " +
-                                        entry +
-                                        ": " +
-                                        failed.length +
-                                        " of " +
-                                        all.length +
-                                        " requests failed (" +
-                                        how +
-                                        ")",
-                                    failed.slice(0, 20),
-                                );
-                            };
-                            if (all.length === 0 || all[0].responseStatus !== undefined) {
-                                report(
-                                    "as loaded",
-                                    all
-                                        .filter(function (r) {
-                                            return r.responseStatus === 0 || r.responseStatus >= 400;
-                                        })
-                                        .map(function (r) {
-                                            return r.responseStatus + " " + r.name;
-                                        }),
-                                );
-                                return;
-                            }
-                            // Safari keeps no status in its timings, so ask for each file again.
-                            // A file that loads now failed only for a moment.
-                            Promise.all(
-                                all.map(function (r) {
-                                    return fetch(r.name, { cache: "no-store" }).then(
-                                        function (res) {
-                                            return res.ok ? null : res.status + " " + r.name;
-                                        },
-                                        function (err) {
-                                            return String(err) + " " + r.name;
-                                        },
-                                    );
-                                }),
-                            ).then(function (results) {
-                                report("asked again", results.filter(Boolean));
-                            });
-                        }, 500);
+                    if (bootGone) {
+                        return;
+                    }
+                    if (e.detail) {
+                        // graphty-element's own error event.
+                        var cause = e.detail.error;
+                        bootError("graphty-element " + e.detail.context + ": " + ((cause && cause.message) || cause));
+                        if (bootHeld) {
+                            bootFail();
+                        }
+                    } else if (e.target instanceof Element) {
+                        bootError("could not load " + (e.target.src || e.target.href));
+                        // Only the app's own scripts count. Another origin's script, such as the dev
+                        // server's remote logger, failing says nothing about whether the app loads.
+                        if (e.target instanceof HTMLScriptElement && e.target.src.indexOf(location.origin) === 0) {
+                            bootEntryFailed = true;
+                            bootFail();
+                            bootReportRequests(e.target.src);
+                        }
+                    } else {
+                        // An exception thrown as the app starts would otherwise leave the bar running forever.
+                        // A browser notice, such as a ResizeObserver loop, names the page at line 0.
+                        var fatal = e.lineno > 0 && e.filename && e.filename.indexOf(location.origin) === 0;
+                        if (fatal) {
+                            bootEntryArrived(true);
+                        }
+                        bootError(e.message + " (" + e.filename + ":" + e.lineno + ")");
+                        if (fatal) {
+                            bootEntryFailed = true;
+                            bootFail();
+                        }
                     }
                 },
                 true,
             );
+            addEventListener("unhandledrejection", function (e) {
+                if (bootGone) {
+                    return;
+                }
+                bootError("unhandled rejection: " + ((e.reason && e.reason.message) || e.reason));
+                if (bootHeld) {
+                    bootFail();
+                }
+            });
         </script>
     </head>
     <body>
-        <div id="root">
-            <output id="boot" aria-label="Loading graphty">
-                <!-- The mark from public/favicon.svg -->
-                <svg viewBox="0 0 64 64" aria-hidden="true">
-                    <g stroke="currentColor" fill="none">
-                        <line x1="40.32" y1="18.47" x2="54.25" y2="12.9" stroke-width="5.5" />
-                        <line x1="27.76" y1="30.73" x2="23.05" y2="41.73" stroke-width="5.5" />
-                        <circle cx="31.5" cy="22" r="9.5" stroke-width="6" />
-                        <circle cx="19.5" cy="50" r="9" stroke-width="6" />
-                    </g>
-                    <circle cx="54.25" cy="12.9" r="6" fill="var(--boot-accent)" />
-                </svg>
+        <div id="root"></div>
+        <output id="boot" aria-label="Loading graphty">
+            <!-- The mark from public/favicon.svg -->
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+                <g stroke="currentColor" fill="none">
+                    <line x1="40.32" y1="18.47" x2="54.25" y2="12.9" stroke-width="5.5" />
+                    <line x1="27.76" y1="30.73" x2="23.05" y2="41.73" stroke-width="5.5" />
+                    <circle cx="31.5" cy="22" r="9.5" stroke-width="6" />
+                    <circle cx="19.5" cy="50" r="9" stroke-width="6" />
+                </g>
+                <circle cx="54.25" cy="12.9" r="6" fill="var(--boot-accent)" />
+            </svg>
+            <span class="failed">
+                Could not load graphty
+                <button type="button" onclick="location.reload()">Reload</button>
+            </span>
+            <span class="row">
+                <button
+                    type="button"
+                    class="log-toggle"
+                    aria-expanded="false"
+                    aria-controls="boot-log"
+                    aria-label="Loading details"
+                    onclick="bootFold()"
+                >
+                    <svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1 0l6 4-6 4z" fill="currentColor" /></svg>
+                </button>
                 <span class="bar"></span>
-                <span class="failed">
-                    Could not load graphty
-                    <button type="button" onclick="location.reload()">Reload</button>
-                </span>
-            </output>
-        </div>
+                <div id="boot-log" hidden>
+                    <ul aria-live="off" aria-label="Loading steps"></ul>
+                    <button type="button" class="log-copy">Copy</button>
+                </div>
+            </span>
+        </output>
+        <script>
+            (function () {
+                bootBuild();
+                var nav = performance.getEntriesByType("navigation")[0];
+                var build = document.querySelector('meta[name="graphty-build"]');
+                bootStep(
+                    "HTML received: " +
+                        (nav ? nav.type : "unknown") +
+                        ", discarded tab: " +
+                        (document.wasDiscarded ? "yes" : "no") +
+                        ", build " +
+                        (build ? build.content : "none"),
+                    // responseEnd is still 0 while the HTML is arriving.
+                    nav ? nav.responseEnd || nav.responseStart : undefined,
+                );
+                bootStep("screen drawn");
+                try {
+                    if (sessionStorage.getItem("graphty-boot-log-open")) {
+                        bootShow(true);
+                    }
+                } catch (e) {
+                    bootDetail("no remembered fold: " + e);
+                }
+                document.addEventListener("DOMContentLoaded", function () {
+                    if (!bootEntryFailed) {
+                        bootEntryArrived();
+                        bootStep("entry script ran");
+                    }
+                    bootRequests();
+                });
+                new MutationObserver(function (records, observer) {
+                    observer.disconnect();
+                    bootStep("React first commit");
+                    // The app holds the screen in this same commit when it has more to decide.
+                    if (!bootHeld) {
+                        bootDone();
+                    }
+                }).observe(document.getElementById("root"), { childList: true });
+                customElements.whenDefined("graphty-element").then(function () {
+                    bootStep("graphty-element defined");
+                });
+                ["render-initialized", "lifecycle-initialized", "graph-started", "graph-first-frame"].forEach(
+                    function (name) {
+                        document.addEventListener(
+                            name,
+                            function () {
+                                bootStep(name);
+                                // A reopened project is on screen: no reason to cover it while the rest loads.
+                                if (name === "graph-first-frame") {
+                                    bootDone();
+                                }
+                            },
+                            { once: true },
+                        );
+                    },
+                );
+            })();
+        </script>
         <script type="module" src="/src/main.tsx"></script>
     </body>
 </html>

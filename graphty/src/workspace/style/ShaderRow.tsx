@@ -1,5 +1,4 @@
 import { ContextMenu, Popout, PopoutButton } from "@graphty/compact-mantine";
-import { formatShaderText, parseShaderText } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Button, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -15,6 +14,7 @@ import {
     bindingsOf,
     copyShaderText,
     fixedParams,
+    namedCopy,
     paramsOf,
     placeOf,
     removeShader,
@@ -28,7 +28,6 @@ import {
 import { focusSectionNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
 import {
-    copyNameWords,
     effectOffWords,
     failureWords,
     GROUP_BY_WORDS,
@@ -93,16 +92,9 @@ function duplicateAction(
     }
     return (): void => {
         ctx.session.shaders
-            .source(entry.use.shader, { duplicate: true, params: fixedParams(entry) })
+            .source(entry.use.shader, { duplicate: true, params: fixedParams(entry), derived: "omit" })
             .then((text) => {
-                const read = parseShaderText(text);
-                const named = read.ok
-                    ? formatShaderText({
-                          ...read.registration,
-                          descriptor: { ...read.registration.descriptor, plainName: copyNameWords(name) },
-                      })
-                    : text;
-                onCode({ text: named, duplicateOf: entry.use.shader, place: placeOf(entry) });
+                onCode({ text: namedCopy(text, name), duplicateOf: entry.use.shader, place: placeOf(entry) });
             })
             .catch(fail("copied"));
     };

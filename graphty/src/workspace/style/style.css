@@ -462,6 +462,11 @@
 }
 
 /* The shader editor's form: the top fields and its parameter rows. */
+.ws-shader-start {
+    flex: 0 0 240px;
+    min-width: 0;
+}
+
 .ws-shader-fields {
     display: flex;
     gap: 8px;

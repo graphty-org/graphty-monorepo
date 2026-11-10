@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
 import { shownChannel } from "./offered";
 import { Field, type RowContext } from "./PropertyRow";
@@ -379,6 +379,14 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     const fail = (verb: string) => (error: unknown) => {
         store.set({ notice: { message: failureWords(spec.title, verb, error), error: true } });
     };
+    // Show in Style on a notice asks for this side's "+": it takes focus once the section is drawn.
+    const shaderNext = useWorkspaceState((state) => state.shaderNext);
+    useEffect(() => {
+        if (shaderNext === tab) {
+            store.set({ shaderNext: null });
+            sectionBox.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
+        }
+    }, [shaderNext, tab, store]);
     const pick = (id: string): Promise<void> => {
         const name = ctx.session.catalog.shaders().find((each) => each.id === id)?.plainName ?? id;
         return addShader(ctx, id).then(() => {

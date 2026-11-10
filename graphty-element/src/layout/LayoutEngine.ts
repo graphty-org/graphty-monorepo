@@ -820,7 +820,9 @@ export abstract class LayoutEngine {
         }
 
         // With no row left out, an end is never read: a row drawn with no `Node` must not be asked for one.
-        return this.leftOut !== null && (this.isLeftOut(edge.endRow("source")) || this.isLeftOut(edge.endRow("target")));
+        return (
+            this.leftOut !== null && (this.isLeftOut(edge.endRow("source")) || this.isLeftOut(edge.endRow("target")))
+        );
     }
 
     /**

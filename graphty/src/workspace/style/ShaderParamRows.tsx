@@ -207,7 +207,7 @@ function ChoiceRows({ row, rowName, invalid, onChange }: Readonly<ChoiceRowsProp
             <Text size="xs">{EDITOR_WORDS.choices}</Text>
             {values.map((choice, index) => (
                 <Group
-                    key={String(index)} // NOSONAR(typescript:S6479): a choice is its position; keying by its label would remount the field mid-word
+                    key={String(index)} // NOSONAR(S6479): a choice is its position; keying by its label would remount the field mid-word
                     gap={4}
                     wrap="nowrap"
                 >
@@ -557,9 +557,9 @@ function ParamRow({
     });
     const insertLabel = canInsert ? EDITOR_WORDS.insert(rowName) : EDITOR_WORDS.insertNeedsCursor;
     return (
-        <div
+        <div // NOSONAR(S6819): the row is a CSS grid, which a fieldset does not lay out as one
             className="ws-param-row"
-            role="group" // NOSONAR(typescript:S6819): the row is a CSS grid, which a fieldset does not lay out as one
+            role="group"
             aria-label={rowName}
         >
             <div className="ws-param-cell" {...cell("name")}>
@@ -697,7 +697,7 @@ export function ShaderParamRows({
         >
             {rows.map((row, index) => (
                 <ParamRow
-                    key={String(index)} // NOSONAR(typescript:S6479): a row is its position (the element addresses rows by index); its name is being typed
+                    key={String(index)} // NOSONAR(S6479): a row is its position (the element addresses rows by index); its name is being typed
                     row={row}
                     index={index}
                     marked={new Set(marks.filter((mark) => mark.index === index).map((mark) => mark.field))}

@@ -234,6 +234,29 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
         assert.isAbove(visits.placed, 0, "the drag placed the capped edge at the dragged node");
     });
 
+    it("are not asked about by the frame's walk while a layout moves the rows", async () => {
+        const element = await loaded(renderer, false, "3d", { renderPath: "batched" });
+        assert.deepInclude(element.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
+        const visits = countVisits();
+        const asked = { pulled: 0 };
+        const isPulled = Object.getOwnPropertyDescriptor(Edge.prototype, "isPulled")?.get;
+        assert.isDefined(isPulled);
+        vi.spyOn(Edge.prototype, "isPulled", "get").mockImplementation(function (this: Edge) {
+            const pulled = isPulled.call(this) as boolean;
+            asked.pulled += pulled ? 1 : 0;
+            return pulled;
+        });
+
+        await element.graph.setLayout("force", { seed: 1 });
+        await element.waitForStableFrame();
+
+        // the capped edge is placed on each frame the rows move; the placed edges are listed once per change to
+        // which edges are pulled, so no frame asks a pulled line anything
+        assert.isAtLeast(visits.placed, 10, "the layout moved the rows over many frames");
+        assert.strictEqual(visits.pulled, 0, "no pulled edge was placed");
+        assert.isAtMost(asked.pulled, 2 * (EDGES.length - 1), "each pulled line was asked a fixed number of times");
+    });
+
     it("draw the placed lines' picture at rest, after a move and with an edge hidden", async () => {
         const placed = await loaded(renderer, false);
         assert.equal(placed.graph.rowCounts.pulledEdges, 0);

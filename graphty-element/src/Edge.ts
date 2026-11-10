@@ -123,6 +123,13 @@ const ARROW_CAPTION_OFFSET = 0.3;
  */
 const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
 
+/**
+ * Counts every time some edge's line starts or stops being pulled ({@link Edge.isPulled}), so a list of the placed
+ * edges is built again only when one did (`UpdateManager.placedEdges`).
+ * @internal
+ */
+export const pulledLines = { version: 0 };
+
 /** Style keys a pulled line can carry; any other set keeps the edge an object edge (`Edge.pullsLine`). */
 const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
 
@@ -2806,6 +2813,7 @@ export class Edge {
             batch.setCurve(piece, 0, null);
         }
 
+        pulledLines.version++;
         this.pulled = {
             batch,
             piece,
@@ -3077,6 +3085,7 @@ export class Edge {
             this.pulled.batch.releaseRoute(this.pulled.route?.at ?? -1);
 
             this.pulled = null;
+            pulledLines.version++;
             return;
         }
 

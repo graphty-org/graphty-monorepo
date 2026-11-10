@@ -237,8 +237,7 @@ describe("the start screen", () => {
         assert.isTrue(scrolled);
     });
 
-    it("pops up the kinds of network with network data on, opening no project", async () => {
-        await siteFeatures(["timeline", "network-data"]);
+    it("pops up the kinds of network, opening no project", async () => {
         const store = renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
@@ -249,7 +248,8 @@ describe("the start screen", () => {
 
     it("opens a graph from a typed web address, and nothing for words that are not one", async () => {
         const store = renderStart();
-        const field = screen.getByRole("textbox", { name: "Web address of a graph file" });
+        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        const field = await screen.findByRole("textbox", { name: /Web address/ });
         await userEvent.type(field, "trade routes{Enter}");
         assert.isNull(store.get().project);
 
@@ -262,15 +262,16 @@ describe("the start screen", () => {
 
     it("opens a typed web address from the Open button beside the box", async () => {
         const store = renderStart();
-        const field = screen.getByRole("textbox", { name: "Web address of a graph file" });
+        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        const field = await screen.findByRole("textbox", { name: /Web address/ });
         await userEvent.type(field, "https://example.com/data/sites.csv");
         await userEvent.click(screen.getByRole("button", { name: "Open" }));
         assert.equal(store.get().opening?.name, "sites");
     });
 
-    it("draws no Open network data with network data off", () => {
+    it("draws Open network data beside Samples and New project", () => {
         renderStart();
-        assert.isNull(screen.queryByRole("button", { name: "Open network data" }));
+        assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
         assert.isNotNull(screen.getByRole("button", { name: "Samples" }));
         assert.isNotNull(screen.getByRole("button", { name: "New project" }));
     });
@@ -313,7 +314,7 @@ describe("the start screen", () => {
         );
         assert.isNotNull(screen.getByRole("button", { name: /^Open a file/ }));
         assert.isNotNull(screen.getByRole("button", { name: "New project" }));
-        assert.isNull(screen.queryByRole("button", { name: "Open network data" }));
+        assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
     });
 });
 

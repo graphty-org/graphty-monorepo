@@ -1,6 +1,6 @@
 import "./start.css";
 
-import { FileSource, useFileDrop } from "@graphty/compact-mantine";
+import { useFileDrop } from "@graphty/compact-mantine";
 import { type DatasetMeta, GENERATOR_DESCRIPTORS, type GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
@@ -8,7 +8,7 @@ import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore }
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES } from "../../data/sampleManifest";
-import { onSiteConfig, siteNetwork, siteTimeline } from "../../siteConfig";
+import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
@@ -31,7 +31,7 @@ import { countWords, isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import NETWORK_SAMPLES from "./network-samples.json";
 import { NETWORK_DIALOG } from "./NetworkDataDialog";
-import { openDataset, openFiles, openGenerated, openModel, openNetworkSample, openSample, openUrl } from "./open";
+import { openDataset, openFiles, openGenerated, openModel, openNetworkSample, openSample } from "./open";
 import { SampleCard } from "./SampleCard";
 import { GENERATED, type LibraryTile, offeredTiles, type SampleCardData } from "./sampleLibrary";
 
@@ -300,17 +300,15 @@ function SampleLibrary(): React.JSX.Element {
     const query = text.trim().toLowerCase();
     // The first paint does not wait for the site's configuration.
     const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
-    const network = useSyncExternalStore(onSiteConfig, siteNetwork);
     const library = offeredTiles(timeline);
-    const networks = network ? NETWORK_TILES : [];
-    const offered = [...library, ...networks];
+    const offered = [...library, ...NETWORK_TILES];
     const fields = [...new Set(offered.map((tile) => tile.field))];
     const datasetCount = library.filter((tile) => tile.field !== GENERATED).length;
     const shown = <T extends LibraryTile | NetworkTile>(each: readonly T[]): T[] =>
         each.filter((tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)));
     const tiles = shown(library);
     const samples = tiles.filter((tile) => tile.field !== GENERATED);
-    const networkSamples = shown(networks);
+    const networkSamples = shown(NETWORK_TILES);
     const generators = tiles.filter((tile) => tile.field === GENERATED);
     // How many the box and the field filter leave, said as they change; never on arrival.
     useAnnounceChange(`${count(tiles.length + networkSamples.length, "sample")} shown`);
@@ -533,8 +531,6 @@ export function StartScreen(): React.JSX.Element {
     const recent = useRecentProjects();
     const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
-    // The first paint does not wait for the site's configuration.
-    const network = useSyncExternalStore(onSiteConfig, siteNetwork);
     const [session, setSession] = useState<GraphSession | null>(null);
     const onSession = useCallback((next: GraphSession) => {
         setSession(next);
@@ -598,7 +594,7 @@ export function StartScreen(): React.JSX.Element {
             )}
         </Button>
     );
-    const networkButton = network ? (
+    const networkButton = (
         <Button
             className="ws-land-tint"
             leftSection={<GLYPHS.data size={16} aria-hidden />}
@@ -609,7 +605,7 @@ export function StartScreen(): React.JSX.Element {
         >
             Open network data
         </Button>
-    ) : null;
+    );
     const newButton = (
         <Button
             variant="default"
@@ -710,7 +706,7 @@ export function StartScreen(): React.JSX.Element {
                                 <div className="ws-land-more">
                                     {openButton("tint")}
                                     {newButton}
-                                    {network ? <div className="ws-land-wide">{networkButton}</div> : null}
+                                    <div className="ws-land-wide">{networkButton}</div>
                                 </div>
                                 {privacy}
                             </Paper>
@@ -734,27 +730,7 @@ export function StartScreen(): React.JSX.Element {
                                     >
                                         Samples
                                     </Button>
-                                    {/* Without network data, New from data... sits beside Samples. */}
-                                    {network ? <div className="ws-land-wide">{newButton}</div> : newButton}
-                                    {/* A graph file at a web address opens as a new project; with network
-                                        data on, Open network data holds the box. */}
-                                    {network ? null : (
-                                        <div className="ws-land-wide">
-                                            <FileSource
-                                                variant="row"
-                                                url
-                                                multiple
-                                                placeholder="Web address of a graph file"
-                                                openLabel="Open"
-                                                onUrl={(url) => {
-                                                    openUrl(workspace.store, url);
-                                                }}
-                                                onFiles={(files) => {
-                                                    openFiles(workspace, files);
-                                                }}
-                                            />
-                                        </div>
-                                    )}
+                                    <div className="ws-land-wide">{newButton}</div>
                                 </div>
                                 {privacy}
                             </Paper>

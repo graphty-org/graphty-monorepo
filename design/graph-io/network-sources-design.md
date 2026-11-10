@@ -2,8 +2,8 @@
 
 > The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
 
-Status (2026-11-07): implemented and experimental, behind graphty-element's `network-data`
-experiment (issue #6211; off by default, on at canary.graphty.app and nightly.graphty.app). Built: graph-io's source
+Status (2026-11-09): implemented, experimental in its API, and always on: the `network-data`
+experiment switch (issue #6211) was removed and its id is now graduated. Built: graph-io's source
 contract, registry and built-in sources NDEx, Cypher (with the `neo4j` and `neptune` presets, over
 the Neo4j Query API, Bolt, Neptune Database and Neptune Analytics), SPARQL, and REST (with the
 `openalex` preset); graphty-element's source verbs on `session.data` (`import` with a `source`,
@@ -23,9 +23,7 @@ kind of source's public `examples`.
 Reopening: a project opened with `session.project.open(file, { ownWork: true })` (the reader's
 own autosave or a project kept in this browser) keeps its loads live, and only the loads its
 `graphty-sources` member lists as `waiting` wait for approval; any other project file waits for
-every load. With the `network-data` experiment off, every source verb rejects with
-`E_FEATURE_OFF` (`{ feature, key }`), `pendingSourceLoads()` is empty, a project's
-`graphty-sources` member is kept unchanged, and the graphty app shows no network entry point.
+every load.
 
 The rest of this document is the design as written on 2026-10-17, kept for its reasoning. Browser
 and Node behavior was measured then (section 7 says how), the Cypher path was run against a live
@@ -1061,7 +1059,7 @@ params that load a known graph from it, listed on its source's descriptor (`exam
 first page) and offered only as tiles on the start page, never in the network form. Example ids
 are unique within their source.
 
-**Where the graphty app shows them.** With the `network-data` experiment on, the start page has a
+**Where the graphty app shows them.** The start page has a
 "Load network data" section immediately before "Generate a graph", with one tile for each kind of
 network: NDEx (`ndex-wp5483`), Neo4j (`neo4j-movies`), SPARQL endpoint (`uniprot-tp53`) and Web API
 (`deps-dev-webpack`). Which example fills a tile is the app's choice and lives in
@@ -1076,8 +1074,7 @@ Open network data on the start page pops up a chooser with one card per kind of 
 Neo4j, SPARQL endpoint, Web API), a Web address box and an Open a file button. A card opens the app
 on an empty project with the `ServerForm` popped up on that kind, with no example or sample in it.
 Closing the form with nothing loaded returns to the start page, and closing it during a Load aborts
-the Load. With the experiment off there is no button and no tiles, and the start page keeps its own
-Web address box.
+the Load.
 
 **What the app says about a load.** A click on a row in the Data place's Sources list shows that
 load in the right panel: its type, file or address, format, size, when it was retrieved, node and
@@ -1479,7 +1476,7 @@ Seeing and changing what a load fetches:
 - When loads overlap, each `sources()` row is matched to one load: the load most of its nodes
   carry, among loads no earlier row took, the newest on a tie.
 
-In the graphty app, behind the `network-data` flag, a network source's details panel shows these
+In the graphty app, a network source's details panel shows these
 settings as rows and its Edit control opens the network form filled with them (password fields
 empty). A file or sample file source has no Edit control. Closing the form never leaves the app.
 
@@ -1796,11 +1793,10 @@ dependencies for graph-io are fine"). These still publish contracts that are har
 
 ## Appendix A. Sub-issues (drafted, not filed; built)
 
-Status (2026-11-07): A.1 to A.9 are built under the `network-data` experiment (#6211) and were
+Status (2026-11-07): A.1 to A.9 are built (#6211) and were
 never filed as separate issues. What remains is filed: the Gremlin source (#6212), a file-host
 source (#6213), more REST presets (#6214), Cypher neighborhoods without `idProperty` (#6215),
-`neo4j+s://` endpoints (#6216), a default User-Agent in Node (#6217), graduating the experiment
-(#6211) and local Memgraph (#3408). The drafts below are kept for their scope.
+`neo4j+s://` endpoints (#6216), a default User-Agent in Node (#6217) and local Memgraph (#3408). The drafts below are kept for their scope.
 
 One framework issue, one per initial source, one per further source. All carry `enhancement`, a
 priority and an effort, and say `Refs #2907`.

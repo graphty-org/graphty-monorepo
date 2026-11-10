@@ -511,9 +511,9 @@ describe("the Data page on the real element", () => {
         await within(inspector).findByText("1 edge row was left out: it names a node missing from the node rows.");
         // The row itself, kept by the element with the load: no file to reopen.
         await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
-        // Two headed sections: what it added first, then what it left out.
+        // Its counts first, then what it left out.
         assertInOrder(
-            within(inspector).getByText("Loaded"),
+            within(inspector).getByText("Statistics"),
             within(inspector).getByText("Left out"),
             within(inspector).getByText("1 edge row was left out: it names a node missing from the node rows."),
         );
@@ -540,7 +540,7 @@ describe("the Data page on the real element", () => {
         assert.notInclude(row.textContent, "left out");
         await userEvent.click(within(row).getAllByRole("button")[0]);
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
-        await within(inspector).findByText("Loaded");
+        await within(inspector).findByText("Statistics");
         assert.notInclude(inspector.textContent, "left out");
     });
 

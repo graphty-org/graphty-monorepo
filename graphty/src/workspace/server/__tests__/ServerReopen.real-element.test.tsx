@@ -12,7 +12,6 @@ import { type GraphSession, listAutosaves, replayFetch } from "@graphty/graphty-
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { WORKSPACE_AUTOSAVE_KEY } from "../../autosave/autosave";
@@ -71,8 +70,6 @@ function openedElement(): { element: ElementUnderTest; session: GraphSession } {
 }
 
 describe("a network load reopened from autosave", () => {
-    withFeatures(["network-data"]);
-
     beforeEach(async () => {
         await forgetAutosave();
         const replay = replayFetch(ndexRecordings);

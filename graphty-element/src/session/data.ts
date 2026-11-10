@@ -337,11 +337,6 @@ interface PageSources {
      */
     timeline?(): boolean;
     /**
-     * Whether the network-data experiment is on; absent reads on.
-     * @returns true when it is
-     */
-    network?(): boolean;
-    /**
      * Whether the file styles experiment is on; absent reads on.
      * @returns true when it is
      */
@@ -982,9 +977,6 @@ export class SessionData implements SessionDataApi {
      */
     async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
-        if (source.source !== undefined) {
-            this.requireNetwork("import");
-        }
 
         // Refused before anything is read, a network source's fetch included.
         if (asksFileStyles({ ...options, source }) && this.pages.fileStyles?.() === false) {
@@ -1286,10 +1278,6 @@ export class SessionData implements SessionDataApi {
      */
     testSource(source: SourceInput, options: SourceLoadOptions = {}): Promise<SourceProbe> {
         this.requireLive("testSource");
-        const off = this.networkOff("testSource");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.testSource(host, source, options));
@@ -1308,10 +1296,6 @@ export class SessionData implements SessionDataApi {
         options: SourceLoadOptions = {},
     ): Promise<SourceListing> {
         this.requireLive("listSource");
-        const off = this.networkOff("listSource");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.listSource(host, source, query, options));
@@ -1325,10 +1309,6 @@ export class SessionData implements SessionDataApi {
      */
     expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<SourceExpandResult> {
         this.requireLive("expand");
-        const off = this.networkOff("expand");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         // In line, as a load: its rows are dispatched after every load asked for before it, and a
         // load asked for after it waits for all of them, so it never adds to the graph that load
@@ -1376,10 +1356,6 @@ export class SessionData implements SessionDataApi {
      */
     collapse(id: NodeId): Promise<CollapseResult> {
         this.requireLive("collapse");
-        const off = this.networkOff("collapse");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         // In line, as an edit: it removes what the graph holds once the loads ahead of it landed.
         // A clear asked for while it waits cancels it: it removes nothing, and the clear removes all.
@@ -1402,10 +1378,6 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceMoreOptions = {}): Promise<void> {
         this.requireLive("more");
-        const off = this.networkOff("more");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         return this.inLine(options.signal, (host) =>
             import("./sources/load").then((module) => module.more(host, options)),
@@ -1420,10 +1392,6 @@ export class SessionData implements SessionDataApi {
      */
     previewSource(source: SourceInput, options: SourcePreviewOptions = {}): Promise<SourcePreview> {
         this.requireLive("previewSource");
-        const off = this.networkOff("previewSource");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.previewSource(host, source, options));
@@ -1431,7 +1399,7 @@ export class SessionData implements SessionDataApi {
 
     /**
      * Read one of a source's examples and change nothing: nothing is drawn, recorded or added to
-     * history. Pass the result to `import`, on this session or another with `network-data` on, and
+     * history. Pass the result to `import`, on this session or another, and
      * it loads without reading the service again. Refuses what the renderer could not draw
      * (`E_TOO_LARGE`) here, before anything is opened for it.
      * @param source - The source id.
@@ -1441,10 +1409,6 @@ export class SessionData implements SessionDataApi {
      */
     readExample(source: string, example: string, options: SourceLoadOptions = {}): Promise<SourceRead> {
         this.requireLive("readExample");
-        const off = this.networkOff("readExample");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.readExample(host, source, example, options));
@@ -1458,10 +1422,6 @@ export class SessionData implements SessionDataApi {
      */
     checkSource(load: string, options: SourceLoadOptions = {}): Promise<SourceCheck> {
         this.requireLive("checkSource");
-        const off = this.networkOff("checkSource");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.checkSource(host, load, options));
@@ -1475,10 +1435,6 @@ export class SessionData implements SessionDataApi {
      */
     refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
-        const off = this.networkOff("refresh");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.refreshSource(host, load, options));
@@ -1493,7 +1449,6 @@ export class SessionData implements SessionDataApi {
      */
     async loadExample(source: string, example: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("loadExample");
-        this.requireNetwork("loadExample");
         const turn = this.loadLine.join(options.signal);
         try {
             await (await import("./sources/load")).loadExample(this.hostInTurn(turn), source, example, options);
@@ -1506,15 +1461,10 @@ export class SessionData implements SessionDataApi {
      * What a network load connects to and fetches, for showing it or filling a form to edit it.
      * The params are redacted as a saved file has them; no credential is in it.
      * @param key - the `sources()` entry's key
-     * @returns the settings, or undefined for a source that is not a network load, or with the
-     *     network-data feature off.
+     * @returns the settings, or undefined for a source that is not a network load.
      * @experimental
      */
     sourceSettings(key: SourceKey): SourceSettings | undefined {
-        if (this.networkOff("sourceSettings") !== null) {
-            return undefined;
-        }
-
         const load = this.sources().find((each) => each.key === key)?.loadKey;
         const record = this.ledger.loads().find((each) => each.key === load);
         if (record === undefined) {
@@ -1562,7 +1512,7 @@ export class SessionData implements SessionDataApi {
      * @returns One entry per waiting load.
      */
     pendingSourceLoads(): readonly PendingSourceLoad[] {
-        return this.networkOn ? pendingSourceLoads(this.sourceHost()) : [];
+        return pendingSourceLoads(this.sourceHost());
     }
 
     /**
@@ -1573,10 +1523,6 @@ export class SessionData implements SessionDataApi {
      */
     runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("runPendingSourceLoad");
-        const off = this.networkOff("runPendingSourceLoad");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         return this.inLine(options.signal, (host) =>
             import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options)),
@@ -3063,9 +3009,6 @@ export class SessionData implements SessionDataApi {
         choices: LoadChoices & SourceLoadOptions = {},
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
-        if (source.source !== undefined) {
-            this.requireNetwork("replaceSource");
-        }
 
         return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
     }
@@ -4142,34 +4085,6 @@ export class SessionData implements SessionDataApi {
      */
     private get timelineOn(): boolean {
         return this.pages.timeline?.() !== false;
-    }
-
-    /**
-     * Whether the network-data experiment is on; a session built without the switch reads on.
-     * @returns True when it is on.
-     */
-    private get networkOn(): boolean {
-        return this.pages.network?.() !== false;
-    }
-
-    /**
-     * The refusal of a network-source verb while the network-data experiment is off.
-     * @param verb - The verb.
-     * @returns `E_FEATURE_OFF` naming the network-data experiment and `data.<verb>`, or null when it is on.
-     */
-    private networkOff(verb: string): GraphtyError | null {
-        return this.networkOn ? null : featureOff("network-data", `data.${verb}`);
-    }
-
-    /**
-     * Throw the refusal of a network-source verb while the network-data experiment is off.
-     * @param verb - The verb.
-     */
-    private requireNetwork(verb: string): void {
-        const off = this.networkOff(verb);
-        if (off !== null) {
-            throw off;
-        }
     }
 
     /**

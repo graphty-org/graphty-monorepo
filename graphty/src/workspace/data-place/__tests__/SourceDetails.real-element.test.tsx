@@ -11,7 +11,6 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import ndexRecordings from "../../server/__tests__/ndex-wp5483.json";
 import { createWorkspaceStore } from "../../state/store";
@@ -124,9 +123,7 @@ describe("a source's details in the right panel", () => {
         assert.isUndefined(facts.Nodes);
     });
 
-    describe("with network data on", () => {
-        withFeatures(["network-data"]);
-
+    describe("with a network source", () => {
         it("names a network source and its address", async () => {
             const replay = await import("@graphty/graphty-element/session").then((m) => m.replayFetch(ndexRecordings));
             const realFetch = globalThis.fetch;

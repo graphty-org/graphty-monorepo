@@ -409,7 +409,7 @@ async function jobs(wanted) {
 
 const PAGE = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;background:transparent}</style>
 <script type="module" src="/graphty.bundle.js"></script>
-<graphty-element features="network-data" style="display:block;width:${WIDTH}px;height:${HEIGHT}px"></graphty-element>`;
+<graphty-element style="display:block;width:${WIDTH}px;height:${HEIGHT}px"></graphty-element>`;
 
 const server = createServer((request, response) => {
     if (request.url === "/graphty.bundle.js") {

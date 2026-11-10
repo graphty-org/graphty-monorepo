@@ -1,9 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, waitFor } from "storybook/test";
 
-import { loadSiteConfig, resetSiteConfig } from "../../siteConfig";
 import { realInput } from "../../stories/real-input";
-import { siteFeatures } from "../../test/siteFeatures";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
 import { clearRecent, rememberRecent } from "../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../settings/preferences";
@@ -136,15 +134,8 @@ export const ReturningReader: Story = {
 
 /** Open network data: the chooser of the kinds of network, over the start page. */
 export const NetworkData: Story = {
-    // Network data is an experiment: the story switches it on, as a site's site.json does, and puts
-    // the page's own configuration back afterwards.
-    beforeEach: async () => {
+    beforeEach: () => {
         answerUsageData("declined");
-        await siteFeatures(["network-data"]);
-        return async () => {
-            resetSiteConfig();
-            await loadSiteConfig();
-        };
     },
     play: async ({ canvasElement, parameters }) => {
         await heroDrawn(canvasElement);
@@ -175,13 +166,8 @@ export const NetworkData: Story = {
 
 /** The sample library's network samples, one tile for each kind of network source. */
 export const NetworkSamples: Story = {
-    beforeEach: async () => {
+    beforeEach: () => {
         answerUsageData("declined");
-        await siteFeatures(["network-data"]);
-        return async () => {
-            resetSiteConfig();
-            await loadSiteConfig();
-        };
     },
     play: async ({ canvasElement }) => {
         await heroDrawn(canvasElement);

@@ -170,7 +170,7 @@ function cappedMovies(rows: number): Parameters<typeof replayFetch>[0][number] {
  * @returns settles when it is done
  */
 async function withSession(body: (session: GraphSession) => Promise<void>): Promise<void> {
-    const session = createGraphSession({ features: ["network-data"] });
+    const session = createGraphSession();
     try {
         await body(session);
     } finally {

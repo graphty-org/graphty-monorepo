@@ -1292,8 +1292,7 @@ export interface SessionDataApi {
      * }
      * ```
      * @param key - The load's key, from {@link SessionDataApi.sources}.
-     * @param source - The newer copy, as `import` takes it. A network source (`source: "<id>"`, needing
-     *     the network-data feature) is read with the options below and replaces the load under the
+     * @param source - The newer copy, as `import` takes it. A network source (`source: "<id>"`) is read with the options below and replaces the load under the
      *     same key and name; with no credential given, the one remembered for the endpoint is used.
      *     See {@link SessionDataApi.sourceSettings} for what such a load holds now.
      * @param choices - How to read it, as `draft.load` takes them; `mode` is ignored. For a network
@@ -1728,7 +1727,7 @@ export interface SessionDataApi {
     /**
      * Read one of a source's examples and change nothing, for what `loadExample` loads, with the
      * example's endpoint, published login and first page. Pass the result to `import`, on this
-     * session or another with `network-data` on, and it loads without reading the service again.
+     * session or another, and it loads without reading the service again.
      * Experimental.
      * @param source - The source id, such as `"neo4j"`.
      * @param example - The example's id within that source, such as `"neo4j-movies"`.
@@ -1768,14 +1767,13 @@ export interface SessionDataApi {
      * public server and the params that load a known graph from it), as one undoable step: the
      * example's params, its endpoint, the login its service publishes and, for one too big to
      * load whole, its first page, so `loadExample("neo4j", "neo4j-movies")` is the whole call.
-     * graph-samples' datasets are not examples: load those with `loadDataset`. Needs the
-     * `network-data` experiment. Experimental.
+     * graph-samples' datasets are not examples: load those with `loadDataset`. Experimental.
      * @param source - The source id, such as `"neo4j"`.
      * @param example - The example's id within that source, such as `"neo4j-movies"`.
      * @param options - Anything `import` takes; a `credential` or `endpoint` given here wins.
      * @returns Settles once the example is in the graph; rejects with `E_SOURCE_UNKNOWN`
      *     (`{ source, id, known }`, `known` listing the source's example ids) when the source lists
-     *     no such example, and with `E_FEATURE_OFF` while the `network-data` experiment is off.
+     *     no such example.
      */
     loadExample(source: string, example: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     /**
@@ -1790,8 +1788,7 @@ export interface SessionDataApi {
      * saved file has them and no credential is in it, so it is safe to display; a query source's
      * params say the `mode` it read in. Experimental.
      * @param key - The entry's key, from {@link SessionDataApi.sources}.
-     * @returns The settings, or undefined for a source that is not a network load, or with the
-     *     network-data feature off.
+     * @returns The settings, or undefined for a source that is not a network load.
      */
     sourceSettings(key: SourceKey): SourceSettings | undefined;
     /**

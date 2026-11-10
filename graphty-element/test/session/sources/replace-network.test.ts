@@ -54,7 +54,7 @@ afterEach(() => {
  * @returns the session and the load's key
  */
 async function loaded(): Promise<{ session: GraphSession; key: string }> {
-    const session = createGraphSession({ features: ["network-data"] });
+    const session = createGraphSession();
     sessions.push(session);
     await session.data.import({ source: "edit-people", config: { query: "first" }, name: "My people" });
     return { session, key: session.data.sources()[0].key };
@@ -87,7 +87,7 @@ describe("data.sourceSettings", () => {
     });
 
     it("leaves out secret query params, a mapping's relative path secret and the credential", async () => {
-        const session = createGraphSession({ features: ["network-data"] });
+        const session = createGraphSession();
         sessions.push(session);
         await session.data.import(
             {
@@ -150,7 +150,7 @@ describe("data.replaceSource with a network source", () => {
         assert.lengthOf(session.data.loads(), 1);
         const { text } = await session.project.save();
 
-        const reopened = createGraphSession({ features: ["network-data"] });
+        const reopened = createGraphSession();
         sessions.push(reopened);
         await reopened.project.open(text);
         assert.lengthOf(reopened.data.loads(), 1);
@@ -195,7 +195,7 @@ describe("two network loads that share nodes", () => {
 
 describe("secrets in an edited load's params", () => {
     it("are never shown, and a load read again with what was shown keeps them", async () => {
-        const session = createGraphSession({ features: ["network-data"] });
+        const session = createGraphSession();
         sessions.push(session);
         await session.data.import({
             source: "edit-people",
@@ -252,7 +252,7 @@ registerSource(
 
 describe("a query source's settings", () => {
     it("say the mode it read in when its params leave it out", async () => {
-        const session = createGraphSession({ features: ["network-data"] });
+        const session = createGraphSession();
         sessions.push(session);
         await session.data.import({ source: "mode-people", config: { ids: ["a"] } });
         await session.data.import(

@@ -13,7 +13,6 @@ import { defineSource, type GraphSession, registerSource, replayFetch } from "@g
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { clearRecent, rememberRecent } from "../../project/recent";
@@ -139,8 +138,6 @@ async function landedOnStylePanel(store: WorkspaceStore, session: GraphSession, 
 }
 
 describe("network data from the start page", () => {
-    withFeatures(["network-data"]);
-
     afterEach(async () => {
         vi.restoreAllMocks();
         await clearRecent();
@@ -488,17 +485,5 @@ describe("network data from the start page", () => {
         const session = await openBy(store, () => userEvent.click(tile));
         await landedOnStylePanel(store, session, 57);
         assert.isNull(store.get().notice);
-    });
-});
-
-describe("network data from the start page, with the experiment off", () => {
-    withFeatures([]);
-
-    it("draws no door, no section and no field filter", async () => {
-        render(<Workspace store={createWorkspaceStore()} />);
-        await screen.findByRole("button", { name: "Samples" });
-        assert.isNull(screen.queryByRole("button", { name: "Open network data" }));
-        assert.isNull(screen.queryByRole("region", { name: "Load network data" }));
-        assert.isNull(screen.queryByRole("button", { name: "Network" }));
     });
 });

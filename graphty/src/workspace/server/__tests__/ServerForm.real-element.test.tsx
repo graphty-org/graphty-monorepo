@@ -14,7 +14,6 @@ import { credentials, defineSource, type GraphSession, registerSource } from "@g
 import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -288,8 +287,6 @@ async function openLoaded(source: {
 }
 
 describe("editing a network source", () => {
-    withFeatures(["network-data"]);
-
     it("shows what it fetches, opens the form filled in, and Load replaces it in place; Undo restores", async () => {
         const { session, panel } = await openLoaded({
             source: EDITABLE,
@@ -391,8 +388,6 @@ describe("editing a network source", () => {
 });
 
 describe("server sources on the real element", () => {
-    withFeatures(["network-data"]);
-
     beforeAll(async () => {
         await page.viewport(1366, 900);
     });

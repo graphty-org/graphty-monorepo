@@ -2,8 +2,7 @@
  * Network data (data prototype spec section 3.9): the Sources "+" Network data... door, the
  * Expand... and Collapse verbs on a node a server load brought, and how the form's rows become one
  * `data.import` call. graphty-element reads the server, pages, refreshes and expands; this file
- * only turns what the reader picked into its inputs. Every door here is drawn only with the
- * `network-data` experiment on.
+ * only turns what the reader picked into its inputs.
  */
 
 import { type SourceCatalogEntry, sourceDescriptors } from "@graphty/graphty-element/catalog";
@@ -21,7 +20,6 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { networkOn } from "../features";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { codeWords, failureOf, kindName } from "./words";
@@ -502,7 +500,7 @@ function collapseNode(workspace: WorkspaceStore, session: GraphSession, id: Node
 
 /**
  * The server package's registration: Network data... on the Sources "+", and Expand... and
- * Collapse; each drawn only with the network-data experiment on.
+ * Collapse.
  */
 export const registration = defineRegistration({
     owner: "server",
@@ -512,7 +510,7 @@ export const registration = defineRegistration({
             label: "Network data...",
             group: "Data",
             keywords: ["add", "source", "server", "database", "neo4j", "cypher", "sparql", "ndex", "openalex", "rest"],
-            shown: (ctx) => networkOn(ctx.session),
+            shown: (ctx) => ctx.session !== null,
             run: (ctx) => {
                 openServerForm(ctx.workspace);
             },
@@ -529,7 +527,7 @@ export const registration = defineRegistration({
             },
             shown: (ctx) => {
                 const id = selectedNode(ctx);
-                return networkOn(ctx.session) && id !== undefined && expandableSource(ctx.session, id) !== undefined;
+                return id !== undefined && expandableSource(ctx.session, id) !== undefined;
             },
             run: (ctx) => {
                 ctx.workspace.set({ dialog: EXPAND_DIALOG });
@@ -542,7 +540,7 @@ export const registration = defineRegistration({
             keywords: ["neighbors", "server"],
             shown: (ctx) => {
                 const id = selectedNode(ctx);
-                return networkOn(ctx.session) && id !== undefined && collapsible(ctx.session, id);
+                return id !== undefined && collapsible(ctx.session, id);
             },
             run: (ctx) => {
                 const id = selectedNode(ctx);

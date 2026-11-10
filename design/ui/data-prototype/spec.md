@@ -361,8 +361,7 @@ Expand    [x] on double-click   (pop-over: depth 1, direction both, edge types a
 - **Network samples** are not in the form. The start page's "Load network data" section, immediately
   before "Generate a graph", has one tile for each kind of network (NDEx, Neo4j, SPARQL endpoint,
   Web API), with a thumbnail of its graph. A tile reads its graph first, shows as busy while it
-  does, and then lands on the graph with the Style panel open. With the `network-data` experiment off, neither the
-  button nor the section appears.
+  does, and then lands on the graph with the Style panel open.
 
 ### 3.10 Timeline
 

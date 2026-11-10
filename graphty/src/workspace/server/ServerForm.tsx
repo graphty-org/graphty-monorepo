@@ -17,7 +17,6 @@ import { Button, Input, Loader, PasswordInput, Stack, Textarea } from "@mantine/
 import React, { useEffect, useRef, useState } from "react";
 
 import { sourceName } from "../data-place/words";
-import { networkOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
 import { replaceWith } from "../replace/commands";
@@ -649,7 +648,7 @@ function WaitingLoads(): React.JSX.Element | null {
     useSessionVersion(session);
     const [failed, setFailed] = useState<Readonly<Record<string, CodedFact>>>({});
     const waiting = session?.data.pendingSourceLoads() ?? [];
-    if (session === null || !networkOn(session) || waiting.length === 0) {
+    if (session === null || waiting.length === 0) {
         return null;
     }
     const names = new Map(serverKinds().map((each) => [each.id, kindName(each)]));
@@ -695,8 +694,8 @@ function WaitingLoads(): React.JSX.Element | null {
 
 /**
  * The server place in the left sidebar: the loads waiting for approval, and the anchor the
- * network data form opens beside, as a pop-over, while the dialog is `"server"`. Nothing while the
- * network-data experiment is off.
+ * network data form opens beside, as a pop-over, while the dialog is `"server"`. Nothing until the
+ * session is up.
  * @returns the place, or nothing.
  */
 export function ServerPlace(): React.JSX.Element | null {
@@ -709,7 +708,7 @@ export function ServerPlace(): React.JSX.Element | null {
             store.set({ dialog: null });
         }
     };
-    if (!networkOn(session)) {
+    if (session === null) {
         return null;
     }
     return (

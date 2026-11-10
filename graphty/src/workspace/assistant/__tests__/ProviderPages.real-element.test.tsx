@@ -28,7 +28,7 @@ function outOfQuota(): void {
     const real = globalThis.fetch;
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
         const url = input instanceof Request ? input.url : String(input);
-        if (!url.includes("generativelanguage.googleapis.com")) {
+        if (new URL(url, location.href).hostname !== "generativelanguage.googleapis.com") {
             return real(input, init);
         }
         const body = {

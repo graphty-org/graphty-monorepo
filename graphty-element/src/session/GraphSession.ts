@@ -66,6 +66,7 @@ import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./command
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { dispatcherOf, DISPATCHERS } from "./dispatchers";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
@@ -87,6 +88,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
+export { dispatcherOf } from "./dispatchers";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
 import {
@@ -1412,9 +1414,6 @@ export async function paintAddedRows(
     await ROW_PAINTERS.get(dispatcherOf(session))?.(stack, dirty, edgeRows);
 }
 
-/** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
-const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
-
 /** Each session's store, with its lane writable; see {@link laneOf}. */
 const LANES = new WeakMap<GraphSession, LaneStore>();
 
@@ -1432,21 +1431,6 @@ export function laneOf(session: GraphSession): ElementPositions {
     }
 
     return store.positions;
-}
-
-/**
- * The dispatcher behind a session. Not published: the element's own tests spy on it and read the
- * project state it holds.
- * @param session - A session this module built.
- * @returns Its dispatcher.
- */
-export function dispatcherOf(session: GraphSession): Dispatcher {
-    const dispatcher = DISPATCHERS.get(session);
-    if (dispatcher === undefined) {
-        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "history" });
-    }
-
-    return dispatcher;
 }
 
 /**

@@ -15,7 +15,7 @@ import {
 import { GraphtyError } from "../errors";
 import type { AiApprovalRequest, AiEvent, AiQuestionRequest } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
-import { dispatcherOf } from "../session/GraphSession";
+import { dispatcherOf } from "../session/dispatchers";
 import type { GraphSession } from "../session/types";
 import {
     type AiAgentRole,

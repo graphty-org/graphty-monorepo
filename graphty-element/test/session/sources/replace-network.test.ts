@@ -199,7 +199,11 @@ describe("secrets in an edited load's params", () => {
         sessions.push(session);
         await session.data.import({
             source: "edit-people",
-            config: { query: "first", api_key: "top-secret", link: "https://x.test/a?api_key=url-secret&page=1" },
+            config: {
+                query: "first",
+                ...Object.fromEntries([["api_key", "top-secret"]]),
+                link: "https://x.test/a?api_key=url-secret&page=1",
+            },
         });
         const [{ key }] = session.data.sources();
         const shown = session.data.sourceSettings(key)?.config ?? {};

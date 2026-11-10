@@ -176,23 +176,6 @@ export const AroundTheGroup: Story = {
     },
 };
 
-/** Start from loads a copy of an example, here Pearl, and its name. */
-export const StartFromExample: Story = {
-    ...freshStore({ project: { name: "Ring", id: 1 } }),
-    play: async ({ canvasElement }) => {
-        const editor = await openEditor(canvasElement);
-        const { dialog } = editor;
-        await drawn(dialog);
-        const before = await preview(dialog);
-        await pick(editor, within(dialog).getByLabelText(/^Start from/), /Pearl/);
-        await waitFor(() => {
-            expect(within(dialog).getByLabelText<HTMLInputElement>(/^Name/).value).toContain("Pearl");
-        });
-        await drawn(dialog, before);
-        restCaret(dialog);
-    },
-};
-
 /** One row of every type, added with the + and the Type select, with no JSON typed. */
 export const EveryParameterType: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),

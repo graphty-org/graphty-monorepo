@@ -197,9 +197,9 @@ long as the page is open, so you can switch to another and come back to what you
 for a whole group is a Node shader: choose the place **Around the group** and the code box changes
 to `shade(GroupInput g)`.
 
-**Start from** lists a working **Starter** and the shaders you can already use on this target. Pick
-one to load a copy of it to change. Picking replaces the draft, and what you had typed stays in the
-list as **My code**.
+Each target and place opens on a working starter, so there is always a shader to change. To begin
+from a shader a layer already uses, choose **Duplicate and edit** from its row's menu in a Shaders
+section.
 
 **Name** is what pickers show. **Place** is where the shader draws, and its list follows what you
 are drawing on. **Reach**, how many times the node's radius the shader draws out to, shows at the

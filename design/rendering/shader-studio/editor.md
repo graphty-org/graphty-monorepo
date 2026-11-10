@@ -7,7 +7,7 @@ its live preview and its problem list, and changes what surrounds them. No node 
 ```
 +----------------------------------------------------------------------------+
 | New shader                                                             [x] |
-| [ Node | Edge | Background ]                 Start from [ Starter        v]|
+| [ Node | Edge | Background ]                                               |
 | Place [ On the node  v]  Name [ My paint   ]  Reach [ 2 ]  Min size [ 12 ] |
 | +-------------------------------------------------------+ +-------------+  |
 | | 1  vec4 shade(NodeInput n) {                          | |   preview   |  |
@@ -22,7 +22,7 @@ its live preview and its problem list, and changes what surrounds them. No node 
 ```
 
 The window is Mantine's `Modal` at size `xl` (780 px; `lg` today). Its title stays "New shader", or "Edit shader" for
-Duplicate and edit, which hides the switch and Start from because it edits one copy of one known shader. The close
+Duplicate and edit, which hides the switch because it edits one copy of one known shader. The close
 button's tooltip reads "Close Esc".
 
 ## 1. Options without JSON
@@ -31,7 +31,7 @@ button's tooltip reads "Close Esc".
 (the header as written, a `ShaderTextDraft`) and a body, and composes the whole text from them. Every check, the preview
 and Add use that text, so nothing can differ from a paste.
 
-- Into the form, only when text arrives from outside (a paste, an example, Duplicate and edit, leaving Full text): the
+- Into the form, only when text arrives from outside (a paste, Duplicate and edit, a problem row moving text to another target, leaving Full text): the
   new `splitShaderText(text)` gives the header as written and the body.
 - Out of the form, on every change: `formatShaderDraft(draft, body)`.
 
@@ -45,7 +45,7 @@ Parameter rows stay outside it.
 
 | Field        | Control                                                  | Header key | Behavior                                                                                                                                                                                                                                 |
 | ------------ | -------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Place        | today's Place select with diagrams                       | `place`    | First in the row, with `data-autofocus`, below the target switch and Start from. Hidden for Background, where the code box takes `data-autofocus`                                                                                        |
+| Place        | today's Place select with diagrams                       | `place`    | First in the row, with `data-autofocus`, below the target switch. Hidden for Background, where the code box takes `data-autofocus`                                                                                                       |
 | Name         | `PanelField` text                                        | `name`     | Empty is allowed; the element names it from the id                                                                                                                                                                                       |
 | Reach        | `PanelField` number, limits from `SHADER_REACH_RANGE`    | `reach`    | Shown only where `shaderPlaceUsesReach(place)` (replace, around, behind, along). Shows the low limit, 1, when the header has none. Moving edited code to a place whose starter has a Reach, with none set, sets that starter's (2 today) |
 | Minimum size | `PanelField` number, limits from `SHADER_MIN_SIZE_RANGE` | `minSize`  | Shown only where `minSizeApplies([place])`. Empty writes no key                                                                                                                                                                          |
@@ -133,7 +133,7 @@ minimum of 12 lines and a maximum of 24 with internal scrolling, set on `.cm-scr
 the loading textarea has the same minimum.
 
 **Replacing the text.** Only the reader's own edits use `dispatch`. Anything that replaces the whole text (switching
-target, Start from, My code, a paste split, entering or leaving Full text) calls `view.setState` with a fresh
+target, moving text to another target, a paste split, entering or leaving Full text) calls `view.setState` with a fresh
 `EditorState` from one function, so undo never crosses into another draft's text. The dialog sends its problems again
 afterward.
 
@@ -182,21 +182,20 @@ last used this session, else Node.
 
 ## 4. Examples for each target
 
-**Start from** is a `PanelField` select at the top right, listing **Starter** (the working `shaderTemplate({ target,
-place })` for the current place), then the catalog's shaders of this target from `session.catalog.shaders()` where
-`origin` is not `"pasted"`, each with its place diagram and catalog name. Picking one calls `session.shaders.source(id,
-{ duplicate: true, derived: "omit" })` and loads through the normal path, with `copyNameWords`; its header sets Place.
-`derived: "omit"` leaves out what the element computes from a body (`reads`, `cost`, a still `motion`), because a
-declared value beats inference and the form hides them: a still example that gains `n.time` would otherwise never
-animate. Duplicate and edit passes it too.
+**Every target and place opens on its starter**, the working `shaderTemplate({ target, place })`, so each draft begins
+as an example that already checks and draws. A problem row's button for `shader.target-mismatch` moves the text to the
+target it is written for: the moved text replaces that target's draft, and the draft it came from is dropped.
 
-**Typed work.** Picking replaces the draft with no confirm; an edited draft stays as **My code**, the list's top entry.
-The select shows My code while the body or the parameter rows differ from what was loaded; Name and id do not count.
-**Unchanged example.** Whether a text is a copy of a known shader is the element's decision (section 7, `asNew`); the
-app compares no forms and rewrites no ids. `check` and `add` get `asNew: true` for Duplicate and edit, and once the
-reader changes the form other than a parameter's default value. That is one `edited` flag per draft, set by the form's
-change handlers and by an edit in Full text, and cleared only when text arrives from a paste, an example or Duplicate
-and edit. Otherwise the element answers as it does today: from a list, when `check` reports `sameAs`, Add applies that
+**Duplicate and edit** from a shader row's menu calls `session.shaders.source(id, { duplicate: true, derived: "omit" })`
+and loads through the normal path, with `copyNameWords`; its header sets Place. `derived: "omit"` leaves out what the
+element computes from a body (`reads`, `cost`, a still `motion`), because a declared value beats inference and the form
+hides them: a still example that gains `n.time` would otherwise never animate.
+
+**Unchanged copy.** Whether a text is a copy of a known shader is the element's decision (section 7, `asNew`); the app
+compares no forms and rewrites no ids. `check` and `add` get `asNew: true` for Duplicate and edit, and once the reader
+changes the form other than a parameter's default value. That is one `edited` flag per draft, set by the form's change
+handlers and by an edit in Full text, and cleared only when text arrives from a paste, a moved text or Duplicate and
+edit. Otherwise the element answers as it does today: from a list, when `check` reports `sameAs`, Add applies that
 known shader with `sameAs.params`. The menu has no list, so `add` alone runs and adds nothing for an unchanged copy.
 
 ## 5. The "Add Shader..." menu item
@@ -299,7 +298,7 @@ readonly asNew?: boolean;
 1. In "Three ways to write one shader", delete the paragraph beginning "Shader text is also how a shader goes into the
    graphty app" , and list the new exports.
 2. Add `### Writing a shader in the graphty app`: open it from **Add Shader...** or a gallery's **New shader...**;
-   **Node, Edge, Background** each keep a draft; **Start from** and **My code**; **Name, Place, Reach**; **Parameters**,
+   **Node, Edge, Background** each keep a draft and open on a starter; **Name, Place, Reach**; **Parameters**,
    with which fields each type has and that the name is used bare in the code; insert; problems; **Full text**, **Copy
    code**, pasting; keys (Tab, Ctrl+M, Escape); and **Add**: from a list it is on that list, from the menu it joins the
    project and **Show in Style** leads on.
@@ -338,9 +337,8 @@ UI tests use real input against the real element, never `fireEvent.change` or a 
   Name is written as an escape, so the text stays ASCII and adds. An empty Name still adds, under `user/shader`.
 - Switching Node to Background shows `BackgroundInput`, and back restores typed code; Around the group shows
   `GroupInput`. From a node list switched to Background: Add to project, no layer changes.
-- Type a Name, choose Around: the box holds the ring starter and the Name stays. Start from loads Pearl; unchanged Add
-  from a list applies the preset; My code restores typing. Pick Pearl, rename, Add: the listed shader has the new name.
-  Copy code's text, renamed, Add: a new shader.
+- Type a Name, choose Around: the box holds the ring starter and the Name stays. Copy code's text, renamed, Add: a new
+  shader. Edge text moved from the Node tab replaces the Edge tab's draft.
 - Main menu, Add Shader..., Add: `session.shaders.list()` holds it, no layer changes, one undo step; Show in Style
   focuses the Shaders +. Copy code's text unchanged: the notice says it is already in the gallery.
 - Tab indents; Ctrl+M then Tab moves focus, and the toggle button shows it; the close button's tooltip shows Esc; Escape
@@ -386,7 +384,7 @@ group, every parameter type, Problems, Full text.
    `ShaderParamRows.tsx`; export `paramControl`; `words.ts`, `style.css`, `Section.tsx`, `ShaderRow.tsx`.
 3. **Highlighting and keys.** `graphty/package.json`, `ShaderCodeEditor.tsx`, the lazy load, the Tab toggle button, the
    Escape workaround with its issue number, tests.
-4. **One window and the menu.** The switch, drafts, Start from, the `edited` flag, `ShaderEditorHost`;
+4. **One window and the menu.** The switch, drafts, the `edited` flag, `ShaderEditorHost`;
    `style/commands.ts`, `frame/menus.tsx`, `Workspace.tsx`, `state/store.ts`, tests.
 5. **Documentation and stories.**
 

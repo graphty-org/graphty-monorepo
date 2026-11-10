@@ -467,11 +467,6 @@
     container-type: inline-size;
 }
 
-.ws-shader-start {
-    flex: 0 0 240px;
-    min-width: 0;
-}
-
 .ws-shader-fields {
     display: flex;
     gap: 8px;
@@ -511,13 +506,9 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* A narrow editor (a phone): Draws on and Start from each get a full line, the top fields wrap,
-   the preview goes under the code box, and a parameter row puts its Name on a line of its own. */
+/* A narrow editor (a phone): the top fields wrap, the preview goes under the code box, and a
+   parameter row puts its Name on a line of its own. */
 @container (max-width: 520px) {
-    .ws-shader-top > * {
-        flex: 1 1 100%;
-    }
-
     .ws-shader-fields {
         flex-wrap: wrap;
     }

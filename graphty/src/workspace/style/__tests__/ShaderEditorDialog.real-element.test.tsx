@@ -823,16 +823,6 @@ vec4 shade(NodeInput n) { return n.color * gain; }
     }
 
     /**
-     * Picks an entry of the Start from select.
-     * @param name - the entry's words.
-     */
-    async function startFrom(name: RegExp): Promise<void> {
-        const dialog = screen.getByRole("dialog", { name: DIALOG });
-        await userEvent.click(within(dialog).getByLabelText(/^Start from/));
-        await userEvent.click(await screen.findByRole("option", { name }));
-    }
-
-    /**
      * The open dialog's Name field.
      * @returns the field.
      */
@@ -904,31 +894,7 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         assert.strictEqual(textOf(box), edge);
     });
 
-    it("Start from loads an example, an unchanged Add applies it, and My code restores the typing", async () => {
-        const { session, id } = await mount();
-        const box = await openNew();
-        await userEvent.fill(box, "vec4 shade(NodeInput n) {\n    return n.color * 0.25;\n}\n");
-        const typed = textOf(box);
-        await startFrom(/^Pearl/);
-        await waitFor(() => {
-            assert.strictEqual(nameField().value, "Pearl copy");
-        });
-        await startFrom(/^My code/);
-        await waitFor(() => {
-            assert.strictEqual(textOf(box), typed);
-        });
-        await startFrom(/^Pearl/);
-        await waitFor(() => {
-            assert.strictEqual(nameField().value, "Pearl copy");
-        });
-        await pressAdd();
-        await waitFor(() => {
-            assert.strictEqual(usesOn(session, id)[0]?.shader, idOf(session, "Pearl"));
-        });
-        assert.lengthOf(session.shaders.list(), 0, "nothing new joined the project");
-    });
-
-    it("an edge text moved from the Node tab keeps the Edge tab's typed draft as My code", async () => {
+    it("an edge text moved from the Node tab replaces the Edge tab's typed draft", async () => {
         await mount();
         const box = await openNew();
         await drawOn("Edge");
@@ -942,23 +908,11 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         await waitFor(() => {
             assert.strictEqual(textOf(box), bodyOf(moved));
         });
-        await startFrom(/^My code/);
+        assert.notStrictEqual(textOf(box), typed);
+        await drawOn("Node");
+        await drawOn("Edge");
         await waitFor(() => {
-            assert.strictEqual(textOf(box), typed);
-        });
-    });
-
-    it("an example renamed in the form joins as a new shader", async () => {
-        const { session, id } = await mount();
-        await openNew();
-        await startFrom(/^Pearl/);
-        await waitFor(() => {
-            assert.strictEqual(nameField().value, "Pearl copy");
-        });
-        await userEvent.fill(nameField(), "My pearl");
-        await pressAdd();
-        await waitFor(() => {
-            assert.strictEqual(usesOn(session, id)[0]?.shader, idOf(session, "My pearl"));
+            assert.strictEqual(textOf(box), bodyOf(moved), "the moved text is the Edge tab's draft");
         });
     });
 
@@ -1006,21 +960,6 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         await openFromMenu();
         const box = await codeBox();
         await userEvent.fill(box, await session.shaders.source("pearl"));
-        await pressNamed("Add to project");
-        await waitFor(() => {
-            assert.include(document.body.textContent ?? "", "is already in the gallery");
-        });
-        assert.lengthOf(session.shaders.list(), 0);
-    });
-
-    it("an unchanged Start from example from the menu says it is already in the gallery", async () => {
-        const session = await mountWorkspace();
-        await openFromMenu();
-        await codeBox();
-        await startFrom(/^Pearl/);
-        await waitFor(() => {
-            assert.strictEqual(nameField().value, "Pearl copy");
-        });
         await pressNamed("Add to project");
         await waitFor(() => {
             assert.include(document.body.textContent ?? "", "is already in the gallery");

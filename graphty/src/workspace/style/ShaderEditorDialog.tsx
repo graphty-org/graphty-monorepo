@@ -31,7 +31,6 @@ import type { ShaderCodeEditor, ShaderCodeEditorHandle, ShaderCodeMark } from ".
 import { PlaceDiagram } from "./ShaderGallery";
 import { shaderAddedNotice } from "./shaderNotice";
 import { GEAR_FIELDS, NumberTextField, ShaderParamRows } from "./ShaderParamRows";
-import { namedCopy } from "./shaderSlots";
 import {
     DIALOG_PLACES,
     dialogPlaceWords,
@@ -154,19 +153,9 @@ interface EditorState {
     readonly place: ShaderPlace | undefined;
     /** Whether the reader changed the form other than a parameter's default value: the text is a new shader. */
     readonly edited: boolean;
-    /** What Start from last loaded: `STARTER`, `MY_CODE`, `MOVED` or a shader's id. */
-    readonly from: string;
-    /** The body and header that load gave, which Start from compares the work with. */
+    /** The header the text was loaded with, which tells a changed parameter default. */
     readonly loaded: { readonly body: string; readonly draft: ShaderTextDraft };
-    /** The reader's work a Start from pick replaced, restored by My code. */
-    readonly mine: EditorState | null;
 }
-
-/** Start from's entries that are not shader ids, which can never start with a colon. */
-const STARTER = ":starter";
-const MY_CODE = ":my-code";
-/** The text a problem row moved here from another target, while it is unchanged. */
-const MOVED = ":moved";
 
 /** The session's unsent work: one draft per target, and the target last used. */
 interface DraftBook {
@@ -201,37 +190,16 @@ function bookOf(session: GraphSession): DraftBook {
 function starterState(tab: ShaderTab, place: ShaderPlace | undefined): EditorState {
     const { draft, body } = splitShaderText(templateOf(tab, place));
     const form = draft ?? {};
-    return { form, body, full: null, place, edited: false, from: STARTER, loaded: { body, draft: form }, mine: null };
+    return { form, body, full: null, place, edited: false, loaded: { body, draft: form } };
 }
 
 /**
- * A state as text that just arrived from outside the form: the baseline Start from compares with.
+ * A state as text that just arrived from outside the form: what a changed default is measured from.
  * @param state - the state.
- * @param from - what loaded it.
  * @returns the state.
  */
-function loadedAs(state: EditorState, from: string): EditorState {
-    return { ...state, edited: false, from, loaded: { body: state.body, draft: state.form } };
-}
-
-/**
- * What Start from shows: what was loaded, or My code once the body or the parameter rows differ
- * from it; the Name and id do not count.
- * @param state - the state.
- * @param tab - the tab.
- * @returns the select's value.
- */
-function startValue(state: EditorState, tab: ShaderTab): string {
-    if (state.from === MY_CODE) {
-        return MY_CODE;
-    }
-    const now = state.full === null ? { body: state.body, draft: state.form } : splitShaderText(state.full);
-    const was = state.from === STARTER ? splitShaderText(templateOf(tab, state.place)) : state.loaded;
-    const same =
-        now.draft !== undefined &&
-        now.body === was.body &&
-        JSON.stringify(now.draft.params ?? []) === JSON.stringify(was.draft?.params ?? []);
-    return same ? state.from : MY_CODE;
+function loadedAs(state: EditorState): EditorState {
+    return { ...state, edited: false, loaded: { body: state.body, draft: state.form } };
 }
 
 /**
@@ -245,7 +213,7 @@ function openingState(book: DraftBook, tab: ShaderTab, init: PasteInit): EditorS
     const place = init.place ?? (book.last === "group" && tab === "node" ? "group" : FIRST_PLACE[tab]);
     const starter = starterState(tab, place);
     if (init.text !== undefined) {
-        return loadedAs(stateFromText(init.text, tab, starter), MY_CODE);
+        return loadedAs(stateFromText(init.text, tab, starter));
     }
     return book.drafts.get(targetOfPlace(tab, place)) ?? starter;
 }
@@ -478,7 +446,7 @@ interface ShaderEditorDialogProps {
  * draws it, as one undo step; text whose body equals a known shader's applies that one with the
  * parameter values it differs by. With no list to write to (the menu, or the switch moved off the
  * opening list's tab) it adds to the project only, as Add to project, and posts a notice. The switch
- * and Start from swap per-target drafts; each survives closing. Escape closes the dialog and keeps
+ * swaps per-target drafts; each survives closing. Escape closes the dialog and keeps
  * the work as an unsent draft.
  * @param props - Component props
  * @param props.session - the element's session
@@ -526,8 +494,6 @@ export function ShaderEditorDialog({
     const text = full ?? formatShaderDraft(form, body);
     const bodyLine = useMemo(() => splitShaderText(text).bodyLine, [text]);
     const boxValue = full ?? body;
-    const textNow = useRef(text);
-    textNow.current = text;
     const target = targetOfPlace(tab, place);
     const onList = put !== undefined && tab === listTab;
     // With no list to write the values to, a changed default is kept only by joining as new.
@@ -627,7 +593,7 @@ export function ShaderEditorDialog({
      * @param loaded - the text.
      */
     const load = (loaded: string): void => {
-        setState((now) => loadedAs(stateFromText(loaded, tab, now), MY_CODE));
+        setState((now) => loadedAs(stateFromText(loaded, tab, now)));
         textReplaced();
     };
 
@@ -686,54 +652,9 @@ export function ShaderEditorDialog({
     const moveToTarget = (found: Target): void => {
         const nextTab = tabOfTarget(found);
         const start = starterState(nextTab, found === "group" ? "group" : FIRST_PLACE[nextTab]);
-        // The target's own edited draft is kept as its My code, and the moved text is its new
-        // baseline, as if Start from had loaded it.
-        const kept = book.drafts.get(found);
-        const mine =
-            kept !== undefined && startValue(kept, nextTab) === MY_CODE
-                ? { ...kept, mine: null }
-                : (kept?.mine ?? null);
-        const moved = loadedAs(stateFromText(text, nextTab, start), mine === null ? MY_CODE : MOVED);
-        showDraft(nextTab, { ...moved, mine });
+        // The moved text replaces that target's draft.
+        showDraft(nextTab, loadedAs(stateFromText(text, nextTab, start)));
         book.drafts.delete(target);
-    };
-
-    /**
-     * Start from: replaces the draft with the starter, an example or the kept work, keeping what
-     * the reader had written as My code.
-     * @param value - the picked entry.
-     */
-    const pickStart = (value: string): void => {
-        if (value === MY_CODE) {
-            if (state.mine !== null) {
-                setState({ ...state.mine, mine: null });
-                textReplaced();
-            }
-            return;
-        }
-        if (value === MOVED) {
-            return;
-        }
-        const mine = startValue(state, tab) === MY_CODE ? { ...state, mine: null } : state.mine;
-        if (value === STARTER) {
-            setState({ ...starterState(tab, place), mine });
-            textReplaced();
-            return;
-        }
-        const name = session.catalog.shaders().find((each) => each.id === value)?.plainName ?? value;
-        const asked = textNow.current;
-        session.shaders
-            .source(value, { duplicate: true, derived: "omit" })
-            .then((source) => {
-                // The reader went on typing while it loaded: their text stays.
-                if (textNow.current === asked) {
-                    setState((now) => ({ ...loadedAs(stateFromText(namedCopy(source, name), tab, now), value), mine }));
-                    textReplaced();
-                }
-            })
-            .catch((error: unknown) => {
-                store.set({ notice: { message: failureWords("The shader", "loaded", error), error: true } });
-            });
     };
 
     const typeInBox = (value: string): void => {
@@ -962,9 +883,6 @@ export function ShaderEditorDialog({
     const usesReach = place !== undefined && shaderPlaceUsesReach(place);
     const usesMinSize = place !== undefined && minSizeApplies([place]);
     const starterId = splitShaderText(templateOf(tab, place)).draft?.id;
-    const examples = session.catalog.shaders().filter((each) => each.target === target && each.origin !== "pasted");
-    const startAt = startValue(state, tab);
-    const startGlyph = examples.find((each) => each.id === startAt)?.place ?? place;
     return (
         <Modal
             opened
@@ -980,7 +898,7 @@ export function ShaderEditorDialog({
             <Stack gap="xs" ref={fields} className="ws-shader-form">
                 <PanelLabelsProvider showLabels>
                     {init.duplicateOf === undefined && (
-                        <Group className="ws-shader-top" justify="space-between" align="flex-end" gap="xs">
+                        <Group gap="xs">
                             <SegmentedControl
                                 label={EDITOR_WORDS.drawsOn}
                                 size="xs"
@@ -990,34 +908,6 @@ export function ShaderEditorDialog({
                                     switchTab(picked as ShaderTab);
                                 }}
                             />
-                            <div className="ws-shader-start">
-                                <PanelField
-                                    label={EDITOR_WORDS.startFrom}
-                                    kind="select"
-                                    width="fill"
-                                    value={startAt}
-                                    data={[
-                                        ...(startAt === MY_CODE || state.mine !== null
-                                            ? [{ value: MY_CODE, label: EDITOR_WORDS.myCode }]
-                                            : []),
-                                        ...(startAt === MOVED ? [{ value: MOVED, label: EDITOR_WORDS.movedText }] : []),
-                                        { value: STARTER, label: EDITOR_WORDS.starter },
-                                        ...examples.map((each) => ({ value: each.id, label: each.plainName })),
-                                    ]}
-                                    glyph={<PlaceDiagram place={startGlyph} tab={tab} />}
-                                    optionGlyphs={Object.fromEntries(
-                                        examples.map((each) => [
-                                            each.id,
-                                            <PlaceDiagram key={each.id} place={each.place} tab={tab} />,
-                                        ]),
-                                    )}
-                                    onChange={(picked) => {
-                                        if (picked !== null) {
-                                            pickStart(String(picked));
-                                        }
-                                    }}
-                                />
-                            </div>
                         </Group>
                     )}
                     <div className="ws-shader-fields">

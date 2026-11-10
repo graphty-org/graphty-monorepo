@@ -1472,7 +1472,11 @@ export class RenderManager implements Manager {
                 this.webGpuFrameInFlight = null;
             }
         };
-        engine._device.queue.onSubmittedWorkDone().then(done, done);
+        // Babylon submits a frame's commands in endFrame, after the loop's callback returns: asked
+        // here, the answer would cover only the frames before this one.
+        engine.onEndFrameObservable.addOnce(() => {
+            engine._device.queue.onSubmittedWorkDone().then(done, done);
+        });
     }
 
     /**

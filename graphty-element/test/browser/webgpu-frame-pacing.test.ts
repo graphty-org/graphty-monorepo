@@ -4,8 +4,9 @@
  * Without that, the loop queues a frame every tick however long the GPU takes to draw one, and a
  * backlog of many frames builds on the device queue. Everything that reads from the GPU waits
  * behind it: a buffer map, the node under the pointer, the GPU layout's position readback (so the
- * layout stops moving). On SwiftShader the default scene's frames already run hundreds behind the
- * page. Under renderPath "batched" the loop skips a tick while the last frame's
+ * layout stops moving). SwiftShader draws a test scene far faster than a real card draws a million
+ * rows, so the tests that need a backlog add a fixed compute pass to every frame drawn
+ * ({@link loadEveryFrame}): unpaced, the device queue then runs many frames behind the page. Under renderPath "batched" the loop skips a tick while the last frame's
  * `queue.onSubmittedWorkDone()` is unresolved, the WebGPU twin of the WebGL frame fence; under
  * "objects" it draws as it always has.
  *
@@ -38,11 +39,57 @@ function ring(count: number): { nodes: { id: string }[]; edges: { src: string; d
     return { nodes, edges };
 }
 
-/**
- * Enough default (icosphere) nodes that, on SwiftShader, a frame costs the GPU far longer than a
- * tick: unpaced, the device queue then runs many frames behind the page.
- */
+/** Enough nodes for a hover to have a crowd to pick from. */
 const HEAVY = 4000;
+
+/** Frames drawn within which a real pointer's hover must answer. */
+const HOVER_FRAMES = 8;
+
+/** Frames drawn within which two GPU layout batches must land: a readback waits for at most two. */
+const LAYOUT_FRAMES = 20;
+
+/** Loop count of the compute pass {@link loadEveryFrame} adds: on SwiftShader, many ticks of work. */
+const LOAD_ITERATIONS = 20_000;
+
+/**
+ * Adds a fixed compute pass to every frame the graph draws, submitted with the frame, so each
+ * frame costs the GPU much longer than a loop tick, as a million-row scene does on a real card.
+ * @param graph - The graph.
+ */
+function loadEveryFrame(graph: Graph): void {
+    const device = (graph.engine as WebGPUEngine)._device;
+    const layout = device.createBindGroupLayout({
+        entries: [{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }],
+    });
+    const pipeline = device.createComputePipeline({
+        layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+        compute: {
+            module: device.createShaderModule({
+                code: `@group(0) @binding(0) var<storage, read_write> out: array<f32>;
+@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id: vec3u) {
+    var x = f32(id.x);
+    for (var i = 0u; i < ${String(LOAD_ITERATIONS)}u; i++) { x = fract(x * 1.0001 + 0.5); }
+    out[id.x] = x;
+}`,
+            }),
+            entryPoint: "main",
+        },
+    });
+    const buffer = device.createBuffer({ size: 4 * 64 * 64, usage: GPUBufferUsage.STORAGE });
+    const bindGroup = device.createBindGroup({
+        layout,
+        entries: [{ binding: 0, resource: { buffer } }],
+    });
+    graph.scene.onAfterRenderObservable.add(() => {
+        const encoder = device.createCommandEncoder();
+        const pass = encoder.beginComputePass();
+        pass.setPipeline(pipeline);
+        pass.setBindGroup(0, bindGroup);
+        pass.dispatchWorkgroups(64);
+        pass.end();
+        device.queue.submit([encoder.finish()]);
+    });
+}
 
 const mounted: { graph: Graph; container: HTMLElement }[] = [];
 
@@ -147,9 +194,9 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
         // The next frame drawn is the one whose work is held (the frame in flight before it finishes).
         await drawn(graph, 1);
         const held = ticks.drawn;
-        const behind = ticks.gpuBehind;
-        // Ten of the loop's own ticks, each a chance to draw.
-        while (ticks.gpuBehind < behind + 10) {
+        // Ten of the loop's own ticks, each a chance to draw: unpaced, each draws a frame.
+        const start = ticks.drawn + ticks.gpuBehind;
+        while (ticks.drawn + ticks.gpuBehind < start + 10) {
             await nextFrame();
         }
 
@@ -171,17 +218,24 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
 
     it("answers a 256-byte map within 2 frames once a still scene has had time to fill the queue", async () => {
         const graph = await open("batched", false, HEAVY);
-        // Unpaced, these frames sit on the device queue and a map waits for all of them.
+        loadEveryFrame(graph);
+        // Unpaced on a real card, these frames sit on the device queue and a map waits for all of
+        // them. SwiftShader's Chromium holds the page's frames to the GPU's pace, so there this
+        // test bounds the map but would pass unpaced too; the hover tests are the ones that fail.
         await drawn(graph, 60);
-        const buffer = (graph.engine as WebGPUEngine)._device.createBuffer({
-            size: 256,
-            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-        });
+        const device = (graph.engine as WebGPUEngine)._device;
+        const source = device.createBuffer({ size: 256, usage: GPUBufferUsage.COPY_SRC });
+        const buffer = device.createBuffer({ size: 256, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
         const { ticks } = renderManagerOf(graph);
         const before = ticks.drawn;
+        // A readback as the element makes one: a copy queued behind whatever is on the queue, then a map.
+        const encoder = device.createCommandEncoder();
+        encoder.copyBufferToBuffer(source, 0, buffer, 0, 256);
+        device.queue.submit([encoder.finish()]);
         await buffer.mapAsync(GPUMapMode.READ);
         const during = ticks.drawn - before;
         buffer.destroy();
+        source.destroy();
         assert.isAtMost(during, 2, "the map waited for at most the frame in flight and the next");
     });
 
@@ -189,6 +243,7 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
         const graph = await open("batched", false, HEAVY);
         await graph.setLayout("circular");
         await graph.waitForStableFrame();
+        loadEveryFrame(graph);
         await drawn(graph, 30);
         await hoverAndAnswer(graph);
     });
@@ -209,12 +264,22 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
                 return [point.x, point.y];
             });
         };
+        loadEveryFrame(graph);
+        const { ticks } = renderManagerOf(graph);
+        // Let an unpaced loop fill the queue before sampling.
+        await drawn(graph, 30);
         const first = sample();
         const landed = engine.landedBatchesPublished;
-        while (engine.landedBatchesPublished < landed + 2) {
+        const before = ticks.drawn;
+        while (engine.landedBatchesPublished < landed + 2 && ticks.drawn - before < LAYOUT_FRAMES) {
             await nextFrame();
         }
 
+        assert.isAtLeast(
+            engine.landedBatchesPublished,
+            landed + 2,
+            "two layout batches landed within the frames allowed",
+        );
         assert.notDeepEqual(sample(), first, "the layout's positions moved between two samples");
         await hoverAndAnswer(graph);
         assert.isFalse(engine.isSettled, "the layout was still running when hover answered");
@@ -223,7 +288,7 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
 
 /**
  * Points a real mouse at node n0, following it while a layout moves it, and waits for the graph to
- * name it hovered, within a bounded number of frames drawn.
+ * name it hovered within {@link HOVER_FRAMES} frames drawn.
  * @param graph - The graph.
  */
 async function hoverAndAnswer(graph: Graph): Promise<void> {
@@ -235,11 +300,12 @@ async function hoverAndAnswer(graph: Graph): Promise<void> {
     const { ticks } = renderManagerOf(graph);
     const before = ticks.drawn;
     const { selection } = graph.getSession();
-    while (selection.hovered !== "n0") {
+    // Bounded by frames drawn, so an unpaced loop fails here rather than hanging.
+    while (selection.hovered !== "n0" && ticks.drawn - before <= HOVER_FRAMES) {
         const screen = graph.worldToScreen(node.drawnWorldPosition);
         await hover(container, { x: screen.x * scaling, y: screen.y * scaling });
         await nextFrame();
     }
 
-    assert.isAtMost(ticks.drawn - before, 8, "hover answered within a few frames drawn");
+    assert.strictEqual(selection.hovered, "n0", "hover answered within a few frames drawn");
 }

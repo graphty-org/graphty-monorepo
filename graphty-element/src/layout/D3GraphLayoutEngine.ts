@@ -609,8 +609,11 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - The node to add
      */
     addNode(n: Node): void {
+        // A row's `Node` built late takes over the row's body, where it already is.
+        const body = this.rowBodies.get(n.id);
+        this.rowBodies.delete(n.id);
         // A 2D simulation never initialises or moves z, so it starts, and stays, at 0.
-        this.newNodeMap.set(n, this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id });
+        this.newNodeMap.set(n, body ?? (this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id }));
     }
 
     /**

@@ -759,7 +759,10 @@ export class NGraphEngine extends LayoutEngine {
         const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, { parentNode: n });
         this.nodeMapping.set(n, ngraphNode);
         this.clustersStale = true;
-        this.place(n.id);
+        // A row's `Node` built late takes over the row's body, where it already is.
+        if (!this.rowNodes.delete(n.id)) {
+            this.place(n.id);
+        }
 
         // A node that arrived after a scoped layout started is not one of its members.
         if (this.isHeld(n.index)) {

@@ -23,7 +23,7 @@ import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { SupportPoints } from "../meshes/supportPoints";
-import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
+import { adoptNodeRecord, Node, NodeIdType, nodeRebuildsFor, placeNodeRow, releaseNodeMesh } from "../Node";
 import { inputCountersOf } from "../session/attributes";
 import { legacyScopeOf } from "../session/commands/algo";
 import {
@@ -2119,6 +2119,11 @@ export class DataManager implements Manager {
             layoutEngineInternals.addNode(this.layoutEngine, n);
         }
 
+        // after the engine has it: drawing reads its place from the engine
+        if (!announce) {
+            this.paintBuiltRow(n, index);
+        }
+
         // Emit node added event
         if (announce) {
             this.eventManager.emitNodeEvent("node-add-before", {
@@ -2128,6 +2133,27 @@ export class DataManager implements Manager {
         }
 
         return n;
+    }
+
+    /**
+     * Draw a `Node` built for a row a batch drew with no `Node` as that row was drawn, at once: a
+     * caller that asked for the `Node` reads its mesh and place before the next frame paints it.
+     * @param node - The new `Node`.
+     * @param index - Its row.
+     */
+    private paintBuiltRow(node: Node, index: number): void {
+        const paint = this.graphContext?.getStylePainter?.()?.nodePaint(index) ?? null;
+        if (paint === null) {
+            return;
+        }
+
+        if (nodeRebuildsFor(node, paint)) {
+            disposeReleased([node], [], () => {
+                releaseNodeMesh(node);
+            });
+        }
+
+        node.applySessionPaint(paint);
     }
 
     /**

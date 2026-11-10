@@ -1062,6 +1062,8 @@ export class Edge {
     get arrowTailStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowTailText: RichTextLabel | null;
+    // @internal
+    columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
     get drawnCaps(): {
@@ -1088,8 +1090,8 @@ export class Edge {
     get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
     readonly dstId: NodeIdType;
-    // (undocumented)
-    dstNode: Node_2;
+    get dstNode(): Node_2;
+    set dstNode(node: Node_2);
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;
@@ -1120,8 +1122,8 @@ export class Edge {
     shaderDataChanged(): void;
     // (undocumented)
     readonly srcId: NodeIdType;
-    // (undocumented)
-    srcNode: Node_2;
+    get srcNode(): Node_2;
+    set srcNode(node: Node_2);
     // @internal
     supportEdge(centerOf?: (node: Node_2) => Readonly<Vector3>): SupportEdge | null;
     // @internal
@@ -4868,6 +4870,11 @@ export abstract class LayoutEngine {
         coords: Float64Array;
     };
     readNodePosition(n: Node_2, out: {
+        x: number;
+        y: number;
+        z: number;
+    }): boolean;
+    protected readRowPosition(row: number, out: {
         x: number;
         y: number;
         z: number;

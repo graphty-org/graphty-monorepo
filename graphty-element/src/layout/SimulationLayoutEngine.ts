@@ -1110,9 +1110,29 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns The pair, valid until the next call; the origin for an endpoint nothing has placed.
      */
     getEdgePosition(e: Edge): EdgePosition {
-        this.#readInto(e.srcNode, this.#edgePair.src);
-        this.#readInto(e.dstNode, this.#edgePair.dst);
+        this.#readEnd(e, "source", this.#edgePair.src);
+        this.#readEnd(e, "target", this.#edgePair.dst);
         return this.#edgePair;
+    }
+
+    /**
+     * Reads one end of an edge into its half of the pair: by its row for an end drawn with no `Node`.
+     * @param e - The edge.
+     * @param end - Which end.
+     * @param out - The half of the pair it goes in.
+     * @param out.x - receives the scene-unit x.
+     * @param out.y - receives the scene-unit y.
+     * @param out.z - receives the scene-unit z.
+     */
+    #readEnd(e: Edge, end: "source" | "target", out: { x: number; y: number; z: number }): void {
+        const row = e.columnEnd(end);
+        if (row === undefined) {
+            this.#readInto(end === "source" ? e.srcNode : e.dstNode, out);
+        } else if (!this.readRowPosition(row.index, out)) {
+            out.x = 0;
+            out.y = 0;
+            out.z = 0;
+        }
     }
 
     /**

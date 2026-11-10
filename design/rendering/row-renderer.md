@@ -1435,6 +1435,33 @@ engine, and ngraph until its pull request, is handed `Node`s only, so it lays ou
 to the fifth item: rows are handed over only at the swap, so one that loses or gains its `Node` later, or is removed, changes no
 body; and the swap still makes the `Node` list from `nodes`, which the fifth item's view must not materialize.
 
+Correction from stage 26's eighth pull request: ngraph by row follows d3's pattern with two differences true of its code. ngraph
+keys its bodies by node id already, so a row body is `ngraph.addNode(id)` (`NGraphEngine.addRows`); and the swap adds edges before
+rows, and `ngraph.addLink` makes a body for an end it has not seen, so a row with edges already has an unseeded body when its row
+arrives. `addRows` keeps that body and places it from the seed, as `addNode` places a `Node`'s, so a seeded layout stays the same
+drawing. A row body is pinned only by a hold, weighed as a follower by its row, unsized (no `nodeGap` push) and in no `clusterBy`
+community; it publishes in the same `publishColumn` call as the `Node`s. The same two limits carry to the fifth item.
+
+Correction from stage 26's ninth pull request: the end accessors. `Edge.srcNode` and `dstNode` are accessors (with setters, so the
+public shape is kept) over the graph's `Node` for `srcId` and `dstId`. Under `"objects"` both are resolved as the edge is built,
+as before; under `"batched"` the constructor asks only whether each id is stored (`nodeCache.has`) and each end is looked up on
+first read. The data manager's edge build and its pending-edge retry check existence with `has` on both paths, which reads no
+`Node`. One read per end is left at build under `"batched"`, and it is not the accessor's: the line's pull check
+(`Edge.pullsLine`) asks whether an end is drawn behind edges (a group, or a 2D node below z-index 0). The fifth item must answer
+that from the row (a row with no `Node` is never a group, and its z-index is in its `NodePaint`), and so must the edge's per-frame
+placement, which reads both ends' `drawnPosition`. Neither the anchor per batched `Node` nor the load's object-row transient, both
+named by the 2026-11-09 re-profile, is touched yet; the load-peak heap gate the stage note adds is the fifth item's.
+
+Correction from stage 26's tenth pull request: an edge reads an end drawn with no `Node` from its row. `Edge.columnEnd` names
+the `ColumnRow` an end is drawn by (`NodeBatches.columnRowOf`, found by id through the store), and for such an end the pull check
+(not behind edges unless it is a 2D row below z-index 0 in its `NodePaint`), the pulled piece's rows, the frame's move check, a
+bare line end and `drawnLine` read the row, and the static and simulation engines' `getEdgePosition` read the element's array
+by row (`LayoutEngine.readRowPosition`); d3 and ngraph already read ends by id. A self-loop is now told by ids, not by `Node`
+identity. An end a `Node` draws is read from its `Node` as before, so nothing changes until rows lose their `Node`s, and under
+`"objects"` there are no column rows. What is left reads an end's `Node` only for a line that is not a plain pulled one: a cap,
+a gap, a label, a group end, a route or a lift (their geometry is the `Node`'s outline), so ingest must keep building a `Node`
+for both ends of such an edge, or those reads must move to the row, before the view lands.
+
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0   | Done: baseline, spikes              | all                             | Harness, `baseline` run, section 5                                                                                                                                                                                                                                                                      | --                                                                                                                                               | L   | None                                                                                                                                                                                                 | Harness and `baseline` committed                                                                                                                                                                                                                                                                                                                                                                 |

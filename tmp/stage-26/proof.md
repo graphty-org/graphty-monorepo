@@ -693,3 +693,36 @@ Commands (all through tools/low-priority.sh, in graphty-element):
 Still open (not regressions of this pull request): Gexf 1488 px on batched; `Graph.enterDimension` builds every
 Node; edges with non-round ends, or one end with no Node, build Nodes; `placedEdgesAtRows` walks every placed edge
 on each row-table move (marked ponytail); the one-off RefusedHttp ResizeObserver error (passed in parity85).
+
+## Review fixes: undo, redo and removal of rows with no Node (commit 620cd33a5e)
+
+Commands (from graphty-element, all through tools/low-priority.sh):
+
+- `npx vitest run --project forced-batched` on the seven review files (data-path-scaling,
+  history-arrangement-engines, element-clear-data, history-graph-add, history-readded-node,
+  history-random, history-engines): before, 19 failed / 129 passed; after, 148 passed.
+- Same seven under `--project browser` (objects): 148 passed.
+- Every browser test file that drives undo, restoreTo, clearData, removeNodes,
+  removeNodeAndIncidentEdges, positions.set or loadArrangement (82 files, list in
+  tmp/stage-26/pinned82.txt):
+  - `--project browser` (objects): 76 files, 900 passed, 2 skipped, 0 failed.
+  - `--project forced-batched`: 74 files, 838 passed, 7 failed, 1 skipped. The same 7 fail at
+    15b9df159c without this commit, and pass at the merge base (feat-6389 worktree, 77 passed),
+    so they are earlier regressions on this branch, still open:
+    - edges-end-on-nodes-2d: "a position with a Z placed while the view is 2D" (edge drawn 9.75
+      long between nodes 4.56 apart)
+    - static-layout-teardown: replacing import and undo, `{ nodes: 0, edges: 100 }` drawn,
+      expected 200 nodes
+    - time-changed-rows (3): frame 1 writes 1500 rows (limit 62); edge 43 off its nodes on
+      reveal; 100 revealed edges placed again (expected 0)
+    - layout-extension: SimpleLayoutEngine scaling factor, column 0 at -2.96 (expected 0)
+    - define-layout-defaults: simple twin positions all 0 versus the advanced twin
+- `npm run build`, `npm run api:report`, `node tools/api-report.mjs graphty-element --check`:
+  "API report matches the build" (adoptBuiltNode, Node.takeDrawnPaint, both internal).
+- eslint on the changed files, `tsc --noEmit`: clean. `node tools/sonar-gate.mjs`: no new issue.
+
+element-clear-data's "lays the next load out from scratch" now builds the Nodes (reading the data
+manager's keys) before reading LayoutManager.nodes, which lists only Nodes: under batched the
+rows have none until asked. On objects the read builds nothing.
+
+No design-doc correction was needed.

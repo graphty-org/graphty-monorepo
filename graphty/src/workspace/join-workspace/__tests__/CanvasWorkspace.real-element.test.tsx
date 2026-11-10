@@ -53,18 +53,22 @@ async function open(): Promise<GraphSession> {
     return session;
 }
 
+/** Badge entries with the minutes each stayed: B-1 into b1 twice. */
+const STAYS = ["badge,building,minutes", "B-1,b1,5", "B-1,b1,7", "B-2,b2,3"].join("\n");
+
 /**
  * Opens the workspace from Join + and holds the entries with Table +.
+ * @param entries - the entries file's text.
  * @returns the workspace's dialog.
  */
-async function workspaceWithEntries(): Promise<HTMLElement> {
+async function workspaceWithEntries(entries = ENTRIES): Promise<HTMLElement> {
     const place = await screen.findByRole("region", { name: "Data place" });
     await userEvent.click(await within(place).findByRole("button", { name: "Join" }));
     const dialog = await screen.findByRole("dialog", { name: "Join" });
     const input = dialog.querySelector<HTMLInputElement>('input[aria-label="Table file"]');
     assert.isNotNull(input);
     if (input !== null) {
-        await userEvent.upload(input, new File([ENTRIES], "entries.csv", { type: "text/csv" }));
+        await userEvent.upload(input, new File([entries], "entries.csv", { type: "text/csv" }));
     }
     await within(dialog).findByRole("group", { name: "entries.csv" });
     return dialog;
@@ -177,6 +181,46 @@ describe("the model canvas join workspace", () => {
         assert.strictEqual(session.data.nodes().length, nodes);
         assert.deepEqual(session.data.joins(), []);
         assert.isUndefined(session.data.node("P1")?.building);
+    });
+
+    it("makes one edge per pair, its rows counted and a column summed", async () => {
+        const session = await open();
+        const dialog = await workspaceWithEntries(STAYS);
+        await connect(dialog, ["entries.csv", "badge"], ["people.csv", "badge"]);
+        await userEvent.keyboard("2");
+        await userEvent.click(await within(dialog).findByLabelText("Key 2 column"));
+        await userEvent.click(await screen.findByRole("option", { name: "building" }));
+        // B-1 into b1 twice is one pair: one edge either way.
+        await waitFor(() => {
+            assert.include(bar(dialog), "+2 edges");
+        });
+        await userEvent.click(within(within(dialog).getByRole("radiogroup", { name: "Edges" })).getByText("Per pair"));
+        await userEvent.click(within(dialog).getByLabelText("Pair column"));
+        await userEvent.click(await screen.findByRole("option", { name: "minutes" }));
+        await userEvent.click(within(dialog).getByLabelText("Pair reduction"));
+        await userEvent.click(await screen.findByRole("option", { name: "Sum" }));
+
+        await userEvent.keyboard("{Control>}{Enter}{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(session.data.edges().length, 2);
+        });
+        const stay = session.data.edges().find((edge) => edge.source === "P1");
+        assert.deepInclude(stay, { target: "b1", minutes: 12, "badge (count)": 2 });
+        assert.strictEqual(session.data.nodes().length, 6, "no end is made of a count");
+    });
+
+    it("closes only the tile menu on Esc after a click on empty canvas", async () => {
+        await open();
+        const dialog = await workspaceWithEntries();
+        await connect(dialog, ["entries.csv", "badge"], ["people.csv", "badge"]);
+        // The click takes focus out of the menu, which stays open until a tile or Esc.
+        await userEvent.click(within(dialog).getByTestId("join-canvas"), { position: { x: 8, y: 8 } });
+        assert.isNotNull(screen.queryByRole("menu", { name: "Join kind" }));
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu", { name: "Join kind" }));
+        });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), "the workspace stays open");
     });
 
     it("closes the tile menu on Esc, and a second Esc cancels the workspace", async () => {

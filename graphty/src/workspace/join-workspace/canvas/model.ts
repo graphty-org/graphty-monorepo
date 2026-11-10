@@ -16,6 +16,44 @@ export const ROW = 22;
 // field to the box when real sources pass it.
 export const MAX_COLUMNS = 24;
 
+/** Half a pill's width and height, with room for a compare pill's Venn, in CSS pixels. */
+export const PILL_HALF_W = 64;
+const PILL_HALF_H = 12;
+/** The space kept between a pill and a box. */
+const PILL_GAP = 8;
+
+/** Where a box sits and how tall it is, for keeping a pill off it. */
+export interface BoxRect {
+    readonly x: number;
+    readonly y: number;
+    readonly height: number;
+}
+
+/**
+ * Where a pill centered on a point covers no box: the point itself when it is clear, else the
+ * nearest place beside a box, at the same height (never past the canvas's left edge).
+ * @param point - the pill's center.
+ * @param rects - every box.
+ * @returns the center to draw it at.
+ */
+export function clearOfBoxes(point: Point, rects: readonly BoxRect[]): Point {
+    const clear = (x: number): boolean =>
+        x >= PILL_HALF_W &&
+        rects.every(
+            (box) =>
+                x + PILL_HALF_W + PILL_GAP <= box.x ||
+                x - PILL_HALF_W - PILL_GAP >= box.x + BOX_W ||
+                point.y + PILL_HALF_H <= box.y ||
+                point.y - PILL_HALF_H >= box.y + box.height,
+        );
+    if (clear(point.x)) {
+        return point;
+    }
+    const sides = rects.flatMap((box) => [box.x - PILL_HALF_W - PILL_GAP, box.x + BOX_W + PILL_HALF_W + PILL_GAP]);
+    const best = sides.filter(clear).sort((a, b) => Math.abs(a - point.x) - Math.abs(b - point.x))[0];
+    return best === undefined ? point : { x: best, y: point.y };
+}
+
 /** One box of the canvas. */
 export interface CanvasBox {
     /** An input's key, or `kind:<kind>` for a kind a step makes. */

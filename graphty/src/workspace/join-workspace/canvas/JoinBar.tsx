@@ -3,6 +3,7 @@ import type {
     JoinChoices,
     JoinInput,
     JoinKey,
+    JoinReduce,
     JoinReport,
     JoinRowFate,
     JoinStepEntry,
@@ -24,6 +25,18 @@ import { addsThings, choicesFor, columnOf, type JoinOp, mainCount, OP_WORDS, opO
 
 /** The bar's keys, shown on their buttons. */
 export const BAR_KEYS = { remove: "Delete", conflicts: "C" } as const;
+
+/** How a pair's rows become one value, in menu order. */
+const PAIR_REDUCTIONS: readonly { readonly value: JoinReduce; readonly label: string }[] = [
+    { value: "sum", label: "Sum" },
+    { value: "mean", label: "Average" },
+    { value: "min", label: "Min" },
+    { value: "max", label: "Max" },
+    { value: "count", label: "Count" },
+    { value: "first", label: "First" },
+    { value: "last", label: "Last" },
+    { value: "list", label: "List" },
+];
 
 /** Every row fate, in chip order. */
 const FATES: readonly JoinRowFate[] = ["joined", "merged", "linked", "new-end", "repeat", "over-cap", "left-out"];
@@ -419,6 +432,70 @@ function MapSettings({
 }
 
 /**
+ * Per pair, the one column a pair's rows are reduced to, and how (the pair's row count is kept
+ * under the first key column, as graphty-element writes it).
+ * @param props - Component props
+ * @param props.choices - the step's join, with its aggregate.
+ * @param props.fromColumns - the input's columns.
+ * @param props.change - writes the step's choices.
+ * @returns the two selects.
+ */
+function PairValue({
+    choices,
+    fromColumns,
+    change,
+}: Readonly<{
+    choices: JoinChoices;
+    fromColumns: readonly string[];
+    change: (next: JoinChoices) => void;
+}>): React.JSX.Element {
+    const keys = choices.keys.map((key) => key.file);
+    const counted = keys[0];
+    const [column, rules] = Object.entries(choices.aggregate ?? {}).find(([each]) => !keys.includes(each)) ?? [];
+    const rule = typeof rules === "string" ? rules : rules?.[0];
+    const write = (next: string | undefined, how: JoinReduce): void => {
+        change({
+            ...choices,
+            aggregate: {
+                ...(counted === undefined ? {} : { [counted]: "count" }),
+                ...(next === undefined ? {} : { [next]: how }),
+            },
+        });
+    };
+    return (
+        <>
+            <Select
+                size="xs"
+                w={112}
+                aria-label="Pair column"
+                placeholder="Column"
+                clearable
+                data={fromColumns.filter((each) => !keys.includes(each))}
+                value={column ?? null}
+                onChange={(value) => {
+                    write(value ?? undefined, rule ?? "sum");
+                }}
+            />
+            <Select
+                size="xs"
+                w={96}
+                aria-label="Pair reduction"
+                data={PAIR_REDUCTIONS.map((each) => ({ value: each.value, label: each.label }))}
+                value={column === undefined ? null : (rule ?? null)}
+                disabled={column === undefined}
+                allowDeselect={false}
+                onChange={(value) => {
+                    const how = PAIR_REDUCTIONS.find((each) => each.value === value)?.value;
+                    if (column !== undefined && how !== undefined) {
+                        write(column, how);
+                    }
+                }}
+            />
+        </>
+    );
+}
+
+/**
  * A kind's own choices: ends and pairs for edges, the link's columns and caps, a merge's
  * unmatched rows, a flag's column, a split's separator.
  * @param props - Component props
@@ -471,6 +548,7 @@ function OpSettings({
                         );
                     }}
                 />
+                {perPair ? <PairValue choices={choices} fromColumns={fromColumns} change={change} /> : null}
                 {op === "split" ? (
                     <TextInput
                         size="xs"

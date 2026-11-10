@@ -8,6 +8,7 @@ import {
     BOX_W,
     boxHeight,
     type CanvasBox,
+    clearOfBoxes,
     MAX_COLUMNS,
     placeBoxes,
     type Point,
@@ -134,6 +135,7 @@ export function ModelCanvas(props: ModelCanvasProps): React.JSX.Element {
         return { width, height };
     }, [boxes, at]);
 
+    const rects = boxes.map((box) => ({ ...(at.get(box.key) ?? { x: 0, y: 0 }), height: boxHeight(box) }));
     const wires = steps.flatMap((step, index) => {
         const wire = wireOf(boxes, step, targets.get(step.id));
         const ends = [...wire.from, ...wire.to].flatMap((end) => {
@@ -153,10 +155,13 @@ export function ModelCanvas(props: ModelCanvasProps): React.JSX.Element {
         const xs = ports.map((port) => port.x);
         // Ports on one edge (boxes stacked): the pill sits out beside them, not over a box.
         const stacked = Math.max(...xs) - Math.min(...xs) < BOX_W / 2;
-        const middle = {
-            x: stacked ? Math.max(...xs) + 56 : xs.reduce((sum, x) => sum + x, 0) / xs.length,
-            y: ports.reduce((sum, port) => sum + port.y, 0) / ports.length,
-        };
+        const middle = clearOfBoxes(
+            {
+                x: stacked ? Math.max(...xs) + 56 : xs.reduce((sum, x) => sum + x, 0) / xs.length,
+                y: ports.reduce((sum, port) => sum + port.y, 0) / ports.length,
+            },
+            rects,
+        );
         const paths = ends.map(({ box, corner, end }) => curve(portOf(box, corner, end.column, middle), middle));
         const ontoName = boxes.find((box) => box.key === wire.to[0]?.box)?.name ?? "";
         return [{ step, index, middle, paths, ends, ontoName }];

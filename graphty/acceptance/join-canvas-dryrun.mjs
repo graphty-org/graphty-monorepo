@@ -1135,12 +1135,13 @@ const SCENARIOS = [
                 v.countsAre({ "new end": orders.rows, nodes: orders.nodes, edges: orders.edges }),
             );
             await v.check("per pair offers a sum of amount", async () => {
-                const text = await v.dialog.getByRole("group", { name: "Settings", exact: true }).innerText();
-                if (!/sum|amount/i.test(text))
-                    throw new Error(
-                        `no reduction of amount on offer; the settings hold "${text.replaceAll(/\s+/g, " ")}"`,
-                    );
-                return "offered";
+                const settings = v.dialog.getByRole("group", { name: "Settings", exact: true });
+                await settings.getByLabel("Pair column").click();
+                await v.page.getByRole("option", { name: "amount", exact: true }).click();
+                await settings.getByLabel("Pair reduction").click();
+                await v.page.getByRole("option", { name: "Sum", exact: true }).click();
+                eq(await settings.getByLabel("Pair column").inputValue(), "amount", "pair column");
+                return eq(await settings.getByLabel("Pair reduction").inputValue(), "Sum", "pair reduction");
             });
             await v.tabs().nth(0).click();
             await v.key("Delete");
@@ -1186,6 +1187,31 @@ const SCENARIOS = [
                     );
                 }
                 return `${want.size} vendor-plant pairs`;
+            });
+            await v.check("Done: each order edge carries its pair's summed amount", async () => {
+                const nodes = await v.graphNodes();
+                const edges = await v.page.evaluate(() => {
+                    const element = [...document.querySelectorAll("graphty-element")].find(
+                        (each) => each.closest(".jw-modal") === null,
+                    );
+                    return element.session.data
+                        .edges()
+                        .map((edge) => ({ source: edge.source, target: edge.target, amount: edge.amount }));
+                });
+                const vendorOf = new Map(nodes.map((n) => [n.id, n.vendor_no ?? n.id]));
+                const want = new Map();
+                for (const o of csv("purchase_orders.csv")) {
+                    const pair = `${o.vendor_no}|${o.plant}`;
+                    want.set(pair, (want.get(pair) ?? 0) + Number(o.amount));
+                }
+                const wrong = edges.filter(
+                    (e) => want.get(`${vendorOf.get(e.source)}|${e.target}`) !== Number(e.amount),
+                );
+                if (wrong.length > 0)
+                    throw new Error(
+                        `${wrong.length} of ${edges.length} edges without their pair's sum, e.g. ${JSON.stringify(wrong.slice(0, 2))}`,
+                    );
+                return `${edges.length} edges summed`;
             });
             await v.check("Done: the Max rule keeps the higher rating", async () => {
                 const nodes = await v.graphNodes();

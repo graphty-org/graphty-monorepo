@@ -158,16 +158,20 @@ export function CanvasBody(): React.JSX.Element {
             });
         }
     };
-    const menuOpen = menu !== null;
-    // The canvas's keys, before the shell's (a child's effect runs first): the menu's 1-9, Enter
-    // and Esc while it is open; Delete removes the shown join; C opens its conflicts.
+    const openRef = useRef({ menu, conflicts });
+    openRef.current = { menu, conflicts };
+    // The canvas's keys, before the shell's: the menu's 1-9, Enter and Esc while it is open; Delete
+    // removes the shown join; C opens its conflicts. Listeners on one target run in the order they
+    // were added, and a child's effect runs before its parent's, so this is added once, on mount:
+    // added again later, it would run after the shell's, which cancels the workspace on Esc.
     useEffect(() => {
         const keys = (event: KeyboardEvent): void => {
             if (event.defaultPrevented || event.isComposing) {
                 return;
             }
             const target = event.target instanceof Element ? event.target : null;
-            if (menuOpen) {
+            const { menu, conflicts } = openRef.current;
+            if (menu !== null) {
                 if (event.key === "Escape") {
                     event.preventDefault();
                     setMenu(null);
@@ -203,7 +207,7 @@ export function CanvasBody(): React.JSX.Element {
         return () => {
             globalThis.removeEventListener("keydown", keys, true);
         };
-    }, [menuOpen, menu, conflicts]);
+    }, []);
 
     const region = focus?.region;
     const rowFate = region === undefined ? focus?.fate : REGION_FOCUS[region].fate;

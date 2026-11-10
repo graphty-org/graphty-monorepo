@@ -1464,6 +1464,25 @@ Each call takes `credential` and `endpoint` options and, missing a needed creden
 These are capabilities, so they live in the element; what to show while they run is the
 application's.
 
+Seeing and changing what a load fetches:
+
+- `data.sourceSettings(key)` returns a `SourceSettings`: the load's `source`, `endpoint`, `config`,
+  `limits` and `expand`, redacted as a saved project holds them. Params whose names mark a
+  credential are left out, and a query source reports the `mode` it read in. It is `undefined` for
+  anything that is not a network load. Never show a load's in-memory config instead: its URLs are
+  not redacted.
+- `data.replaceSource(key, { source, config }, options)` reads that load again with new settings.
+  The key, the name (unless the caller passes one), styles and filters stay, and it is one undo
+  step. A value sent back as `sourceSettings` showed it keeps the original it stood for, a URL to
+  the same address keeps its secret query keys, and with no `credential` the one remembered for
+  the endpoint is used.
+- When loads overlap, each `sources()` row is matched to one load: the load most of its nodes
+  carry, among loads no earlier row took, the newest on a tie.
+
+In the graphty app, behind the `network-data` flag, a network source's details panel shows these
+settings as rows and its Edit control opens the network form filled with them (password fields
+empty). A file or sample file source has no Edit control. Closing the form never leaves the app.
+
 ### 14.4 Click-to-expand
 
 **What exists.** A double-click on a node calls two host hooks, `fetchEdges(node, graph)` then

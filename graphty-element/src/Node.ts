@@ -973,6 +973,35 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The border to draw and the mesh key to draw it under: a screen-pixel border turned into scene units at the
+     * current zoom, under a key of its own per zoom step; any other border as it is, under the node's key.
+     * @param meshKey - The source mesh key the node is drawn under.
+     * @param border - The resolved style's border.
+     * @param scale - Scene units per screen pixel, or null when the node is not sized on the screen.
+     * @param perSize - The shape's extent per unit of size.
+     * @returns The border and its mesh key.
+     */
+    private scaledBorder(
+        meshKey: string,
+        border: NodeStyleConfig["border"],
+        scale: number | null,
+        perSize: number,
+    ): { border: NodeStyleConfig["border"]; key: string } {
+        if (scale === null || border?.screenWidth === undefined) {
+            return { border, key: meshKey };
+        }
+        // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw).
+        const box = this.bounds().boundingBox.extendSize;
+        const across = 2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y));
+        // ponytail: a ring per style and zoom step stays in the mesh cache until the scene
+        // goes; a reader zooms over a few dozen steps, so it is a few dozen small rings.
+        return {
+            border: { ...border, width: Math.min(border.screenWidth / scale, across) / perSize },
+            key: `${meshKey}|screen${String(scale)}`,
+        };
+    }
+
+    /**
      * Build this node's border from its style, as a child of its mesh so it moves, hides and is
      * disposed with the node. Called after every new mesh: the old border went with the old mesh.
      * @param meshKey - The source mesh key the node is drawn under.
@@ -983,18 +1012,7 @@ export class Node implements ModelUser {
         this.groupBorderSource = null;
         const scale = this.screenScale(style);
         const perSize = NodeMesh.extentPerSize(style.shape);
-        let { border } = style;
-        let key = meshKey;
-        if (scale !== null && border?.screenWidth !== undefined) {
-            // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw).
-            const box = this.bounds().boundingBox.extendSize;
-            const across =
-                2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y));
-            border = { ...border, width: Math.min(border.screenWidth / scale, across) / perSize };
-            // ponytail: a ring per style and zoom step stays in the mesh cache until the scene
-            // goes; a reader zooms over a few dozen steps, so it is a few dozen small rings.
-            key = `${meshKey}|screen${String(scale)}`;
-        }
+        const { border, key } = this.scaledBorder(meshKey, style.border, scale, perSize);
 
         this.borderBuilt = { meshKey, style, scale };
         this.borderWidth = this.drawnBorderWidth(style, border, perSize);

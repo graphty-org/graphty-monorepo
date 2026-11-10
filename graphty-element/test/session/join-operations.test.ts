@@ -288,7 +288,7 @@ describe("suggestJoin over the join operations", () => {
     it("suggests the door-entries edges, one end matched on a node column that is not the id", async () => {
         const session = createGraphSession();
         await session.data.addNodes([
-            ...Array.from({ length: 6 }, (_unused, at) => ({ id: `P${String(at)}`, person_id: `E${String(at)}` })),
+            ...Array.from({ length: 6 }, (_unused, at) => ({ id: `P${String(at)}`, badge: `E${String(at)}` })),
             ...Array.from({ length: 3 }, (_unused, at) => ({ id: `B${String(at)}` })),
         ]);
         const entries = ["person_id,building_id,time", "E0,B0,t1", "E1,B0,t2", "E2,B1,t3", "E3,B2,t4", "E4,B1,t5"];
@@ -296,7 +296,7 @@ describe("suggestJoin over the join operations", () => {
         assert.deepEqual(draft.suggestJoin(), {
             shape: "edges",
             keys: [
-                { file: "person_id", graph: "data.person_id" },
+                { file: "person_id", graph: "data.badge" },
                 { file: "building_id", graph: "id" },
             ],
             confident: true,

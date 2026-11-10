@@ -207,6 +207,23 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
         await drawn(graph, 2);
     });
 
+    it("lets an on-demand loop go idle on a still graph under batched", async () => {
+        const graph = await open("batched");
+        await drawn(graph, 3);
+        await graph.setRenderSettings({ onDemand: true });
+        await graph.waitForStableFrame();
+        const { ticks } = renderManagerOf(graph);
+        // Settled, the loop rests: ten resting ticks within 20 frames drawn, or it never rests. A
+        // fence observer added per frame read as a new frame waiter and kept it drawing every tick.
+        const drawnFrom = ticks.drawn;
+        const restedFrom = ticks.rested;
+        while (ticks.rested < restedFrom + 10 && ticks.drawn < drawnFrom + 20) {
+            await nextFrame();
+        }
+
+        assert.isAtLeast(ticks.rested, restedFrom + 10, "a still on-demand graph stops drawing");
+    });
+
     it("draws unpaced under objects, as before", async () => {
         const graph = await open("objects");
         await drawn(graph, 3);

@@ -781,6 +781,13 @@ export class RenderManager implements Manager {
      * `onSubmittedWorkDone` is unresolved, null once the GPU has finished it.
      */
     private webGpuFrameInFlight: number | null = null;
+    /**
+     * The frame number {@link webGpuFrameInFlight} gave the frame just drawn, until its end-frame
+     * asks the queue; see {@link RenderManager.fenceWebGpuFrame}.
+     */
+    private webGpuFrameToFence: number | null = null;
+    /** Whether the one end-frame observer that fences WebGPU frames is registered. */
+    private webGpuFenceObserved = false;
     /** Flips every tick in the minimum-work test mode; see {@link RenderManager.minimumWorkSkips}. */
     private minimumWorkTick = false;
 
@@ -1467,14 +1474,29 @@ export class RenderManager implements Manager {
 
         const frame = (this.webGpuFrameInFlight ?? 0) + 1;
         this.webGpuFrameInFlight = frame;
-        const done = (): void => {
-            if (this.webGpuFrameInFlight === frame) {
-                this.webGpuFrameInFlight = null;
-            }
-        };
+        this.webGpuFrameToFence = frame;
+        if (this.webGpuFenceObserved) {
+            return;
+        }
+
         // Babylon submits a frame's commands in endFrame, after the loop's callback returns: asked
-        // here, the answer would cover only the frames before this one.
-        engine.onEndFrameObservable.addOnce(() => {
+        // here, the answer would cover only the frames before this one. One observer for every
+        // frame, not one per frame: sameAsDrawn reads a new newest end-frame observer as a frame
+        // somebody waits for, so an observer added per frame kept an on-demand loop drawing forever.
+        this.webGpuFenceObserved = true;
+        // It lives as long as the engine, which dispose() disposes with its observers.
+        engine.onEndFrameObservable.add(() => {
+            const fenced = this.webGpuFrameToFence;
+            if (fenced === null) {
+                return;
+            }
+
+            this.webGpuFrameToFence = null;
+            const done = (): void => {
+                if (this.webGpuFrameInFlight === fenced) {
+                    this.webGpuFrameInFlight = null;
+                }
+            };
             engine._device.queue.onSubmittedWorkDone().then(done, done);
         });
     }

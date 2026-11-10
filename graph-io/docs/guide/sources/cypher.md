@@ -46,7 +46,23 @@ const near = await loadFromSource(
 console.log(near.snapshot.nodeCount); // 230
 ```
 
-`listSources()` lists both as samples of the `neo4j` source, with their endpoints and logins.
+## Examples
+
+The `neo4j` source's descriptor lists public servers you can load from (`descriptor.examples` in
+`listSources()`), each with its endpoint, params and published login:
+
+| Example               | Endpoint                           | Login                         | Nodes / edges         |
+| --------------------- | ---------------------------------- | ----------------------------- | --------------------- |
+| `neo4j-movies`        | `https://demo.neo4jlabs.com:7473`  | movies / movies               | 171 / 253             |
+| `neo4j-northwind`     | `https://demo.neo4jlabs.com:7473`  | northwind / northwind         | 1,035 / 3,139         |
+| `neo4j-gameofthrones` | `https://demo.neo4jlabs.com:7473`  | gameofthrones / gameofthrones | 798 / 6,620           |
+| `neo4j-fincen`        | `https://demo.neo4jlabs.com:7473`  | fincen / fincen               | 7,524 / 40,835        |
+| `neo4j-movies-bolt`   | `bolt+s://demo.neo4jlabs.com:7687` | movies / movies               | 171 / 253             |
+| `hetionet`            | `bolt+s://neo4j.het.io:7687`       | none                          | Metformin's neighbors |
+
+Neo4j Labs' demo server is read-only; every database's login is its name as both user and
+password. Hetionet runs Neo4j 3.5, which reached end of life, so it may stop answering.
+Amazon Neptune has no public server, so the `neptune` source lists no example.
 
 ## What to read: `mode`
 
@@ -135,7 +151,9 @@ server, in `_source.degree`, so an application can show which nodes have more to
 A node's id is the server's id: `elementId(n)` on Neo4j 5 and later, `id(n)` before (Hetionet's
 3.5), and the `~id` string on Neptune. A Neo4j id is stable while the node exists, but may be reused
 after it is deleted. If your nodes have a stable key of their own, pass it as `idProperty`: nodes
-are then keyed by that property, and nodes without it are left out of generated queries.
+are then keyed by that property. Mode `"all"` leaves out nodes without it; a neighborhood (mode
+`"neighborhood"` and `expandFromSource`) keeps them, keyed by the server's id. Seeds are always
+matched by the property, so a node keyed by its server id cannot itself be a seed.
 
 ## Expanding a node
 

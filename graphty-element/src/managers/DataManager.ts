@@ -1,5 +1,11 @@
 import { type AbstractActionManager, AbstractMesh, type Node as SceneNode, type Scene } from "@babylonjs/core";
-import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import {
+    type DerivedGraph,
+    GraphFormatError,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type U32,
+} from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
@@ -35,6 +41,7 @@ import type { Draft } from "../session/project/draft";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import {
     type AddEdgesOptions,
+    type Ceilings,
     Ingest,
     type IngestHost,
     isStorableId,
@@ -348,6 +355,13 @@ export const dataManagerInternals = {} as {
      * failure is published as a graph error): at once unless it waited in the load line.
      */
     lastEdit(manager: DataManager): Promise<void>;
+    /**
+     * How many `Node` render objects this manager has built, ever: the count the lazy-node stage
+     * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
+     */
+    nodesBuilt(manager: DataManager): number;
+    /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
+    rowOf(manager: DataManager, id: NodeIdType): number;
 };
 
 /**
@@ -384,8 +398,12 @@ export class DataManager implements Manager {
     private readonly edgeRows: (Edge | undefined)[] = [];
     /** Who else holds rows by index (the session's selection), told after the render objects. */
     private readonly renumberFollowers = new Set<FreezeFollower>();
+    /** See `dataManagerInternals.nodesBuilt`. */
+    private builtNodes = 0;
 
     static {
+        dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
+        dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.followRenumbering = (manager, follower) => {
             manager.renumberFollowers.add(follower);
             return () => {
@@ -563,6 +581,13 @@ export class DataManager implements Manager {
     private readonly ingest: Ingest<ExistingEdge> = new Ingest(this.ingestHost());
 
     /**
+     * Where the ingest reads the ceilings in force and whether rows are drawn batched: the graph
+     * sets it from its render path and `limits`. Unset, a load meets the shipped defaults.
+     * @internal
+     */
+    renderLimits: { ceilings(): Readonly<Ceilings> | undefined; batched(): boolean } | null = null;
+
+    /**
      * The graph primitives every write goes through. A data manager on its own has nothing to
      * record into; the graph's session hands it its own in {@link DataManager.bindSession}.
      */
@@ -652,7 +677,16 @@ export class DataManager implements Manager {
      * @internal
      */
     nodeAtRow(row: number): Node | undefined {
-        return this.nodes.get(this.store.builder.idOf(row));
+        try {
+            return this.nodes.get(this.store.builder.idOf(row));
+        } catch (error) {
+            // A row past the end or removed holds no node: a hover read of the node ID target can
+            // name one, and a pointer observer that throws stops delivering every later event.
+            if (error instanceof GraphFormatError && error.code === "E_INDEX_RANGE") {
+                return undefined;
+            }
+            throw error;
+        }
     }
 
     /**
@@ -1373,6 +1407,8 @@ export class DataManager implements Manager {
             edgeStored: (edge) => {
                 this.buildEdge(edge);
             },
+            ceilings: () => this.renderLimits?.ceilings(),
+            batched: () => this.renderLimits?.batched() ?? false,
             nodesArrived: (count) => {
                 // Request layout start and zoom to fit
                 this.shouldStartLayout = true;
@@ -1869,6 +1905,7 @@ export class DataManager implements Manager {
         const n = new Node(this.graphContext, nodeId, bootstrapNodePaint(), node as AdHocData, {
             pinOnDrag: this.graphContext.getConfig().pinOnDrag,
         });
+        this.builtNodes++;
         placeNodeRow(n, index);
         this.nodeCache.set(nodeId, n);
         this.nodeMap.set(nodeId, n);
@@ -1906,11 +1943,9 @@ export class DataManager implements Manager {
             // resolve differently from an immediate one.
             const { record, sourceId, targetId, edgeIndex, edgeId } = pending;
 
-            // Check if both nodes now exist
-            const srcNode = this.nodeCache.get(sourceId);
-            const dstNode = this.nodeCache.get(targetId);
-
-            if (!srcNode || !dstNode) {
+            // Check if both nodes now exist. `has`, not `get`: the edge reaches its ends through its
+            // accessors, so building it needs neither end's `Node`.
+            if (!this.nodeCache.has(sourceId) || !this.nodeCache.has(targetId)) {
                 // Nodes still don't exist, keep it pending
                 stillPending.push(pending);
                 continue;
@@ -2187,11 +2222,9 @@ export class DataManager implements Manager {
     private buildEdge(stored: StoredEdge): void {
         const { record: edge, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId } = stored;
 
-        // Check if both nodes exist before creating the RENDER object, which reads them
-        const srcNode = this.nodeCache.get(srcNodeId);
-        const dstNode = this.nodeCache.get(dstNodeId);
-
-        if (!srcNode || !dstNode) {
+        // Check if both nodes exist before creating the RENDER object. `has`, not `get`: the edge
+        // reaches its ends through its accessors, so building it needs neither end's `Node`.
+        if (!this.nodeCache.has(srcNodeId) || !this.nodeCache.has(dstNodeId)) {
             // Defer the render object until the nodes exist
             const pending: PendingEdge = {
                 record: edge,

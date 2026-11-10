@@ -213,8 +213,14 @@ describe("DOT styles: Graphviz's rules", () => {
         }`);
         const width = byId(styles, snapshot, "borderWidth");
         expect(["p", "t", "n", "f"].map((id) => width.get(id))).toEqual([0, 0, 0, 0]);
-        // an unfilled none draws only its label; a filled one is its box, filled, with no outline
-        expect(["n", "f"].map((id) => byId(styles, snapshot, "shape").get(id))).toEqual(["none", "rectangle"]);
+        // an unfilled none draws only its label; a filled one is its box, filled, with no outline; plain and plaintext
+        // are none with other margins, so an unfilled one draws only its label too (Graphviz's shapes documentation)
+        expect(["n", "f", "p", "t"].map((id) => byId(styles, snapshot, "shape").get(id))).toEqual([
+            "none",
+            "rectangle",
+            "none",
+            "none",
+        ]);
         expect(["s", "b", "w"].map((id) => width.get(id))).toEqual([3, 2, 0.5]);
         const style = byId(styles, snapshot, "borderStyle");
         expect(["s", "w", "k"].map((id) => style.get(id))).toEqual(["dashed", "dotted", null]);
@@ -1112,8 +1118,10 @@ function compareWithGraphviz(
         if (g === undefined || visible[i] === false) {
             continue;
         }
-        // a pen width of 0 still draws Graphviz's thinnest line; graphty draws none
+        // a pen width of 0 still draws Graphviz's thinnest line; graphty draws none (an invis node draws no line at all)
+        const invis = /\binvis/.test(String(snapshot.nodes.has("style") ? snapshot.nodes.value("style", i) : ""));
         const thinnest =
+            !invis &&
             borderWidth[i] === 0 &&
             Number(snapshot.nodes.has("penwidth") ? snapshot.nodes.value("penwidth", i) : 1) === 0;
         const ours = {

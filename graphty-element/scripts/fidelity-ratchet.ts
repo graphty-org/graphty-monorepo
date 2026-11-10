@@ -2,6 +2,8 @@
  * Applies a style fidelity run to the committed records, in the same commit as the change that moved them:
  *
  * - takes off the known failures every element that passes now (one that is not measurable any more stays listed);
+ * - with `--prune`, also takes off a known failure that is not measurable because its element is gone from both
+ *   drawings (no property judges or fails it any more); one whose element is still drawn, or still fails, stays;
  * - raises every recorded pass rate (the informational floors) to what the run measured, never lowering one;
  * - with `--add "<reason>"`, adds every element failing that the known failures do not list, and records the reason,
  *   the date and how many came from the drawing or from the comparator (`--keys` and `--properties` limit what is
@@ -18,6 +20,7 @@
  *     npm run fidelity:ratchet
  *     npm run fidelity:ratchet -- --add "why these elements fail now" [--keys <key>,<key>] [--properties <p>,<p>]
  *         [--suite oracle|drawn]
+ *     npm run fidelity:ratchet -- --prune
  */
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -40,6 +43,7 @@ const { values } = parseArgs({
         add: { type: "string" },
         keys: { type: "string" },
         properties: { type: "string" },
+        prune: { type: "boolean" },
         suite: { type: "string" },
     },
 });
@@ -112,7 +116,7 @@ if (suite === "all" || suite === "oracle") {
             FloorSection,
             Floors
         >;
-        const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add);
+        const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add, values.prune);
         const drops = ratchetDrops(floors.drops ?? {}, gate.keys, add);
         let raised = 0;
         const sectionOf = new Map(gate.keys.map((g) => [g.key, g.section]));
@@ -166,7 +170,12 @@ if (suite === "all" || suite === "drawn") {
     if (gate !== null) {
         const path = "test/fidelity/baseline-scores.json";
         const file = JSON.parse(readFileSync(path, "utf8")) as KnownRecords & { floors: Floors };
-        const out = ratchetKnown({ about: file.about, known: file.known, reasons: file.reasons }, gate.keys, add);
+        const out = ratchetKnown(
+            { about: file.about, known: file.known, reasons: file.reasons },
+            gate.keys,
+            add,
+            values.prune,
+        );
         let raised = 0;
         for (const g of gate.keys) {
             raised += raiseFloors(file.floors, g.key, g.scores);

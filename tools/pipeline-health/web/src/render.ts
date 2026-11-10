@@ -1067,7 +1067,7 @@ function sectionHead(s: Section): string {
         case "shared":
             return h(
                 "Shared failures",
-                "a check failing in 3 or more pull requests, or failing alone where every check it summarizes passed; ongoing first",
+                "a check failing the same way in 2 or more pull requests (or failing on master too), or failing alone where every check it summarizes passed; ongoing first",
             );
         case "time":
             return h("Where the time goes", `${timeScope}median minutes per stage; owner waits left out`);
@@ -1664,7 +1664,7 @@ export function testView(h: TestHistoryResponse): string {
             ],
             h.generated,
             true,
-        )}<p class="pstate"><span>${esc(h.file)}, in the ${esc(h.family.split("|")[0])} test group. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a pull request, a full run or locally.</span></p>` +
+        )}<p class="pstate"><span>${esc(h.file)}, in the ${esc((h.family ?? "").split("|")[0])} test group. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a pull request, a full run or locally.</span></p>` +
         `<p class="note">${issueNote(h)}</p>` +
         `<div class="tbl t-hist" role="table"><div class="thead"><span>when</span><span>where</span><span>commit</span><span>result</span><span>message</span><span>run</span></div>${rows}</div>`
     );

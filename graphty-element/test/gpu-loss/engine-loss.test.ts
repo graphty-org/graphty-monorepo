@@ -12,11 +12,12 @@
 import "../../src/graphty-element";
 
 import { Logger, type WebGPUEngine } from "@babylonjs/core";
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, onTestFailed, vi } from "vitest";
 import { commands } from "vitest/browser";
 
 import { GraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import type { RenderManager } from "../../src/managers/RenderManager";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -57,14 +58,15 @@ function deviceOf(graph: Graph): GPUDevice {
 /**
  * Builds a ring on WebGPU and waits for its picture.
  * @param onDemand - Whether the loop rests once the picture is final.
+ * @param antialias - Whether the engine multisamples.
  * @returns The graph.
  */
-async function openRing(onDemand: boolean): Promise<Graph> {
+async function openRing(onDemand: boolean, antialias = true): Promise<Graph> {
     const container = document.createElement("div");
     container.style.width = "480px";
     container.style.height = "360px";
     document.body.appendChild(container);
-    const graph = new Graph(container);
+    const graph = new Graph(container, false, { antialias });
     mounted.push({ graph, container });
     graph.setRenderer("webgpu");
     await graph.init();
@@ -79,7 +81,47 @@ async function openRing(onDemand: boolean): Promise<Graph> {
 }
 
 /**
- * Takes the device away and waits for the engine to have a new one.
+ * What the loop's ticks have done: frames drawn, ticks rested and ticks skipped for the GPU.
+ * @param graph - The graph.
+ * @returns The counts, copied.
+ */
+function ticksOf(graph: Graph): RenderManager["ticks"] {
+    return { ...(graph as unknown as { renderManager: RenderManager }).renderManager.ticks };
+}
+
+/** The browser's own requests, taken before any test spies on them. */
+const REAL = {
+    requestAdapter: GPU.prototype.requestAdapter as unknown as (...args: unknown[]) => Promise<unknown>,
+    requestDevice: GPUAdapter.prototype.requestDevice as unknown as (...args: unknown[]) => Promise<unknown>,
+};
+
+/**
+ * Counts the calls of a browser request and how many the browser has answered, keeping the real one.
+ * @param proto - The prototype holding the method.
+ * @param name - The method.
+ * @returns The counts so far.
+ */
+function countAnswers(proto: object, name: keyof typeof REAL): { asked: number; answered: number } {
+    const counts = { asked: 0, answered: 0 };
+    const real = REAL[name];
+    vi.spyOn(proto as Record<string, (...args: unknown[]) => Promise<unknown>>, name).mockImplementation(
+        async function (this: unknown, ...args: unknown[]) {
+            counts.asked++;
+            try {
+                return await real.apply(this, args);
+            } finally {
+                counts.answered++;
+            }
+        },
+    );
+    return counts;
+}
+
+/**
+ * Takes the device away and waits for the engine to have a new one. A test that fails, or that the
+ * run's hang guard stops, while it waits here says how far the restore got (issue #6422): whether
+ * the loss and the restore were heard, and how many adapter and device requests the browser has
+ * answered.
  * @param graph - The graph.
  * @param loseDevice - What takes it away.
  * @returns Once the engine says it is back.
@@ -87,8 +129,20 @@ async function openRing(onDemand: boolean): Promise<Graph> {
 async function lose(graph: Graph, loseDevice: (device: GPUDevice) => Promise<void>): Promise<void> {
     const old = deviceOf(graph);
     const engine = graph.engine as WebGPUEngine;
+    const adapters = countAnswers(GPU.prototype, "requestAdapter");
+    const devices = countAnswers(GPUAdapter.prototype, "requestDevice");
+    const heard = { lost: false, restored: false };
+    onTestFailed(() => {
+        console.error(
+            `while the device was lost: ${JSON.stringify({ heard, adapters, devices, ticks: ticksOf(graph) })}`,
+        );
+    });
+    engine.onContextLostObservable.addOnce(() => {
+        heard.lost = true;
+    });
     const restored = new Promise<void>((resolve) => {
         engine.onContextRestoredObservable.addOnce(() => {
+            heard.restored = true;
             resolve();
         });
     });
@@ -103,13 +157,28 @@ async function lose(graph: Graph, loseDevice: (device: GPUDevice) => Promise<voi
 }
 
 /**
- * Waits until the page shows a picture again. A picture that never comes back ends in the
- * run's hang guard.
+ * Waits until the page shows a picture again. Fails at once when the loop has come to rest on a
+ * different one -- two reads alike, no frame drawn between them, and the loop resting meanwhile --
+ * since a resting loop does not change it again by itself (issue #6422). A picture that never comes
+ * back while the loop keeps drawing ends in the run's hang guard.
+ * @param graph - The graph drawing it.
  * @param want - The base64 PNG to see.
  */
-async function waitForPicture(want: string): Promise<void> {
-    while ((await commands.canvasPicture()) !== want) {
+async function waitForPicture(graph: Graph, want: string): Promise<void> {
+    let last = { picture: "", ticks: ticksOf(graph) };
+    for (;;) {
         // Each read is a round trip to the browser's compositor.
+        const now = { picture: await commands.canvasPicture(), ticks: ticksOf(graph) };
+        if (now.picture === want) {
+            return;
+        }
+
+        const restedOnIt =
+            now.picture === last.picture &&
+            now.ticks.drawn === last.ticks.drawn &&
+            now.ticks.rested > last.ticks.rested;
+        assert.isFalse(restedOnIt, `the loop rested on a different picture: ${JSON.stringify(now.ticks)}`);
+        last = now;
     }
 }
 
@@ -134,22 +203,28 @@ const DRILLS: Record<string, (device: GPUDevice) => Promise<void>> = {
 
 describe("a lost WebGPU device", () => {
     for (const [drill, loseDevice] of Object.entries(DRILLS)) {
-        for (const onDemand of [false, true]) {
-            it(`draws the same picture after a ${drill}, ${onDemand ? "resting" : "drawing every tick"}`, async () => {
-                const graph = await openRing(onDemand);
+        for (const [onDemand, antialias] of [
+            [false, true],
+            [true, true],
+            [true, false],
+        ]) {
+            const how = `${onDemand ? "resting" : "drawing every tick"}${antialias ? "" : ", antialias off"}`;
+            it(`draws the same picture after a ${drill}, ${how}`, async () => {
+                const graph = await openRing(onDemand, antialias);
                 const before = await commands.canvasPicture();
                 const uncaptured = countUncaptured();
                 const told = vi.fn();
                 graph.canvas.addEventListener("webglcontextrestored", told);
 
                 await lose(graph, loseDevice);
-                await waitForPicture(before);
+                await waitForPicture(graph, before);
 
                 assert.strictEqual(uncaptured(), 0);
                 assert.isTrue(graph.rendererStatus?.drawing);
                 // What wakes a resting loop and has the batches upload again. Shaders compiling on
                 // the new device also keep the loop drawing, so the picture alone does not show it.
                 assert.strictEqual(told.mock.calls.length, 1);
+                assert.strictEqual(graph.engine.getCreationOptions().antialias, antialias);
             });
         }
     }
@@ -160,9 +235,9 @@ describe("a lost WebGPU device", () => {
         const uncaptured = countUncaptured();
 
         await lose(graph, DRILLS.destroy);
-        await waitForPicture(before);
+        await waitForPicture(graph, before);
         await lose(graph, DRILLS.destroy);
-        await waitForPicture(before);
+        await waitForPicture(graph, before);
 
         assert.strictEqual(uncaptured(), 0);
     });
@@ -186,7 +261,7 @@ describe("a lost WebGPU device", () => {
 
         await lose(graph, DRILLS.destroy);
         await added;
-        await waitForPicture(want);
+        await waitForPicture(graph, want);
 
         assert.strictEqual(uncaptured(), 0);
     });

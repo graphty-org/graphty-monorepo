@@ -13,7 +13,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { type BendPoint, flattenCubic } from "../../styles/canon/bends.js";
 import { num6 } from "../../styles/canon/number.js";
 import type { StyleValue } from "../../styles/types.js";
-import { textWidth } from "./record.js";
+import { fontWidths, textWidth } from "./record.js";
 
 /** Graphviz's `PORT_LABEL_DISTANCE`, in points. */
 const PORT_LABEL_DISTANCE = 10;
@@ -381,7 +381,8 @@ export function leftOutXlabels(
         const size = Number(cx.node(n, "fontsize") ?? Number.NaN);
         const font = Number.isFinite(size) && size > 0 ? size : DEFAULT_FONT_SIZE;
         const lines = (cx.node(n, "xlabel") ?? "").split(/\\[nlr]|\n/);
-        const w = Math.max(...lines.map((l) => textWidth(l, font)));
+        const widths = fontWidths(cx.node(n, "fontname"));
+        const w = Math.max(...lines.map((l) => textWidth(l, font, widths)));
         const label: Box = [x0 - w, y1, x0, y1 + lines.length * LINE_SPACING * font];
         if (boxes.some(([m, b]) => m !== n && b !== null && overlaps(label, b))) {
             out.add(n);

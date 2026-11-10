@@ -54,6 +54,8 @@ function star(): { nodes: { id: string }[]; edges: { src: string; dst: string }[
 
 async function settle(g: Graph): Promise<void> {
     await operationQueueOf(g).waitForCompletion();
+    // The frames draw every node at its size first: a nodeGap layout spends its pre-steps only then.
+    await g.waitForStableFrame();
     for (let frame = 0; frame < 4000 && !g.getLayoutManager().isSettled; frame++) {
         g.getLayoutManager().step();
     }

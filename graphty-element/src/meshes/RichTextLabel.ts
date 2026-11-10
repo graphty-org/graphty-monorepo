@@ -19,6 +19,7 @@ import { type RichTextStyleType } from "../config";
 import { DEFAULT_LABEL_GRADIENT_COLORS } from "../config/RichTextStyle";
 import { toColorValue } from "../session/styles/channels";
 import { FrameRoster } from "./FrameRoster";
+import { type GlyphLabelEntry, GlyphLabels, recordRuns } from "./GlyphLabels";
 import {
     buildMaterial,
     deferLabelRelease,
@@ -37,7 +38,7 @@ import { fitTexturesToScreen } from "./labelTextureFit";
 import { labelBoxOf } from "./NodeShapeGeometry";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
-import { measureLine, RichTextParser, wrapLines } from "./RichTextParser";
+import { hasWords, measureLine, RichTextParser, wrapLines } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
 import { pixelsPerUnit } from "./screenSize";
 
@@ -55,6 +56,8 @@ const NO_BOUNDS: PlacementBounds = { min: Vector3.Zero(), max: Vector3.Zero(), z
  * with the nodes and edges in front of it but no glow is drawn over its words.
  */
 const LABEL_RENDERING_GROUP = 1;
+/** Babylon's layer mask for a mesh every camera draws. */
+const DEFAULT_LAYER_MASK = 0x0fffffff;
 
 /** The Babylon rendering group a label drawn on top uses: after every other, depth cleared. */
 export const ON_TOP_RENDERING_GROUP = 2;
@@ -210,6 +213,12 @@ interface RuntimeProperties {
      * at the position, as Graphviz draws it.
      */
     centerAtOrigin?: boolean;
+    /**
+     * Draw the words from the scene's glyph atlas, in one draw with every other glyph label, when
+     * the label is plain (`layoutBehavior.labels.labelText: "glyphs"`); a label that is not is
+     * drawn on its own canvas as before.
+     */
+    glyphs?: boolean;
 }
 
 // RichTextLabelOptions extends the config schema with runtime properties
@@ -236,6 +245,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "wrapEllipsis"
     | "wrapAnywhere"
     | "wrapSpaceCount"
+    | "keepBlankLines"
     | "runAlign"
     | "minScreenSize"
     | "minNodeScreenSize"
@@ -258,6 +268,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "_paddingRatio"
     | "_removeText"
     | "_progressBar"
+    | "glyphs"
     | "enabled"
     | "textPath"
     | "table"
@@ -454,6 +465,8 @@ export class RichTextLabel {
     private readonly scene: Scene;
     private readonly options: ResolvedRichTextLabelOptions;
     private mesh: Mesh | null = null;
+    /** Its glyphs in the scene's glyph draw, while it is glyph-drawn; see {@link GlyphLabels}. */
+    private glyphEntry: GlyphLabelEntry | null = null;
     private texture: DynamicTexture | null = null;
     private material: StandardMaterial | null = null;
     private parsedContent: TextSegment[][] = [];
@@ -598,7 +611,7 @@ export class RichTextLabel {
             const perPixel = (label.lineHeightInWorld() * label.heightInLines) / height;
             const lines = Math.max(1, label.parsedContent.length);
             const ctx = document.createElement("canvas").getContext("2d");
-            const first = label.parsedContent.find((line) => line.length > 0);
+            const first = label.parsedContent.find(hasWords);
             let ink = { ascent: 0, descent: 0 };
             if (ctx !== null && first !== undefined) {
                 // measured with the glyphs it is drawn with, as `_calculateDimensions` measures
@@ -852,9 +865,18 @@ export class RichTextLabel {
         }
 
         this._calculateDimensions();
-        this._createTexture();
-        this._createMaterial();
+        const quads = this.glyphQuads();
+        if (quads === null) {
+            this._createTexture();
+            this._createMaterial();
+        }
         this._createMesh();
+        if (quads !== null && this.mesh) {
+            // The plane places, declutters and picks the label, and draws nothing: the glyph draw does.
+            this.mesh.layerMask = 0;
+            this.glyphEntry = { mesh: this.mesh, quads };
+            GlyphLabels.of(this.scene).add(this.glyphEntry);
+        }
         let labels = sceneLabels.get(this.scene);
         if (labels === undefined) {
             labels = new Set();
@@ -896,7 +918,11 @@ export class RichTextLabel {
     }
 
     private _parseRichText(): void {
-        this.parsedContent = this.parser.parse(this.options.text, this.options.plainText === true);
+        this.parsedContent = this.parser.parse(
+            this.options.text,
+            this.options.plainText === true,
+            this.options.keepBlankLines === true,
+        );
     }
 
     private _calculateDimensions(): void {
@@ -1155,7 +1181,7 @@ export class RichTextLabel {
      */
     private measureHeightInLines(ctx: CanvasRenderingContext2D, totalHeight: number): number {
         // The first line WITH WORDS: a blank line has no height of its own to measure.
-        const firstLine = this.parsedContent.find((line) => line.length > 0);
+        const firstLine = this.parsedContent.find(hasWords);
         if (firstLine === undefined) {
             return 1;
         }
@@ -1294,6 +1320,10 @@ export class RichTextLabel {
 
     /** Draw the label on a new texture, of the size its canvas is now. */
     private replaceTexture(): void {
+        if (this.glyphEntry !== null) {
+            this.redrawGlyphs();
+            return;
+        }
         const old = this.texture;
         this._createTexture();
         if (this.material !== null) {
@@ -1401,7 +1431,70 @@ export class RichTextLabel {
         this._drawContent();
     }
 
+    /**
+     * Whether the label is drawn from the glyph atlas or on its own canvas.
+     * @returns Which.
+     */
+    public get drawnBy(): "glyphs" | "canvas" {
+        return this.glyphEntry === null ? "canvas" : "glyphs";
+    }
+
+    /**
+     * The label's glyph quads, when it asks for glyphs and is plain: words in plain runs, with
+     * nothing the glyph draw cannot do (a panel, pointer, badge, table, button, animation, depth
+     * fade or a place over the whole graph).
+     * @returns The quads, or null to draw it on its own canvas.
+     */
+    private glyphQuads(): Float32Array | null {
+        const o = this.options;
+        if (
+            !o.glyphs ||
+            o.onTop === true ||
+            o.depthFadeEnabled ||
+            o.animation !== "none" ||
+            o.closeButton ||
+            o.pointer ||
+            o._badgeType !== undefined ||
+            o._progressBar ||
+            this.tableDrawing !== null
+        ) {
+            return null;
+        }
+        const { width, height } = this.actualDimensions;
+        const runs = recordRuns(this.scene, (ctx) => {
+            this.paint(ctx, width, height);
+        });
+        if (runs === null) {
+            return null;
+        }
+        const plane = this.planeSize();
+        return GlyphLabels.of(this.scene).quadsOf(runs, width, height, plane.width, plane.height);
+    }
+
+    /** Lay a glyph-drawn label's glyphs out again; a label that is no longer plain gets its canvas. */
+    private redrawGlyphs(): void {
+        const entry = this.glyphEntry;
+        if (entry === null) {
+            return;
+        }
+        const quads = this.glyphQuads();
+        if (quads !== null) {
+            entry.quads = quads;
+            return;
+        }
+        GlyphLabels.remove(this.scene, entry);
+        this.glyphEntry = null;
+        this._createTexture();
+        this._createMaterial();
+        entry.mesh.material = this.material;
+        entry.mesh.layerMask = DEFAULT_LAYER_MASK;
+    }
+
     private _drawContent(): void {
+        if (this.glyphEntry !== null) {
+            this.redrawGlyphs();
+            return;
+        }
         if (!this.texture) {
             return;
         }
@@ -1409,7 +1502,17 @@ export class RichTextLabel {
         const ctx = this.texture.getContext() as unknown as CanvasRenderingContext2D;
         const { width } = this.texture.getSize();
         const { height } = this.texture.getSize();
+        this.paint(ctx, width, height);
+        uploadPremultiplied(this.texture);
+    }
 
+    /**
+     * Paint the label: its panel, its words and its button, on a canvas of this size.
+     * @param ctx - The canvas.
+     * @param width - Its width, in its pixels.
+     * @param height - Its height.
+     */
+    private paint(ctx: CanvasRenderingContext2D, width: number, height: number): void {
         ctx.clearRect(0, 0, width, height);
         // Chromium hints a font's glyphs or not by the device pixel ratio in force when it first
         // loaded that font, and keeps the loaded font for the page, so the same label drew one
@@ -1451,7 +1554,6 @@ export class RichTextLabel {
         }
 
         ctx.restore();
-        uploadPremultiplied(this.texture);
     }
 
     private _drawBackgroundWithBorders(ctx: CanvasRenderingContext2D): void {
@@ -1948,7 +2050,7 @@ export class RichTextLabel {
      */
     private wrapToWidth(ctx: CanvasRenderingContext2D): void {
         const { wrapWidth } = this.options;
-        const first = this.parsedContent.find((line) => line.length > 0);
+        const first = this.parsedContent.find(hasWords);
         if (wrapWidth === undefined || first === undefined) {
             return;
         }
@@ -1988,10 +2090,17 @@ export class RichTextLabel {
         return this.options.size ?? fontSize / 48;
     }
 
+    /**
+     * The plane's size in the scene: one line's height per line, and the canvas's aspect.
+     * @returns Its width and height, in world units.
+     */
+    private planeSize(): { width: number; height: number } {
+        const height = this.lineHeightInWorld() * this.heightInLines;
+        return { width: (this.actualDimensions.width / this.actualDimensions.height) * height, height };
+    }
+
     private _createMesh(): void {
-        const aspectRatio = this.actualDimensions.width / this.actualDimensions.height;
-        const planeHeight = this.lineHeightInWorld() * this.heightInLines;
-        const planeWidth = aspectRatio * planeHeight;
+        const { width: planeWidth, height: planeHeight } = this.planeSize();
 
         this.mesh = MeshBuilder.CreatePlane(
             `richTextPlane_${this.id}`,
@@ -2493,6 +2602,19 @@ export class RichTextLabel {
     }
 
     /**
+     * Say the label now hangs from another mesh standing at the same place, whose parts were
+     * already moved onto it, so nothing is placed again. A label attached elsewhere is left alone.
+     * @param from - The mesh it was attached to.
+     * @param to - The mesh that replaced it.
+     * @internal
+     */
+    public retarget(from: AbstractMesh | TransformNode, to: AbstractMesh): void {
+        if (this.options.attachTo === from) {
+            this.options.attachTo = to;
+        }
+    }
+
+    /**
      * Attaches the label to a target mesh or position
      * @param target - The mesh or position to attach to
      * @param position - The attachment position relative to the target
@@ -2566,6 +2688,11 @@ export class RichTextLabel {
 
         // A repaint that disposes many labels releases them all at once when it ends; see
         // LabelBatch (issue #2762).
+        if (this.glyphEntry !== null) {
+            GlyphLabels.remove(this.scene, this.glyphEntry);
+            this.glyphEntry = null;
+        }
+
         if (deferLabelRelease({ mesh: this.mesh, material: this.material, texture: this.texture })) {
             return;
         }

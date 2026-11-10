@@ -8,7 +8,10 @@ import { assert, describe, it } from "vitest";
 import { isGraphtyError } from "../../src/errors";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import { fileStylesOn } from "../helpers/file-styles-on";
 import { makeSession } from "./helpers";
+
+fileStylesOn();
 
 /** One file of each graph format shape: files whose format, not the reader, sets the columns. */
 const FILES: readonly (readonly [string, string])[] = [

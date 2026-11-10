@@ -6,7 +6,9 @@
 //
 //   node --test tools/test-quarantine.test.mjs
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -20,6 +22,8 @@ import {
     failedFirst,
     emptyState,
     HANG_CODE,
+    HANG_NAME,
+    hangFailures,
     quarantineEnabled,
     runShard,
     shardOfRun,
@@ -242,6 +246,31 @@ describe("shardOfRun", () => {
     });
 });
 
+/**
+ * A run's deadline on a mocked clock. The run's command runs `ready` once it has done what the test needs done
+ * before the deadline; reachDeadline() waits for that and only then moves the clock to the deadline. A wall-clock
+ * deadline raced the command's start: on a loaded machine the shell had not written its files when it was stopped.
+ * @param t the test context
+ * @param root the checkout
+ * @returns `{ env, ready, reachDeadline, runAll }`
+ */
+function deadlineClock(t, root) {
+    const DEADLINE_IN = 500;
+    t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+    const fifo = join(root, "ready.fifo");
+    execFileSync("mkfifo", [fifo]);
+    const opened = readFile(fifo); // resolves once the command has written it and closed it
+    return {
+        env: { [DEADLINE_ENV]: String(DEADLINE_IN) },
+        ready: `echo > '${fifo}'`,
+        reachDeadline: async () => {
+            await opened;
+            t.mock.timers.tick(DEADLINE_IN);
+        },
+        runAll: () => t.mock.timers.runAll(),
+    };
+}
+
 describe("runShard", () => {
     const run = async (c, env = {}, name = "graphty-1") => {
         const result = join(c.root, "result.json");
@@ -385,17 +414,27 @@ describe("runShard", () => {
     it("stops a stuck run at its deadline, names the test still running and does not retry it", async (t) => {
         const c = checkout({ retryFails: false });
         const log = t.mock.method(console, "log", () => {});
+        const clock = deadlineClock(t, c.root);
         const first = [
             `printf '+ a.test.ts\\n+ a.test.ts > done\\n- a.test.ts > done\\n+ a.test.ts > stuck\\n' > "$GRAPHTY_RUNNING_TESTS"`,
-            // a stuck child that left the process group and ignores the TERM, holding the output pipes
-            `setsid sh -c 'trap "" TERM; sleep 600' & echo $! > survivor.pid`,
-            "wait",
+            // a stuck child that left the process group and ignores the TERM, holding the output pipes. It says ready
+            // itself, once out of the group: said by the parent, the deadline's TERM to the group could reach the
+            // child before `setsid` ran and kill it (#6266).
+            `setsid sh -c "trap '' TERM; echo \\$\\$ > survivor.pid; ${clock.ready}; exec sleep 600" & wait`,
         ].join("; ");
-        const { code, result } = await run({ ...c, first }, { [DEADLINE_ENV]: String(Date.now() + 500) });
+        const running = run({ ...c, first }, clock.env);
+        await clock.reachDeadline();
+        clock.runAll(); // the survivor holds the pipes, so the run ends at its KILL
+        const { code, result } = await running;
         process.kill(Number(readFileSync(join(c.root, "survivor.pid"), "utf8")), "SIGKILL");
         const printed = log.mock.calls.map((call) => call.arguments[0]).join("\n");
         assert.equal(code, HANG_CODE);
         assert.match(printed, /^::error::\[HANG\] .*still running: a\.test\.ts > stuck$/mu);
+        // #6374: the store, and so a full run's bisect, learns what hung
+        assert.deepEqual(
+            result.hung.map((f) => [f.file, f.name]),
+            [["graphty/a.test.ts", "stuck"]],
+        );
         assert.equal(result.retried, false);
         assert.equal(existsSync(join(c.root, "retry-command")), false, "no retry ran");
     });
@@ -403,13 +442,44 @@ describe("runShard", () => {
     it("gives the last output of a stuck run with no test running, and starts nothing past the deadline", async (t) => {
         const c = checkout({ retryFails: false });
         const log = t.mock.method(console, "log", () => {});
-        const env = { [DEADLINE_ENV]: String(Date.now() + 500) };
-        const stuck = await run({ ...c, first: "echo installing; exec sleep 600" }, env);
+        const clock = deadlineClock(t, c.root);
+        const env = clock.env;
+        const running = run({ ...c, first: `echo installing; ${clock.ready}; exec sleep 600` }, env);
+        await clock.reachDeadline();
+        const stuck = await running;
         assert.equal(stuck.code, HANG_CODE);
         assert.match(log.mock.calls.map((call) => call.arguments[0]).join("\n"), /last output: installing$/mu);
+        assert.deepEqual(
+            stuck.result.hung.map((f) => [f.file, f.name]),
+            [["graphty", HANG_NAME]],
+        );
         const late = await run({ ...c, first: "touch started" }, env);
         assert.equal(late.code, HANG_CODE);
         assert.equal(existsSync(join(c.root, "started")), false);
+        assert.deepEqual(
+            late.result.hung.map((f) => f.file),
+            ["graphty"],
+        );
+    });
+
+    // #6374: CI / Test (graphty-4) ended "[HANG] the run reached the job's deadline and was stopped; still running:
+    // src/workspace/selection/__tests__/cardPalette.test.ts", and the bisect named no failing test
+    it("names a hung file and test by their repo paths, and the package when nothing was running", () => {
+        assert.deepEqual(
+            hangFailures(
+                ["src/workspace/selection/__tests__/cardPalette.test.ts", "src/a.test.ts > suite works"],
+                "graphty",
+            ).map((f) => [f.file, f.name]),
+            [
+                ["graphty/src/workspace/selection/__tests__/cardPalette.test.ts", HANG_NAME],
+                ["graphty/src/a.test.ts", "suite works"],
+            ],
+        );
+        assert.deepEqual(
+            hangFailures([], "graphty").map((f) => [f.file, f.name]),
+            [["graphty", HANG_NAME]],
+        );
+        assert.deepEqual(hangFailures(["src/a.test.ts"], undefined), []);
     });
 
     it("reads the tests still running, and the files with none, from the running-tests reporter's record", () => {

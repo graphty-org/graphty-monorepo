@@ -623,7 +623,7 @@ export interface TimeSources {
 }
 
 /** The `data.knownFields` keys that hold the designation. */
-export interface KnownTimeFields {
+interface KnownTimeFields {
     readonly nodeTimePath: string | null;
     readonly nodeTimeUnit: TimeUnit | null;
     readonly nodeTimeParseZone: string | null;
@@ -731,7 +731,7 @@ export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
 }
 
 /** Every timeline setting at its default. */
-export const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
+const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
     results: "stale",
     mode: "sliding",
     step: "auto",
@@ -740,24 +740,6 @@ export const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
     timeZone: UTC_ZONE,
     ageFade: 1,
 });
-
-/**
- * Whether two settings say the same.
- * @param a - One.
- * @param b - The other.
- * @returns True when every member matches.
- */
-export function sameSettings(a: TimeSettings, b: TimeSettings): boolean {
-    return (
-        a.results === b.results &&
-        a.mode === b.mode &&
-        a.step === b.step &&
-        a.missing === b.missing &&
-        a.outside === b.outside &&
-        a.timeZone === b.timeZone &&
-        a.ageFade === b.ageFade
-    );
-}
 
 // ---------------------------------------------------------------------------------------------
 // Reading the index

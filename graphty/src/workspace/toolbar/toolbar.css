@@ -44,10 +44,6 @@
     inset-inline-end: 4px;
 }
 
-.ws-analyze-settings {
-    padding: 6px 8px;
-}
-
 .ws-analyze-run {
     padding: 8px 8px 4px;
     border-top: 1px solid var(--cm-border);

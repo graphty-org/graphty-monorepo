@@ -248,6 +248,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.raisedBorderWidth": "Raised border width",
     "node.raisedBorderLightColor": "Raised border light color",
     "node.raisedBorderDarkColor": "Raised border dark color",
+    "node.shadowColor": "Shadow color",
+    "node.shadowOpacity": "Shadow opacity",
+    "node.shadowBlur": "Shadow blur",
+    "node.shadowOffsetX": "Shadow offset X",
+    "node.shadowOffsetY": "Shadow offset Y",
     "node.underlayColor": "Underlay color",
     "node.underlayOpacity": "Underlay opacity",
     "node.underlayPadding": "Underlay padding",
@@ -318,6 +323,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shapeTexts": "Shape",
     "node.labelTable": "Label",
     "node.shapeLineWidth": "Shape",
+    "node.shapeLineHaloColor": "Shape",
+    "node.shapeLineHaloWidth": "Shape",
     "node.gradientColors": "Gradient",
     "node.gradientStops": "Gradient",
     "node.gradientKind": "Gradient",
@@ -344,6 +351,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.gradientKind": "Gradient",
     "edge.waveAmplitude": "Wave amplitude",
     "edge.wavePeriod": "Wave period",
+    "edge.dashLength": "Dash length",
+    "edge.dashGap": "Dash gap",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
@@ -467,7 +476,7 @@ export function directionWords(statistics: GraphStatistics): string {
  * @param directedness - the element's direction.
  * @returns the sentence, or null.
  */
-export function arrowheadNote(directedness: GraphStatistics["directedness"]): string | null {
+function arrowheadNote(directedness: GraphStatistics["directedness"]): string | null {
     // An arrowhead on an edge with no direction shows the file's order, not a direction.
     const follows =
         "an arrowhead shows only the file's order: it points from each edge's first-listed node to its second";
@@ -585,7 +594,7 @@ export function selectionWords(nodes: number, edges: number): string {
  * @param session - the session.
  * @returns the words.
  */
-export function selectionNameWords(session: GraphSession): string {
+function selectionNameWords(session: GraphSession): string {
     const { nodes, edges } = session.selection;
     if (nodes.length + edges.length === 1) {
         if (nodes.length === 1) {

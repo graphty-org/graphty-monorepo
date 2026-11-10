@@ -329,10 +329,6 @@ function sameSelector(a: Layer["selector"], b: Layer["selector"]): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** What one line of a row writes: a literal value, a data binding, or a text template. */
-export type LineWrite =
-    { readonly value: ChannelValue } | { readonly binding: DataBinding } | { readonly template: readonly string[] };
-
 /**
  * Writes one line of a row: a literal value or a binding, into the topmost layer of the row the
  * reader may edit. One undoable step of the element's.
@@ -662,7 +658,7 @@ export function propose(
  * @param channel - the channel.
  * @returns `{ range }` for an opacity, else nothing.
  */
-export function appRange(channel: Channel): { range?: [number, number] } {
+function appRange(channel: Channel): { range?: [number, number] } {
     return OPACITY.test(channel) ? { range: [...OPACITY_RANGE] as [number, number] } : {};
 }
 

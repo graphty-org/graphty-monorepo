@@ -15,16 +15,18 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { Vec3 } from "../camera/types";
 import { resolveOptionValues } from "../catalog/options";
+import type { Rgba } from "../catalog/types";
 import type { LayoutTransitionConfig } from "../config/GraphStyle";
 import type { Edge } from "../Edge";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
+import type { RowTable } from "../render/RowTable";
 import type { RenderQuality } from "../session/shaders";
 import { ParticleDrawable } from "./ParticleDrawable";
 import { easeInOut } from "./presets/glide";
 import { type RegisteredTransition, transitionById, type TransitionNode } from "./registry";
 
 /** A transition's duration when `seconds` is not set. */
-export const DEFAULT_TRANSITION_SECONDS = 0.8;
+const DEFAULT_TRANSITION_SECONDS = 0.8;
 
 /** A move shorter than this, in scene units, is no move: the clock does not start for it. */
 const STILL = 1e-6;
@@ -34,7 +36,7 @@ export interface TransitionSubject {
     readonly index: number;
     readonly drawnPosition: Vec3;
     /** A particle transition shrinks the node while its cloud is in flight. */
-    drawnScale: number;
+    readonly drawnScale: number;
     /** Draw it at `scale`, part of its `whole` size: a particle transition's shrink. */
     drawShrunk(scale: number, whole: number): void;
     drawnWorldMatrix(force?: boolean): unknown;
@@ -53,6 +55,11 @@ export interface TransitionHost {
     quality(): RenderQuality;
     /** Every node the layout places. */
     nodes(): Iterable<TransitionSubject>;
+    /**
+     * The rows drawn with no `Node` (renderPath "batched"), which no `Node.update` places: the
+     * runner moves them by their rows. None under "objects".
+     */
+    rows?(): Iterable<RowSubject>;
     /** Every edge, for the hops from the selection. */
     edges(): Iterable<Pick<Edge, "srcNode" | "dstNode">>;
     /** The selected nodes. */
@@ -62,6 +69,88 @@ export interface TransitionHost {
 }
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "layout", "transition"]);
+
+/**
+ * A row drawn with no `Node`, moved through the row table: where it is drawn, its size and its
+ * paint are the table's and the painter's, and it is placed where the coordinate lane puts it.
+ */
+export class RowSubject implements TransitionSubject {
+    /**
+     * A row.
+     * @param table - The row table that draws it.
+     * @param index - Its row.
+     * @param paintedColor - The color it is painted, or null.
+     */
+    constructor(
+        private readonly table: RowTable,
+        readonly index: number,
+        readonly paintedColor: Rgba | null,
+    ) {}
+
+    /**
+     * Where the row is drawn now.
+     * @returns A new vector.
+     */
+    get drawnPosition(): Vec3 {
+        return this.table.centerOf(this.index);
+    }
+
+    /**
+     * The scale the row is drawn at.
+     * @returns The scale.
+     */
+    get drawnScale(): number {
+        return this.table.extentOf(this.index).scale;
+    }
+
+    /**
+     * The radius of the row's drawn shape.
+     * @returns The radius, in graph-root units.
+     */
+    get drawnRadius(): number {
+        const { round, half } = this.table.extentOf(this.index);
+        return round ?? Math.max(half.x, half.y, half.z);
+    }
+
+    /**
+     * Draw the row part of its size, as a particle transition's shrink.
+     * @param scale - The scale to draw it at.
+     * @param whole - Its scale when it is not shrunk.
+     */
+    drawShrunk(scale: number, whole: number): void {
+        this.table.shrink(this.index, whole === 0 ? 1 : scale / whole);
+    }
+
+    /**
+     * A row has no world matrix of its own: a pick reads the table.
+     * @returns Nothing.
+     */
+    drawnWorldMatrix(): undefined {
+        return undefined;
+    }
+
+    /**
+     * Draw the row at a point.
+     * @param x - Drawn x.
+     * @param y - Drawn y.
+     * @param z - Drawn z.
+     */
+    setMeshPosition(x: number, y: number, z: number): void {
+        this.table.place(this.index, x, y, z);
+    }
+
+    /**
+     * Where the layout puts the row now.
+     * @param out - Written with the place.
+     * @param out.x - X.
+     * @param out.y - Y.
+     * @param out.z - Z.
+     * @returns False when it puts it nowhere.
+     */
+    target(out: { x: number; y: number; z: number }): boolean {
+        return this.table.laneOf(this.index, out);
+    }
+}
 
 /** One moving node. */
 interface Mover {
@@ -89,6 +178,8 @@ export interface TransitionSnapshot {
     readonly params: Readonly<Record<string, unknown>>;
     readonly durationMs: number;
     readonly movers: Map<TransitionSubject, Mover>;
+    /** The movers that are rows with no `Node`, which {@link LayoutTransitionRunner.placeRows} places. */
+    readonly rows: readonly RowSubject[];
 }
 
 /** The runner of each scene, for picking. */
@@ -325,7 +416,8 @@ export class LayoutTransitionRunner {
             return null;
         }
 
-        const nodes = [...this.host.nodes()];
+        const rows = [...(this.host.rows?.() ?? [])];
+        const nodes = [...this.host.nodes(), ...rows];
         const from = nodes.map((node) => ({
             x: node.drawnPosition.x,
             y: node.drawnPosition.y,
@@ -358,7 +450,7 @@ export class LayoutTransitionRunner {
             });
         });
 
-        return { transition, params, durationMs: seconds * 1000, movers };
+        return { transition, params, durationMs: seconds * 1000, movers, rows };
     }
 
     /**
@@ -444,6 +536,21 @@ export class LayoutTransitionRunner {
         }
 
         return drawn;
+    }
+
+    /**
+     * Place the rows drawn with no `Node`, which no `Node.update` reaches: each where the move
+     * draws it this frame on its way to where the lane puts it. Run after the frame's node walk.
+     */
+    placeRows(): void {
+        const rows = this.state?.rows ?? [];
+        const at = { x: 0, y: 0, z: 0 };
+        for (const row of rows) {
+            if (row.target(at)) {
+                const drawn = this.place(row, at);
+                row.setMeshPosition(drawn.x, drawn.y, drawn.z);
+            }
+        }
     }
 
     /**
@@ -575,6 +682,14 @@ export class LayoutTransitionRunner {
         if (this.state?.transition.descriptor.drawable === "particles") {
             for (const [node, mover] of this.state.movers) {
                 node.drawShrunk(mover.scale, mover.scale);
+            }
+        }
+
+        // A row with no Node is drawn where it was put until something puts it again: back to the lane.
+        const at = { x: 0, y: 0, z: 0 };
+        for (const row of this.state?.rows ?? []) {
+            if (row.target(at)) {
+                row.setMeshPosition(at.x, at.y, at.z);
             }
         }
 

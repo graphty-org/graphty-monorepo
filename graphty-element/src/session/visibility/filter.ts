@@ -74,6 +74,7 @@ import {
 import { normalizeText, textMatcher } from "../text";
 import { numericBound, readTimeValue, spanEnd, spellPairs } from "../time/parse";
 import { isTimeZone } from "../time/zone";
+import { isSourceScoped, type SourceScopedRule } from "./conditions";
 import { slideCounters } from "./slide";
 import {
     type Bytes,
@@ -1108,7 +1109,7 @@ interface PathMark {
 }
 
 /** Everything the compiler carries down the filter tree. */
-export interface CompileContext {
+interface CompileContext {
     /** The snapshot every test is written against. */
     readonly graph: GraphSnapshot;
     /** Where to read what the compiler cannot compute. */
@@ -2072,19 +2073,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return sourceTests(context, filter.sources, filter.side);
         case "state":
             return stateTests(context, filter.state);
-        case "member": {
-            if (context.sources.scope === undefined) {
-                throw unsupported("member", "a scope resolver");
-            }
-
-            const leaf = context.sources.scope(filter.of);
-            const { edges } = leaf;
-
-            return {
-                node: (index) => maskTest(leaf.nodes, index),
-                edge: edges === null ? null : (index) => maskTest(edges, index),
-            };
-        }
+        case "member":
+            return compileMember(context, filter.of);
         case "item":
             return compileItem(context, filter.item);
         case "threshold":
@@ -2129,20 +2119,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
         case "measure":
             return compileMeasure(context, filter);
         case "all":
-        case "any": {
-            const members = filter.of.map((member) => compileOne(member, context));
-
-            return {
-                node: fold(
-                    members.map((member) => member.node),
-                    filter.kind,
-                ),
-                edge: fold(
-                    members.map((member) => member.edge),
-                    filter.kind,
-                ),
-            };
-        }
+        case "any":
+            return compileGroup(context, filter);
         default: {
             const { node, edge } = compileOne(filter.of, context);
 
@@ -2152,6 +2130,70 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             };
         }
     }
+}
+
+/**
+ * Compile a "member" leaf: the elements a scope holds.
+ * @param context - The compile context.
+ * @param of - The scope the leaf names.
+ * @returns Its halves.
+ * @throws A `GraphtyError` when this session has no scope resolver.
+ */
+function compileMember(context: CompileContext, of: Extract<RuleTree, { kind: "member" }>["of"]): CompiledHalves {
+    if (context.sources.scope === undefined) {
+        throw unsupported("member", "a scope resolver");
+    }
+
+    const leaf = context.sources.scope(of);
+    const { edges } = leaf;
+
+    return {
+        node: (index) => maskTest(leaf.nodes, index),
+        edge: edges === null ? null : (index) => maskTest(edges, index),
+    };
+}
+
+/**
+ * Compile an "all" or "any" group, or a source-scoped rule.
+ * @param context - The compile context.
+ * @param filter - The group.
+ * @returns Its halves.
+ */
+function compileGroup(context: CompileContext, filter: Extract<RuleTree, { kind: "all" | "any" }>): CompiledHalves {
+    if (isSourceScoped(filter)) {
+        return compileSourceScoped(context, filter);
+    }
+
+    const members = filter.of.map((member) => compileOne(member, context));
+
+    return {
+        node: fold(
+            members.map((member) => member.node),
+            filter.kind,
+        ),
+        edge: fold(
+            members.map((member) => member.edge),
+            filter.kind,
+        ),
+    };
+}
+
+/**
+ * A rule that judges only some loads' elements (a filter condition's `source`): theirs answer as
+ * its rule does, every other element answers `outside`. A half the rule is silent about stays
+ * silent, so a node rule never touches an edge.
+ * @param context - The compile context.
+ * @param scoped - The scoped rule.
+ * @returns Its halves.
+ */
+function compileSourceScoped(context: CompileContext, scoped: SourceScopedRule): CompiledHalves {
+    const inner = compileOne(scoped.of[0], context);
+    const within = sourceTests(context, scoped.withinSources, undefined);
+    const { outside } = scoped;
+    const half = (test: ElementTest | null, mine: ElementTest | null): ElementTest | null =>
+        test === null || mine === null ? test : (index) => (mine(index) ? test(index) : outside);
+
+    return { node: half(inner.node, within.node), edge: half(inner.edge, within.edge) };
 }
 
 /**
@@ -2210,31 +2252,46 @@ function referenceBytes(context: CompileContext, reference: StepReference | unde
  */
 function unionEnvOf(context: CompileContext, leaf: UnionLeaf): UnionEnv {
     const { graph, sources } = context;
+    const wholeOrVisible = (within: UnionLeaf["within"]): { node: Bytes; edge: Bytes } => {
+        if (within === "graph") {
+            return { node: new Uint8Array(graph.nodeCount).fill(1), edge: new Uint8Array(graph.edgeCount).fill(1) };
+        }
+
+        if (sources.scope === undefined) {
+            throw unsupported("union", "a scope resolver");
+        }
+
+        const leaf = sources.scope("visible");
+        const node = bytesOf((index) => maskTest(leaf.nodes, index), graph.nodeCount);
+        const { src, dst } = graph.edgeList();
+        const { edges } = leaf;
+        const edge = bytesOf(
+            edges === null
+                ? (index) => node[src[index]] === 1 && node[dst[index]] === 1
+                : (index) => maskTest(edges, index),
+            graph.edgeCount,
+        );
+
+        return { node, edge };
+    };
+    // A leaf narrowed to some loads starts from theirs.
+    const mine = leaf.sources === undefined ? null : sourceTests(context, leaf.sources, undefined);
+    const narrow = (halves: { node: Bytes; edge: Bytes }): { node: Bytes; edge: Bytes } => {
+        const node = mine?.node ?? null;
+        const edge = mine?.edge ?? null;
+        if (node === null || edge === null) {
+            return halves;
+        }
+
+        return {
+            node: bytesOf((index) => halves.node[index] === 1 && node(index), graph.nodeCount),
+            edge: bytesOf((index) => halves.edge[index] === 1 && edge(index), graph.edgeCount),
+        };
+    };
 
     return {
         graph,
-        base: (within) => {
-            if (within === "graph") {
-                return { node: new Uint8Array(graph.nodeCount).fill(1), edge: new Uint8Array(graph.edgeCount).fill(1) };
-            }
-
-            if (sources.scope === undefined) {
-                throw unsupported("union", "a scope resolver");
-            }
-
-            const leaf = sources.scope("visible");
-            const node = bytesOf((index) => maskTest(leaf.nodes, index), graph.nodeCount);
-            const { src, dst } = graph.edgeList();
-            const { edges } = leaf;
-            const edge = bytesOf(
-                edges === null
-                    ? (index) => node[src[index]] === 1 && node[dst[index]] === 1
-                    : (index) => maskTest(edges, index),
-                graph.edgeCount,
-            );
-
-            return { node, edge };
-        },
+        base: (within) => narrow(wholeOrVisible(within)),
         compile: (tree, frame) => compileOne(tree, { ...context, step: frame }),
         reference: (reference) => referenceBytes(context, reference),
         ...(sources.steps === undefined ? {} : { gate: sources.steps.gate }),

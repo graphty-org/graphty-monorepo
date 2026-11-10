@@ -25,6 +25,9 @@ import pajek from "../../../graph-io/test/corpus/pajek/karate.net?raw";
 import { type GraphtyError, isGraphtyError, type LossNote } from "../../extend";
 import type { ExportResult } from "../../index.js";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** One corpus file per graph-io format, and how the element reads it and writes it. */
 const CORPUS: readonly {

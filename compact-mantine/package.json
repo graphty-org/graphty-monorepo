@@ -1,6 +1,6 @@
 {
     "name": "@graphty/compact-mantine",
-    "version": "0.9.38",
+    "version": "0.9.39",
     "description": "Compact size variants for Mantine UI components - optimized for dense UIs",
     "type": "module",
     "main": "dist/index.cjs",
@@ -44,7 +44,6 @@
         "@testing-library/dom": "^10.4.0",
         "@testing-library/jest-dom": "^6.6.3",
         "@testing-library/react": "^16.1.0",
-        "@testing-library/user-event": "^14.6.1",
         "@vitejs/plugin-react": "^4.5.2",
         "@vitest/browser-playwright": "catalog:",
         "@zag-js/floating-panel": ">=0.82.2",

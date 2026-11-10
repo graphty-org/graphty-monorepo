@@ -13,11 +13,15 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import { sourceFactsOf } from "../../src/session/sources/ids";
 import type { SourceExpanded, SourceLoadOptions } from "../../src/session/sources/types";
 import { loadRecordedSeed, PEOPLE_SEED } from "../../stories/fixtures/expand/source";
 import { click, doubleClick, type Point } from "../helpers/real-input";
+
+// Network sources sit behind the network-data experiment.
+setDefaultFeatures(["network-data"]);
 
 const WIDTH = 400;
 const HEIGHT = 300;

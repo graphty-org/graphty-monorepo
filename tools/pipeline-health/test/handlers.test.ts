@@ -230,6 +230,11 @@ describe("ingest: benchmarks", () => {
                 )
             ).statusCode,
         ).toBe(400);
+        // a row may name its input, kept on its point
+        const seeded = { ...body(7), rows: [{ name: "PageRank n=1000", value: 7, input: "3fa2c1d0e9b8" }] };
+        expect((await h(event("/v1/benchmarks", seeded, { claims: full("603") }))).statusCode).toBe(200);
+        const after = await mem.get({ pk: "BENCH", sk: "algorithms: PageRank n=1000" });
+        expect((after?.points as { input?: string }[]).at(-1)?.input).toBe("3fa2c1d0e9b8");
     });
 });
 
@@ -699,6 +704,82 @@ describe("recompute and read", () => {
 });
 
 describe("drill-down routes", () => {
+    it("serves a hotspot's /flaky/test link at /v1/page/flaky/test, with each event's run, job, commit and pictures", async () => {
+        const h = await ingest();
+        const id = "500.1.stories.graphty-element-stories-2.1";
+        const first = "a".repeat(64);
+        const second = "b".repeat(64);
+        const post = {
+            invocation: id,
+            flaky: true,
+            family: "graphty-element-stories",
+            failures: [
+                {
+                    file: "s.stories.ts",
+                    name: "Zoomed",
+                    message: "visual-review: z.png is unstable",
+                    pictures: [first, second],
+                },
+            ],
+        };
+        expect((await h(event("/v1/failures", post))).statusCode).toBe(200);
+        const { putRaw } = await import("../src/model/raw.ts");
+        await putRaw(
+            mem,
+            [
+                {
+                    kind: "run",
+                    id: "graphty-org/graphty-monorepo/500",
+                    attempt: 1,
+                    repo: "graphty-org/graphty-monorepo",
+                    runId: 500,
+                    workflow: "ci.yml",
+                    event: "pull_request",
+                    branch: "b",
+                    sha: "abc",
+                    pr: 9,
+                    status: "completed",
+                    conclusion: "success",
+                    createdAt: NOW - 600_000,
+                },
+            ] as never,
+            NOW,
+        );
+        const { handler: read } = await import("../src/handlers/read.ts");
+        const get = async (q: Record<string, string>) =>
+            read({ ...event("/v1/page/flaky/test", "", {}), queryStringParameters: q });
+        const res = await get({ file: "s.stories.ts", test: "Zoomed" });
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body as string)).toMatchObject({
+            range: "7d",
+            file: "s.stories.ts",
+            test: "Zoomed",
+            family: "graphty-element-stories",
+            events: [
+                {
+                    kind: "pr",
+                    pr: 9,
+                    run: 500,
+                    attempt: 1,
+                    job: "stories",
+                    shard: "graphty-element-stories-2",
+                    sha: "abc",
+                    outcome: "flaky",
+                    signature: "visual-review: z.png is unstable",
+                    pictures: [first, second],
+                },
+            ],
+        });
+        // An unknown test is a clear empty result, not unknown_section.
+        const unknown = await get({ file: "s.stories.ts", test: "Nope" });
+        expect(unknown.statusCode).toBe(200);
+        expect(JSON.parse(unknown.body as string)).toMatchObject({ test: "Nope", family: null, events: [] });
+        expect((await get({})).statusCode).toBe(400);
+        // Picture hashes are two sha256 or refused.
+        const bad = { ...post, failures: [{ ...post.failures[0], pictures: ["x"] }] };
+        expect((await h(event("/v1/failures", bad))).statusCode).toBe(400);
+    });
+
     it("answers /v1/test-history from what ingest stored, and /v1/run/<id> from the run index", async () => {
         const h = await ingest();
         expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(200);
@@ -714,7 +795,10 @@ describe("drill-down routes", () => {
         });
         expect((await get("/v1/test-history", {})).statusCode).toBe(400);
         expect((await get("/v1/test-history", { file: "a.test.ts", range: "1h" })).statusCode).toBe(400);
-        expect((await get("/v1/test-history", { file: "none.test.ts" })).statusCode).toBe(503);
+        // An unknown test answers an empty history, never no_data or unknown_section.
+        const none = await get("/v1/test-history", { file: "none.test.ts" });
+        expect(none.statusCode).toBe(200);
+        expect(JSON.parse(none.body as string)).toMatchObject({ file: "none.test.ts", family: null, events: [] });
 
         expect((await get("/v1/run/123", {})).statusCode).toBe(503);
         const { putRaw } = await import("../src/model/raw.ts");

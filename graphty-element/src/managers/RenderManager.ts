@@ -75,8 +75,25 @@ interface RenderManagerConfig {
      * does none of the bookkeeping drawing on demand needs. Left out, it is off.
      */
     drawsOnDemand?: () => boolean;
+    /**
+     * Whether to flush right after each frame's fence, so the GPU sees the fence at once rather
+     * than at the browser's next flush (about every 18 ms in Chromium, which set an 18 ms floor
+     * under every frame). Asked each frame; the element answers true under renderPath "batched".
+     * Left out, it never flushes.
+     */
+    flushesFrameFence?: () => boolean;
+    /**
+     * Whether a WebGPU loop keeps one frame in flight: it skips a tick while the last frame's
+     * `queue.onSubmittedWorkDone()` is unresolved, as a WebGL loop does on its frame fence. Without
+     * it the loop queues a frame every tick however long the GPU takes, a backlog builds, and every
+     * GPU readback (hover, the GPU layout's positions) waits behind it. Asked each frame; the
+     * element answers true under renderPath "batched". Left out, WebGPU frames are unpaced.
+     */
+    pacesWebGpuFrames?: () => boolean;
     /** See {@link RenderManager.setPixelRatio}. Left out, 1. */
     pixelRatio?: PixelRatio;
+    /** Whether the WebGL engine built when no `engine` is passed multisamples. Left out, true. */
+    antialias?: boolean;
 }
 
 /**
@@ -116,7 +133,18 @@ export interface RendererStatus {
      * @since 3.29.0
      */
     readonly drawing: boolean;
+    /**
+     * Where an accelerated layout runs, decided when the renderer opens and never changed by a run:
+     * `"shared"` on the WebGPU device the graph is drawn with, `"separate"` on a device of its own (under
+     * WebGL, and on a software adapter, which never shares), null when no accelerator is offered
+     * (acceleration is off, or `@graphty/graphty-element/webgpu` was not imported before the renderer opened).
+     * @since 3.47.0
+     */
+    readonly layoutDevice: LayoutDevice | null;
 }
+
+/** Where an accelerated layout runs: on the renderer's own WebGPU device, or on one of its own. */
+export type LayoutDevice = "shared" | "separate";
 
 /** The two modules Babylon compiles a GLSL shader for WebGPU with. */
 interface ShaderCompilers {
@@ -189,11 +217,13 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  *     out a WebGPU one.
  * @param sharesDevice - Asked of the adapter, before the device exists, whether the layout's
  *     accelerator will run on it too: that needs every limit and feature the adapter has.
+ * @param antialias - Whether the engine multisamples (4x); the element's `antialias`.
  * @returns The initialised engine, or the reason there is none.
  */
 export async function openWebGPUEngine(
     canvas: HTMLCanvasElement,
     sharesDevice: (adapter: unknown) => boolean = () => false,
+    antialias = true,
 ): Promise<RecoveringWebGPUEngine | string> {
     if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
         return "this browser has no WebGPU (navigator.gpu is undefined)";
@@ -223,7 +253,7 @@ export async function openWebGPUEngine(
 
     const shared = sharesDevice(adapter);
     const engine = new RecoveringWebGPUEngine(canvas, {
-        antialias: true,
+        antialias,
         ...(shared && { setMaximumLimits: true, enableAllFeatures: true, powerPreference: "high-performance" }),
     });
     engine.sharesDevice = shared;
@@ -256,12 +286,13 @@ export async function openWebGPUEngine(
  * data, its session and the work autosave kept would not load either; with it only the picture is
  * missing, which the log reports as E_NO_WEBGL.
  * @param canvas - The element's canvas.
+ * @param antialias - Whether the context multisamples; the element's `antialias`.
  * @returns The engine and the scene.
  */
-function openWebGL(canvas: HTMLCanvasElement): { engine: Engine; scene: Scene } {
+function openWebGL(canvas: HTMLCanvasElement, antialias: boolean): { engine: Engine; scene: Scene } {
     let engine: Engine | undefined;
     try {
-        engine = new Engine(canvas, true, {
+        engine = new Engine(canvas, antialias, {
             preserveDrawingBuffer: true, // Required for screenshots
         });
         return { engine, scene: new Scene(engine) };
@@ -745,6 +776,18 @@ export class RenderManager implements Manager {
     private readonly frameWaits = new Set<() => void>();
     /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
     private lastFrameFence: WebGLSync | null = null;
+    /**
+     * The WebGPU twin of {@link lastFrameFence}: a number for the last frame drawn while its
+     * `onSubmittedWorkDone` is unresolved, null once the GPU has finished it.
+     */
+    private webGpuFrameInFlight: number | null = null;
+    /**
+     * The frame number {@link webGpuFrameInFlight} gave the frame just drawn, until its end-frame
+     * asks the queue; see {@link RenderManager.fenceWebGpuFrame}.
+     */
+    private webGpuFrameToFence: number | null = null;
+    /** Whether the one end-frame observer that fences WebGPU frames is registered. */
+    private webGpuFenceObserved = false;
     /** Flips every tick in the minimum-work test mode; see {@link RenderManager.minimumWorkSkips}. */
     private minimumWorkTick = false;
 
@@ -787,6 +830,10 @@ export class RenderManager implements Manager {
     private readonly pictureIsFinal: (() => boolean) | null;
     /** See `RenderManagerConfig.drawsOnDemand`. */
     private readonly drawsOnDemand: () => boolean;
+    /** See `RenderManagerConfig.flushesFrameFence`. */
+    private readonly flushesFrameFence: () => boolean;
+    /** See `RenderManagerConfig.pacesWebGpuFrames`. */
+    private readonly pacesWebGpuFrames: () => boolean;
     /** Set by anything that may have changed the picture since the last frame drawn. */
     private drawOwed = true;
     /**
@@ -922,9 +969,11 @@ export class RenderManager implements Manager {
         Logger.LogLevels = Logger.ErrorLogLevel;
         this.pictureIsFinal = this.config.pictureIsFinal ?? null;
         this.drawsOnDemand = this.config.drawsOnDemand ?? ((): boolean => false);
+        this.flushesFrameFence = this.config.flushesFrameFence ?? ((): boolean => false);
+        this.pacesWebGpuFrames = this.config.pacesWebGpuFrames ?? ((): boolean => false);
 
         if (this.config.engine === undefined) {
-            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas));
+            ({ engine: this.engine, scene: this.scene } = openWebGL(this.canvas, this.config.antialias ?? true));
         } else {
             this.engine = this.config.engine;
             this.scene = new Scene(this.engine);
@@ -1358,9 +1407,15 @@ export class RenderManager implements Manager {
      * behind, and everything that waits for the GPU -- a screenshot, a readback, the page's own
      * compositor -- waited behind those frames too. Under load that was more than 30 seconds.
      * Skipping a tick while the last frame is unfinished keeps the queue at one frame.
+     * On WebGPU the same holds through `queue.onSubmittedWorkDone()`, when `pacesWebGpuFrames`
+     * asks for it.
      * @returns True while the last frame's fence is unsignalled.
      */
     private gpuBehind(): boolean {
+        if (this.webGpuFrameInFlight !== null) {
+            return true;
+        }
+
         if (this.lastFrameFence === null || !(this.engine instanceof Engine)) {
             return false;
         }
@@ -1377,10 +1432,16 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Marks the end of the frame just drawn, for {@link gpuBehind}. Only a WebGL 2 context has
-     * fences; WebGPU and Babylon's NullEngine draw unpaced, as before.
+     * Marks the end of the frame just drawn, for {@link gpuBehind}. A WebGL 2 context fences it;
+     * WebGPU asks the queue when its work is done, only while `pacesWebGpuFrames` says so, and
+     * draws unpaced otherwise, as before. Babylon's NullEngine draws unpaced.
      */
     private fenceFrame(): void {
+        if (this.engine instanceof WebGPUEngine) {
+            this.fenceWebGpuFrame(this.engine);
+            return;
+        }
+
         const gl = this.engine instanceof Engine ? (this.engine._gl as WebGL2RenderingContext | undefined) : undefined;
         if (typeof gl?.fenceSync !== "function") {
             return;
@@ -1393,6 +1454,51 @@ export class RenderManager implements Manager {
         }
 
         this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (this.flushesFrameFence()) {
+            gl.flush();
+        }
+    }
+
+    /**
+     * Holds the next tick until the GPU has finished the work submitted with the frame just drawn.
+     * A frame drawn while another is in flight (drawNow) takes its place: the older answer, when
+     * it comes, no longer clears the hold. A lost device resolves the promise, or rejects it,
+     * either of which ends the hold so the loop never stalls on it.
+     * @param engine - The WebGPU engine that drew the frame.
+     */
+    private fenceWebGpuFrame(engine: WebGPUEngine): void {
+        if (!this.pacesWebGpuFrames()) {
+            this.webGpuFrameInFlight = null;
+            return;
+        }
+
+        const frame = (this.webGpuFrameInFlight ?? 0) + 1;
+        this.webGpuFrameInFlight = frame;
+        this.webGpuFrameToFence = frame;
+        if (this.webGpuFenceObserved) {
+            return;
+        }
+
+        // Babylon submits a frame's commands in endFrame, after the loop's callback returns: asked
+        // here, the answer would cover only the frames before this one. One observer for every
+        // frame, not one per frame: sameAsDrawn reads a new newest end-frame observer as a frame
+        // somebody waits for, so an observer added per frame kept an on-demand loop drawing forever.
+        this.webGpuFenceObserved = true;
+        // It lives as long as the engine, which dispose() disposes with its observers.
+        engine.onEndFrameObservable.add(() => {
+            const fenced = this.webGpuFrameToFence;
+            if (fenced === null) {
+                return;
+            }
+
+            this.webGpuFrameToFence = null;
+            const done = (): void => {
+                if (this.webGpuFrameInFlight === fenced) {
+                    this.webGpuFrameInFlight = null;
+                }
+            };
+            engine._device.queue.onSubmittedWorkDone().then(done, done);
+        });
     }
 
     /**

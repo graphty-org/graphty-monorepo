@@ -228,7 +228,7 @@ function fitAndGroup(
  * @param groups - The parts by group key.
  * @param flat - The material every group takes under `replace`, else null.
  * @param used - The materials the meshes draw with, written into.
- * @returns The meshes, one per group.
+ * @param meshes - The meshes, one per group, written into as each is made.
  */
 function mergeGroups(
     scene: Scene,
@@ -236,8 +236,8 @@ function mergeGroups(
     groups: ReadonlyMap<string, Part[]>,
     flat: PBRMaterial | null,
     used: Set<Material>,
-): Mesh[] {
-    const meshes: Mesh[] = [];
+    meshes: Mesh[],
+): void {
     for (const [key, list] of groups) {
         const [first, ...rest] = list;
         const vertices = list.reduce((sum, part) => sum + (part.data.positions?.length ?? 0) / 3, 0);
@@ -249,6 +249,7 @@ function mergeGroups(
                       vertices > 65535,
                   );
         const mesh = new Mesh(`${name}-${String(meshes.length)}`, scene);
+        meshes.push(mesh);
         merged.applyToMesh(mesh);
         const material = flat ?? first.material;
         if (material !== null) {
@@ -264,10 +265,7 @@ function mergeGroups(
         mesh.registerInstancedBuffer("color", 4);
         mesh.instancedBuffers.color = new Color4(1, 1, 1, 1);
         mesh.freezeWorldMatrix();
-        meshes.push(mesh);
     }
-
-    return meshes;
 }
 
 /**
@@ -413,6 +411,41 @@ export async function prepareTemplate(
     options: TemplateOptions,
     environment: () => PBRMaterial["reflectionTexture"],
 ): Promise<ModelTemplate> {
+    const made: Made = { used: new Set(), meshes: [] };
+    try {
+        return await build(scene, container, name, options, environment, made);
+    } catch (error) {
+        // Free what was made so far, and the file's own meshes, materials and textures.
+        disposeTemplate(made.meshes, made.used, container);
+        disposeLeftovers(container, made.used);
+        throw error;
+    }
+}
+
+/** What {@link build} has made so far, for {@link prepareTemplate} to free if it throws. */
+interface Made {
+    readonly used: Set<Material>;
+    readonly meshes: Mesh[];
+}
+
+/**
+ * Bake, fit, merge, light, compile and freeze the model into its template (see {@link prepareTemplate}).
+ * @param scene - The scene the template draws in.
+ * @param container - The loaded model.
+ * @param name - A name for the template's meshes.
+ * @param options - The geometry options.
+ * @param environment - The bundled neutral environment, for a scene with none.
+ * @param made - Where each material and mesh goes as it is made.
+ * @returns The template.
+ */
+async function build(
+    scene: Scene,
+    container: AssetContainer,
+    name: string,
+    options: TemplateOptions,
+    environment: () => PBRMaterial["reflectionTexture"],
+    made: Made,
+): Promise<ModelTemplate> {
     const parts = bakeParts(container, orientation(options.up, options.turn));
     if (parts.length === 0) {
         throw new Error("graphty-element: the model has no triangles to draw");
@@ -420,17 +453,17 @@ export async function prepareTemplate(
 
     const fit = fitOf(parts, options);
     const { groups, radius, triangles } = fitAndGroup(parts, fit.matrix);
-
+    const { used, meshes } = made;
     let flat: PBRMaterial | null = null;
     if (options.replace) {
         flat = new PBRMaterial(`${name}-replace`, scene);
+        used.add(flat);
         flat.albedoColor = Color3.White();
         flat.metallic = 0;
         flat.roughness = 1;
     }
 
-    const used = new Set<Material>();
-    const meshes = mergeGroups(scene, name, groups, flat, used);
+    mergeGroups(scene, name, groups, flat, used, meshes);
     adoptMaterials(scene, used, container.textures, options.image);
 
     await light(scene, used, environment);

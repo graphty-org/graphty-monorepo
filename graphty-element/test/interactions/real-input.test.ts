@@ -446,8 +446,7 @@ describe("the mouse", () => {
             });
 
             const point = at(element, "b");
-            // One doubleClick, not two awaited clicks: the scene counts two presses as a double-click
-            // only within its 300 ms delay, and two round trips can take longer than that.
+            // One doubleClick, not two awaited clicks: the second press must carry a click count of two.
             await doubleClick(element, point);
             await vi.waitFor(() => {
                 assert.isDefined(element.getNode("x"), "the fetched neighbour was added");
@@ -680,6 +679,27 @@ describe("the keyboard", () => {
                 "orbit",
             );
             assert.isDefined(input);
+            // A tap is down and up before the next frame, but the browser can deliver the key-up
+            // many frames late, and every frame the key is held zooms on, until the camera reaches
+            // its nearest distance and a tap has nothing left to zoom (issue #6405). So the render
+            // loop is held from the key-down until the key-up arrives: the keys are real input,
+            // only the clock is stopped, as `hold` stops it.
+            const { canvas } = element.graph;
+            const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+            let releaseFrames = (): void => undefined;
+            const down = (): void => {
+                releaseFrames = renderManager.holdFrames();
+            };
+            const up = (): void => {
+                releaseFrames();
+            };
+            canvas.addEventListener("keydown", down);
+            canvas.addEventListener("keyup", up);
+            cleanups.push(() => {
+                releaseFrames();
+                canvas.removeEventListener("keydown", down);
+                canvas.removeEventListener("keyup", up);
+            });
             // A tap zooms over the frames it owes; the stable frame does not wait for the reader's
             // own camera moves, so wait until the input says it is done.
             const tapped = async (): Promise<void> => {

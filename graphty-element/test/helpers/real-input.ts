@@ -164,10 +164,8 @@ export async function rightClick(element: Element, point: Point): Promise<void> 
 
 /**
  * Two clicks of the left button at one point, as a double-click: the second press carries a click
- * count of two. All four events are sent together, because the scene counts two presses as a
- * double-click only when they arrive within its double-click delay (300 ms), and on a loaded machine
- * the round trip between two awaited sends alone can take that long. The protocol delivers them in
- * order.
+ * count of two, so the browser raises `dblclick`, which is what the element expands on. All four
+ * events are sent together, as a mouse sends them; the protocol delivers them in order.
  * @param element - The element the point is on.
  * @param point - Where.
  */
@@ -207,28 +205,31 @@ export async function pressFor(
  * Move the mouse to a point and press the left button there, holding it.
  * @param element - The element the point is on.
  * @param point - Where.
+ * @param modifiers - Modifier keys held.
  */
-export async function press(element: Element, point: Point): Promise<void> {
-    await mouseEvent("mouseMoved", element, point, 0);
-    await mouseEvent("mousePressed", element, point, 1);
+export async function press(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 0, modifiers);
+    await mouseEvent("mousePressed", element, point, 1, modifiers);
 }
 
 /**
  * Move the mouse in one step with the left button held, as after `press`.
  * @param element - The element the point is on.
  * @param point - Where to.
+ * @param modifiers - Modifier keys held.
  */
-export async function moveHeld(element: Element, point: Point): Promise<void> {
-    await mouseEvent("mouseMoved", element, point, 1);
+export async function moveHeld(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 1, modifiers);
 }
 
 /**
  * Release the left button at a point, as after `press`.
  * @param element - The element the point is on.
  * @param point - Where.
+ * @param modifiers - Modifier keys held.
  */
-export async function release(element: Element, point: Point): Promise<void> {
-    await mouseEvent("mouseReleased", element, point, 0);
+export async function release(element: Element, point: Point, modifiers?: Modifiers): Promise<void> {
+    await mouseEvent("mouseReleased", element, point, 0, modifiers);
 }
 
 /**

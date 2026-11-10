@@ -82,7 +82,7 @@ function quote(value: string): string {
  * @param label - the label
  * @returns true for an HTML-like label
  */
-export function isHtmlLabel(label: string): boolean {
+function isHtmlLabel(label: string): boolean {
     if (label.length < 2 || !label.startsWith("<") || !label.endsWith(">")) {
         return false;
     }

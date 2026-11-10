@@ -136,24 +136,25 @@ describe("chronically failing jobs", () => {
     });
 
     it("gives an issue only the job of the workflow it names, not another workflow's job of the same name", async () => {
-        // 2026-10-29: #4530, about release.yml's CI call, was shown on the CodeQL workflow's "All Checks Pass" row.
+        // 2026-10-29: #4530, about release.yml's CI call, was shown on the CodeQL workflow's "All Checks Pass" row. That
+        // job is an aggregator and no longer judged (#6068), so a job every workflow names alike stands in for it.
         const same = (workflow: string, name: string, load: JobItem["load"]) =>
             PERF.map(([run, end, c]) =>
                 jobItem(run, name, end, c, { id: `${REPO}/${run}/${workflow}/${name}`, workflow, load }),
             );
         const store = await stored([
-            ...same("release.yml", "CI / All Checks Pass", "full"),
-            ...same("ci.yml", "All Checks Pass", "master"),
-            ...same("codeql", "All Checks Pass", "other"),
+            ...same("release.yml", "CI / Checks", "full"),
+            ...same("ci.yml", "Checks", "master"),
+            ...same("codeql", "Checks", "other"),
         ]);
         const { gh } = searchGitHub([
-            { number: 4530, title: "Full run: CI / All Checks Pass red in 5 of 10 full runs", body: "" },
+            { number: 4530, title: "Full run: CI / Checks red in 5 of 10 full runs", body: "" },
         ]);
         const { list, obs } = await jobMembers(store, gh, REPO, NOW);
         expect(list.map((j) => [j.workflow, j.job, j.issue]).sort()).toEqual([
-            ["ci.yml", "All Checks Pass", undefined],
-            ["codeql", "All Checks Pass", undefined],
-            ["release.yml", "CI / All Checks Pass", 4530],
+            ["ci.yml", "Checks", undefined],
+            ["codeql", "Checks", undefined],
+            ["release.yml", "CI / Checks", 4530],
         ]);
         expect(obs).toEqual({ "ci.chronic_jobs": 3, "ci.chronic_no_issue": 2 });
     });
@@ -328,6 +329,19 @@ describe("chronicJobs", () => {
             failingSince: NOW - 4 * DAY,
             lastPassAt: NOW - 5 * DAY,
         });
+    });
+
+    it("does not judge an aggregator, which fails whenever a job it summarizes fails (#6068)", () => {
+        const runs: [number, boolean][] = [
+            [0.1, false],
+            [0.2, false],
+            [0.3, false],
+            [0.4, true],
+        ];
+        const agg = { ...h(runs), workflow: "release.yml", job: "CI / All Checks Pass" };
+        const own = { ...h(runs), workflow: "release.yml", job: "CI / Test (graphty-features-on)" };
+        expect(chronicJobs([agg, own], NOW).map((j) => j.job)).toEqual(["CI / Test (graphty-features-on)"]);
+        expect(chronicJobs([{ ...agg, job: "All Checks Pass", workflow: "ci.yml" }], NOW)).toEqual([]);
     });
 
     it("does not judge a share of fewer than 4 runs, a recent first failure, or a job that stopped running", () => {

@@ -20,6 +20,7 @@ import { siteConfig } from "../../siteConfig";
 import { putModelOnNodes } from "../canvas/models";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
+import { fileStylesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
@@ -59,6 +60,7 @@ export function openProject(
         }),
         ends: null,
         pickedSource: null,
+        dataTab: "loaded",
         timeWindowCard: false,
     }));
 }
@@ -212,13 +214,15 @@ async function drawFirst(
     const lone = draft.tables.length === 1 && !ready;
     const mapping = lone ? { rowsAre: "nodes" as const } : draft.mapping;
     // A graph file keeps the roles its format sets.
+    const styled = fileStylesOn(session);
     await draft.load({
-        styles: fileStylesChoice(),
-        styleOptions: FILE_STYLE_OPTIONS,
+        ...(styled ? { styles: fileStylesChoice(), styleOptions: FILE_STYLE_OPTIONS } : {}),
         ...(fixed ? {} : { mapping }),
         ...(fresh ? { history: "start" as const } : {}),
     });
-    noticeFileStyles(workspace, session);
+    if (styled) {
+        noticeFileStyles(workspace, session);
+    }
     const load = session.data.sources().at(-1);
     if (lone && load !== undefined) {
         workspace.set({ ends: { load: load.key, source: null, target: null } });
@@ -292,16 +296,6 @@ function urlSource(url: string): Incoming {
  */
 export function openUrl(workspace: WorkspaceStore, url: string): void {
     openSeparate(workspace, urlSource(url));
-}
-
-/**
- * Takes in the graph file at a web address (see {@link addSource}): from the start screen as a new
- * project, in a project as its next source.
- * @param ctx - the command context.
- * @param url - the address.
- */
-export function addUrl(ctx: CommandContext, url: string): void {
-    addSource(ctx, urlSource(url));
 }
 
 /**
@@ -430,15 +424,6 @@ export function openFiles(ctx: CommandContext, files: readonly File[]): void {
         const rest = files.slice(2).map((file) => file.name);
         ctx.workspace.set({ notice: { message: `Not added: ${rest.join(", ")}` } });
     }
-}
-
-/**
- * Opens one file (see {@link addSource}).
- * @param ctx - the command context.
- * @param file - the file.
- */
-export function openFile(ctx: CommandContext, file: File): void {
-    openFiles(ctx, [file]);
 }
 
 /**

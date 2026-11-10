@@ -366,11 +366,7 @@ function checkThreshold(value: Loose, walker: Walker): void {
 const FIELD_ROOTS = new Set(["data", "results"]);
 
 /** The structure values a rule reads with no run and no column: a node's degree. */
-export const STRUCTURE_PATHS: ReadonlySet<string> = new Set([
-    "graphty.degree",
-    "graphty.inDegree",
-    "graphty.outDegree",
-]);
+const STRUCTURE_PATHS: ReadonlySet<string> = new Set(["graphty.degree", "graphty.inDegree", "graphty.outDegree"]);
 
 /**
  * Refuse a field path whose root is reserved: `graph.<measure>` and every other root but `data`
@@ -697,6 +693,14 @@ function checkUnion(value: Loose, walker: Walker): void {
         throw bad('A "union" leaf\'s within is "graph" or "visible".', { within: value.within });
     }
 
+    if (
+        value.sources !== undefined &&
+        (!Array.isArray(value.sources) ||
+            !(value.sources as readonly unknown[]).every((key) => typeof key === "string" && key !== ""))
+    ) {
+        throw bad('A "union" leaf\'s sources are a list of load keys.', { sources: value.sources });
+    }
+
     if (!Array.isArray(value.branches)) {
         throw bad('A "union" leaf\'s branches are a list.', { branches: value.branches });
     }
@@ -916,7 +920,7 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "union":
-            known(["side", "within", "branches"]);
+            known(["side", "within", "sources", "branches"]);
             checkUnion(value, walker);
 
             return;

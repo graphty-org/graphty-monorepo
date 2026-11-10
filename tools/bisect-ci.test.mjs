@@ -174,6 +174,23 @@ describe("the lane rules", () => {
         assert.deepEqual(again.next, { points: ["m8"], runs: 5, confirm: true });
     });
 
+    it("runs a point that ran out of time again for the rest, never judging an intermittent test on too few runs", () => {
+        let s = start({ lane: "ci", good: "g", bad: "m8", targets: [TEST] }, fakeGit(8));
+        // the confirming job finished 1 of 5 runs, and the test failed in it
+        s = judge(s, [{ sha: "m8", runs: 1, failed: { [ID]: 1 } }]);
+        assert.deepEqual(s.next, { points: ["m8"], runs: 4, confirm: true }, "not read as consistent from 1 run");
+        // the rest: it passes 2 of them, so it is newly intermittent and followed by its rate
+        s = judge(s, [{ sha: "m8", runs: 4, failed: { [ID]: 2 } }]);
+        assert.equal(s.next.confirm, undefined);
+        assert.deepEqual(s.followed, [{ ...TEST, id: ID, rate: true }]);
+        // a candidate that finished 1 of 5 runs and passed is run again, not marked good
+        const point = s.next.points[0];
+        const others = s.next.points.slice(1).map((sha) => ({ sha, runs: 5, failed: { [ID]: 0 } }));
+        s = judge(s, [{ sha: point, runs: 1, failed: {} }, ...others]);
+        assert.deepEqual(s.next.points, [point]);
+        assert.equal(s.next.runs, 4);
+    });
+
     it("names no merge for a ci red that names no test or shard, and runs an LLM red's whole suite", () => {
         const ci = start({ lane: "ci", good: "g", bad: "m4", targets: [] }, fakeGit(4));
         assert.match(ci.answer.noLanding, /names no failing test or shard/);
@@ -441,6 +458,124 @@ describe("a point's time limit", () => {
         assert.deepEqual(r, { sha: "p", runs: 2, failed: { a: 2 } });
         assert.deepEqual(calls[0].slice(0, 3), ["timeout", "--kill-after=1m", "40m"]);
         assert.match(calls[0][3], /tools\/run-tests\.sh$/);
+    });
+
+    // 5 runs of 3 shards at up to 30 minutes each passed bisect.yml's 120-minute job: no result, the point lost (#5845)
+    const threeShards = {
+        lane: "ci",
+        next: { confirm: true },
+        targets: ["graphty-element-default", "graphty-features-on-1", "graphty-features-on-2"].map((shard, i) => ({
+            id: `t${i}`,
+            shard,
+        })),
+    };
+
+    it("reports the rounds of runs it finished when the job's time runs out", async () => {
+        let clock = 0;
+        const calls = [];
+        // every run takes 10 minutes and fails; the job has 65 minutes, so two rounds of three runs fit
+        const spawn = (cmd, args) => {
+            calls.push(args[1]);
+            clock += 10 * 60_000;
+            return { status: 1 };
+        };
+        const r = await runPoint(
+            threeShards,
+            "p",
+            5,
+            spawn,
+            () => true,
+            65 * 60_000,
+            () => clock,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 2, failed: { t0: 2, t1: 2, t2: 2 } });
+        assert.deepEqual(calls.slice(0, 4), ["30m", "30m", "30m", "30m"]);
+        assert.equal(calls[4], "1440s"); // the fifth run gets what is left (65 - 40 - 1 kill-after = 24 min)
+    });
+
+    it("does not fail a target for a run the job's time cut short, and drops that round", async () => {
+        let clock = 0;
+        const spawn = (cmd, args) => {
+            if (args[1] !== "30m") return { status: 124 }; // the deadline's limit, not the lane's
+            clock += 25 * 60_000;
+            return { status: 0 };
+        };
+        const r = await runPoint(
+            threeShards,
+            "p",
+            5,
+            spawn,
+            () => true,
+            80 * 60_000,
+            () => clock,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 0, failed: {} });
+    });
+
+    // timeout's --kill-after SIGKILL kills timeout too, so spawnSync reports signal SIGKILL, not status 124
+    it("drops the round when the deadline's run ignores SIGTERM and is killed a minute later", async () => {
+        let clock = 0;
+        const spawn = (cmd, args) => {
+            if (args[1] === "30m") {
+                clock += 25 * 60_000;
+                return { status: 0 };
+            }
+            clock += 61 * 60_000; // ran its whole limit, then the kill-after minute
+            return { status: null, signal: "SIGKILL" };
+        };
+        const r = await runPoint(
+            threeShards,
+            "p",
+            5,
+            spawn,
+            () => true,
+            80 * 60_000,
+            () => clock,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 0, failed: {} });
+    });
+
+    it("fails a target whose run was killed by SIGKILL before its limit", async () => {
+        let clock = 0;
+        const spawn = (cmd, args) => {
+            if (args[1] === "30m") {
+                clock += 25 * 60_000;
+                return { status: 0 };
+            }
+            clock += 60_000; // killed long before its limit, as the out-of-memory killer would
+            return { status: null, signal: "SIGKILL" };
+        };
+        const r = await runPoint(
+            threeShards,
+            "p",
+            1,
+            spawn,
+            () => true,
+            80 * 60_000,
+            () => clock,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 1, failed: { t2: 1 } });
+    });
+
+    it("still fails a target whose run passes the lane's own limit before the deadline", async () => {
+        const spawn = () => ({ status: 124 });
+        const r = await runPoint(
+            threeShards,
+            "p",
+            1,
+            spawn,
+            () => true,
+            120 * 60_000,
+            () => 0,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 1, failed: { t0: 1, t1: 1, t2: 1 } });
+    });
+
+    it("bisect.yml sets the deadline before its point's first step", () => {
+        const wf = parseYaml(readFileSync(new URL("../.github/workflows/bisect.yml", import.meta.url), "utf8"));
+        const point = wf.jobs.point;
+        assert.match(point.steps[0].run, /POINT_DEADLINE=\$\(\( \$\(date \+%s\) \+ 110 \* 60 \)\)/);
+        assert.ok(110 < point["timeout-minutes"]);
     });
 
     it("is the lane's own job timeout in the full run", () => {

@@ -4,7 +4,9 @@
 // measured it, so a retried post or a rerun of the same run replaces its own point.
 //
 // A result also names the machine (the runner's CPU model) that measured it: GitHub's hosted runners land on several
-// CPU models about 2x apart, so a trend compares only results from the same machine as the newest one.
+// CPU models about 2x apart, so a trend compares only results from the same machine as the newest one. A result may
+// also name its input (a fingerprint of the graph it timed): a benchmark whose input changed times different work, so
+// a trend compares only results of the newest one's input too, and a new input starts a new series.
 
 import { DAY, ttlAt } from "./items.js";
 import { isLive, type Item, type Key, type Store } from "./store.js";
@@ -21,6 +23,12 @@ export const RECENT = 3;
 export const BEFORE = 10;
 /** Slower than this many times its earlier median is a regression. */
 export const REGRESSION_RATIO = 1.2;
+/**
+ * The noise floor, in median absolute deviations of the BEFORE results: a rise smaller than this many of them is within
+ * the run-to-run scatter the series already shows and never counts. 3 MADs is about 2 standard deviations of one
+ * result, about 3 of the median of the newest 3.
+ */
+export const NOISE_MADS = 3;
 
 export interface BenchPoint {
     /** When it was posted, epoch ms. */
@@ -32,6 +40,8 @@ export interface BenchPoint {
     sha?: string;
     /** The machine that measured it (the runner's CPU model); absent on results posted before it was sent. */
     machine?: string;
+    /** What it timed (a fingerprint of its input graph); absent when the harness does not send one. */
+    input?: string;
 }
 
 export interface BenchItem extends Item {
@@ -81,12 +91,13 @@ export interface BenchTrend {
 }
 
 /**
- * The results measured on the same machine as the newest one, oldest first: the only ones it can be compared with.
+ * The results measured on the same machine and the same input as the newest one, oldest first: the only ones it can
+ * be compared with.
  * @param points - oldest first
- * @returns the newest machine's results, oldest first
+ * @returns the newest machine's results of the newest input, oldest first
  */
 export const sameMachine = (points: BenchPoint[]): BenchPoint[] =>
-    points.filter((p) => p.machine === points.at(-1)?.machine);
+    points.filter((p) => p.machine === points.at(-1)?.machine && p.input === points.at(-1)?.input);
 
 /**
  * The series' timer tick: the smallest gap between two of its distinct values, when every value is a whole number
@@ -104,9 +115,11 @@ export function quantum(vs: number[]): number {
 
 /**
  * A sustained regression: the median of the newest 3 results is over 1.2 times the median of the 10 before them,
- * among the results of the newest one's machine, and the medians differ by more than one step of the resolution
+ * among the results of the newest one's machine and input, and the medians differ by more than one step of the resolution
  * (quantum) of the results before the newest 3, so a one-tick change of a reading at its timer's resolution never
- * counts. The newest 3 are left out of the resolution so the change being judged never sets its own threshold.
+ * counts, and by more than NOISE_MADS median absolute deviations of the 10 before them, so a rise inside the scatter
+ * the series shows with no code change never counts (a sub-millisecond benchmark on a hosted runner moves 1.7x from
+ * run to run). The newest 3 are left out of both thresholds so the change being judged never sets its own.
  * Judged only with all 13, so one slow run never counts.
  * @param all - oldest first
  * @returns the two medians, their ratio and whether it regressed
@@ -117,17 +130,19 @@ export function trend(all: BenchPoint[]): BenchTrend {
         return { regressed: false };
     }
     const recent = median(points.slice(-RECENT).map((p) => p.v));
-    const before = median(points.slice(-(RECENT + BEFORE), -RECENT).map((p) => p.v));
+    const earlier = points.slice(-(RECENT + BEFORE), -RECENT).map((p) => p.v);
+    const before = median(earlier);
     const ratio = before > 0 ? recent / before : undefined;
     // 1.5 quanta so float noise in a one-tick gap never passes and two ticks always do.
     // ponytail: earlier results all one value give no resolution (quantum 0), so a one-tick step off a perfectly
     // steady series still counts; a known per-lane tick would close that if it shows up.
     const aboveTick = recent - before > 1.5 * quantum(points.slice(0, -RECENT).map((p) => p.v));
+    const aboveNoise = recent - before > NOISE_MADS * median(earlier.map((v) => Math.abs(v - before)));
     return {
         recent,
         before,
         ...(ratio === undefined ? {} : { ratio }),
-        regressed: (ratio ?? 0) > REGRESSION_RATIO && aboveTick,
+        regressed: (ratio ?? 0) > REGRESSION_RATIO && aboveTick && aboveNoise,
     };
 }
 

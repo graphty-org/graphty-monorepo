@@ -167,6 +167,11 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.raisedBorderWidth": NOT_PLACED,
     "node.raisedBorderLightColor": NOT_PLACED,
     "node.raisedBorderDarkColor": NOT_PLACED,
+    "node.shadowColor": NOT_PLACED,
+    "node.shadowOpacity": NOT_PLACED,
+    "node.shadowBlur": NOT_PLACED,
+    "node.shadowOffsetX": NOT_PLACED,
+    "node.shadowOffsetY": NOT_PLACED,
     "node.underlayColor": NOT_PLACED,
     "node.underlayOpacity": NOT_PLACED,
     "node.underlayPadding": NOT_PLACED,
@@ -187,6 +192,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.shapeTexts": NOT_PLACED,
     "node.labelTable": NOT_PLACED,
     "node.shapeLineWidth": NOT_PLACED,
+    "node.shapeLineHaloColor": NOT_PLACED,
+    "node.shapeLineHaloWidth": NOT_PLACED,
     "node.labelFit": NOT_PLACED,
     "node.labelPaddingX": NOT_PLACED,
     "node.labelPaddingY": NOT_PLACED,
@@ -254,10 +261,10 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.chartBorderColor": NOT_PLACED,
     "node.chartBorderWidth": NOT_PLACED,
     "edge.minScreenWidth": NOT_PLACED,
-    "edge.fadeEnd": NOT_PLACED,
-    "edge.fadeStart": NOT_PLACED,
-    "edge.fadeOpacity": NOT_PLACED,
-    "edge.blending": NOT_PLACED,
+    "edge.fadeEnd": at("Edges, Line, Fade end (the cosmograph experiment)"),
+    "edge.fadeStart": at("Edges, Line, Fade end, Fade start (the cosmograph experiment)"),
+    "edge.fadeOpacity": at("Edges, Line, Fade end, Fade opacity (the cosmograph experiment)"),
+    "edge.blending": at("Edges, Line, Blending (the cosmograph experiment)"),
     "edge.outlineColor": NOT_PLACED,
     "edge.outlineWidth": NOT_PLACED,
     "edge.outlineOpacity": NOT_PLACED,
@@ -273,6 +280,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.gradientKind": NOT_PLACED,
     "edge.waveAmplitude": NOT_PLACED,
     "edge.wavePeriod": NOT_PLACED,
+    "edge.dashLength": NOT_PLACED,
+    "edge.dashGap": NOT_PLACED,
     "edge.fanSpacing": NOT_PLACED,
     "edge.fanned": NOT_PLACED,
     "edge.bendCurve": NOT_PLACED,
@@ -455,6 +464,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     wrapEllipsis: NOT_PLACED,
     wrapAnywhere: NOT_PLACED,
     wrapSpaceCount: NOT_PLACED,
+    keepBlankLines: NOT_PLACED,
     runAlign: NOT_PLACED,
     rotation: NOT_PLACED,
     minScreenSize: NOT_PLACED,
@@ -478,7 +488,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
  * Why a property the Style tab draws has no vary glyph. These are decisions, not omissions: the
  * coverage test fails when a drawn property has neither a vary glyph nor a reason here.
  */
-export const VARY_DECISIONS = {
+const VARY_DECISIONS = {
     yesOrNo:
         "A yes-or-no property (wireframe, show, curved) has no vary by: picking which elements are on is what Which elements does, so a layer for those elements sets it",
     look: "A label's look is a set of fields, each set in its settings; its size, text color and background vary through their own properties",
@@ -497,6 +507,7 @@ export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
     "node.visible": VARY_DECISIONS.yesOrNo,
     "edge.visible": VARY_DECISIONS.yesOrNo,
     "edge.curvature": VARY_DECISIONS.yesOrNo,
+    "edge.blending": VARY_DECISIONS.yesOrNo,
     "node.labelStyle": VARY_DECISIONS.look,
     "node.tooltipStyle": VARY_DECISIONS.look,
     "edge.labelStyle": VARY_DECISIONS.look,
@@ -635,6 +646,10 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
     "workspace/style/row.ts": {
         count: 5,
         reason: "startFor reads a color beneath as its hex, and every other kind as it is; Vary by Layer starts a color on a palette with every layer its own color, a number on the app's range, a shape on the channel's own list with the distinct shapes first",
+    },
+    "workspace/style/ShaderParamRows.tsx": {
+        count: 2,
+        reason: "A Color shader parameter on a clock ramps between two colors it needs pickers for; a Number on a clock is the clock's own value and has no range to pick",
     },
     "workspace/style/StylePanel.tsx": {
         count: 1,

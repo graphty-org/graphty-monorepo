@@ -415,8 +415,33 @@ field shows it.
   that was seen; an outlier detector is a new concept.
 - **An optional "entered this step" style layer (visual-a11y 19).** Already designed as phase 5
   (`timeline.entered`); not in the prototype's scope.
-- **Pass the reader's time zone to the window (red team 16 part).** The `timeZone` option is a
-  ponytail in the prototype; TL-21 names UTC instead.
+- **Pass the reader's time zone to the window (red team 16 part).** Rejected for the prototype,
+  where the `timeZone` option did not exist. Reversed in the build: see "Decisions made while
+  building phases 1 to 4" below.
+
+## Decisions made while building phases 1 to 4 (2026-11-06)
+
+Each is reversible while the members stay `@experimental`; the design's section 8.3 lists them with
+what was built.
+
+- **Zones.** The Time card has a Zone row, UTC (the default) or Local, written to
+  `time.settings.timeZone`; bars, typed dates and readouts follow it, and a readout finer than a day
+  names the zone. A year column stays in UTC whatever the zone. Supersedes the rejection above.
+- **Stacked node and edge bars: not built.** `HistogramRow` draws one count and its look is locked
+  to Figma. The dock draws edges when edges are timed; the readout gives both visible counts.
+- **An 8 px drag threshold: not built.** The shared brush's 3 px stands, for the same reason.
+- **Sliding and Cumulative stay on the Time card,** not in the dock: the dock has no spare width on
+  touch.
+- **Phone.** One row over the 32 px sparkline, with no brush on it; the readout and the header chip
+  open a bottom sheet holding the brush, its zoom and the typed range.
+- **Fade by age has no app control** until the trails UI of phase 5; the settings API sets it.
+- **Arrow keys through the bars: not built.** The histogram's hidden table of every bar and the
+  busiest bar in its accessible name are the text alternative. Add keys if a screen-reader review
+  asks.
+- **Interval data.** The End row beside the time field in Fields designates an end column; an import's mapping names a
+  start only. A missing end is open, so `2019` with no end is not read as the whole year.
+- **Hidden edges stay drawn as collapsed instances.** Skipping them in the shader saved no measured
+  GPU time and was taken out.
 
 ## For the owner (one-way doors once released)
 

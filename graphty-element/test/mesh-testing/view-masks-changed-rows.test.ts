@@ -21,6 +21,9 @@ import type { ElementSession } from "../../src/session/types";
 const NODES = 2_000;
 const EDGES = 10_000;
 
+/** The rows the pass wrote, in the order it wrote them. */
+const written: number[] = [];
+
 /** A node as the pass sees it. */
 class CountingNode {
     state: NodeRenderState = "visible";
@@ -36,6 +39,7 @@ class CountingNode {
 
     setRenderState(next: NodeRenderState): boolean {
         this.stateWrites += 1;
+        written.push(this.index);
         const changed = this.state !== next;
         this.state = next;
         return changed;
@@ -45,6 +49,11 @@ class CountingNode {
         const changed = this.selected !== next;
         this.selected = next;
         return changed;
+    }
+
+    /** Drawn from a shared batch with no label or overlay: no mesh of its own to toggle. */
+    togglesOwnMeshes(): boolean {
+        return false;
     }
 }
 
@@ -77,6 +86,11 @@ class CountingEdge {
 
     supportEdge(): object | null {
         return this.bowed && this.visible ? {} : null;
+    }
+
+    /** Drawn from shared batches, as the edges a time window moves are: no mesh of its own to toggle. */
+    togglesOwnMeshes(): boolean {
+        return false;
     }
 
     update(): void {
@@ -285,6 +299,20 @@ describe("changed rows reach the renderer", () => {
         assert.strictEqual(step.entered.edges + step.left.edges, 600);
         assert.strictEqual(work.edgeWrites, 600);
         assert.strictEqual(work.updates, step.entered.edges);
+        scene.assertDrawnAsMasks("after a jump");
+    });
+
+    it("writes a move's rows in row order, not in the order they crossed the window", async () => {
+        // Nodes cross a window in the order of their edges' times, which is not their row order.
+        const scene = await sliding("ends");
+        await scene.session.time.seek(900, { commit: false });
+        written.length = 0;
+        scene.frame();
+        assert.isAbove(written.length, 1);
+        for (let at = 1; at < written.length; at++) {
+            assert.isAtLeast(written[at], written[at - 1], `write ${String(at)}`);
+        }
+
         scene.assertDrawnAsMasks("after a jump");
     });
 

@@ -578,7 +578,7 @@ export function readInstant(
  * @param at - The number.
  * @returns The next float up.
  */
-export function nextAbove(at: number): number {
+function nextAbove(at: number): number {
     if (at === 0) {
         return Number.MIN_VALUE;
     }

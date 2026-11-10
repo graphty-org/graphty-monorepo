@@ -5,6 +5,7 @@
  */
 import "../../src/graphty-element";
 
+import { TransformNode } from "@babylonjs/core";
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -240,6 +241,60 @@ describe("changed rows on real nodes and edges", () => {
         assertEdgesOnNodes(element, "on reveal");
     });
 
+    it("puts back the edges a jump reveals without placing them again when their nodes did not move", async () => {
+        const element = await slidingElement();
+        const { visibility } = element.session;
+        const edges = [...element.graph.getDataManager().edges.values()];
+        const shownAtStart = edges.filter((edge) => visibility.isVisible(edge.id));
+        await element.session.time.seek(500, { commit: false });
+        await drawn(element);
+        assert.isTrue(
+            shownAtStart.every((edge) => !edge.isRenderVisible()),
+            "the jump away hid the edges",
+        );
+
+        const engine = element.graph.getLayoutManager().layoutEngine;
+        assert.isDefined(engine);
+        const placed = vi.spyOn(engine, "getEdgePosition");
+        await element.session.time.seek(5, { commit: false });
+        await drawn(element);
+
+        assert.isNotEmpty(shownAtStart);
+        assert.strictEqual(placed.mock.calls.length, 0, "no revealed edge was placed again");
+        assertDrawnAsVisible(element, "after the jump back");
+        assertEdgesOnNodes(element, "after the jump back");
+        for (const edge of shownAtStart) {
+            assert.isAbove(edge.drawnLine?.length ?? 0, 0, `edge ${edge.id} is drawn, not collapsed`);
+        }
+    });
+
+    it("places the edges a jump reveals again when they were restyled while hidden", async () => {
+        const element = await slidingElement();
+        const { visibility } = element.session;
+        const edges = [...element.graph.getDataManager().edges.values()];
+        const shownAtStart = edges.filter((edge) => visibility.isVisible(edge.id));
+        await element.session.time.seek(500, { commit: false });
+        await drawn(element);
+        await element.session.styles.add({
+            name: "Thick",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.width": 3 },
+        });
+        await drawn(element);
+
+        await element.session.time.seek(5, { commit: false });
+        await drawn(element);
+
+        assertDrawnAsVisible(element, "after the restyle and the jump back");
+        assertEdgesOnNodes(element, "after the restyle and the jump back");
+        for (const edge of shownAtStart) {
+            const line = edge.drawnLine;
+            assert.isAbove(line?.length ?? 0, 0, `edge ${edge.id} is drawn, not collapsed`);
+            assert.strictEqual(line?.width, 3, `edge ${edge.id} is drawn in the new style`);
+        }
+    });
+
     it("paints a Ghost step on the rows it moved, with no walk of every edge", async () => {
         const element = await slidingElement(drawGhosts, LARGE);
         const { graph } = element;
@@ -319,6 +374,70 @@ describe("changed rows on real nodes and edges", () => {
         assert.isAbove(step.entered.nodes, 0);
         assert.strictEqual(walk.mock.calls.length, 0, "a step of the rows it moved walks no edge");
         assert.isAbove(thaw.mock.calls.length, 0, "the list of what is drawn was made again");
+    });
+
+    it("keeps the frozen list of what is drawn through a step that shows and hides only batched edges", async () => {
+        const element = await slidingElement();
+        const { session, graph } = element;
+        const scene = graph.getScene();
+        const frozen = async (): Promise<void> => {
+            await drawn(element);
+            await vi.waitFor(() => {
+                assert.isTrue(scene._activeMeshesFrozen, "the scene at rest froze what it draws");
+            });
+        };
+
+        // Every node drawn: a step moves edges only, and each writes slots of a shared batch.
+        await session.time.window({ from: 0, to: 100, step: 10, nodes: "all" });
+        await session.time.seek(5, { commit: false });
+        await frozen();
+        const thaw = vi.spyOn(scene, "unfreezeActiveMeshes");
+        const edgesOnly = await session.time.seek(25, { commit: false });
+        await drawn(element);
+        assert.isAbove(edgesOnly.entered.edges + edgesOnly.left.edges, 0, "the step moved edges");
+        assert.strictEqual(edgesOnly.entered.nodes + edgesOnly.left.nodes, 0, "and no node");
+        assert.strictEqual(thaw.mock.calls.length, 0, "the list of what is drawn was not made again");
+        assertDrawnAsVisible(element, "after an edges-only step");
+        assertEdgesOnNodes(element, "after an edges-only step");
+
+        // Nodes following their edges: a node shown or hidden is a mesh enabled or disabled.
+        await session.time.window({ from: 0, to: 100, step: 10, nodes: "ends" });
+        await session.time.seek(5, { commit: false });
+        await frozen();
+        thaw.mockClear();
+        const withNodes = await session.time.seek(505, { commit: false });
+        await drawn(element);
+        assert.isAbove(withNodes.entered.nodes + withNodes.left.nodes, 0, "the step moved nodes");
+        assert.isAbove(thaw.mock.calls.length, 0, "the list of what is drawn was made again");
+        assertDrawnAsVisible(element, "after a step that moved nodes");
+    });
+
+    it("keeps the frozen list of what is drawn through a step that shows and hides batched nodes", async () => {
+        const element = await slidingElement(({ graph }) => {
+            graph.setRenderPath("batched");
+            return Promise.resolve();
+        });
+        const { session, graph } = element;
+        const scene = graph.getScene();
+        await vi.waitFor(() => {
+            assert.strictEqual(graph.rowCounts.objectNodes, 0, "every node is drawn by a batch");
+            assert.isTrue(scene._activeMeshesFrozen, "the scene at rest froze what it draws");
+        });
+        const thaw = vi.spyOn(scene, "unfreezeActiveMeshes");
+        const toggle = vi.spyOn(TransformNode.prototype, "setEnabled");
+        const step = await session.time.seek(505, { commit: false });
+        await drawn(element);
+        const moved = step.entered.nodes + step.left.nodes;
+        assert.isAbove(moved, 0, "the step moved nodes");
+        assert.strictEqual(thaw.mock.calls.length, 0, "the list of what is drawn was not made again");
+        // Each moved node enables or disables its anchor, which draws nothing, and nothing else.
+        assert.isAtMost(toggle.mock.calls.length, moved, "no mesh beyond the moved nodes' anchors was toggled");
+        assert.strictEqual(graph.rowCounts.objectNodes, 0, "every node is still drawn by a batch");
+        const { visibility } = session;
+        for (const node of graph.getDataManager().nodes.values()) {
+            const state = node.getRenderState();
+            assert.strictEqual(state === "visible", visibility.isVisible(node.id), `node ${String(node.id)}`);
+        }
     });
 
     it("places the edges of a node a Ghost step resized, and only those, with no walk", async () => {

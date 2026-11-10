@@ -6,7 +6,6 @@
  */
 
 import type {
-    AttributeLeafNodes,
     CodedFact,
     FilterCondition,
     GraphSession,
@@ -19,8 +18,8 @@ import type {
 import { valueWord } from "../inspector/words";
 import { selectionWords } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
-import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
-import { panelsInView, timelineOn } from "../time/timeActions";
+import { type Card, cardFields, cardOf, type Side } from "../style/cards";
+import { panelsInView } from "../time/timeActions";
 import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
 import { sourceName } from "./words";
 
@@ -186,83 +185,6 @@ export function shapeOf(session: GraphSession, condition: Pick<FilterCondition, 
 }
 
 /**
- * A card's leaf as a filter writes it. A Data source leaf speaks of nodes only (`side: "nodes"`):
- * keeping a load keeps the nodes it supplied and every edge between them, whichever load supplied
- * the edge, so a load of nodes and a load of edges between them can be narrowed by either.
- * @param card - the card.
- * @returns the leaf, or null while it is unfinished.
- */
-function filterLeaf(card: Card): RuleTree | null {
-    const leaf = leafOf(card);
-    return leaf?.kind === "source" ? { ...leaf, side: "nodes" } : leaf;
-}
-
-/**
- * The rule a card's field cards make: their leaves ANDed, or null while none has a value.
- * @param cards - the cards.
- * @returns the rule.
- */
-export function ruleOfCards(cards: readonly Card[]): RuleTree | null {
-    const leaves = cards.flatMap((card) => filterLeaf(card) ?? []);
-    if (leaves.length === 0 || leaves.length < cards.length) {
-        return null;
-    }
-    return leaves.length === 1 ? leaves[0] : { kind: "all", of: leaves };
-}
-
-/**
- * The path a value leaf reads, or undefined for a leaf with no reading of its nodes.
- * @param leaf - the leaf.
- * @returns its path.
- */
-function readPath(leaf: RuleTree): string | undefined {
-    if (leaf.kind === "range" || leaf.kind === "categories") {
-        return leaf.attribute;
-    }
-    return leaf.kind === "text" ? leaf.reads : undefined;
-}
-
-/**
- * A card's rebuilt rule with the node reading (`nodes`) each field's leaf had in the rule it
- * replaces. The cards draw no reading, so without this an edit drops it: a condition read from an
- * old filter step keeps every node (`"all"`) on an edge field, and losing that would make the edit
- * keep only the nodes at the matched edges' ends.
- * @param rule - the rule the cards make.
- * @param was - the condition's rule before the edit.
- * @returns the rule, with each field's reading kept.
- */
-export function keepReadings(rule: RuleTree, was: RuleTree): RuleTree {
-    const before = new Map<string, AttributeLeafNodes>();
-    for (const leaf of was.kind === "all" ? was.of : [was]) {
-        const path = readPath(leaf);
-        if (path !== undefined && "nodes" in leaf && leaf.nodes !== undefined) {
-            before.set(path, leaf.nodes);
-        }
-    }
-    const keep = (leaf: RuleTree): RuleTree => {
-        const nodes = before.get(readPath(leaf) ?? "");
-        return nodes === undefined || "nodes" in leaf ? leaf : ({ ...leaf, nodes } as RuleTree);
-    };
-    return rule.kind === "all" ? { kind: "all", of: rule.of.map(keep) } : keep(rule);
-}
-
-/**
- * Whether two rules say the same, whatever order their keys were written in.
- * @param a - one rule.
- * @param b - the other.
- * @returns true when they match.
- */
-export function sameRule(a: RuleTree, b: RuleTree): boolean {
-    const text = (rule: RuleTree): string =>
-        JSON.stringify(rule, (_key, value: unknown) =>
-            value !== null && typeof value === "object" && !Array.isArray(value)
-                ? Object.fromEntries(Object.entries(value).sort(([x], [y]) => x.localeCompare(y)))
-                : value,
-        );
-    return text(a) === text(b);
-}
-
-/**
  * A filter change as Undo and Redo name it (`turning off the filter "weight is at least 4"`), or
  * null for any other history step, or for a condition the session does not hold now (a removed
  * one before its Redo): read it again after the undo or redo has run.
@@ -285,16 +207,6 @@ export async function selectRule(session: Pick<GraphSession, "selection">, rule:
     await session.selection.apply({ scope: { define: { kind: "rule", where: rule, reading: "clipped" } } }, "replace", {
         cause: "user",
     });
-}
-
-/**
- * Whether the graph has a column to put on a timeline: one designated, or one whose values read
- * as time.
- * @param session - the element's session.
- * @returns true when a time window can be offered.
- */
-export function offersTime(session: GraphSession): boolean {
-    return timelineOn(session) && (session.time.field !== null || session.time.candidates().length > 0);
 }
 
 /**

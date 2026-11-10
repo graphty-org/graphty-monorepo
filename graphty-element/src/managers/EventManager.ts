@@ -542,6 +542,7 @@ export class EventManager implements Manager {
             case "graph-started":
             case "layout-changed":
             case "layout-warning":
+            case "limits-warning":
             case "basemap-status":
             case "operation-cancelled":
             case "stats-update":

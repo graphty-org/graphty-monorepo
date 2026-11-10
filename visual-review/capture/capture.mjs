@@ -938,7 +938,12 @@ export async function pinnedFonts(fontconfig) {
     return hash.digest("hex");
 }
 
-async function cpuModel() {
+/**
+ * The machine's CPU model, from /proc/cpuinfo: SwiftShader and the page's CPU rasterizer pick code by the CPU's
+ * instruction set, so two shots of one story from runners with different CPUs can differ by a few pixels.
+ * @returns {Promise<string | null>} the model, or null where /proc/cpuinfo names none
+ */
+export async function cpuModel() {
     try {
         return /^model name\s*:\s*(.*)$/m.exec(await readFile("/proc/cpuinfo", "utf8"))?.[1] ?? null;
     } catch {

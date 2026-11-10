@@ -194,7 +194,7 @@ export function strandedOnBootstrap(graph: Graph): readonly string[] {
     return graph
         .getNodes()
         .filter((node) => {
-            const metadata = node.drawnPickMesh.metadata as { styleId?: unknown } | null | undefined;
+            const metadata = node.drawnAnchor.metadata as { styleId?: unknown } | null | undefined;
 
             return metadata?.styleId === BOOTSTRAP_NODE_KEY || metadata?.styleId === BOOTSTRAP_EDGE_KEY;
         })

@@ -1,6 +1,6 @@
 /**
  * The Cypher source over Neo4j's Query API, against responses recorded from the public Neo4j demo
- * server (`scripts/live-cypher.ts --record`): the movies graph exactly, a user query, a
+ * server (`scripts/record-cypher.ts --record`): the movies graph exactly, a user query, a
  * neighborhood, a query error with its line and column, a scalar result, probe and validate.
  */
 
@@ -199,6 +199,122 @@ describe("cypher over the Query API (recorded from the Neo4j demo)", () => {
         expect(neighbors.size).toBe(7);
         const bodies = EXPAND_PAGED.map((r) => JSON.parse(r.requestBody ?? "{}") as { statement: string });
         expect(bodies[1].statement).toContain("WHERE key > $after");
+    });
+
+    it("pages a capped expansion keyed by a numeric id property through neighbors keyed by server id, each once", async () => {
+        // A seed with five neighbors: three carry a numeric `num`, two do not and are keyed by their
+        // element id; a second seed has no neighbor at all (one row with a null x). A fake server
+        // evaluates the generated page the way Cypher does: `>` between a number and a string is null
+        // (the row is dropped), ORDER BY puts strings before numbers and nulls last.
+        // A cap of 4 puts the lonely row at the end of page one unless it sorts after every keyed row.
+        const neighbors = [
+            { id: "4:db:2", num: 30 },
+            { id: "4:db:3" },
+            { id: "4:db:4", num: 10 },
+            { id: "4:db:5" },
+            { id: "4:db:6", num: 20 },
+        ];
+        const node = (id: string, num?: number): unknown => ({
+            $type: "Node",
+            _value: {
+                _element_id: id,
+                _labels: ["N"],
+                _properties: num === undefined ? {} : { num: { $type: "Integer", _value: String(num) } },
+            },
+        });
+        const seed = node("4:db:1", 1);
+        const lonely = node("4:db:7", 7);
+        const rank = (v: string | number): number => (typeof v === "string" ? 0 : 1);
+        const order = (a: string | number | null, b: string | number | null): number => {
+            if (a === null || b === null) {
+                return Number(a === null) - Number(b === null);
+            }
+            return rank(a) - rank(b) || Number(a > b) - Number(a < b);
+        };
+        const flag = (b: boolean | null): number => (b === null ? 2 : Number(b));
+        const greater = (a: string | number | null, b: unknown): boolean =>
+            a !== null && typeof a === typeof b && a > (b as typeof a);
+        const fetch: typeof globalThis.fetch = async (input, init) => {
+            const { statement, parameters } = JSON.parse(await new Request(input, init).text()) as {
+                statement: string;
+                parameters: { after?: string | number; afterByServer?: boolean };
+            };
+            const limit = Number(/LIMIT (\d+)/.exec(statement)?.[1]);
+            const paired = statement.includes("ORDER BY byServer, key");
+            // what the statement's byServer is for the lonely seed's row, where x is null
+            const nullX = statement.includes("CASE WHEN x IS NOT NULL") ? null : false;
+            type Row = {
+                n: (typeof neighbors)[number] | null;
+                key: string | number | null;
+                byServer: boolean | null;
+            };
+            const keyed: Row[] = neighbors.map((n) => ({ n, key: n.num ?? n.id, byServer: n.num === undefined }));
+            const rows = [...keyed, { n: null, key: null, byServer: nullX }]
+                .filter(({ key, byServer }) => {
+                    if (parameters.after === undefined) {
+                        return true;
+                    }
+                    if (!paired) {
+                        return greater(key, parameters.after);
+                    }
+                    return byServer === parameters.afterByServer
+                        ? greater(key, parameters.after)
+                        : byServer === true && parameters.afterByServer === false;
+                })
+                .sort((a, b) => (paired ? flag(a.byServer) - flag(b.byServer) : 0) || order(a.key, b.key))
+                .slice(0, limit);
+            const typed = (v: string | number | boolean | null): unknown => {
+                if (v === null) {
+                    return { $type: "Null", _value: null };
+                }
+                if (typeof v === "boolean") {
+                    return { $type: "Boolean", _value: v };
+                }
+                return typeof v === "string" ? { $type: "String", _value: v } : { $type: "Integer", _value: String(v) };
+            };
+            const values = rows.map(({ n, key, byServer }) => [
+                n === null ? lonely : seed,
+                n === null
+                    ? { $type: "Null", _value: null }
+                    : {
+                          $type: "Path",
+                          _value: [
+                              seed,
+                              {
+                                  $type: "Relationship",
+                                  _value: {
+                                      _element_id: `5:db:${n.id}`,
+                                      _start_node_element_id: "4:db:1",
+                                      _end_node_element_id: n.id,
+                                      _type: "R",
+                                      _properties: {},
+                                  },
+                              },
+                              node(n.id, n.num),
+                          ],
+                      },
+                typed(byServer),
+                typed(key),
+            ]);
+            const body = { data: { fields: ["s", "p", "byServer", "key"], values } };
+            return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
+        };
+        const request = { params: { idProperty: "num" }, ids: [1, 7], limit: 4 };
+        const seen: string[] = [];
+        let cursor: SourceCursor | undefined;
+        for (;;) {
+            const page = await expandFromSource(neo4jSource, request, {
+                endpoint: DEMO,
+                fetch,
+                ...(cursor === undefined ? {} : { cursor }),
+            });
+            seen.push(...[...page.snapshot.ids].map(String).filter((id) => id !== "1" && id !== "7"));
+            cursor = page.report.source?.next ?? undefined;
+            if (cursor === undefined) {
+                break;
+            }
+        }
+        expect(seen.sort()).toEqual(["10", "20", "30", "4:db:3", "4:db:5"]);
     });
 
     it("sends a node cap on a user query to the server, and a full result continues with more rows", async () => {

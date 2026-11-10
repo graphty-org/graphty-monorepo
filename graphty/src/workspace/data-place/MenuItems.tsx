@@ -10,7 +10,7 @@ import type { AttributeAction } from "./attributeActions";
  * @param props.reason - Why it is disabled, or null
  * @returns The label
  */
-export function ItemLabel({ label, reason }: Readonly<{ label: string; reason: string | null }>): React.JSX.Element {
+function ItemLabel({ label, reason }: Readonly<{ label: string; reason: string | null }>): React.JSX.Element {
     return (
         <>
             {label}

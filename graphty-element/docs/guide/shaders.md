@@ -168,10 +168,11 @@ long-form entries, each with a `name`.
 `@graphty/graphty-element/extend`, which is free of the renderer and runs in Node.
 `parseShaderText`, `formatShaderText` and `shaderTemplate` are in `@graphty/graphty-element/catalog`.
 
-Shader text is also how a shader goes into the graphty app. In a layer's Style tab, the Shaders
-section's **+** opens the gallery, and its last tile, **New shader...**, opens a code box: paste the
-text there and press Add. A `place` in the header is where the shader draws, and the dialog's Place
-field follows it; text with no `place` draws at the place the field shows.
+For building an editor over shader text, the same entry point has `splitShaderText`,
+`formatShaderDraft`, `shaderIdForName`, `shaderParamPlainName`, `shaderParamShape`,
+`changeShaderParamType`, `renameShaderParam`, `removeShaderParam`, `shaderPlaceUsesReach`,
+`minSizeApplies`, `SHADER_PARAM_TYPES`, `SHADER_CLOCKS`, `SHADER_REACH_RANGE` and
+`SHADER_MIN_SIZE_RANGE`. See [Building your own editor](#building-your-own-editor).
 
 ### The name and the id
 
@@ -185,6 +186,157 @@ field follows it; text with no `place` draws at the place the field shows.
   that names it always means the same shader.
 - Defining the same id again replaces the shader, which is how hot reload works. Pass
   `{ strict: true }` as the second argument to throw `E_DUPLICATE_PLUGIN` instead.
+
+### Writing a shader in the graphty app
+
+Open the editor from the Main menu's **Add Shader...**, or from **New shader...** in the gallery
+that a Shaders section's **+** opens.
+
+**Node, Edge, Background** at the top say what the shader draws on. Each keeps its own draft for as
+long as the page is open, so you can switch to another and come back to what you typed. A shader
+for a whole group is a Node shader: choose the place **Around the group** and the code box changes
+to `shade(GroupInput g)`.
+
+Each target and place opens on a working starter, so there is always a shader to change. To begin
+from a shader a layer already uses, choose **Duplicate and edit** from its row's menu in a Shaders
+section.
+
+**Name** is what pickers show. **Place** is where the shader draws, and its list follows what you
+are drawing on. **Reach**, how many times the node's radius the shader draws out to, shows at the
+places that use it. **Minimum size**, the smallest size in pixels the shader is drawn at so that a
+far node stays findable, shows at the places where it applies.
+
+The code box holds only the body of the shader, starting at `vec4 shade(...)`. Keywords, types,
+built-in functions, comments and numbers are colored.
+
+**Parameters** are the values a layer can set. Press **+** to add a row, give it a name, a type and
+a default, and open its gear for the rest:
+
+| Type    | Default           | In the gear                                  |
+| ------- | ----------------- | -------------------------------------------- |
+| Number  | a number          | Display name, Min, Max, Step, Varies, Starts |
+| Integer | a whole number    | Display name, Min, Max, Step, Varies         |
+| Switch  | on or off         | Display name                                 |
+| Choice  | one of its labels | Display name, Choices                        |
+| Color   | a color           | Display name, Varies, Starts                 |
+
+- A parameter's name is used bare in the code, with no declaration: a row named `glow` is read as
+  `glow`. The arrow on a row writes its name at the cursor in the code box. It is unavailable until
+  you have clicked in the code, so that it has a place to write.
+- A Choice is read in the code as its position in the list, starting from 0, which the gear shows
+  beside each label.
+- **Starts** makes a value run from one setting to another over some seconds after something
+  happens, such as a node being selected. Pick the moment, then the From and To seconds. A Color
+  also takes the two colors to run between.
+- Renaming a row does not rewrite the code. The problem list points at the line still using the
+  old name.
+
+**Problems** are listed below the box, and marked where they belong: on a line of the code, or on
+the field or the parameter row at fault. Select a row of the list to go there. The header is
+checked before the code, so fix a bad parameter first to see problems in the code. The preview
+keeps its last good picture until the shader works again.
+
+**Full text** switches the box to the whole shader text, with its header, for the keys the form
+does not show. Press it again to go back to the form. **Copy code** copies the whole text, ready to
+paste or save. Pasting a whole shader text into the code box fills the form from its header and
+leaves the body in the box, and Control+V on a Shaders section opens the editor with the text on
+the clipboard. A `place` in the header sets Place; text with no `place` draws at the place Place
+shows.
+
+| Key                           | Does                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------ |
+| Tab, Shift+Tab                | Indents and outdents in the code box                                                 |
+| Ctrl+M (Shift+Alt+M on a Mac) | Makes Tab move to the next field instead; the button below the box shows and does it |
+| Ctrl+Z, Ctrl+Y                | Undoes and redoes typing in the code box                                             |
+| Escape                        | Closes an open popout, else the editor, keeping your draft                           |
+
+**Add** depends on where you came from. From a list of shaders, it adds the shader to that list.
+From the Main menu, or after switching to another target than the list's, the button reads **Add
+to project**: the shader joins the project without being drawn anywhere, and the notice's **Show
+in Style** takes you to the Shaders section where you can apply it.
+
+### Building your own editor
+
+`splitShaderText` gives a text's header as written and its body, and `formatShaderDraft` writes them
+back. Neither judges anything, so a half-typed form survives the trip and `check` says what is
+wrong with it, field by field.
+
+```ts
+import type { Graphty } from "@graphty/graphty-element";
+import { formatShaderDraft, shaderParamShape, splitShaderText } from "@graphty/graphty-element/catalog";
+
+export async function saveEdited(g: Graphty, text: string): Promise<void> {
+    const { draft, body, problems } = splitShaderText(text); // fill your form from draft and body
+    if (draft === undefined) {
+        console.log(problems); // the header is not a JSON object: show the whole text and these
+        return;
+    }
+    const glow = { name: "glow", type: "number", default: shaderParamShape("number").default };
+    const edited = formatShaderDraft({ ...draft, name: "My paint", params: [...(draft.params ?? []), glow] }, body);
+    const options = { asNew: true, onTaken: "rename" } as const;
+    const checked = await g.session.shaders.check(edited, { ...options, picture: true });
+    if (!checked.ok) {
+        console.log(checked.problems); // { code, params }: your words, your list
+        return;
+    }
+    await g.session.shaders.add(edited, options);
+}
+```
+
+**What a split gives.** `body` is the GLSL after the header. `draft` is the header's keys as
+written, typed `unknown` because a reader may have typed anything: narrow each one before showing
+it. A text with no header (`headed: false`) is all body, with the placeholder draft
+`{ id: "user/shader", params: [] }`. A header that is not a JSON object, or whose `params` is not a
+list of objects, has no draft: `problems` says why, and an editor shows the whole text instead of a
+form. Otherwise `problems` lists what `check` will refuse in the header, and the draft is kept as
+written, wrong values included.
+
+| Draft key                                                                                  | Holds when well formed                                                                                                                                               |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `name`                                                                               | Strings                                                                                                                                                              |
+| `place`, `places`                                                                          | A place, a list of places                                                                                                                                            |
+| `reach`, `minSize`                                                                         | Numbers, within `SHADER_REACH_RANGE` and `SHADER_MIN_SIZE_RANGE`                                                                                                     |
+| `reachParam`                                                                               | The name of a Number or Integer row                                                                                                                                  |
+| `params`                                                                                   | A list of rows: `name`, `type` and `default`, and `min`, `max`, `step`, `values`, `varies`, `plainName`, `description`, `primary`, `choices` where the type has them |
+| `motion`, `preview`                                                                        | `"still"`, `"loop"` or `{ loop: { speedParam } }`; `{ params, time }`                                                                                                |
+| `categories`, `cost`, `thumbnail`, `blend`, `form`, `bloom`, `requires`, `reads`, `webgpu` | As `defineShader` takes them                                                                                                                                         |
+
+**Editing rows.** A row's `default`, `min`, `max`, `step`, `plainName` and `varies` are edited by
+replacing the field on the row, as in `{ ...row, default: 0.5 }`: nothing else in the header
+depends on them. A row's type, name and removal go through `retypeShaderParam`,
+`renameShaderParam` and `removeShaderParam`, which also keep `reachParam`, a loop's `speedParam`
+and `preview.params` right. Pass the row's index to them, so a row whose name is a duplicate or
+empty is the one that changes. `shaderParamShape` says which fields a type has, a valid default,
+and whether its default may be bound to a clock (`clock`); `bindShaderParamClock` binds or unbinds
+one, and `shaderParamClock` reads a binding back.
+
+**Placing problems.** Each problem is `{ code, params }`. `params.line` and `params.column` count
+from the start of the whole text, so an editor that shows only the body subtracts `bodyLine - 1`,
+where `bodyLine` comes from splitting the text that was checked. `shader.header-key` names the key
+in `params.key`. `shader.param-invalid` names the row in `params.param` (its name, or `#<index>`
+for a row with no name; of two rows with one name, the last) and its field in `params.field`;
+`shader.reserved` names the row in `params.param`.
+
+**`asNew` and `onTaken`** mean the same in `check` and `add`, so pass both the same options and
+`check` reports what `add` will do.
+
+- Without `asNew`, text whose body equals a known shader's reports that shader as `sameAs`, with
+  `params` holding the defaults the text differs by. An unchanged copy under the shader's own id
+  (Copy code's text, or `source` without `duplicate`) adds nothing: with `apply`, those values are
+  written to the layer, and without it nothing is written. Any other text is added.
+- With `asNew`, there is no `sameAs` and the text always joins the project as a new shader. A
+  preset's bare id reads as `user/<id>`.
+- When the id is taken (a preset, a registered shader, or a project shader, an equal text included
+  under `asNew`), `onTaken: "refuse"`, the default, fails with `shader.id-taken` and
+  `{ id, free }`; `onTaken: "rename"` adds it under `free`, and the result's `descriptor.id` is the
+  id it got.
+
+**Saving and starting.** `session.shaders.replace(id, text)` saves an edit over a project shader in
+place, keeping its id and the layers that draw it. `check` compiles the text and draws a test frame
+when a canvas is attached; `compile: false` gives the static checks alone.
+`session.shaders.source(id, { duplicate: true, derived: "omit" })` gives a copy of a shader to start
+from, with a `user/` id and without `reads`, `cost` and a still `motion`, which are worked out again
+from the edited body.
 
 ## Parameters
 

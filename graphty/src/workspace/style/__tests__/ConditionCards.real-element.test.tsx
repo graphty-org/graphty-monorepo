@@ -19,6 +19,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
@@ -237,7 +238,12 @@ describe("the combined Style panel", () => {
         const list = await screen.findByRole("tablist", { name: "Style for" });
         const node = within(list).getByRole("tab", { name: "Node" });
         const edge = within(list).getByRole("tab", { name: /^Edge/ });
-        assert.include(edge.textContent ?? "", "not styled", "a kind that is off says so");
+        // The selection workspace drops the "not styled" note from the kind tabs (StylePanel.tsx).
+        if (selectionWorkspaceOn(session)) {
+            assert.notInclude(edge.textContent ?? "", "not styled");
+        } else {
+            assert.include(edge.textContent ?? "", "not styled", "a kind that is off says so");
+        }
         assert.strictEqual(node.getAttribute("aria-selected"), "true");
         const before = JSON.stringify(session.styles.get(layer.id));
         const steps = session.history.position;
@@ -431,12 +437,14 @@ describe("the combined Style panel", () => {
         const summary = within(byLayer).getByRole("button", { name: /from each layer/ });
         assert.match(summary.textContent ?? "", /Group 1, Group 2, Group 3, \+\d/);
         await userEvent.click(summary);
-        const lines = within(byLayer)
-            .getAllByRole("listitem")
-            .map((item) => item.textContent ?? "");
-        assert.match(lines[0], /^Group 1: Group 1, \d+$/, "the first line is the tree's first layer");
-        // The open cards say the union, as the closed row does.
-        assert.isNotNull(within(region).getByText(/^77 of 77 nodes$/));
+        // Each line's count is the element's `scope.count`, a promise the line fills in once it
+        // answers: a reader sees the count arrive, so the line is read once it has.
+        await waitFor(() => {
+            const first = within(byLayer).getAllByRole("listitem")[0]?.textContent ?? "";
+            assert.match(first, /^Group 1: Group 1, \d+$/, "the first line is the tree's first layer");
+        });
+        // The open cards say the union, as the closed row does (counted the same way).
+        assert.isNotNull(await within(region).findByText(/^77 of 77 nodes$/));
 
         const steps = session.history.position;
         const card = await addCard("name");
@@ -514,14 +522,21 @@ describe("the combined Style panel", () => {
         await clickRow("Some");
         await clickRow("All", "Control");
         const row = await whichRow();
+        // The selection workspace reads a card that differs by layer in plain words (WhichPicker.tsx).
+        const workspace = selectionWorkspaceOn(session);
         await waitFor(() => {
             assert.match(
                 row.getAttribute("aria-label") ?? "",
                 // The token is spoken as what it stands for, never its marks.
-                /^Which nodes, 77 of 77 nodes, name: each layer's own value, 1 of 2 layers$/,
+                workspace
+                    ? /^Which nodes, 77 of 77 nodes, name by layer, 1 of 2 layers$/
+                    : /^Which nodes, 77 of 77 nodes, name: each layer's own value, 1 of 2 layers$/,
             );
         });
-        assert.include(row.textContent ?? "", "name: «Layer», 1 of 2 layers");
+        assert.include(
+            row.textContent ?? "",
+            workspace ? "name by layer, 1 of 2 layers" : "name: «Layer», 1 of 2 layers",
+        );
     });
 
     it("a rule the cards cannot draw opens as the rule in words and is unchanged on close", async () => {

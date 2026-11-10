@@ -93,9 +93,13 @@ async function opened(): Promise<HTMLElement> {
     });
 }
 
-/** Opens the layer's workspace with the sidebar's Edit. */
+/**
+ * Opens the layer's workspace with the sidebar's Edit. The sidebar draws Edit only while the
+ * workspace is closed, and Done closes it once the canvas has painted, so Edit is waited for.
+ * @returns the open workspace.
+ */
 async function edit(): Promise<HTMLElement> {
-    await userEvent.click(screen.getByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
     return opened();
 }
 

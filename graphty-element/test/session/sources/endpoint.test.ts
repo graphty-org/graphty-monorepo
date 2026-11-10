@@ -6,6 +6,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { originOf } from "../../../src/session/sources/credentialLookup";
 import { isLocalNetwork, isRecordableEndpoint } from "../../../src/session/sources/endpoint";
 
 describe("isLocalNetwork", () => {
@@ -88,5 +89,12 @@ describe("isRecordableEndpoint", () => {
         ]) {
             assert.isFalse(isRecordableEndpoint(endpoint), endpoint);
         }
+    });
+});
+
+describe("originOf", () => {
+    it("keeps the scheme and host of a Bolt endpoint, where URL.origin says null", () => {
+        assert.strictEqual(originOf("bolt+s://demo.neo4jlabs.com:7687"), "bolt+s://demo.neo4jlabs.com:7687");
+        assert.strictEqual(originOf("https://demo.neo4jlabs.com:7473/db/movies"), "https://demo.neo4jlabs.com:7473");
     });
 });

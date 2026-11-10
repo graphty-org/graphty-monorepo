@@ -341,6 +341,11 @@ function rulePart(
         case "all":
         case "any":
         case "not": {
+            // A filter condition's load (`withinSources`, conditions.ts) reads provenance: never cached.
+            if ("withinSources" in where) {
+                return null;
+            }
+
             const inner = operandParts(where.kind === "not" ? [where.of] : where.of, context, parts, seen);
             return inner === null ? null : `${where.kind}[${inner.join(";")}]`;
         }
@@ -390,6 +395,11 @@ function unionPart(
     parts: Map<unknown, string | null> | null,
     seen: Set<ScopeId>,
 ): string | null {
+    // What a load supplied has no revision to key on (as a "source" leaf): never cached.
+    if (leaf.sources !== undefined) {
+        return null;
+    }
+
     const base = leaf.within === "visible" ? scopePart("visible", context, parts, seen) : "g";
     const inner = operandParts(
         leaf.branches.flatMap((branch) => branch.steps.map((step) => step.rule)),

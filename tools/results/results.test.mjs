@@ -5,6 +5,7 @@
 //   node --test tools/results/results.test.mjs
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
@@ -16,7 +17,9 @@ import { isolateGit } from "../isolated-git-env.mjs";
 import {
     call,
     config,
+    bodySummary,
     EVENT_MS,
+    fetchPlan,
     flushHealth,
     postFailures,
     postBenchmarks,
@@ -33,7 +36,7 @@ import { benchmarkRows } from "./post-benchmarks.mjs";
 import { unstableStories } from "./post-unstable-stories.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
-import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
+import { durationsOf, planRead, readersOf, variantsOf } from "./plan-read.mjs";
 import {
     baseId,
     fileIssues,
@@ -216,6 +219,49 @@ describe("client", () => {
             mock.restoreAll();
         }
     });
+    it("says why a read failed: the HTTP status and body summary, a timeout, or the network error (#6164)", async () => {
+        const cfg = { ...config({ RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [] };
+        try {
+            mock.method(globalThis, "fetch", () =>
+                Promise.resolve(new Response("D1_ERROR: query\n  too expensive", { status: 500 })),
+            );
+            assert.deepEqual(await fetchPlan(cfg, { sha: "a" }), {
+                ok: false,
+                why: "HTTP 500: D1_ERROR: query too expensive",
+            });
+            mock.restoreAll();
+            mock.method(globalThis, "fetch", () =>
+                Promise.reject(
+                    new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED 10.0.0.1:443") }),
+                ),
+            );
+            assert.deepEqual(await fetchPlan(cfg, {}), {
+                ok: false,
+                why: "fetch failed (connect ECONNREFUSED 10.0.0.1:443)",
+            });
+        } finally {
+            mock.restoreAll();
+        }
+        const silent = await serve(false);
+        const r = await call(
+            { ...config({ RESULTS_URL: silent.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [] },
+            "GET",
+            "/v1/plan",
+            undefined,
+            200,
+        );
+        assert.deepEqual(r, { ok: false, why: "no answer in 0.2 s" });
+        const ok = await serve(() => ({ order: ["c"] }));
+        assert.deepEqual(await fetchPlan(config({ RESULTS_URL: ok.url, GRAPHTY_RESULTS_TOKEN: "t" }), {}), {
+            ok: true,
+            data: { order: ["c"] },
+        });
+    });
+    it("summarises a refused body on one short line and never repeats a bearer credential", () => {
+        assert.equal(bodySummary(""), "");
+        assert.equal(bodySummary("bad\n\ttoken: Bearer abc.def.ghi"), "bad token: Bearer ***");
+        assert.equal(bodySummary("x".repeat(500)).length, 200);
+    });
     it("fails open with no store configured", async () => {
         assert.deepEqual(await call(null, "GET", "/v1/plan"), { ok: false, why: "results store not configured" });
         assert.equal(await readPlan(null, {}), null);
@@ -395,6 +441,27 @@ describe("records", () => {
             flood.map((r) => r.outcome),
             ["error"],
         );
+    });
+
+    // #6374: a run stopped at its deadline writes no JUnit report; what hung is its failure, which the bisect reads
+    it("records what a run stopped at its deadline left running as its failures", () => {
+        const file = "graphty/src/workspace/selection/__tests__/cardPalette.test.ts";
+        const text = "[HANG] the run reached the job's deadline and was stopped";
+        const [rec] = recordsOf({
+            id: "9.1.test.graphty-4",
+            head: { commit: "c", tree: "t", base: "b", dirty: false },
+            variant: "graphty|flags=off|whole",
+            inputs: "i",
+            env: "e",
+            code: 124,
+            result: { firstCode: 124, firstOutcome: "infra", retried: false, hung: [{ file, name: "(hung)", text }] },
+            startedAt: 1000,
+            endedAt: 9000,
+            dir: join(TMP, "no-reports"),
+            runId: "run1",
+        });
+        assert.equal(rec.outcome, "infra");
+        assert.deepEqual(rec.failures, [{ file, name: "(hung)", status: "fail", message: text }]);
     });
 });
 
@@ -727,6 +794,43 @@ describe("planRead", () => {
         assert.deepEqual(durationsOf(plan), { layout: { "a.test.ts": 5, "b.test.ts": 7 } });
         assert.deepEqual(durationsOf(null), {});
     });
+    /**
+     * planRead() for layout with console.log captured.
+     * @param o planRead()'s options but `root` and `affected`
+     * @returns `{ r, lines }`
+     */
+    async function logged(o) {
+        const lines = [];
+        mock.method(console, "log", (line) => lines.push(line));
+        try {
+            return { r: await planRead({ root: process.cwd(), affected: ["layout"], ...o }), lines };
+        } finally {
+            mock.restoreAll();
+        }
+    }
+    it("writes the store's refusal as the reason and warns on the run page that bins fall back (#6164)", async () => {
+        const out = join(TMP, "plan-refused");
+        mock.method(globalThis, "fetch", () => Promise.resolve(new Response("over the limit", { status: 429 })));
+        const { r, lines } = await logged({ out, env: { RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" } });
+        assert.equal(r.plan, null);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")), {
+            unavailable: "HTTP 429: over the limit",
+        });
+        assert.deepEqual(lines, [
+            "::warning::results store: no plan (HTTP 429: over the limit); test bins are packed without history, one job per file",
+        ]);
+    });
+    it("warns too when CI has no store configured, and never when the plan was read", async () => {
+        const off = await logged({ out: join(TMP, "plan-off-warn"), env: {} });
+        assert.match(off.lines[0], /^::warning::results store: no plan \(results store not configured\)/);
+        const { url } = await serve();
+        const on = await logged({
+            out: join(TMP, "plan-on-quiet"),
+            env: { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        assert.ok(on.r.plan);
+        assert.ok(!on.lines.some((l) => l.includes("::warning::")), on.lines.join("\n"));
+    });
     it("fails open: no store writes an unavailable plan and empty durations", async () => {
         const out = join(TMP, "plan-off");
         const r = await planRead({ root: process.cwd(), affected: ["layout"], out, env: {} });
@@ -750,13 +854,40 @@ describe("planRead", () => {
         assert.equal(seen.length, 1);
         const q = new URL(seen[0].url, url).searchParams;
         // layout's stories run in ci.yml's story-tests job, so its `-shots` family is asked too (STORY_SHARDS)
-        assert.equal(
-            q.get("variants"),
-            "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots," +
-                "layout-storybook|flags=off|whole,layout-storybook|flags=off|selected",
+        const variants = q.get("variants").split(",");
+        assert.deepEqual(
+            variants.filter((v) => v.startsWith("layout")),
+            [
+                "layout|flags=off|whole",
+                "layout|flags=off|selected",
+                "layout-shots|flags=off|shots",
+                "layout-storybook|flags=off|whole",
+                "layout-storybook|flags=off|selected",
+            ],
         );
-        assert.equal(q.get("inputs"), "-,-,-,-,-");
+        assert.equal(q.get("inputs"), variants.map(() => "-").join(","));
         assert.equal(q.get("files"), "layout/src/x.ts");
+    });
+    it("finds the packages that import an affected package by relative path, which nx leaves out (#6229)", () => {
+        const packages = ["graph-io", "graphty-element", "graphty", "layout"];
+        // graph-io's fidelity stories import ../../../graphty-element/index.ts; graph-io/project.json drops the edge
+        assert.ok(readersOf(process.cwd(), ["graphty-element"], packages).includes("graph-io"));
+        assert.ok(!readersOf(process.cwd(), ["graphty-element", "graph-io"], packages).includes("graph-io"));
+        assert.deepEqual(readersOf(process.cwd(), [], packages), []);
+        assert.deepEqual(readersOf(join(TMP, "not-a-checkout"), ["graphty-element"], packages), []);
+    });
+    it("asks for the durations of graph-io's story bins when only graphty-element is affected (#6229)", async () => {
+        const { url, seen } = await serve();
+        const out = join(TMP, "plan-readers");
+        await planRead({
+            root: process.cwd(),
+            affected: ["graphty-element"],
+            out,
+            env: { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        const variants = new URL(seen[0].url, url).searchParams.get("variants").split(",");
+        assert.ok(variants.includes("graph-io-storybook|flags=off|selected"), variants.join("\n"));
+        assert.ok(variants.includes("graphty-element-browser|flags=off|selected"));
     });
 });
 
@@ -1606,6 +1737,23 @@ describe("health API fan-out", () => {
             },
         ]);
         assert.deepEqual(unstableStories({ items: [] }, index, []), []);
+
+        // With the capture's directory, each story names its two shots: results.json's capture, then second/<file>.
+        const dir = mkdtempSync(join(TMP, "capture-"));
+        mkdirSync(join(dir, "second"));
+        writeFileSync(join(dir, "second", "gone--story.png"), "second shot");
+        const first = "a".repeat(64);
+        const withPictures = unstableStories(
+            { items: [{ id: "gone--story", file: "gone--story.png", status: "unstable", capture: first }] },
+            index,
+            [],
+            dir,
+        );
+        const second = createHash("sha256").update("second shot").digest("hex");
+        assert.deepEqual(withPictures[0].pictures, [first, second]);
+        // A missing second shot names no pictures.
+        const noSecond = { id: "x", file: "x.png", status: "unstable", capture: first };
+        assert.equal(unstableStories({ items: [noSecond] }, index, [], dir)[0].pictures, undefined);
     });
     it("sends a benchmark job's results to the health API as one post", async () => {
         const h = await serveHealth();
@@ -1632,13 +1780,13 @@ describe("health API fan-out", () => {
                 timestamp: "new",
                 results: [
                     { algorithm: "GRSBM", graphSize: 50, edges: 98, executionTime: 4.18, memoryUsage: 0 },
-                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, memoryUsage: 0 },
+                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, input: "3fa2c1d0e9b8" },
                 ],
             },
         ];
         assert.deepEqual(benchmarkRows(algorithms), [
             { name: "GRSBM n=50", value: 4.18 },
-            { name: "GRSBM n=100", value: 15.75 },
+            { name: "GRSBM n=100", value: 15.75, input: "3fa2c1d0e9b8" },
         ]);
         // webgpu-graph-algorithms/benchmarks/out/gpu-linux-t4.json (benchmarks/harness.ts)
         const harness = [

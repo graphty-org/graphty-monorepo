@@ -272,6 +272,25 @@ describe("session.shaders", () => {
         }
     });
 
+    it("a registered shader whose low-detail body fails to load rejects source instead of dropping shadeFar", async () => {
+        const failure = new Error("far body unavailable");
+        defineShader({
+            id: "acme/far-fails",
+            glsl: HEAT_BODY,
+            lowDetail: () => Promise.reject(failure),
+        });
+        try {
+            const { session: s } = await session();
+            let caught: unknown;
+            await s.shaders.source("acme/far-fails", { duplicate: true }).catch((error: unknown) => {
+                caught = error;
+            });
+            assert.strictEqual(caught, failure);
+        } finally {
+            clearRegisteredShadersForTesting();
+        }
+    });
+
     it("with asNew, a body matching a known shader joins anyway, and a clash follows onTaken", async () => {
         const { session: s } = await session();
         const { draft, body } = splitShaderText(await s.shaders.source("uncertainty-aura", { duplicate: true }));

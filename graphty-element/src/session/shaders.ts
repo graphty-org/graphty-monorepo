@@ -1490,16 +1490,16 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             }
 
             const descriptor = shaderDescriptor(id);
-            const body = await bodyOf(id);
-            if (descriptor === undefined || body === undefined) {
+            // A body or low-detail body that fails to load rejects the call, so a copy never
+            // silently loses its shadeFar.
+            const loaded = isRegisteredShader(id) ? await loadShaderSource(id) : undefined;
+            if (descriptor === undefined || loaded === undefined) {
                 throw unknownShader(id, [...state().shaders.keys(), ...shaderDescriptors().map((each) => each.id)]);
             }
 
             const name = id.includes("/") ? id.slice(id.indexOf("/") + 1) : id;
             const copyId = options.duplicate === true ? `user/${name}` : id;
-            const { lowDetail } = (await loadShaderSource(id)?.catch(() => undefined)) ?? {};
-            const far = typeof lowDetail === "string" ? lowDetail : undefined;
-            return copyText(descriptor, body, copyId, params, far, options.derived);
+            return copyText(descriptor, loaded.glsl, copyId, params, loaded.lowDetail, options.derived);
         },
 
         list() {

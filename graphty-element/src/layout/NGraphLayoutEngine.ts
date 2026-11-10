@@ -842,6 +842,24 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
+     * Take the position array as this engine's own: each `Node`'s body, and each row's with no
+     * `Node`, which a `Node` built later takes where it is.
+     */
+    override loadArrangement(): void {
+        super.loadArrangement();
+        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const at = { x: 0, y: 0, z: 0 };
+        for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+                const pos = this.ngraphLayout.getNodePosition(id);
+                pos.x = at.x;
+                pos.y = at.y;
+                pos.z = at.z;
+            }
+        }
+    }
+
+    /**
      * Set a node's position in the simulation
      * @param n - The node to set position for
      * @param newPos - The new position coordinates

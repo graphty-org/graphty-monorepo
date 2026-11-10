@@ -2305,6 +2305,8 @@ class Node_2 implements ModelUser {
     // @internal
     syncXlabelPlace(): void;
     // @internal
+    takeDrawnPaint(paint: NodePaint): void;
+    // @internal
     get teardownMesh(): TransformNode;
     // @internal
     togglesOwnMeshes(): boolean;

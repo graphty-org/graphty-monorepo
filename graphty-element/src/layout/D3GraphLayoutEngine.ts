@@ -735,6 +735,17 @@ export class D3GraphEngine extends LayoutEngine {
     override loadArrangement(): void {
         this.refresh();
         super.loadArrangement();
+        // and each row's body with no `Node`, which a `Node` built later takes where it is
+        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const at = { x: 0, y: 0, z: 0 };
+        for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+                body.x = at.x;
+                body.y = at.y;
+                body.z = this.dim === 2 ? 0 : at.z;
+                this.reheat = true;
+            }
+        }
     }
 
     /**

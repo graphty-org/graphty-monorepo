@@ -881,6 +881,11 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(anchors, 0);
         assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0);
         assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        // one style per look (two sizes), not per row: three colors on two sizes is six rows apart
+        const batches = graph.getNodeBatches();
+        const styles = new Set(NODES.map((node) => batches?.lookOf(node.id)?.paint.style));
+        assert.isFalse(styles.has(undefined), "every row is drawn with no Node");
+        assert.equal(styles.size, 2);
     });
 
     it("draw a row with no Node from its paint, the picture its Node drew, and build no Node", async () => {

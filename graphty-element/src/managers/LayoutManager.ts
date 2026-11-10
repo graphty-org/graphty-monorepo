@@ -1633,6 +1633,7 @@ export class LayoutManager implements Manager {
                 return extent !== undefined && extent.scale > 0 ? extent.half : null;
             },
             positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale,
+            knownFields: () => this.graphContext?.getStyles().config.data.knownFields,
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },

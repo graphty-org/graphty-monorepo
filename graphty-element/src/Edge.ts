@@ -2685,9 +2685,7 @@ export class Edge {
             style,
             scene,
             () => rows.positionTexture,
-            this.isLoop,
-            this.routeOf(style),
-            this.context.leansLines?.() ?? false,
+            { loop: this.isLoop, route: this.routeOf(style), lean: this.context.leansLines?.() ?? false },
         );
         const piece = batch.acquire();
         // As `createStaticLine` hands the plain line's material its look.

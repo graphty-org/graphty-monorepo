@@ -660,7 +660,8 @@ class Visit {
         );
     }
 
-    // The Data panel lists each source and join, and draws a per-source section for each.
+    // The Data panel lists each source and join, and draws a per-source section for each. A join
+    // goes by its step's title, which names its table without the extension; no two share a name.
     async sections(names, count) {
         await this.see(
             "per-source sections",
@@ -670,13 +671,19 @@ class Visit {
                     const titles = [...document.querySelectorAll(".dp-source-sections > * .cm-section-title")]
                         .map((el) => el.textContent.trim())
                         .filter((t) => t !== "Filters");
+                    const stem = (name) => name.replace(/\.[a-z]+$/i, "");
                     return {
                         listed: listed.length,
                         sections: titles.length,
-                        named: want.every((name) => listed.includes(name) && titles.includes(name)),
+                        named: want.every(
+                            (name) =>
+                                listed.some((each) => each.includes(stem(name))) &&
+                                titles.some((each) => each.includes(stem(name))),
+                        ),
+                        distinct: new Set(listed).size === listed.length && new Set(titles).size === titles.length,
                     };
                 }, names),
-            { listed: count, sections: count, named: true },
+            { listed: count, sections: count, named: true, distinct: true },
         );
     }
 }

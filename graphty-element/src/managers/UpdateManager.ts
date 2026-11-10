@@ -19,7 +19,7 @@ import type { CameraManager } from "../cameras/CameraManager";
 import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraController";
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
-import { Edge } from "../Edge";
+import { Edge, pulledLines } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
 import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
@@ -3115,19 +3115,58 @@ export class UpdateManager implements Manager {
      * Update the placed edges -- every edge whose line is not pulled from the row table -- after the table moved its
      * rows while some row has no Node: such a row is in no walk of the nodes, so its edges are found by asking every
      * placed edge, and one whose ends stayed exits at once. A pulled line follows its rows in its shader.
-     * ponytail: a walk of every edge on each table move; a list of the rows the lane moved, if a running layout over
-     * a million rows with no Node and placed edges needs the frame back.
+     * ponytail: every placed edge on each table move; a list of the rows the lane moved, if a running layout over
+     * a million rows with no Node and many placed edges needs the frame back.
      */
     private placedEdgesAtRows(): void {
         if (!this.unbuiltRowsMoved) {
             return;
         }
 
-        for (const edge of this.layoutManager.edges) {
+        for (const edge of this.placedEdges()) {
+            edge.update();
+        }
+    }
+
+    /** The engine's edges whose line is not pulled, and what they were listed from; see {@link placedEdges}. */
+    private placedList: {
+        edges: readonly Edge[];
+        engine: unknown;
+        count: number;
+        edgeVersion: number;
+        pulledVersion: number;
+    } | null = null;
+
+    /**
+     * The layout engine's edges whose line is not pulled from the row table, listed again only when the engine, the
+     * store's edges, the engine's array of them or some edge's pulled line changed: a walk of a million edges asking
+     * each was most of a layout frame. An engine that hands back an iterator holds every edge the moment it is told,
+     * which bumps the store's version (see {@link edgesNeedWalking}).
+     * @returns The placed edges.
+     */
+    private placedEdges(): readonly Edge[] {
+        const { edges: from, layoutEngine: engine } = this.layoutManager;
+        const count = Array.isArray(from) ? from.length : -1;
+        const { edgeVersion } = this.dataManager;
+        const known = this.placedList;
+        if (
+            known !== null &&
+            known.engine === engine &&
+            known.count === count &&
+            known.edgeVersion === edgeVersion &&
+            known.pulledVersion === pulledLines.version
+        ) {
+            return known.edges;
+        }
+
+        const edges: Edge[] = [];
+        for (const edge of from) {
             if (!edge.isPulled) {
-                edge.update();
+                edges.push(edge);
             }
         }
+        this.placedList = { edges, engine, count, edgeVersion, pulledVersion: pulledLines.version };
+        return edges;
     }
 
     /** Edges a move left with an end on its node's bounding radius, see {@link endsByRadius}. */

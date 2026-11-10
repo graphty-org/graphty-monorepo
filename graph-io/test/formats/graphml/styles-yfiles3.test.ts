@@ -89,6 +89,28 @@ describe("yEd Live GraphML: where a node label's model puts it", () => {
         expect(node("labelShiftY", group)).toBe(-0.5);
     });
 
+    it("lines a group's label off its tab up across the group's top by its alignment, left unset", async () => {
+        const { node } = await sheet("specimen-groups-p4.graphml");
+        const id = "v2-group-label-place-on-tab-false";
+        expect(node("labelOffsetX", id)).toBeNull();
+        expect(node("labelShiftX", id)).toBeNull();
+        expect(node("labelOffsetY", id)).toBe(11);
+        // the same label with no alignment: a 150 wide group, its words 4 in from its left side
+        const text = readFileSync(join(SHEETS, "specimen-groups-p4.graphml"), "utf8").replace(
+            /(<node id="v2-group-label-place-on-tab-false">[\s\S]*?)horizontalTextAlignment="CENTER" /,
+            "$1",
+        );
+        const { snapshot, styles } = await registry.importGraph(new TextEncoder().encode(text), {
+            format: "graphml",
+            styles: { toolDefaults: true },
+            errorLimit: Infinity,
+        });
+        assert(styles !== null && styles !== undefined);
+        const at = snapshot.ids.requireIndex(id);
+        expect(resolveStyles(styles, "node", "labelOffsetX", snapshot)[at]).toBe(-71);
+        expect(resolveStyles(styles, "node", "labelShiftX", snapshot)[at]).toBe(0.5);
+    });
+
     it("holds the words against the sides of a box larger than them", async () => {
         const { node } = await sheet("specimen-labels.graphml");
         expect(node("labelOffsetY", "v-align-top")).toBe(-13);
@@ -509,6 +531,31 @@ describe("yEd Live GraphML: edge geometry, stroke alpha and hollow arrows", () =
         expect(edge("bends", "color-ff0000")).toBeNull();
     });
 
+    it("draws an ArcEdgeStyle as a quadratic curve through its apex, and a BezierEdgeStyle through its curve", async () => {
+        // yed-live-graphml-specimen-edges-lines.svg: centers 76 apart, `height="20"` drawn as a parabola 20 off the
+        // line in the middle (19.69 at 4.75 from it), so its control point 40 off; `fixedHeight="false"
+        // height="0.5"` 38 off, half the line; a positive height bends left of the way from source to target, y up
+        const { edge } = await sheet("specimen-edges-lines.graphml");
+        expect(edge("bendCurve", "arc-height-20")).toBe("bezier");
+        expect(edge("curved", "arc-height-20")).toBe(true);
+        const off = (id: string): number => Number(String(edge("bends", id)).split(",")[1]);
+        expect(off("arc-height-20")).toBeCloseTo(40 / 76, 4);
+        expect(off("arc-height-minus-20")).toBeCloseTo(-40 / 76, 4);
+        expect(off("arc-fixed-height-false")).toBeCloseTo(1, 4);
+        // the five bends of bezier-five are two cubic pieces joined at the third, which the drawn curve passes
+        // through (460,618.222, on the line between the centers): flattened into points on the curve, drawn straight
+        const bezier = String(edge("bends", "bezier-five"))
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
+        expect(bezier.length).toBeGreaterThan(5);
+        expect(bezier).toContainEqual([0.5, 0]);
+        expect(edge("curved", "bezier-five")).toBe(false);
+        // one cubic piece (bezier's two bends) is drawn as that cubic, its bends its control points
+        expect(edge("bendCurve", "bezier")).toBe("bezier");
+        expect(edge("curved", "bezier")).toBe(true);
+        expect(String(edge("bends", "bezier")).split(" ")).toHaveLength(2);
+    });
+
     it("starts and ends an edge at its sourceport and targetport, placed by their FreeNodePortLocationModelParameter", async () => {
         // yed-live-graphml-specimen-edges-lines.svg draws port-top-bottom from the top middle of its source to the
         // bottom middle of its target, and port-corners from the bottom-right corner to the top-left one
@@ -633,6 +680,75 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
         expect(p3.node("stripeFrame", "group-collapsed")).toBeNull();
     });
 
+    it("keeps a flowchart type's outline to its own proportions in the middle of its box", async () => {
+        // yed-live-graphml-specimen-node-shapes-p3.svg: start2 in a 56 x 36 box is a circle 36 across, the
+        // off-page reference a pentagon 36 wide; a process box fills its box
+        const { node } = await sheet("specimen-node-shapes-p3.graphml");
+        expect(node("width", "flowchart-start2")).toBe(36);
+        expect(node("height", "flowchart-start2")).toBe(36);
+        expect(node("width", "flowchart-off-page-reference")).toBe(36);
+        expect(node("shape", "flowchart-start2")).toBe("ellipse");
+        expect(node("fill", "flowchart-start2")).toBe("#c8c8c8");
+        expect(node("borderColor", "flowchart-start2")).toBe("#505050");
+    });
+
+    it("paints no fill for a {x:Null} fill", async () => {
+        // yed-live-graphml-specimen-node-fills-borders.svg draws fill-null's rectangle with fill="none"
+        const { node } = await sheet("specimen-node-fills-borders.graphml");
+        expect(node("fillOpacity", "fill-null")).toBe(0);
+    });
+
+    it("draws an ImageNodeStyle's picture alone, its background unoutlined, kept to its aspectRatio", async () => {
+        // yed-live-graphml-specimen-images-charts.svg: `default` (no image) draws nothing; a background fill is drawn
+        // with no line round it; aspectRatio 1 draws the picture 30 x 30 in the middle of a 60 x 30 box
+        const { node } = await sheet("specimen-images-charts.graphml");
+        expect(node("shape", "default")).toBe("none");
+        expect(node("fill", "image-background-fill")).toBe("#ffcc00");
+        expect(node("borderWidth", "image-background-fill")).toBe(0);
+        expect(node("borderWidth", "image-background-shape")).toBe(0);
+        expect(node("width", "image-aspect-ratio")).toBe(30);
+        expect(node("height", "image-aspect-ratio")).toBe(30);
+    });
+
+    it("paints no line for a {x:Null} edge stroke, and its arrowheads as ever", async () => {
+        // yed-live-graphml-specimen-edges-lines.svg draws stroke-null's target arrowhead and no line
+        const { edge } = await sheet("specimen-edges-lines.graphml");
+        expect(edge("opacity", "stroke-null")).toBe(0);
+        expect(edge("targetArrow", "stroke-null")).toBe("triangle");
+    });
+
+    it("draws a GraphvizNodeStyle with no shape as an ellipse, Graphviz's default", async () => {
+        // yed-live-graphml-specimen-node-shapes-p7.svg draws `default` as a 36 x 36 ellipse
+        const { node } = await sheet("specimen-node-shapes-p7.graphml");
+        expect(node("shape", "default")).toBe("ellipse");
+        expect(node("shape", "graphviz-shape-rectangle")).toBe("rectangle");
+    });
+
+    it("draws no line round a GroupNodeStyle with no stroke", async () => {
+        // yed-live-graphml-specimen-groups.svg: `default` (GroupNodeStyle with nothing set) has no outline
+        const { node } = await sheet("specimen-groups.graphml");
+        expect(node("borderWidth", "default")).toBe(0);
+    });
+
+    it("rounds a group's corners by its cornerRadius, 4 unset", async () => {
+        // yed-live-graphml-specimen-groups-p2.svg and -p3.svg: arcs of 4 on every group, 12 and none where set
+        const p2 = await sheet("specimen-groups-p2.graphml");
+        expect(p2.node("shape", "corner-radius-12")).toBe("round-rectangle");
+        expect(p2.node("cornerRadius", "corner-radius-12")).toBe(12);
+        expect(p2.node("shape", "corner-radius-0")).toBe("rectangle");
+        const p3 = await sheet("specimen-groups-p3.graphml");
+        expect(p3.node("shape", "group-collapsed")).toBe("round-rectangle");
+        expect(p3.node("cornerRadius", "group-collapsed")).toBe(4);
+    });
+
+    it("draws nothing inside a collapsed group", async () => {
+        // yed-live-graphml-specimen-groups-p3.svg draws group-collapsed alone, without its member's circle
+        const p3 = await sheet("specimen-groups-p3.graphml");
+        expect(p3.node("visible", "group-collapsed-m0")).toBe(false);
+        expect(p3.node("visible", "group-collapsed")).toBeNull();
+        expect(p3.node("visible", "tab-height-30")).toBeNull();
+    });
+
     it("draws the group's icon and its background at the tab, as yEd Live does", async () => {
         const svg = (n: (p: StyleProperty, id: string) => unknown, id: string): string =>
             decodeURIComponent(String(n("image", id)).split(",")[1]);
@@ -673,6 +789,16 @@ describe("yEd Live GraphML: a node label with no layout parameter", () => {
     it("sits below the node, as yEd Live draws it", async () => {
         const { node } = await sheet("specimen-labels.graphml");
         expect(node("labelPosition", "default")).toBe("bottom");
+    });
+
+    it("sets its words in the middle or at the bottom of the box its minimumSize makes", async () => {
+        const { node } = await sheet("specimen-labels-p3.graphml");
+        expect(node("labelOffsetY", "v2-vertical-top")).toBeNull();
+        expect(node("labelShiftY", "v2-vertical-top")).toBeNull();
+        expect(node("labelOffsetY", "v2-vertical-center")).toBe(22);
+        expect(node("labelShiftY", "v2-vertical-center")).toBe(-0.5);
+        expect(node("labelOffsetY", "v2-vertical-bottom")).toBe(44);
+        expect(node("labelShiftY", "v2-vertical-bottom")).toBe(-1);
     });
 
     it("reads a label style's box: its fill, its stroke and how far it stands off the words", async () => {

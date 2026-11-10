@@ -213,8 +213,14 @@ describe("DOT styles: Graphviz's rules", () => {
         }`);
         const width = byId(styles, snapshot, "borderWidth");
         expect(["p", "t", "n", "f"].map((id) => width.get(id))).toEqual([0, 0, 0, 0]);
-        // an unfilled none draws only its label; a filled one is its box, filled, with no outline
-        expect(["n", "f"].map((id) => byId(styles, snapshot, "shape").get(id))).toEqual(["none", "rectangle"]);
+        // an unfilled none draws only its label; a filled one is its box, filled, with no outline; plain and plaintext
+        // are none with other margins, so an unfilled one draws only its label too (Graphviz's shapes documentation)
+        expect(["n", "f", "p", "t"].map((id) => byId(styles, snapshot, "shape").get(id))).toEqual([
+            "none",
+            "rectangle",
+            "none",
+            "none",
+        ]);
         expect(["s", "b", "w"].map((id) => width.get(id))).toEqual([3, 2, 0.5]);
         const style = byId(styles, snapshot, "borderStyle");
         expect(["s", "w", "k"].map((id) => style.get(id))).toEqual(["dashed", "dotted", null]);

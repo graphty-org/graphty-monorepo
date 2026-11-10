@@ -1675,8 +1675,14 @@ function readNodeShape(n: NodeRead): void {
                 ? "round-rectangle"
                 : canonEnum("shape", n.shapeRaw, "graphviz", n.at("shape"));
         // a filled shape=none is its box filled, with no outline (its border is 0): a rectangle, not a node with no body
-        // so is a shape=none whose label is a table with an outline: the table's box
-        n.put("shape", shape === "none" && (isFilled(n) || drawsTableOutline(n)) ? "rectangle" : shape);
+        // so is a shape=none whose label is a table with an outline: the table's box. plain and plaintext are none with
+        // other margins (Graphviz's shapes documentation), so an unfilled one draws its label alone too
+        const bodiless = shape === "none" || NO_OUTLINE.has(n.shape);
+        if (bodiless && (isFilled(n) || drawsTableOutline(n))) {
+            n.put("shape", "rectangle");
+        } else {
+            n.put("shape", bodiless ? "none" : shape);
+        }
     }
 }
 

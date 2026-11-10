@@ -726,3 +726,47 @@ manager's keys) before reading LayoutManager.nodes, which lists only Nodes: unde
 rows have none until asked. On objects the read builds nothing.
 
 No design-doc correction was needed.
+
+## The seven forced-batched regressions are fixed (commits 8567dc257b, 53bc32a79d, 52657ba328)
+
+Mechanisms found, each under renderPath "batched" only:
+
+1. A third party's SimpleLayoutEngine arranges `this.nodes`, the Nodes it holds. It was attached to
+   the rows and treated as placing rows it was never handed, so it was handed no Node for a row
+   stored with none and left that row where the last layout put it (layout-extension scaling factor,
+   define-layout-defaults advanced twin). LayoutManager now lays out by row only for a
+   SnapshotLayoutEngine or a defineLayout engine (`isDefinedLayout`, internal); a third party's
+   engine gets a Node for every row, as design/rendering/row-renderer.md already says.
+2. static-layout-teardown asserted the engine holds 200 Nodes. Under batched the random layout
+   arranges by row and holds no Node, which is the stage's point; the test now compares with the
+   Nodes the data manager built (all of them on objects, so that path asserts what it did before).
+   The leak it guards (edges held after a replacing import) is still asserted exactly.
+3. A positions.set on a resting layout moved a row with no Node, but the row table caught up with the
+   lane only after the edge walk, and no later frame ran: the edge stayed 9.75 long between nodes
+   4.56 apart (edges-end-on-nodes-2d). The node walk now flushes the row table before the edges, as
+   the roster walk already did.
+4. Building the Node of a row already drawn bumped nodeVersion, so the next pass forgot the applied
+   view masks and walked every edge: 1,500 writes on a time step that moved 62 (time-changed-rows,
+   all three). adoptBuiltNode already puts a new Node in line with the masks, so such builds are
+   counted apart (`dataManagerInternals.lateNodeVersions`) and no longer invalidate them. On objects
+   the count stays 0.
+
+Commands (from graphty-element, all through tools/low-priority.sh):
+
+- The 5 files of the 7 failures, `--project forced-batched`: before, 7 failed / 70 passed; after,
+  all pass (layout pair 58 passed; time-changed-rows + edges-end-on-nodes-2d 18 passed; teardown 1).
+- The 82-file set (tmp/stage-26/pinned82.txt):
+  - `--project forced-batched`: 74 files, 845 passed, 1 skipped, 0 failed (was 838 passed, 7 failed).
+  - `--project browser` (objects): 76 files, 900 passed, 2 skipped, 0 failed.
+- Final code, the touched and pinning files (node-batch, define-layout, define-layout-defaults,
+  layout-extension, time-changed-rows, edges-end-on-nodes-2d, static-layout-teardown): forced-batched
+  94 passed, browser 151 passed; default project test/simple and the Layout/Update/DataManager tests
+  164 passed.
+- `npx vitest run --project render-parity` (parity86.log): 381 passed, 12 skipped, 1 failed: Gexf
+  1488 px on the batched path, the same known difference as before. Objects path clean.
+- eslint on the changed files clean, `tsc --noEmit` clean, `npm run build` 0,
+  `node tools/api-report.mjs graphty-element --check`: "API report matches the build" (no API change).
+- `node tools/sonar-gate.mjs`: no new issue or hotspot on the changed lines.
+
+Load-peak gate: not re-measured after these commits. Last measured at cfbe862cab: 1,250 B per node
+against the 1,500 B target. These commits add one counter and change no load path.

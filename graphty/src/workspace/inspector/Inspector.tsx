@@ -211,21 +211,41 @@ function kindIdOf(run: Run | undefined, resolved: Resolved): InspectedKindId {
 }
 
 /**
- * The tab the inspector opens on: a path's run opens on Values, as a single node does; else the
- * tab a link names, else the one last chosen for the kind.
- * @param isPath - whether the run is a path.
+ * Whether a run row opens on Values whatever was last chosen: a path, whose answer is its nodes in
+ * order, as a single node does, and a finished run with no layer, whose Style tab is empty.
+ * @param session - the session.
+ * @param run - its run.
+ * @param resolved - what is inspected.
+ * @returns true for such a run.
+ */
+function opensOnValues(session: GraphSession | null, run: Run | undefined, resolved: Resolved): boolean {
+    if (run === undefined || session === null) {
+        return false;
+    }
+    const unpainted =
+        (resolved.kind === "measure-row" || resolved.kind === "run-row") &&
+        run.status !== "queued" &&
+        run.status !== "running" &&
+        session.runs.bindings(run.id).length === 0;
+    return run.shape === "path" || unpainted;
+}
+
+/**
+ * The tab the inspector opens on: a run with `onValues` opens on Values; else the tab a link names,
+ * else the one last chosen for the kind.
+ * @param onValues - whether it opens on Values.
  * @param kind - the kind.
  * @param inspected - the store's `inspected`.
  * @param remembered - the tab last chosen per kind.
  * @returns the tab, or null for a kind with no tabs.
  */
 function opensOnOf(
-    isPath: boolean,
+    onValues: boolean,
     kind: InspectedKind | undefined,
     inspected: WorkspaceState["inspected"],
     remembered: WorkspaceState["tabs"],
 ): "style" | "values" | null {
-    if (isPath) {
+    if (onValues) {
         return "values";
     }
     const asked = kind !== undefined && kind.tabs.length > 0 ? inspected?.tab : undefined;
@@ -501,9 +521,8 @@ export function Inspector(): React.JSX.Element {
     const barRun = run ?? layerRunOf(session, resolved);
     const kindId = kindIdOf(run, resolved);
     const kind = registry.kinds.get(kindId);
-    // A path's answer is its nodes in order, so its run opens on Values, as a single node does.
     const isPath = run?.shape === "path";
-    const opensOn = opensOnOf(isPath, kind, inspected, remembered);
+    const opensOn = opensOnOf(opensOnValues(session, run, resolved), kind, inspected, remembered);
     const tab = picked?.identity === identity ? picked.tab : opensOn;
     // A path is not a measure, though its run row is one.
     const kindWord = isPath ? PATH_WORD : KIND_WORDS[kindId];

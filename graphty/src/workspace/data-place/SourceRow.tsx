@@ -1,10 +1,11 @@
 import { ContextMenu, EntityChip, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { LoadedSource } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Menu, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import { ActionIcon, Button, Menu, Tooltip, VisuallyHidden } from "@mantine/core";
+import React, { useState } from "react";
 
 import type { SourceRowCommand } from "../commands/registry";
 import { CommandMenuItem } from "../frame/menus";
+import { RenameInput } from "../frame/RenameInput";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -35,70 +36,6 @@ const ITEM_GLYPHS: Readonly<Record<string, React.ReactNode>> = {
 
 /** The key shown at an item's right: the window key that does the same, or the row's own F2. */
 const ITEM_KEYS: Readonly<Record<string, string>> = { "source.export": "Mod+E", "source.rename": "F2" };
-
-/**
- * The name being edited in place: Enter or leaving it commits, Escape cancels.
- * @param props - Component props
- * @param props.name - the name now
- * @param props.onDone - takes the new name, or null to cancel
- * @returns the input
- */
-function RenameInput({
-    name,
-    onDone,
-}: Readonly<{ name: string; onDone: (name: string | null) => void }>): React.JSX.Element {
-    const [text, setText] = useState(name);
-    const input = useRef<HTMLInputElement>(null);
-    // Tab leaves the field for the row's next control, which commits: no keyboard trap.
-    const tabbing = useRef(false);
-    // Focused once the menu that opened it has closed and handed focus back to its button, so
-    // that hand-back is not taken as leaving the field.
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            input.current?.focus();
-            input.current?.select();
-        }, 0);
-        return () => {
-            clearTimeout(timer);
-        };
-    }, []);
-    return (
-        <TextInput
-            ref={input}
-            size="xs"
-            className="dp-rename"
-            aria-label="Source name"
-            value={text}
-            onChange={(event) => {
-                setText(event.currentTarget.value);
-            }}
-            onBlur={(event) => {
-                // The menu that opened it hands focus back to its button in the same row, and the
-                // window losing focus blurs the field too: neither is the reader leaving it.
-                const to = event.relatedTarget;
-                if (
-                    !tabbing.current &&
-                    to instanceof Node &&
-                    event.currentTarget.closest(".dp-source")?.contains(to) === true
-                ) {
-                    event.currentTarget.focus();
-                    return;
-                }
-                if (document.hasFocus()) {
-                    onDone(text);
-                }
-            }}
-            onKeyDown={(event) => {
-                tabbing.current = event.key === "Tab";
-                if (event.key === "Enter") {
-                    onDone(text);
-                } else if (event.key === "Escape") {
-                    onDone(null);
-                }
-            }}
-        />
-    );
-}
 
 /**
  * The row's warning chip: the load's open issues, counted; it opens the one issue list
@@ -262,7 +199,13 @@ export function SourceRow({
                     aria-label={name}
                 >
                     {renaming ? (
-                        <RenameInput name={name} onDone={rename} />
+                        <RenameInput
+                            name={name}
+                            onDone={rename}
+                            label="Source name"
+                            container=".dp-source"
+                            className="dp-rename"
+                        />
                     ) : (
                         <button
                             type="button"

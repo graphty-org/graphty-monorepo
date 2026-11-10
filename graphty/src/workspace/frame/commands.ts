@@ -52,10 +52,8 @@ export const registration = defineRegistration({
             tooltip: ({ session }) => historyTip(session, true),
             run: async ({ session, workspace }) => {
                 // Undo names the step it took back (tier2-design.md section 1).
-                const message = session === null ? null : await undoOrRedo(session, true);
-                if (message !== null) {
-                    // The notice is spoken once, by the status line.
-                    workspace.set({ notice: { message } });
+                if (session !== null) {
+                    await undoOrRedo(session, true, workspace);
                 }
             },
         },
@@ -67,10 +65,8 @@ export const registration = defineRegistration({
             disabled: ({ session }) => (session?.canRedo === true ? null : "Nothing to redo"),
             tooltip: ({ session }) => historyTip(session, false),
             run: async ({ session, workspace }) => {
-                const message = session === null ? null : await undoOrRedo(session, false);
-                if (message !== null) {
-                    // The notice is spoken once, by the status line.
-                    workspace.set({ notice: { message } });
+                if (session !== null) {
+                    await undoOrRedo(session, false, workspace);
                 }
             },
         },

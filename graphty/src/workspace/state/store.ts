@@ -8,13 +8,15 @@
  */
 
 import type { AutosaveEntry, Graphty as GraphtyElement, Lighting } from "@graphty/graphty-element";
-import type { GeneratorParams } from "@graphty/graphty-element/catalog";
+import type { AiPointing } from "@graphty/graphty-element/ai";
+import type { AiResultCode, AiResultParams, GeneratorParams } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
     GraphSession,
     LoadDraft,
     NoteTargetInput,
+    ScopeInput,
     SourceKey,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
@@ -34,7 +36,7 @@ export type Opener =
     | { readonly kind: "network"; readonly name: string; readonly source: string; readonly example: string };
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
-type Place = "graph" | "data" | "notes";
+type Place = "graph" | "data" | "assistant" | "notes";
 
 /** What takes the area right of the rail: the panels, or the Data page (section 2.10). */
 type Page = "panels" | "data-page";
@@ -45,6 +47,8 @@ export interface Notice {
     readonly message: string;
     /** A failure: it stays until the reader dismisses it, rather than going after 6 s. */
     readonly error?: boolean;
+    /** Stays until it is answered or dismissed, rather than going after 6 s; it is no failure. */
+    readonly lasting?: boolean;
     /** Describes the selection that just went: a new selection takes it down at once. */
     readonly endsWithSelection?: boolean;
     /** What it shows instead of the words, such as the replace receipt's chips. */
@@ -99,6 +103,43 @@ export interface WorkspaceState {
      */
     readonly styleSide: "node" | "edge";
     readonly leftWidth: number;
+    /** The Assistant panel's width once the reader resized it; null for its default. */
+    readonly assistantWidth: number | null;
+    /** Where closing the Assistant returns to; null while it is shut, or after a reload. */
+    readonly assistantFrom: {
+        readonly page: Page;
+        readonly place: Place;
+        readonly focus: HTMLElement | null;
+    } | null;
+    /** How many times something sent the reader to the Assistant's composer: each one focuses it. */
+    readonly composerCalls: number;
+    /** What the reader is typing to the Assistant, kept while its panel is away. */
+    readonly assistantDraft: string;
+    /** How many times the element's assistant was set up: the panel listens to the newest. */
+    readonly assistantLinks: number;
+    /** How many approvals and questions wait on the reader: the rail's dot. */
+    readonly assistantWaiting: number;
+    /** A press of Talk from outside the panel, held until the panel's Talk takes it. */
+    readonly assistantTalkPress: boolean;
+    /** What the reader pointed at, while a spoken message waits in the composer; else null. */
+    readonly assistantSpoken: { readonly pointing?: AiPointing } | null;
+    /**
+     * The reader picked Selection in the composer's options: messages are about the selection until
+     * they pick Whole graph again or the selection empties. Off, every message is about the whole graph.
+     */
+    readonly assistantScopeSelection: boolean;
+    /** The open question refused the composer's text: it stays open with one line. */
+    readonly assistantRefused: boolean;
+    /** How the last message ended, when the conversation cannot say: nothing reached it. */
+    readonly assistantEnded: {
+        readonly code: AiResultCode;
+        readonly params: AiResultParams;
+        /**
+         * It failed while the panel was open: the newest turn's row is the alert until the reader
+         * leaves the panel, so a reopened log never says an old failure again.
+         */
+        readonly news?: boolean;
+    } | null;
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
@@ -119,6 +160,11 @@ export interface WorkspaceState {
      * list's Show rows outside the table and cleared by the dock; null when none is asked for.
      */
     readonly dockIssue: string | null;
+    /**
+     * The rows a table tab narrows to once the dock shows it, set by the Assistant's Show in table
+     * and cleared by the dock: its Nodes or Edges tab, and the rows; null when none is asked for.
+     */
+    readonly dockRows: { readonly kind: "node" | "edge"; readonly scope: ScopeInput } | null;
     /**
      * The selection open in an editor (a style layer's Which nodes / Which edges, or a filter
      * card), as graphty-element holds it, and the group a filter's count chip narrowed the matches
@@ -326,6 +372,17 @@ const INITIAL: WorkspaceState = {
     tabs: {},
     styleSide: "node",
     leftWidth: PANEL_MIN,
+    assistantWidth: null,
+    assistantFrom: null,
+    composerCalls: 0,
+    assistantDraft: "",
+    assistantLinks: 0,
+    assistantWaiting: 0,
+    assistantTalkPress: false,
+    assistantSpoken: null,
+    assistantScopeSelection: false,
+    assistantRefused: false,
+    assistantEnded: null,
     rightWidth: PANEL_MIN,
     dockHeight: DOCK_DEFAULT,
     dockOpen: false,
@@ -333,6 +390,7 @@ const INITIAL: WorkspaceState = {
     dockTab: "nodes",
     dockColumn: null,
     dockIssue: null,
+    dockRows: null,
     editingSelection: null,
     selectionWorkspace: null,
     filterDraft: null,

@@ -103,12 +103,29 @@ interface Arrangement {
     readonly views: Readonly<Record<RecordKind, View>>;
     readonly members: Members | null;
     readonly all: boolean;
+    /** A reply's rows a tab is narrowed to (Show in table), with no chip; null for none. */
+    readonly rows: Rows | null;
 }
+
+/**
+ * The rows of one tab a reply named: its kind, the scope that lists exactly them, the session whose
+ * ids they are (another project's never narrow the table), and which ask it was (the table's key).
+ */
+interface Rows {
+    readonly kind: RecordKind;
+    readonly scope: ScopeInput;
+    readonly session: GraphSession;
+    readonly ask: number;
+}
+
+/** Counts the reply asks, so each one draws a fresh table without reading its scope. */
+let asks = 0;
 
 const FIRST_ARRANGEMENT: Arrangement = {
     views: { node: EMPTY_VIEW, edge: EMPTY_VIEW },
     members: null,
     all: false,
+    rows: null,
 };
 
 /**
@@ -124,10 +141,14 @@ const ARRANGEMENTS = new WeakMap<WorkspaceStore, Arrangement>();
  * @param session - the element's session.
  * @returns the group runs.
  */
-function groupRuns(session: GraphSession): { id: string; label: string; groups: readonly SummaryGroup[] }[] {
+function groupRuns(
+    session: GraphSession,
+): { id: string; label: string; groups: readonly SummaryGroup[]; groupCount: number }[] {
     return session.runs.list().flatMap((run) => {
-        const groups = run.result?.summary().groups;
-        return groups === undefined ? [] : [{ id: run.id, label: runName(session, run), groups }];
+        const { groups, groupCount } = run.result?.summary() ?? {};
+        return groups === undefined || groupCount === undefined
+            ? []
+            : [{ id: run.id, label: runName(session, run), groups, groupCount }];
     });
 }
 
@@ -272,16 +293,17 @@ function recordTotal(session: GraphSession, kind: RecordKind, scope: ScopeInput,
 }
 
 /**
- * The tab's count: "41 edges", or "12 of 41 edges" while a filter step hides some, in the
- * filter chip's words.
+ * The tab's count: "41 edges", or "12 of 41 edges" while a filter step hides some or a reply's
+ * rows narrow it, in the filter chip's words. A members chip names its group and keeps "12 nodes".
  * @param session - the element's session.
  * @param kind - nodes or edges.
  * @param scope - the records showing.
+ * @param ofGraph - whether to count against the whole graph (a reply's rows).
  * @returns the words.
  */
-function recordCount(session: GraphSession, kind: RecordKind, scope: ScopeInput): string {
+function recordCount(session: GraphSession, kind: RecordKind, scope: ScopeInput, ofGraph = false): string {
     const shown = recordTotal(session, kind, scope);
-    const all = scope === "visible" ? recordTotal(session, kind, "graph") : shown;
+    const all = scope === "visible" || ofGraph ? recordTotal(session, kind, "graph") : shown;
     return shown === all ? countOf(all, kind) : `${formatCount(shown)} of ${countOf(all, kind)}`;
 }
 
@@ -346,10 +368,18 @@ function TableOptions({ kind, store }: Readonly<{ kind: RecordKind; store: Works
  * @param members - the group the Nodes tab is narrowed to, or null.
  * @param shown - how many records the filters show, or null when the table lists them all.
  * @param issue - the issue filter, or null.
+ * @param rows - the reply's rows the tab is narrowed to, or null.
  * @returns the key.
  */
-function tableKey(kind: RecordKind, members: Members | null, shown: number | null, issue: string | null): string {
-    const base = members === null || kind === "edge" ? kind : `node:${members.run}:${members.name}`;
+function tableKey(
+    kind: RecordKind,
+    members: Members | null,
+    shown: number | null,
+    issue: string | null,
+    rows: Rows | null,
+): string {
+    const grouped = members === null || kind === "edge" ? kind : `node:${members.run}:${members.name}`;
+    const base = rows === null ? grouped : `${kind}:rows:${String(rows.ask)}`;
     const narrowed = issue === null ? base : `${base}:issue:${issue}`;
     return shown === null ? narrowed : `${narrowed}:shown:${String(shown)}`;
 }
@@ -512,6 +542,15 @@ function MaximizeButton({
 /** One group run's tab. */
 type GroupRun = ReturnType<typeof groupRuns>[number];
 
+/**
+ * The caption over a run's groups, which says so when the list stops short of them all.
+ * @param run - the group run.
+ * @returns the caption.
+ */
+function groupCaption(run: GroupRun): string {
+    return run.groups.length < run.groupCount ? `Largest ${String(run.groups.length)}` : "Largest group first";
+}
+
 /** What the dock lists: its tab, record kind, group run and scope. */
 interface DockScope {
     readonly groups: GroupRun[];
@@ -520,6 +559,8 @@ interface DockScope {
     readonly kind: RecordKind;
     readonly groupRun: GroupRun | undefined;
     readonly shownMembers: Members | null;
+    /** The reply's rows this tab is narrowed to, or null. */
+    readonly shownRows: Rows | null;
     readonly shownCount: number;
     readonly filtered: boolean;
     readonly scope: ScopeInput;
@@ -533,9 +574,10 @@ interface DockScope {
  * @param arrangement - the reader's arrangement.
  * @param arrangement.members - the members chip, or null.
  * @param arrangement.all - whether the reader asked for all records.
+ * @param arrangement.rows - the reply's rows, or null.
  * @returns the dock's scope.
  */
-function dockScope(session: GraphSession, tab: string, { members, all }: Arrangement): DockScope {
+function dockScope(session: GraphSession, tab: string, { members, all, rows }: Arrangement): DockScope {
     // Cheap reads: the element caches each run's summary, and a zero-row page reads no values.
     const groups = groupRuns(session);
     // No Edges tab for a graph without edges.
@@ -552,14 +594,17 @@ function dockScope(session: GraphSession, tab: string, { members, all }: Arrange
     const shownCount = kind === "node" ? summary.visibleNodes : summary.visibleEdges;
     const filtered = shownCount < (kind === "node" ? summary.totalNodes : summary.totalEdges);
     const narrowed: ScopeInput = filtered && !all ? "visible" : "graph";
-    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
-    return { groups, hasEdges, active, kind, groupRun, shownMembers, shownCount, filtered, scope };
+    // A reply's rows are listed whole, filter or not: they are the answer the reader asked to see.
+    const shownRows = groupRun === undefined && rows?.kind === kind && rows.session === session ? rows : null;
+    const membersScope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
+    const scope = shownRows === null ? membersScope : shownRows.scope;
+    return { groups, hasEdges, active, kind, groupRun, shownMembers, shownRows, shownCount, filtered, scope };
 }
 
 /** Props for StripFilters. */
 interface StripFiltersProps {
     /** What the dock lists. */
-    dock: Pick<DockScope, "active" | "kind" | "groupRun" | "shownMembers" | "filtered">;
+    dock: Pick<DockScope, "active" | "kind" | "groupRun" | "shownMembers" | "shownRows" | "filtered">;
     /** Whether the reader asked for all records. */
     all: boolean;
     /** How many rows an open issue is on. */
@@ -593,7 +638,7 @@ function StripFilters({
     setView,
     nodesTab,
 }: Readonly<StripFiltersProps>): React.JSX.Element {
-    const { active, kind, groupRun, shownMembers, filtered } = dock;
+    const { active, kind, groupRun, shownMembers, shownRows, filtered } = dock;
     return (
         <>
             {active === "nodes" && shownMembers !== null ? (
@@ -606,7 +651,7 @@ function StripFilters({
                     }}
                 />
             ) : null}
-            {filtered && groupRun === undefined && (kind === "edge" || shownMembers === null) ? (
+            {filtered && groupRun === undefined && shownRows === null && (kind === "edge" || shownMembers === null) ? (
                 <SegmentedControl
                     size="xs"
                     aria-label="Records"
@@ -664,7 +709,7 @@ function tabValuesOf(hasEdges: boolean, groups: readonly { readonly id: string }
 
 /**
  * Show rows from an issue list outside the table: narrows the asked-for tab to the issue's rows,
- * then forgets the ask.
+ * then forgets the ask. A reply's rows go, so one narrowing stands.
  * @param store - the chrome store, which holds the ask
  * @param setArrangement - sets the dock's arrangement
  */
@@ -677,10 +722,56 @@ function useAskedIssue(store: WorkspaceStore, setArrangement: React.Dispatch<Rea
         const askedKind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
         setArrangement((now) => ({
             ...now,
+            // A reply's rows go, so one narrowing stands.
+            rows: null,
             views: { ...now.views, [askedKind]: { ...now.views[askedKind], issue: issueAsked } },
         }));
         store.set({ dockIssue: null });
     }, [issueAsked, store, setArrangement]);
+}
+
+/**
+ * Show in table from a reply: narrows the asked-for tab to the reply's rows, says so once, then
+ * forgets the ask. A group's members chip goes, so one narrowing stands.
+ * @param store - the chrome store, which holds the ask
+ * @param session - the element's session, or null before it is up
+ * @param setArrangement - sets the dock's arrangement
+ */
+function useAskedRows(
+    store: WorkspaceStore,
+    session: GraphSession | null,
+    setArrangement: React.Dispatch<React.SetStateAction<Arrangement>>,
+): void {
+    const rowsAsked = useWorkspaceState((state) => state.dockRows);
+    useEffect(() => {
+        if (rowsAsked === null || session === null) {
+            return;
+        }
+        asks += 1;
+        setArrangement((now) => ({ ...now, members: null, rows: { ...rowsAsked, session, ask: asks } }));
+        store.set({
+            dockRows: null,
+            announcement: `Table: ${recordCount(session, rowsAsked.kind, rowsAsked.scope, true)}`,
+        });
+    }, [rowsAsked, session, store, setArrangement]);
+}
+
+/**
+ * The x after the count that lists every row of the tab again; focus goes to the tab.
+ * @param props - Component props
+ * @param props.kind - the tab's records
+ * @param props.onClear - lists every row
+ * @returns the button
+ */
+function ShowAllButton({ kind, onClear }: Readonly<{ kind: RecordKind; onClear: () => void }>): React.JSX.Element {
+    const label = `Show all ${kind}s`;
+    return (
+        <Tooltip label={label}>
+            <ActionIcon variant="subtle" size="xs" aria-label={label} onClick={onClear}>
+                <UiGlyph name="close" />
+            </ActionIcon>
+        </Tooltip>
+    );
 }
 
 /**
@@ -718,6 +809,7 @@ export function TableDock(): React.JSX.Element {
     const wanted = useWorkspaceState((state) => state.dockColumn);
     const root = useRef<HTMLDivElement>(null);
     const nodesTab = useRef<HTMLButtonElement>(null);
+    const edgesTab = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         if (wanted === null || session === null) {
             return;
@@ -751,6 +843,7 @@ export function TableDock(): React.JSX.Element {
         setArrangement((now) => ({ ...now, ...change }));
     };
     useAskedIssue(store, setArrangement);
+    useAskedRows(store, session, setArrangement);
 
     const close = (
         <ActionIcon
@@ -775,11 +868,8 @@ export function TableDock(): React.JSX.Element {
         );
     }
 
-    const { groups, hasEdges, active, kind, groupRun, shownMembers, shownCount, filtered, scope } = dockScope(
-        session,
-        tab,
-        arrangement,
-    );
+    const { groups, hasEdges, active, kind, groupRun, shownMembers, shownRows, shownCount, filtered, scope } =
+        dockScope(session, tab, arrangement);
     const choices = columnChoices(session, kind);
     const view = views[kind];
     const isHidden = (choice: TableColumnChoice): boolean => choice.hidden === true || view.hidden.includes(choice.id);
@@ -854,7 +944,10 @@ export function TableDock(): React.JSX.Element {
             actions: actionsFor(column),
         });
 
-    const count = groupRun === undefined ? recordCount(session, kind, scope) : countOf(groupRun.groups.length, "group");
+    const count =
+        groupRun === undefined
+            ? recordCount(session, kind, scope, shownRows !== null)
+            : countOf(groupRun.groupCount, "group");
 
     // Every tab names a rendered tab panel (aria-controls); the showing one holds the table.
     const tabValues = tabValuesOf(hasEdges, groups);
@@ -873,7 +966,11 @@ export function TableDock(): React.JSX.Element {
                     <Tabs.Tab ref={nodesTab} value="nodes">
                         Nodes
                     </Tabs.Tab>
-                    {hasEdges ? <Tabs.Tab value="edges">Edges</Tabs.Tab> : null}
+                    {hasEdges ? (
+                        <Tabs.Tab ref={edgesTab} value="edges">
+                            Edges
+                        </Tabs.Tab>
+                    ) : null}
                     {groups.map((run) => (
                         <Tabs.Tab key={run.id} value={`g:${run.id}`}>
                             {run.label}
@@ -883,8 +980,18 @@ export function TableDock(): React.JSX.Element {
                 <Text size="xs" c="dimmed" className="ws-table-count ws-table-ellipsis">
                     {count}
                 </Text>
+                {shownRows === null ? null : (
+                    <ShowAllButton
+                        kind={kind}
+                        onClear={() => {
+                            arrange({ rows: null });
+                            // The x goes; focus goes to the tab it narrowed.
+                            (kind === "edge" ? edgesTab : nodesTab).current?.focus();
+                        }}
+                    />
+                )}
                 <StripFilters
-                    dock={{ active, kind, groupRun, shownMembers, filtered }}
+                    dock={{ active, kind, groupRun, shownMembers, shownRows, filtered }}
                     all={all}
                     withIssues={withIssues}
                     issue={view.issue}
@@ -907,7 +1014,7 @@ export function TableDock(): React.JSX.Element {
                 {close}
             </div>
             <Text size="xs" c="dimmed" className="ws-table-caption">
-                {groupRun === undefined ? sortCaption(sorted, view.sort?.desc ?? false) : "Largest group first"}
+                {groupRun === undefined ? sortCaption(sorted, view.sort?.desc ?? false) : groupCaption(groupRun)}
             </Text>
             {tabValues
                 .filter((value) => value !== active)
@@ -919,7 +1026,13 @@ export function TableDock(): React.JSX.Element {
             <Tabs.Panel value={active} className="ws-table-body" ref={bodyRef}>
                 {groupRun === undefined ? (
                     <RecordTable
-                        key={tableKey(kind, shownMembers, scope === "visible" ? shownCount : null, view.issue)}
+                        key={tableKey(
+                            kind,
+                            shownMembers,
+                            scope === "visible" ? shownCount : null,
+                            view.issue,
+                            shownRows,
+                        )}
                         session={session}
                         kind={kind}
                         columns={visible}
@@ -954,6 +1067,7 @@ export function TableDock(): React.JSX.Element {
                         onShowMembers={(group, name) => {
                             store.set({ dockTab: "nodes" });
                             arrange({
+                                rows: null,
                                 members: {
                                     run: groupRun.id,
                                     runLabel: groupRun.label,

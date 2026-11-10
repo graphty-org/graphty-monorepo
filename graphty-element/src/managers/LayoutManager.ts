@@ -1794,6 +1794,9 @@ export class LayoutManager implements Manager {
             this.preStepsOwed = false;
             this.ownArrangement = false;
             this.running = false;
+            // The restored layout is framed as a new one is: an undo of a layout that spread the
+            // graph wider brings back the old arrangement inside the old layout's frame.
+            this.eventManager.emitLayoutInitialized(type, true);
         } else {
             this.ownArrangement = true;
             // Run layout pre-steps -- unless there is nothing to step yet, in which case they

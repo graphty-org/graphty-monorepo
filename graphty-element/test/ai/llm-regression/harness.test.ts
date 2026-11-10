@@ -6,11 +6,11 @@
  * These tests verify the harness works correctly with both mocked and real LLM providers.
  */
 
-import { APICallError, RetryError } from "ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
-import { toSafeError } from "../../../src/ai/safeError";
+import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
+import { ProviderApiEngine } from "../../../src/ai/engine/ProviderApiEngine";
+import type { TurnEvent } from "../../../src/ai/engine/types";
 import {
     getLlmRegressionApiKey,
     getLlmRegressionKeyVariable,
@@ -22,8 +22,11 @@ import {
 } from "../../helpers/llm-regression-env";
 import {
     accountRefusalOf,
+    isTransientFailure,
     type LlmRegressionResult,
     LlmRegressionTestHarness,
+    RecordingEngine,
+    type RequestFailure,
     type TestGraphFixture,
 } from "../../helpers/llm-regression-harness";
 
@@ -199,48 +202,109 @@ describe("LlmRegressionTestHarness", () => {
     });
 
     describe("account refusals", () => {
-        /** A provider error as the AI SDK reports it. */
-        function apiError(statusCode: number, responseBody: string): APICallError {
-            return new APICallError({
-                message: "request failed",
-                url: "https://provider.example/v1",
-                requestBodyValues: {},
-                statusCode,
-                responseBody,
-                isRetryable: statusCode === 429,
-            });
+        /** A provider failure as the element codes it. */
+        function providerError(status: number, message: string) {
+            return {
+                code: status === 401 || status === 403 ? ("AI_KEY_REJECTED" as const) : ("AI_PROVIDER_ERROR" as const),
+                params: { provider: "google", status },
+                message,
+            };
         }
 
         it("a rejected key is the owner's to fix", () => {
-            assert.strictEqual(accountRefusalOf(apiError(401, '{"type":"authentication_error"}')), "HTTP 401");
-            assert.strictEqual(accountRefusalOf(apiError(403, '{"type":"permission_error"}')), "HTTP 403");
+            assert.strictEqual(accountRefusalOf(providerError(401, "authentication_error")), "HTTP 401");
+            assert.strictEqual(accountRefusalOf(providerError(403, "permission_error")), "HTTP 403");
         });
 
         it("an empty balance is the owner's to fix, whatever status the provider uses", () => {
-            assert.ok(accountRefusalOf(apiError(400, "Your credit balance is too low to access the Anthropic API.")));
-            const quota = apiError(429, '{"error":{"code":"insufficient_quota"}}');
             assert.ok(
-                accountRefusalOf(new RetryError({ message: "gave up", reason: "maxRetriesExceeded", errors: [quota] })),
+                accountRefusalOf(providerError(400, "Your credit balance is too low to access the Anthropic API.")),
             );
+            assert.ok(accountRefusalOf(providerError(429, "You exceeded your current quota (insufficient_quota)")));
         });
 
-        it("a depleted prepaid balance is the owner's to fix, as the AiController keeps the error", () => {
-            // Google, 2026-10-27: HTTP 402. The controller's last error is toSafeError's plain Error, not
-            // an APICallError: only its name, message and statusCode are left.
-            const depleted = apiError(
+        it("a depleted prepaid balance is the owner's to fix", () => {
+            // Google, 2026-10-27: HTTP 402.
+            const depleted = providerError(
                 402,
                 "Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.",
             );
-            assert.ok(accountRefusalOf(depleted));
-            assert.strictEqual(accountRefusalOf(toSafeError(depleted)), "HTTP 402");
-            assert.strictEqual(accountRefusalOf(toSafeError(apiError(401, ""))), "HTTP 401");
+            assert.strictEqual(accountRefusalOf(depleted), "HTTP 402");
+            assert.strictEqual(accountRefusalOf(providerError(402, "")), "HTTP 402");
         });
 
         it("a rate limit or an ordinary failure is not an account refusal", () => {
-            assert.strictEqual(accountRefusalOf(toSafeError(apiError(429, '{"type":"rate_limit_error"}'))), null);
-            assert.strictEqual(accountRefusalOf(apiError(429, '{"type":"rate_limit_error"}')), null);
-            assert.strictEqual(accountRefusalOf(apiError(500, "overloaded")), null);
-            assert.strictEqual(accountRefusalOf(new Error("tool failed")), null);
+            assert.strictEqual(accountRefusalOf(providerError(429, "rate_limit_error")), null);
+            assert.strictEqual(accountRefusalOf(providerError(500, "overloaded")), null);
+            assert.strictEqual(
+                accountRefusalOf({ code: "AI_TOOL_THREW", params: {}, message: "billing tool failed" }),
+                null,
+            );
+        });
+    });
+
+    describe("retries", () => {
+        it("asks again after a rate limit, a provider failure or a network failure, and after nothing else", () => {
+            const failure = (
+                code: "AI_PROVIDER_ERROR" | "AI_KEY_REJECTED",
+                status?: number,
+                message = "failed",
+            ): RequestFailure => ({
+                code,
+                params: status === undefined ? { provider: "google" } : { provider: "google", status },
+                message,
+            });
+            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", 429)));
+            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", 503)));
+            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "fetch failed")));
+            assert.isTrue(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "read ECONNRESET")));
+            // No status and no network failure: a response that failed validation fails the same way again.
+            assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "Invalid JSON response")));
+            assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", 400)));
+            assert.isFalse(isTransientFailure(failure("AI_KEY_REJECTED", 401)));
+            assert.isFalse(isTransientFailure({ code: "AI_FAILED", params: {}, message: "failed" }));
+            // The transport already retried these: asking again only waits past the case's limit.
+            assert.isFalse(
+                isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "E_LLM_FLEX_CAPACITY: fetch failed")),
+            );
+            assert.isFalse(
+                isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "E_LLM_REQUEST_TIMEOUT: socket")),
+            );
+        });
+    });
+
+    describe("RecordingEngine", () => {
+        it("records every turn's tool calls in order and sums the usage, passing every event on", async () => {
+            const engine = new RecordingEngine(
+                new FakeEngine([
+                    [
+                        { type: "tool-call", id: "t1", name: "findNodes", arguments: { selector: "a" } },
+                        { type: "usage", inputTokens: 10, outputTokens: 2 },
+                        { type: "finish", reason: "tool-calls" },
+                    ],
+                    [
+                        { type: "tool-call", id: "t2", name: "zoomToNodes", arguments: {} },
+                        { type: "usage", inputTokens: 20, outputTokens: 4 },
+                        { type: "finish", reason: "tool-calls" },
+                    ],
+                ]),
+            );
+            const request = { system: "", messages: [], tools: [], toolMode: "auto" } as const;
+            const seen: string[] = [];
+            for (let turn = 0; turn < 2; turn++) {
+                for await (const event of engine.turn(request, new AbortController().signal)) {
+                    seen.push(event.type);
+                }
+            }
+
+            assert.deepStrictEqual(
+                engine.capturedToolCalls.map((call) => call.name),
+                ["findNodes", "zoomToNodes"],
+            );
+            assert.deepStrictEqual(engine.capturedTokenUsage, { prompt: 30, completion: 6 });
+            assert.deepStrictEqual(seen, ["tool-call", "usage", "finish", "tool-call", "usage", "finish"]);
+            engine.clearCaptured();
+            assert.deepStrictEqual(engine.capturedToolCalls, []);
         });
     });
 
@@ -403,19 +467,23 @@ describe("LlmRegressionTestHarness", () => {
         });
     });
     describe("a 400 on a message's first request (#4220)", () => {
-        /** Gemini's 400 as the provider throws it: cleaned by toSafeError. */
-        const invalidArgument = (): Error =>
-            toSafeError(
-                new APICallError({
-                    message: "Request contains an invalid argument.",
-                    url: "https://provider.example/v1",
-                    requestBodyValues: {},
-                    statusCode: 400,
-                    responseBody: '{"error":{"status":"INVALID_ARGUMENT"}}',
-                    isRetryable: false,
-                }),
-            );
-        const answer = { text: "There are 5 nodes.", toolCalls: [], usage: undefined };
+        /**
+         * Gemini's 400 as the engine reports it.
+         * @yields The error.
+         */
+        async function* invalidArgument(): AsyncGenerator<TurnEvent> {
+            yield await Promise.resolve({
+                type: "error",
+                code: "AI_PROVIDER_ERROR",
+                params: { provider: "google", status: 400 },
+                cause: new Error("Request contains an invalid argument."),
+            });
+        }
+        const text = "There are 5 nodes.";
+        async function* answer(): AsyncGenerator<TurnEvent> {
+            yield await Promise.resolve({ type: "text", delta: text });
+            yield { type: "finish", reason: "stop" };
+        }
 
         beforeEach(() => {
             vi.stubEnv(getLlmRegressionKeyVariable(), "test-key");
@@ -428,22 +496,22 @@ describe("LlmRegressionTestHarness", () => {
         });
 
         it("sends the unchanged first request once more and returns its answer", async () => {
-            const generate = vi
-                .spyOn(VercelAiProvider.prototype, "generate")
-                .mockRejectedValueOnce(invalidArgument())
-                .mockResolvedValueOnce(answer);
+            const turn = vi
+                .spyOn(ProviderApiEngine.prototype, "turn")
+                .mockImplementationOnce(invalidArgument)
+                .mockImplementationOnce(answer);
             const harness = await LlmRegressionTestHarness.create();
 
             const result = await harness.testPrompt("How many nodes are there?");
 
-            assert.strictEqual(generate.mock.calls.length, 2);
-            assert.deepStrictEqual(generate.mock.calls[1][0], generate.mock.calls[0][0]);
-            assert.strictEqual(result.llmText, answer.text);
+            assert.strictEqual(turn.mock.calls.length, 2);
+            assert.deepStrictEqual(turn.mock.calls[1][0], turn.mock.calls[0][0]);
+            assert.strictEqual(result.llmText, text);
             harness.dispose();
         });
 
         it("fails when the resent request is refused too", async () => {
-            const generate = vi.spyOn(VercelAiProvider.prototype, "generate").mockRejectedValue(invalidArgument());
+            const turn = vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(invalidArgument);
             const harness = await LlmRegressionTestHarness.create();
 
             let thrown: unknown;
@@ -455,7 +523,7 @@ describe("LlmRegressionTestHarness", () => {
 
             assert.ok(thrown instanceof Error);
             assert.match(thrown.message, /failed before any tool ran: Request contains an invalid argument/);
-            assert.strictEqual(generate.mock.calls.length, 2);
+            assert.strictEqual(turn.mock.calls.length, 2);
             harness.dispose();
         });
     });

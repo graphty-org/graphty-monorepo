@@ -104,6 +104,28 @@ describe("the recipe join workspace", () => {
         assert.strictEqual(session.history.steps.length, before + 1);
     });
 
+    it("names each joined source after its step's card, so two steps from one table differ", async () => {
+        const { session, dialog } = await openRecipe();
+        const card = await addEntriesStep(dialog);
+        const title = "door_entries: person - building";
+        await waitFor(() => {
+            assert.include(card.querySelector(".cm-card-title")?.textContent, title);
+        });
+        await userEvent.keyboard("{Control>}{Enter}{/Control}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
+        });
+        await waitFor(() => {
+            assert.lengthOf(session.data.joins(), 1);
+        });
+        assert.deepEqual(
+            session.data.joins().map((join) => join.table.name),
+            [title],
+        );
+        const place = await screen.findByRole("region", { name: "Data place" });
+        await within(place).findAllByLabelText(title);
+    });
+
     it("sets a key in the column matcher and the counts follow", async () => {
         const { dialog } = await openRecipe();
         const card = await addEntriesStep(dialog);

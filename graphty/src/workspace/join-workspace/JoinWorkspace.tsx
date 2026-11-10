@@ -13,6 +13,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { JoinBody } from "./Body";
 import { type JoinSide, type JoinWorkspaceApi, JoinWorkspaceContext } from "./context";
 import { keepRule } from "./keeps";
+import { stepTitle } from "./recipe/ops";
 import { JOIN_KEYS } from "./words";
 
 /** Where a key belongs to an open list or menu, which closes itself on Escape. */
@@ -127,6 +128,10 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
         // The regions a compare step keeps become a keep filter on its membership column, once
         // the join has written it.
         const keep = keepRule(draft.steps, keeps);
+        // Each joined source goes by its card's title, so two steps from one table differ.
+        for (const each of draft.steps) {
+            draft.change(each.id, { from: each.from, choices: each.choices, name: stepTitle(each, draft.inputs) });
+        }
         void draft
             .commit()
             .then(async () => {

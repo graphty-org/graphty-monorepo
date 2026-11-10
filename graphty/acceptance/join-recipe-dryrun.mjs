@@ -12,6 +12,10 @@
  *     --browsers <list>    chromium,webkit (default both)
  *     --out <dir>          screenshots (default <main checkout>/tmp/join-builds/recipe-dryrun)
  *
+ * Serve a build made with VITE_LOCAL_SAMPLE_DATA=true (`vite preview` then answers for the sample
+ * datasets and their pictures from this machine): a plain build reads them from graphty.app, whose
+ * copy can lag the build's catalog, and a missing picture there fails "no console errors".
+ *
  * Every expected number is worked out here from the data set files, never read from the app.
  * Exit 0 when every check passed, 1 when one failed.
  */

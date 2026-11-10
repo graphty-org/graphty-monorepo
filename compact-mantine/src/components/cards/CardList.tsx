@@ -72,6 +72,8 @@ export interface CardListProps {
     footer?: React.ReactNode;
     /** Drawn in place of the cards when there are none. */
     empty?: React.ReactNode;
+    /** Titles wrap onto a second line, and the header grows to hold it, before an ellipsis cuts them. Default false. */
+    wrapTitle?: boolean;
 }
 
 const NO_FOLDS: ReadonlySet<string> = new Set();
@@ -127,6 +129,7 @@ function dropIndex(list: HTMLElement, id: string, y: number): number {
  * @param props.header - See CardListProps.header
  * @param props.footer - See CardListProps.footer
  * @param props.empty - See CardListProps.empty
+ * @param props.wrapTitle - See CardListProps.wrapTitle
  * @returns The list
  */
 export function CardList({
@@ -145,6 +148,7 @@ export function CardList({
     header,
     footer,
     empty,
+    wrapTitle = false,
 }: Readonly<CardListProps>): React.JSX.Element {
     useCompactStyles();
     const labels = useLabels();
@@ -338,6 +342,7 @@ export function CardList({
         <div // NOSONAR(S6819): a named group of card regions; a fieldset would draw a form's border and legend
             ref={list}
             className="cm-card-list"
+            data-wrap-title={wrapTitle ? "" : undefined}
             role="group"
             aria-label={label}
         >

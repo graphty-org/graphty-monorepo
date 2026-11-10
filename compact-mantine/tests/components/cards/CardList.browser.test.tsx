@@ -22,9 +22,14 @@ const COLORS = ["#009E73", "#E69F00", "#56B4E9", "#CC79A7"];
  * @param props - Component props
  * @param props.start - the first titles
  * @param props.width - the list's width
+ * @param props.wrapTitle - whether titles wrap to two lines
  * @returns The list
  */
-function Harness({ start, width = 320 }: Readonly<{ start: readonly string[]; width?: number }>): React.JSX.Element {
+function Harness({
+    start,
+    width = 320,
+    wrapTitle,
+}: Readonly<{ start: readonly string[]; width?: number; wrapTitle?: boolean }>): React.JSX.Element {
     const [titles, setTitles] = useState(start.map((title, at) => ({ id: `c${String(at)}`, title })));
     const items: CardListItem[] = titles.map((card, at) => ({
         id: card.id,
@@ -40,6 +45,7 @@ function Harness({ start, width = 320 }: Readonly<{ start: readonly string[]; wi
             <CardList
                 label="Cards"
                 items={items}
+                wrapTitle={wrapTitle}
                 empty={<p>No cards</p>}
                 add={
                     <button
@@ -165,4 +171,20 @@ describe("CardList", () => {
             assert.isAtMost(card.getBoundingClientRect().right, width + 1, "the card stays in the list");
         });
     }
+
+    it("with wrapTitle, a 60-character title at 400px shows whole on two lines, before the slot", async () => {
+        const long = "A title of sixty characters that will never fit on one line";
+        await renderThemed(<Harness start={[long]} width={400} wrapTitle />);
+        const card = screen.getByRole("region", { name: long });
+        const title = card.querySelector<HTMLElement>(".cm-card-title");
+        assert.isNotNull(title);
+        const slot = within(card).getByRole("button", { name: "Nodes" }).getBoundingClientRect();
+        const box = title?.getBoundingClientRect();
+        assert.isAtMost(box?.right ?? Infinity, slot.left, "the title ends before the slot starts");
+        assert.isAtMost(title?.scrollWidth ?? Infinity, title?.clientWidth ?? 0, "no line is cut");
+        assert.isAtMost(title?.scrollHeight ?? Infinity, (title?.clientHeight ?? 0) + 1, "no line is hidden");
+        const head = card.querySelector<HTMLElement>(".cm-card-head")?.getBoundingClientRect();
+        assert.isAtMost(box?.bottom ?? Infinity, (head?.bottom ?? 0) + 0.5, "the header holds both lines");
+        assert.isAbove(box?.height ?? 0, 20, "it takes two lines");
+    });
 });

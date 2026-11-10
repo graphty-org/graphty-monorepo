@@ -59,15 +59,16 @@ async function openRecipe(): Promise<{ session: GraphSession; dialog: HTMLElemen
 /**
  * Holds the door entries in the recipe through Table +, and adds an edges step from its tile.
  * @param dialog - the workspace.
+ * @param entries - the door entries file.
  * @returns the step's card.
  */
-async function addEntriesStep(dialog: HTMLElement): Promise<HTMLElement> {
+async function addEntriesStep(dialog: HTMLElement, entries = ENTRIES): Promise<HTMLElement> {
     const input = dialog.querySelector<HTMLInputElement>('input[aria-label="Table file"]');
     assert.isNotNull(input);
     if (input === null) {
         throw new Error("no Table file input");
     }
-    await userEvent.upload(input, new File([ENTRIES], "door_entries.csv", { type: "text/csv" }));
+    await userEvent.upload(input, new File([entries], "door_entries.csv", { type: "text/csv" }));
     const add = within(dialog).getByRole("button", { name: /^Step/ });
     await waitFor(() => {
         assert.isFalse((add as HTMLButtonElement).disabled);
@@ -152,5 +153,23 @@ describe("the recipe join workspace", () => {
         assert.strictEqual(session.data.nodes().length, nodes);
         assert.lengthOf(session.data.edges(), 0);
         assert.strictEqual(session.history.steps.length, before);
+    });
+
+    it("shows a long step title whole at 1280x720", async () => {
+        const { dialog } = await openRecipe();
+        await page.viewport(1280, 720);
+        const long = ENTRIES.replace("entry,person,building", "entry_id,person_id,building_id");
+        const card = await addEntriesStep(dialog, long);
+        const title = await waitFor(() => {
+            const found = card.querySelector<HTMLElement>(".cm-card-title");
+            assert.isNotNull(found);
+            assert.match(found?.textContent ?? "", /person_id - building_id/);
+            return found;
+        });
+        if (title === null) {
+            throw new Error("no title");
+        }
+        assert.isAtMost(title.scrollWidth, title.clientWidth + 1, "no line of the title is cut");
+        assert.isAtMost(title.scrollHeight, title.clientHeight + 1, "no line of the title is hidden");
     });
 });

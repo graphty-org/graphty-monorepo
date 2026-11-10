@@ -142,6 +142,7 @@ export function RecipeBody(): React.JSX.Element {
                     </Group>
                     <CardList
                         label="Steps"
+                        wrapTitle
                         items={steps.map((step, at) => cardOf(api, step, at))}
                         onRemove={(id) => {
                             api.edit((each) => {

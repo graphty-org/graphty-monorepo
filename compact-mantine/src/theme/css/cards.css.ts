@@ -93,6 +93,16 @@ const css = `
     white-space: nowrap;
     font-weight: 600;
 }
+/* wrapTitle: a title takes up to two lines, and the header grows to hold them. */
+.cm-card-list[data-wrap-title] .cm-card-head { height: auto; min-height: 30px; padding-block: 3px; }
+.cm-card-list[data-wrap-title] .cm-card-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-height: 14px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
 .cm-card-head > .cm-card-summary {
     flex: 1 1 0;
     min-width: 0;

@@ -863,7 +863,11 @@ export class UpdateManager implements Manager {
      * Invalidate the masks when the set of render objects has changed since they were applied.
      */
     private followElementSets(): void {
-        const { nodeVersion, edgeVersion } = this.dataManager;
+        const { edgeVersion } = this.dataManager;
+        // A Node built for a row already drawn with no Node is put in line with the masks by
+        // adoptBuiltNode, so it is no new render object: under "batched" a full walk of every edge
+        // for each one built would be the walk a time step exists to avoid.
+        const nodeVersion = this.dataManager.nodeVersion - dataManagerInternals.lateNodeVersions(this.dataManager);
         if (nodeVersion !== this.appliedNodeSet || edgeVersion !== this.appliedEdgeSet) {
             this.invalidateViewMasks();
             this.appliedNodeSet = nodeVersion;
@@ -2827,6 +2831,13 @@ export class UpdateManager implements Manager {
             for (const node of this.layoutManager.nodes) {
                 // The mesh position is updated by node.update()
                 node.update();
+            }
+
+            // Under "batched" a row with no Node is drawn where the table puts it: brought up to the
+            // lane here, as updateRoster does, so the edge walk that follows reads this frame's places
+            // (a positions.set on a resting layout otherwise left its edges a frame behind, for good).
+            if (this.dataManager.renderLimits?.batched() === true) {
+                this.graphContext.getRowTable?.()?.flush();
             }
         } else {
             this.updateRoster(roster);

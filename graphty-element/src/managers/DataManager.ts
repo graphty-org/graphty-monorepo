@@ -369,6 +369,11 @@ export const dataManagerInternals = {} as {
     /** The rows stored with no `Node` yet (see `NodeView`), by row number. */
     unbuiltRows(manager: DataManager): number[];
     /**
+     * How much of {@link DataManager.nodeVersion} came from building the `Node` of a row already
+     * drawn with no `Node`: the set of rows did not change, so the applied view masks still hold.
+     */
+    lateNodeVersions(manager: DataManager): number;
+    /**
      * A stored node's id as the graph spells it, either spelling accepted, building no `Node`;
      * undefined for an id it does not hold.
      */
@@ -556,6 +561,7 @@ export class DataManager implements Manager {
         dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
+        dataManagerInternals.lateNodeVersions = (manager) => manager.lateNodeVersions;
         dataManagerInternals.storedIdOf = (manager, id) => {
             if (manager.nodeMap.has(id)) {
                 return id;
@@ -634,6 +640,8 @@ export class DataManager implements Manager {
     edgeVersion = 0;
     /** Goes up on every node added or removed, so a cache over the node set knows it is stale. */
     nodeVersion = 0;
+    /** See `dataManagerInternals.lateNodeVersions`. */
+    private lateNodeVersions = 0;
     nodeCache: Map<NodeIdType, Node> = new NodeView().lazy(this.unbuiltRows);
     /** See `dataManagerInternals.setLayoutRows`; no engine yet needs no hand-over. */
     private layoutRows: ((ids: readonly NodeIdType[]) => void) | null = noLayoutRows;
@@ -2320,7 +2328,9 @@ export class DataManager implements Manager {
         const batches = this.graphContext?.getNodeBatches?.();
         const look = batches?.lookOf(index) ?? null;
         batches?.unpaintRow(index);
+        const before = this.nodeVersion;
         const node = this.buildNode(id, row.record, index, false, look);
+        this.lateNodeVersions += this.nodeVersion - before;
         this.graphContext?.getUpdateManager?.().adoptBuiltNode(node);
         return node;
     }

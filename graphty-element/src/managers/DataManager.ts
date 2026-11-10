@@ -18,7 +18,9 @@ import type { ElementPositions } from "../data/positions";
 import type { ImportReport, LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
+import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
+import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
@@ -366,6 +368,15 @@ export const dataManagerInternals = {} as {
     builtNodes(manager: DataManager): IterableIterator<Node>;
     /** The rows stored with no `Node` yet (see `NodeView`), by row number. */
     unbuiltRows(manager: DataManager): number[];
+    /**
+     * A stored node's id as the graph spells it, either spelling accepted, building no `Node`;
+     * undefined for an id it does not hold.
+     */
+    storedIdOf(manager: DataManager, id: NodeIdType): NodeIdType | undefined;
+    /** A node's `Node` if one was built, building none. */
+    builtNode(manager: DataManager, id: NodeIdType): Node | undefined;
+    /** See `DataManager.incidentEdgeIds`, by id, so a row with no `Node` is not given one. */
+    incidentEdgeIds(manager: DataManager, id: NodeIdType): EdgeId[];
     /** The id of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltAt(manager: DataManager, index: number): NodeIdType | undefined;
     /** The record of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
@@ -425,6 +436,15 @@ class NodeView extends Map<NodeIdType, Node> {
 
     override get size(): number {
         return super.size + (this.#rows?.count() ?? 0);
+    }
+
+    /**
+     * A node's `Node` if it was built, building none.
+     * @param id - The node.
+     * @returns Its `Node`, or undefined.
+     */
+    builtOf(id: NodeIdType): Node | undefined {
+        return super.get(id);
     }
 
     /**
@@ -526,6 +546,16 @@ export class DataManager implements Manager {
         dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
+        dataManagerInternals.storedIdOf = (manager, id) => {
+            if (manager.nodeMap.has(id)) {
+                return id;
+            }
+
+            const other = otherIdSpelling(id);
+            return other !== undefined && manager.nodeMap.has(other) ? other : undefined;
+        };
+        dataManagerInternals.builtNode = (manager, id) => manager.nodeMap.builtOf(id);
+        dataManagerInternals.incidentEdgeIds = (manager, id) => manager.incidentEdgeIdsOf(id);
         dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
         dataManagerInternals.unbuiltRecord = (manager, index) => manager.unbuilt.get(index)?.record;
         dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
@@ -1103,7 +1133,8 @@ export class DataManager implements Manager {
      * @returns The id the graph holds it under, or the one given when it holds none.
      */
     private resolveId(target: "node" | "edge", id: NodeIdType): NodeIdType {
-        return target === "node" ? (this.getNode(id)?.id ?? id) : id;
+        // Building no `Node`: a row drawn with none keeps none.
+        return target === "node" ? (dataManagerInternals.storedIdOf(this, id) ?? id) : id;
     }
 
     /**
@@ -1345,7 +1376,8 @@ export class DataManager implements Manager {
         const removed: EdgeId[] = [];
         const edges = [...this.edges.values()];
         disposeReleased(
-            [...ids].flatMap((id) => this.nodes.get(id) ?? []),
+            // Built ones only: a row removed with no `Node` has none to release, and is not given one.
+            [...ids].flatMap((id) => this.nodeMap.builtOf(id) ?? []),
             edges.filter((edge) => ids.has(edge.srcId) || ids.has(edge.dstId)),
             () => {
                 for (const edge of edges) {
@@ -2222,8 +2254,14 @@ export class DataManager implements Manager {
      * @param index - The row.
      */
     private dropUnbuilt(index: number): void {
+        const row = this.unbuilt.get(index);
         this.unbuilt.delete(index);
         this.graphContext?.getNodeBatches?.()?.unpaintRow(index);
+        // A d3 or ngraph engine holds a body for the row; one left behind keeps pushing the rest.
+        const engine = this.layoutEngine;
+        if (row !== undefined && (engine instanceof D3GraphEngine || engine instanceof NGraphEngine)) {
+            engine.removeRows([row.id]);
+        }
     }
 
     /**
@@ -2361,8 +2399,17 @@ export class DataManager implements Manager {
      * @internal
      */
     incidentEdgeIds(node: Node): EdgeId[] {
+        return this.incidentEdgeIdsOf(node.id);
+    }
+
+    /**
+     * See {@link DataManager.incidentEdgeIds}.
+     * @param nodeId - The node.
+     * @returns The ids of its edges.
+     */
+    private incidentEdgeIdsOf(nodeId: NodeIdType): EdgeId[] {
         const ids: EdgeId[] = [];
-        for (const counter of this.store.incidentEdgeIds([node.id])) {
+        for (const counter of this.store.incidentEdgeIds([nodeId])) {
             const id = edgeIdOf(counter);
             if (this.edgeMap.has(id)) {
                 ids.push(id);

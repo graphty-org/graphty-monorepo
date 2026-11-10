@@ -2982,8 +2982,11 @@ export class LayoutManager implements Manager {
      */
     updatePositions(nodes: Node[]): Promise<void> {
         // An engine being built takes every node there is and spends its own pre-steps.
-        // The graph's size, not the list's: a row drawn with no `Node` is in no list.
-        if (!this.layoutEngine || this.dataManager.nodes.size === 0 || this.#building > 0) {
+        // Batched: the graph's size, not the list's, since a row drawn with no `Node` is in no
+        // list. Objects keeps master's guard on the list.
+        const empty =
+            this.dataManager.renderLimits?.batched() === true ? this.dataManager.nodes.size === 0 : nodes.length === 0;
+        if (!this.layoutEngine || empty || this.#building > 0) {
             return Promise.resolve();
         }
 

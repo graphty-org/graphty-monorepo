@@ -962,6 +962,31 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
+        this.dropBody(ngraphNode);
+        this.nodeMapping.delete(n);
+    }
+
+    /**
+     * Under renderPath "batched", take out the bodies of rows that leave the graph with no `Node`;
+     * otherwise each would stay in the simulation and keep pushing the others.
+     * @param ids - The rows' node ids; an id with no row body is skipped.
+     * @internal
+     */
+    removeRows(ids: Iterable<NodeIdType>): void {
+        for (const id of ids) {
+            const ngraphNode = this.rowNodes.get(id);
+            if (ngraphNode !== undefined) {
+                this.rowNodes.delete(id);
+                this.dropBody(ngraphNode);
+            }
+        }
+    }
+
+    /**
+     * Take a body and its links out of ngraph.
+     * @param ngraphNode - The body.
+     */
+    private dropBody(ngraphNode: NGraphNode): void {
         this.clustersStale = true;
 
         // The node's own links, not every link: each carries the edges between its pair.
@@ -975,7 +1000,6 @@ export class NGraphEngine extends LayoutEngine {
         }
 
         this.ngraph.removeNode(ngraphNode.id);
-        this.nodeMapping.delete(n);
         this._settled = false;
     }
 

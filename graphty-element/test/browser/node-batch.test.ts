@@ -1172,6 +1172,96 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         );
     });
 
+    // Removing a row with no Node used to forget it everywhere but the simulation: its d3 or
+    // ngraph body stayed in and kept pushing every other node.
+    it("take a removed row with no Node out of a d3 or ngraph simulation", async () => {
+        for (const layout of ["d3", "ngraph"] as const) {
+            const element = await mounted(renderer);
+            const { graph } = element;
+            graph.setRenderPath("batched");
+            await element.session.data.addNodes(NODES);
+            await graph.setLayout(layout, { dim: 2, seed: 7 });
+            await operationQueueOf(graph).waitForCompletion();
+            assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, `${layout}: no row has a Node`);
+
+            await element.session.data.removeNodes([4, 5]);
+            await operationQueueOf(graph).waitForCompletion();
+            assert.equal(
+                dataManagerInternals.nodesBuilt(graph.getDataManager()),
+                0,
+                `${layout}: removing built no Node`,
+            );
+            const engine = graph.getLayoutManager().layoutEngine;
+            const ids: unknown[] = [];
+            if (engine instanceof D3GraphEngine) {
+                engine.refresh();
+                for (const body of engine.d3ForceLayout.nodes() as unknown as { id: unknown }[]) {
+                    ids.push(body.id);
+                }
+            } else if (engine instanceof NGraphEngine) {
+                engine.ngraph.forEachNode((n) => {
+                    ids.push(n.id);
+                });
+            } else {
+                assert.fail(`${layout} is running`);
+            }
+
+            assert.deepEqual(
+                ids.sort((a, b) => Number(a) - Number(b)),
+                NODES.map((n) => n.id).filter((id) => id !== 4 && id !== 5),
+                `${layout}: the removed rows' bodies left the simulation`,
+            );
+            element.remove();
+        }
+    });
+
+    // A pointer reaches a row with no Node by its row and builds the Node there; the event must
+    // carry the very Node the graph answers for that id, or a consumer holds two of one node.
+    it("hand a hover on a row with no Node the Node graph.getNode answers", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d");
+        const manager = graph.getDataManager();
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "no row has a Node");
+        const target = graph.getNodeIdTarget();
+        const engine = graph.getLayoutManager().layoutEngine;
+        const root = graph.getScene().getTransformNodeByName("graph-root");
+        if (target === null || engine === undefined || root === null) {
+            assert.fail("the batched path keeps a target, a layout and a root");
+        }
+
+        while (target.read(0, 0) === null) {
+            await nextFrame();
+        }
+
+        const row = 6;
+        const at = { x: 0, y: 0, z: 0 };
+        layoutEngineInternals.positions(engine).read(row, at);
+        const world = Vector3.TransformCoordinates(new Vector3(at.x, at.y, at.z), root.getWorldMatrix());
+        const screen = graph.worldToScreen(world);
+        const scaling = graph.scene.getEngine().getHardwareScalingLevel();
+        assert.strictEqual(
+            await target.read((Math.floor(screen.x) + 0.5) * scaling, (Math.floor(screen.y) + 0.5) * scaling),
+            row,
+            "the point is over the row",
+        );
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "finding the point built no Node");
+
+        const hovered: unknown[] = [];
+        graph.eventManager.addListener("node-hover", (event) => {
+            if (event.type === "node-hover") {
+                hovered.push(event.node);
+            }
+        });
+        await hover(element, { x: 2, y: 2 });
+        await hover(element, { x: Math.floor(screen.x) + 0.5, y: Math.floor(screen.y) + 0.5 });
+        await vi.waitFor(() => {
+            assert.lengthOf(hovered, 1, "the hover reached the row");
+        });
+        assert.strictEqual(hovered[0], graph.getNode(NODES[row].id), "evt.node === graph.getNode(id)");
+    });
+
     it("keep a filtered row hidden when its Node is built later", async () => {
         const element = await mounted(renderer);
         const { graph } = element;

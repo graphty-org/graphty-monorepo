@@ -4125,11 +4125,13 @@ export class Graph implements GraphContext {
      * @param edgeIds - The edges removed.
      */
     private selectRemoval(nodeIds: readonly (string | number)[], edgeIds: readonly string[]): void {
+        // By id, building no `Node`: a row drawn with none is given none only to be removed, and
+        // one with none cannot be in the selection's `Node`s.
         const doomed = new Set<string | number>();
         for (const id of nodeIds) {
-            const node = this.dataManager.getNode(id);
-            if (node) {
-                doomed.add(node.id);
+            const known = dataManagerInternals.storedIdOf(this.dataManager, id);
+            if (known !== undefined) {
+                doomed.add(known);
             }
         }
 
@@ -4138,16 +4140,13 @@ export class Graph implements GraphContext {
         // could be selected: a run of removals stays linear either way.
         if (doomed.size > 0 && !this.session.selection.edgeRemovalChangesNothing()) {
             for (const id of doomed) {
-                const node = this.dataManager.getNode(id);
-                if (node) {
-                    doomedEdges.push(...this.dataManager.incidentEdgeIds(node));
-                }
+                doomedEdges.push(...dataManagerInternals.incidentEdgeIds(this.dataManager, id));
             }
         }
 
         this.selectionManager.onEdgesRemoved(doomedEdges);
         for (const id of doomed) {
-            const node = this.dataManager.getNode(id);
+            const node = dataManagerInternals.builtNode(this.dataManager, id);
             if (node) {
                 this.selectionManager.onNodeRemoved(node);
             }

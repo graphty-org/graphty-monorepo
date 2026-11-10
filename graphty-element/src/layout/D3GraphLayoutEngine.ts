@@ -592,6 +592,22 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
+     * Under renderPath "batched", take out the bodies of rows that leave the graph with no `Node`;
+     * otherwise each would stay in the simulation and keep pushing the others. Their edges have
+     * already gone through {@link D3GraphEngine.removeEdge}.
+     * @param ids - The rows' node ids; an id with no row body is skipped.
+     * @internal
+     */
+    removeRows(ids: Iterable<NodeIdType>): void {
+        for (const id of ids) {
+            if (this.rowBodies.delete(id)) {
+                this.clustersStale = true;
+                this.reheat = true;
+            }
+        }
+    }
+
+    /**
      * Check if the simulation has settled below alpha minimum
      * @returns True if the simulation has settled
      */

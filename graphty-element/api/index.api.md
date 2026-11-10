@@ -1062,6 +1062,8 @@ export class Edge {
     get arrowTailStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowTailText: RichTextLabel | null;
+    // @internal
+    columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
     get drawnCaps(): {
@@ -4920,6 +4922,11 @@ export abstract class LayoutEngine {
         coords: Float64Array;
     };
     readNodePosition(n: Node_2, out: {
+        x: number;
+        y: number;
+        z: number;
+    }): boolean;
+    protected readRowPosition(row: number, out: {
         x: number;
         y: number;
         z: number;

@@ -31,6 +31,7 @@ import {
     type WorkspaceStore,
 } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
+import { ShaderEditorHost } from "./style/ShaderEditorHost";
 
 /** The look a new project gives a pinned node: a thin gray ring. */
 const PINNED_LOOK = { color: "#868e96", scale: 1.3, opacity: 1 } as const;
@@ -296,6 +297,7 @@ export function Workspace({
             {projectOpen || checking ? null : <NoticeSlot returnFocus={firstDoor} />}
             <HelpDialogs />
             <ExportDialog />
+            <ShaderEditorHost />
             <SettingsDialog />
             <ReportDialog />
             <ProjectDialogs />

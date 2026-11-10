@@ -241,6 +241,11 @@ export interface WorkspaceState {
      */
     readonly textNext: Channel | null;
     /**
+     * Which Shaders "+" should take focus next, set by a notice's Show in Style (node, edge) or by
+     * the graph's Background section, and cleared by the section that takes it.
+     */
+    readonly shaderNext: "node" | "edge" | "background" | null;
+    /**
      * Graph settings, Labels: move a label off the nodes and edges it would cover, and with the
      * overlap rule on, hide one with no place clear of labels and nodes. On by default: without it a
      * name is drawn across the nodes in front of and behind it, which the overlap rule alone (labels
@@ -371,6 +376,7 @@ const INITIAL: WorkspaceState = {
     legendAsked: false,
     allLabelsShown: false,
     textNext: null,
+    shaderNext: null,
     labelsAvoid: true,
     sameSizeAtAnyDepth: null,
     lighting: "studio",

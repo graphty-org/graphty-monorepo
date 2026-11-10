@@ -934,6 +934,7 @@ export const READ_ONLY: readonly string[] = [
     "LayoutEngine.pairWeights",
     "LayoutEngine.publishOnRead",
     "LayoutEngine.readNodePosition",
+    "LayoutEngine.readRowPosition",
     "LayoutEngine.register",
     "LayoutEngineStatics.getZodOptionsSchema",
     "LayoutEngineStatics.hasZodOptions",

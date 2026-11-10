@@ -5721,6 +5721,7 @@ export interface SessionShaders {
     source(id: string, options?: {
         readonly params?: ShaderParams;
         readonly duplicate?: boolean;
+        readonly derived?: "omit";
     }): Promise<ShaderText>;
     // (undocumented)
     status(id: string): ShaderStatus;
@@ -5965,6 +5966,7 @@ export interface ShaderAddOptions {
     readonly apply?: {
         readonly layer: LayerId;
     };
+    readonly asNew?: boolean;
     readonly onTaken?: "refuse" | "rename";
     readonly place?: ShaderPlace;
     readonly source?: "reader" | "content";

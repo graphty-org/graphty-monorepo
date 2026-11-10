@@ -19,6 +19,7 @@ import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
 import type { EdgePosition } from "./layout/LayoutEngine";
 import type { LocationMapFrame } from "./layout/locationMap/place";
+import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
@@ -60,6 +61,7 @@ import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } 
 import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { batchUploadFrames } from "./meshes/FrameRoster";
+import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
 import { curvePathPoint, type CurveSpan, curveSpan, loopShape, viaShare } from "./meshes/pulledCurve";
@@ -648,6 +650,66 @@ export class Edge {
     }
 
     /**
+     * The row one end is drawn by with no `Node` (`NodeBatches.paintRow`), on the `"batched"` render
+     * path. Every fact an edge reads about such an end comes from the row, so the edge never builds
+     * or reads a `Node` for it; an end a `Node` draws is read from its `Node`, as always.
+     * @param end - Which end.
+     * @returns The row, or undefined while a `Node` draws the end (always, on `"objects"`).
+     * @internal
+     */
+    columnEnd(end: "source" | "target"): ColumnRow | undefined {
+        const batches = this.context.getNodeBatches?.() ?? null;
+        if (batches === null || batches.columnRowCount === 0) {
+            return undefined;
+        }
+
+        const row = dataManagerInternals.rowOf(
+            this.context.getDataManager(),
+            end === "source" ? this.srcId : this.dstId,
+        );
+        return batches.columnRowOf(row);
+    }
+
+    /**
+     * Where one end is drawn: its row's centre for an end drawn with no `Node`, else its `Node`'s.
+     * @param end - Which end.
+     * @returns The position.
+     */
+    private endPosition(end: "source" | "target"): Readonly<Vector3> {
+        const row = this.columnEnd(end);
+        const table = row === undefined ? null : (this.context.getRowTable?.() ?? null);
+        if (row !== undefined && table !== null) {
+            return table.centerOf(row.index);
+        }
+
+        return (end === "source" ? this.srcNode : this.dstNode).drawnPosition;
+    }
+
+    /**
+     * Whether one end is drawn behind every edge (`Node.isDrawnBehindEdges`). An end drawn with no
+     * `Node` is never a group, so it is behind only as a 2D node below z-index 0, read from its paint.
+     * @param end - Which end.
+     * @returns True while it is.
+     */
+    private endBehindEdges(end: "source" | "target"): boolean {
+        const row = this.columnEnd(end);
+        if (row !== undefined) {
+            return this.context.is2D() && (row.paint.style.shape?.zIndex ?? 0) < 0;
+        }
+
+        return (end === "source" ? this.srcNode : this.dstNode).isDrawnBehindEdges;
+    }
+
+    /**
+     * One end's row: read from the row itself for an end drawn with no `Node`.
+     * @param end - Which end.
+     * @returns The row.
+     */
+    private endRow(end: "source" | "target"): number {
+        return this.columnEnd(end)?.index ?? (end === "source" ? this.srcNode : this.dstNode).index;
+    }
+
+    /**
      * The graph's `Node` for one of this edge's ends.
      * @param id - The end's node id.
      * @returns The node.
@@ -1033,8 +1095,8 @@ export class Edge {
      */
     get drawnLine(): { name: string; length: number; width: number; visibility: number; centre: Vector3 } | null {
         if (this.pulled) {
-            const src = this.srcNode.drawnPosition;
-            const dst = this.dstNode.drawnPosition;
+            const src = this.endPosition("source");
+            const dst = this.endPosition("target");
             return {
                 name: this.pulled.name,
                 length: Vector3.Distance(src, dst),
@@ -1373,8 +1435,8 @@ export class Edge {
         // render ceiling for edges that are not going to move. It used to sit below a timing call
         // and a lookup into the layout engine, neither of which the early exit needs: the
         // engine's answer is only read further down, for an edge that IS moving.
-        const srcPos = this.srcNode.drawnPosition;
-        const dstPos = this.dstNode.drawnPosition;
+        const srcPos = this.endPosition("source");
+        const dstPos = this.endPosition("target");
 
         const srcMoved = !(this._lastSrcPos?.equalsWithEpsilon(srcPos, 0.001) ?? false);
         const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
@@ -1470,14 +1532,14 @@ export class Edge {
             lays &&
             stored === null &&
             laid !== undefined &&
-            this.srcNode !== this.dstNode &&
+            !this.isLoop &&
             this.placeBent(batch, src, dst, Edge.laidRoute(laid ?? [], laidEnds));
         const route = !bent && !followsLayout && lays ? this.bundleRoute(src, dst) : null;
         this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
             // a straight line the layout ends itself runs between its ends, as a laid route does
             const { srcPoint, dstPoint } =
-                laidEnds !== undefined && stored === null && this.srcNode !== this.dstNode
+                laidEnds !== undefined && stored === null && !this.isLoop
                     ? this.placeLaidEnds(src, dst, laidEnds)
                     : this.transformArrowCap();
             // A wave with a period of its own starts where the line leaves its node, as Cytoscape desktop
@@ -1554,8 +1616,13 @@ export class Edge {
      * @returns The point.
      */
     private bareEnd(end: "source" | "target", centre: Vector3, toward: Vector3): Vector3 {
-        const node = end === "source" ? this.srcNode : this.dstNode;
         const gap = this.gapAt(end);
+        // an end drawn in front of edges hides the line's start at its centre, and asks nothing of its node
+        if (gap <= 0 && !this.endBehindEdges(end)) {
+            return centre;
+        }
+
+        const node = end === "source" ? this.srcNode : this.dstNode;
         return gap > 0 ? this.leaveNode(node, centre, toward, gap) : this.groupEnd(node, centre, toward);
     }
 
@@ -1883,7 +1950,7 @@ export class Edge {
         const asSurface = surfaceOf(style) !== null && this.lineBuilt === flavorOf(style);
         const wantsPattern =
             (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
-            EdgeMesh.drawsAsPattern(style, this.srcNode === this.dstNode) &&
+            EdgeMesh.drawsAsPattern(style, this.isLoop) &&
             !asSurface;
         // A line moves between a pulled piece and a placed slot when the render path changes.
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
@@ -2073,7 +2140,7 @@ export class Edge {
             style,
             this.context.getScene(),
             false,
-            this.srcNode === this.dstNode,
+            this.isLoop,
             true,
         );
         if (next === null) {
@@ -2393,7 +2460,7 @@ export class Edge {
      */
     private liftDrawn(): number {
         const lift = this.drawnStyle?.line?.lift;
-        if (typeof lift !== "number" || lift === 0 || !Number.isFinite(lift) || this.srcNode === this.dstNode) {
+        if (typeof lift !== "number" || lift === 0 || !Number.isFinite(lift) || this.isLoop) {
             return 0;
         }
 
@@ -2545,7 +2612,7 @@ export class Edge {
             drawnStyle,
             this.context.getScene(),
             false,
-            this.srcNode === this.dstNode,
+            this.isLoop,
             true,
         );
 
@@ -2604,8 +2671,8 @@ export class Edge {
         return (
             (pulledEdgesDefault.value || (this.context.getNodeBatches?.() ?? null) !== null) &&
             // a group, or a 2D node below z-index 0, ends the line at its outline (`Edge.groupEnd`), not its centre
-            !this.srcNode.isDrawnBehindEdges &&
-            !this.dstNode.isDrawnBehindEdges &&
+            !this.endBehindEdges("source") &&
+            !this.endBehindEdges("target") &&
             // in 2D only a straight line, with its width in world units (`EdgeMesh.pulledBatch`)
             !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
             setsOnly(style, PULLED_STYLE_KEYS) &&
@@ -2685,9 +2752,7 @@ export class Edge {
             style,
             scene,
             () => rows.positionTexture,
-            this.isLoop,
-            this.routeOf(style),
-            this.context.leansLines?.() ?? false,
+            { loop: this.isLoop, route: this.routeOf(style), lean: this.context.leansLines?.() ?? false },
         );
         const piece = batch.acquire();
         // As `createStaticLine` hands the plain line's material its look.
@@ -2856,7 +2921,7 @@ export class Edge {
      * @returns True for a self-loop.
      */
     private get isLoop(): boolean {
-        return this.srcNode === this.dstNode;
+        return this.srcId === this.dstId;
     }
 
     /** Write this edge's rows to its pulled piece when they changed: its nodes', or none while hidden. */
@@ -2866,8 +2931,8 @@ export class Edge {
             return;
         }
 
-        const source = pulled.drawn ? this.srcNode.index : -1;
-        const target = pulled.drawn ? this.dstNode.index : -1;
+        const source = pulled.drawn ? this.endRow("source") : -1;
+        const target = pulled.drawn ? this.endRow("target") : -1;
         if (source !== pulled.source || target !== pulled.target) {
             pulled.batch.setRows(pulled.piece, source, target);
             for (const piece of pulled.run ?? []) {
@@ -2935,7 +3000,7 @@ export class Edge {
             }
         }
 
-        const loop = this.srcNode === this.dstNode;
+        const loop = this.isLoop;
         if (!widensLine(style) || EdgeMesh.drawsAsPattern(style, loop)) {
             return null;
         }
@@ -3258,7 +3323,7 @@ export class Edge {
      * @param style - The resolved style.
      */
     private readRoute(style: EdgeStyleConfig): void {
-        const loop = this.srcNode === this.dstNode;
+        const loop = this.isLoop;
         const bends = parseBends(style.line?.bends);
         // a loop's ports alone say nothing about its shape: it keeps its usual loop
         const srcPort = loop && bends === null ? null : parsePort(style.line?.sourcePort);
@@ -3722,7 +3787,7 @@ export class Edge {
      * @returns The route, flat x, y, z, or null.
      */
     private bundleRoute(src: Vector3, dst: Vector3): number[] | null {
-        if (this.srcNode === this.dstNode) {
+        if (this.isLoop) {
             const { rank, count } = this.context.getDataManager().drawnBundle(this);
             return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
         }
@@ -3797,7 +3862,7 @@ export class Edge {
     supportEdge(centerOf: (node: Node) => Readonly<Vector3> = (node) => node.drawnPosition): SupportEdge | null {
         const line = this.drawnStyle?.line;
         const model = line?.supportModel;
-        if (model === undefined || !this.curved || this.srcNode === this.dstNode || !this.renderVisible) {
+        if (model === undefined || !this.curved || this.isLoop || !this.renderVisible) {
             return null;
         }
         return {
@@ -3949,7 +4014,7 @@ export class Edge {
      * @returns The gap, in scene units.
      */
     private gapAt(end: "source" | "target"): number {
-        if (this.srcNode === this.dstNode) {
+        if (this.isLoop) {
             return 0;
         }
 
@@ -4065,7 +4130,7 @@ export class Edge {
      * @returns The curve's points, which the line's outline, gradient and effects are placed along too.
      */
     private placeCurve(batch: EdgeLineBatch, slots: number[], srcPoint: Vector3, dstPoint: Vector3): number[] {
-        const loopRadius = this.srcNode === this.dstNode ? this.selfLoopRadius() : undefined;
+        const loopRadius = this.isLoop ? this.selfLoopRadius() : undefined;
         const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint, undefined, loopRadius);
         this.placeRun(
             batch,
@@ -4415,7 +4480,7 @@ export class Edge {
                 solid,
                 scene,
                 false,
-                this.srcNode === this.dstNode,
+                this.isLoop,
             );
             if (batch === null) {
                 continue;
@@ -4491,7 +4556,7 @@ export class Edge {
             { ...style, line: { ...style.line, type: outline?.type ?? "solid", opacity, animationSpeed: 0 } },
             scene,
             false,
-            this.srcNode === this.dstNode,
+            this.isLoop,
         );
         if (this.outlineBatch === null) {
             return;
@@ -4580,7 +4645,7 @@ export class Edge {
                 { ...style, line: { ...style.line, type: "solid", opacity, animationSpeed: 0 } },
                 this.context.getScene(),
                 false,
-                this.srcNode === this.dstNode,
+                this.isLoop,
             );
             if (batch === null) {
                 continue;

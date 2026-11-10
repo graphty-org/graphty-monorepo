@@ -447,11 +447,18 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                     ...(session.data.sources().length > 0 ? { mode: "merge" as const } : {}),
                 });
             } else {
+                // A read that changed is named as a new load from the form is; else the source keeps its name.
+                const before = session.data.sourceSettings(edited.key);
+                const same =
+                    before !== undefined &&
+                    JSON.stringify(before.config) === JSON.stringify(input.config) &&
+                    (options.endpoint ?? before.endpoint) === before.endpoint;
+                const { name: _name, ...unnamed } = input;
                 await replaceWith(
                     store,
                     session,
                     edited.key,
-                    { source: input, name: sourceName(edited) },
+                    same ? { source: unnamed, name: sourceName(edited) } : { source: input, name: input.name ?? "" },
                     {
                         ...options,
                         signal: loading.current.signal,

@@ -364,7 +364,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         second.view.unmount();
     });
 
-    it("offers nothing when the newest kept work is clean, however much older dirty work there is", async () => {
+    it("offers the newest work with changes, though a newer visit opened a project and changed nothing", async () => {
         // Older work with a change never saved to a file.
         const dirty = mountWorkspace();
         await openBy(dirty.store, () => pickSample(FLORENTINE.name));
@@ -378,17 +378,13 @@ describe("Workspace autosave with the real graphty-element", () => {
         await fromAnotherTab(await leave(openedElement().element, clean.view));
 
         const visit = mountWorkspace();
-        await screen.findByRole("button", { name: /^Open a file/ });
-        await waitFor(async () => {
-            assert.isAtLeast((await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).length, 2);
-        });
-        assert.isNull(visit.store.get().recovered);
-        assert.isNull(screen.queryByRole("region", { name: "Unsaved work" }));
+        const region = await offer();
+        assert.include(region.textContent, FLORENTINE.name);
         visit.view.unmount();
     });
 
-    it("offers no other project's work to a tab that had a project open", async () => {
-        // Older dirty work, then the project this tab has open, whose record is lost.
+    it("opens a tab's sample again when its work cannot be found, and offers no other project's work", async () => {
+        // Dirty work this tab had open, whose record is lost (as a reload before the first write).
         const older = mountWorkspace();
         await openBy(older.store, () => pickSample(FLORENTINE.name));
         const before = openedElement();
@@ -396,18 +392,22 @@ describe("Workspace autosave with the real graphty-element", () => {
         await fromAnotherTab(await leave(before.element, older.view), true);
 
         const reload = mountWorkspace();
-        await screen.findByRole("button", { name: /^Open a file/ });
         await waitFor(() => {
-            assert.isFalse(reload.store.get().autosave && reload.store.get().recovered !== null);
+            assert.strictEqual(openedElement().session.data.snapshot().nodeCount, FLORENTINE.nodes);
         });
+        assert.strictEqual(reload.store.get().project?.name, FLORENTINE.name);
+        assert.isNull(reload.store.get().recovered);
         assert.isNull(screen.queryByRole("region", { name: "Unsaved work" }));
         reload.view.unmount();
     });
 
-    it("brings back the same style layers when the offered work is restored", async () => {
+    it("brings back the same style layers, and the tab the reader had open, when the offered work is restored", async () => {
         const first = mountWorkspace();
         await openBy(first.store, () => pickSample(FLORENTINE.name));
         const { element, session } = openedElement();
+        const inspector = (): ReturnType<typeof within> =>
+            within(screen.getByRole("complementary", { name: "Inspector" }));
+        await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
         await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
         const layers = JSON.stringify(session.styles.list());
         await fromAnotherTab(await leave(element, first.view));
@@ -416,6 +416,9 @@ describe("Workspace autosave with the real graphty-element", () => {
         await offer();
         await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
         assert.strictEqual(JSON.stringify(openedElement().session.styles.list()), layers);
+        await waitFor(() => {
+            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Style");
+        });
         second.view.unmount();
     });
 

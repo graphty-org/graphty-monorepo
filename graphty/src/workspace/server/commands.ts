@@ -108,19 +108,12 @@ export function freshForm(entry: SourceCatalogEntry): ServerFormState {
 }
 
 /**
- * How a load started when its params do not say, as graph-io reads them: a query means Query, ids
- * mean Seed nodes, and otherwise Everything.
+ * How a load started, as its settings say (graphty-element fills in the mode a query source read in).
  * @param config - the load's params.
- * @returns the Start value.
+ * @returns the Start value, or null when the params name none.
  */
-export function startOf(config: Readonly<Record<string, unknown>>): string {
-    if (typeof config.mode === "string") {
-        return config.mode;
-    }
-    if (typeof config.query === "string") {
-        return "query";
-    }
-    return Array.isArray(config.ids) ? "neighborhood" : "all";
+export function startOf(config: Readonly<Record<string, unknown>>): string | null {
+    return typeof config.mode === "string" ? config.mode : null;
 }
 
 /**
@@ -132,14 +125,13 @@ export function startOf(config: Readonly<Record<string, unknown>>): string {
  */
 export function formFromSettings(entry: SourceCatalogEntry, settings: SourceSettings): ServerFormState {
     const { expand, config } = settings;
-    const hasMode = entry.descriptor.params.some((p) => p.name === "mode");
     return {
         kind: entry.id,
         endpoint: settings.endpoint ?? "",
         user: "",
         secret: "",
         apiKey: "",
-        params: { ...config, ...(hasMode ? { mode: startOf(config) } : {}) },
+        params: { ...config },
         limit: settings.limits?.maxNodes ?? 0,
         expand: expand !== undefined,
         expandWith:
@@ -209,8 +201,8 @@ export function settingsFacts(entry: SourceCatalogEntry, settings: SourceSetting
     const { params } = entry.descriptor;
     const rows: SettingsFacts["rows"][number][] = [];
     const long: SettingsFacts["long"][number][] = [];
-    if (params.some((p) => p.name === "mode")) {
-        const start = startOf(config);
+    const start = startOf(config);
+    if (start !== null && params.some((p) => p.name === "mode")) {
         rows.push({ name: "Start", value: START_WORDS[start] ?? start });
     }
     for (const { name, plainName, type } of [...params, ...undeclaredParams(entry, config)]) {

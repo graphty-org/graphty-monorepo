@@ -9,6 +9,7 @@ import {
     DATASET_DESCRIPTORS,
     type DatasetMeta,
     DEFAULT_DATASET_BASE_URL,
+    GENERATOR_DESCRIPTORS,
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
@@ -32,7 +33,7 @@ import { openProjectFile } from "../project/actions";
 import { notReadWords } from "../project/words";
 import { replaceWith } from "../replace/commands";
 import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
-import { newProjectId, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
+import { newProjectId, type Opener, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
 import { labelRow } from "../style/row";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
 import { panelsInView } from "../time/timeActions";
@@ -118,6 +119,7 @@ export async function openNetworkSample(
         openWithStylePanel(workspace, name, async (session) => {
             await session.data.import(read, { history: "start" });
         });
+        remember(workspace, { kind: "network", name, source, example });
     } catch (error) {
         if (!signal.aborted) {
             workspace.set({ notice: { message: notReadWords(name, error, "opened"), error: true } });
@@ -209,6 +211,7 @@ export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): vo
     openProject(workspace, dataset.title, (session) =>
         session.data.loadDataset(dataset.name, { history: "start", ...datasetBase() }),
     );
+    remember(workspace, { kind: "dataset", dataset: dataset.name });
 }
 
 /**
@@ -225,6 +228,44 @@ export function openGenerated(
     openProject(workspace, generator.plainName, (session) =>
         session.data.generate(generator.name, params, { history: "start" }),
     );
+    remember(workspace, { kind: "generator", generator: generator.name, params });
+}
+
+/**
+ * Notes on the project just opened how to open it again, for a reload that finds nothing kept.
+ * @param workspace - the workspace store.
+ * @param opened - how it was opened.
+ */
+function remember(workspace: WorkspaceStore, opened: Opener): void {
+    workspace.set((state) => (state.project === null ? {} : { project: { ...state.project, opened } }));
+}
+
+/**
+ * Opens again the project this tab had open, the way it was opened: for a reload that came before
+ * graphty-element's autosave wrote anything, when the project held nothing but what was opened.
+ * @param workspace - the workspace store.
+ * @param opened - how it was opened.
+ */
+export function openAgain(workspace: WorkspaceStore, opened: Opener): void {
+    if (opened.kind === "sample") {
+        openSample(workspace, opened.sample);
+        return;
+    }
+    if (opened.kind === "network") {
+        void openNetworkSample(workspace, opened.name, opened.source, opened.example, new AbortController().signal);
+        return;
+    }
+    if (opened.kind === "dataset") {
+        const dataset = DATASET_DESCRIPTORS.find((each) => each.name === opened.dataset);
+        if (dataset !== undefined) {
+            openDataset(workspace, dataset);
+        }
+        return;
+    }
+    const generator = GENERATOR_DESCRIPTORS.find((each) => each.name === opened.generator);
+    if (generator !== undefined) {
+        openGenerated(workspace, generator, opened.params);
+    }
 }
 
 /** A file, a node file and an edge file, pasted text or an address, and the name the reader knows it by. */
@@ -359,6 +400,7 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
         source: { config: { url: sample.url }, name: sample.name },
         origin: "sample",
     });
+    remember(workspace, { kind: "sample", sample });
 }
 
 /**

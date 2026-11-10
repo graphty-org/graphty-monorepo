@@ -108,6 +108,7 @@ describe("a network load reopened from autosave", () => {
             assert.strictEqual(element.autosaver.status.state, "saved");
         });
         const { entry } = element.autosaver.status;
+        const named = first.store.get().project?.name;
         first.view.unmount();
         await waitFor(async () => {
             const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
@@ -118,6 +119,7 @@ describe("a network load reopened from autosave", () => {
         await openBy(second.store, () => Promise.resolve());
         const reopened = openedElement();
         assert.strictEqual(reopened.session.data.statistics().nodeCount, 57);
+        assert.strictEqual(second.store.get().project?.name, named, "the header keeps its name");
         assert.deepEqual(reopened.session.data.pendingSourceLoads(), []);
         assert.isNull(screen.queryByRole("button", { name: "Approve" }));
         assert.isNull(screen.queryByRole("list", { name: "Waiting loads" }));
@@ -134,7 +136,7 @@ describe("a network load reopened from autosave", () => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
         const { element, session } = openedElement();
-        const [{ key }] = session.data.sources();
+        const [{ key, name }] = session.data.sources();
 
         const row = await screen.findByRole("listitem", { name: /NDEx/ });
         await userEvent.click(row.querySelector(".dp-source-main") ?? row);
@@ -149,6 +151,7 @@ describe("a network load reopened from autosave", () => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
         assert.strictEqual(session.data.sourceSettings(key)?.limits?.maxNodes, 100);
+        assert.strictEqual(session.data.sources()[0].name, name, "a new limit reads the same network: same name");
 
         await waitFor(() => {
             assert.strictEqual(element.autosaver.status.state, "saved");

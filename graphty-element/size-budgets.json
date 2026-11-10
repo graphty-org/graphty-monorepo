@@ -13,9 +13,9 @@
         "./logging": 11037,
         "./react": 1044,
         "./webgpu": 5820,
-        "./ai": 305877,
+        "./ai": 344068,
         "./credentials": 6130,
-        "./bundle": 4551080
+        "./bundle": 5035579
     },
     "lazyChunks": {
         "models": {

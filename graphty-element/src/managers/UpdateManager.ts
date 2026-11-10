@@ -3013,16 +3013,7 @@ export class UpdateManager implements Manager {
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
-        // ponytail: a walk of every edge per renumbering freeze (a removal); a list of the pulled edges if removals
-        // at a million edges need it.
-        if (this.pulledRowsMoved && !this.dataManager.drawHeld) {
-            this.pulledRowsMoved = false;
-            for (const edge of this.dataManager.edges.values()) {
-                if (edge.isPulled) {
-                    edge.followRenumberedRows();
-                }
-            }
-        }
+        this.followRenumberedRows();
 
         // No frame is drawn while a load holds the draw, so asking whether anything moved, a walk of
         // every node on each of a load's thousands of frames, waits for the first frame it releases.
@@ -3055,18 +3046,10 @@ export class UpdateManager implements Manager {
         if (everyEdge || bowed) {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
             // moved costs nothing here. A pass over the whole graph used to aim all of them first.
-            for (const edge of this.layoutManager.edges) {
-                if (!edge.followsRows) {
-                    edge.update();
-                }
-            }
+            UpdateManager.placeEdges(this.layoutManager.edges);
         } else {
             this.updateEdgesOf(walk === false ? [] : walk);
-            for (const edge of this.edgesToPlace) {
-                if (!edge.followsRows) {
-                    edge.update();
-                }
-            }
+            UpdateManager.placeEdges(this.edgesToPlace);
             this.placedEdgesAtRows();
         }
 
@@ -3075,6 +3058,36 @@ export class UpdateManager implements Manager {
         this.settleEnds();
 
         this.statsManager.edgeUpdate.endMonitoring();
+    }
+
+    /**
+     * Place some edges, leaving out each line the shader draws from its rows ({@link Edge.followsRows}).
+     * @param edges - The edges.
+     */
+    private static placeEdges(edges: Iterable<Edge>): void {
+        for (const edge of edges) {
+            if (!edge.followsRows) {
+                edge.update();
+            }
+        }
+    }
+
+    /**
+     * Tell every pulled line its nodes' rows after a freeze renumbered them ({@link rowsRenumbered}).
+     * ponytail: a walk of every edge per renumbering freeze (a removal); a list of the pulled edges if removals at a
+     * million edges need it.
+     */
+    private followRenumberedRows(): void {
+        if (!this.pulledRowsMoved || this.dataManager.drawHeld) {
+            return;
+        }
+
+        this.pulledRowsMoved = false;
+        for (const edge of this.dataManager.edges.values()) {
+            if (edge.isPulled) {
+                edge.followRenumberedRows();
+            }
+        }
     }
 
     /** Whether the row table moved a row since the last edge walk while some row has no Node. */

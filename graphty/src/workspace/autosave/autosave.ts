@@ -4,7 +4,7 @@
  * deletes the work; nothing here reads the browser's storage.
  */
 
-import type { AutosaveEntry, Graphty } from "@graphty/graphty-element";
+import type { AutosaveEntry } from "@graphty/graphty-element";
 import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import { type GraphSession, listAutosaves, removeAutosave } from "@graphty/graphty-element/session";
 
@@ -64,7 +64,7 @@ export async function findKept(): Promise<KeptWork> {
 function reopen(
     store: WorkspaceStore,
     entry: AutosaveEntry,
-    after: (name: string, element: Graphty) => void,
+    after: (name: string, place: ReturnType<typeof stashedPlace>) => void,
     focus?: () => void,
     shown?: string,
 ): void {
@@ -82,10 +82,12 @@ function reopen(
             name,
             load: async (session, element) => {
                 const report = await element.autosaver.restore(entry.id, { discard: true });
+                // Read before the store changes again, which stashes the place shown now.
+                const place = stashedPlace(element);
                 // This tab's own work keeps the name its header showed; other work is named by its data.
                 const opened = report.name ?? (shown === undefined ? dataName(session) : null) ?? name;
                 store.set((now) => ({ project: now.project && { ...now.project, name: opened } }));
-                after(opened, element);
+                after(opened, place);
             },
             ...(focus === undefined ? {} : { focus }),
         }),
@@ -99,8 +101,8 @@ function reopen(
  */
 export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): void {
     logger.info("restore pressed", { entry: entry.id, nodes: entry.nodes, edges: entry.edges });
-    reopen(store, entry, (_name, element) => {
-        store.set({ ...stashedPlace(element), notice: { message: reopenedSentence(entry) } });
+    reopen(store, entry, (_name, place) => {
+        store.set({ ...place, notice: { message: reopenedSentence(entry) } });
     });
 }
 

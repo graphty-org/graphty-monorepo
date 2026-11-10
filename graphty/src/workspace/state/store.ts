@@ -564,10 +564,12 @@ const PLACE_STASH = "app.graphty.workspace.place";
  */
 export function stashPlace(store: WorkspaceStore, element: GraphtyElement): () => void {
     let last = "";
+    // Not while the project opens: restored work brings its own place, which the opening puts back.
+    let ready = false;
     const put = (): void => {
         // Only with work already written: a stash on its own would start an entry for a project
         // that holds nothing to keep.
-        if (element.autosaver.status.entry === null) {
+        if (!ready || element.autosaver.status.entry === null) {
             return;
         }
         const { page, place, inspected, tabs, styleSide, dataTab } = store.get();
@@ -578,6 +580,12 @@ export function stashPlace(store: WorkspaceStore, element: GraphtyElement): () =
             element.autosaver.stash(PLACE_STASH, kept);
         }
     };
+    void (store.get().opened ?? Promise.resolve())
+        .catch(() => undefined)
+        .finally(() => {
+            ready = true;
+            put();
+        });
     element.addEventListener("graphty-autosave-status", put);
     const stop = store.subscribe(put);
     return () => {

@@ -23,6 +23,7 @@ import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine"
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { nodeFramingBox } from "../../src/managers/UpdateManager";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
+import { PulledLineBatch } from "../../src/meshes/PulledLineBatch";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
@@ -1126,5 +1127,65 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         }
 
         assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
+    });
+
+    it("pull a line to a row with no Node from its row, reading no Node for that end", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const manager = graph.getDataManager();
+        const batches = graph.getNodeBatches();
+        const table = graph.getRowTable();
+        const node = manager.nodes.get(4);
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(batches);
+        assert.isNotNull(table);
+        assert.isDefined(node);
+        assert.isNotNull(paint);
+        if (batches === null || table === null || node === undefined || paint === null) {
+            return;
+        }
+
+        // Row 4 is drawn with no Node, and from here on any read of its Node is recorded.
+        batches.leave(node);
+        node.drawInBatch(node.paintedSourceMesh);
+        assert.isTrue(batches.paintRow(4, paint));
+        const reads: unknown[] = [];
+        const get = vi.spyOn(manager.nodeCache, "get").mockImplementation(function (this: Map<unknown, unknown>, id) {
+            reads.push(id);
+            return Map.prototype.get.call(this, id) as typeof node;
+        });
+        cleanups.push(() => get.mockRestore());
+        const rows = vi.spyOn(PulledLineBatch.prototype, "setRows");
+        cleanups.push(() => rows.mockRestore());
+
+        // The graph is directed, so the edge would start with a head, and a capped line is never pulled.
+        await element.session.styles.add({
+            name: "uncapped",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        } as never);
+        manager.addEdge({ src: 4, dst: 9 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const [edge] = [...manager.edges.values()].filter((e) => e.srcId === 4);
+        assert.isTrue(edge.isPulled, "the line is pulled, as a line between two Nodes is");
+        assert.deepInclude(
+            rows.mock.calls.map(([, source, target]) => [source, target]),
+            [4, manager.nodes.get(9)?.index],
+            "and drawn from row 4 to row 9",
+        );
+
+        // A new layout moves row 4, and the line follows it, still reading no Node for it.
+        const from = table.centerOf(4);
+        await graph.setLayout("circular", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isAbove(Vector3.Distance(table.centerOf(4), from), 0.5, "row 4 moved");
+        const centre = edge.drawnLine?.centre ?? Vector3.Zero();
+        assert.isAtMost(Vector3.Distance(centre, Vector3.Center(table.centerOf(4), table.centerOf(9))), 1e-4);
+        assert.notInclude(reads, 4, "no read of row 4's Node");
     });
 });

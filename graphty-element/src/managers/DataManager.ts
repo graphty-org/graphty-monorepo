@@ -360,6 +360,8 @@ export const dataManagerInternals = {} as {
      * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
      */
     nodesBuilt(manager: DataManager): number;
+    /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
+    rowOf(manager: DataManager, id: NodeIdType): number;
 };
 
 /**
@@ -401,6 +403,7 @@ export class DataManager implements Manager {
 
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
+        dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.followRenumbering = (manager, follower) => {
             manager.renumberFollowers.add(follower);
             return () => {

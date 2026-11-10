@@ -12,6 +12,7 @@
 import "../../src/graphty-element";
 
 import { Matrix, Mesh, type Scene, TransformNode, Vector3 } from "@babylonjs/core";
+import type { LayoutSimulation } from "@graphty/layout";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -1050,6 +1051,72 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             assert.equal(at.x, node.id * 2, `row ${row} is where place() put it`);
         });
         assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "laid out with no Node");
+    });
+
+    it("pull communities together by clusterBy with no Node", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        const manager = graph.getDataManager();
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "loaded with no Node");
+
+        await graph.setLayout("forceatlas2", { dim: 2, seed: 12, clusterBy: "tone" });
+        await operationQueueOf(graph).waitForCompletion();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.instanceOf(engine, SimulationLayoutEngine);
+        if (!(engine instanceof SimulationLayoutEngine)) {
+            return;
+        }
+
+        // The rebuilt simulation is a new one of the same class, so its class's method is watched.
+        let pulled: Uint32Array | undefined;
+        const proto = Object.getPrototypeOf(engine.simulation) as LayoutSimulation;
+        const { setClusters } = proto;
+        assert.exists(setClusters, "the simulation takes communities");
+        proto.setClusters = function (this: LayoutSimulation, clusters) {
+            pulled = clusters?.communities;
+            setClusters?.call(this, clusters);
+        };
+        try {
+            engine.replaceSimulation();
+        } finally {
+            proto.setClusters = setClusters;
+        }
+
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "clustered with no Node");
+        assert.exists(pulled, "the communities reached the simulation");
+        NODES.forEach((node, row) => {
+            assert.equal(pulled?.[row], node.id % 3, `row ${row} is in its tone's community`);
+        });
+    });
+
+    it("spend a layout's pre-steps at its start when no row has a Node", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "loaded with no Node");
+
+        // Read as the arrangement starts, before any frame can pay what it left owed.
+        const manager = graph.getLayoutManager();
+        const start = Reflect.get(manager, "startArrangement") as (...args: unknown[]) => Promise<void>;
+        let owed: unknown;
+        Reflect.set(manager, "startArrangement", async (...args: unknown[]) => {
+            await start.apply(manager, args);
+            owed = Reflect.get(manager, "preStepsOwed");
+        });
+        try {
+            graph.setLayoutBehavior({ layout: { preSteps: 5 } });
+            await graph.setLayout("forceatlas2", { dim: 2, seed: 12 });
+            await operationQueueOf(graph).waitForCompletion();
+        } finally {
+            Reflect.deleteProperty(manager, "startArrangement");
+        }
+
+        assert.strictEqual(owed, false, "the pre-steps were spent, not owed to a later frame");
     });
 
     it("keep a filtered row hidden when its Node is built later", async () => {

@@ -1559,6 +1559,9 @@ export class LayoutManager implements Manager {
         if (engine) {
             engine.clusterColumn = (path, graph = this.dataManager.getSnapshot()) =>
                 this.scopeSource?.nodeValues?.(graph, path) ?? null;
+            if (engine instanceof SimulationLayoutEngine) {
+                engine.rowRecord = (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row);
+            }
         }
 
         if (!engine) {
@@ -1725,7 +1728,10 @@ export class LayoutManager implements Manager {
             this.ownArrangement = true;
             // Run layout pre-steps -- unless there is nothing to step yet, in which case they
             // are owed to the first frame that has something. See `preStepsOwed`.
-            if (nodeArray.length === 0 || this.sizesToCome(engine)) {
+            // Under renderPath "batched" a row with no Node is something to step as well.
+            const batched = this.dataManager.renderLimits?.batched() ?? false;
+            const nothingToStep = batched ? this.dataManager.nodes.size === 0 : nodeArray.length === 0;
+            if (nothingToStep || this.sizesToCome(engine)) {
                 this.preStepsOwed = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw cancelledBuild();

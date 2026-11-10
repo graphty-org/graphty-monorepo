@@ -770,3 +770,21 @@ Commands (from graphty-element, all through tools/low-priority.sh):
 
 Load-peak gate: not re-measured after these commits. Last measured at cfbe862cab: 1,250 B per node
 against the 1,500 B target. These commits add one counter and change no load path.
+
+## Review fix: defined layout on an empty graph (renderPath objects)
+
+Defect: `simpleLayoutInternals.hostGraph` fell back to the graph attached with the rows for every
+defined layout on both paths, so `setLayout` of a defineLayout layout on an empty graph ran
+`place()` over no nodes (master skips it) and rejected when `place()` threw. Fix in
+graphty-element/src/layout/LayoutEngine.ts: the attached graph is returned only while `#rowSource()`
+is non-null (renderPath "batched" and at least one row), so objects and an empty graph answer as
+on master.
+
+- New test, test/browser/simple/define-layout.test.ts "defineLayout set on an empty graph": without
+  the fix it failed with `GraphtyError: acme-needs-a-node: place() threw (Error: needs a node)`;
+  with the fix it passes.
+- browser project, node-batch + simple/define-layout + simple/define-layout-defaults: 82 passed.
+- forced-batched project, same files: 25 passed (2 files run there).
+- default project, test/simple: 164 passed.
+- eslint on the two changed files clean, tsc --noEmit clean, npm run build clean, no API change.
+- node tools/sonar-gate.mjs: no new issue or hotspot on the changed lines.

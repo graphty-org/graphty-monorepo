@@ -166,13 +166,16 @@ describe.each(ENGINES)("%s", (engine) => {
         const lock = `graphty-autosave:${key}:${entry}`;
         const other = await context.newPage();
         await other.goto(`${fx.origin}/away.html`);
+        // In a function, so evaluate does not wait for the promise: it settles only after the reload.
         await other.evaluate(
-            `window.heldLock = new Promise((granted) => {
-                navigator.locks.request(${JSON.stringify(lock)}, () => {
-                    granted(true);
-                    return new Promise(() => undefined);
+            `(() => {
+                window.heldLock = new Promise((granted) => {
+                    navigator.locks.request(${JSON.stringify(lock)}, () => {
+                        granted(true);
+                        return new Promise(() => undefined);
+                    });
                 });
-            })`,
+            })()`,
         );
         const beforeReload = fx.log.length;
         await page.reload();

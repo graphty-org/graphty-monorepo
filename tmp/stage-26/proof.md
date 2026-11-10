@@ -470,3 +470,41 @@ Two things for the next session, both batched-only:
 
 Still open and unchanged: ThreePaths 68 px, Gexf 1488 px (fails at the merge base too). Build, lint, sonar gate,
 the load-peak gate and the pinned default-project tests were not run this session (no code change).
+
+## Pull request 11, fourteenth session (2026-11-10): Bidirectional fixed; Graphviz found failing on this branch
+
+Code change (graphty-element/src/Edge.ts, batched only -- `columnEnd` is undefined on "objects", so objects is
+unchanged): an arrow-capped edge whose two ends are rows drawn with no Node now places its caps from the row table
+and builds no Node.
+- `getInterceptPoints` first tries `interceptPointsFromColumns`: both ends column rows and both round (row
+  table `extentOf(row).round` non-null) -> `trimEnds` over the table's centres and extents, as the pulled cap's
+  shader reads them (FilledArrowRenderer `capEnd`). Any other case falls back to the Node path as before.
+- `placeArrowFromCentres` (taken while the ends overlap, e.g. before the first layout step) reads
+  `endPosition` and a new `boxReachAt` (row table half extents) instead of `srcNode`/`dstNode`.
+- `Edge.capScale(node)` became `capScaleAt(end)`, reading the row table's scale for a column end (a batched
+  Node reads the same table, `Node.drawnScale`).
+Probe (removed) showed the late Node builds were from `placeArrowFromCentres` and `getInterceptPoints` during
+the update pass; after the change, the only Nodes built in BidirectionalArrows are the story's own
+`graph.getNodes()` in its play function. No material pre-creation was needed: with no late Node, Bidirectional
+matches.
+
+Render parity (load 2.4-4.1):
+- BidirectionalArrows: 1 passed (parity29.log; was 1 px).
+- BidirectionalArrows|FilePositions|Layout.stories|Community/Community: 3 failed, 25 passed -- CytoscapeSession,
+  ForceAtlas2Weighted, LouvainMoreCommunitiesThanColours still 1 px each (not yet probed; may be a different cause).
+- NEW FINDING, LayoutGraphviz and LayoutLocationMap: on this branch at a223df103b (change backed out) 10 fail --
+  Circo 41661, Dot 37871, Fdp 123787, Neato 107904, Osage 93116, Patchwork 119510, Sfdp 136246, Twopi 54507,
+  FlatMapIn3DView 139557, GlobeIn3DView 1043 (parity25-base.log). The pr10 worktree passes all 14
+  (parity27-pr10.log). So pull request 11's Node-less store breaks them; earlier narrowed runs did not include them.
+- With this session's change, DotFileRecommended joins them (34724 px). Bisect: disabling only
+  `interceptPointsFromColumns` makes it pass. Probes: on objects, 80 intercept calls, ending at the Graphviz
+  positions (e.g. x = -5, -3 for rankdir LR); on batched, 7 calls at pre-Graphviz positions and none after. A
+  change making UpdateManager walk every edge when the row table moved (rows with no Node are not in
+  `nodesMoved`'s walk) changed no pixel, so the rows themselves are most likely never moved by the Graphviz layout
+  when they have no Node (at HEAD the intercept's late Node builds were what got DotFileRecommended placed).
+  Reverted. Next: check `GraphvizLayoutEngine` (a `SnapshotLayoutEngine`; `layoutStructure` walks `this._nodes`,
+  built Nodes only) and how a snapshot layout's positions reach rows with no Node; commit 57ac80c19a fixed the
+  same for defineLayout and a051523d91 for the location map.
+
+Checks this session: tsc --noEmit clean; eslint src/Edge.ts clean. Not run: npm run build, full lint,
+sonar gate, load-peak gate, pinned default-project tests. Still open: ThreePaths 68 px, Gexf 1488 px.

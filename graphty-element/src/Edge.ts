@@ -3986,6 +3986,22 @@ export class Edge {
     }
 
     /**
+     * {@link boxReachOf} for one end: an end drawn with no `Node` is its row's box, read from the row table.
+     * @param end - Which end.
+     * @param direction - The line's unit direction.
+     * @returns The distance.
+     */
+    private boxReachAt(end: "source" | "target", direction: Vector3): number {
+        const row = this.columnEnd(end);
+        const table = row === undefined ? null : (this.context.getRowTable?.() ?? null);
+        if (row !== undefined && table !== null) {
+            return surfaceReach(direction, table.extentOf(row.index).half, null);
+        }
+
+        return Edge.boxReachOf(end === "source" ? this.srcNode : this.dstNode, direction);
+    }
+
+    /**
      * How far a node's surface and border are from its center in a direction: on a flat shape, its own outline
      * ({@link Node.reachOutline}), so a line ends on a star's point and not out at its box's corner.
      * @param node - The node.
@@ -4134,7 +4150,7 @@ export class Edge {
             EdgeMesh.calculateArrowLength() *
                 (head.size ?? 1) *
                 scale *
-                Edge.capScale(this.dstNode) *
+                this.capScaleAt("target") *
                 (geometry.lineStop ?? 1)
         );
     }
@@ -4772,7 +4788,7 @@ export class Edge {
 
         const arrowType = arrowStyle.arrowHead?.type;
         const arrowSize = arrowStyle.arrowHead?.size ?? 1;
-        const scale = Edge.capScale(this.dstNode);
+        const scale = this.capScaleAt("target");
         arrowCap.setScale(scale);
         const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
         const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(arrowStyle, arrowStyle.arrowHead));
@@ -4799,8 +4815,8 @@ export class Edge {
      * @returns The line's ends, stopping short of the arrow head.
      */
     private placeArrowFromCentres(arrowCap: ArrowCap): EdgeLine {
-        const fallbackSrc = this.srcNode.drawnPosition;
-        const fallbackDst = this.dstNode.drawnPosition;
+        const fallbackSrc = this.endPosition("source");
+        const fallbackDst = this.endPosition("target");
 
         // Hide arrow if nodes are too close or at same position
         if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
@@ -4818,7 +4834,7 @@ export class Edge {
         this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
         const style = this.currentStyle;
         const arrowSize = style.arrowHead?.size ?? 1;
-        const scale = Edge.capScale(this.dstNode);
+        const scale = this.capScaleAt("target");
         arrowCap.setScale(scale);
         const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
 
@@ -4826,8 +4842,8 @@ export class Edge {
         // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
         // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
         // (graph-root) space, the space the centres above are in.
-        const dstNodeRadius = Edge.boxReachOf(this.dstNode, direction);
-        const srcNodeRadius = Edge.boxReachOf(this.srcNode, direction);
+        const dstNodeRadius = this.boxReachAt("target", direction);
+        const srcNodeRadius = this.boxReachAt("source", direction);
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
 
         // Calculate surface intersection points
@@ -4895,7 +4911,7 @@ export class Edge {
 
         // Get tail arrow dimensions and geometry
         const tailSize = tailStyle.arrowTail?.size ?? 1;
-        const tailScale = Edge.capScale(this.srcNode);
+        const tailScale = this.capScaleAt("source");
         arrowTailCap.setScale(tailScale);
         const tailLength = EdgeMesh.calculateArrowLength() * tailSize * tailScale;
         const tailGeometry = EdgeMesh.getArrowGeometry(tailType, Edge.capOf(tailStyle, tailStyle.arrowTail));
@@ -5068,7 +5084,7 @@ export class Edge {
 
             const toward = new Vector3(along.toward.x, along.toward.y, along.toward.z);
             const tip = new Vector3(along.tip.x, along.tip.y, along.tip.z);
-            const scale = Edge.capScale(this.dstNode);
+            const scale = this.capScaleAt("target");
             cap.setScale(scale);
             const length = EdgeMesh.calculateArrowLength() * (arrow?.size ?? 1) * scale;
             cap.place(EdgeMesh.calculateArrowPosition(tip, toward, length, geometry), toward);
@@ -5081,6 +5097,11 @@ export class Edge {
      * @returns Intersection points for source, destination, and adjusted endpoint
      */
     getInterceptPoints(): InterceptPoint {
+        const fromColumns = this.interceptPointsFromColumns();
+        if (fromColumns !== null) {
+            return fromColumns;
+        }
+
         const srcMesh = this.srcNode.drawnPickMesh;
         const dstMesh = this.dstNode.drawnPickMesh;
         if (this.srcNode.drawnInBatch || this.dstNode.drawnInBatch || srcMesh === null || dstMesh === null) {
@@ -5197,6 +5218,52 @@ export class Edge {
             dstPoint,
             newEndPoint,
         };
+    }
+
+    /**
+     * {@link getInterceptPoints} when no `Node` draws either end and both are round (`"batched"` only): the mirror's
+     * answer from the row table, as the pulled cap's shader reads it, so no `Node` is built for an end.
+     * @returns The points, or null when an end needs its `Node` (a ray, or no row table).
+     */
+    private interceptPointsFromColumns(): InterceptPoint | null {
+        const table = this.context.getRowTable?.() ?? null;
+        const source = this.columnEnd("source");
+        const target = this.columnEnd("target");
+        if (table === null || source === undefined || target === undefined) {
+            return null;
+        }
+
+        const trimEnd = (row: ColumnRow, end: "source" | "target"): TrimEnd | null => {
+            const { round, half } = table.extentOf(row.index);
+            return round === null
+                ? null
+                : {
+                      radius: round,
+                      half,
+                      flat: false,
+                      border: row.borderReach,
+                      gap: this.gapAt(end),
+                      measured: TRIM_CLOSED,
+                      leaves: false,
+                      group: this.endBehindEdges(end),
+                  };
+        };
+        const srcEnd = trimEnd(source, "source");
+        const dstEnd = trimEnd(target, "target");
+        if (srcEnd === null || dstEnd === null) {
+            return null;
+        }
+
+        const tip = new Vector3(1, 0, 0);
+        const { src, dst, lineEnd } = trimEnds({
+            src: table.centerOf(source.index),
+            dst: table.centerOf(target.index),
+            source: srcEnd,
+            target: dstEnd,
+            capBack: 1 - this.lineEndBefore(Vector3.Zero(), tip).x,
+        });
+        const point = (at: Xyz | null): Vector3 | null => (at === null ? null : new Vector3(at.x, at.y, at.z));
+        return { srcPoint: point(src), dstPoint: point(dst), newEndPoint: point(lineEnd) };
     }
 
     /**
@@ -5321,7 +5388,7 @@ export class Edge {
         }
 
         const arrowSize = style.arrowHead?.size ?? 1;
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * Edge.capScale(this.dstNode);
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * this.capScaleAt("target");
         const arrowType = style.arrowHead?.type ?? "normal";
         const geometry = EdgeMesh.getArrowGeometry(arrowType, Edge.capOf(style, style.arrowHead));
 
@@ -5341,11 +5408,17 @@ export class Edge {
      * How much larger or smaller than its style's size a cap at a node is drawn: as the node is,
      * so a node kept one size on screen (a map's `nodeScale: "screen"`) or drawn at one depth's
      * size keeps its arrowheads in proportion rather than buried under them.
-     * @param node - The node the cap stands on.
-     * @returns The node mesh's scale; 1 when it has none.
+     * An end drawn with no `Node` is read from its row, so no `Node` is built for it.
+     * @param end - The end the cap stands on.
+     * @returns The node's scale; 1 when it has none.
      */
-    private static capScale(node: Node): number {
-        const scale = node.drawnScale;
+    private capScaleAt(end: "source" | "target"): number {
+        const row = this.columnEnd(end);
+        const table = row === undefined ? null : (this.context.getRowTable?.() ?? null);
+        const scale =
+            row !== undefined && table !== null
+                ? table.extentOf(row.index).scale
+                : (end === "source" ? this.srcNode : this.dstNode).drawnScale;
         return Number.isFinite(scale) && scale > 0 ? scale : 1;
     }
 

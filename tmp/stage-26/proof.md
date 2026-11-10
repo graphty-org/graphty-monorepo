@@ -294,3 +294,43 @@ All run through tools/low-priority.sh, in graphty-element.
 
 Load-peak gate (from session 7, not re-measured): 1,245 B/node live heap after a forced GC during a 200k-node
 batched load, against the 1.5 KB/node target. Met.
+
+## Pull request 11, ninth session (2026-11-10): review fixes, and two open regressions
+
+Fixed (commit cd9355f060), all through tools/low-priority.sh:
+1. Removing a row with no `Node` under a d3 or ngraph layout left its body in the simulation. `D3GraphEngine` and
+   `NGraphEngine` gain an internal `removeRows(ids)`; `DataManager.dropUnbuilt` calls it, which covers
+   `dropRendered`, `dropRenderNodes` and `dropEverythingRendered`. Removal through `session.data.removeNodes` also
+   built a `Node` for every removed row (`Graph.selectRemoval` and `DataManager.resolveId` called `getNode`, and
+   `dropRenderNodes` called `nodes.get`); they now read ids through new internal `dataManagerInternals.storedIdOf`,
+   `builtNode` and `incidentEdgeIds` hooks. Under "objects" every node is built, so these return what `getNode` did.
+   Proving test: node-batch.test.ts "take a removed row with no Node out of a d3 or ngraph simulation". With the
+   engine call disabled it fails ("d3: the removed rows' bodies left the simulation: expected [0..11] to deeply
+   equal [0,1,2,3,6..11]"); it also failed before the id changes ("removing built no Node: expected 2 to equal 0").
+   Passes with both.
+2. `LayoutManager.updatePositions` guard: the graph-size check now applies under "batched" only; "objects" keeps
+   master's `nodes.length === 0`.
+3. Section 13 event case: node-batch.test.ts "hand a hover on a row with no Node the Node graph.getNode answers"
+   hovers a row with no `Node` by real pointer input (after checking the point is over that row through the node
+   ID target and that finding it built no `Node`) and asserts `evt.node === graph.getNode(id)`. Passes.
+
+Checks: tsc --noEmit clean; eslint on the six changed files clean; npm run build exit 0; node-batch.test.ts
+(render-parity project) 55 passed; LayoutManager.test.ts and DataManager.test.ts pass.
+
+STILL OPEN, not fixed this session:
+- Narrowed render-parity (parity17.log, load 2.6): 8 failed, 38 passed, unchanged by this session's fixes.
+  Seven are new against the merge base (the reviewer's finding stands): Bidirectional, CytoscapeSession,
+  ForceAtlas2Weighted, LouvainMoreCommunitiesThanColours (1 px each), ThreePaths (68 px), Mandala, Sticker (7717).
+  Bidirectional fails alone too (not order-dependent). A probe of Bidirectional showed: every layout position equal
+  on both paths, every edge's `trimInput` equal, all 20 Nodes built by the end of the batched load (built late), and
+  one differing pixel at (537, 245), objects rgb(25,26,251) vs batched rgb(49,51,247): partial coverage of a blue
+  arrow cap. Tried and reverted: updating a reused batch slot's draw key in `RowBatch.put` (no change).
+  Next lead: draw order or anti-aliasing of the arrow caps against a late-built Node's batched instance.
+- Five tests that pass at the merge base (pr10 worktree, 4f447d5f63: 154 passed) fail on this branch both with
+  and without this session's change, so earlier commits of this pull request caused them:
+  test/layout/pin-state.test.ts (default project) "returns every node to its data position after another layout
+  has moved it, and keeps a later drag" -- `expected {x:0,y:2,z:0} to deeply equal {x:0,y:4,z:0}` at line 656;
+  test/browser/layout-scaling.test.ts (forced-batched) three "no more than linear" cases; and
+  test/browser/extensions/layout-extension.test.ts (forced-batched) "is told which rows are new after an add" --
+  "the run was told it follows an add: expected null to not equal null". The pin-state one runs in the default
+  project, so it may be an objects-path change; it must be traced before this pull request opens.

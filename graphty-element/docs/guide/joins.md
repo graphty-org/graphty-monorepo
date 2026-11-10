@@ -202,7 +202,7 @@ and the graph's most). The report counts `unmapped` and `mappedToMany` keys.
 `prepareJoins()` holds an ordered list of joins and runs them on a copy of the graph, so every
 step's counts, each row's fate and the graph they leave can be shown before anything changes. A
 step reads a loaded source (by its `sources()` key) or a table the recipe holds, and matches the
-graph the steps before it leave. `commit()` joins them all as one undo step.
+graph the steps before it leave. `commit()` joins them all as one undo step, leaving out a step that changes nothing.
 
 ```ts
 const recipe = data.prepareJoins();

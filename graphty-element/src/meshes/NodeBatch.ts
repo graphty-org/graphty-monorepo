@@ -760,6 +760,23 @@ export class NodeBatches {
         return [...this.columnRows.keys()];
     }
 
+    /**
+     * The row drawn with no `Node` at a row number, if that row is one ({@link NodeBatches.paintRow}).
+     * @param index - The row.
+     * @returns The row, or undefined while a `Node` draws it or nothing does.
+     */
+    columnRowOf(index: number): ColumnRow | undefined {
+        return this.columnRows.get(index);
+    }
+
+    /**
+     * How many rows are drawn with no `Node`: a caller with no row number yet can skip finding one at 0.
+     * @returns The count.
+     */
+    get columnRowCount(): number {
+        return this.columnRows.size;
+    }
+
     /** A freeze moved rows: every batch refills. */
     rowsMoved(): void {
         for (const group of this.groups.values()) {

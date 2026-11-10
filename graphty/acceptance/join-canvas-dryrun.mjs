@@ -883,12 +883,21 @@ const SCENARIOS = [
                     .allInnerTexts();
                 const row = items
                     .map((t) => t.replaceAll(/\s+/g, " ").trim())
-                    .filter((t) => t.startsWith("people.csv"))
+                    .filter((t) => t.startsWith("Split people"))
                     .at(-1);
                 const read = 60 - split["left out"];
                 if (!row?.includes(`${read}/60`))
                     throw new Error(`the split's row reads "${row}", where ${read} of 60 people have tags`);
                 return row;
+            });
+            await v.check("no two sources in the Data panel share a name", async () => {
+                const items = await v.dataPlace
+                    .getByRole("list", { name: "Data sources" })
+                    .getByRole("listitem")
+                    .allInnerTexts();
+                const names = items.map((t) => t.trim().split(/\s*\n\s*/u)[0]);
+                if (new Set(names).size !== names.length) throw new Error(`sources ${names.join(" | ")}`);
+                return `sources ${names.join(" | ")}`;
             });
             await v.shot("after-done");
         },

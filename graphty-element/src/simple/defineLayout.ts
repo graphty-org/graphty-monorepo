@@ -35,7 +35,7 @@ import { type EdgeMask, makeMask, type NodeMask } from "@graphty/graph-format";
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
-import { LayoutEngine, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
+import { LayoutEngine, simpleLayoutInternals, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import type { Node } from "../Node";
 import {
@@ -260,6 +260,20 @@ function refuseUnmatched(id: string, size: number, matched: number, unknown: unk
     }
 }
 
+/** The engine classes `defineLayout` built: each arranges the rows of the element's snapshot. */
+const definedEngines = new WeakSet();
+
+/**
+ * Whether an engine is one `defineLayout` built, which arranges every row of the element's snapshot,
+ * a row drawn with no `Node` included, rather than only the `Node`s it was handed.
+ * @param engine - The engine.
+ * @returns True for a defined layout.
+ * @internal
+ */
+export function isDefinedLayout(engine: object): boolean {
+    return definedEngines.has(engine.constructor);
+}
+
 /**
  * Build the layout engine class a definition compiles to.
  * @param plan - The checked definition.
@@ -270,7 +284,7 @@ function refuseUnmatched(id: string, size: number, matched: number, unknown: unk
 function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensions: 2 | 3): DefinedEngine {
     const { id } = plan;
 
-    return class DefinedLayout extends StaticLayoutEngine {
+    const DefinedLayout = class DefinedLayout extends StaticLayoutEngine {
         static override readonly type = id;
         static override readonly maxDimensions = maxDimensions;
         static override readonly scoped: boolean = true;
@@ -385,7 +399,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                     this.stale = true;
                     // The element's own restart, so the next frame draws it; a reader's pause still
                     // refuses it.
-                    const graph = this._nodes[0]?.parentGraph;
+                    const graph = simpleLayoutInternals.hostGraph(this);
                     if (graph) {
                         graph.getLayoutManager().running = true;
                     }
@@ -398,7 +412,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                     this.#pending = null;
                     const thrown = error instanceof Error ? error : new Error(String(error));
                     logger.error(`${id}: the layout could not be recomputed`, thrown, { layout: id });
-                    const graph = this._nodes[0]?.parentGraph;
+                    const graph = simpleLayoutInternals.hostGraph(this);
                     graph?.getEventManager?.()?.emitGraphError(graph, thrown, "layout", { layoutType: id });
                 },
             );
@@ -413,7 +427,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             const run = new AbortController();
             this.#run = run;
 
-            const graph = this._nodes[0]?.parentGraph;
+            const graph = simpleLayoutInternals.hostGraph(this);
             // Only the element's own Graph has a session; a bare GraphContext (a test harness) does not.
             const session = graph?.getSession?.();
             if (graph === undefined || session === undefined) {
@@ -496,6 +510,9 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             return twoD ? [at.x, at.y] : [at.x, at.y, at.z];
         }
     };
+    definedEngines.add(DefinedLayout);
+
+    return DefinedLayout;
 }
 
 /**

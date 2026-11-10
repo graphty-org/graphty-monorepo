@@ -594,6 +594,22 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
+     * Under renderPath "batched", take out the bodies of rows that leave the graph with no `Node`;
+     * otherwise each would stay in the simulation and keep pushing the others. Their edges have
+     * already gone through {@link D3GraphEngine.removeEdge}.
+     * @param ids - The rows' node ids; an id with no row body is skipped.
+     * @internal
+     */
+    removeRows(ids: Iterable<NodeIdType>): void {
+        for (const id of ids) {
+            if (this.rowBodies.delete(id)) {
+                this.clustersStale = true;
+                this.reheat = true;
+            }
+        }
+    }
+
+    /**
      * Check if the simulation has settled below alpha minimum
      * @returns True if the simulation has settled
      */
@@ -611,8 +627,24 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - The node to add
      */
     addNode(n: Node): void {
+        // A row's `Node` built late takes over the row's body, where it already is.
+        const body = this.rowBodies.get(n.id);
+        this.rowBodies.delete(n.id);
+        // Already in the simulation: it keeps its place in the node list, and a settled simulation
+        // stays settled, since nothing it steps changed.
+        // ponytail: the next refresh lists it among the Nodes, ahead of the rows still with no Node,
+        // so a reheat after a mixed load orders bodies differently from the object path.
+        if (body !== undefined && isD3Node(body)) {
+            this.nodeMapping.set(n, body);
+            if (this.isHeld(n.index)) {
+                fixAt(body);
+            }
+
+            return;
+        }
+
         // A 2D simulation never initialises or moves z, so it starts, and stays, at 0.
-        this.newNodeMap.set(n, this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id });
+        this.newNodeMap.set(n, body ?? (this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id }));
     }
 
     /**
@@ -705,6 +737,17 @@ export class D3GraphEngine extends LayoutEngine {
     override loadArrangement(): void {
         this.refresh();
         super.loadArrangement();
+        // and each row's body with no `Node`, which a `Node` built later takes where it is
+        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const at = { x: 0, y: 0, z: 0 };
+        for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+                body.x = at.x;
+                body.y = at.y;
+                body.z = this.dim === 2 ? 0 : at.z;
+                this.reheat = true;
+            }
+        }
     }
 
     /**

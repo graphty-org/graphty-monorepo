@@ -815,6 +815,8 @@ export class Edge {
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
     set dstNode(node: Node_2);
+    // @internal
+    endRow(end: "source" | "target"): number;
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;
@@ -2309,6 +2311,8 @@ class Node_2 implements ModelUser {
     get surfaceIsClosedForm(): boolean;
     // @internal
     syncXlabelPlace(): void;
+    // @internal
+    takeDrawnPaint(paint: NodePaint): void;
     // @internal
     get teardownMesh(): TransformNode;
     // @internal

@@ -23,6 +23,7 @@ import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
+import type { GraphContext } from "../managers/GraphContext";
 import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
 import type { ClusterColumn } from "./clusterForce";
@@ -819,7 +820,9 @@ export abstract class LayoutEngine {
         }
 
         // With no row left out, an end is never read: a row drawn with no `Node` must not be asked for one.
-        return this.leftOut !== null && (this.isLeftOut(edge.srcNode.index) || this.isLeftOut(edge.dstNode.index));
+        return (
+            this.leftOut !== null && (this.isLeftOut(edge.endRow("source")) || this.isLeftOut(edge.endRow("target")))
+        );
     }
 
     /**
@@ -839,8 +842,8 @@ export abstract class LayoutEngine {
         // draws a pair of nodes once, so only the pull of that one pair is lost.
         const pairs = new Set<string>();
         for (const edge of hidden) {
-            const a = edge.srcNode.index;
-            const b = edge.dstNode.index;
+            const a = edge.endRow("source");
+            const b = edge.endRow("target");
             pairs.add(a < b ? `${String(a)}:${String(b)}` : `${String(b)}:${String(a)}`);
         }
 
@@ -1692,7 +1695,14 @@ export const simpleLayoutInternals = {
      * Hand the engine the element's graph, so that while `byRow` answers true it lays out and
      * publishes every row of the element's snapshot, a row it was handed no `Node` for included.
      */
-    attachRows(engine: StaticLayoutEngine, source: GraphSource, byRow: () => boolean): void;
+    attachRows(
+        engine: StaticLayoutEngine,
+        source: GraphSource,
+        byRow: () => boolean,
+        graph?: () => GraphContext | null,
+    ): void;
+    /** The element's graph: a built `Node`'s, else, while it lays out by row, the one attached with the rows. */
+    hostGraph(engine: StaticLayoutEngine): GraphContext | undefined;
     /** Whether the engine has nothing to arrange: no node handed to it, and no row it lays out by row. */
     empty(engine: StaticLayoutEngine): boolean;
 };
@@ -1722,9 +1732,14 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         simpleLayoutInternals.kept = (engine) => engine.#keep;
         simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
         simpleLayoutInternals.held = (engine) => ({ nodes: engine.#nodes.length, edges: engine.#edges.length });
-        simpleLayoutInternals.attachRows = (engine, source, byRow) => {
-            engine.#rows = { source, byRow };
+        simpleLayoutInternals.attachRows = (engine, source, byRow, graph) => {
+            engine.#rows = { source, byRow, graph };
         };
+        // Only while laying out by row (renderPath "batched", a row stored): an empty graph, or any
+        // graph on renderPath "objects", answers as on master, so place() is skipped as before.
+        simpleLayoutInternals.hostGraph = (engine) =>
+            engine._nodes[0]?.parentGraph ??
+            (engine.#rowSource() === null ? undefined : (engine.#rows?.graph?.() ?? undefined));
         simpleLayoutInternals.empty = (engine) => engine._nodes.length === 0 && engine.#rowSource() === null;
     }
 
@@ -1756,7 +1771,11 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * The element's graph, attached by the element: under renderPath "batched" (`byRow`) the
      * engine arranges and publishes every row of it, so a row drawn with no `Node` is laid out too.
      */
-    #rows: { readonly source: GraphSource; readonly byRow: () => boolean } | null = null;
+    #rows: {
+        readonly source: GraphSource;
+        readonly byRow: () => boolean;
+        readonly graph?: () => GraphContext | null;
+    } | null = null;
     /** For an engine driven without an element: the graph last built, and from what. */
     #built: { readonly nodes: Node[]; readonly edges: Edge[]; readonly loaded: LoadedGraph } | null = null;
     /**
@@ -1813,7 +1832,12 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         }
 
         this.#nodes.push(n);
-        this.stale = true;
+        // Laying out by row (renderPath "batched"), the row arrived with its freeze, which already
+        // marked the layout stale; a `Node` built for it later is no change to the graph, and a
+        // re-run would move every row it already placed.
+        if (this.#rowSource() === null) {
+            this.stale = true;
+        }
     }
 
     /**
@@ -2172,6 +2196,20 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     abstract doLayout(): void;
 
     /**
+     * Place the rows an add brought, in the add's own pass. Under renderPath "batched" a stored
+     * row has no `Node` whose frame update would read it, so the stale layout is run here; on the
+     * object path nothing changes.
+     * @param nodes - The nodes the add built.
+     */
+    override updatePositions(nodes: readonly Node[]): void {
+        if (this.#rowSource() !== null) {
+            this.refresh();
+        }
+
+        super.updatePositions(nodes);
+    }
+
+    /**
      * Recompute the layout when it is stale, and publish what it produced.
      *
      * A simple layout is computed once and then held, so this is the ONE place the shared array is
@@ -2354,10 +2392,21 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @returns false when it does not, and the answer is published node by node
      */
     #publishRows(): boolean {
-        const loaded = this.#loaded;
-        const column = this.#column;
-        if (!loaded?.source || loaded.positions === null || column.length === 0 || this.#rowSource() === null) {
+        if (this.#rowSource() === null) {
             return false;
+        }
+
+        // An id-keyed engine never reads `graph`, so nothing has loaded it yet. Loading reads the
+        // element's snapshot, so it waits until there is an id-keyed answer to publish.
+        const idKeyed = this.result === null && Object.keys(this.positions).length > 0;
+        const loaded = this.#loaded ?? (idKeyed ? this.#load() : null);
+        const column = this.#column;
+        if (!loaded?.source || loaded.positions === null) {
+            return false;
+        }
+
+        if (column.length === 0) {
+            return idKeyed && this.#publishIdKeyedRows(loaded);
         }
 
         const count = Math.min(column.length / 3, loaded.snapshot.nodeCount);
@@ -2368,6 +2417,35 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
 
         coords.set(column.subarray(0, 3 * count));
         this.publishColumn(loaded.positions, rows, coords, count);
+        return true;
+    }
+
+    /**
+     * Publish an id-keyed answer ({@link StaticLayoutEngine.positions}) row by row, so a row drawn with no `Node`
+     * is placed too. A row the answer leaves out stays unplaced.
+     * @param loaded - The element's graph being arranged.
+     * @returns false when the answer is empty, and nothing is published by row
+     */
+    #publishIdKeyedRows(loaded: LoadedGraph): boolean {
+        const { ids, nodeCount: count } = loaded.source ?? loaded.snapshot;
+        if (count === 0 || loaded.positions === null) {
+            return false;
+        }
+
+        const { rows, coords } = this.publishScratch(count);
+        let placed = 0;
+        for (let row = 0; row < count; row++) {
+            const pos = this.positions[ids.idOf(row)] as number[] | undefined;
+            if (pos && pos.length > 0) {
+                rows[placed] = row;
+                coords[3 * placed] = pos[0] * this.scalingFactor;
+                coords[3 * placed + 1] = pos[1] * this.scalingFactor;
+                coords[3 * placed + 2] = (pos[2] ?? 0) * this.scalingFactor;
+                placed++;
+            }
+        }
+
+        this.publishColumn(loaded.positions, rows, coords, placed);
         return true;
     }
 

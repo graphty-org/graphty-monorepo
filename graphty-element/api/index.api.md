@@ -1092,6 +1092,8 @@ export class Edge {
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
     set dstNode(node: Node_2);
+    // @internal
+    endRow(end: "source" | "target"): number;
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;
@@ -5280,6 +5282,8 @@ class Node_2 implements ModelUser {
     // @internal
     syncXlabelPlace(): void;
     // @internal
+    takeDrawnPaint(paint: NodePaint): void;
+    // @internal
     get teardownMesh(): TransformNode;
     // @internal
     togglesOwnMeshes(): boolean;
@@ -8031,6 +8035,8 @@ export const TOL_VIBRANT_COLORS: readonly ["#0077BB", "#33BBEE", "#009988", "#EE
 // @public
 export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
+    // @internal
+    adoptBuiltNode(node: Node_2): void;
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal

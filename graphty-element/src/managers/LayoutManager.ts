@@ -48,9 +48,10 @@ import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
+import { isDefinedLayout } from "../simple/defineLayout";
 import type { Styles } from "../Styles";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
-import type { DataManager } from "./DataManager";
+import { type DataManager, dataManagerInternals } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
@@ -1409,14 +1410,15 @@ export class LayoutManager implements Manager {
 
         try {
             // Add all existing nodes and edges to the new engine
-            const nodeArray = this.nodesWithBodies();
+            const nodeArray = this.nodesWithBodies(engine);
             const edgeArray = [...this.dataManager.edges.values()];
             // Before the nodes and edges arrive, so an engine that weighs them as they come knows
             // which take no part; and again after init(), whose freeze may renumber the rows.
             this.leaveOut(engine, visible);
-            layoutEngineInternals.addNodes(engine, nodeArray);
+            // Every body before any edge, as on the object path: an edge reaching ngraph first
+            // makes its ends' bodies in edge order, and a seeded simulation draws another picture.
+            this.addBodies(engine, nodeArray);
             layoutEngineInternals.addEdges(engine, edgeArray);
-            this.addColumnRows(engine);
 
             this.engine = engine;
             this.engineDimension = dimension;
@@ -1444,6 +1446,7 @@ export class LayoutManager implements Manager {
 
             // Update DataManager with new layout engine
             this.dataManager.setLayoutEngine(engine);
+            dataManagerInternals.setLayoutRows(this.dataManager, this.lateRowsOf(engine));
 
             await this.startArrangement(engine, type, nodeArray, edgeArray.length, how);
 
@@ -1472,6 +1475,7 @@ export class LayoutManager implements Manager {
             this.runningDriver = previousDriver;
             this.driverOptions = previousDriverOptions;
             this.dataManager.setLayoutEngine(previousEngine);
+            dataManagerInternals.setLayoutRows(this.dataManager, this.lateRowsOf(previousEngine));
 
             // Cancelled or overtaken is not a failure: nothing is reported.
             if (!how.live()) {
@@ -1571,18 +1575,24 @@ export class LayoutManager implements Manager {
         }
 
         // Under renderPath "batched" a static engine lays out every row of the graph, a row
-        // drawn with no Node included; under "objects" it publishes node by node, as before.
-        if (engine instanceof StaticLayoutEngine) {
+        // drawn with no Node included; under "objects" it publishes node by node, as before. A
+        // third party's SimpleLayoutEngine arranges `this.nodes`, so it is handed a Node for
+        // every row instead.
+        if (laysOutRows(engine)) {
             simpleLayoutInternals.attachRows(
                 engine,
                 this.dataManager,
                 () => this.dataManager.renderLimits?.batched() ?? false,
+                () => this.graphContext,
             );
         }
 
         if (engine) {
             engine.clusterColumn = (path, graph = this.dataManager.getSnapshot()) =>
                 this.scopeSource?.nodeValues?.(graph, path) ?? null;
+            if (engine instanceof SimulationLayoutEngine) {
+                engine.rowRecord = (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row);
+            }
         }
 
         if (!engine) {
@@ -1617,6 +1627,12 @@ export class LayoutManager implements Manager {
             },
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
             weightMeaning: this.weightMeaningFor(type),
+            rowData: (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row),
+            rowHalfExtents: (row) => {
+                const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
+                return extent !== undefined && extent.scale > 0 ? extent.half : null;
+            },
+            positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale,
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },
@@ -1635,38 +1651,103 @@ export class LayoutManager implements Manager {
      * @returns Their row numbers.
      */
     private columnRows(): number[] {
-        return this.dataManager.renderLimits?.batched() === true
-            ? (this.graphContext?.getNodeBatches?.()?.columnRowIndices() ?? [])
-            : [];
+        if (this.dataManager.renderLimits?.batched() !== true) {
+            return [];
+        }
+
+        // A row stored with no `Node` is one too, painted or not yet.
+        const drawn = this.graphContext?.getNodeBatches?.()?.columnRowIndices() ?? [];
+        return [...new Set([...drawn, ...dataManagerInternals.unbuiltRows(this.dataManager)])];
+    }
+
+    /**
+     * How an engine is handed a row stored with no `Node` after it started: d3 and ngraph take a
+     * body for it, a static engine or a simulation reads it from the snapshot, and any other
+     * engine lays out only `Node`s, so every row stored under it gets one.
+     * @param engine - The engine, or none.
+     * @returns The hand-over, or null.
+     */
+    private lateRowsOf(engine: LayoutEngine | undefined): ((ids: readonly NodeIdType[]) => void) | null {
+        if (engine instanceof D3GraphEngine || engine instanceof NGraphEngine) {
+            return (ids) => {
+                engine.addRows(ids, {
+                    getSnapshot: () => this.dataManager.getSnapshot(),
+                    positions: this.dataManager[WRITABLE_LANE],
+                });
+            };
+        }
+
+        return placesLateRows(engine) ? () => undefined : null;
     }
 
     /**
      * The nodes a new engine is handed: every `Node` but one whose row is drawn with no `Node`,
      * which a d3 or ngraph engine is handed as its row instead, so that no row has two bodies.
+     * An engine that lays out no row it was not handed a `Node` for (a third party's that is no
+     * static engine) is handed a `Node` for every row, built for it.
+     * @param engine - The new engine.
      * @returns The nodes.
      */
-    private nodesWithBodies(): Node[] {
-        const nodes = [...this.dataManager.nodes.values()];
+    private nodesWithBodies(engine: LayoutEngine): Node[] {
+        const byRow = engine instanceof D3GraphEngine || engine instanceof NGraphEngine || placesLateRows(engine);
+        const nodes = byRow
+            ? [...dataManagerInternals.builtNodes(this.dataManager)]
+            : [...this.dataManager.nodes.values()];
         const rows = new Set(this.columnRows());
         return rows.size === 0 ? nodes : nodes.filter((n) => !rows.has(n.index));
     }
 
     /**
-     * Under renderPath "batched", hand a d3 or ngraph engine a body for each row drawn with no
-     * `Node`; a third party's engine is handed `Node`s only.
+     * Hand a new engine its bodies: each `Node` and, under renderPath "batched", a d3 or ngraph
+     * engine a body for each row drawn with no `Node`, in row order as on the object path. A
+     * seeded simulation's picture depends on the order its bodies were made in, so built `Node`s
+     * first and rows after drew another picture whenever a load mixed the two.
      * @param engine - The new engine.
+     * @param nodes - Its `Node`s.
      */
-    private addColumnRows(engine: LayoutEngine): void {
+    private addBodies(engine: LayoutEngine, nodes: Node[]): void {
         const rows = this.columnRows();
         if (!(engine instanceof D3GraphEngine || engine instanceof NGraphEngine) || rows.length === 0) {
+            layoutEngineInternals.addNodes(engine, nodes);
             return;
         }
 
         const snapshot = this.dataManager.getSnapshot();
-        engine.addRows(
-            rows.map((row) => snapshot.ids.idOf(row)),
-            { getSnapshot: () => this.dataManager.getSnapshot(), positions: this.dataManager[WRITABLE_LANE] },
-        );
+        const source = {
+            getSnapshot: () => this.dataManager.getSnapshot(),
+            positions: this.dataManager[WRITABLE_LANE],
+        };
+        const byRow = new Map<number, Node>();
+        const later: Node[] = [];
+        for (const n of nodes) {
+            if (n.index >= 0 && n.index < snapshot.nodeCount) {
+                byRow.set(n.index, n);
+            } else {
+                later.push(n);
+            }
+        }
+
+        const rowSet = new Set(rows);
+        let ids: NodeIdType[] = [];
+        for (let row = 0; row < snapshot.nodeCount; row++) {
+            const n = byRow.get(row);
+            if (n !== undefined) {
+                if (ids.length > 0) {
+                    engine.addRows(ids, source);
+                    ids = [];
+                }
+
+                layoutEngineInternals.addNodes(engine, [n]);
+            } else if (rowSet.has(row)) {
+                ids.push(snapshot.ids.idOf(row));
+            }
+        }
+
+        if (ids.length > 0) {
+            engine.addRows(ids, source);
+        }
+
+        layoutEngineInternals.addNodes(engine, later);
     }
 
     /**
@@ -1684,7 +1765,7 @@ export class LayoutManager implements Manager {
         const knownEdges = new Set(edgeArray);
         layoutEngineInternals.addNodes(
             engine,
-            this.nodesWithBodies().filter((n) => !known.has(n)),
+            this.nodesWithBodies(engine).filter((n) => !known.has(n)),
         );
         layoutEngineInternals.addEdges(
             engine,
@@ -1717,7 +1798,10 @@ export class LayoutManager implements Manager {
             this.ownArrangement = true;
             // Run layout pre-steps -- unless there is nothing to step yet, in which case they
             // are owed to the first frame that has something. See `preStepsOwed`.
-            if (nodeArray.length === 0 || this.sizesToCome(engine)) {
+            // Under renderPath "batched" a row with no Node is something to step as well.
+            const batched = this.dataManager.renderLimits?.batched() ?? false;
+            const nothingToStep = batched ? this.dataManager.nodes.size === 0 : nodeArray.length === 0;
+            if (nothingToStep || this.sizesToCome(engine)) {
                 this.preStepsOwed = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw cancelledBuild();
@@ -2094,14 +2178,19 @@ export class LayoutManager implements Manager {
             return;
         }
 
+        // Walked by row, so a row stored with no `Node` (renderPath "batched") gets one only when it has a Z to drop.
         const { positions } = this.dataManager;
+        const { ids, nodeCount } = this.dataManager.getSnapshot();
         const placed = { x: 0, y: 0, z: 0 };
-        for (const node of this.dataManager.nodes.values()) {
-            if (positions.isPlaced(node.index)) {
-                positions.read(node.index, placed);
-                if (placed.z !== 0) {
-                    layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
-                }
+        for (let row = 0; row < Math.min(positions.count, nodeCount); row++) {
+            if (!positions.isPlaced(row)) {
+                continue;
+            }
+
+            positions.read(row, placed);
+            const node = placed.z === 0 ? undefined : this.dataManager.nodes.get(ids.idOf(row));
+            if (node !== undefined) {
+                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
             }
         }
     }
@@ -2328,6 +2417,20 @@ export class LayoutManager implements Manager {
      * @returns The mask and the rows it covers.
      */
     private holdMaskOf(members: ReadonlySet<NodeIdType>): [NodeMask, number] {
+        // Batched: by row from the snapshot, since iterating the nodes builds a `Node` for every
+        // row, each read through an engine that does not hold it yet.
+        if (this.dataManager.renderLimits?.batched() === true) {
+            const { ids, nodeCount } = this.dataManager.getSnapshot();
+            const held = makeMask(nodeCount);
+            for (let row = 0; row < nodeCount; row++) {
+                if (!members.has(ids.idOf(row))) {
+                    maskSet(held, row, true);
+                }
+            }
+
+            return [held, nodeCount];
+        }
+
         let rows = 0;
         for (const node of this.dataManager.nodes.values()) {
             if (validRow(node.index)) {
@@ -3020,7 +3123,11 @@ export class LayoutManager implements Manager {
      */
     updatePositions(nodes: Node[]): Promise<void> {
         // An engine being built takes every node there is and spends its own pre-steps.
-        if (!this.layoutEngine || nodes.length === 0 || this.#building > 0) {
+        // Batched: the graph's size, not the list's, since a row drawn with no `Node` is in no
+        // list. Objects keeps master's guard on the list.
+        const empty =
+            this.dataManager.renderLimits?.batched() === true ? this.dataManager.nodes.size === 0 : nodes.length === 0;
+        if (!this.layoutEngine || empty || this.#building > 0) {
             return Promise.resolve();
         }
 
@@ -3120,4 +3227,26 @@ function sameShown(a: Shown | null, b: Shown | null): boolean {
  */
 function validRow(index: number): boolean {
     return Number.isInteger(index) && index >= 0 && index !== INVALID_INDEX;
+}
+
+/**
+ * Whether an engine places a row it is never handed a `Node` for, one stored after it started
+ * included: a static engine arranges every row of the snapshot, and a simulation steps every row
+ * of it. d3 and ngraph take rows only when the layout is swapped.
+ * @param engine - The engine, or none.
+ * @returns True when it does, or there is no engine.
+ */
+function placesLateRows(engine: LayoutEngine | undefined): boolean {
+    return engine === undefined || laysOutRows(engine) || engine instanceof SimulationLayoutEngine;
+}
+
+/**
+ * Whether a static engine arranges the rows of the element's snapshot: every one the element
+ * ships (a `SnapshotLayoutEngine`, a registered one included), and `defineLayout`'s. A third party's
+ * `SimpleLayoutEngine` arranges the `Node`s it holds.
+ * @param engine - The engine, or none.
+ * @returns True for a static engine that lays out by row.
+ */
+function laysOutRows(engine: LayoutEngine | null | undefined): engine is StaticLayoutEngine {
+    return engine instanceof SnapshotLayoutEngine || (engine instanceof StaticLayoutEngine && isDefinedLayout(engine));
 }

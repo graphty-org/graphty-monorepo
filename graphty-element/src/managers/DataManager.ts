@@ -363,6 +363,11 @@ export const dataManagerInternals = {} as {
      * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
      */
     nodesBuilt(manager: DataManager): number;
+    /**
+     * How many `Edge` render objects this manager has built, ever: the count the lazy-edge stage
+     * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
+     */
+    edgesBuilt(manager: DataManager): number;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
     rowOf(manager: DataManager, id: NodeIdType): number;
     /** The `Node`s built so far, walked without building one for a row that has none. */
@@ -556,9 +561,12 @@ export class DataManager implements Manager {
     private readonly renumberFollowers = new Set<FreezeFollower>();
     /** See `dataManagerInternals.nodesBuilt`. */
     private builtNodes = 0;
+    /** See `dataManagerInternals.edgesBuilt`. */
+    private builtEdges = 0;
 
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
+        dataManagerInternals.edgesBuilt = (manager) => manager.builtEdges;
         dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
@@ -2460,6 +2468,7 @@ export class DataManager implements Manager {
      *     endpoint ids graph-format will not store is rejected before it reaches here
      */
     private registerEdge(edge: Edge, edgeIndex: number): void {
+        this.builtEdges++;
         placeEdgeRow(edge, edgeIndex);
         this.edgeRows[edgeIndex] = edge;
         this.edgeMap.set(edge.id, edge);

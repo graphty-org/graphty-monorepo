@@ -4,6 +4,8 @@
  * Pure functions over the table's rows and the graph's records; `data.ts` dispatches the plan.
  */
 
+import { isNumericText } from "@graphty/graph-io";
+
 import type { EdgeId, NodeId, SourceKey } from "../catalog/types";
 import { GraphtyError } from "../errors";
 import type {
@@ -94,6 +96,8 @@ function badJoin(message: string, details: Record<string, unknown>): GraphtyErro
 
 /**
  * A key value as compared: text, with case and spaces dropped when asked; undefined for a blank.
+ * Text that spells a number compares as that number, so `+15550142` in a column kept as text
+ * matches 15550142 in a column read as numbers.
  * @param value - The value.
  * @param loose - How to compare.
  * @returns The compared form.
@@ -103,7 +107,7 @@ function norm(value: unknown, loose: Loose): string | undefined {
         return undefined;
     }
 
-    let text = String(value);
+    let text = typeof value === "string" && isNumericText(value) ? String(Number(value)) : String(value);
     if (loose.ignoreSpaces) {
         text = text.replaceAll(/\s+/g, "");
     }

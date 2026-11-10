@@ -84,7 +84,7 @@ export function bootFilesPlugin(): Plugin {
                               tag: "script",
                               attrs: { type: "application/json", id: "graphty-boot-files" },
                               // "<" escaped so no file name can end the script element.
-                              children: JSON.stringify(bootFiles(ctx.bundle, base)).replaceAll("<", "\\u003c"),
+                              children: JSON.stringify(bootFiles(ctx.bundle, base)).replaceAll("<", String.raw`\u003c`),
                               injectTo: "head",
                           },
                       ]

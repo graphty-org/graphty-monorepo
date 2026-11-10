@@ -412,7 +412,11 @@
                 });
                 var finished = 0;
                 steps.forEach(function (r) {
-                    finished += r.status === "done" ? 1 : r.status === "running" ? (bootPercent(r) || 0) / 100 : 0;
+                    if (r.status === "done") {
+                        finished += 1;
+                    } else if (r.status === "running") {
+                        finished += (bootPercent(r) || 0) / 100;
+                    }
                 });
                 fill.style.width = (100 * finished) / steps.length + "%";
             }
@@ -422,10 +426,8 @@
                 var whole = row.status === "done" || (row.status === "failed" && percent === null);
                 row.el.className = "step is-" + row.status;
                 row.fill.style.width = (whole ? 100 : percent || 0) + "%";
-                row.time.data =
-                    row.status === "waiting"
-                        ? ""
-                        : (row.status !== "done" && percent !== null ? percent + "%  " : "") + bootTime(row.took);
+                var shown = row.status !== "done" && percent !== null ? percent + "%  " : "";
+                row.time.data = row.status === "waiting" ? "" : shown + bootTime(row.took);
                 bootOverall();
             }
             function bootMakeStep(name, status) {
@@ -494,13 +496,17 @@
                         bootPaint(row);
                     }
                 });
-                if (Object.keys(files).length && PerformanceObserver.supportedEntryTypes.indexOf("resource") >= 0) {
+                if (Object.keys(files).length && PerformanceObserver.supportedEntryTypes.includes("resource")) {
                     bootObserver = new PerformanceObserver(bootArrived);
                     bootObserver.observe({ type: "resource", buffered: true });
                 }
             });
             var bootArrived = bootGuard(function (list) {
+                // A file that failed has not arrived. Safari keeps no status, so there it counts.
                 list.getEntries().forEach(function (r) {
+                    if (r.responseStatus !== undefined && bootRequestFailed(r)) {
+                        return;
+                    }
                     var path = new URL(r.name).pathname;
                     bootFind(function (row) {
                         return row.files && path in row.files && !row.seen[path];

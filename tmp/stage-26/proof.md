@@ -429,3 +429,44 @@ No code change this session; the branch's code is as at 72039da50c.
 
 Still to run before ready: npm run build, npm run lint, node tools/sonar-gate.mjs, the load-peak gate (met in
 session 7, not re-measured since), and the pinned default-project tests.
+
+## Pull request 11, thirteenth session (2026-11-10): the 1 px differences are draw order, found by material creation
+
+No code change this session; the branch's code is as at 72039da50c. Probes in stories.test.ts (all removed) ran
+BidirectionalArrows alone on this branch and on the pr10 worktree (where it passes), load average 2.4.
+
+What is the same on both: the camera's view and projection matrices; every enabled mesh's world matrix, material
+settings, submeshes and vertex data; every thin-instance buffer (arrow caps, node batch colors and `graphtyRow`);
+the row table's `rowPosition` and `rowExtent`. The objects picture is bit-identical between the two worktrees;
+only the batched picture differs (frame hash 863121169 on the branch, 804145100 at pr10 and on objects).
+
+What differs: the order Babylon draws opaque meshes in. `RenderingGroup.PainterSortCompare` (Babylon's default
+opaque sort) orders by material `uniqueId`, so meshes draw in the order their materials were made (the code
+already says so in `drawOrder`, NodeBatch.ts). Material creation, traced with a stack on `Scene.addMaterial`:
+- pr10, batched: `defaultMaterial` 96 is made first, by a `Node` built at store time (DataManager.buildNode from
+  the ingest's nodeStored hook, bootstrap paint); the arrow caps (119, 125) and the line (122) come after. The node
+  batch uses 96, so nodes draw before edges, as on objects (node material 10).
+- branch, batched: arrow cap 96 and line 99 first (edges built during the ingest); then `defaultMaterial` 102 from
+  `NodeBatches.paintRow` -> `sourceOf` in the update pass; arrow cap 105; then `defaultMaterial` 108 made by a
+  `Node` built LATE by `Edge.getInterceptPoints` -> `srcNode` -> `NodeView.get` -> `DataManager.buildRow`
+  (Edge.transformArrowCap, in UpdateManager.updateEdges). The node batch draws with 108, so it draws after every
+  edge mesh, and one antialiased arrow-cap pixel at (537, 245) blends differently.
+- Reordering `scene.meshes` before the read did not change the picture (consistent with a material-id sort).
+- Tried (reverted): making the bootstrap look's source at the first Node-less row's store through
+  `NodeMesh.source`. It made a material before the edges, but the batch still drew with a newer one (111): the
+  Node-built source comes from `MeshCache.get` in `NodeMesh.create` with another cache key (the Node passes its own
+  size; `sourceOf` passes `style.shape.size ?? 0`), and the batch took that one.
+
+Two things for the next session, both batched-only:
+1. Edge readers still build Nodes on batched: `Edge.getInterceptPoints` (Edge.ts, around line 5084) reads
+   `srcNode`/`dstNode` (`drawnPickMesh`, `drawnInBatch`, `roundRadius`) for every arrow-capped edge. Read the row
+   (`Edge.columnEnd` / the row table) instead, so no Node is built; this also matters for the load-peak gate on
+   graphs with arrows.
+2. Then make the node batch's material order match objects: the material a row's look draws with must be made
+   before the first edge mesh, as a store-time Node made it. Either make the look's source at the first Node-less
+   row's store with the same cache key a Node would use, or have `NodeBatches` pick, within a family, the source
+   with the lowest `drawOrder`. Check CytoscapeSession, ForceAtlas2Weighted and LouvainMoreCommunitiesThanColours
+   with the same probe: they are 1 px each and likely the same cause.
+
+Still open and unchanged: ThreePaths 68 px, Gexf 1488 px (fails at the merge base too). Build, lint, sonar gate,
+the load-peak gate and the pinned default-project tests were not run this session (no code change).

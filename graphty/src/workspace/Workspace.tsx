@@ -200,11 +200,14 @@ export function Workspace({
                     bootSignal({ done: true });
                     return;
                 }
-                bootSignal({ line: `kept work checked: landing on ${keptLanding(own, recovered)}` });
                 // Opened again only when its work was never written: work another tab (a duplicate
                 // of this one) is writing is not opened twice.
                 const written = keptEntry();
                 const opened = written !== null && ids.includes(written) ? null : keptOpener();
+                const hadProject = Object.keys(keptPlace()).length > 0;
+                bootSignal({
+                    line: `kept work checked: landing on ${keptLanding(own ?? opened ?? (keptBlank() ? true : null), hadProject ? null : recovered)}`,
+                });
                 if (own !== null) {
                     logger.info("decision", { decision: "reopen", entry: own.id, reason: "own-entry" });
                     reopenOwn(store, own);
@@ -218,7 +221,7 @@ export function Workspace({
                         project: { name: "Untitled", id: newProjectId(state), blank: true },
                         ...keptPlace(),
                     }));
-                } else if (Object.keys(keptPlace()).length > 0) {
+                } else if (hadProject) {
                     // This tab had a project and its entry cannot be found: not someone else's work.
                     logger.info("decision", { decision: "landing", entry: null, reason: "kept-project-no-entry" });
                 } else {

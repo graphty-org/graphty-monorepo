@@ -375,7 +375,7 @@ function ParamRow({
             </NumberParam>
         );
     } else {
-        const control = paramControl(ctx, option, label, shown, write);
+        const control = <ParamControl ctx={ctx} option={option} label={label} shown={shown} write={write} />;
         body = (
             <>
                 {name()}
@@ -397,20 +397,27 @@ function ParamRow({
 /**
  * A parameter's control, for one that is not a number: its choices as a grid of glyphs, a color
  * chip, or a select of its values (On and Off for a boolean).
- * @param ctx - the row, for its document colors
- * @param option - the parameter
- * @param label - its name
- * @param shown - the value shown
- * @param write - sets it
+ * @param props - Component props
+ * @param props.ctx - the row, for its document colors
+ * @param props.option - the parameter
+ * @param props.label - its name
+ * @param props.shown - the value shown
+ * @param props.write - sets it
  * @returns The control
  */
-function paramControl(
-    ctx: RowContext | undefined,
-    option: ShaderParamDescriptor,
-    label: string,
-    shown: unknown,
-    write: (next: Value) => void,
-): React.ReactNode {
+export function ParamControl({
+    ctx,
+    option,
+    label,
+    shown,
+    write,
+}: Readonly<{
+    ctx: RowContext | undefined;
+    option: ShaderParamDescriptor;
+    label: string;
+    shown: unknown;
+    write: (next: Value) => void;
+}>): React.ReactNode {
     let control: React.ReactNode;
     if (option.choices !== undefined) {
         control = <ChoiceGrid option={option} label={label} value={shown} onPick={write} />;

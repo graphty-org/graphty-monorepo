@@ -337,6 +337,27 @@ describe("pr-open.sh", () => {
         assert.equal(calls().filter((x) => x.a[1] === "create").length, 1);
     });
 
+    it("arms auto-merge for a breaking commit master's release-not-breaking.json rules not breaking", () => {
+        branch("feat/1249-ruled", { "b.txt": "b\n" }, "feat(tools)!: drop a flag");
+        const ruled = git(work, "rev-parse", "HEAD");
+        git(work, "checkout", "-q", "master");
+        writeFileSync(
+            join(work, "release-not-breaking.json"),
+            JSON.stringify({
+                notBreaking: [{ commit: ruled, project: "tools", reason: "owner", since: "2026-11-09" }],
+            }),
+        );
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "chore: the owner's ruling");
+        git(work, "push", "-q", "origin", "master");
+        git(work, "checkout", "-q", "feat/1249-ruled");
+        git(work, "merge", "-q", "--no-edit", "master");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/11 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.doesNotMatch(r.out, /auto-merge is NOT on/);
+        assert.equal(armed().length, 1);
+    });
+
     it("arms auto-merge for a change to CI", () => {
         branch("ci/1244-workflow", { ".github/workflows/ci.yml": "x\n" }, "ci(ci): change the gate");
         const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/8 graphty-agent" });

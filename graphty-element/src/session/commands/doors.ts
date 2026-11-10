@@ -2019,6 +2019,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             supportEdge: READ,
             isPulled: READ,
             togglesOwnMeshes: READ,
+            columnEnd: READ,
         },
     },
     {
@@ -2452,6 +2453,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     },
     {
         name: "NodeBatches",
+        file: "src/meshes/NodeBatch.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "ColumnRow",
         file: "src/meshes/NodeBatch.ts",
         half: "renderer",
         whole: RENDER,

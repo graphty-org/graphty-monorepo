@@ -865,12 +865,27 @@ export abstract class LayoutEngine {
      * @returns true when the node has a placed row
      */
     readNodePosition(n: Node, out: { x: number; y: number; z: number }): boolean {
-        const positions = this.positionsFor(n);
-        if (!positions.isPlaced(n.index)) {
+        this.positionsFor(n);
+        return this.readRowPosition(n.index, out);
+    }
+
+    /**
+     * Read one row's published coordinates, as {@link LayoutEngine.readNodePosition} reads a node's,
+     * for a row drawn with no `Node`.
+     * @param row - The row.
+     * @param out - The object to fill.
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns true when the row is placed
+     */
+    protected readRowPosition(row: number, out: { x: number; y: number; z: number }): boolean {
+        const positions = this.writablePositions;
+        if (!positions.isPlaced(row)) {
             return false;
         }
 
-        positions.read(n.index, out);
+        positions.read(row, out);
         return true;
     }
 
@@ -1875,9 +1890,27 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         // Through the same rows the endpoints themselves render at, so an edge cannot be drawn to
         // where a node used to be by reading a second copy of the layout.
         return {
-            src: this.publishedOr(e.srcNode),
-            dst: this.publishedOr(e.dstNode),
+            src: this.endPublished(e, "source"),
+            dst: this.endPublished(e, "target"),
         };
+    }
+
+    /**
+     * One end of an edge as {@link LayoutEngine.publishedOr} reads it, but by its row for an end drawn
+     * with no `Node` (`Edge.columnEnd`), whose row the element's array holds.
+     * @param e - The edge.
+     * @param end - Which end.
+     * @returns The coordinates; the origin for a row nothing has placed.
+     */
+    private endPublished(e: Edge, end: "source" | "target"): Coords {
+        const out = { x: 0, y: 0, z: 0 };
+        const row = e.columnEnd(end);
+        if (row === undefined) {
+            return this.publishedOr(end === "source" ? e.srcNode : e.dstNode);
+        }
+
+        this.readRowPosition(row.index, out);
+        return out;
     }
 
     /**

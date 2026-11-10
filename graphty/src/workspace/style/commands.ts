@@ -100,6 +100,21 @@ export const registration = defineRegistration({
     owner: "style",
     commands: [
         {
+            id: "shader.add",
+            label: "Add Shader...",
+            group: "Project",
+            keywords: ["shader", "glsl", "code", "effect", "material"],
+            disabled: ({ session, workspace }) => {
+                if (workspace.get().project === null) {
+                    return "No project is open";
+                }
+                return session === null ? "The graph is still loading" : null;
+            },
+            run: ({ workspace }) => {
+                workspace.set({ dialog: "shader-editor" });
+            },
+        },
+        {
             id: "style.add-label-line",
             label: "Add label line",
             group: "Graph tree",

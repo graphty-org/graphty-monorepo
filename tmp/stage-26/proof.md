@@ -174,3 +174,37 @@ Checks (graphty-element, through tools/low-priority.sh):
   changes the same pair fails only ThreePaths (325); NodeDrawing alone with the patch passes. So whether
   ThreePaths, Mandala and Sticker pass depends on which stories ran before them in the same page. That is a
   state leak between stories on the batched path, present at HEAD; it must be found before parity is clean.
+
+## Pull request 11, fifth session (2026-11-10): ClusterBy on the batched path
+
+Cause of ClusterBy (53055 px): `LayoutManager.startArrangement` decided "nothing to step yet" from the list of built
+Nodes. Under renderPath "batched" a load builds no Node, so the list was empty and the 100 pre-steps were owed to a
+later frame. Louvain's results then arrived first, `wakeForClusters` rebuilt the simulation, and the pre-steps ran
+after the rebuild instead of before it. Traced with temporary logs of each simulation load: objects loaded, stepped,
+then rebuilt for the communities; batched loaded, rebuilt, then stepped.
+
+Changes (batched path only; on objects the checks and walks are the ones on master):
+1. `startArrangement` counts rows (`dataManager.nodes.size`, which builds nothing) under batched.
+   Proving test: node-batch.test.ts "spend a layout's pre-steps at its start when no row has a Node" -- failed before
+   ("expected true to equal false"), passes after.
+2. `clusterBy` is read by row under batched (`readRowCommunities` in clusterForce.ts), so reading communities no
+   longer builds every Node. A row's record comes from its Node if built, else from the new internal
+   `SimulationLayoutEngine.rowRecord` hook that LayoutManager sets (an import of DataManager from the engine made an
+   import cycle). Proving test: node-batch.test.ts "pull communities together by clusterBy with no Node" -- failed
+   before ("clustered with no Node: expected 12 to equal +0"), passes after; also asserts each row's community
+   reaches the simulation. Change 2 alone did not fix the ClusterBy picture; change 1 did.
+
+Checks (graphty-element, through tools/low-priority.sh):
+- tsc --noEmit -p graphty-element: clean. eslint on the four changed files: clean.
+- node-batch.test.ts (render-parity project): 51 passed.
+- cluster-force + simulation-layout-engine (browser): 47 passed. test/layout/simulation-options.test.ts: 17 passed.
+- render-parity VITE_PARITY_STORIES=Layout2D: 16 passed (ClusterBy now passes).
+- Full render-parity, stories.test.ts, with change 1 and an earlier form of change 2 (parity13.log): 8 failed,
+  317 passed, 12 skipped. Every failure is on the batched path; no story differs between two objects loads.
+  Still failing: Bidirectional (1 px), CytoscapeSession (1), Gexf (1488), ForceAtlas2Weighted (1),
+  LouvainMoreCommunitiesThanColours (1), ThreePaths (325), Mandala (7717), Sticker (7717).
+  The final form of change 2 (hook instead of a direct DataManager import) was re-checked with Layout2D only.
+- node tools/sonar-gate.mjs: no new issue or hotspot on the changed lines.
+
+Load-peak target (live heap under 1.5 KB per node during a 200k-node batched load): not measured; the TransformNode
+anchor and the transient object row are not removed yet.

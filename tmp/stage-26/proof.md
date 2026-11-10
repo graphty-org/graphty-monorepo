@@ -533,3 +533,72 @@ Render parity, LayoutGraphviz|LayoutLocationMap (parity39.log, load 4.3): 12 pas
 
 Checks this session: tsc --noEmit clean; eslint on the three changed files clean. Not run: npm run build, full lint,
 sonar gate, load-peak gate, pinned default-project tests, full render parity.
+
+## Pull request 11, sixteenth session (2026-11-10): edges at rows with no Node follow a row-table move
+
+Cause of Dot and PeerMissing (probe40.log): on batched with no Node built, `UpdateManager.nodesMoved` walks the
+layout engine's nodes, which are built Nodes only, so when a layout moved the rows no edge at a row with no Node was
+re-placed. Each Dot edge kept its first `_lastSrcPos` (pre-Graphviz place) while `getEdgePosition` already
+answered the Graphviz place; PeerMissing (a force layout over arrow-capped edges) is the same.
+
+Code change (UpdateManager only; gated: `getRowTable()` is null on "objects", so `rowsMoved` is false there):
+- `movedWalk` also says whether the row table moved a row since the last walk.
+- `nodesMoved` sets `unbuiltRowsMoved` when the table moved and the walk saw fewer Nodes than the graph has rows.
+- The edge pass then updates every placed (not pulled) edge (`placedEdgesAtRows`); one whose ends stayed exits on
+  its dirty check. Pulled lines follow their rows in the shader and are skipped. Marked `ponytail:` -- a whole
+  walk of placed edges on each table move; a list of moved rows if a running layout at the ceiling needs it.
+- A first form (return true = walk every edge, through `noteEveryNode`) broke Sticker alone; a second (return true
+  without it) broke Mandala/Sticker in the shaders run (parity50/52.log): DIFFPROBE showed only gray edge pixels
+  displaced. The pulled-edge skip fixed the shaders run (parity53.log: 54 passed, only ThreePaths 68 px).
+- Test first: node-batch.test.ts "move the arrow-capped edges of rows with no Node when a layout moves the rows":
+  red without the change (red41.log: 924 px against objects), green with it (green41.log).
+
+Results:
+- node-batch.test.ts (render-parity project): 57 passed (nb54.log).
+- LayoutGraphviz|LayoutLocationMap: 14 passed (parity42.log) -- Dot and PeerMissing now pass.
+- Full render parity, baseline WITHOUT the change (parity49-base.log, load ~4): 7 failed -- Louvain 1, Cytoscape
+  Session 1, Gexf 1488, Dot 41602, PeerMissing 36025, ForceAtlas2Weighted 1, ThreePaths 68.
+- Full render parity WITH the change (parity55.log, load 17): 6 failed -- Louvain 1, CytoscapeSession 1, Gexf
+  1488, ForceAtlas2Weighted 1, ThreePaths 325, Sticker 7717. REGRESSION, NOT FIXED: Sticker 7717 px (and ThreePaths
+  68 -> 325) appear only in the full run, never with PatternsAndSprites or shaders/ alone with this form, so they
+  depend on what ran before. Probe in the full run (parity56.log): all 12 Sticker edges are placed (lineBatch, not
+  pulled) and their recorded ends equal their current ends in both the failing Sticker and the passing Mandala; all
+  12 Nodes are built by the read (the story's play reads `scene.nodes`). So the ends are right and the line batch
+  is not: the next lead is a placed edge first drawn from column ends by `placedEdgesAtRows` during the load and
+  then switched to a late-built Node's ends -- what that leaves in its LineBatch slots (a route run vs a straight
+  slot, or a slot left behind).
+
+Checks this session: tsc --noEmit clean; eslint on the two changed files clean. Not run: npm run build, full lint,
+sonar gate, load-peak gate, pinned default-project tests.
+
+## Pull request 11, seventeenth session (2026-11-10): what the Sticker and ThreePaths regression is
+
+Five more full render-parity runs on 2b9ec347e0 with probes (parity57-62.log, load 5-12; probe patch kept, not
+committed, in tmp/stage-26/radius-probe.patch):
+- The failures move between runs: Sticker failed in 57, 60 and 62, passed in 58 and 59; Mandala failed in 61 and 62;
+  ThreePaths failed in 57, 59, 60, 61 and 62, passed in 58. RefusedHttp failed once (62) on an unhandled
+  "ResizeObserver loop completed with undelivered notifications" error -- not yet looked at. So this is a race in
+  the element, not something a story ran before leaves behind.
+- Line slots read after the picture (LINEPROBE): on objects every Sticker/Mandala edge is trimmed at the sticker's
+  reach (n0-n1 line -4.20 > -4.30, node reach 1.8); on a failing batched load at the bare sphere (n0-n1 -4.80 >
+  -3.70, reach 1.2 = node.size/2). Only gray edge pixels differ.
+- Every load places each edge exactly once (REACHPROBE on getInterceptPoints), from a built Node's mesh
+  (fromCols=false, inBatch=false). Passing batched load: placed with roundRadius 1.8. Failing batched load: the
+  late-built Node reads 1.8 in UpdateManager.adoptBuiltNode, but by the next update pass (frame 2) the same Node,
+  now drawn by mesh "node-style-s1|shader:replace:icon-sticker-3d", reads roundRadius 1.2, and the edge is placed
+  then. No remeasure (UpdateManager.remeasureEdgesOf) follows for n0 on batched; on objects one does, before the
+  only placement.
+- So: under batched, a Node built late for a row drawn with a replace shader answers the bare shape's radius
+  (1.2) for at least one frame after it is built, and its edges are placed in that frame and never measured again.
+  Node.roundRadius is memoised on the anchor and its scale (Node.ts ~879), and the shader's reach is not in the
+  mesh's bounds; where the 1.8 comes from on objects (the row table's extent, written by RowTable.measure from
+  ColumnRow, or the mesh bounds after some later step) is the next question. The change in 2b9ec347e0 makes this
+  visible because placedEdgesAtRows is no longer the only path, not because it places the wrong ends: it moves the
+  first placement earlier relative to the shader landing.
+- Next step: log Node.roundRadius, batchSource, the anchor's bounds and the row table's extent for n0 on every
+  frame from build to settle, under batched, to find which read answers 1.2 and what later makes objects answer 1.8;
+  then re-measure the edges of a late-built Node whenever its measured reach changes (or make roundRadius answer the
+  drawn reach from the first frame). ThreePaths (NodeDrawing) is probably the same race; check it with the same probe.
+
+Checks this session: no source change kept. Not run: npm run build, full lint, sonar gate, load-peak gate, pinned
+default-project tests.

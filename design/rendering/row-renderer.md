@@ -1103,6 +1103,13 @@ what the upload path sends, within 1e-6, and a click while the layout copies sel
   `evt.node === graph.getNode(id)` holds. `getNodes()` makes N objects; nothing internal may, so a transition, fit, filter and layout swap
   go by row. `srcNode` and `dstNode` become accessors. Shipped engines key on rows; a third party's `LayoutEngine`, `defineLayout` and
   `SimpleLayoutEngine` still get `Node`s. `node-add-before` is gated on its observers. `StylePainter` writes columns into batch buffers.
+- **One paint per look (cosmos-gap.md G6, first pull request).** A row stored with no `Node` is painted through
+  `StylePainter.rowPaint`, which builds one `NodePaint` style per node look (mesh key, opacity, visible flag, the color's
+  alpha, a gradient's start) and hands each row only its own color; `nodePaint`, which every `Node` and the objects path
+  use, still builds a style per node. Correction to cosmos-gap.md section 5.2: after stage 26 the 100k + 1k batched first
+  frame was already about 1.4 s (under G6's 2.0 s target) and the cache does not move it; what it removes is heap,
+  about 58 MB at 100k rows (195 to 137 MB used, RTX, 2026-11-10). The color still reaches the batch buffer through one
+  small `Rgba` per row rather than straight from the color column.
 - **The typed door**, the advanced path; `addNodes` and `addEdges` stay the simple one. `session.data.importColumns({ sources, targets,
 nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attributes` are optional. Same ceilings, report and undo step,
   with one range entry in the op log, the only bulk history entry (cosmos-gap.md G4 reuses it). Rows are placed by the element's `layout`, as

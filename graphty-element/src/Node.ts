@@ -35,7 +35,7 @@ import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
-import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
+import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { labelFitExtent } from "./meshes/labelFit";
@@ -366,16 +366,6 @@ function shaderUsesOf(style: NodeStyleConfig): readonly ShaderUse[] | undefined 
 function namesShader(uses: readonly ShaderUse[] | undefined): boolean {
     const { exclusive, stacked } = drawnUses(uses);
     return exclusive !== null || stacked.length > 0;
-}
-
-/**
- * The shader path part of a mesh key (`|shader:<path>:<id>`), or "" for a node drawn plainly.
- * @param meshKey - The key.
- * @returns The part.
- */
-function shaderPartOf(meshKey: string): string {
-    const at = meshKey.indexOf("|shader:");
-    return at === -1 ? "" : meshKey.slice(at);
 }
 
 /**
@@ -2129,6 +2119,18 @@ export class Node implements ModelUser {
         const painted = painter?.owns === true ? (this.sessionPaint ?? painter.nodePaint(this.index)) : null;
 
         return painted ?? bootstrapNodePaint();
+    }
+
+    /**
+     * Take the paint a batch drew this node's row with, on the source this node was built from, as
+     * if it had painted it: the next paint then keeps or rebuilds the mesh as it would have.
+     * @param paint - The row's paint.
+     * @internal
+     */
+    takeDrawnPaint(paint: NodePaint): void {
+        this.meshKey = paint.meshKey;
+        this.drawnStyle = paint.style;
+        this.drawnColor = paint.color;
     }
 
     /**

@@ -57,7 +57,7 @@ import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
-import { bootstrapEdgePaint, bootstrapNodePaint } from "./StylePainter";
+import { bootstrapEdgePaint, bootstrapNodePaint, type NodePaint } from "./StylePainter";
 
 /** The graph value a plugin algorithm's graph-level results are kept under. */
 const GRAPH_RESULTS = "graphResults";
@@ -1264,6 +1264,7 @@ export class DataManager implements Manager {
         if (node === undefined) {
             const index = this.store.builder.indexOf(id);
             if (this.storesWithoutNode(index)) {
+                this.graphContext?.getNodeBatches?.()?.prepareSource(bootstrapNodePaint());
                 this.unbuilt.set(index, { id, record });
                 this.builtUnpainted(`n:${JSON.stringify(id)}`, "node", index);
                 this.nodeVersion++;
@@ -1598,6 +1599,7 @@ export class DataManager implements Manager {
             },
             nodeStored: (id, record, index) => {
                 if (this.storesWithoutNode(index)) {
+                    this.graphContext?.getNodeBatches?.()?.prepareSource(bootstrapNodePaint());
                     this.unbuilt.set(index, { id, record });
                     this.arrivedRows.push(id);
                     this.builtUnpainted(`n:${JSON.stringify(id)}`, "node", index);
@@ -2124,6 +2126,8 @@ export class DataManager implements Manager {
      *     take, and the node renders anyway. See the class comment.
      * @param announce - emit `node-add-before` and hold the draw for the pass that paints the row;
      *     false for a row stored earlier, which already did both
+     * @param look - What a batch drew the row as: the `Node` is built from the same source and takes
+     *     the paint it had, as the row's `Node` would have had them built at store time.
      * @returns the `Node`
      */
     private buildNode(
@@ -2131,6 +2135,7 @@ export class DataManager implements Manager {
         node: Record<string | number, unknown>,
         index: number,
         announce = true,
+        look: { sourcePaint: NodePaint; paint: NodePaint } | null = null,
     ): Node {
         if (!this.graphContext) {
             throw new Error("GraphContext not set. Call setGraphContext before adding nodes.");
@@ -2148,9 +2153,12 @@ export class DataManager implements Manager {
             this.paintUndrawn = true;
         }
 
-        const n = new Node(this.graphContext, nodeId, bootstrapNodePaint(), node as AdHocData, {
+        const n = new Node(this.graphContext, nodeId, look?.sourcePaint ?? bootstrapNodePaint(), node as AdHocData, {
             pinOnDrag: this.graphContext.getConfig().pinOnDrag,
         });
+        if (look !== null) {
+            n.takeDrawnPaint(look.paint);
+        }
         this.builtNodes++;
         placeNodeRow(n, index);
         this.nodeCache.set(nodeId, n);
@@ -2243,8 +2251,10 @@ export class DataManager implements Manager {
         }
 
         this.unbuilt.delete(index);
-        this.graphContext?.getNodeBatches?.()?.unpaintRow(index);
-        const node = this.buildNode(id, row.record, index, false);
+        const batches = this.graphContext?.getNodeBatches?.();
+        const look = batches?.lookOf(index) ?? null;
+        batches?.unpaintRow(index);
+        const node = this.buildNode(id, row.record, index, false, look);
         this.graphContext?.getUpdateManager?.().adoptBuiltNode(node);
         return node;
     }

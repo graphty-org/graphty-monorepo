@@ -891,6 +891,16 @@ let bootstrapNode: NodePaint | null = null;
 let bootstrapEdge: { readonly directed: EdgePaint; readonly undirected: EdgePaint } | null = null;
 
 /**
+ * The shader path part of a mesh key (`|shader:<path>:<id>`), or "" for a node drawn plainly.
+ * @param meshKey - The key.
+ * @returns The part.
+ */
+export function shaderPartOf(meshKey: string): string {
+    const at = meshKey.indexOf("|shader:");
+    return at === -1 ? "" : meshKey.slice(at);
+}
+
+/**
  * What a node looks like between its construction and the first repaint.
  *
  * Built on first use rather than at module load, because `defaultNodeStyle` is a mutable exported

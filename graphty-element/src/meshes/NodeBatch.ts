@@ -2,10 +2,11 @@ import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { type AbstractMesh, Mesh, type RawTexture, type TransformNode, VertexBuffer } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
+import isEqual from "lodash/isEqual.js";
 
 import type { Rgba } from "../catalog/types";
 import { drawnText } from "../config/RichTextStyle";
-import { batchableOf, type BatchView, type NodePaint } from "../managers/StylePainter";
+import { batchableOf, type BatchView, type NodePaint, shaderPartOf } from "../managers/StylePainter";
 import type { Node } from "../Node";
 import type { RowMeasure } from "../render/RowTable";
 import { batchUploadFrames } from "./FrameRoster";
@@ -440,11 +441,13 @@ export class ColumnRow implements RowMeasure {
      * @param index - The row.
      * @param paint - What the style stack resolved for it.
      * @param paintedSourceMesh - The source mesh its paint draws from.
+     * @param sourcePaint - The paint that source was made for.
      */
     constructor(
         public index: number,
         readonly paint: NodePaint,
         readonly paintedSourceMesh: Mesh,
+        readonly sourcePaint: NodePaint = paint,
     ) {}
 
     /**
@@ -584,6 +587,13 @@ interface RowGroup {
     readonly restVisibility: number;
 }
 
+/** What a row is drawn as: its paint, and the source it draws from with the paint that made it. */
+interface RowLook {
+    readonly paint: NodePaint;
+    readonly sourcePaint: NodePaint;
+    readonly source: Mesh;
+}
+
 /** What {@link NodeBatches} needs of the graph. */
 export interface NodeBatchHost {
     readonly cache: MeshCache;
@@ -610,6 +620,8 @@ export class NodeBatches {
     private readonly objectRows = new Set<BatchRow>();
     /** The rows drawn with no `Node`, by row. */
     private readonly columnRows = new Map<number, ColumnRow>();
+    /** The look a row stored with no `Node` has until its first paint, and its source. */
+    private storedLook: RowLook | null = null;
     /** The nodes a frame's walk still visits: every member a batch does not draw, and any with an overlay. */
     private readonly walked = new Set<Node>();
     private readonly dirty = new Set<RowGroup>();
@@ -793,6 +805,45 @@ export class NodeBatches {
     }
 
     /**
+     * Make the source a row stored with no `Node` first draws from, when the store takes it, as a
+     * `Node` built at store time does. Babylon draws opaque meshes in the order their materials
+     * were made, so a source made at the first paint would draw after every edge.
+     * @param paint - The look a row has from its store to its first paint.
+     */
+    prepareSource(paint: NodePaint): void {
+        this.storedLook = { paint, sourcePaint: paint, source: this.host.sourceOf(paint) };
+    }
+
+    /**
+     * What a row with no `Node` is drawn as, for a `Node` built for it to take over: the paint whose
+     * source it draws from and the paint it has now (see {@link NodeBatches.paintRow}).
+     * @param index - The row.
+     * @returns The two, or null when no batch draws the row.
+     */
+    lookOf(index: number): { sourcePaint: NodePaint; paint: NodePaint } | null {
+        return this.columnRows.get(index) ?? null;
+    }
+
+    /**
+     * The source a paint draws from: the one the row has while the paint keeps it, as
+     * `Node.keepsMeshFor` keeps a `Node`'s mesh (the same key, or a deep-equal style and colour on
+     * the same shader path), or else the paint's own.
+     * @param drawn - What the row is drawn as now, if anything.
+     * @param paint - The new paint.
+     * @returns The source and the paint it was made for.
+     */
+    private sourceFor(drawn: RowLook | null, paint: NodePaint): { source: Mesh; sourcePaint: NodePaint } {
+        const keeps =
+            drawn !== null &&
+            !drawn.source.isDisposed() &&
+            (drawn.paint.meshKey === paint.meshKey ||
+                (shaderPartOf(drawn.paint.meshKey) === shaderPartOf(paint.meshKey) &&
+                    isEqual(drawn.paint.style, paint.style) &&
+                    isEqual(drawn.paint.color, paint.color)));
+        return keeps ? drawn : { source: this.host.sourceOf(paint), sourcePaint: paint };
+    }
+
+    /**
      * Draw a row that has no `Node` from its paint alone, in place of any paint it had.
      * @param index - The row.
      * @param paint - What the style stack resolved for it.
@@ -800,12 +851,21 @@ export class NodeBatches {
      *     not held.
      */
     paintRow(index: number, paint: NodePaint): boolean {
+        const had = this.columnRows.get(index);
         this.unpaintRow(index);
         if (!ColumnRow.drawable(paint, this.view)) {
             return false;
         }
 
-        const row = new ColumnRow(index, paint, this.host.sourceOf(paint));
+        // Kept across paints as a `Node` keeps its mesh, so a row draws from the source, and in the
+        // order, the objects path's `Node` would have.
+        const { source, sourcePaint } = this.sourceFor(
+            had === undefined
+                ? this.storedLook
+                : { paint: had.paint, sourcePaint: had.sourcePaint, source: had.paintedSourceMesh },
+            paint,
+        );
+        const row = new ColumnRow(index, paint, source, sourcePaint);
         this.columnRows.set(index, row);
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);

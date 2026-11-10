@@ -423,10 +423,13 @@ async function setupShowcase(): Promise<void> {
     const logCommand = (input: string, result: string, success: boolean): void => {
         const entry = document.createElement("div");
         entry.className = `history-entry ${success ? "success" : "error"}`;
-        entry.innerHTML = `
-            <div class="history-input">&gt; ${input}</div>
-            <div class="history-result">${result}</div>
-        `;
+        const inputLine = document.createElement("div");
+        inputLine.className = "history-input";
+        inputLine.textContent = `> ${input}`;
+        const resultLine = document.createElement("div");
+        resultLine.className = "history-result";
+        resultLine.textContent = result;
+        entry.append(inputLine, resultLine);
         ui.commandHistory.insertBefore(entry, ui.commandHistory.firstChild);
 
         while (ui.commandHistory.children.length > 8) {

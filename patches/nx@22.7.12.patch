@@ -1,3 +1,44 @@
+diff --git a/dist/src/command-line/release/utils/git.js b/dist/src/command-line/release/utils/git.js
+index 9621ffe8b50ca12d8c31771becee860db899bd51..2f010b7f24cc2039a647098cfb2c3291cf814508 100644
+--- a/dist/src/command-line/release/utils/git.js
++++ b/dist/src/command-line/release/utils/git.js
+@@ -480,13 +480,35 @@ function parseVersionPlanCommit(commit) {
+         authors: getAllAuthorsForCommit(commit),
+     };
+ }
++// graphty patch (issue #6476): the full ids in release-not-breaking.json, from RELEASE_POLICY_REF when set (a
++// release reads master's policy, as tools/release-hold.mjs readPolicy does), else the workspace's file; none
++// when there is no list.
++let notBreakingIds;
++function ruledNotBreaking() {
++    if (!notBreakingIds) {
++        const ref = process.env.RELEASE_POLICY_REF;
++        try {
++            const text = ref
++                ? require('node:child_process').execFileSync('git', ['show', `${ref}:release-not-breaking.json`], { cwd: workspace_root_1.workspaceRoot, encoding: 'utf8', stdio: 'pipe' })
++                : require('node:fs').readFileSync((0, node_path_1.join)(workspace_root_1.workspaceRoot, 'release-not-breaking.json'), 'utf8');
++            notBreakingIds = JSON.parse(text).notBreaking.map((e) => e.commit);
++        }
++        catch {
++            notBreakingIds = [];
++        }
++    }
++    return notBreakingIds;
++}
+ function parseGitCommit(commit) {
+     const parsedMessage = parseConventionalCommitsMessage(commit.message);
+     if (!parsedMessage) {
+         return null;
+     }
+     const scope = parsedMessage.scope;
+-    const isBreaking = parsedMessage.breaking || commit.body.includes('BREAKING CHANGE:');
++    // graphty patch (issue #6476): a commit the owner ruled not breaking (release-not-breaking.json) is
++    // versioned and listed by its type alone, without rewriting history (tools/release-not-breaking.mjs).
++    const isBreaking = (parsedMessage.breaking || commit.body.includes('BREAKING CHANGE:')) &&
++        !ruledNotBreaking().some((c) => commit.shortHash && c.startsWith(commit.shortHash));
+     let description = parsedMessage.description;
+     // Extract issue and PR references from the commit
+     const references = extractReferencesFromCommit(commit);
 diff --git a/dist/src/tasks-runner/process-metrics-service.js b/dist/src/tasks-runner/process-metrics-service.js
 index 71c92ebcef00f4c833ffa7ed8911388aed06f81b..6705c620363fd62ffa7c614fa7e2ab9aa9811585 100644
 --- a/dist/src/tasks-runner/process-metrics-service.js

@@ -2,8 +2,9 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { VisuallyHidden } from "@mantine/core";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { bootSignal } from "../bootSignal";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
@@ -61,6 +62,19 @@ const firstDoor = {
         return document.querySelector<HTMLElement>(".ws-land-go, .ws-land-tint");
     },
 };
+
+/**
+ * Where a load lands after autosave has been asked, for the loading screen's log. Names no project.
+ * @param own - this tab's kept work, if any.
+ * @param recovered - other kept work to offer, if any.
+ * @returns the landing, in words.
+ */
+function keptLanding(own: unknown, recovered: unknown): string {
+    if (own !== null) {
+        return "this tab's project, reopening";
+    }
+    return recovered === null ? "start screen, nothing kept" : "start screen, other kept work offered";
+}
 
 /**
  * The reader's workspace: the new graphty app shell (design/ui/tier1-real-app/tier1-design.md).
@@ -142,6 +156,7 @@ export function Workspace({
             // Each load starts the project's history itself (open.ts passes the element's
             // `history: "start"`; a project file or kept work does so on opening).
             .then(() => {
+                bootSignal({ line: "project opened" });
                 focusLater(store.get().page === "panels");
                 opening.settle();
             })
@@ -154,6 +169,9 @@ export function Workspace({
                         ? { project: null, page: "panels", inspected: null, dialog: null, renaming: false, notice }
                         : { notice },
                 );
+            })
+            .finally(() => {
+                bootSignal({ done: true });
             });
     }, [element, store, startProjectId]);
     // This tab's own work (a reload, or a tab the browser discarded and loaded again) reopens
@@ -162,6 +180,12 @@ export function Workspace({
     // A tab that had a project open is never offered another project's work in its place; an
     // empty project, which writes nothing, comes back empty.
     const [checking, setChecking] = useState(() => store.get().autosave && store.get().project === null);
+    // In the commit itself, so the loading screen hears it before it would go at the first commit.
+    useLayoutEffect(() => {
+        if (checking) {
+            bootSignal({ hold: true });
+        }
+    }, [checking]);
     useEffect(() => {
         if (!checking) {
             return undefined;
@@ -169,9 +193,14 @@ export function Workspace({
         let live = true;
         findKept()
             .then(({ own, recovered, ids }) => {
-                if (!live || store.get().project !== null) {
+                if (!live) {
                     return;
                 }
+                if (store.get().project !== null) {
+                    bootSignal({ done: true });
+                    return;
+                }
+                bootSignal({ line: `kept work checked: landing on ${keptLanding(own, recovered)}` });
                 // Opened again only when its work was never written: work another tab (a duplicate
                 // of this one) is writing is not opened twice.
                 const written = keptEntry();
@@ -201,7 +230,9 @@ export function Workspace({
                     store.set({ recovered });
                 }
             })
-            .catch(() => undefined)
+            .catch((error: unknown) => {
+                bootSignal({ line: `kept work check failed: ${String(error)}`, error: true });
+            })
             .finally(() => {
                 if (live) {
                     setChecking(false);
@@ -256,6 +287,11 @@ export function Workspace({
         }
     }, [store, projectId]);
     const projectOpen = projectId !== null;
+    useEffect(() => {
+        if (!checking && !projectOpen) {
+            bootSignal({ done: true });
+        }
+    }, [checking, projectOpen]);
     // The frame's code, loaded on demand (frameLoader.ts); a project that opens before it has
     // loaded shows once it has.
     const [Frame, setFrame] = useState(loadedFrame);

@@ -3166,6 +3166,12 @@ export function compareOracle(
                 .filter((f) => !(n.bands ?? []).some((b) => shapeId("", b.box) === shapeId("", f.box)))
                 .map((f) => ({ tag: "face", box: f.box, fill: f.color, stroke: null, text: null })),
         ),
+        // so is each piece of a group's fill drawn in pieces (Graphviz's striped cluster), the first being its fill
+        ...oracle.groups.flatMap((g) =>
+            sideBySide(g.faces ?? [])
+                .filter((f) => g.fill === null || deltaE(f.color, g.fill.color) > T.colorDeltaE)
+                .map((f) => ({ tag: "face", box: f.box, fill: f.color, stroke: null, text: null })),
+        ),
         // the band of a yFiles group's frame round its panel: drawn, and not the group's fill
         ...oracle.groups.flatMap((g) =>
             g.panel === undefined || g.panel.color === g.fill?.color
@@ -3206,7 +3212,7 @@ export function compareOracle(
         ...oracle.strays.map((s) => s.box),
         ...oracle.nodes.flatMap((n) => [...(n.pictures ?? []), ...(n.faces ?? []).map((f) => f.box)]),
         ...oracle.texts.map((t) => t.box),
-        ...oracle.groups.map((g) => g.box),
+        ...oracle.groups.flatMap((g) => [g.box, ...(g.faces ?? []).map((f) => f.box)]),
     ];
     const oTexts = [
         ...oracle.nodes.map((n) => n.label),

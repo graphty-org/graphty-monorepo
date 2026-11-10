@@ -16,6 +16,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
+import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
@@ -1077,6 +1078,49 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await element.waitForStableFrame();
         assert.isAtMost(Vector3.Distance(table.centerOf(4), to), 1e-4, "row 4 lands where the layout puts it");
         assert.isFalse(table.isHeld(4), "and is drawn from the lane again");
+        assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
+    });
+
+    it("simulate a row with no Node in d3 by its row", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const manager = graph.getDataManager();
+        const built = dataManagerInternals.nodesBuilt(manager);
+        const batches = graph.getNodeBatches();
+        const node = manager.nodes.get(4);
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(batches);
+        assert.isDefined(node);
+        assert.isNotNull(paint);
+        if (batches === null || node === undefined || paint === null) {
+            return;
+        }
+
+        // Row 4 is drawn with no Node: the layout swap hands d3 its row, never its Node.
+        batches.leave(node);
+        node.drawInBatch(node.paintedSourceMesh);
+        assert.isTrue(batches.paintRow(4, paint));
+        await graph.setLayout("d3", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.instanceOf(engine, D3GraphEngine);
+        if (!(engine instanceof D3GraphEngine)) {
+            return;
+        }
+
+        assert.notInclude([...engine.nodes], node, "a third party reading the engine's nodes sees only Nodes");
+        const positions = layoutEngineInternals.positions(engine);
+        positions.write(4, 999, 999, 999);
+        engine.step();
+        const at = { x: 0, y: 0, z: 0 };
+        positions.read(4, at);
+        for (const axis of ["x", "y", "z"] as const) {
+            assert.isTrue(Number.isFinite(at[axis]) && at[axis] !== 999, `row 4's ${axis} is the simulation's`);
+        }
+
         assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
     });
 });

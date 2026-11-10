@@ -138,6 +138,15 @@ describe("a yEd GraphML edge label", () => {
         expect(await placeOf("graphml", edge(STRAIGHT, label, smart("0.5")))).toEqual(["center", null, null]);
     });
 
+    it("sits below the line's middle for a smart label with no parameter, flipped on a leftward edge", async () => {
+        // graphml-synthetic-edges: yEd draws every such label its distance below the middle of the line
+        const clear = 2 + (1.164 * 10 + 4) / 2;
+        const label = 'modelName="custom" configuration="AutoFlippingLabel" distance="2.0"';
+        expect(await placeOf("graphml", edge(STRAIGHT, label))).toEqual(["center", null, expect.closeTo(clear, 2)]);
+        const left = edge(STRAIGHT, label).replace('source="a" target="b"', 'source="b" target="a"');
+        expect(await placeOf("graphml", left)).toEqual(["center", null, expect.closeTo(clear, 2)]);
+    });
+
     it("walks the line past its bend, and hangs from the route's middle", async () => {
         // the line runs (40,20) to (70,20) to (110,100), 119.44 long, its middle (83.29,46.58); the route hangs at the bend
         const bent = 'sx="0" sy="0" tx="0" ty="0"><y:Point x="70" y="20"/></y:Path>';

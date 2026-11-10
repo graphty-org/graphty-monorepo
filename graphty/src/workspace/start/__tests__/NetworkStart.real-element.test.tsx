@@ -3,7 +3,8 @@
  * of network, a card opens the app with the form on that kind, and closing the form stays in the
  * app, also across a reload; a refused Load stays in the form; and the Load network data
  * section holds one sample of each kind of source, each of which reads first and lands on the graph
- * with the Style panel up. Every step is real input; NDEx answers from its recording.
+ * with the Style panel up; a project's Samples offers the same samples. Every step is real input;
+ * NDEx answers from its recording.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -465,6 +466,44 @@ describe("network data from the start page", () => {
         });
         assert.strictEqual(store.get().project?.name, "Zachary's karate club");
         assert.isNull(store.get().notice);
+    });
+
+    it("offers the same network samples in a project's Samples, into this project or as a separate graph", async () => {
+        recordedNdex();
+        const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        /**
+         * Opens Samples from the Sources "+".
+         * @returns its Network section.
+         */
+        const networkSamples = async (): Promise<HTMLElement> => {
+            await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
+            const dialog = await screen.findByRole("dialog", { name: "Samples" });
+            return within(dialog).getByRole("region", { name: "Network" });
+        };
+
+        const into = await networkSamples();
+        const session = await openBy(store, () =>
+            userEvent.click(within(into).getByRole("button", { name: "WikiPathways WP5483: NDEx" })),
+        );
+        assert.strictEqual(session.data.statistics().nodeCount, 57);
+        assert.deepEqual(
+            session.data.sources().map((source) => source.name),
+            ["WikiPathways WP5483"],
+        );
+        assert.strictEqual(store.get().project?.name, "Untitled", "added to this project");
+
+        const separate = await networkSamples();
+        const opened = await openBy(store, async () => {
+            await userEvent.click(
+                within(separate).getByRole("button", { name: "Open WikiPathways WP5483 as a separate graph" }),
+            );
+            const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+            await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
+        });
+        await landedOnStylePanel(store, opened, 57);
+        assert.strictEqual(store.get().project?.name, "WikiPathways WP5483", "a project of its own");
     });
 
     it("stays on the start page with a notice when a tile's server refuses, and a retry clears it", async () => {

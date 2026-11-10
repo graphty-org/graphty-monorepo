@@ -110,7 +110,7 @@ export function freshForm(entry: SourceCatalogEntry): ServerFormState {
  * @param config - the load's params.
  * @returns the Start value, or null when the params name none.
  */
-export function startOf(config: Readonly<Record<string, unknown>>): string | null {
+function startOf(config: Readonly<Record<string, unknown>>): string | null {
     return typeof config.mode === "string" ? config.mode : null;
 }
 

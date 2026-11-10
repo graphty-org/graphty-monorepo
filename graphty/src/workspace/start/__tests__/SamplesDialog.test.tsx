@@ -57,16 +57,35 @@ describe("the Samples dialog", () => {
         const headings = within(dialog)
             .getAllByRole("region")
             .map((section) => section.getAttribute("aria-label"));
-        assert.includeMembers(headings, ["Proteins", "Supply chain", "Door entries", "Join", "Samples", "Generated"]);
+        assert.includeMembers(headings, [
+            "Proteins",
+            "Supply chain",
+            "Door entries",
+            "Join",
+            "Samples",
+            "Network",
+            "Generated",
+        ]);
         // Each file of a join walk says which walk it belongs to and where it comes in it.
         const join = within(dialog).getByRole("region", { name: "Join" });
         assert.include(tile(join, "people.csv").textContent, "Door entries 1 of 3");
         assert.include(tile(join, "door-entries.csv").textContent, "Door entries 3 of 3");
         assert.include(tile(join, "contracts-2024-09.csv").textContent, "Values onto edges 3 of 3");
-        // A network server's examples are not samples: they belong to the network data form.
-        assert.notInclude(headings, "Live");
-        assert.throws(() => tile(dialog, "Neo4j demo: movies"));
-        assert.throws(() => tile(dialog, "WikiPathways WP5483"));
+        // One network sample of each kind of source, between the samples and the generators, as
+        // the start page lists them.
+        assert.deepEqual(headings.slice(-3), ["Samples", "Network", "Generated"]);
+        const network = within(dialog).getByRole("region", { name: "Network" });
+        assert.deepEqual(
+            within(network)
+                .getAllByRole("button")
+                .map((button) => button.getAttribute("aria-label")),
+            [
+                "WikiPathways WP5483: NDEx",
+                "Neo4j demo: movies: Neo4j",
+                "UniProt: TP53's protein interactions: SPARQL endpoint",
+                "deps.dev: webpack 5.90.0: Web API",
+            ],
+        );
         const names = within(dialog)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label") ?? "");
@@ -86,7 +105,7 @@ describe("the Samples dialog", () => {
     it("shows a picture that loads for every graph, dataset and generator, as the start page does", async () => {
         const dialog = await openSamples();
 
-        const tiles = ["Samples", "Generated"].flatMap((group) =>
+        const tiles = ["Samples", "Network", "Generated"].flatMap((group) =>
             within(within(dialog).getByRole("region", { name: group })).getAllByRole("button"),
         );
         assert.isNotEmpty(tiles);

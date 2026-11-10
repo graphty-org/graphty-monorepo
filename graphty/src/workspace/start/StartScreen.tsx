@@ -19,21 +19,18 @@ import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
-import { serverKinds } from "../server/commands";
-import { kindName } from "../server/words";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
 import lockupOnLight from "./brand/graphty-lockup-color-on-light.svg";
 import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
-import { countWords, isLarge } from "./library";
+import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import NETWORK_SAMPLES from "./network-samples.json";
 import { NETWORK_DIALOG } from "./NetworkDataDialog";
 import { openDataset, openFiles, openGenerated, openModel, openNetworkSample, openSample } from "./open";
 import { SampleCard } from "./SampleCard";
-import { GENERATED, type LibraryTile, offeredTiles, type SampleCardData } from "./sampleLibrary";
+import { GENERATED, type LibraryTile, NETWORK_TILES, type NetworkTile, offeredTiles } from "./sampleLibrary";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -52,49 +49,6 @@ const HERO: HeroSample = (() => {
     const sample = START_SAMPLES.find((each) => each.id === "les-miserables") ?? START_SAMPLES[0];
     return { url: sample.url, name: sample.name, path: ["Napoleon", "Brujon"] };
 })();
-
-/** The field of every network sample, for the field filter. */
-const NETWORK = "Network";
-
-/** One network sample: a card, and the source and example it reads. */
-interface NetworkTile extends SampleCardData {
-    readonly id: string;
-    readonly words: string;
-    readonly source: string;
-    readonly example: string;
-}
-
-/**
- * One public example of each kind of network source (network-samples.json, small and quick to
- * draw; Neptune has no public server and OpenAlex is one named service), from the catalog. Its
- * load is graphty-element's; a kind or example the catalog lacks is left out. Not in the sample
- * library's list, which the Samples dialog also draws.
- */
-const NETWORK_TILES: readonly NetworkTile[] = NETWORK_SAMPLES.flatMap(({ source, example: id }) => {
-    const entry = serverKinds().find((each) => each.id === source);
-    const example = entry?.descriptor.examples?.find((each) => each.id === id);
-    const { nodes, edges } = example?.counts ?? {};
-    if (entry === undefined || example === undefined || nodes === undefined || edges === undefined) {
-        return [];
-    }
-    const hook = kindName(entry);
-    const sentence = `Read from a public ${hook} server.`;
-    return [
-        {
-            id: `network-${source}`,
-            name: example.plainName,
-            hook,
-            field: NETWORK,
-            size: `${countWords(nodes)} nodes, ${countWords(edges)} edges`,
-            sentence,
-            picture: () => `${import.meta.env.BASE_URL}samples/network-${source}.webp`,
-            note: undefined,
-            words: `${example.plainName} ${hook} ${NETWORK} ${sentence}`.toLowerCase(),
-            source,
-            example: id,
-        },
-    ];
-});
 
 /**
  * The GitHub mark, in the text color: ink in light mode, white in dark.

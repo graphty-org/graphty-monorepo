@@ -84,7 +84,7 @@ export function openProject(
  * @param name - the project's name.
  * @param load - what to load into the new element.
  */
-export function openWithStylePanel(
+function openWithStylePanel(
     workspace: WorkspaceStore,
     name: string,
     load: (session: GraphSession) => Promise<void>,

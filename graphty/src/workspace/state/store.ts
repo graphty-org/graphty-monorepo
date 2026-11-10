@@ -292,6 +292,8 @@ export interface WorkspaceState {
     readonly sameSizeAtAnyDepth: boolean | null;
     /** Graph settings, Lighting: how the 3D nodes are lit. A view preference, never saved. */
     readonly lighting: Lighting;
+    /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
+    readonly autoRotate: boolean;
     /** Graph settings, Outline width: every outline's width, or null for the element's own. */
     readonly outlineWidth: number | null;
     /**
@@ -414,6 +416,7 @@ const INITIAL: WorkspaceState = {
     layoutShownOnly: true,
     sameSizeAtAnyDepth: null,
     lighting: "studio",
+    autoRotate: false,
     outlineWidth: null,
     exportOn: "image",
     exportSource: null,

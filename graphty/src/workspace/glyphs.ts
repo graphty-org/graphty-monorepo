@@ -17,8 +17,10 @@ import {
     ArrowUpRight,
     ArrowUpToLine,
     Blend,
+    Box,
     Boxes,
     Calendar,
+    Camera,
     CaseSensitive,
     ChartColumn,
     ChartNetwork,
@@ -95,8 +97,11 @@ import {
     PinOff,
     Play,
     Plus,
+    RectangleGoggles,
+    RectangleHorizontal,
     Redo2,
     RefreshCw,
+    Rotate3d,
     RotateCw,
     Route,
     Scan,
@@ -154,6 +159,21 @@ const AiSparkles = createLucideIcon("ai-sparkles", [
     ],
     ["path", { d: "M18.5 7Q19.5 10 22.5 11Q19.5 12 18.5 15Q17.5 12 14.5 11Q17.5 10 18.5 7Z", key: "medium" }],
     ["path", { d: "M14 1Q14.84 3.16 17 4Q14.84 4.84 14 7Q13.16 4.84 11 4Q13.16 3.16 14 1Z", key: "small" }],
+]);
+
+/**
+ * Augmented reality: a cube inside a frame's four corners, the "view in AR" mark of model-viewer,
+ * Scene Viewer and Material Symbols. lucide has no AR icon: this is its Scan corners round a
+ * half-size Box, in lucide's own stroke.
+ */
+const ViewInAr = createLucideIcon("view-in-ar", [
+    ["path", { d: "M3 7V5a2 2 0 0 1 2-2h2", key: "corner-top-left" }],
+    ["path", { d: "M17 3h2a2 2 0 0 1 2 2v2", key: "corner-top-right" }],
+    ["path", { d: "M21 17v2a2 2 0 0 1-2 2h-2", key: "corner-bottom-right" }],
+    ["path", { d: "M7 21H5a2 2 0 0 1-2-2v-2", key: "corner-bottom-left" }],
+    ["path", { d: "M12 7l4.5 2.5v5L12 17l-4.5-2.5v-5Z", key: "cube" }],
+    ["path", { d: "M7.5 9.5 12 12l4.5-2.5", key: "cube-top" }],
+    ["path", { d: "M12 12v5", key: "cube-edge" }],
 ]);
 
 /** The icon of each concept the workspace draws. */
@@ -219,6 +239,16 @@ export const GLYPHS = {
     table: Table,
     // The timeline strip's tool.
     timeline: Clock,
+    // The Camera tool: its menu moves the camera (Fit, the standard views, Auto-rotate).
+    camera: Camera,
+    // The view turning on its own.
+    autoRotate: Rotate3d,
+    // The Mode tool's face is the mode the canvas is in: a flat card for 2D (Square is Stop), a cube for 3D, a headset for VR,
+    // a cube in a frame for AR (the usual marks: Material Symbols, SF Symbols, model-viewer).
+    mode2d: RectangleHorizontal,
+    mode3d: Box,
+    modeVr: RectangleGoggles,
+    modeAr: ViewInAr,
     // The table dock's Maximize toggle.
     maximize: Maximize2,
     minimize: Minimize2,

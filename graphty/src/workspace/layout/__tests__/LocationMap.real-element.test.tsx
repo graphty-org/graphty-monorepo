@@ -159,13 +159,13 @@ async function pickByKeys(scope: HTMLElement, label: string, option: string): Pr
 }
 
 /**
- * Switches the view to 2D or 3D with the canvas toolbar's View menu.
+ * Switches the view to 2D or 3D with the canvas toolbar's Mode menu.
  * @param mode - the view.
  */
 async function switchView(mode: "2D" | "3D"): Promise<void> {
     const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-    await userEvent.click(within(toolbar).getByRole("button", { name: /^View, / }));
-    const menu = await screen.findByRole("menu", { name: /^View/ });
+    await userEvent.click(within(toolbar).getByRole("button", { name: /^Mode, / }));
+    const menu = await screen.findByRole("menu", { name: "Mode" });
     await userEvent.click(within(menu).getByRole("menuitemradio", { name: new RegExp(`^${mode}`) }));
 }
 
@@ -501,8 +501,8 @@ describe("the location map", () => {
         const shown = posted;
 
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(toolbar).getByRole("button", { name: "View, 3D" }));
-        const menu = await screen.findByRole("menu", { name: /^View/ });
+        await userEvent.click(within(toolbar).getByRole("button", { name: "Mode, 3D" }));
+        const menu = await screen.findByRole("menu", { name: "Mode" });
         await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^2D/ }));
         await waitFor(() => {
             assert.strictEqual(element.session.layout.dimension, "2d");

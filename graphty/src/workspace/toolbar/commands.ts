@@ -99,7 +99,7 @@ function enterImmersive(mode: "vr" | "ar"): {
     };
 }
 
-/** The element's standard 3D views the View flyout offers, with their keys (tier1-design.md 2.3). */
+/** The element's standard 3D views the Camera menu offers, with their keys (tier1-design.md 2.3). */
 const STANDARD_VIEWS = [
     { id: "view.front", label: "Front", camera: "frontView", key: "1" },
     { id: "view.side", label: "Side", camera: "sideView", key: "3" },
@@ -108,23 +108,45 @@ const STANDARD_VIEWS = [
 ] as const;
 
 /**
- * The Toolbar package's commands (tier1-design.md 2.3): the View flyout and what it holds, the
- * legend switch, Quick actions, and Neighborhood for the selection.
+ * The Toolbar package's commands (tier1-design.md 2.3): the Camera and Mode menus and what they
+ * hold, the legend switch, Quick actions, and Neighborhood for the selection.
  *
  * The camera moves (Fit, Frame selection, the standard views, zoom) are view state, so they go
- * through the element's camera methods and record no step; Switch to 2D or 3D is a project change
+ * through the element's camera methods and record no step, as Auto-rotate (a view preference)
+ * does; Switch to 2D or 3D is a project change
  * and goes through the session.
  */
 export const registration = defineRegistration({
     owner: "toolbar",
     commands: [
         {
+            // The Mode tool: 2D, 3D, VR, AR.
             id: "view.open",
-            label: "View",
+            label: "Mode",
             group: "View",
             disabled: ({ session }) => nothingDrawn(session),
             run: ({ workspace }) => {
                 togglePopover(workspace, "view");
+            },
+        },
+        {
+            id: "view.camera",
+            label: "Camera",
+            group: "View",
+            disabled: ({ session }) => nothingDrawn(session),
+            run: ({ workspace }) => {
+                togglePopover(workspace, "camera");
+            },
+        },
+        {
+            id: "view.auto-rotate",
+            label: "Auto-rotate",
+            group: "View",
+            // The element turns only the 3D view.
+            disabled: ({ session }) =>
+                nothingDrawn(session) ?? (session?.layout.dimension === "2d" ? "Only in 3D" : null),
+            run: ({ workspace }) => {
+                workspace.set((state) => ({ autoRotate: !state.autoRotate }));
             },
         },
         {

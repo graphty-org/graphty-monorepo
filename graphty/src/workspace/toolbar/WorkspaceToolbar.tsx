@@ -27,7 +27,7 @@ interface CommandToolProps {
     icon: React.ReactNode;
     /** Whether the thing it switches is on (the Legend, the Table). */
     selected?: boolean;
-    /** Words joined to the command's name after a comma: what the button shows, when it shows words (View's "3D"). */
+    /** Words joined to the command's name after a comma: what the button's face stands for (Mode's "3D"). */
     shows?: string;
 }
 
@@ -52,7 +52,7 @@ const CommandTool = forwardRef<HTMLButtonElement, CommandToolProps>(function Com
             ref={ref}
             // Where a region the command opened sends focus back to (Escape in the table).
             data-command={commandId}
-            // A button that shows words carries them in its name (WCAG 2.5.3): "View, 3D".
+            // A button whose face stands for a state says it in its name (WCAG 2.5.3): "Mode, 3D".
             label={shows === undefined ? command.label : `${command.label}, ${shows}`}
             icon={icon}
             shortcut={key === undefined ? undefined : formatKey(key)}
@@ -64,31 +64,40 @@ const CommandTool = forwardRef<HTMLButtonElement, CommandToolProps>(function Com
 });
 
 /**
- * One row of the View menu's mode set (2D, 3D, VR, AR): a radio with the check on the current
- * mode; a disabled row stays focusable with its reason on a second line.
+ * One checked row: a radio of the Mode menu's set (2D, 3D, VR, AR), the check on the current mode,
+ * or a switch such as Camera > Auto-rotate; a disabled row stays focusable with its reason on a
+ * second line. A radio that is checked does nothing and gives no reason.
  * @param props - Component props
  * @param props.command - The command the row runs
- * @param props.label - The mode word
- * @param props.checked - Whether it is the current mode
+ * @param props.label - The row's words
+ * @param props.checked - Whether it is the current mode, or the switch is on
  * @param props.shortcut - The key shown on the row, or undefined
+ * @param props.radio - Whether the row is one of a set (default true)
  * @returns The row, or nothing when the command is a stub
  */
-function ModeItem({
+function CheckItem({
     command: commandId,
     label,
     checked,
     shortcut,
-}: Readonly<{ command: string; label: string; checked: boolean; shortcut?: string }>): React.JSX.Element | null {
+    radio = true,
+}: Readonly<{
+    command: string;
+    label: string;
+    checked: boolean;
+    shortcut?: string;
+    radio?: boolean;
+}>): React.JSX.Element | null {
     const door = useCommand(commandId);
     if (door === null) {
         return null;
     }
-    const reason = checked ? null : door.disabledReason;
+    const reason = radio && checked ? null : door.disabledReason;
     return (
         <MenuCheckItem
-            radio
+            radio={radio}
             checked={checked}
-            onClick={reason === null && !checked ? door.run : undefined}
+            onClick={reason === null && !(radio && checked) ? door.run : undefined}
             closeMenuOnClick={reason === null}
             aria-disabled={reason !== null}
             data-disabled={reason === null ? undefined : true}
@@ -116,18 +125,20 @@ function focusGoesWithClose(): boolean {
     );
 }
 
-/** The mode words, as the View tool's face and its menu rows show them. */
+/** The mode words, as the Mode tool's name and its menu rows say them. */
 const MODE_WORDS = { "2d": "2D", "3d": "3D", vr: "VR", ar: "AR" } as const;
 
+/** The Mode tool's face: the icon of the mode the canvas is in. */
+const MODE_GLYPHS = { "2d": GLYPHS.mode2d, "3d": GLYPHS.mode3d, vr: GLYPHS.modeVr, ar: GLYPHS.modeAr } as const;
+
 /**
- * The View menu: Exit VR or AR while immersive; the modes (2D, 3D, then one "VR / AR" row when
- * neither can be entered for the same reason, else a row each); Fit and Frame selection; then
- * the four camera views in 3D, or zoom and one "Camera views" row saying why not in 2D.
+ * The Mode menu: Exit VR or AR while immersive; then the modes (2D, 3D, then one "VR / AR" row
+ * when neither can be entered for the same reason, else a row each).
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
  */
-function ViewMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
+function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
     const dimension = session?.layout.dimension ?? "3d";
     const active = immersiveMode(session);
     const exit = useCommand("view.exit-xr");
@@ -151,13 +162,13 @@ function ViewMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
                     <Menu.Divider />
                 </>
             )}
-            <ModeItem
+            <CheckItem
                 command="view.mode-2d"
                 label="2D"
                 checked={active === null && dimension === "2d"}
                 shortcut={keyOn("2d")}
             />
-            <ModeItem
+            <CheckItem
                 command="view.mode-3d"
                 label="3D"
                 checked={active === null && dimension === "3d"}
@@ -177,7 +188,7 @@ function ViewMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
                         <MenuItemDescription>{row.reason}</MenuItemDescription>
                     </MenuCheckItem>
                 ) : (
-                    <ModeItem
+                    <CheckItem
                         key={row.mode}
                         command={`view.enter-${row.mode}`}
                         label={MODE_WORDS[row.mode]}
@@ -185,40 +196,44 @@ function ViewMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
                     />
                 ),
             )}
-            <Menu.Divider />
-            <Sections
-                sections={[
-                    ["view.fit", "view.frame-selection"],
-                    dimension === "3d"
-                        ? ["view.front", "view.side", "view.top", "view.isometric"]
-                        : ["view.zoom-in", "view.zoom-out"],
-                ]}
-            />
-            {dimension === "3d" ? null : (
-                <CommandMenuItem
-                    label="Camera views"
-                    shortcut={undefined}
-                    reason="Only in 3D"
-                    onRun={() => undefined}
-                />
-            )}
         </>
     );
 }
 
 /**
- * The View tool's face: the current mode as a word with a caret.
+ * The Camera menu: Fit and Frame selection; the four standard views, disabled with their reason in
+ * 2D; zoom in and out in 2D; then the Auto-rotate switch.
  * @param props - Component props
  * @param props.session - The element's session, or null
- * @returns The face
+ * @returns The menu's rows
  */
-function ViewFace({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
+function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
+    const flat = session?.layout.dimension === "2d";
+    const autoRotate = useWorkspaceState((state) => state.autoRotate);
     return (
-        <span className="ws-view-face">
-            {MODE_WORDS[viewMode(session)]}
-            <GLYPHS.expand size={10} />
-        </span>
+        <>
+            <Sections
+                sections={[
+                    ["view.fit", "view.frame-selection"],
+                    ["view.front", "view.side", "view.top", "view.isometric"],
+                    ...(flat ? [["view.zoom-in", "view.zoom-out"]] : []),
+                ]}
+            />
+            <Menu.Divider />
+            <CheckItem command="view.auto-rotate" label="Auto-rotate" checked={autoRotate} radio={false} />
+        </>
     );
+}
+
+/**
+ * The Mode tool's face: the icon of the mode the canvas is in, named for tests by `data-mode`.
+ * @param props - Component props
+ * @param props.mode - The mode
+ * @returns The icon
+ */
+function ModeGlyph({ mode }: Readonly<{ mode: keyof typeof MODE_WORDS }>): React.JSX.Element {
+    const Glyph = MODE_GLYPHS[mode];
+    return <Glyph size={20} data-mode={mode} />;
 }
 
 /**
@@ -231,11 +246,11 @@ function viewMode(session: GraphSession | null): keyof typeof MODE_WORDS {
 }
 
 /**
- * The canvas toolbar (tier1-design.md 2.3): Analyze | Layout, View | Legend, Table, Timeline | Quick
- * actions, at the canvas's bottom center; a selection never changes it. Legend and Table are
+ * The canvas toolbar (tier1-design.md 2.3): Analyze | Layout, Camera, Mode | Legend, Table, Timeline
+ * | Quick actions, at the canvas's bottom center; a selection never changes it. Legend and Table are
  * toggles, pressed while what they switch is showing, as is Timeline (the timeline strip).
- * Analyze, Layout and Quick actions open
- * popovers above it and View opens its flyout; each holds the store's one `dialog` slot, so only
+ * Analyze, Layout and Quick actions open popovers above it, and Camera and Mode open their menus
+ * (Mode's face is the icon of the mode the canvas is in); each holds the store's one `dialog` slot, so only
  * one is open at a time and Esc or a click outside closes it. A popover's body is mounted only
  * while it is open, so each opening starts fresh (Analyze on its list, the filter empty).
  * @returns The toolbar
@@ -249,6 +264,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
     const legendShown = useWorkspaceState((state) => state.legendShown && (state.keyHasEntries || state.legendAsked));
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const timelineOpen = useWorkspaceState((state) => state.timelineOpen);
+    const mode = viewMode(session);
     // The button each popover opened from. Mantine's own returnFocus records the element focused
     // when the popover opens, but the Filter box and the Quick actions search focus themselves as
     // they mount, before Mantine records it, so it would hand focus back to a box that is gone.
@@ -368,17 +384,25 @@ export function WorkspaceToolbar(): React.JSX.Element {
                     )}
                 </Popover.Dropdown>
             </Popover>
+            <Menu {...popoverProps("camera")}>
+                <Menu.Target>
+                    <CommandTool ref={anchor("camera")} command="view.camera" icon={<GLYPHS.camera size={20} />} />
+                </Menu.Target>
+                <Menu.Dropdown aria-label="Camera">
+                    <CameraMenuRows session={session} />
+                </Menu.Dropdown>
+            </Menu>
             <Menu {...popoverProps("view")}>
                 <Menu.Target>
                     <CommandTool
                         ref={anchor("view")}
                         command="view.open"
-                        icon={<ViewFace session={session} />}
-                        shows={MODE_WORDS[viewMode(session)]}
+                        icon={<ModeGlyph mode={mode} />}
+                        shows={MODE_WORDS[mode]}
                     />
                 </Menu.Target>
-                <Menu.Dropdown aria-label="View">
-                    <ViewMenuRows session={session} />
+                <Menu.Dropdown aria-label="Mode">
+                    <ModeMenuRows session={session} />
                 </Menu.Dropdown>
             </Menu>
             <Toolbar.Divider />

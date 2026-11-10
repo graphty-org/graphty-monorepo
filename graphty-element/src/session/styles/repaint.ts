@@ -870,6 +870,8 @@ function sameMeshValue(a: unknown, b: unknown): boolean {
     return (
         first !== null &&
         second !== null &&
+        // An effect written off pushes absent, never its zero components (see pushMeshValue).
+        (first.hex === EFFECT_OFF) === (second.hex === EFFECT_OFF) &&
         first.r === second.r &&
         first.g === second.g &&
         first.b === second.b &&

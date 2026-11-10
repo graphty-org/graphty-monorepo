@@ -589,6 +589,32 @@ describe("a uniform mesh-key fill (cosmos-gap G6)", () => {
         }
     });
 
+    it("never shares a mesh between an effect switched off and a transparent colour", async () => {
+        for (const transparent of ["#00000000", "rgba(0,0,0,0)", "transparent"]) {
+            const keys = [];
+
+            for (const fill of [false, true]) {
+                const h = makeHarness(NODES, { uniformFill: () => fill });
+
+                await h.styles.add({
+                    name: "Off",
+                    selector: { match: "expression", where: 'data.kind == `"host"`' },
+                    set: { "node.outline": "none" },
+                });
+                await h.styles.add({
+                    name: "Clear",
+                    selector: { match: "expression", where: 'data.kind == `"switch"`' },
+                    set: { "node.outline": transparent },
+                });
+                await h.paintAll();
+                keys.push(NODES.map((_, index) => h.engine.meshKeyOf("node", index)));
+            }
+
+            assert.deepStrictEqual(keys[1], keys[0], transparent);
+            assert.notStrictEqual(keys[0][0], keys[0][2], transparent);
+        }
+    });
+
     it("keeps the per-row path for a shape that follows the data", async () => {
         const h = makeHarness(NODES, { uniformFill: () => true });
 

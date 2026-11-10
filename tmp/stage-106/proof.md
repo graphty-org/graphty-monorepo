@@ -46,3 +46,15 @@ objectNodes 0.
 ## Not built
 - Writing the color straight from the color column into the batch buffer (one small Rgba per row remains):
   the target is met without it.
+
+## Review fix: an effect switched off never shares a mesh with a transparent color
+The uniform fill compared colors by r, g, b and a only, so an outline written "none" (stored as rgba 0,0,0,0
+with hex "none") and a real transparent black were judged the same and put on one mesh, while the per-row
+path keys them apart. `sameMeshValue` in graphty-element/src/session/styles/repaint.ts now also requires both
+or neither value to be the switched-off color. Test first, in repaint.test.ts ("never shares a mesh between an
+effect switched off and a transparent colour", over "#00000000", "rgba(0,0,0,0)" and "transparent"):
+- before the fix: failed, "expected [0,0,0,0,0,0] to deeply equal [0,0,1,1,0,1]" (fill on vs fill off).
+- after: repaint.test.ts 45/45 passed.
+- Every test file importing styles/repaint (8 files, 140 tests): passed.
+- npm run lint: exit 0. npm run build: exit 0. node tools/sonar-gate.mjs: no new issue on the changed lines.
+The objects path never sets uniformFill, so it is unaffected; no public API change.

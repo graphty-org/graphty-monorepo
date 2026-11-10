@@ -27,6 +27,7 @@ import {
     LayoutEngine,
     layoutEngineInternals,
     type LayoutEngineStatics,
+    SimpleLayoutEngine,
     simpleLayoutInternals,
     StaticLayoutEngine,
 } from "../layout/LayoutEngine";
@@ -1543,8 +1544,10 @@ export class LayoutManager implements Manager {
         }
 
         // Under renderPath "batched" a static engine lays out every row of the graph, a row
-        // drawn with no Node included; under "objects" it publishes node by node, as before.
-        if (engine instanceof StaticLayoutEngine) {
+        // drawn with no Node included; under "objects" it publishes node by node, as before. A
+        // third party's SimpleLayoutEngine arranges `this.nodes`, so it is handed a Node for
+        // every row instead.
+        if (laysOutRows(engine)) {
             simpleLayoutInternals.attachRows(
                 engine,
                 this.dataManager,
@@ -3100,5 +3103,15 @@ function validRow(index: number): boolean {
  * @returns True when it does, or there is no engine.
  */
 function placesLateRows(engine: LayoutEngine | undefined): boolean {
-    return engine === undefined || engine instanceof StaticLayoutEngine || engine instanceof SimulationLayoutEngine;
+    return engine === undefined || laysOutRows(engine) || engine instanceof SimulationLayoutEngine;
+}
+
+/**
+ * Whether a static engine arranges the rows of the element's snapshot: every one the element
+ * ships, and `defineLayout`'s. A third party's `SimpleLayoutEngine` arranges the `Node`s it holds.
+ * @param engine - The engine, or none.
+ * @returns True for a static engine that lays out by row.
+ */
+function laysOutRows(engine: LayoutEngine | undefined): engine is StaticLayoutEngine {
+    return engine instanceof StaticLayoutEngine && !(engine instanceof SimpleLayoutEngine);
 }

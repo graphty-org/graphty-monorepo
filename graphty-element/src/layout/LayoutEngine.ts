@@ -1585,7 +1585,7 @@ export const simpleLayoutInternals = {
         byRow: () => boolean,
         graph?: () => GraphContext | null,
     ): void;
-    /** The element's graph: a built `Node`'s, else the one attached with the rows (a graph with no `Node`). */
+    /** The element's graph: a built `Node`'s, else, while it lays out by row, the one attached with the rows. */
     hostGraph(engine: StaticLayoutEngine): GraphContext | undefined;
     /** Whether the engine has nothing to arrange: no node handed to it, and no row it lays out by row. */
     empty(engine: StaticLayoutEngine): boolean;
@@ -1619,8 +1619,11 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         simpleLayoutInternals.attachRows = (engine, source, byRow, graph) => {
             engine.#rows = { source, byRow, graph };
         };
+        // Only while laying out by row (renderPath "batched", a row stored): an empty graph, or any
+        // graph on renderPath "objects", answers as on master, so place() is skipped as before.
         simpleLayoutInternals.hostGraph = (engine) =>
-            engine._nodes[0]?.parentGraph ?? engine.#rows?.graph?.() ?? undefined;
+            engine._nodes[0]?.parentGraph ??
+            (engine.#rowSource() === null ? undefined : (engine.#rows?.graph?.() ?? undefined));
         simpleLayoutInternals.empty = (engine) => engine._nodes.length === 0 && engine.#rowSource() === null;
     }
 

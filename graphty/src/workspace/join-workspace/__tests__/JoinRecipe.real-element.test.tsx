@@ -88,8 +88,8 @@ describe("the recipe join workspace", () => {
         const card = await addEntriesStep(dialog);
         // The element's counts: two rows join two known ends, one repeats a pair, two bring a new end.
         await waitFor(() => {
-            assert.include(card.textContent, "2 matched");
-            assert.include(card.textContent, "2 new end");
+            assert.match(card.textContent ?? "", /2\smatched/);
+            assert.match(card.textContent ?? "", /2\snew end/);
         });
         assert.lengthOf(session.data.edges(), 0, "nothing changes before Done");
         assert.include(within(dialog).getByRole("button", { name: /^Step/ }).textContent, "N");
@@ -114,7 +114,7 @@ describe("the recipe join workspace", () => {
         // No entry id names a node: every row now brings a new end.
         await waitFor(() => {
             assert.include(within(card).getByRole("button", { name: "Target" }).textContent, "entry = id");
-            assert.include(card.textContent, "5 new end");
+            assert.match(card.textContent ?? "", /5\snew end/);
         });
     });
 

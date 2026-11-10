@@ -291,6 +291,14 @@ const REACH: Readonly<Record<string, (session: GraphSession) => object | Promise
     SessionDataApi: (session) => session.data,
     LoadDraft: (session) => session.data.prepare({ type: "json", config: { data: TINY_JSON } }),
     ProjectApi: (session) => session.project,
+    // The doors test's recipe: a table naming node j1, joined as values.
+    JoinsDraft: async (session) => {
+        await session.data.addNodes([{ id: "j1" }]);
+        const recipe = session.data.prepareJoins();
+        const table = recipe.hold({ name: "door-recipe.csv", rows: [{ name: "j1", score: 5 }] });
+        recipe.add({ from: table, choices: { keys: [{ file: "name", graph: "id" }], shape: "node-values" } });
+        return recipe;
+    },
 };
 
 describe("every ordered door, called while a load is held in line", () => {

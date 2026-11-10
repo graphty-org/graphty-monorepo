@@ -3121,6 +3121,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             undo: READ,
             redo: READ,
             suggest: READ,
+            samples: READ,
+            keyMatches: READ,
             outcome: READ,
             rows: READ,
             clashes: READ,

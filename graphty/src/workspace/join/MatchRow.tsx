@@ -189,7 +189,7 @@ export function MatchRow({
                     aria-label="Mapping table"
                     placeholder="no mapping"
                     data={mappings}
-                    value={choices.via ?? null}
+                    value={typeof choices.via === "string" ? choices.via : null}
                     clearable
                     onChange={(value) => {
                         const { via: _gone, ...rest } = choices;

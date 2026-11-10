@@ -3042,6 +3042,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             styles: READ,
             suggestJoin: READ,
             joinReport: READ,
+            lookup: READ,
             // A draft of TINY_JSON: the rows it held, loaded without reading the source again, its
             // nodes named by the file's label column, as `data.import` names them.
             load: calls([], [{ op: "batch", steps: [DRAFT_LABEL, DRAFT_LOAD] }, DRAFT_LABEL, DRAFT_LOAD]),

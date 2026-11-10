@@ -456,6 +456,39 @@ function linkColumnsOf(table: JoinTable, key: ColumnMatch, loose: Loose): string
 }
 
 /**
+ * The column and the graph path whose values meet most, on nodes, then on edges.
+ * @param table - The incoming table.
+ * @param graph - The graph.
+ * @param matches - Each column's best match on the nodes.
+ * @param loose - How keys are compared.
+ * @returns The best values key, or undefined when no value meets.
+ */
+function bestValuesKey(
+    table: JoinTable,
+    graph: JoinGraph,
+    matches: Iterable<ColumnMatch>,
+    loose: Loose,
+): { shape: JoinShape; key: JoinKey; share: number } | undefined {
+    let best: { shape: JoinShape; key: JoinKey; share: number } | undefined;
+    for (const match of matches) {
+        if (match.share > (best?.share ?? 0)) {
+            best = { shape: "node-values", key: { file: match.column, graph: match.path }, share: match.share };
+        }
+    }
+
+    for (const path of pathsOf(graph.edges)) {
+        const keys = indexOf(graph.edges, [path], loose);
+        for (const column of table.columns) {
+            const share = overlapOf(table, column, keys);
+            if (share > (best?.share ?? 0)) {
+                best = { shape: "edge-values", key: { file: column, graph: path }, share };
+            }
+        }
+    }
+    return best;
+}
+
+/**
  * How the table most likely joins onto the graph. An edge end may match any node value, not only
  * the id (a person_id column onto the people's `data.person_id`). A values join onto nodes also
  * names, in `link`, the columns whose shared values would link the nodes, when any fit.
@@ -473,10 +506,15 @@ export function suggestJoin(
 ): JoinSuggestion {
     const loose = { ignoreCase: true, ignoreSpaces: true };
     const nodePaths = pathsOf(graph.nodes).map((path) => ({ path, index: indexOf(graph.nodes, [path], loose) }));
-    const matchOf = (column: string): ColumnMatch =>
-        nodePaths
-            .map(({ path, index }) => ({ column, path, index, share: overlapOf(table, column, index) }))
-            .reduce((best, each) => (each.share > best.share ? each : best));
+    const matchOf = (column: string): ColumnMatch => {
+        const all = nodePaths.map(({ path, index }) => ({
+            column,
+            path,
+            index,
+            share: overlapOf(table, column, index),
+        }));
+        return all.reduce((best, each) => (each.share > best.share ? each : best), all[0]);
+    };
     const matches = new Map(table.columns.map((column) => [column, matchOf(column)]));
 
     // Edges: the table's own endpoint pair, or the two columns most of whose values name
@@ -504,24 +542,7 @@ export function suggestJoin(
         }
     }
 
-    // Values: the column and the graph path whose values meet most, on nodes, then on edges.
-    let best: { shape: JoinShape; key: JoinKey; share: number } | undefined;
-    for (const match of matches.values()) {
-        if (match.share > (best?.share ?? 0)) {
-            best = { shape: "node-values", key: { file: match.column, graph: match.path }, share: match.share };
-        }
-    }
-
-    for (const path of pathsOf(graph.edges)) {
-        const keys = indexOf(graph.edges, [path], loose);
-        for (const column of table.columns) {
-            const share = overlapOf(table, column, keys);
-            if (share > (best?.share ?? 0)) {
-                best = { shape: "edge-values", key: { file: column, graph: path }, share };
-            }
-        }
-    }
-
+    const best = bestValuesKey(table, graph, matches.values(), loose);
     if (best === undefined) {
         return Object.freeze({ shape: "rows", keys: Object.freeze([]), confident: false });
     }
@@ -1339,7 +1360,7 @@ function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merg
             }
 
             nodes.push({ ...record, ...region("only-from"), id: ids.has(given) ? bothName(given, table) : given });
-            const kept = keepsEveryRow(choices) ? ats : [choices.repeated === "last" ? ats[ats.length - 1] : ats[0]];
+            const kept = keepsEveryRow(choices) ? ats : [choices.repeated === "last" ? ats.at(-1) : ats[0]];
             for (const at of ats) {
                 fates[at] = kept.includes(at) ? "new-end" : "repeat";
             }

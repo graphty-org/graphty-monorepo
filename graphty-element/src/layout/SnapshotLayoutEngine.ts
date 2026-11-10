@@ -162,6 +162,11 @@ interface SnapshotLayoutHost {
     weightMeaning?(): "strength" | "distance" | null;
     /** The data of a row drawn with no `Node` (renderPath "batched"), which the engine holds none for. */
     rowData?(row: number): Record<string | number, unknown> | undefined;
+    /**
+     * The drawn half extents of a row drawn with no `Node` (renderPath "batched"), as the row table measured it;
+     * null before it is measured.
+     */
+    rowHalfExtents?(row: number): Readonly<{ x: number; y: number; z: number }> | null;
     /** The element's `data.knownFields.positionScale`; undefined before the element is attached. */
     positionScale?(): number | undefined;
 }
@@ -482,20 +487,29 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             // The sizes as the nodes are about to be drawn: paint that has arrived is drawn first.
             // ponytail: a style pass still running is not waited for; its sizes are read as drawn
             // now. Wait for it here if a layout is ever seen starting mid-pass.
+            // A row drawn with no `Node` (renderPath "batched") is read from the row table, as a batched `Node` is.
             nodeSizes: () => {
                 this.#host?.drawPaint();
-                return Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.layoutRadius));
+                return Float32Array.from({ length: n }, (_, row) => {
+                    const node = nodes[row];
+                    if (node !== undefined) {
+                        return 2 * node.layoutRadius;
+                    }
+
+                    const half = this.#host?.rowHalfExtents?.(row);
+                    return half ? 2 * Math.max(half.x, half.y, half.z) : Number.NaN;
+                });
             },
             nodeExtents: () => {
                 this.#host?.drawPaint();
                 const out = new Float32Array(2 * n).fill(Number.NaN);
-                nodes.forEach((node, row) => {
-                    if (node !== undefined) {
-                        const { x, y } = node.drawnHalfExtents;
-                        out[2 * row] = 2 * x;
-                        out[2 * row + 1] = 2 * y;
+                for (let row = 0; row < n; row++) {
+                    const half = nodes[row]?.drawnHalfExtents ?? this.#host?.rowHalfExtents?.(row);
+                    if (half) {
+                        out[2 * row] = 2 * half.x;
+                        out[2 * row + 1] = 2 * half.y;
                     }
-                });
+                }
                 return out;
             },
             signal: controller.signal,

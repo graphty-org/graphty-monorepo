@@ -1594,6 +1594,10 @@ export class LayoutManager implements Manager {
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
             weightMeaning: this.weightMeaningFor(type),
             rowData: (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row),
+            rowHalfExtents: (row) => {
+                const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
+                return extent !== undefined && extent.scale > 0 ? extent.half : null;
+            },
             positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale,
             drawPaint: () => {
                 this.drawArrivedPaint?.();
@@ -2140,14 +2144,19 @@ export class LayoutManager implements Manager {
             return;
         }
 
+        // Walked by row, so a row stored with no `Node` (renderPath "batched") gets one only when it has a Z to drop.
         const { positions } = this.dataManager;
+        const { ids, nodeCount } = this.dataManager.getSnapshot();
         const placed = { x: 0, y: 0, z: 0 };
-        for (const node of this.dataManager.nodes.values()) {
-            if (positions.isPlaced(node.index)) {
-                positions.read(node.index, placed);
-                if (placed.z !== 0) {
-                    layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
-                }
+        for (let row = 0; row < Math.min(positions.count, nodeCount); row++) {
+            if (!positions.isPlaced(row)) {
+                continue;
+            }
+
+            positions.read(row, placed);
+            const node = placed.z === 0 ? undefined : this.dataManager.nodes.get(ids.idOf(row));
+            if (node !== undefined) {
+                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
             }
         }
     }

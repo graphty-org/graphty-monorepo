@@ -15,6 +15,7 @@ import { InstancedMesh, Matrix, Mesh, type Scene, TransformNode, Vector3 } from 
 import type { LayoutSimulation } from "@graphty/layout";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
+import { registerSnapshotLayout } from "../../extend";
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
@@ -1040,6 +1041,47 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await operationQueueOf(graph).waitForCompletion();
         assert.deepEqual(errors, [], "the layout found the latitude and longitude columns");
         assert.equal(graph.getLayoutManager().layoutEngine?.type, "location-map");
+    });
+
+    it("hand a snapshot layout the sizes of rows with no Node, and lay it out in 2D building no Node", async () => {
+        const seen: { sizes: number[]; extents: number[] } = { sizes: [], extents: [] };
+        registerSnapshotLayout({
+            descriptor: {
+                id: "test-node-batch-sizes",
+                plainName: "sizes",
+                technicalName: "sizes",
+                description: "Reads the node sizes it is handed.",
+                family: "geometric",
+                kind: "batch",
+                maxDimensions: 2,
+                sizeRating: "any",
+                structuralInputs: [],
+                engine: "test-node-batch-sizes",
+                options: [],
+            },
+            compute: (input) => {
+                seen.sizes = Array.from(input.nodeSizes?.() ?? []);
+                seen.extents = Array.from(input.nodeExtents?.() ?? []);
+                return Float32Array.from({ length: 2 * input.graph.nodeCount }, (_, k) => k);
+            },
+        });
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.setViewMode("2d");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        await nextFrame();
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "loaded with no Node");
+
+        await graph.setLayout("test-node-batch-sizes");
+        await operationQueueOf(graph).waitForCompletion();
+        assert.equal(graph.getLayoutManager().dimension, 2);
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "laid out in 2D with no Node");
+        assert.lengthOf(seen.sizes, NODES.length);
+        for (const size of [...seen.sizes, ...seen.extents]) {
+            assert.isTrue(Number.isFinite(size) && size > 0, `every row is handed its drawn size, got ${size}`);
+        }
     });
 
     it("place every row with no Node by a defineLayout layout", async () => {

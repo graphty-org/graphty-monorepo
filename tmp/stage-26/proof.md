@@ -508,3 +508,28 @@ Render parity (load 2.4-4.1):
 
 Checks this session: tsc --noEmit clean; eslint src/Edge.ts clean. Not run: npm run build, full lint,
 sonar gate, load-peak gate, pinned default-project tests. Still open: ThreePaths 68 px, Gexf 1488 px.
+
+## Pull request 11, fifteenth session (2026-11-10): Graphviz and location-map parity restored by row-table sizes
+
+Cause (probed, probe30/31.log): on the batched load no row has a Node when the Graphviz run starts, and
+`SnapshotLayoutEngine`'s `nodeSizes()` / `nodeExtents()` read sizes from Nodes only, so every row went to Graphviz
+as NaN and the answer differed (first row 0.501,-0.236 against 0.708,-0.713 on objects). On the pr10 branch the
+2D `putOnPlane` built every Node first (`dataManager.nodes.values()`), which is also why it was Node-free nowhere.
+
+Code change (batched only in effect; on objects every row has a Node, so both paths read what they read before):
+- `SnapshotLayoutEngine`: a row with no Node takes its size and extents from a new internal host hook
+  `rowHalfExtents(row)` (the row table's `extentOf(row).half`, null before the row is measured).
+- `LayoutManager.putOnPlane` walks rows of the position lane and builds a Node only for a row whose Z must drop.
+- Test first: node-batch.test.ts "hand a snapshot layout the sizes of rows with no Node, and lay it out in 2D
+  building no Node" -- red without the change (red38.log: 12 Nodes built), green with it (green37.log).
+
+Render parity, LayoutGraphviz|LayoutLocationMap (parity39.log, load 4.3): 12 passed, 2 failed.
+- Now pass: Circo, DotFileRecommended, Fdp, Neato, Osage, Patchwork, Sfdp, Twopi, FlatMapIn3DView, GlobeIn3DView.
+- Still fail: Dot 41602 px (only engine with spline routes; likely the edges' Graphviz bends, read per Edge in
+  `getEdgePosition`, are not re-read for edges whose ends have no Node). PeerMissing 32796 / 36025 px in two runs
+  (the count moved between runs; it passed before only because putOnPlane built every Node; its seeded force
+  layout on Node-less rows is the next lead).
+- Found, not fixed: `Graph.enterDimension` (a 2D/3D view switch) builds every Node via `getNodes()`.
+
+Checks this session: tsc --noEmit clean; eslint on the three changed files clean. Not run: npm run build, full lint,
+sonar gate, load-peak gate, pinned default-project tests, full render parity.

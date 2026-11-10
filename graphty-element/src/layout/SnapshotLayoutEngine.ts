@@ -26,6 +26,7 @@ import {
     simpleLayoutInternals,
     StaticLayoutEngine,
 } from "./LayoutEngine";
+import type { LocationDesignation } from "./locationMap/source";
 
 /** How far an arrangement has got, as a layout reports it. */
 export interface SnapshotLayoutProgress {
@@ -179,6 +180,8 @@ interface SnapshotLayoutHost {
     rowHalfExtents?(row: number): Readonly<{ x: number; y: number; z: number }> | null;
     /** The element's `data.knownFields.positionScale`; undefined before the element is attached. */
     positionScale?(): number | undefined;
+    /** The element's `data.knownFields`; undefined before the element is attached. */
+    knownFields?(): LocationDesignation | undefined;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -686,6 +689,15 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             (_, row) =>
                 (nodes[row]?.data as Record<string | number, unknown> | undefined) ?? this.#host?.rowData?.(row),
         );
+    }
+
+    /**
+     * The element's `data.knownFields`: from the element, so a graph whose rows have no `Node` (the batched
+     * path) still reads what was designated; else through the first `Node`, for an engine the element did not connect.
+     * @returns The fields, or undefined before the element is attached.
+     */
+    protected knownFields(): LocationDesignation | undefined {
+        return this.#host?.knownFields?.() ?? this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields;
     }
 
     #nodesByRow(n: number): (Node | undefined)[] {

@@ -1048,6 +1048,22 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(graph.getLayoutManager().layoutEngine?.type, "location-map");
     });
 
+    it("read a location map's designated column in rows with no Node, over the one found by name", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES.map((node) => ({ ...node, home: "38.72, -9.14" })));
+        await element.session.config.set({
+            data: { knownFields: { nodeLocationPath: "home", nodeLocationRole: "coords" } },
+        });
+        await operationQueueOf(graph).waitForCompletion();
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "loaded with no Node");
+
+        await graph.setLayout("location-map", { mapDimension: "2d" });
+        await operationQueueOf(graph).waitForCompletion();
+        assert.deepInclude(element.mapFrame?.location, { kind: "location", column: "home" });
+    });
+
     it("hand a snapshot layout the sizes of rows with no Node, and lay it out in 2D building no Node", async () => {
         const seen: { sizes: number[]; extents: number[] } = { sizes: [], extents: [] };
         registerSnapshotLayout({

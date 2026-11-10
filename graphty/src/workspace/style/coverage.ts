@@ -646,6 +646,10 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
         count: 5,
         reason: "startFor reads a color beneath as its hex, and every other kind as it is; Vary by Layer starts a color on a palette with every layer its own color, a number on the app's range, a shape on the channel's own list with the distinct shapes first",
     },
+    "workspace/style/ShaderParamRows.tsx": {
+        count: 2,
+        reason: "A Color shader parameter on a clock ramps between two colors it needs pickers for; a Number on a clock is the clock's own value and has no range to pick",
+    },
     "workspace/style/StylePanel.tsx": {
         count: 1,
         reason: "The document's colors, offered as the color picker's swatches: no other kind has swatches",

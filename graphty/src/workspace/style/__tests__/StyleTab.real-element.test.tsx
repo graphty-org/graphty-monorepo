@@ -147,7 +147,8 @@ describe("labels from an attribute (task T10) on the real element", () => {
 
     it('Add label line labels Everything as Text "+" does, by the open attribute or one picked', async () => {
         const { session, element, store } = await openWithGraph();
-        const [command] = registration.commands;
+        const command = registration.commands.find((c) => c.id === "style.add-label-line");
+        assert.isDefined(command);
         const ctx = { session, element, workspace: store };
         const userLayers = (): unknown =>
             session.styles

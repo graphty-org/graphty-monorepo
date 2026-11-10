@@ -353,7 +353,6 @@ export type SourceExpandFailed = CodedFact;
  * params redacted as a saved file has them, no credential, with the `mode` a query source read in
  * when the params leave it out. Passed back to `replaceSource`, a key the redaction left out of
  * a param the reader did not change is read with again.
- * @experimental
  */
 export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "config" | "expand"> & {
     /** The limits the load ran under. */

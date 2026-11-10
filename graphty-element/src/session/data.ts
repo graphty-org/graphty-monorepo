@@ -1462,7 +1462,6 @@ export class SessionData implements SessionDataApi {
      * The params are redacted as a saved file has them; no credential is in it.
      * @param key - the `sources()` entry's key
      * @returns the settings, or undefined for a source that is not a network load.
-     * @experimental
      */
     sourceSettings(key: SourceKey): SourceSettings | undefined {
         const load = this.sources().find((each) => each.key === key)?.loadKey;

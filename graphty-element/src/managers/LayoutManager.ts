@@ -1388,10 +1388,7 @@ export class LayoutManager implements Manager {
             const edgeArray = [...this.dataManager.edges.values()];
             // Every body before any edge, as on the object path: an edge reaching ngraph first
             // makes its ends' bodies in edge order, and a seeded simulation draws another picture.
-            // ponytail: built Nodes go before Node-less rows, not in row order; a load mixing the
-            // two (a labelled row) orders bodies differently from the object path.
-            layoutEngineInternals.addNodes(engine, nodeArray);
-            this.addColumnRows(engine);
+            this.addBodies(engine, nodeArray);
             layoutEngineInternals.addEdges(engine, edgeArray);
 
             this.engine = engine;
@@ -1663,21 +1660,56 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * Under renderPath "batched", hand a d3 or ngraph engine a body for each row drawn with no
-     * `Node`; a third party's engine is handed `Node`s only.
+     * Hand a new engine its bodies: each `Node` and, under renderPath "batched", a d3 or ngraph
+     * engine a body for each row drawn with no `Node`, in row order as on the object path. A
+     * seeded simulation's picture depends on the order its bodies were made in, so built `Node`s
+     * first and rows after drew another picture whenever a load mixed the two.
      * @param engine - The new engine.
+     * @param nodes - Its `Node`s.
      */
-    private addColumnRows(engine: LayoutEngine): void {
+    private addBodies(engine: LayoutEngine, nodes: Node[]): void {
         const rows = this.columnRows();
         if (!(engine instanceof D3GraphEngine || engine instanceof NGraphEngine) || rows.length === 0) {
+            layoutEngineInternals.addNodes(engine, nodes);
             return;
         }
 
         const snapshot = this.dataManager.getSnapshot();
-        engine.addRows(
-            rows.map((row) => snapshot.ids.idOf(row)),
-            { getSnapshot: () => this.dataManager.getSnapshot(), positions: this.dataManager[WRITABLE_LANE] },
-        );
+        const source = {
+            getSnapshot: () => this.dataManager.getSnapshot(),
+            positions: this.dataManager[WRITABLE_LANE],
+        };
+        const byRow = new Map<number, Node>();
+        const later: Node[] = [];
+        for (const n of nodes) {
+            if (n.index >= 0 && n.index < snapshot.nodeCount) {
+                byRow.set(n.index, n);
+            } else {
+                later.push(n);
+            }
+        }
+
+        const rowSet = new Set(rows);
+        let ids: NodeIdType[] = [];
+        for (let row = 0; row < snapshot.nodeCount; row++) {
+            const n = byRow.get(row);
+            if (n !== undefined) {
+                if (ids.length > 0) {
+                    engine.addRows(ids, source);
+                    ids = [];
+                }
+
+                layoutEngineInternals.addNodes(engine, [n]);
+            } else if (rowSet.has(row)) {
+                ids.push(snapshot.ids.idOf(row));
+            }
+        }
+
+        if (ids.length > 0) {
+            engine.addRows(ids, source);
+        }
+
+        layoutEngineInternals.addNodes(engine, later);
     }
 
     /**

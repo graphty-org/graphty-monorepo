@@ -1119,6 +1119,31 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.strictEqual(owed, false, "the pre-steps were spent, not owed to a later frame");
     });
 
+    it("make an ngraph layout's bodies in row order when only some rows have a Node", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        // A Node built for a middle row, as a label or a pick builds one.
+        assert.isDefined(graph.getNode(5));
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 1, "one row has a Node");
+
+        await graph.setLayout("ngraph", { dim: 2, seed: 7 });
+        await operationQueueOf(graph).waitForCompletion();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.instanceOf(engine, NGraphEngine);
+        const order: unknown[] = [];
+        engine.ngraph.forEachNode((n) => {
+            order.push(n.id);
+        });
+        assert.deepEqual(
+            order,
+            NODES.map((n) => n.id),
+            "the bodies were made in row order, as on the object path",
+        );
+    });
+
     it("keep a filtered row hidden when its Node is built later", async () => {
         const element = await mounted(renderer);
         const { graph } = element;

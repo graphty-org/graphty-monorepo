@@ -1424,6 +1424,10 @@ export class Graph implements GraphContext {
                 this.#resident = event.next;
                 this.#rowTable?.replaced(event.report.nodeRemap, dataManagerInternals.builtNodes(this.dataManager));
                 this.#nodeBatches?.rowsMoved(event.report.nodeRemap);
+                // a pulled line is drawn from the row table, so there are none without one
+                if (event.report.nodeRemap !== null && this.#rowTable) {
+                    this.updateManager.rowsRenumbered();
+                }
                 // The derived inputs of scoped runs are over the snapshot that has gone: released
                 // now unless a run still holds one, and then when it lets go.
                 peekDerivedInputs(this)?.freeze();

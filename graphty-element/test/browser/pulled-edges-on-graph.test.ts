@@ -9,9 +9,10 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
 import { drag } from "../helpers/real-input";
@@ -131,7 +132,58 @@ function pulledBytes(element: Graphty): number {
     return bytes;
 }
 
+/**
+ * Count `Edge.update` calls, split by whether the edge's line was pulled when it was called.
+ * @returns The counts, live.
+ */
+function countVisits(): { pulled: number; placed: number } {
+    const counts = { pulled: 0, placed: 0 };
+    const { update } = Edge.prototype;
+    vi.spyOn(Edge.prototype, "update").mockImplementation(function (this: Edge) {
+        counts[this.isPulled ? "pulled" : "placed"]++;
+        update.call(this);
+    });
+    return counts;
+}
+
+/**
+ * Drag node 1, then remove node 3 (a freeze renumbers the rows after it), and read the frame.
+ * @param element - The element.
+ * @returns The frame.
+ */
+async function draggedAndRenumbered(element: Graphty): Promise<Frame> {
+    const node = element.graph.getNode(1);
+    assert.isDefined(node);
+    const from = element.worldToScreen(node.drawnWorldPosition);
+    await drag(element, from, { x: from.x - 30, y: from.y + 40 });
+    await element.session.data.removeNodes([3]);
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+    return readCanvas(element.graph);
+}
+
 describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it("are never placed by the frame's walk, at load, at a drag or after a renumbering freeze", async () => {
+        const placed = await loaded(renderer, false);
+        const placedFrame = await draggedAndRenumbered(placed);
+        placed.remove();
+
+        const visits = countVisits();
+        const pulled = await loaded(renderer, false, "3d", { renderPath: "batched" });
+        assert.deepInclude(pulled.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
+        assert.strictEqual(visits.pulled, 0, "the load's walk placed no pulled edge");
+        assert.isAbove(visits.placed, 0, "the load's walk placed the capped edge");
+
+        visits.placed = 0;
+        assert.equal(overBar(placedFrame, await draggedAndRenumbered(pulled)), 0, "after the drag and the freeze");
+        assert.strictEqual(visits.pulled, 0, "the drag and the freeze placed no pulled edge");
+        assert.isAbove(visits.placed, 0, "the drag placed the capped edge at the dragged node");
+    });
+
     it("draw the placed lines' picture at rest, after a move and with an edge hidden", async () => {
         const placed = await loaded(renderer, false);
         assert.equal(placed.graph.rowCounts.pulledEdges, 0);

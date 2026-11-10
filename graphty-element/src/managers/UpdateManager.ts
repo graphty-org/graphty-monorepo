@@ -2998,8 +2998,31 @@ export class UpdateManager implements Manager {
     /** How many meshes the scene held last frame, so one appearing or going unfreezes it. */
     private lastMeshCount = -1;
 
+    /** Set by a freeze that renumbered rows, so the next edge pass writes every pulled line's rows again. */
+    private pulledRowsMoved = false;
+
+    /**
+     * Say that a freeze renumbered the rows (`snapshot-replaced` with a `nodeRemap`): a straight pulled line, which
+     * no walk visits ({@link Edge.followsRows}), is told its nodes' new rows at the next edge pass.
+     * @internal
+     */
+    rowsRenumbered(): void {
+        this.pulledRowsMoved = true;
+    }
+
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
+
+        // ponytail: a walk of every edge per renumbering freeze (a removal); a list of the pulled edges if removals
+        // at a million edges need it.
+        if (this.pulledRowsMoved && !this.dataManager.drawHeld) {
+            this.pulledRowsMoved = false;
+            for (const edge of this.dataManager.edges.values()) {
+                if (edge.isPulled) {
+                    edge.followRenumberedRows();
+                }
+            }
+        }
 
         // No frame is drawn while a load holds the draw, so asking whether anything moved, a walk of
         // every node on each of a load's thousands of frames, waits for the first frame it releases.
@@ -3033,12 +3056,16 @@ export class UpdateManager implements Manager {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
             // moved costs nothing here. A pass over the whole graph used to aim all of them first.
             for (const edge of this.layoutManager.edges) {
-                edge.update();
+                if (!edge.followsRows) {
+                    edge.update();
+                }
             }
         } else {
             this.updateEdgesOf(walk === false ? [] : walk);
             for (const edge of this.edgesToPlace) {
-                edge.update();
+                if (!edge.followsRows) {
+                    edge.update();
+                }
             }
             this.placedEdgesAtRows();
         }
@@ -3122,7 +3149,10 @@ export class UpdateManager implements Manager {
     private updateEdgesOf(nodes: readonly Node[]): void {
         for (const node of nodes) {
             for (const id of this.dataManager.incidentEdgeIds(node)) {
-                this.dataManager.edges.get(id)?.update();
+                const edge = this.dataManager.edges.get(id);
+                if (edge !== undefined && !edge.followsRows) {
+                    edge.update();
+                }
             }
         }
     }

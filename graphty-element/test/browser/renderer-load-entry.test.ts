@@ -18,13 +18,9 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { defineSource, registerSource } from "../../session";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { LOAD_ORDER } from "../../src/session/commands/doors";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { loadLineOf } from "../../src/session/loadLine";
-
-// Network sources sit behind the network-data experiment.
-setDefaultFeatures(["network-data"]);
 
 /** A three-node graph as inline JSON. */
 const TRIANGLE = JSON.stringify({

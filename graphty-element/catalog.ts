@@ -35,27 +35,67 @@ export * from "./src/catalog/index";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    AiCallInput,
+    AiCapabilities,
+    AiCapabilityStatus,
+    AiEffect,
+    AiEffectCode,
+    AiHostedToolId,
+    AiInputKind,
     AiKeyShape,
     AiKeyShapeCheck,
     AiKeyShapeCode,
+    AiMessageScope,
     AiModelDescriptor,
+    AiModelReasoning,
+    AiPageRetrieval,
     AiProviderDescriptor,
     AiProviderId,
+    AiProviderVoice,
+    AiReasoningEffort,
     AiResultCode,
     AiResultParams,
+    AiRule,
+    AiRuleTerm,
+    AiTarget,
+    AiToolCapabilities,
+    AiVoiceDestination,
+    AiVoiceDirection,
+    AiVoiceReadiness,
+    AiVoiceRoute,
+    AiVoiceUnavailableReason,
 } from "./src/catalog/ai";
 export {
+    AI_CONVERSATION_FORMAT,
+    AI_CONVERSATION_FORMAT_VERSION,
+    AI_EFFECT_CODES,
+    AI_HOSTED_TOOL_CAPABILITIES,
+    AI_HOSTED_TOOL_IDS,
+    AI_INPUT_KINDS,
     AI_PROVIDER_DESCRIPTORS,
     AI_PROVIDER_IDS,
+    AI_REASONING_EFFORTS,
     AI_RESULT_CODES,
     AI_STAGES,
     AI_STATES,
     AI_TOOL_CALL_STATUSES,
+    AI_VOICE_APPROVABLE_GATES,
+    AI_VOICE_CAPABILITIES,
+    AI_VOICE_UNAVAILABLE_REASONS,
+    aiHostedToolStatus,
     aiProviderDescriptor,
+    aiVoiceStatus,
     checkApiKeyShape,
 } from "./src/catalog/ai";
 export type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey, LegacyAlgorithmMapping } from "./src/catalog/algorithms";
-export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS } from "./src/catalog/algorithms";
+export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS, calledAlgorithm } from "./src/catalog/algorithms";
+export type {
+    AiToolCauseCode,
+    AssistantToolDescriptor,
+    AssistantToolProfile,
+    CatalogKind,
+} from "./src/catalog/assistant";
+export { AI_TOOL_CAUSE_CODES, ASSISTANT_TOOLS, CATALOG_KINDS } from "./src/catalog/assistant";
 export type { BasemapSourceDescriptor } from "./src/catalog/basemaps";
 export { BASEMAP_SOURCE_DESCRIPTORS } from "./src/catalog/basemaps";
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";
@@ -110,6 +150,7 @@ export type {
     ShaderOrigin,
     ShaderParamChoice,
     ShaderParamDescriptor,
+    ShaderParamDraft,
     ShaderParams,
     ShaderParamValue,
     ShaderPlace,
@@ -121,13 +162,40 @@ export type {
     ShaderSource,
     ShaderTarget,
     ShaderText,
+    ShaderTextDraft,
+    ShaderTextParts,
     ShaderTextResult,
     ShaderUse,
     ShaderWebGpu,
 } from "./src/catalog/shaders";
-export { shaderAnimates, shaderCovers } from "./src/catalog/shaders";
+export {
+    minSizeApplies,
+    SHADER_CLOCKS,
+    SHADER_MIN_SIZE_RANGE,
+    SHADER_PARAM_TYPES,
+    SHADER_REACH_RANGE,
+    shaderAnimates,
+    shaderCovers,
+    shaderIdForName,
+    shaderParamShape,
+    shaderPlaceUsesReach,
+} from "./src/catalog/shaders";
 export { shaderTemplate, type ShaderTemplatePlace } from "./src/catalog/shaderTemplate";
-export { formatShaderText, parseShaderText, type ShaderTextOptions } from "./src/catalog/shaderText";
+export {
+    bindShaderParamClock,
+    changeShaderParamType,
+    formatShaderDraft,
+    formatShaderText,
+    parseShaderText,
+    removeShaderParam,
+    renameShaderParam,
+    retypeShaderParam,
+    type ShaderParamClock,
+    shaderParamClock,
+    shaderParamPlainName,
+    type ShaderTextOptions,
+    splitShaderText,
+} from "./src/catalog/shaderText";
 export { sourceDescriptors } from "./src/catalog/sources";
 export type { ShaderParamAddress } from "./src/catalog/types";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";

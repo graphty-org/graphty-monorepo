@@ -80,12 +80,27 @@ export interface Command {
      * means always.
      */
     readonly shown?: (ctx: CommandContext) => boolean;
+    /**
+     * The door to an experiment: while `shown` is false it is as if it were not registered, so the
+     * Keyboard shortcuts dialog does not list it and its keys stay the browser's.
+     */
+    readonly experiment?: boolean;
     /** The experiment it belongs to: with that off the shortcuts list leaves it out too. */
     readonly feature?: FeatureId;
     /** Does it. */
     readonly run: (ctx: CommandContext) => void | Promise<void>;
     /** Declared but not built: holds the id, drawn nowhere. */
     readonly stub?: boolean;
+}
+
+/**
+ * Whether a command is an experiment's door with its experiment off.
+ * @param command - the command.
+ * @param ctx - what its `shown` reads.
+ * @returns true when nothing may show it or answer its keys.
+ */
+export function switchedOff(command: Command, ctx: CommandContext): boolean {
+    return command.experiment === true && command.shown?.(ctx) === false;
 }
 
 /**
@@ -216,7 +231,7 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
         "row.ungroup",
         "row.delete",
     ],
-    style: ["style.add-label-line", "style.layer-from-selection"],
+    style: ["style.add-label-line", "style.layer-from-selection", "shader.add"],
     table: ["table.toggle"],
     export: ["file.export"],
     project: ["project.save", "project.save-as", "project.save-copy", "project.close"],

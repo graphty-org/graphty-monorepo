@@ -2412,28 +2412,15 @@ export function projectOf(
             fact: { code: "project.open", params: { name: name ?? null } },
             starts: true,
         };
-        // Only a member that holds a server load: file and inline loads are recorded there too.
-        const holdsServerLoad =
-            Array.isArray(member?.loads) &&
-            member.loads.some((entry: unknown) => (entry as { kind?: unknown } | null)?.kind === "source");
-        const networkOff = dispatcher.services.network?.() === false && holdsServerLoad;
-        // With the network-data experiment off, the member is kept exactly as the file held it.
-        const loads: SourcesRead = networkOff
-            ? {
-                  problems: [{ code: "E_FEATURE_OFF", params: { feature: "network-data", key: "graphty-sources" } }],
-                  records: [],
-                  facts: new Map(),
-                  skipped: member,
-              }
-            : readSourcesMember(member, {
-                  pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
-                  data,
-                  nodes: graph.nodes,
-                  links: graph.links,
-                  isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
-                  isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
-                  now: new Date().toISOString(),
-              });
+        const loads: SourcesRead = readSourcesMember(member, {
+            pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
+            data,
+            nodes: graph.nodes,
+            links: graph.links,
+            isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
+            isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
+            now: new Date().toISOString(),
+        });
         problems.push(...loads.problems);
         if (dispatcher.services.timeline?.() === false) {
             problems.push(...timelineLeftOff(state));

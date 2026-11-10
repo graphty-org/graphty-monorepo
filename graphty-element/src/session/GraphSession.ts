@@ -66,6 +66,7 @@ import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./command
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { dispatcherOf, registerDispatcher } from "./dispatchers";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
@@ -87,6 +88,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
+export { dispatcherOf } from "./dispatchers";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
 import {
@@ -377,6 +379,7 @@ const TX_PARTS = [
     "visibility",
     "styles",
     "shaders",
+    "time",
     "views",
     "positions",
     "config",
@@ -465,6 +468,8 @@ interface SessionInternals {
     readonly baselineWindow?: boolean;
     /** Settles on the next drawn frame, or at once when no frame is coming; absent with no renderer. */
     readonly renderedFrame?: () => Promise<void>;
+    /** Whether the element draws on the `"batched"` render path, which allows the repaint's uniform mesh-key fill. */
+    readonly batched?: () => boolean;
 }
 
 /**
@@ -720,7 +725,7 @@ class Session implements ElementSession {
                 }
             },
         };
-        DISPATCHERS.set(this, this.dispatcher);
+        registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
         SESSION_RUNS.set(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
@@ -1411,9 +1416,6 @@ export async function paintAddedRows(
     await ROW_PAINTERS.get(dispatcherOf(session))?.(stack, dirty, edgeRows);
 }
 
-/** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
-const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
-
 /** Each session's store, with its lane writable; see {@link laneOf}. */
 const LANES = new WeakMap<GraphSession, LaneStore>();
 
@@ -1431,21 +1433,6 @@ export function laneOf(session: GraphSession): ElementPositions {
     }
 
     return store.positions;
-}
-
-/**
- * The dispatcher behind a session. Not published: the element's own tests spy on it and read the
- * project state it holds.
- * @param session - A session this module built.
- * @returns Its dispatcher.
- */
-export function dispatcherOf(session: GraphSession): Dispatcher {
-    const dispatcher = DISPATCHERS.get(session);
-    if (dispatcher === undefined) {
-        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "history" });
-    }
-
-    return dispatcher;
 }
 
 /**
@@ -2100,6 +2087,47 @@ function elementBaseLayers(): readonly ElementLayerSpec[] {
     ];
 }
 
+/** No element layers. */
+const NO_LAYERS: readonly ElementLayerSpec[] = Object.freeze([]);
+
+/**
+ * The layers that draw a peek: a slate halo and band, in no hue the data draws with, dark enough to
+ * read on the element's light canvas. Base layers, so a key never lists them.
+ * @param peeked - What it shows.
+ * @param peeked.nodes - The nodes.
+ * @param peeked.edges - The edges.
+ * @returns The layers.
+ */
+function peekLayersOf(peeked: {
+    readonly nodes: readonly NodeId[];
+    readonly edges: readonly EdgeId[];
+}): ElementLayerSpec[] {
+    const made: ElementLayerSpec[] = [];
+    if (peeked.nodes.length > 0) {
+        made.push({
+            name: "Peeked nodes",
+            kind: "base",
+            source: { by: "element", reason: "hover" },
+            target: "node",
+            selector: { match: "ids", nodes: peeked.nodes },
+            set: { "node.haloColor": "#334155", "node.haloScale": 1.6, "node.haloOpacity": 1 },
+        });
+    }
+
+    if (peeked.edges.length > 0) {
+        made.push({
+            name: "Peeked edges",
+            kind: "base",
+            source: { by: "element", reason: "hover" },
+            target: "edge",
+            selector: { match: "ids", edges: peeked.edges },
+            set: { "edge.bandColor": "#334155", "edge.bandWidth": 2.5, "edge.bandOpacity": 1 },
+        });
+    }
+
+    return made;
+}
+
 /**
  * Every path this session can answer for one kind of element.
  * @param data - The session's data surface, which lists the attributes.
@@ -2632,7 +2660,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         return askedOn.includes(id);
     };
     const timelineOn = (): boolean => featureOn("timeline");
-    const networkOn = (): boolean => featureOn("network-data");
     const fileStylesOn = (): boolean =>
         (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
     const runsOptions = options.runs ?? {};
@@ -2655,7 +2682,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
     dispatcher.services.timeline = timelineOn;
-    dispatcher.services.network = networkOn;
     dispatcher.services.fileStyles = fileStylesOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
@@ -2693,6 +2719,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let stack: SessionStylesApi | null = null;
     // Set once the stack exists; until then no layer reads the pointer.
     let repaintHover = (): void => undefined;
+    let repaintPeek = (_dirty: ElementIndices): void => undefined;
     // Moves whenever the selection, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
@@ -2749,6 +2776,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             importer: () => dispatcher.capturedDispatch(),
             loadLine: loadLineOf(dispatcher),
+            ceilings,
             slice,
             measure: async (command, config) => {
                 const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
@@ -2795,6 +2823,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // And the query engine, below that.
             search: (text, request) => requireQuery(query).search(text, request),
             textTest: (text, mode, target, only) => requireQuery(query).textTest(text, mode, target, only),
+            matchWhere: (where, target) =>
+                new Set<NodeId | EdgeId>(
+                    target === "node" ? requireQuery(query).nodes(where) : requireQuery(query).edges(where),
+                ),
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),
@@ -2806,7 +2838,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // Read through calls: the timeline and the visibility are built below.
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeline: () => timelineOn(),
-            network: () => networkOn(),
             fileStyles: () => fileStylesOn(),
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
@@ -3448,6 +3479,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const engine = query;
 
+    // Settled on first asking, as the session's `features` is.
+    let peekable: boolean | undefined;
+    let peekLayers: readonly ElementLayerSpec[] = NO_LAYERS;
     selection = createSelectionApi({
         snapshot,
         scope,
@@ -3531,6 +3565,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             advanceTick();
             repaintStates({ node: ids.flatMap((id) => nodeIndex(id) ?? []), edge: [] });
         },
+        onPeek: (dirty, peeked) => {
+            peekLayers = peeked === null ? NO_LAYERS : peekLayersOf(peeked);
+            advanceTick();
+            repaintPeek(dirty);
+        },
+        canPeek: () => {
+            peekable ??= resolveFeatures(options.features?.()).has("assistant");
+            return peekable;
+        },
         // The origin moved with no member: `selection:changed` stays a membership event, so the
         // origin has its own.
         onOriginChange: (origin) => {
@@ -3560,6 +3603,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // With the base look in the Everything row, what no shown layer paints is not drawn.
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),
+            ...(internals.batched === undefined ? {} : { uniformFill: internals.batched }),
         }),
         snapshot,
     );
@@ -3584,6 +3628,20 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             .catch((error: unknown) => {
                 if (!teardown.signal.aborted) {
                     console.error("[graphty] Could not repaint the layers reading the selection.", error);
+                }
+            });
+    };
+    // The peek's layers leave the stack as it ends, so its repaint cannot ask what reads a state.
+    repaintPeek = (dirty: ElementIndices): void => {
+        if (stack === null) {
+            return;
+        }
+
+        painter
+            .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
+            .catch((error: unknown) => {
+                if (!teardown.signal.aborted) {
+                    console.error("[graphty] Could not repaint the elements a peek moved.", error);
                 }
             });
     };
@@ -3714,6 +3772,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         stopHearing();
         layerScopes.dispose();
         notifier.dispose();
+        selection?.endPeek();
     });
     const nodeIndex = nodeIndexOf(snapshot);
     const edgeIndex = edgeIndexOf(snapshot);
@@ -3760,6 +3819,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitScope: (spec: unknown) => scope.admit(spec),
         admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
+        transient: () => peekLayers,
         directed: () => snapshot().directed,
         // `edge.lift` rises out of a flat layout's plane: drawn only for a flat layout in 3D.
         liftDrawn: () => {

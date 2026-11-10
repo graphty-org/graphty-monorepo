@@ -779,6 +779,7 @@ export interface DataIssue {
 // @public
 export interface DataSourceDescriptor {
     readonly config?: Readonly<Record<string, unknown>>;
+    readonly fileName?: string;
     readonly name?: string;
     readonly size?: number;
     readonly type?: string;
@@ -921,6 +922,7 @@ export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
 // @public
 export interface EnabledFeatures {
     readonly enabled: readonly FeatureId[];
+    has(id: FeatureId): boolean;
     readonly unknown: readonly string[];
 }
 
@@ -1035,7 +1037,7 @@ export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models";
 
 // @public
 export interface FieldBand {
@@ -2755,6 +2757,7 @@ export interface JoinChoices {
     readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
     readonly unknownEnds?: "add" | "leave-out";
+    readonly unmatchedRows?: "leave-out" | "add";
     readonly via?: SourceKey;
 }
 
@@ -2778,6 +2781,7 @@ export interface JoinRecord {
         readonly name: string;
         readonly columns: readonly string[];
         readonly rows: readonly Readonly<Record<string, unknown>>[];
+        readonly unreadRows?: number;
     };
 }
 
@@ -2797,6 +2801,7 @@ export interface JoinReport {
     readonly rowFates: readonly JoinRowFate[];
     readonly rowMatches: readonly (readonly (NodeId_2 | EdgeId)[])[];
     readonly unknownEndRows: number;
+    readonly unreadRows: number;
     readonly updatedNodes: number;
     readonly withoutValue: number;
     readonly withoutValueIds: readonly (NodeId_2 | EdgeId)[];
@@ -2812,6 +2817,7 @@ export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "repl
 export interface JoinSuggestion {
     readonly confident: boolean;
     readonly keys: readonly JoinKey[];
+    readonly repeated?: "both";
     readonly shape: JoinShape;
 }
 
@@ -3120,6 +3126,7 @@ export interface LoadChoices extends ImportOptions {
     readonly join?: JoinChoices;
     readonly kindIds?: "shared" | "scoped";
     readonly mapping?: LoadMapping;
+    readonly origin?: "sample";
     readonly styleOptions?: FileStyleOptions;
     readonly styles?: "file" | "none";
     readonly unmatched?: "add" | "leave-out";
@@ -3172,6 +3179,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         };
         readonly edges?: readonly LeftOutEdge[];
     };
+    readonly loadedAt?: string;
     readonly loadKey?: string;
     readonly mapping?: LoadMappingRead;
     readonly reloadable?: true;
@@ -3179,6 +3187,7 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tables: readonly string[];
     readonly total?: number;
     readonly totalEdges?: number;
+    readonly url?: string;
 }
 
 // @public
@@ -4248,6 +4257,7 @@ export interface RecordPageOptions {
     readonly offset?: number;
     readonly scope?: ScopeInput;
     readonly sort?: RecordSort | ResultSort;
+    readonly where?: Query;
 }
 
 // @public
@@ -4263,6 +4273,7 @@ export function removeAutosave(key: string, id: string, options?: AutosaveLookup
 
 // @public
 export interface RemoveSourceResult {
+    readonly alsoRemoved: readonly SourceKey[];
     readonly kept: {
         readonly nodes: number;
         readonly edges: number;
@@ -4524,6 +4535,7 @@ export interface ResultSummary {
     readonly caveats: Caveats;
     readonly count: number;
     readonly durationMs: number;
+    readonly groupCount?: number;
     readonly groups?: readonly SummaryGroup[];
     readonly max: number | null;
     readonly mean: number | null;
@@ -5147,10 +5159,22 @@ export interface SelectionApi {
     readonly hovered: NodeId | null;
     readonly hoverPreview: boolean;
     readonly layerSelector: Selector;
+    members(target: SelectionTarget): Promise<{
+        readonly nodes: readonly NodeId[];
+        readonly edges: readonly EdgeId[];
+    }>;
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;
     readonly originPaths: readonly Path[];
+    peek(target: SelectionTarget | null): Promise<{
+        readonly nodes: number;
+        readonly edges: number;
+    }>;
+    readonly peeked: {
+        readonly nodes: number;
+        readonly edges: number;
+    } | null;
     previewHover(on: boolean): void;
     // @deprecated
     promote(name: string): ScopeId;
@@ -5471,6 +5495,7 @@ export interface SessionDataApi {
     issues(options?: {
         readonly includeIgnored?: boolean;
         readonly includeFixed?: boolean;
+        readonly source?: SourceKey;
     }): readonly DataIssue[];
     joins(): readonly JoinRecord[];
     lastImport(): LoadReport | null;
@@ -5502,6 +5527,7 @@ export interface SessionDataApi {
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
     readableValues(): readonly ReadableValue[];
+    readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
@@ -5509,7 +5535,7 @@ export interface SessionDataApi {
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
     renameColumn(column: ColumnRef, name: string): Promise<void>;
     renameSource(name: string, key?: SourceKey): Promise<void>;
-    replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices): Promise<ReplaceReport>;
+    replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices & SourceLoadOptions): Promise<ReplaceReport>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
     setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
@@ -5519,6 +5545,7 @@ export interface SessionDataApi {
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
     sources(): readonly LoadedSource[];
+    sourceSettings(key: SourceKey): SourceSettings | undefined;
     sourcesOf(id: NodeId_2 | EdgeId, options?: {
         readonly kind?: "node" | "edge";
     }): readonly SourceKey[];
@@ -5601,6 +5628,9 @@ export interface SessionEventMap {
     "source:expand-failed": SourceExpandFailed;
     "source:expand-start": SourceExpandStart;
     "source:expanded": SourceExpanded;
+    "source:refreshed": {
+        readonly load: string;
+    };
     "style:batch-changed": StyleBatchChange;
     // @beta
     "style:branches-shown-changed": {
@@ -5723,6 +5753,7 @@ export interface SessionShaders {
     source(id: string, options?: {
         readonly params?: ShaderParams;
         readonly duplicate?: boolean;
+        readonly derived?: "omit";
     }): Promise<ShaderText>;
     // (undocumented)
     status(id: string): ShaderStatus;
@@ -5967,6 +5998,7 @@ export interface ShaderAddOptions {
     readonly apply?: {
         readonly layer: LayerId;
     };
+    readonly asNew?: boolean;
     readonly onTaken?: "refuse" | "rename";
     readonly place?: ShaderPlace;
     readonly source?: "reader" | "content";
@@ -6234,6 +6266,13 @@ export interface SourcePreviewRow {
 export { SourceProbe }
 
 // @public
+export interface SourceRead extends SourceInput {
+    readonly edges: number;
+    readonly nodes: number;
+    readonly rows: unknown;
+}
+
+// @public
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
@@ -6251,6 +6290,11 @@ export { SourceRuntimeReason }
 
 // @public
 export const SOURCES_MEMBER_VERSION = 2;
+
+// @public
+export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "config" | "expand"> & {
+    readonly limits?: SourceLimitOptions;
+};
 
 export { SourceValidators }
 
@@ -6518,6 +6562,7 @@ export interface StylesApi {
     counts(id: LayerId): StyleCounts;
     defaultValue(channel: Channel): ChannelValue | undefined;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
+    drawnCount(id: LayerId): number;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
@@ -6644,6 +6689,7 @@ export interface TableMapping {
     readonly edgeId?: string | null;
     readonly key?: string | null;
     readonly kind?: string | null;
+    readonly kindName?: string | null;
     readonly label?: string | null;
     readonly rowsAre?: "nodes" | "edges";
     readonly source?: string | Endpoint;

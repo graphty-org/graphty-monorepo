@@ -6,6 +6,8 @@
 import type { SourceCatalogEntry } from "@graphty/graphty-element/catalog";
 import { type CodedFact, type CodedFactParam, GraphtyError } from "@graphty/graphty-element/session";
 
+import { formatNumber } from "../inspector/words";
+
 /** The app's names for sources whose catalog name is not the reader's word, by catalog id. */
 const KIND_NAMES: Readonly<Record<string, string>> = { rest: "Web API" };
 
@@ -24,7 +26,8 @@ const CODE_WORDS: Readonly<Record<string, string>> = {
     E_FETCH: "unreachable",
     E_FETCH_FAILED: "unreachable",
     E_FAILED: "failed",
-    E_SOURCE_BLOCKED: "blocked by the browser",
+    // The browser reports a refused cross-origin read and a host that is down the same way.
+    E_SOURCE_BLOCKED: "unreachable or blocked",
     E_SOURCE_AUTH: "sign-in refused",
     E_SOURCE_FORBIDDEN: "not allowed",
     E_SOURCE_NOT_FOUND: "not found",
@@ -38,21 +41,30 @@ const CODE_WORDS: Readonly<Record<string, string>> = {
     E_SOURCE_PARAM: "missing or wrong value",
     E_SOURCE_LIMIT: "over the limit",
     E_SOURCE_UNSUPPORTED: "not supported",
+    E_TOO_LARGE: "too large to draw",
     W_SOURCE_LIMIT: "capped",
     W_SOURCE_AUTH: "sign-in needed for more",
     W_SOURCE_RETRIED: "retried",
     W_SOURCE_VALUE: "unread value",
+    W_STYLES_NOT_IMPORTED: "styles not read",
 };
 
+/** What each of graph-io's caps counts. */
+const LIMIT_UNITS: Readonly<Record<string, string>> = { maxNodes: "nodes", maxEdges: "edges", maxBytes: "bytes" };
+
 /**
- * A coded fact as a short label: "missing or wrong value: uuid", or with the host of the server
- * that answered, "too many requests: api.openalex.org".
+ * A coded fact as a short label: "missing or wrong value: uuid", with the host of the server
+ * that answered, "too many requests: api.openalex.org", or, past a cap, how much the source holds
+ * and the form's row that caps it, "2,794 nodes: over Limit".
  * @param fact - the code and its params.
  * @returns the label.
  */
 export function codeWords(fact: CodedFact): string {
     const words = CODE_WORDS[fact.code] ?? fact.code;
-    const { name, origin } = fact.params;
+    const { name, origin, limit, value } = fact.params;
+    if (fact.code === "E_SOURCE_LIMIT" && typeof limit === "string" && typeof value === "number") {
+        return `${formatNumber(value)} ${LIMIT_UNITS[limit] ?? limit}: over Limit`;
+    }
     if (typeof name === "string") {
         return `${words}: ${name}`;
     }

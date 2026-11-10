@@ -1,0 +1,11 @@
+stories/algorithms/Community/Community.stories.ts LouvainMoreCommunitiesThanColours differs on the batched path: expected 1
+stories/BidirectionalArrows.stories.ts Bidirectional differs on the batched path: expected 1
+stories/FilePositions.stories.ts CytoscapeSession differs on the batched path: expected 1
+stories/FileStyles.stories.ts Gexf differs on the batched path: expected 1488
+stories/Layout2D.stories.ts ClusterBy differs on the batched path: expected 53055
+stories/Layout.stories.ts D3 differs on the batched path: expected 33398
+stories/Layout.stories.ts ForceAtlas2Weighted differs on the batched path: expected 1
+stories/network-sources/Sources.stories.ts OpenAlexCiting differs on the batched path: expected 164224
+stories/shaders/NodeDrawing.stories.ts ThreePaths differs on the batched path: expected 325
+stories/shaders/NodeEffects.stories.ts AuraAndSatellites differs on the batched path: expected 1
+stories/shaders/NodeEffects.stories.ts AuraOverTheCap differs on the batched path: expected 17865

@@ -118,6 +118,8 @@ const MAX_FINAL_SWEEPS = 256;
 
 /** d3's own many-body strength, which every node that is not a following group keeps. */
 const DEFAULT_CHARGE = -30;
+/** How hard a link pulls its two ends together. */
+const LINK_STRENGTH = 0.9;
 
 /** The share of the way to its centroid a node's velocity takes per tick at strength 1, d3's own `forceX` default. */
 const CLUSTER_RATE = 0.1;
@@ -258,7 +260,7 @@ export class D3GraphEngine extends LayoutEngine {
 
         // https://github.com/vasturiano/d3-force-3d?tab=readme-ov-file#links
         this.linkForce = forceLink()
-            .strength(0.9)
+            .strength(LINK_STRENGTH)
             .id((d) => (d as D3InputNode).id);
         this.d3ForceLayout = forceSimulation()
             .numDimensions(this.dim)
@@ -592,6 +594,22 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
+     * Under renderPath "batched", take out the bodies of rows that leave the graph with no `Node`;
+     * otherwise each would stay in the simulation and keep pushing the others. Their edges have
+     * already gone through {@link D3GraphEngine.removeEdge}.
+     * @param ids - The rows' node ids; an id with no row body is skipped.
+     * @internal
+     */
+    removeRows(ids: Iterable<NodeIdType>): void {
+        for (const id of ids) {
+            if (this.rowBodies.delete(id)) {
+                this.clustersStale = true;
+                this.reheat = true;
+            }
+        }
+    }
+
+    /**
      * Check if the simulation has settled below alpha minimum
      * @returns True if the simulation has settled
      */
@@ -609,8 +627,24 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - The node to add
      */
     addNode(n: Node): void {
+        // A row's `Node` built late takes over the row's body, where it already is.
+        const body = this.rowBodies.get(n.id);
+        this.rowBodies.delete(n.id);
+        // Already in the simulation: it keeps its place in the node list, and a settled simulation
+        // stays settled, since nothing it steps changed.
+        // ponytail: the next refresh lists it among the Nodes, ahead of the rows still with no Node,
+        // so a reheat after a mixed load orders bodies differently from the object path.
+        if (body !== undefined && isD3Node(body)) {
+            this.nodeMapping.set(n, body);
+            if (this.isHeld(n.index)) {
+                fixAt(body);
+            }
+
+            return;
+        }
+
         // A 2D simulation never initialises or moves z, so it starts, and stays, at 0.
-        this.newNodeMap.set(n, this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id });
+        this.newNodeMap.set(n, body ?? (this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id }));
     }
 
     /**
@@ -703,6 +737,17 @@ export class D3GraphEngine extends LayoutEngine {
     override loadArrangement(): void {
         this.refresh();
         super.loadArrangement();
+        // and each row's body with no `Node`, which a `Node` built later takes where it is
+        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const at = { x: 0, y: 0, z: 0 };
+        for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+                body.x = at.x;
+                body.y = at.y;
+                body.z = this.dim === 2 ? 0 : at.z;
+                this.reheat = true;
+            }
+        }
     }
 
     /**
@@ -783,6 +828,31 @@ export class D3GraphEngine extends LayoutEngine {
         this.holdRowBodies(followers);
 
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
+        // A link to a node the layout leaves out, or one the filter hides, pulls nothing (see
+        // `LayoutEngine.setLeftOut`).
+        const leftOut = new Set<NodeIdType>();
+        for (const node of this.nodeMapping.keys()) {
+            if (this.isLeftOut(node.index)) {
+                leftOut.add(node.id);
+            }
+        }
+
+        const hiddenLinks = new Set<unknown>();
+        for (const [edge, link] of [...this.edgeMapping, ...this.newEdgeMap]) {
+            if (this.isEdgeLeftOut(edge)) {
+                hiddenLinks.add(link);
+            }
+        }
+
+        const endId = (end: unknown): unknown =>
+            typeof end === "object" && end !== null ? (end as D3InputNode).id : end;
+        this.linkForce.strength((l) =>
+            hiddenLinks.has(l) ||
+            leftOut.has(endId(l.source) as NodeIdType) ||
+            leftOut.has(endId(l.target) as NodeIdType)
+                ? 0
+                : LINK_STRENGTH,
+        );
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
                 fixAt(d3node);

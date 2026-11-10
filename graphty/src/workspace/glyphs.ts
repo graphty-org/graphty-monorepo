@@ -14,6 +14,7 @@ import {
     ArrowRight,
     ArrowRightToLine,
     ArrowUp,
+    ArrowUpRight,
     ArrowUpToLine,
     Blend,
     Box,
@@ -39,6 +40,7 @@ import {
     Columns3,
     Combine,
     Copy,
+    createLucideIcon,
     Database,
     Disc,
     Eye,
@@ -59,6 +61,7 @@ import {
     Hourglass,
     Image,
     KeyRound,
+    Lamp,
     Layers,
     LayoutGrid,
     Lightbulb,
@@ -78,6 +81,7 @@ import {
     Maximize2,
     Menu,
     MessageSquare,
+    Mic,
     Minimize2,
     Minus,
     MoreHorizontal,
@@ -95,16 +99,17 @@ import {
     Plus,
     Redo2,
     RefreshCw,
+    RotateCw,
     Route,
     Scan,
     Search,
+    Send,
     Server,
     Settings,
     Shapes,
     Share2,
     Shuffle,
     Sigma,
-    Sparkles,
     Spline,
     Square,
     SquareArrowOutUpRight,
@@ -135,8 +140,23 @@ import {
     ZoomOut,
 } from "lucide-react";
 
-import type { SourceKind } from "./data-place/words";
 import type { InspectedKindId } from "./inspector/inspected";
+
+/**
+ * The AI sparkle: one large four-point star and two small ones, drawn as lucide draws its own
+ * icons. lucide's Sparkle is one star and its Sparkles adds plus-crosses, neither of them this.
+ */
+const AiSparkles = createLucideIcon("ai-sparkles", [
+    [
+        "path",
+        {
+            d: "M8.5 8.5Q9.76 14.24 15.5 15.5Q9.76 16.76 8.5 22.5Q7.24 16.76 1.5 15.5Q7.24 14.24 8.5 8.5Z",
+            key: "large",
+        },
+    ],
+    ["path", { d: "M18.5 7Q19.5 10 22.5 11Q19.5 12 18.5 15Q17.5 12 14.5 11Q17.5 10 18.5 7Z", key: "medium" }],
+    ["path", { d: "M14 1Q14.84 3.16 17 4Q14.84 4.84 14 7Q13.16 4.84 11 4Q13.16 3.16 14 1Z", key: "small" }],
+]);
 
 /** The icon of each concept the workspace draws. */
 export const GLYPHS = {
@@ -145,6 +165,8 @@ export const GLYPHS = {
     graph: Waypoints,
     node: CircleDot,
     edge: Spline,
+    // The AI assistant: one large sparkle and two small ones.
+    assistant: AiSparkles,
     // A style layer that paints nodes and edges: a dot on a line.
     bothKinds: GitCommitHorizontal,
     several: Group,
@@ -170,7 +192,8 @@ export const GLYPHS = {
     ranOver: Scan,
     // The effects a layer adds to nodes (outline, glow, halo) and to edges (band, motion).
     outline: Disc,
-    glow: Sparkles,
+    // A lamp: light given off. Sparkles would read as the assistant.
+    glow: Lamp,
     halo: Sun,
     band: Highlighter,
     motion: ChevronsRight,
@@ -222,6 +245,8 @@ export const GLYPHS = {
     more: MoreHorizontal,
     rename: Pencil,
     duplicate: Copy,
+    // Copy text to the clipboard.
+    copy: Copy,
     paste: ClipboardPaste,
     // Pin a style row above or below the unpinned rows, and let it go.
     pinTop: ArrowUpToLine,
@@ -288,6 +313,18 @@ export const GLYPHS = {
     // A selection whose step waits for the reader's Run (its run was removed).
     waiting: Hourglass,
     stop: Square,
+    // The Assistant composer's Talk and Send.
+    talk: Mic,
+    send: Send,
+    // The Assistant's reply actions: its steps, Send again, Jump to newest, a change line's mark
+    // and Open layer.
+    steps: List,
+    again: RotateCw,
+    newest: ArrowDown,
+    changed: Layers,
+    openLayer: ArrowUpRight,
+    // An untitled chat in the Assistant's header: the way into the chat history.
+    history: History,
     key: KeyRound,
     // The Data place's Fields entries a column glyph does not name.
     location: MapPin,
@@ -346,16 +383,4 @@ export const VALUE_GLYPHS: Readonly<Record<ReadableValueKind, LucideIcon>> = {
     category: GLYPHS.category,
     text: GLYPHS.text,
     "yes-no": GLYPHS.yesNo,
-};
-
-/**
- * The icon of each kind of Sources row, and its color when it is not the text's. The Sources tree
- * and the inspector opened from a row both draw it, so the two cannot drift apart.
- */
-export const SOURCE_GLYPHS: Readonly<Record<SourceKind, { readonly icon: LucideIcon; readonly color?: string }>> = {
-    file: { icon: GLYPHS.file },
-    nodes: { icon: GLYPHS.node },
-    edges: { icon: GLYPHS.edge },
-    // The warning the import page draws for the same rows.
-    "left-out": { icon: GLYPHS.warning, color: "var(--cm-text-danger)" },
 };

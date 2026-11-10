@@ -11,21 +11,26 @@
 
 import "../../src/graphty-element";
 
-import { Matrix, Mesh, type Scene, TransformNode, Vector3 } from "@babylonjs/core";
+import { InstancedMesh, Matrix, Mesh, type Scene, TransformNode, Vector3 } from "@babylonjs/core";
+import type { LayoutSimulation } from "@graphty/layout";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
+import { registerSnapshotLayout } from "../../extend";
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { nodeFramingBox } from "../../src/managers/UpdateManager";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
+import { PulledLineBatch } from "../../src/meshes/PulledLineBatch";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
-import { drag, hover, nextFrame, wheel } from "../helpers/real-input";
+import { defineLayout } from "../../src/simple/defineLayout";
+import { click, drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 import { nextModelEvent } from "./models/helpers";
 
@@ -850,6 +855,39 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.isNull(graph.getNodeBatches());
     });
 
+    it("load a batched graph with no Node, no anchor and no object row's instance for any row", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        const scene = graph.getScene();
+        // During the load, not only after it: each row used to be an object row first, with its
+        // own instance, then a batched row with a TransformNode anchor (9 KB per node at peak).
+        let anchors = 0;
+        let instances = 0;
+        const onNode = scene.onNewTransformNodeAddedObservable.add(() => anchors++);
+        const onMesh = scene.onNewMeshAddedObservable.add((mesh) => {
+            if (mesh instanceof InstancedMesh) {
+                instances++;
+            }
+        });
+        try {
+            await loaded(element, "3d");
+        } finally {
+            onNode.remove();
+            onMesh.remove();
+        }
+
+        assert.equal(instances, 0);
+        assert.equal(anchors, 0);
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0);
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        // one style per look (two sizes), not per row: three colors on two sizes is six rows apart
+        const batches = graph.getNodeBatches();
+        const styles = new Set(NODES.map((node) => batches?.lookOf(node.id)?.paint.style));
+        assert.isFalse(styles.has(undefined), "every row is drawn with no Node");
+        assert.equal(styles.size, 2);
+    });
+
     it("draw a row with no Node from its paint, the picture its Node drew, and build no Node", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
@@ -992,6 +1030,344 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         }
     });
 
+    it("find a location map's locations in rows with no Node", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "loaded with no Node");
+        const errors: string[] = [];
+        graph.on("error", (event) => {
+            errors.push(event.error.message);
+        });
+
+        await graph.setLayout("location-map", { mapDimension: "2d" });
+        await operationQueueOf(graph).waitForCompletion();
+        assert.deepEqual(errors, [], "the layout found the latitude and longitude columns");
+        assert.equal(graph.getLayoutManager().layoutEngine?.type, "location-map");
+    });
+
+    it("hand a snapshot layout the sizes of rows with no Node, and lay it out in 2D building no Node", async () => {
+        const seen: { sizes: number[]; extents: number[] } = { sizes: [], extents: [] };
+        registerSnapshotLayout({
+            descriptor: {
+                id: "test-node-batch-sizes",
+                plainName: "sizes",
+                technicalName: "sizes",
+                description: "Reads the node sizes it is handed.",
+                family: "geometric",
+                kind: "batch",
+                maxDimensions: 2,
+                sizeRating: "any",
+                structuralInputs: [],
+                engine: "test-node-batch-sizes",
+                options: [],
+            },
+            compute: (input) => {
+                seen.sizes = Array.from(input.nodeSizes?.() ?? []);
+                seen.extents = Array.from(input.nodeExtents?.() ?? []);
+                return Float32Array.from({ length: 2 * input.graph.nodeCount }, (_, k) => k);
+            },
+        });
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.setViewMode("2d");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        await nextFrame();
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "loaded with no Node");
+
+        await graph.setLayout("test-node-batch-sizes");
+        await operationQueueOf(graph).waitForCompletion();
+        assert.equal(graph.getLayoutManager().dimension, 2);
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "laid out in 2D with no Node");
+        assert.lengthOf(seen.sizes, NODES.length);
+        for (const size of [...seen.sizes, ...seen.extents]) {
+            assert.isTrue(Number.isFinite(size) && size > 0, `every row is handed its drawn size, got ${size}`);
+        }
+    });
+
+    it("move the arrow-capped edges of rows with no Node when a layout moves the rows", async () => {
+        defineLayout({
+            id: "test-row-moved",
+            dimensions: 2,
+            place(view) {
+                const out = new Map<string | number, [number, number]>();
+                for (const node of view.nodes()) {
+                    const k = Number(node.id);
+                    out.set(node.id, [(k % 3) * 1.5 - 1.5, Math.floor(k / 3) * 1.2 - 2]);
+                }
+
+                return out;
+            },
+        });
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.setViewMode("2d");
+        await element.session.data.addNodes(NODES);
+        // An arrowhead keeps the line off the pulled batch, so it is placed by the edge pass.
+        await element.session.data.addEdges(NODES.slice(1).map((node) => ({ source: node.id - 1, target: node.id })));
+        await element.session.styles.add({
+            name: "arrowheads",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "normal" },
+        } as never);
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        await graph.setLayout("test-row-moved");
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "laid out with no Node");
+        const batched = await readFrame(graph);
+
+        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
+    });
+
+    it("place every row with no Node by a defineLayout layout", async () => {
+        defineLayout({
+            id: "test-row-by-id",
+            dimensions: 2,
+            place(view) {
+                const out = new Map<string | number, [number, number]>();
+                for (const node of view.nodes()) {
+                    out.set(node.id, [Number(node.id) * 2, 1]);
+                }
+
+                return out;
+            },
+        });
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        const manager = graph.getDataManager();
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "loaded with no Node");
+
+        await graph.setLayout("test-row-by-id");
+        await operationQueueOf(graph).waitForCompletion();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.exists(engine);
+        if (!engine) {
+            return;
+        }
+
+        const positions = layoutEngineInternals.positions(engine);
+        const at = { x: 0, y: 0, z: 0 };
+        NODES.forEach((node, row) => {
+            assert.isTrue(positions.isPlaced(row), `row ${row} is placed`);
+            positions.read(row, at);
+            assert.equal(at.x, node.id * 2, `row ${row} is where place() put it`);
+        });
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "laid out with no Node");
+    });
+
+    it("pull communities together by clusterBy with no Node", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        const manager = graph.getDataManager();
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "loaded with no Node");
+
+        await graph.setLayout("forceatlas2", { dim: 2, seed: 12, clusterBy: "tone" });
+        await operationQueueOf(graph).waitForCompletion();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.instanceOf(engine, SimulationLayoutEngine);
+        if (!(engine instanceof SimulationLayoutEngine)) {
+            return;
+        }
+
+        // The rebuilt simulation is a new one of the same class, so its class's method is watched.
+        let pulled: Uint32Array | undefined;
+        const proto = Object.getPrototypeOf(engine.simulation) as LayoutSimulation;
+        const { setClusters } = proto;
+        assert.exists(setClusters, "the simulation takes communities");
+        proto.setClusters = function (this: LayoutSimulation, clusters) {
+            pulled = clusters?.communities;
+            setClusters?.call(this, clusters);
+        };
+        try {
+            engine.replaceSimulation();
+        } finally {
+            proto.setClusters = setClusters;
+        }
+
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "clustered with no Node");
+        assert.exists(pulled, "the communities reached the simulation");
+        NODES.forEach((node, row) => {
+            assert.equal(pulled?.[row], node.id % 3, `row ${row} is in its tone's community`);
+        });
+    });
+
+    it("spend a layout's pre-steps at its start when no row has a Node", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "loaded with no Node");
+
+        // Read as the arrangement starts, before any frame can pay what it left owed.
+        const manager = graph.getLayoutManager();
+        const start = Reflect.get(manager, "startArrangement") as (...args: unknown[]) => Promise<void>;
+        let owed: unknown;
+        Reflect.set(manager, "startArrangement", async (...args: unknown[]) => {
+            await start.apply(manager, args);
+            owed = Reflect.get(manager, "preStepsOwed");
+        });
+        try {
+            graph.setLayoutBehavior({ layout: { preSteps: 5 } });
+            await graph.setLayout("forceatlas2", { dim: 2, seed: 12 });
+            await operationQueueOf(graph).waitForCompletion();
+        } finally {
+            Reflect.deleteProperty(manager, "startArrangement");
+        }
+
+        assert.strictEqual(owed, false, "the pre-steps were spent, not owed to a later frame");
+    });
+
+    it("make an ngraph layout's bodies in row order when only some rows have a Node", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        // A Node built for a middle row, as a label or a pick builds one.
+        assert.isDefined(graph.getNode(5));
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 1, "one row has a Node");
+
+        await graph.setLayout("ngraph", { dim: 2, seed: 7 });
+        await operationQueueOf(graph).waitForCompletion();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.instanceOf(engine, NGraphEngine);
+        const order: unknown[] = [];
+        engine.ngraph.forEachNode((n) => {
+            order.push(n.id);
+        });
+        assert.deepEqual(
+            order,
+            NODES.map((n) => n.id),
+            "the bodies were made in row order, as on the object path",
+        );
+    });
+
+    // Removing a row with no Node used to forget it everywhere but the simulation: its d3 or
+    // ngraph body stayed in and kept pushing every other node.
+    it("take a removed row with no Node out of a d3 or ngraph simulation", async () => {
+        for (const layout of ["d3", "ngraph"] as const) {
+            const element = await mounted(renderer);
+            const { graph } = element;
+            graph.setRenderPath("batched");
+            await element.session.data.addNodes(NODES);
+            await graph.setLayout(layout, { dim: 2, seed: 7 });
+            await operationQueueOf(graph).waitForCompletion();
+            assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, `${layout}: no row has a Node`);
+
+            await element.session.data.removeNodes([4, 5]);
+            await operationQueueOf(graph).waitForCompletion();
+            assert.equal(
+                dataManagerInternals.nodesBuilt(graph.getDataManager()),
+                0,
+                `${layout}: removing built no Node`,
+            );
+            const engine = graph.getLayoutManager().layoutEngine;
+            const ids: unknown[] = [];
+            if (engine instanceof D3GraphEngine) {
+                engine.refresh();
+                for (const body of engine.d3ForceLayout.nodes() as unknown as { id: unknown }[]) {
+                    ids.push(body.id);
+                }
+            } else if (engine instanceof NGraphEngine) {
+                engine.ngraph.forEachNode((n) => {
+                    ids.push(n.id);
+                });
+            } else {
+                assert.fail(`${layout} is running`);
+            }
+
+            assert.deepEqual(
+                ids.sort((a, b) => Number(a) - Number(b)),
+                NODES.map((n) => n.id).filter((id) => id !== 4 && id !== 5),
+                `${layout}: the removed rows' bodies left the simulation`,
+            );
+            element.remove();
+        }
+    });
+
+    // A pointer reaches a row with no Node by its row and builds the Node there; the event must
+    // carry the very Node the graph answers for that id, or a consumer holds two of one node.
+    it("hand a hover on a row with no Node the Node graph.getNode answers", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d");
+        const manager = graph.getDataManager();
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "no row has a Node");
+        const target = graph.getNodeIdTarget();
+        const engine = graph.getLayoutManager().layoutEngine;
+        const root = graph.getScene().getTransformNodeByName("graph-root");
+        if (target === null || engine === undefined || root === null) {
+            assert.fail("the batched path keeps a target, a layout and a root");
+        }
+
+        while (target.read(0, 0) === null) {
+            await nextFrame();
+        }
+
+        const row = 6;
+        const at = { x: 0, y: 0, z: 0 };
+        layoutEngineInternals.positions(engine).read(row, at);
+        const world = Vector3.TransformCoordinates(new Vector3(at.x, at.y, at.z), root.getWorldMatrix());
+        const screen = graph.worldToScreen(world);
+        const scaling = graph.scene.getEngine().getHardwareScalingLevel();
+        assert.strictEqual(
+            await target.read((Math.floor(screen.x) + 0.5) * scaling, (Math.floor(screen.y) + 0.5) * scaling),
+            row,
+            "the point is over the row",
+        );
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "finding the point built no Node");
+
+        const hovered: unknown[] = [];
+        graph.eventManager.addListener("node-hover", (event) => {
+            if (event.type === "node-hover") {
+                hovered.push(event.node);
+            }
+        });
+        await hover(element, { x: 2, y: 2 });
+        await hover(element, { x: Math.floor(screen.x) + 0.5, y: Math.floor(screen.y) + 0.5 });
+        await vi.waitFor(() => {
+            assert.lengthOf(hovered, 1, "the hover reached the row");
+        });
+        assert.strictEqual(hovered[0], graph.getNode(NODES[row].id), "evt.node === graph.getNode(id)");
+    });
+
+    it("keep a filtered row hidden when its Node is built later", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d");
+        const manager = graph.getDataManager();
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "no Node built at load");
+        const { sets, visibility } = element.session;
+        const kept = sets.create({ kind: "fixed", nodes: [0, 1, 2], reading: "induced" }, { name: "Kept" });
+        await visibility.set({ kind: "member", of: { set: kept } });
+        const filtered = await frameOn(graph, "batched");
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "filtered with no Node");
+
+        const hidden = graph.getNode(5);
+        const shown = graph.getNode(1);
+        assert.isFalse(hidden?.drawnAnchor.isEnabled(), "the filtered row's new Node is hidden");
+        assert.isTrue(shown?.drawnAnchor.isEnabled(), "the kept row's new Node is shown");
+        assert.equal(overBar(filtered, await readFrame(graph)), 0, "the same picture with the Nodes built");
+    });
+
     it("publish a simulation's rows with no Node by their rows", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
@@ -1081,7 +1457,10 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
     });
 
-    it("simulate a row with no Node in d3 by its row", async () => {
+    it.each([
+        ["d3", D3GraphEngine],
+        ["ngraph", NGraphEngine],
+    ] as const)("simulate a row with no Node in %s by its row", async (layout, Engine) => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
         const { graph } = element;
@@ -1098,16 +1477,16 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             return;
         }
 
-        // Row 4 is drawn with no Node: the layout swap hands d3 its row, never its Node.
+        // Row 4 is drawn with no Node: the layout swap hands the engine its row, never its Node.
         batches.leave(node);
         node.drawInBatch(node.paintedSourceMesh);
         assert.isTrue(batches.paintRow(4, paint));
-        await graph.setLayout("d3", { dim: 3 });
+        await graph.setLayout(layout, { dim: 3 });
         await operationQueueOf(graph).waitForCompletion();
 
         const engine = graph.getLayoutManager().layoutEngine;
-        assert.instanceOf(engine, D3GraphEngine);
-        if (!(engine instanceof D3GraphEngine)) {
+        assert.isTrue(engine instanceof Engine, `the engine is ${layout}'s`);
+        if (!(engine instanceof Engine)) {
             return;
         }
 
@@ -1123,4 +1502,140 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
 
         assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
     });
+
+    it("pull a line to a row with no Node from its row, reading no Node for that end", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const manager = graph.getDataManager();
+        const batches = graph.getNodeBatches();
+        const table = graph.getRowTable();
+        const node = manager.nodes.get(4);
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(batches);
+        assert.isNotNull(table);
+        assert.isDefined(node);
+        assert.isNotNull(paint);
+        if (batches === null || table === null || node === undefined || paint === null) {
+            return;
+        }
+
+        // Row 4 is drawn with no Node, and from here on any read of its Node is recorded.
+        batches.leave(node);
+        node.drawInBatch(node.paintedSourceMesh);
+        assert.isTrue(batches.paintRow(4, paint));
+        const reads: unknown[] = [];
+        const get = vi.spyOn(manager.nodeCache, "get").mockImplementation(function (this: Map<unknown, unknown>, id) {
+            reads.push(id);
+            return Map.prototype.get.call(this, id) as typeof node;
+        });
+        cleanups.push(() => get.mockRestore());
+        const rows = vi.spyOn(PulledLineBatch.prototype, "setRows");
+        cleanups.push(() => rows.mockRestore());
+
+        // The graph is directed, so the edge would start with a head, and a capped line is never pulled.
+        await element.session.styles.add({
+            name: "uncapped",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        } as never);
+        manager.addEdge({ src: 4, dst: 9 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const [edge] = [...manager.edges.values()].filter((e) => e.srcId === 4);
+        assert.isTrue(edge.isPulled, "the line is pulled, as a line between two Nodes is");
+        assert.deepInclude(
+            rows.mock.calls.map(([, source, target]) => [source, target]),
+            [4, manager.nodes.get(9)?.index],
+            "and drawn from row 4 to row 9",
+        );
+
+        // A new layout moves row 4, and the line follows it, still reading no Node for it.
+        const from = table.centerOf(4);
+        await graph.setLayout("circular", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isAbove(Vector3.Distance(table.centerOf(4), from), 0.5, "row 4 moved");
+        const centre = edge.drawnLine?.centre ?? Vector3.Zero();
+        assert.isAtMost(Vector3.Distance(centre, Vector3.Center(table.centerOf(4), table.centerOf(9))), 1e-4);
+        assert.notInclude(reads, 4, "no read of row 4's Node");
+    });
+    it("load a graph under batched building no Node, drawing the picture its Nodes drew", async () => {
+        const objects = await mounted(renderer);
+        await loaded(objects, "3d");
+        const before = await frameOn(objects.graph, "batched");
+        objects.remove();
+
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d");
+        const manager = graph.getDataManager();
+        assert.equal(overBar(before, await readFrame(graph)), 0, "the same picture");
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "no Node built at load");
+        assert.equal(graph.getNodeBatches()?.columnRowCount, NODES.length);
+        assert.equal(manager.nodes.size, NODES.length);
+        assert.isTrue(manager.nodes.has(4));
+
+        // Asking for a row's Node builds that one, and the same one each time.
+        const node = graph.getNode(4);
+        assert.isDefined(node);
+        assert.strictEqual(manager.nodes.get(4), node);
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 1);
+        assert.equal(overBar(before, await readFrame(graph)), 0, "drawn by its Node now, the same picture");
+
+        // Leaving the path builds every Node, and draws the same picture.
+        await frameOn(graph, "objects");
+        assert.equal(dataManagerInternals.nodesBuilt(manager), NODES.length);
+        assert.equal(overBar(before, await readFrame(graph)), 0);
+    });
+});
+
+describe.each(RENDERERS)("the scene objects of a batched graph on %s (cosmos-gap G6)", (renderer) => {
+    /**
+     * Load rows on the batched path in a view, hover, select and drag one, and count the scene's transform nodes.
+     * @param view - The view, entered before the load.
+     * @param count - How many rows.
+     * @returns `scene.transformNodes.length` once the drag has settled.
+     */
+    async function transformNodesAfterUse(view: "2d" | "3d", count: number): Promise<number> {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        // Before the load: a view switch over stored rows still builds every row's Node.
+        await element.setViewMode(view);
+        const rows = Array.from({ length: count }, (_, id) => ({
+            id,
+            position: { x: (id % 100) * 1.2, y: Math.floor(id / 100) * 1.2, z: 0 },
+        }));
+        await element.session.data.addNodes(rows);
+        await graph.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        const node = graph.getNode(0);
+        assert.isDefined(node);
+        const at = element.worldToScreen(node.drawnWorldPosition);
+        await hover(element, at);
+        await click(element, at);
+        const { x } = node.drawnPosition;
+        await drag(element, at, { x: at.x + 30, y: at.y + 20 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.notEqual(node.drawnPosition.x, x, "the drag reached the row");
+        assert.equal(graph.rowCounts.batchedNodes, count, "every row is still drawn batched");
+        return graph.getScene().transformNodes.length;
+    }
+
+    it.each(["3d", "2d"] as const)(
+        "grow by a constant from 1,000 to 10,000 rows in %s after a hover, a select and a drag",
+        async (view) => {
+            const small = await transformNodesAfterUse(view, 1_000);
+            const large = await transformNodesAfterUse(view, 10_000);
+            // One per row was 100,002 at 100k rows before rows were stored with no Node.
+            assert.isAtMost(large - small, 20);
+        },
+    );
 });

@@ -58,6 +58,20 @@ export interface SourceInput {
 }
 
 /**
+ * A network source read and not yet loaded, from `data.readExample`. Pass the whole object to
+ * `data.import`, on this session or another, and it loads without reading the service again.
+ * Experimental.
+ */
+export interface SourceRead extends SourceInput {
+    /** How many nodes it read. */
+    readonly nodes: number;
+    /** How many edges it read. */
+    readonly edges: number;
+    /** What it read, for `data.import`. Opaque: the shape is not part of the API. */
+    readonly rows: unknown;
+}
+
+/**
  * What a click or double-click on a node fetches, in the element's `behavior.expand` config.
  * Every default is neutral: nothing expands until `trigger` is set. Experimental.
  */
@@ -333,3 +347,14 @@ export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 
 /** What `source:expand-failed` carries: the source code and its params. Experimental. */
 export type SourceExpandFailed = CodedFact;
+
+/**
+ * What a network load connects to and fetches, for showing it or filling a form to edit it: the
+ * params redacted as a saved file has them, no credential, with the `mode` a query source read in
+ * when the params leave it out. Passed back to `replaceSource`, a key the redaction left out of
+ * a param the reader did not change is read with again.
+ */
+export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "config" | "expand"> & {
+    /** The limits the load ran under. */
+    readonly limits?: SourceLimitOptions;
+};

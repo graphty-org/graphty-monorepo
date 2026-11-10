@@ -26,7 +26,7 @@ import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
-import { CustomLineRenderer, type EdgeFade } from "./CustomLineRenderer";
+import { CustomLineRenderer, type EdgeFade, type JoinedLineOptions } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
@@ -564,11 +564,6 @@ void main() {
         if (lineType === "dash" || lineType === "dot") {
             const is2D = this.is2DMode(scene);
             const width = options.width / 40;
-            const { dashLength, dashGap } = style.line ?? {};
-            // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
-            // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
-            const dotShort = lineType === "dot" ? (dashLength ?? 1) - 1 : 0;
-            const gap = dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort);
             return cache.getBatch(
                 `${key}-joined${is2D ? "-2d" : ""}`,
                 made(() =>
@@ -582,12 +577,7 @@ void main() {
                             minScreenWidth: style.line?.minScreenWidth,
                             fade,
                             opaque,
-                            pattern: {
-                                kind: lineType,
-                                elementLength: lineType === "dash" ? width * (style.line?.dashLength ?? 3) : width,
-                                count: style.line?.patternCount,
-                                gap,
-                            },
+                            pattern: this.joinedPattern(lineType, width, style),
                         },
                         scene,
                     ),
@@ -628,6 +618,30 @@ void main() {
     }
 
     /**
+     * The dashes or dots of a dashed or dotted joined line, in world units.
+     * @param kind - Dashes or dots.
+     * @param width - The line's width, in world units.
+     * @param style - The resolved style.
+     * @returns The pattern.
+     */
+    private static joinedPattern(
+        kind: "dash" | "dot",
+        width: number,
+        style: EdgeStyleConfig,
+    ): NonNullable<JoinedLineOptions["pattern"]> {
+        const { dashLength, dashGap } = style.line ?? {};
+        // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
+        // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
+        const dotShort = kind === "dot" ? (dashLength ?? 1) - 1 : 0;
+        return {
+            kind,
+            elementLength: kind === "dash" ? width * (style.line?.dashLength ?? 3) : width,
+            count: style.line?.patternCount,
+            gap: dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort),
+        };
+    }
+
+    /**
      * Whether a pulled line is drawn from the curve batch: a curve (`line.bezier`), or a line its own style raises
      * off the map or a globe (`line.route` "arc" or "great-circle"), straight or not, a straight line through bends (`line.bends`), or a self-loop.
      * @param style - The resolved style.
@@ -657,9 +671,10 @@ void main() {
      * @param style - The resolved style.
      * @param scene - The scene.
      * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
-     * @param loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
-     * @param route - The route the edge takes ({@link EdgeMesh.pullsCurve}).
-     * @param lean - Whether a straight line draws the lean program (`EDGE_PULLED_LEAN`): the
+     * @param edge - How the edge is drawn.
+     * @param edge.loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
+     * @param edge.route - The route the edge takes ({@link EdgeMesh.pullsCurve}).
+     * @param edge.lean - Whether a straight line draws the lean program (`EDGE_PULLED_LEAN`): the
      *     graph's `antialias` is false under renderPath "batched" (cosmos-gap.md G12). A curve never does.
      * @returns The batch.
      */
@@ -669,10 +684,9 @@ void main() {
         style: EdgeStyleConfig,
         scene: Scene,
         rowPositions: () => BaseTexture,
-        loop = false,
-        route = style.line?.route,
-        lean = false,
+        edge: { loop?: boolean; route?: NonNullable<EdgeStyleConfig["line"]>["route"]; lean?: boolean } = {},
     ): PulledLineBatch {
+        const { loop = false, route = style.line?.route, lean = false } = edge;
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);

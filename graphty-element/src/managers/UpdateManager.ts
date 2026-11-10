@@ -1587,7 +1587,9 @@ export class UpdateManager implements Manager {
      */
     private unbuiltPainted(painter: StylePainter, index: number): Node | undefined {
         const id = dataManagerInternals.unbuiltAt(this.dataManager, index);
-        const paint = id === undefined ? null : painter.nodePaint(index);
+        // one style per look, not per row (`StylePainter.rowPaint`); a row that needs a `Node` is
+        // painted again below through `nodePaint`, so the Node never holds a shared style
+        const paint = id === undefined ? null : painter.rowPaint(index);
         if (
             id === undefined ||
             paint === null ||

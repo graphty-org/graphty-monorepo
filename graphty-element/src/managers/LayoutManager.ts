@@ -27,7 +27,6 @@ import {
     LayoutEngine,
     layoutEngineInternals,
     type LayoutEngineStatics,
-    SimpleLayoutEngine,
     simpleLayoutInternals,
     StaticLayoutEngine,
 } from "../layout/LayoutEngine";
@@ -49,6 +48,7 @@ import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
+import { isDefinedLayout } from "../simple/defineLayout";
 import type { Styles } from "../Styles";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { type DataManager, dataManagerInternals } from "./DataManager";
@@ -3108,10 +3108,11 @@ function placesLateRows(engine: LayoutEngine | undefined): boolean {
 
 /**
  * Whether a static engine arranges the rows of the element's snapshot: every one the element
- * ships, and `defineLayout`'s. A third party's `SimpleLayoutEngine` arranges the `Node`s it holds.
+ * ships (a `SnapshotLayoutEngine`, a registered one included), and `defineLayout`'s. A third party's
+ * `SimpleLayoutEngine` arranges the `Node`s it holds.
  * @param engine - The engine, or none.
  * @returns True for a static engine that lays out by row.
  */
-function laysOutRows(engine: LayoutEngine | undefined): engine is StaticLayoutEngine {
-    return engine instanceof StaticLayoutEngine && !(engine instanceof SimpleLayoutEngine);
+function laysOutRows(engine: LayoutEngine | null | undefined): engine is StaticLayoutEngine {
+    return engine instanceof SnapshotLayoutEngine || (engine instanceof StaticLayoutEngine && isDefinedLayout(engine));
 }

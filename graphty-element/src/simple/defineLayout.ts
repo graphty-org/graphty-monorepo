@@ -259,6 +259,20 @@ function refuseUnmatched(id: string, size: number, matched: number, unknown: unk
     }
 }
 
+/** The engine classes `defineLayout` built: each arranges the rows of the element's snapshot. */
+const definedEngines = new WeakSet();
+
+/**
+ * Whether an engine is one `defineLayout` built, which arranges every row of the element's snapshot,
+ * a row drawn with no `Node` included, rather than only the `Node`s it was handed.
+ * @param engine - The engine.
+ * @returns True for a defined layout.
+ * @internal
+ */
+export function isDefinedLayout(engine: object): boolean {
+    return definedEngines.has(engine.constructor);
+}
+
 /**
  * Build the layout engine class a definition compiles to.
  * @param plan - The checked definition.
@@ -269,7 +283,7 @@ function refuseUnmatched(id: string, size: number, matched: number, unknown: unk
 function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensions: 2 | 3): DefinedEngine {
     const { id } = plan;
 
-    return class DefinedLayout extends StaticLayoutEngine {
+    const DefinedLayout = class DefinedLayout extends StaticLayoutEngine {
         static override readonly type = id;
         static override readonly maxDimensions = maxDimensions;
         static override readonly scoped: boolean = true;
@@ -483,6 +497,9 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             return twoD ? [at.x, at.y] : [at.x, at.y, at.z];
         }
     };
+    definedEngines.add(DefinedLayout);
+
+    return DefinedLayout;
 }
 
 /**

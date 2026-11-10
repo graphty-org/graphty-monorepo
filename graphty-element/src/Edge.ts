@@ -5415,11 +5415,23 @@ export class Edge {
     private capScaleAt(end: "source" | "target"): number {
         const row = this.columnEnd(end);
         const table = row === undefined ? null : (this.context.getRowTable?.() ?? null);
-        const scale =
-            row !== undefined && table !== null
-                ? table.extentOf(row.index).scale
-                : (end === "source" ? this.srcNode : this.dstNode).drawnScale;
+        const scale = this.rowOrNodeScale(end, row === undefined || table === null ? null : table.extentOf(row.index));
         return Number.isFinite(scale) && scale > 0 ? scale : 1;
+    }
+
+    /**
+     * A row's scale, or the end's Node's when the row cannot answer: reading a Node builds one.
+     * @param end - The end.
+     * @param extent - The row's extent, or null.
+     * @param extent.scale - Its scale.
+     * @returns The scale.
+     */
+    private rowOrNodeScale(end: "source" | "target", extent: { scale: number } | null): number {
+        if (extent !== null) {
+            return extent.scale;
+        }
+
+        return (end === "source" ? this.srcNode : this.dstNode).drawnScale;
     }
 
     /**

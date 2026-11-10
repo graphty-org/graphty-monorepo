@@ -602,3 +602,44 @@ committed, in tmp/stage-26/radius-probe.patch):
 
 Checks this session: no source change kept. Not run: npm run build, full lint, sonar gate, load-peak gate, pinned
 default-project tests.
+
+## Pull request 11, eighteenth session (2026-11-10): Sticker, Mandala and ThreePaths fixed (a defect on both paths)
+
+What it was. A sprite shader ("replace" path, e.g. icon-sticker) keeps the node's mesh only as a pick proxy, a
+sphere of the node's radius. When the sprite becomes drawable after the first paint, NodeShaderDrawing hands the
+nodes to UpdateManager.repaintNodes, which repainted them but threw away the set of resized nodes, so their edges
+were never placed again. Probed per frame (tmp/stage-26/radius-probe2.patch, not committed): on objects the edge
+was placed against the plain icosphere (reach 1.8 at size 2.4), then the node became the sprite's sphere (1.2) and
+nothing re-placed the edge; on batched, whether the first placement came before or after the sprite landed decided
+1.8 or 1.2 -- that was the "race". Master (objects) has the same defect: its Sticker and Mandala edges stop 0.6
+short of the sticker. The fix is on both paths, allowed as a both-path defect: repaintNodes now calls
+remeasureEdgesOf on the resized nodes, as the style pass does. This changes the objects picture of the Sticker,
+Mandala (and any sprite story whose shader lands after the first placement): edges now reach the drawn sticker.
+Expect those visual-review images to change.
+
+Proving test, test first: test/browser/shaders/sprite-edge-trim.test.ts (two nodes 8 apart, size 2.4, a sticker layer
+added after the first stable frame; asserts the line starts at 1.8 before and 1.2 after, on objects and batched).
+Without the fix: objects failed "expected 1.7999999523162842 to be close to 1.2", batched passed by timing. With
+it: 2 passed.
+
+Also: SonarQube S3358 (nested ternary) in Edge.capScaleAt, from an earlier commit on this branch, fixed by a small
+helper rowOrNodeScale that still reads the end's Node only when the row cannot answer (reading it builds one).
+
+Commands and results (load average 5-12):
+- `tools/low-priority.sh npx vitest run --project render-parity test/render-parity/stories.test.ts -t PatternsAndSprites`
+  before the fix: Sticker failed in isolation (parity63.log). After: PatternsAndSprites and NodeDrawing 7 passed.
+- Full render-parity (parity66.log): 321 passed, 12 skipped, 4 failed: CytoscapeSession 1 px, ForceAtlas2Weighted
+  1 px, LouvainMoreCommunitiesThanColours 1 px, Gexf 1488 px (fails without this branch too). Sticker, Mandala and
+  ThreePaths pass. RefusedHttp passed this run.
+- `npm run lint` (graphty-element): exit 0. `tsc --noEmit`: clean. `npm run build`: exit 0.
+- browser: sprite-edge-trim, shaders/node-drawing, pattern-sprite-presets, shader-places: 32 passed; edge-arrow-stack,
+  edge-trim-mirror, node-batch, location-map-layout, sprite-edge-trim: 82 passed.
+- default: managers/UpdateManager, pending-work-inventory (plus view-masks files): 13 passed.
+- `node tools/sonar-gate.mjs`: S3358 found, fixed; rerun "no new issue or hotspot on the changed lines" (it reported
+  the two then-uncommitted files as checked on the next push).
+- Load-peak gate: not re-measured this session; last measured at 47c199dbb3 (session 7): 1,245 B per node against
+  1,500. This change touches no storage.
+
+Still open: the three 1 px stories (draw order by material creation, thirteenth session) and Gexf (both paths);
+2D/3D switch building every Node; edges with non-round ends building Nodes; placedEdgesAtRows walking every
+placed edge on each row-table move.

@@ -754,7 +754,11 @@ export class UpdateManager implements Manager {
             }
         }
 
-        this.paintNodes(painted);
+        // A node that became a sprite's pick proxy changed shape: its edges stop at the new surface.
+        const { resized } = this.paintNodes(painted);
+        if (resized.size > 0) {
+            this.remeasureEdgesOf(resized);
+        }
         this.graphContext.getMeshCache().prune();
         this.sceneChanged = true;
     }

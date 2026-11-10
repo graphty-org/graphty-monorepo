@@ -627,7 +627,7 @@ describe("the code dialog on the real element", () => {
         );
     });
 
-    it("a row with min above max marks its gear and survives a Full text round trip", async () => {
+    it("a row with min above max marks its gear and survives a target switch and a Full text round trip", async () => {
         await mount();
         const box = await openNew();
         const dialog = screen.getByRole("dialog", { name: "New shader" });
@@ -641,6 +641,18 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         const gear = await within(dialog).findByRole("button", { name: "gain settings" });
         await waitFor(() => {
             assert.isNotNull(gear.getAttribute("data-invalid"), "the row's gear is marked");
+        });
+
+        await drawOn("Edge");
+        await waitFor(() => {
+            assert.include(textOf(box), "EdgeInput");
+        });
+        await drawOn("Node");
+        await waitFor(() => {
+            assert.isNotNull(
+                within(dialog).getByRole("button", { name: "gain settings" }).getAttribute("data-invalid"),
+                "marked again on coming back",
+            );
         });
 
         await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
@@ -932,6 +944,110 @@ vec4 shade(NodeInput n) { return n.color * gain; }
             assert.include(document.body.textContent ?? "", "is already in the gallery");
         });
         assert.lengthOf(session.shaders.list(), 0);
+    });
+
+    /**
+     * The open dialog's Place field.
+     * @returns the field.
+     */
+    function placeField(): HTMLInputElement {
+        return within(screen.getByRole("dialog", { name: DIALOG })).getByLabelText<HTMLInputElement>(/^Place/);
+    }
+
+    it("Place is the first field and holds focus on opening; on Background the code box does", async () => {
+        await mountWorkspace();
+        await openFromMenu();
+        await codeBox();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        assert.strictEqual(dialog.querySelector(".ws-shader-fields input"), placeField(), "Place comes first");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, placeField());
+        });
+
+        await drawOn("Background");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: DIALOG }));
+        });
+        await openFromMenu();
+        const box = await codeBox();
+        assert.include(textOf(box), "BackgroundInput", "the menu opens on the tab last used");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, box);
+        });
+    });
+
+    it("in Full text Place stays and follows a header's place; a header naming none adds at the visible Place", async () => {
+        const { session } = await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
+        await waitFor(() => {
+            assert.include(textOf(box), "graphty-shader 1");
+        });
+        await userEvent.fill(box, FIXED_TEXT);
+        await waitFor(() => {
+            assert.strictEqual(placeField().value, "Around");
+        });
+        assert.isNull(within(dialog).queryByLabelText(/^Name/), "still in Full text");
+
+        await userEvent.fill(box, FIXED_TEXT.replace(' "place": "around",', ""));
+        await userEvent.click(placeField());
+        await userEvent.click(await screen.findByRole("option", { name: "Behind" }));
+        await waitFor(() => {
+            assert.strictEqual(placeField().value, "Behind");
+        });
+        await pressAdd();
+        await waitFor(() => {
+            assert.strictEqual(
+                session.catalog.shaders().find((each) => each.id === "user/pulse-ring")?.place,
+                "behind",
+            );
+        });
+    });
+
+    it("a bad default marks its field", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.fill(
+            box,
+            `/* graphty-shader 1
+{ "id": "user/odd", "name": "Odd", "place": "around",
+  "params": [ { "name": "tone", "type": "color", "default": "not a color" } ] }
+*/
+vec4 shade(NodeInput n) { return vec4(tone, 1.0); }
+`,
+        );
+        const row = await within(dialog).findByRole("group", { name: "tone" });
+        await waitFor(() => {
+            assert.isNotNull(row.querySelector('[data-field="default"][data-invalid]'), "the default is marked");
+        });
+    });
+
+    it("Copy code's text parses equal to what was typed, and pasted back fills the form", async () => {
+        await commands.grantClipboard();
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.fill(box, FIXED_TEXT);
+        await waitFor(() => {
+            assert.strictEqual(textOf(box), bodyOf(FIXED_TEXT));
+        });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Copy code" }));
+        const copied = await waitFor(async () => {
+            const text = await navigator.clipboard.readText();
+            assert.include(text, "graphty-shader 1");
+            return text;
+        });
+        assert.deepEqual(parseShaderText(copied), parseShaderText(FIXED_TEXT));
+
+        await userEvent.fill(nameField(), "Other");
+        await userEvent.fill(box, copied);
+        await waitFor(() => {
+            assert.strictEqual(textOf(box), bodyOf(FIXED_TEXT));
+            assert.strictEqual(nameField().value, "Pulse ring");
+        });
     });
 
     it("Show in Style opens the inspected layer row", async () => {

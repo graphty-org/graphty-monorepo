@@ -3667,6 +3667,7 @@ export class SessionData implements SessionDataApi {
             choices: { ...choices, shape: planned.shape },
             rows: table.rows.length,
             matched: planned.matched,
+            joinedRows: planned.joinedRows,
             columns: plan.columns,
             table: { name: table.name, columns: [...table.columns], rows: [...table.rows] },
             ...(plan.kind === "values" || Object.keys(plan.before).length > 0 ? { before: plan.before } : {}),

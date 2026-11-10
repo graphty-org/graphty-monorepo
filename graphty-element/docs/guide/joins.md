@@ -104,7 +104,8 @@ edge from each gene to its terms.
 `aggregate` names, per column, how a key's rows (for edges, a pair's rows) become one value:
 `"count"`, `"sum"`, `"min"`, `"max"`, `"mean"`, `"first"`, `"last"` or `"list"`. One reduction is
 written under the column's name; several are written as `<column> (<reduction>)`. A key column
-may be named, to count the rows.
+may be named, to count the rows; its reduction is always written as `<column> (<reduction>)`, so
+the key keeps its own value.
 
 ```ts
 await draft.load({ join: { keys, aggregate: { amount: "sum" } } }); // amount = the sum of the rows

@@ -466,9 +466,19 @@ export function serverCount(loaded: number, total: number | undefined): string {
  * @returns the words, or null when the load is not a join or every row joined.
  */
 export function joinMatch(source: LoadedSource): string | null {
-    return source.join === undefined || source.join.matched >= source.join.rows
+    return source.join === undefined || joinedRows(source.join) >= source.join.rows
         ? null
-        : `${formatNumber(source.join.matched)}/${formatNumber(source.join.rows)}`;
+        : `${formatNumber(joinedRows(source.join))}/${formatNumber(source.join.rows)}`;
+}
+
+/**
+ * The rows a join read into the graph: graphty-element's count, or its matches for a join saved
+ * before it counted them.
+ * @param join - the join.
+ * @returns the rows.
+ */
+function joinedRows(join: NonNullable<LoadedSource["join"]>): number {
+    return join.joinedRows ?? join.matched;
 }
 
 /**
@@ -479,7 +489,7 @@ export function joinMatch(source: LoadedSource): string | null {
 export function joinWords(source: LoadedSource): string | null {
     return joinMatch(source) === null || source.join === undefined
         ? null
-        : `${formatNumber(source.join.matched)} of ${formatNumber(source.join.rows)} rows joined`;
+        : `${formatNumber(joinedRows(source.join))} of ${formatNumber(source.join.rows)} rows joined`;
 }
 
 /**

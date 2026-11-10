@@ -2874,6 +2874,7 @@ export interface JoinRecord {
     readonly before?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
     readonly choices: JoinChoices;
     readonly columns: readonly string[];
+    readonly joinedRows?: number;
     readonly matched: number;
     readonly onto: SourceKey | null;
     readonly rows: number;

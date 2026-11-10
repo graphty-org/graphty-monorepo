@@ -2645,7 +2645,8 @@ export interface JoinChoices {
      * Reduce the rows of one key (for `"edges"`, of one source and target pair) to one value per
      * column instead of keeping one row: the reduction for each column named, written under the
      * column's name, or several, each written as `<column> (<reduction>)`. A column may be a key
-     * column (count the rows). A brought column named here takes its first value. When present,
+     * column (count the rows); a key column's reduction is always written as
+     * `<column> (<reduction>)`, so the key keeps its value. A brought column named here takes its first value. When present,
      * `repeated` is ignored and every row of a key counts; for `"edges"`, one edge per pair.
      * @since 3.37.0
      */
@@ -2809,6 +2810,14 @@ export interface JoinRecord {
     readonly rows: number;
     /** How many the join matched, as {@link JoinReport.matched}. */
     readonly matched: number;
+    /**
+     * How many of the table's rows the join read into the graph: every row whose
+     * {@link JoinRowFate} is not `"left-out"` or `"over-cap"` (for a `split` of an edges join, a
+     * row any of whose parts was read). Unlike {@link JoinRecord.matched}, an edges join's row
+     * whose end the join makes counts. Absent on a join saved before 3.37.0.
+     * @since 3.37.0
+     */
+    readonly joinedRows?: number;
     /** The names the join wrote its values under, after any `"both"` clash rename. */
     readonly columns: readonly string[];
     /** The joined table as read: its name, columns and rows. */

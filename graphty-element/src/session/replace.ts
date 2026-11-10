@@ -283,8 +283,10 @@ export function rejoined(
     };
     const matched = held.edges.filter((row) => found(row, sourcePath) && found(row, targetPath)).length;
     const columns = [...new Set(held.edges.flatMap((row) => Object.keys(row)))];
+    // The rows read are recounted only as matched; the earlier count of rows read no longer holds.
+    const { joinedRows: _stale, ...kept } = join;
     return Object.freeze({
-        ...join,
+        ...kept,
         rows: held.edges.length,
         matched,
         table: Object.freeze({

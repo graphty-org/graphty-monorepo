@@ -1884,6 +1884,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             refreshFonts: RENDER,
             refitPicture: RENDER,
             applySessionPaint: RENDER,
+            takeDrawnPaint: RENDER,
             dispose: RENDER,
             isDisposed: READ,
             modelDrawn: READ,

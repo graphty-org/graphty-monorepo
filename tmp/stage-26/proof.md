@@ -232,3 +232,38 @@ handed its Nodes exactly as before.
   many edge widths. The four 1 px stories pass with VITE_PARITY_PULLED=1 (dbg5.log), so they are batched-only:
   a single anti-aliased edge pixel each (dbg7.log), pointing at edge-end positions differing slightly in the
   position lane between a Node row and a row with no Node.
+
+## Session 7: the load-peak gate is met
+
+Target: live heap after a forced GC, sampled during a 200k-node batched load, under 1.5 KB per node.
+
+Build: `tools/low-priority.sh pnpm exec nx run graphty-element:build --skip-nx-cache` in this worktree at 47c199dbb3, then
+`BENCH_LABEL=stage26-pr11 BENCH_SOURCE=<this worktree> pnpm exec vite build` in benchmarks/compare. The master build is
+`profile-master-1109b` (the 2026-11-09 profile's). Both served through servherd (stopped after). Sampler:
+tmp/cosmos-impl/stages/stage26/poll-safe.mjs, a copy of tmp/cosmos-profile-2/memory-verify/poll.mjs whose end-of-run counts
+no longer assume a built `Node` (the original hangs on this branch). It forces a GC, reads `Runtime.getHeapUsage` and the
+row counts every 100 ms during `B.load()`. `BENCH_RENDER_PATH=batched`,
+`BENCH_LIMITS={"renderCeiling":2000000,"edgesDrawn":2000000}`, lean, 2k edges, under the GPU lock.
+
+Interleaved, same session (load average 2.4 before master, 3.5 before this branch):
+
+| Build                  | Peak live heap during load | Per node    | Settled | TransformNodes after |
+| ---------------------- | -------------------------- | ----------- | ------- | -------------------- |
+| master (1109b), 200k   | 2,327.7 MB                 | 11,638 B    | 792 MB  | 200,002              |
+| this branch, 200k      | 249.0 MB                   | **1,245 B** | 250 MB  | 2                    |
+| this branch, 1M        | 1,104.5 MB                 | 1,105 B     | 1,105 MB| 2                    |
+
+Gate met: 1,245 B per node, fixed ~53 MB included, against 1,500. A 1M-node load completes (first frame 15.6 s, load 2.6);
+on master it died at about 450-500k rows. The anchor and the transient object row are gone with the `Node`: no separate change
+was needed, so the "not started" items for them are closed. Logs: tmp/cosmos-impl/stages/stage26/poll-*.log.
+
+Proving test (counts only), node-batch "load a batched graph with no Node, no anchor and no object row's instance for any
+row": counts `InstancedMesh` and `TransformNode` added to the scene during a batched load of 12 rows, and `Node`s built.
+Passes on this branch (0, 0, 0). With the path switched to "objects" as a sensitivity check it fails with
+`expected 24 to equal +0` (instances counted), so the observers see object rows. Whole file: 53 passed.
+`npx eslint graphty-element/test/browser/node-batch.test.ts`: clean.
+
+Still open from earlier sessions: the render-parity differences on the batched path (four 1 px stories, ThreePaths 68 px,
+Gexf 1488 px which is a pulled-edge defect on both paths), the one-off MissingCredential ResizeObserver error, the walks that
+still build every `Node` (putOnPlane, AnnotationMeshes.nodes, SimulationLayoutEngine.nodes, UpdateManager.takeNodeBatch,
+readCommunities), late-row body order, `nodeSizes` NaN for a row with no `Node`, and the parked edge-trim patch.

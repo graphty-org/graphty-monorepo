@@ -11,7 +11,7 @@
 
 import "../../src/graphty-element";
 
-import { Matrix, Mesh, type Scene, TransformNode, Vector3 } from "@babylonjs/core";
+import { InstancedMesh, Matrix, Mesh, type Scene, TransformNode, Vector3 } from "@babylonjs/core";
 import type { LayoutSimulation } from "@graphty/layout";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
@@ -852,6 +852,34 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await frameOn(graph, "objects");
         assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 0);
         assert.isNull(graph.getNodeBatches());
+    });
+
+    it("load a batched graph with no Node, no anchor and no object row's instance for any row", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        const scene = graph.getScene();
+        // During the load, not only after it: each row used to be an object row first, with its
+        // own instance, then a batched row with a TransformNode anchor (9 KB per node at peak).
+        let anchors = 0;
+        let instances = 0;
+        const onNode = scene.onNewTransformNodeAddedObservable.add(() => anchors++);
+        const onMesh = scene.onNewMeshAddedObservable.add((mesh) => {
+            if (mesh instanceof InstancedMesh) {
+                instances++;
+            }
+        });
+        try {
+            await loaded(element, "3d");
+        } finally {
+            onNode.remove();
+            onMesh.remove();
+        }
+
+        assert.equal(instances, 0);
+        assert.equal(anchors, 0);
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0);
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
     });
 
     it("draw a row with no Node from its paint, the picture its Node drew, and build no Node", async () => {

@@ -603,6 +603,12 @@ function channelPlans(
         identity: factor === 1,
     });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
+    // a field of the label style with no channel of its own
+    const keepBlankLines = (target: StyleTarget): ChannelPlan => ({
+        channel: `${target}.labelStyle`,
+        convert: (value) => (typeof value === "boolean" ? { keepBlankLines: value } : null),
+        identity: false,
+    });
     const stack = (channel: Channel): ChannelPlan => ({
         channel,
         convert: (value) => arrowStackOf(value),
@@ -861,6 +867,7 @@ function channelPlans(
             ["labelWrapEllipsis", [id("node.labelWrapEllipsis")]],
             ["labelWrapAnywhere", [id("node.labelWrapAnywhere")]],
             ["labelWrapSpaceCount", [id("node.labelWrapSpaceCount")]],
+            ["labelKeepBlankLines", [keepBlankLines("node")]],
             ["labelRunAlign", [id("node.labelRunAlign")]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
@@ -1054,6 +1061,7 @@ function channelPlans(
         ["labelWrapEllipsis", [id("edge.labelWrapEllipsis")]],
         ["labelWrapAnywhere", [id("edge.labelWrapAnywhere")]],
         ["labelWrapSpaceCount", [id("edge.labelWrapSpaceCount")]],
+        ["labelKeepBlankLines", [keepBlankLines("edge")]],
         ["labelRunAlign", [id("edge.labelRunAlign")]],
         ["labelRotation", [label("labelRotation")]],
         ["labelBackground", [label("labelBackground")]],

@@ -45,6 +45,8 @@ const KNOWN = 8;
 export interface DrawnTarget {
     readonly table: RowTable;
     readonly device: GPUDevice;
+    /** A layout transition is drawing rows off their lanes: landings go up by upload, not by copy. */
+    readonly suspended?: boolean;
 }
 
 export interface RowExtent {
@@ -350,6 +352,16 @@ export class RowTable {
     }
 
     /**
+     * A layout published by upload after a landing was copied and before the repack: the copy no
+     * longer holds the lane, so the next repack sends every row it writes. Without this a settling
+     * batch that landed in the same frame as the last copy never went up, and the texture rested
+     * on the copied landing while the CPU copy held the settled rows.
+     */
+    dropCopy(): void {
+        this.copied = false;
+    }
+
+    /**
      * Where a row is drawn.
      * @param row - The row.
      * @returns A new vector.
@@ -378,6 +390,24 @@ export class RowTable {
             round: ((floats[base + 3] ?? 0) & ROW_EXTENT_ROUND) === 0 ? null : of(1),
             half: { x: of(4), y: of(5), z: of(6) },
         };
+    }
+
+    /**
+     * Where the coordinate lane puts a row, as the repack draws it: flat in 2D.
+     * @param row - The row.
+     * @param out - Written with the place.
+     * @param out.x - X.
+     * @param out.y - Y.
+     * @param out.z - Z.
+     * @returns False when the lane places the row nowhere.
+     */
+    laneOf(row: number, out: { x: number; y: number; z: number }): boolean {
+        this.lane().read(row, out);
+        if (this.twoD) {
+            out.z = 0;
+        }
+
+        return Number.isFinite(out.x);
     }
 
     /**

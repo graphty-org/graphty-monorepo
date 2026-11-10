@@ -142,7 +142,7 @@ export function assertAppKey(combo: string, commandId: string): void {
  * Whether this platform's Mod is Cmd.
  * @returns true on a Mac, iPhone or iPad.
  */
-function isMac(): boolean {
+export function isMac(): boolean {
     return /Mac|iPhone|iPad/.test(navigator.userAgent);
 }
 

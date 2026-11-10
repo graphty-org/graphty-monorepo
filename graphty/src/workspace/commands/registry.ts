@@ -216,7 +216,7 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
         "row.ungroup",
         "row.delete",
     ],
-    style: ["style.add-label-line", "style.layer-from-selection"],
+    style: ["style.add-label-line", "style.layer-from-selection", "shader.add"],
     table: ["table.toggle"],
     export: ["file.export"],
     project: ["project.save", "project.save-as", "project.save-copy", "project.close"],

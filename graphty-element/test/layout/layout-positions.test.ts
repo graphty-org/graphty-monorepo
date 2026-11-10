@@ -52,7 +52,8 @@ function node(id: string, index: number): Node {
  * @returns the stand-in
  */
 function edge(src: Node, dst: Node): Edge {
-    return { srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst } as unknown as Edge;
+    // both ends drawn by their Nodes, as every end is on "objects" (`Edge.columnEnd`)
+    return { srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst, columnEnd: () => undefined } as unknown as Edge;
 }
 
 /** A layout whose answer is written by the test, including coordinates that cannot be stored. */

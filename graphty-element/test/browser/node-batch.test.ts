@@ -16,11 +16,14 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
+import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { nodeFramingBox } from "../../src/managers/UpdateManager";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
+import { PulledLineBatch } from "../../src/meshes/PulledLineBatch";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
@@ -1022,5 +1025,167 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             positions.read(row, at);
             assert.notEqual(at.x, 999, `row ${row} is published with no Node`);
         });
+    });
+
+    it("move a row with no Node through a layout transition by its row", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph, session } = element;
+        await frameOn(graph, "batched");
+        const manager = graph.getDataManager();
+        const built = dataManagerInternals.nodesBuilt(manager);
+        const batches = graph.getNodeBatches();
+        const table = graph.getRowTable();
+        const node = manager.nodes.get(4);
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(batches);
+        assert.isNotNull(table);
+        assert.isDefined(node);
+        assert.isNotNull(paint);
+        if (batches === null || table === null || node === undefined || paint === null) {
+            return;
+        }
+
+        // Row 4 is drawn with no Node, and no walk of the layout's nodes reaches it, as none reaches an unbuilt row.
+        batches.leave(node);
+        node.drawInBatch(node.paintedSourceMesh);
+        assert.isTrue(batches.paintRow(4, paint));
+        const layouts = graph.getLayoutManager();
+        const walked = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(layouts), "nodes")?.get;
+        Object.defineProperty(layouts, "nodes", {
+            configurable: true,
+            get: () => [...(walked?.call(layouts) as Iterable<typeof node>)].filter((other) => other !== node),
+        });
+        cleanups.push(() => Reflect.deleteProperty(layouts, "nodes"));
+
+        const from = table.centerOf(4);
+        await session.config.set({ layoutTransition: { transition: "glide", seconds: 0.4, hold: 0.5 } });
+        await graph.setLayout("circular", { dim: 3 });
+        await element.waitForStableFrame();
+        const engine = layouts.layoutEngine;
+        assert.isDefined(engine);
+        if (engine === undefined) {
+            return;
+        }
+
+        const lane = { x: 0, y: 0, z: 0 };
+        layoutEngineInternals.positions(engine).read(4, lane);
+        const to = new Vector3(lane.x, lane.y, lane.z);
+        assert.isAbove(Vector3.Distance(from, to), 0.5, "the new layout moves row 4");
+        const held = table.centerOf(4);
+        assert.isAbove(Vector3.Distance(held, from), 0.1, "row 4 left where it was");
+        assert.isAbove(Vector3.Distance(held, to), 0.1, "and is drawn on its way, held halfway");
+
+        await session.config.set({ layoutTransition: { transition: "glide", seconds: 0.4 } });
+        await element.waitForStableFrame();
+        assert.isAtMost(Vector3.Distance(table.centerOf(4), to), 1e-4, "row 4 lands where the layout puts it");
+        assert.isFalse(table.isHeld(4), "and is drawn from the lane again");
+        assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
+    });
+
+    it.each([
+        ["d3", D3GraphEngine],
+        ["ngraph", NGraphEngine],
+    ] as const)("simulate a row with no Node in %s by its row", async (layout, Engine) => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const manager = graph.getDataManager();
+        const built = dataManagerInternals.nodesBuilt(manager);
+        const batches = graph.getNodeBatches();
+        const node = manager.nodes.get(4);
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(batches);
+        assert.isDefined(node);
+        assert.isNotNull(paint);
+        if (batches === null || node === undefined || paint === null) {
+            return;
+        }
+
+        // Row 4 is drawn with no Node: the layout swap hands the engine its row, never its Node.
+        batches.leave(node);
+        node.drawInBatch(node.paintedSourceMesh);
+        assert.isTrue(batches.paintRow(4, paint));
+        await graph.setLayout(layout, { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.isTrue(engine instanceof Engine, `the engine is ${layout}'s`);
+        if (!(engine instanceof Engine)) {
+            return;
+        }
+
+        assert.notInclude([...engine.nodes], node, "a third party reading the engine's nodes sees only Nodes");
+        const positions = layoutEngineInternals.positions(engine);
+        positions.write(4, 999, 999, 999);
+        engine.step();
+        const at = { x: 0, y: 0, z: 0 };
+        positions.read(4, at);
+        for (const axis of ["x", "y", "z"] as const) {
+            assert.isTrue(Number.isFinite(at[axis]) && at[axis] !== 999, `row 4's ${axis} is the simulation's`);
+        }
+
+        assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
+    });
+
+    it("pull a line to a row with no Node from its row, reading no Node for that end", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const manager = graph.getDataManager();
+        const batches = graph.getNodeBatches();
+        const table = graph.getRowTable();
+        const node = manager.nodes.get(4);
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(batches);
+        assert.isNotNull(table);
+        assert.isDefined(node);
+        assert.isNotNull(paint);
+        if (batches === null || table === null || node === undefined || paint === null) {
+            return;
+        }
+
+        // Row 4 is drawn with no Node, and from here on any read of its Node is recorded.
+        batches.leave(node);
+        node.drawInBatch(node.paintedSourceMesh);
+        assert.isTrue(batches.paintRow(4, paint));
+        const reads: unknown[] = [];
+        const get = vi.spyOn(manager.nodeCache, "get").mockImplementation(function (this: Map<unknown, unknown>, id) {
+            reads.push(id);
+            return Map.prototype.get.call(this, id) as typeof node;
+        });
+        cleanups.push(() => get.mockRestore());
+        const rows = vi.spyOn(PulledLineBatch.prototype, "setRows");
+        cleanups.push(() => rows.mockRestore());
+
+        // The graph is directed, so the edge would start with a head, and a capped line is never pulled.
+        await element.session.styles.add({
+            name: "uncapped",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        } as never);
+        manager.addEdge({ src: 4, dst: 9 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const [edge] = [...manager.edges.values()].filter((e) => e.srcId === 4);
+        assert.isTrue(edge.isPulled, "the line is pulled, as a line between two Nodes is");
+        assert.deepInclude(
+            rows.mock.calls.map(([, source, target]) => [source, target]),
+            [4, manager.nodes.get(9)?.index],
+            "and drawn from row 4 to row 9",
+        );
+
+        // A new layout moves row 4, and the line follows it, still reading no Node for it.
+        const from = table.centerOf(4);
+        await graph.setLayout("circular", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isAbove(Vector3.Distance(table.centerOf(4), from), 0.5, "row 4 moved");
+        const centre = edge.drawnLine?.centre ?? Vector3.Zero();
+        assert.isAtMost(Vector3.Distance(centre, Vector3.Center(table.centerOf(4), table.centerOf(9))), 1e-4);
+        assert.notInclude(reads, 4, "no read of row 4's Node");
     });
 });

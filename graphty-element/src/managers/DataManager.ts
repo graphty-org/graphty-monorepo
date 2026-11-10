@@ -360,6 +360,8 @@ export const dataManagerInternals = {} as {
      * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
      */
     nodesBuilt(manager: DataManager): number;
+    /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
+    rowOf(manager: DataManager, id: NodeIdType): number;
 };
 
 /**
@@ -401,6 +403,7 @@ export class DataManager implements Manager {
 
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
+        dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.followRenumbering = (manager, follower) => {
             manager.renumberFollowers.add(follower);
             return () => {
@@ -1940,11 +1943,9 @@ export class DataManager implements Manager {
             // resolve differently from an immediate one.
             const { record, sourceId, targetId, edgeIndex, edgeId } = pending;
 
-            // Check if both nodes now exist
-            const srcNode = this.nodeCache.get(sourceId);
-            const dstNode = this.nodeCache.get(targetId);
-
-            if (!srcNode || !dstNode) {
+            // Check if both nodes now exist. `has`, not `get`: the edge reaches its ends through its
+            // accessors, so building it needs neither end's `Node`.
+            if (!this.nodeCache.has(sourceId) || !this.nodeCache.has(targetId)) {
                 // Nodes still don't exist, keep it pending
                 stillPending.push(pending);
                 continue;
@@ -2221,11 +2222,9 @@ export class DataManager implements Manager {
     private buildEdge(stored: StoredEdge): void {
         const { record: edge, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId } = stored;
 
-        // Check if both nodes exist before creating the RENDER object, which reads them
-        const srcNode = this.nodeCache.get(srcNodeId);
-        const dstNode = this.nodeCache.get(dstNodeId);
-
-        if (!srcNode || !dstNode) {
+        // Check if both nodes exist before creating the RENDER object. `has`, not `get`: the edge
+        // reaches its ends through its accessors, so building it needs neither end's `Node`.
+        if (!this.nodeCache.has(srcNodeId) || !this.nodeCache.has(dstNodeId)) {
             // Defer the render object until the nodes exist
             const pending: PendingEdge = {
                 record: edge,

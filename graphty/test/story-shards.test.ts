@@ -113,7 +113,7 @@ describe("realElementSeconds", () => {
 describe("the graphty-N parts' real-element files", () => {
     const root = join(import.meta.dirname, "..");
     const files = readdirSync(join(root, "src"), { recursive: true, encoding: "utf8" })
-        .filter((f) => f.endsWith(".real-element.test.tsx") && !/LargeGraph\./.test(f))
+        .filter((f) => f.endsWith(".real-element.test.tsx") && !/LargeGraph\.|__screenshots__/.test(f))
         .map((f) => `src/${f}`);
     const cost = new Map(files.map((f) => [f, realElementSeconds(readFileSync(join(root, f), "utf8"))]));
     const seconds = (f: string): number => cost.get(f) ?? 0;

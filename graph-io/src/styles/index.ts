@@ -10,6 +10,7 @@
 
 export {
     type AnnotationBase,
+    type AnnotationBeside,
     type AnnotationPoint,
     type ArrowAnnotation,
     type FileAnnotations,

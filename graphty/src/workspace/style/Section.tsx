@@ -6,12 +6,12 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
 import { shownChannel } from "./offered";
-import { type PasteInit, PasteShaderDialog } from "./PasteShaderDialog";
 import { Field, type RowContext } from "./PropertyRow";
 import { carriedOpacity, lineIn, partlySet, startingAdds, writeIn } from "./row";
+import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
 import { addShader, moveShader, shaderEntries, writeWireframe } from "./shaderSlots";
@@ -379,6 +379,14 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     const fail = (verb: string) => (error: unknown) => {
         store.set({ notice: { message: failureWords(spec.title, verb, error), error: true } });
     };
+    // Show in Style on a notice asks for this side's "+": it takes focus once the section is drawn.
+    const shaderNext = useWorkspaceState((state) => state.shaderNext);
+    useEffect(() => {
+        if (shaderNext === tab) {
+            store.set({ shaderNext: null });
+            sectionBox.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
+        }
+    }, [shaderNext, tab, store]);
     const pick = (id: string): Promise<void> => {
         const name = ctx.session.catalog.shaders().find((each) => each.id === id)?.plainName ?? id;
         return addShader(ctx, id).then(() => {
@@ -480,7 +488,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                 </Popout.Panel>
             </Popout>
             {code !== null && (
-                <PasteShaderDialog
+                <ShaderEditorDialog
                     session={ctx.session}
                     tab={tab}
                     put={(scope, id, params) => addShader({ ...ctx, session: scope }, id, params)}
@@ -555,7 +563,7 @@ export function AddButton({
     expanded,
     inRow = false,
 }: Readonly<{
-    kind: "node" | "edge";
+    kind: "node" | "edge" | "background";
     title: string;
     options: readonly AddOption[];
     onAdd: (key: string) => void;

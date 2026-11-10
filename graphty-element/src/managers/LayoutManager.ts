@@ -19,6 +19,7 @@ import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
+import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { laidGroupMargins } from "../layout/groupMargins";
 import { labelBounds, paddedBox, sizedGroupBox } from "../layout/groupSizing";
@@ -1383,10 +1384,11 @@ export class LayoutManager implements Manager {
 
         try {
             // Add all existing nodes and edges to the new engine
-            const nodeArray = [...this.dataManager.nodes.values()];
+            const nodeArray = this.nodesWithBodies();
             const edgeArray = [...this.dataManager.edges.values()];
             layoutEngineInternals.addNodes(engine, nodeArray);
             layoutEngineInternals.addEdges(engine, edgeArray);
+            this.addColumnRows(engine);
 
             this.engine = engine;
             this.engineDimension = dimension;
@@ -1598,6 +1600,45 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * The rows drawn with no `Node`, under renderPath "batched"; none under "objects".
+     * @returns Their row numbers.
+     */
+    private columnRows(): number[] {
+        return this.dataManager.renderLimits?.batched() === true
+            ? (this.graphContext?.getNodeBatches?.()?.columnRowIndices() ?? [])
+            : [];
+    }
+
+    /**
+     * The nodes a new engine is handed: every `Node` but one whose row is drawn with no `Node`,
+     * which a d3 or ngraph engine is handed as its row instead, so that no row has two bodies.
+     * @returns The nodes.
+     */
+    private nodesWithBodies(): Node[] {
+        const nodes = [...this.dataManager.nodes.values()];
+        const rows = new Set(this.columnRows());
+        return rows.size === 0 ? nodes : nodes.filter((n) => !rows.has(n.index));
+    }
+
+    /**
+     * Under renderPath "batched", hand a d3 or ngraph engine a body for each row drawn with no
+     * `Node`; a third party's engine is handed `Node`s only.
+     * @param engine - The new engine.
+     */
+    private addColumnRows(engine: LayoutEngine): void {
+        const rows = this.columnRows();
+        if (!(engine instanceof D3GraphEngine || engine instanceof NGraphEngine) || rows.length === 0) {
+            return;
+        }
+
+        const snapshot = this.dataManager.getSnapshot();
+        engine.addRows(
+            rows.map((row) => snapshot.ids.idOf(row)),
+            { getSnapshot: () => this.dataManager.getSnapshot(), positions: this.dataManager[WRITABLE_LANE] },
+        );
+    }
+
+    /**
      * Give a freshly initialised engine the nodes and edges that arrived while it initialised.
      * @param engine - The new engine.
      * @param nodeArray - The nodes it was given before `init()`.
@@ -1612,7 +1653,7 @@ export class LayoutManager implements Manager {
         const knownEdges = new Set(edgeArray);
         layoutEngineInternals.addNodes(
             engine,
-            [...this.dataManager.nodes.values()].filter((n) => !known.has(n)),
+            this.nodesWithBodies().filter((n) => !known.has(n)),
         );
         layoutEngineInternals.addEdges(
             engine,

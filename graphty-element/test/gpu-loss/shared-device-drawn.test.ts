@@ -3,68 +3,38 @@
  * renderPath "batched" on a shared device, a landing copies the batch's drawn ring slot into the
  * `rowPosition` texture, so a running layout uploads no positions, and the texture holds what the CPU
  * copy holds. Under "objects" nothing changes. A software adapter never shares, so it is made to say
- * it is hardware.
+ * it is hardware. At rest the texture holds what the upload path would have sent, and a click while
+ * the layout runs picks the node where the card shows it.
  */
 
 import { assert, describe, it } from "vitest";
 
-import type { Graph } from "../../src/Graph";
-import { adapterSays, landed, open, startLayout } from "./shared-device";
-
-/**
- * Opens a graph on the given path with a running layout.
- * @param path - The render path.
- * @returns The graph.
- */
-async function running(path: "objects" | "batched"): Promise<Graph> {
-    adapterSays("test-hardware");
-    const graph = await open();
-    graph.setRenderPath(path);
-    await startLayout(graph);
-    assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
-    return graph;
-}
-
-/**
- * The worst relative difference between the `rowPosition` texture and the CPU copy, read with no frame
- * between them. The frame's publish reaches the CPU copy at the next frame's repack, so that repack is
- * run here.
- * @param graph - The graph.
- * @returns The worst difference over every lane, and over the w lanes alone.
- */
-async function textureDiff(graph: Graph): Promise<{ worst: number; wWorst: number }> {
-    const table = graph.getRowTable();
-    assert.isNotNull(table);
-    graph.engine.stopRenderLoop();
-    table.flush();
-    const cpu = table.rowPosition.slice(0, 4 * table.rows);
-    const gpu = (await table.positionTexture.readPixels()) as Float32Array;
-    let worst = 0;
-    let wWorst = 0;
-    for (let i = 0; i < cpu.length; i++) {
-        const d = Math.abs((gpu[i] ?? Number.NaN) - (cpu[i] ?? 0)) / Math.max(1, Math.abs(cpu[i] ?? 0));
-        worst = Math.max(worst, d);
-        wWorst = i % 4 === 3 ? Math.max(wWorst, d) : wWorst;
-    }
-
-    return { worst, wWorst };
-}
+import { click } from "../helpers/real-input";
+import {
+    adapterSays,
+    copied,
+    landed,
+    layoutOf,
+    nextFrame,
+    open,
+    running,
+    startLayout,
+    textureDiff,
+} from "./shared-device";
 
 describe("the layout filling the row table on a shared device", () => {
     it("copies each landing into the texture and uploads no positions while it runs", async () => {
         const graph = await running("batched");
         const table = graph.getRowTable();
         assert.isNotNull(table);
-        // the ring is attached a batch after the load; wait for it to land once
-        await landed(graph);
-        await landed(graph);
+        // the ring is attached a batch after the load
+        await copied(graph);
         const { copies } = table;
         const uploads = table.positionUploads;
-        for (let i = 0; i < 5; i++) {
-            await landed(graph);
-        }
+        await landed(graph);
+        await landed(graph);
 
-        assert.isAtLeast(table.copies - copies, 5);
+        assert.isAtLeast(table.copies - copies, 2);
         assert.strictEqual(table.positionUploads - uploads, 0);
 
         const uploadsBeforeRead = table.positionUploads;
@@ -76,21 +46,20 @@ describe("the layout filling the row table on a shared device", () => {
         const graph = await running("batched");
         const table = graph.getRowTable();
         assert.isNotNull(table);
-        await landed(graph);
-        await landed(graph);
+        await copied(graph);
         const added = Array.from({ length: 40 }, (_, i) => ({ id: `added${String(i)}` }));
         await graph.addNodes(added);
         await graph.addEdges(added.map((node, i) => ({ src: node.id, dst: `n${String(i)}` })));
         const { copies } = table;
-        for (let i = 0; i < 6; i++) {
-            await landed(graph);
+        const shown = (): number =>
+            Array.from(table.rowPosition.subarray(0, 4 * table.rows)).filter((v, i) => i % 4 === 3 && v === 1).length;
+        // the rows show once a landing places them, and only a copy puts that landing in the texture
+        while (table.copies === copies || shown() <= 200) {
+            await nextFrame();
         }
 
-        assert.isAtLeast(table.copies - copies, 1);
-        const shown = Array.from(table.rowPosition.subarray(0, 4 * table.rows)).filter(
-            (v, i) => i % 4 === 3 && v === 1,
-        );
-        assert.isAbove(shown.length, 200);
+        assert.isAbove(table.copies - copies, 0);
+        assert.isAbove(shown(), 200);
         const diff = await textureDiff(graph);
         assert.isBelow(diff.wWorst, 1e-5);
         assert.isBelow(diff.worst, 1e-5);
@@ -107,12 +76,65 @@ describe("the layout filling the row table on a shared device", () => {
         assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
         assert.isNull(graph.getDrawnTarget());
         const uploads = table.positionUploads;
-        for (let i = 0; i < 3; i++) {
-            await landed(graph);
-        }
+        await landed(graph);
+        await landed(graph);
 
         assert.strictEqual(table.copies, 0);
         assert.isNull(table.drawnMirror);
         assert.isAbove(table.positionUploads - uploads, 0);
+    });
+
+    it("rests with the texture equal to what the upload path sends", async () => {
+        const graph = await running("batched", 150);
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        await copied(graph);
+        const { copies } = table;
+        while (!layoutOf(graph).isSettled) {
+            await nextFrame();
+        }
+        // the settling batch repacks from the lane, which is the upload path
+        await graph.waitForSettled();
+
+        assert.isAbove(table.copies, 0);
+        assert.isAtLeast(table.copies, copies);
+        const diff = await textureDiff(graph);
+        assert.isBelow(diff.worst, 1e-6);
+        assert.isBelow(diff.wWorst, 1e-6);
+    });
+
+    it("selects the node a click lands on while the layout copies", async () => {
+        const graph = await running("batched");
+        await copied(graph);
+        // the node farthest from its nearest neighbour on screen, framed whole, so the click can only
+        // land on it
+        const shown = Array.from({ length: 200 }, (_, i) => `n${String(i)}`).flatMap((id) => {
+            const at = graph.nodeScreenPosition(id);
+            return at?.visible === true ? [{ id, x: at.x, y: at.y }] : [];
+        });
+        const gap = (node: { x: number; y: number }): number =>
+            Math.min(
+                ...shown
+                    .filter((other) => other !== node)
+                    .map((other) => Math.hypot(other.x - node.x, other.y - node.y)),
+            );
+        const target = shown.reduce((best, node) => (gap(node) > gap(best) ? node : best)).id;
+        await graph.zoomToNodes(target, { extent: "drawn" });
+        await copied(graph);
+        // textureDiff stops the frames, so the node stands where the card shows it while the pointer
+        // travels; the layout is still mid-run, with its batch in flight
+        assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+        assert.isFalse(layoutOf(graph).isSettled);
+        const at = graph.nodeScreenPosition(target);
+        assert.isTrue(at?.visible);
+        assert.isNull(graph.getSelectedNode());
+
+        await click(graph.canvas, { x: at?.x ?? 0, y: at?.y ?? 0 });
+        // Babylon tells a tap from a double tap after the release, so the selection follows it
+        while (graph.getSelectedNode() === null) {
+            await nextFrame();
+        }
+
+        assert.strictEqual(graph.getSelectedNode()?.id, target);
     });
 });

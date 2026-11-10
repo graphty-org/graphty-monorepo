@@ -279,6 +279,7 @@ function readTableLabel(node: Node, p: Projector): DrawnLabel | null {
         },
         textBox: null,
         lineCount: cells.reduce((sum, c) => sum + c.lineCount, 0),
+        tall: cells.flatMap((c) => c.tall ?? c.text.split("\n").map(() => true)),
         background: null,
     };
 }
@@ -497,6 +498,11 @@ export interface DrawnLabel {
     nodeSizeRule?: { acrossPx: number; min: number; hidden: boolean };
     /** How many lines the words are drawn on. */
     lineCount: number;
+    /**
+     * For each line of `text`, whether it is drawn a line tall: a blank line holding no run takes no height (one
+     * after the last words always, one before or between them unless the label keeps blank lines). Unset, every line.
+     */
+    tall?: readonly boolean[];
     /** How the lines are aligned. */
     align: "start" | "middle" | "end";
     /** The outline stroked round the letters, its width outside them on screen, or null. */
@@ -678,6 +684,7 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
         opacity: textColor.alpha * planeAlpha,
         ...nodeSizeRuleOf(label),
         lineCount,
+        tall: label.textRuns.map((line) => line.length > 0),
         align,
         cells: label.tableFrames.map((f) => onScreen(f.x, f.y, f.width, f.height)),
         outline:

@@ -8,6 +8,7 @@
 
 import { Color3, DynamicTexture, type Mesh, MeshBuilder, type Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
 import type {
+    AnnotationBeside,
     AnnotationPoint,
     ArrowAnnotation,
     ImageAnnotation,
@@ -63,6 +64,18 @@ export interface AnnotationNode {
     readonly borderReach: number;
 }
 
+/**
+ * A text placed against a side of the drawing (`TextAnnotation.beside`): its mesh, drawn about the region's center at
+ * the origin, where that put it, its metadata there, and how far it is moved now (null before it is placed).
+ */
+interface BesideText {
+    readonly mesh: Mesh;
+    readonly beside: AnnotationBeside;
+    readonly home: { readonly x: number; readonly y: number };
+    readonly metadata: AnnotationMeshMetadata;
+    offset: { x: number; y: number } | null;
+}
+
 /** An arrow that ends at a node, the mesh drawing it, and how far short of the node's center it stops. */
 interface NodeArrow {
     readonly arrow: ArrowAnnotation;
@@ -83,6 +96,8 @@ export class AnnotationMeshes {
     /** The drawn arrows that end at a node, which {@link AnnotationMeshes.refit} keeps at its outline. */
     private nodeArrows: NodeArrow[] = [];
     private scale = 1;
+    /** The drawn texts placed against a side of the drawing, which {@link AnnotationMeshes.refit} keeps there. */
+    private besides: BesideText[] = [];
 
     /**
      * Draw nothing yet.
@@ -106,6 +121,7 @@ export class AnnotationMeshes {
      * changed size, or has come to or left the arrow's end, since it was drawn. Cheap when nothing changed.
      */
     refit(): void {
+        this.placeBesides();
         for (const entry of this.nodeArrows) {
             const reach = this.reachAt(entry.arrow);
             if (
@@ -194,9 +210,20 @@ export class AnnotationMeshes {
             const mesh = this.draw(a.kind === "arrow" ? leaveText(a, read.annotations) : a, read.scale);
             if (mesh !== null) {
                 this.meshes.push(mesh);
+                if (a.kind === "text" && a.beside !== undefined) {
+                    const metadata = mesh.metadata as AnnotationMeshMetadata;
+                    this.besides.push({
+                        mesh,
+                        beside: a.beside,
+                        home: { x: mesh.position.x, y: mesh.position.y },
+                        metadata,
+                        offset: null,
+                    });
+                }
             }
         }
 
+        this.placeBesides();
         // drawn to the node's center until a node is found there
         for (const entry of this.nodeArrows) {
             entry.reach = this.reachAt(entry.arrow);
@@ -247,6 +274,56 @@ export class AnnotationMeshes {
 
         this.meshes = [];
         this.nodeArrows = [];
+        this.besides = [];
+    }
+
+    /**
+     * Move each text placed against a side of the drawing to that side of the box the drawn nodes cover now, as
+     * Graphviz places a graph's own label (`place_root_label`): its region just outside the box, at the box's left
+     * end, middle or right end. Cheap when nothing moved; left where it was drawn while no node is drawn.
+     */
+    private placeBesides(): void {
+        if (this.besides.length === 0) {
+            return;
+        }
+
+        // ponytail: one pass over every node per pass while a graph has such a text; keep a box if a graph is huge
+        const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+        for (const node of this.nodes()) {
+            const p = node.getPosition();
+            const h = node.drawnHalfExtents;
+            box.x0 = Math.min(box.x0, p.x - h.x);
+            box.x1 = Math.max(box.x1, p.x + h.x);
+            box.y0 = Math.min(box.y0, p.y - h.y);
+            box.y1 = Math.max(box.y1, p.y + h.y);
+        }
+        if (!(box.x1 >= box.x0 && box.y1 >= box.y0)) {
+            return;
+        }
+
+        const k = this.scale;
+        for (const entry of this.besides) {
+            const { side, align, width, height } = entry.beside;
+            const [w, h] = [width * k, height * k];
+            const middles = { left: box.x0 + w / 2, center: (box.x0 + box.x1) / 2, right: box.x1 - w / 2 };
+            const offset = { x: middles[align], y: side === "top" ? box.y1 + h / 2 : box.y0 - h / 2 };
+            if (entry.offset?.x === offset.x && entry.offset.y === offset.y) {
+                continue;
+            }
+
+            entry.offset = offset;
+            entry.mesh.position.x = entry.home.x + offset.x;
+            entry.mesh.position.y = entry.home.y + offset.y;
+            const { annotation } = entry.metadata;
+            const b = annotation.box;
+            const moved: AnnotationMeshMetadata = {
+                annotation: {
+                    ...annotation,
+                    box: { x0: b.x0 + offset.x, y0: b.y0 + offset.y, x1: b.x1 + offset.x, y1: b.y1 + offset.y },
+                },
+            };
+            entry.mesh.metadata = moved;
+        }
     }
 
     /**

@@ -282,15 +282,27 @@ function useLeafCount(
     side: Side,
     reading: "clipped" | "incident" = "clipped",
 ): number | undefined {
-    const key = `${JSON.stringify(leaf)} ${side} ${reading} ${String(session.history.version)}`;
+    const rule = `${JSON.stringify(leaf)} ${side} ${reading}`;
+    // Each count carries the rule it was counted for: on the render after the rule changes, the
+    // read still holds the old rule's count, which must not pass for the new one.
     const counted = useAsyncValue(
-        () => (leaf === null ? null : session.scope.count({ define: { kind: "rule", where: leaf, reading } })),
-        key,
+        () =>
+            leaf === null
+                ? null
+                : session.scope
+                      .count({ define: { kind: "rule", where: leaf, reading } })
+                      .then((each) => ({ rule, value: side === "node" ? each.nodes : each.edges })),
+        `${rule} ${String(session.history.version)}`,
     );
-    if (counted === undefined) {
-        return undefined;
+    // The history moves for changes the count does not read (the layout settling, a color), and
+    // each one counts again: the same rule keeps saying its last count until the new one lands,
+    // rather than blinking out of the card's header and name (#6331).
+    const [kept, setKept] = useState(counted);
+    if (counted !== undefined && counted !== kept) {
+        setKept(counted);
     }
-    return side === "node" ? counted.nodes : counted.edges;
+    const shown = counted ?? kept;
+    return leaf !== null && shown?.rule === rule ? shown.value : undefined;
 }
 
 /**

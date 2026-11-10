@@ -42,6 +42,9 @@ patchedDependencies:
     # nx runs at once fill the system file table (file-max) and other processes fail with ENFILE.
     # Nothing here reads the metrics, so the patch never starts the collector (issue #2558).
     # Still unfixed in nx 23.3.0; recheck at the next nx upgrade.
+    # The same patch makes `nx release` treat a commit listed in release-not-breaking.json (the owner's
+    # ruling that an already-pushed `!` or BREAKING CHANGE commit is not breaking) as not breaking, for the
+    # version bump and the changelog (issue #6476). Carry it to every nx upgrade: it is repo policy.
     "nx@22.7.12": patches/nx@22.7.12.patch
 
 # Security floors for transitive packages that a parent in pnpm-lock.yaml pins to a vulnerable

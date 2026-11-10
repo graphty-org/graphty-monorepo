@@ -458,9 +458,11 @@ export class ColumnRow implements RowMeasure {
      * @returns True when it can.
      */
     static drawable(paint: NodePaint, view: BatchView): boolean {
-        const { shape, texture, label } = paint.style;
+        const { shape, texture, label, visible } = paint.style;
         // A label hangs from a `Node` (`Node.labelTarget`): a row with no `Node` would draw none.
+        // A style that hides the row is honored by a `Node` (`Node.styleHidden`), which hides its row.
         return (
+            visible !== false &&
             shape?.model === undefined &&
             (texture?.image ?? "") === "" &&
             drawnText(label) === undefined &&

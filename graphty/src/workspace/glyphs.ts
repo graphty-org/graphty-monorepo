@@ -101,7 +101,6 @@ import {
     RectangleHorizontal,
     Redo2,
     RefreshCw,
-    Rotate3d,
     RotateCw,
     Route,
     Scan,
@@ -241,8 +240,6 @@ export const GLYPHS = {
     timeline: Clock,
     // The Camera tool: its menu moves the camera (Fit, the standard views, Auto-rotate).
     camera: Camera,
-    // The view turning on its own.
-    autoRotate: Rotate3d,
     // The Mode tool's face is the mode the canvas is in: a flat card for 2D (Square is Stop), a cube for 3D, a headset for VR,
     // a cube in a frame for AR (the usual marks: Material Symbols, SF Symbols, model-viewer).
     mode2d: RectangleHorizontal,

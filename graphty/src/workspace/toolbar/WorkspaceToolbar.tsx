@@ -14,7 +14,7 @@ import { xrRows } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { immersiveMode } from "./commands";
+import { immersiveMode, reducedMotion } from "./commands";
 import { openers, type ToolbarPopover } from "./popover";
 import { QuickActionsPalette } from "./QuickActionsPalette";
 import { useSessionVersion } from "./useSessionVersion";
@@ -220,7 +220,12 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
                 ]}
             />
             <Menu.Divider />
-            <CheckItem command="view.auto-rotate" label="Auto-rotate" checked={autoRotate} radio={false} />
+            <CheckItem
+                command="view.auto-rotate"
+                label="Auto-rotate"
+                checked={autoRotate && !reducedMotion()}
+                radio={false}
+            />
         </>
     );
 }

@@ -76,7 +76,7 @@ interface LayoutFormProps {
     onKeyDown?: (event: React.KeyboardEvent) => void;
     /**
      * Whether the form offers its own 3D | 2D Shape (the popover). Graph settings leaves it out:
-     * its View is the one 3D | 2D control there.
+     * the toolbar's Mode menu is the one 3D | 2D control there.
      */
     shapeChoice?: boolean;
 }

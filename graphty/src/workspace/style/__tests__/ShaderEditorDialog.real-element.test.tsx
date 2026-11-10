@@ -928,6 +928,26 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         assert.lengthOf(session.shaders.list(), 0, "nothing new joined the project");
     });
 
+    it("an edge text moved from the Node tab keeps the Edge tab's typed draft as My code", async () => {
+        await mount();
+        const box = await openNew();
+        await drawOn("Edge");
+        await userEvent.fill(box, "vec4 shade(EdgeInput e) {\n    return e.color * 0.25;\n}\n");
+        const typed = textOf(box);
+        await drawOn("Node");
+        const moved = shaderTemplate({ target: "edge", place: "along" });
+        await userEvent.fill(box, moved);
+        const dialog = screen.getByRole("dialog", { name: DIALOG });
+        await userEvent.click(await within(dialog).findByRole("button", { name: /Written for edges/ }));
+        await waitFor(() => {
+            assert.strictEqual(textOf(box), bodyOf(moved));
+        });
+        await startFrom(/^My code/);
+        await waitFor(() => {
+            assert.strictEqual(textOf(box), typed);
+        });
+    });
+
     it("an example renamed in the form joins as a new shader", async () => {
         const { session, id } = await mount();
         await openNew();

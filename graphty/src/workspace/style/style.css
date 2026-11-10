@@ -461,7 +461,12 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* The shader editor's form: the top fields and its parameter rows. */
+/* The shader editor's form: the top fields and its parameter rows. Its width, not the window's,
+   decides the narrow layout below. */
+.ws-shader-form {
+    container-type: inline-size;
+}
+
 .ws-shader-start {
     flex: 0 0 240px;
     min-width: 0;
@@ -506,7 +511,41 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* A field a problem is about. The panel's fields have no error state of their own. */
+/* A narrow editor (a phone): Draws on and Start from each get a full line, the top fields wrap,
+   the preview goes under the code box, and a parameter row puts its Name on a line of its own. */
+@container (max-width: 520px) {
+    .ws-shader-top > * {
+        flex: 1 1 100%;
+    }
+
+    .ws-shader-fields {
+        flex-wrap: wrap;
+    }
+
+    .ws-shader-fields > * {
+        flex: 1 1 200px;
+    }
+
+    .ws-shader-code {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ws-shader-code .ws-paste-preview {
+        align-self: center;
+    }
+
+    .ws-param-row {
+        grid-template-columns: 104px minmax(0, 1fr) auto auto auto;
+    }
+
+    .ws-param-row > :first-child {
+        grid-column: 1 / -1;
+    }
+}
+
+/* A field a problem is about. Temporary workaround for a compact-mantine defect: PanelField has no
+   error state (issue #6490); remove these rules once it does. */
 .ws-shader-form [data-invalid] input,
 .ws-shader-form [data-invalid] button,
 .ws-shader-form button[data-invalid],

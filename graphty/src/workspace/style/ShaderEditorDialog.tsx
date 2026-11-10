@@ -154,7 +154,7 @@ interface EditorState {
     readonly place: ShaderPlace | undefined;
     /** Whether the reader changed the form other than a parameter's default value: the text is a new shader. */
     readonly edited: boolean;
-    /** What Start from last loaded: `STARTER`, `MY_CODE` or a shader's id. */
+    /** What Start from last loaded: `STARTER`, `MY_CODE`, `MOVED` or a shader's id. */
     readonly from: string;
     /** The body and header that load gave, which Start from compares the work with. */
     readonly loaded: { readonly body: string; readonly draft: ShaderTextDraft };
@@ -165,6 +165,8 @@ interface EditorState {
 /** Start from's entries that are not shader ids, which can never start with a colon. */
 const STARTER = ":starter";
 const MY_CODE = ":my-code";
+/** The text a problem row moved here from another target, while it is unchanged. */
+const MOVED = ":moved";
 
 /** The session's unsent work: one draft per target, and the target last used. */
 interface DraftBook {
@@ -684,7 +686,15 @@ export function ShaderEditorDialog({
     const moveToTarget = (found: Target): void => {
         const nextTab = tabOfTarget(found);
         const start = starterState(nextTab, found === "group" ? "group" : FIRST_PLACE[nextTab]);
-        showDraft(nextTab, loadedAs(stateFromText(text, nextTab, start), MY_CODE));
+        // The target's own edited draft is kept as its My code, and the moved text is its new
+        // baseline, as if Start from had loaded it.
+        const kept = book.drafts.get(found);
+        const mine =
+            kept !== undefined && startValue(kept, nextTab) === MY_CODE
+                ? { ...kept, mine: null }
+                : (kept?.mine ?? null);
+        const moved = loadedAs(stateFromText(text, nextTab, start), mine === null ? MY_CODE : MOVED);
+        showDraft(nextTab, { ...moved, mine });
         book.drafts.delete(target);
     };
 
@@ -699,6 +709,9 @@ export function ShaderEditorDialog({
                 setState({ ...state.mine, mine: null });
                 textReplaced();
             }
+            return;
+        }
+        if (value === MOVED) {
             return;
         }
         const mine = startValue(state, tab) === MY_CODE ? { ...state, mine: null } : state.mine;
@@ -967,7 +980,7 @@ export function ShaderEditorDialog({
             <Stack gap="xs" ref={fields} className="ws-shader-form">
                 <PanelLabelsProvider showLabels>
                     {init.duplicateOf === undefined && (
-                        <Group justify="space-between" align="flex-end" gap="xs" wrap="nowrap">
+                        <Group className="ws-shader-top" justify="space-between" align="flex-end" gap="xs">
                             <SegmentedControl
                                 label={EDITOR_WORDS.drawsOn}
                                 size="xs"
@@ -987,6 +1000,7 @@ export function ShaderEditorDialog({
                                         ...(startAt === MY_CODE || state.mine !== null
                                             ? [{ value: MY_CODE, label: EDITOR_WORDS.myCode }]
                                             : []),
+                                        ...(startAt === MOVED ? [{ value: MOVED, label: EDITOR_WORDS.movedText }] : []),
                                         { value: STARTER, label: EDITOR_WORDS.starter },
                                         ...examples.map((each) => ({ value: each.id, label: each.plainName })),
                                     ]}
@@ -1079,7 +1093,14 @@ export function ShaderEditorDialog({
                         )}
                     </div>
                 </PanelLabelsProvider>
-                <Group align="flex-start" gap="xs" wrap="nowrap" onPointerDown={touchBox} onKeyDown={touchBox}>
+                <Group
+                    className="ws-shader-code"
+                    align="flex-start"
+                    gap="xs"
+                    wrap="nowrap"
+                    onPointerDown={touchBox}
+                    onKeyDown={touchBox}
+                >
                     {Editor === null ? (
                         <Textarea
                             ref={box}

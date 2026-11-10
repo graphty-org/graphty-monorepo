@@ -1459,6 +1459,7 @@ export const EDITOR_WORDS = {
     startFrom: "Start from",
     starter: "Starter",
     myCode: "My code",
+    movedText: "Moved text",
     showInStyle: "Show in Style",
     addedToProject: (name: string) => `${name} added to This project`,
     alreadyInGallery: (name: string) => `${name} is already in the gallery`,

@@ -83,10 +83,10 @@ interface NumberTextFieldProps {
 }
 
 /**
- * A number field that can be emptied, for a key whose absence means something. Temporary: the
- * shared number field puts its last value back when emptied, and until it has a mode that allows
- * empty (issue #6489) this text field stands in for it. It keeps the text as typed, so "0." is not
- * rewritten while the reader is still typing.
+ * A number field that can be emptied, for a key whose absence means something (Min, Max, Step,
+ * Minimum size). Temporary workaround for a compact-mantine defect: a number PanelField cannot be
+ * left empty (issue #6491), so this text field with inputMode decimal stands in until that is
+ * fixed. It keeps the text as typed, so "0." is not rewritten while the reader is still typing.
  * @param props - Component props
  * @param props.label - its name
  * @param props.value - the header's value

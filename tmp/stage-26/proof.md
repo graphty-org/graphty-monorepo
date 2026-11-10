@@ -208,3 +208,27 @@ Checks (graphty-element, through tools/low-priority.sh):
 
 Load-peak target (live heap under 1.5 KB per node during a 200k-node batched load): not measured; the TransformNode
 anchor and the transient object row are not removed yet.
+
+## Session 6: bodies in row order; failures classified (commit 687d25d09a)
+
+Fix: under renderPath "batched", LayoutManager handed a new d3 or ngraph engine every built Node first and the
+rows with no Node after, so a load mixing the two made a seeded simulation's bodies in another order.
+LayoutManager.addBodies now makes them in row order. Under "objects" columnRows() is empty and the engine is
+handed its Nodes exactly as before.
+
+- Proving test, node-batch "make an ngraph layout's bodies in row order when only some rows have a Node":
+  failed before the fix (ro-red.log: body order [5, 0, 1, 2, 3, 4, 6, ...]), passes after. Whole node-batch.test.ts
+  (render-parity project): 52 passed (ro-green.log).
+- tsc --noEmit clean; eslint on the two changed files clean; sonar-gate: no new issue on the changed lines.
+- Full render-parity (parity15.log): 7 failed, 318 passed, 12 skipped. Mandala and Sticker now pass.
+  Still failing on the batched path: Bidirectional, CytoscapeSession, ForceAtlas2Weighted,
+  LouvainMoreCommunitiesThanColours (1 px each), ThreePaths (68 px, was 325), Gexf (1488 px).
+  MissingCredential failed with "ResizeObserver loop completed with undelivered notifications" caught by
+  test/helpers/caught-errors.ts; its file run alone passes 4 of 4 (err1.log). Mechanism not found; not a picture
+  difference.
+- Gexf is NOT a lazy-Node defect: the ngraph simulation is identical on both paths (bodies, masses, pins and
+  positions logged per step match exactly, dbg2.log), and the same 1488 px differ with VITE_PARITY_PULLED=1, which
+  compares two object loads with only the edges pulled (dbg4.log). It is a pulled-edge difference for a file with
+  many edge widths. The four 1 px stories pass with VITE_PARITY_PULLED=1 (dbg5.log), so they are batched-only:
+  a single anti-aliased edge pixel each (dbg7.log), pointing at edge-end positions differing slightly in the
+  position lane between a Node row and a row with no Node.

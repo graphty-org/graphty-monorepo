@@ -346,6 +346,7 @@ export const READ_ONLY: readonly string[] = [
     "AssetsApi.setLimits",
     "AssetsApi.states",
     "AssetsApi.supply",
+    "AssetsApi.usedBy",
     "AssetsApi.waiting",
     "NamedBlob.arrayBuffer",
     // The fetch gate: its cost grows with the fetches waiting, not with the graph; allowing a
@@ -944,6 +945,7 @@ export const READ_ONLY: readonly string[] = [
     "OperationQueueManager.resume",
     "OperationQueueManager.settled",
     "OperationQueueManager.waitForCompletion",
+    "ProjectApi.assetChoices",
     "ProjectApi.markSaved",
     "ProjectApi.save",
     "QueueableManager.queueOperation",

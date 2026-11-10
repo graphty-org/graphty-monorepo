@@ -362,7 +362,8 @@ export class Graphty extends LitElement {
      * Save the project (`session.project.save`) and hand it to the reader as a download named
      * `<project name>.graphty.json`. Lives on the element, not the session, because the session
      * also runs in Node, where there is nothing to download to.
-     * @param options - What to leave out, your own extensions, and the file's name.
+     * @param options - What to leave out, your own extensions, how to keep models named by URL,
+     *     the file's name, and `markSaved: false` for a copy that leaves `project.dirty` as it was.
      * @returns What the file holds.
      * @example
      * ```typescript
@@ -370,14 +371,18 @@ export class Graphty extends LitElement {
      * ```
      */
     async downloadProject(
-        options: Omit<ProjectSaveOptions, "markSaved"> & { readonly fileName?: string } = {},
+        options: ProjectSaveOptions & { readonly fileName?: string } = {},
     ): Promise<ProjectSaveReport> {
         // The download is the write, and the caller never sees a SavedProject to mark, so this
-        // save always clears `dirty`.
-        const { text, report } = await this.session.project.save({ ...options, markSaved: true });
+        // save clears `dirty` unless the caller asked for a copy.
+        const { fileName, ...saveOptions } = options;
+        const { text, report } = await this.session.project.save({
+            ...saveOptions,
+            markSaved: options.markSaved !== false,
+        });
         downloadBlob(
             new Blob([text], { type: PROJECT_FILE.mediaType }),
-            options.fileName ?? projectFileName(this.session.project.name),
+            fileName ?? projectFileName(this.session.project.name),
         );
         return report;
     }

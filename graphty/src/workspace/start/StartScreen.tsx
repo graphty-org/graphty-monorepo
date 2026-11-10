@@ -10,7 +10,6 @@ import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES } from "../../data/sampleManifest";
 import { onSiteConfig, siteNetwork, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
-import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
@@ -28,7 +27,7 @@ import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import { openDataset, openFiles, openGenerated, openModel, openSample, openUrl } from "./open";
+import { openDataset, openGenerated, openOnStart, openSample, openUrl, pickFiles } from "./open";
 import { SampleCard } from "./SampleCard";
 import { GENERATED, type LibraryTile, offeredTiles } from "./sampleLibrary";
 
@@ -442,7 +441,6 @@ export function StartScreen(): React.JSX.Element {
     const workspace = useWorkspace();
     const scheme = useComputedColorScheme("dark");
     const recent = useRecentProjects();
-    const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
     // The first paint does not wait for the site's configuration.
     const network = useSyncExternalStore(onSiteConfig, siteNetwork);
@@ -465,16 +463,14 @@ export function StartScreen(): React.JSX.Element {
     // says whether it is a model before it is read as graph data.
     const onDrop = useCallback(
         (files: File[]) => {
-            void holdsModel(files).then((model) => {
-                if (model) {
-                    openModel(workspace.store, files[0]?.name ?? "Model", files);
-                } else {
-                    openFiles(workspace, files);
-                }
-            });
+            void openOnStart(workspace, files, session);
         },
-        [workspace],
+        [workspace, session],
     );
+    // Open a file is the drop's Choose: the same files open the same way.
+    const choose = (): void => {
+        void pickFiles().then((files) => openOnStart(workspace, files, session));
+    };
     const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
@@ -493,7 +489,7 @@ export function StartScreen(): React.JSX.Element {
     const openButton = (variant: "primary" | "tint"): React.JSX.Element => (
         <Button
             className={variant === "primary" ? "ws-land-go ws-land-xl" : "ws-land-tint"}
-            onClick={openDoor?.run}
+            onClick={choose}
             leftSection={variant === "tint" ? <GLYPHS.openFile size={16} aria-hidden /> : undefined}
         >
             {variant === "primary" ? (
@@ -657,7 +653,7 @@ export function StartScreen(): React.JSX.Element {
                                                 openUrl(workspace.store, url);
                                             }}
                                             onFiles={(files) => {
-                                                openFiles(workspace, files);
+                                                void openOnStart(workspace, files, session);
                                             }}
                                         />
                                     </div>

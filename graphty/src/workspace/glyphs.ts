@@ -16,6 +16,7 @@ import {
     ArrowUp,
     ArrowUpToLine,
     Blend,
+    Box,
     Boxes,
     Calendar,
     CaseSensitive,
@@ -56,6 +57,7 @@ import {
     Highlighter,
     History,
     Hourglass,
+    Image,
     KeyRound,
     Layers,
     LayoutGrid,
@@ -273,6 +275,9 @@ export const GLYPHS = {
     generated: Shuffle,
     // A graph with no picture yet shows the graph icon itself.
     noPicture: Waypoints,
+    // A node drawn as a 3D model, and a picture drawn on a node (the node-models experiment).
+    model: Box,
+    picture: Image,
     gpu: Zap,
     developer: Code,
     webAddress: Link,

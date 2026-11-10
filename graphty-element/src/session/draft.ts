@@ -1108,7 +1108,7 @@ export class Draft implements LoadDraft {
     }
 
     /**
-     * The table read as a mapping table for a join's `via`, held apart from the graph.
+     * The table read as a mapping table for a join's `lookup`, held apart from the graph.
      * @returns The table.
      */
     lookup(): JoinLookup {

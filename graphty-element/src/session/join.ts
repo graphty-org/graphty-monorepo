@@ -259,12 +259,16 @@ function translator(
  * @returns The table, or undefined when the join names none (or one no longer loaded).
  */
 function viaOf(graph: JoinGraph, choices: JoinChoices): JoinTable | undefined {
-    const { via } = choices;
-    if (via === undefined) {
-        return undefined;
+    const { via, lookup } = choices;
+    if (via !== undefined && lookup !== undefined) {
+        throw badJoin("A join takes a mapping table as via or as lookup, not both.", { reason: "via-and-lookup" });
     }
 
-    return typeof via === "string" ? graph.table(via) : lookupTable(via);
+    if (lookup !== undefined) {
+        return lookupTable(lookup);
+    }
+
+    return via === undefined ? undefined : graph.table(via);
 }
 
 /**

@@ -319,6 +319,7 @@ reader changes the key or the options:
 | `clash`        | Per column the graph already has: `"keep"`, `"overwrite"` or `"both"` (default)       |
 | `repeated`     | Several rows with one key: `"first"` (default) or `"both"` (a list, or one edge each) |
 | `via`          | A joined mapping table whose columns translate the incoming keys to the graph's       |
+| `lookup`       | A mapping table held apart from the graph (`draft.lookup()`), read as `via` reads one |
 
 Every shape, choice and count, with linking by a shared value, merging and comparing two lists,
 is in [Joining Data](./joins).

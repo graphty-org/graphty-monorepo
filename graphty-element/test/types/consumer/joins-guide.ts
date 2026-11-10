@@ -40,8 +40,8 @@ export async function joins(file: File, doorEntries: File, identifiers: File, sy
     }
 
     const crosswalk = await data.prepare({ config: { file: symbolToEnsembl } });
-    const via = crosswalk.lookup();
+    const lookup = crosswalk.lookup();
     crosswalk.dispose();
     const expression = await data.prepare({ config: { file } }, { onto: "graph" });
-    await expression.load({ join: { keys: [{ file: "symbol", graph: "id" }], via, mapping: { many: "first" } } });
+    await expression.load({ join: { keys: [{ file: "symbol", graph: "id" }], lookup, mapping: { many: "first" } } });
 }

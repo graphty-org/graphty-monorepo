@@ -177,19 +177,21 @@ sit side by side. The report's `regions.nodes` counts each region, by the same c
 ### Translating keys through a mapping table
 
 When the table's keys are another naming of the graph's (gene symbols against Ensembl ids), read
-the mapping table with `lookup()` and pass it as `via`. It is held apart from the graph: none of
+the mapping table with `lookup()` and pass it as `lookup`. It is held apart from the graph: none of
 its rows becomes a node or an edge, and it is saved with the join.
 
 ```ts
 const crosswalk = await data.prepare({ config: { file: symbolToEnsembl } });
-const via = crosswalk.lookup(); // { name, columns: ["symbol", "ensembl"], rows }
+const lookup = crosswalk.lookup(); // { name, columns: ["symbol", "ensembl"], rows }
 crosswalk.dispose();
 
 const expression = await data.prepare({ config: { file } }, { onto: "graph" });
-await expression.load({ join: { keys: [{ file: "symbol", graph: "id" }], via, mapping: { many: "first" } } });
+await expression.load({ join: { keys: [{ file: "symbol", graph: "id" }], lookup, mapping: { many: "first" } } });
 ```
 
-`via` also takes the key of a load already in the graph (`data.sources()`), read as its rows.
+When the mapping table is a load already in the graph, pass its key (`data.sources()`) as `via`
+instead; it is read as its rows. A join takes one or the other: both together is refused
+(`E_BAD_COMMAND`, reason `"via-and-lookup"`).
 
 `mapping.columns` names its two columns (by default, the ones whose values meet the table's keys
 and the graph's most). The report counts `unmapped` and `mappedToMany` keys.

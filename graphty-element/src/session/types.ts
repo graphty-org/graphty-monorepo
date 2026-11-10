@@ -2481,7 +2481,7 @@ export interface JoinMapping {
 export type JoinRegion = "both" | "only-from" | "only-onto";
 
 /**
- * A mapping table held apart from the graph ({@link JoinChoices.via}): `LoadDraft.lookup()` reads
+ * A mapping table held apart from the graph ({@link JoinChoices.lookup}): `LoadDraft.lookup()` reads
  * one from any file, or write the rows yourself. Its rows never become nodes or edges.
  *
  * ```ts
@@ -2567,15 +2567,21 @@ export interface JoinChoices {
     /**
      * A mapping table with one column holding the incoming keys and one holding the graph's,
      * through which incoming keys are translated first; an incoming key the table lacks is matched
-     * as it is ({@link JoinReport.unmapped} counts them). Either a {@link JoinLookup}, held apart
-     * from the graph (`LoadDraft.lookup()`), or a load already in the graph (`sources()` key): a
-     * joined table is read as its rows; any other load as its records: its edges (`source`,
+     * as it is ({@link JoinReport.unmapped} counts them). A load already in the graph (`sources()`
+     * key): a joined table is read as its rows; any other load as its records: its edges (`source`,
      * `target` and their values) when it read a table of edges, otherwise its nodes (`id` and
-     * their values).
+     * their values). For a mapping table held apart from the graph, use {@link JoinChoices.lookup}.
      */
-    readonly via?: SourceKey | JoinLookup;
+    readonly via?: SourceKey;
     /**
-     * How the mapping table (`via`) is read: `columns` its column holding the incoming keys and
+     * A mapping table held apart from the graph (`LoadDraft.lookup()`), read as `via` reads one:
+     * its rows never become nodes or edges, and it is saved with the join. Giving both `lookup` and
+     * `via` is refused (`E_BAD_COMMAND`, `details.reason` `"via-and-lookup"`).
+     * @since 3.37.0
+     */
+    readonly lookup?: JoinLookup;
+    /**
+     * How the mapping table (`via` or `lookup`) is read: `columns` its column holding the incoming keys and
      * its column holding the graph's (by default the columns whose values meet the incoming keys
      * and the graph's most); `many` what a key mapped to several values matches: the `"first"`
      * (the default) or every one (`"list"`).

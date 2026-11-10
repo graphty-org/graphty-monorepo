@@ -9,6 +9,7 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
+import { GraphtyError } from "../../src/errors/GraphtyError";
 
 /**
  * A session holding one CSV of nodes.
@@ -171,13 +172,16 @@ describe("a loaded mapping table as a crosswalk (via, mapping)", () => {
     it("translates keys through a mapping table read as a lookup, never adding it to the graph", async () => {
         const session = await graphOf("genes.csv", GENES);
         const crosswalk = await session.data.prepare({ config: { data: MAPPING }, name: "mapping.csv" });
-        const via = crosswalk.lookup();
+        const lookup = crosswalk.lookup();
         crosswalk.dispose();
-        assert.deepInclude(via, { name: "mapping.csv", columns: ["symbol", "ensembl"] });
+        assert.deepInclude(lookup, { name: "mapping.csv", columns: ["symbol", "ensembl"] });
 
         const draft = await table(session, "expression.csv", EXPRESSION);
-        assert.deepInclude(draft.joinReport({ keys, shape: "node-values", via }), { unmapped: 1, mappedToMany: 1 });
-        await draft.load({ join: { keys, shape: "node-values", via } });
+        assert.deepInclude(draft.joinReport({ keys, shape: "node-values", lookup }), {
+            unmapped: 1,
+            mappedToMany: 1,
+        });
+        await draft.load({ join: { keys, shape: "node-values", lookup } });
         assert.strictEqual(session.data.node("ENSG1")?.logFC, 1.5);
         assert.lengthOf(session.data.nodes(), 4, "the mapping adds no node");
         assert.lengthOf(session.data.edges(), 0, "the mapping adds no edge");
@@ -186,6 +190,44 @@ describe("a loaded mapping table as a crosswalk (via, mapping)", () => {
         const [join] = session.data.joins();
         await session.data.editJoin(join.source, { ...join.choices, mapping: { many: "list" } });
         assert.strictEqual(session.data.node("ENSG4")?.logFC, 4, "editing the join reads the same lookup");
+        assert.strictEqual(session.data.joins()[0].choices.lookup?.name, "mapping.csv", "the join saves the lookup");
+        assert.isUndefined(session.data.joins()[0].choices.via);
+        session.dispose();
+    });
+
+    it("refuses a mapping table given both as via and as lookup", async () => {
+        const { session, mapping } = await withMapping();
+        const crosswalk = await session.data.prepare({ config: { data: MAPPING }, name: "mapping.csv" });
+        const lookup = crosswalk.lookup();
+        crosswalk.dispose();
+        const draft = await table(session, "expression.csv", EXPRESSION);
+        const refused = (() => {
+            try {
+                draft.joinReport({ keys, shape: "node-values", via: mapping, lookup });
+            } catch (error) {
+                return error;
+            }
+
+            return undefined;
+        })();
+        assert.instanceOf(refused, GraphtyError);
+        assert.strictEqual(refused.code, "E_BAD_COMMAND");
+        assert.strictEqual(refused.details.reason, "via-and-lookup");
+        session.dispose();
+    });
+
+    it("keeps a source key in via as a plain string, saved and edited as before", async () => {
+        const { session, mapping } = await withMapping();
+        const draft = await table(session, "expression.csv", EXPRESSION);
+        await draft.load({ join: { keys, shape: "node-values", via: mapping } });
+        const [join] = session.data.joins();
+        assert.strictEqual(join.choices.via, mapping);
+        assert.isUndefined(join.choices.lookup);
+        assert.strictEqual(session.data.node("ENSG3")?.logFC, 4);
+
+        await session.data.editJoin(join.source, { ...join.choices, mapping: { many: "list" } });
+        assert.strictEqual(session.data.joins()[0].choices.via, mapping);
+        assert.strictEqual(session.data.node("ENSG4")?.logFC, 4);
         session.dispose();
     });
 

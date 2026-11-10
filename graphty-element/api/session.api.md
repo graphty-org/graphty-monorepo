@@ -2755,6 +2755,7 @@ export interface JoinChoices {
     readonly keys: readonly JoinKey[];
     readonly kindIds?: "shared" | "scoped";
     readonly link?: JoinLink;
+    readonly lookup?: JoinLookup;
     readonly mapping?: JoinMapping;
     readonly membership?: string;
     readonly names?: Readonly<Record<string, string>>;
@@ -2762,7 +2763,7 @@ export interface JoinChoices {
     readonly shape?: JoinShape;
     readonly unknownEnds?: "add" | "leave-out";
     readonly unmatchedFrom?: "keep" | "drop";
-    readonly via?: SourceKey | JoinLookup;
+    readonly via?: SourceKey;
 }
 
 // @public

@@ -83,3 +83,25 @@ AuraAndSatellites).
 
 Target (load-peak heap under 1.5 KB/node at 200k) not measured this pull request: anchor removal and the
 heap gate are not started.
+
+## Pull request 11, second session (2026-11-10)
+
+Changes (batched path; the id matching gives the same answer on both paths):
+- D3GraphEngine.addNode: a Node built late for a row whose body is already stepped takes that body in place
+  (nodeMapping), with no refresh and no reheat. Before, the body moved to the end of the node list and the
+  simulation restarted at alpha 1, so the D3 story (whose play calls getNodes) drew another picture.
+- DataManager.drawnBundle groups edges by end id, and Node.geometryChanged and UpdateManager's ring walk match
+  edges by end id, so none of them builds an end Node.
+
+Checks (graphty-element, through tools/low-priority.sh):
+- render-parity, VITE_PARITY_STORIES=(LayoutLocationMap|Layout): 13 passed, 1 failed (ForceAtlas2Weighted, 1 px,
+  open before). Layout D3 now passes (was 33398 px).
+- tsc --noEmit clean; eslint clean on the four changed files; DataManager.test.ts 30 passed.
+- The full render-parity run was NOT re-run on this exact commit. sonar-gate NOT run.
+
+Parked, not committed: tmp/stage-26/edge-row-trim.patch makes Edge trimming (getInterceptPoints,
+placeArrowFromCentres, capScale, boxReachOf) read a Node-less end from its ColumnRow, so arrow-capped edges build
+no end Node. With it, a run of the nine failing story files went from 11 to 5 failures (Bidirectional,
+OpenAlexCiting, ThreePaths, AuraOverTheCap, AuraAndSatellites passed), but stories/LayoutLocationMap
+FlatMapIn2DView hangs with it (reproduced alone; passes at HEAD and with only interceptPointsOfRows disabled).
+The hang mechanism is not found yet.

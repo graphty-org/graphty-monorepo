@@ -3657,8 +3657,10 @@ export class UpdateManager implements Manager {
         // An edge ends at its node's border, so a ring rebuilt wider or narrower moves the edge's
         // ends (#3532). Only the edges of the nodes whose ring changed, and only on a zoom that
         // crossed one of the ring's 1/16-doubling steps.
+        // By id: reading an end's `Node` would build one for a row drawn with none.
+        const ids = new Set([...resized].map((node) => node.id));
         for (const edge of this.dataManager.edges.values()) {
-            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+            if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
                 edge.invalidatePositionCache();
             }
         }

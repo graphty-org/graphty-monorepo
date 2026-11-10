@@ -2703,7 +2703,8 @@ export class Node implements ModelUser {
         }
 
         for (const edge of this.context.getDataManager().edges.values()) {
-            if (edge.srcNode === this || edge.dstNode === this) {
+            // By id: reading an end's `Node` would build one for a row drawn with none.
+            if (edge.srcId === this.id || edge.dstId === this.id) {
                 edge.invalidatePositionCache();
             }
         }

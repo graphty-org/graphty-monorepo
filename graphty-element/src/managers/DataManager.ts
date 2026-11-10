@@ -2625,13 +2625,14 @@ export class DataManager implements Manager {
     drawnBundle(edge: Edge): EdgeBundle {
         if (this.bundles?.version !== this.edgeVersion) {
             const byEdge = new Map<Edge, EdgeBundle>();
-            const pairs = new Map<Node, Map<Node, Edge[]>>();
+            // By id, not by `Node`: reading an end's `Node` would build one for a row drawn with none.
+            const pairs = new Map<NodeIdType, Map<NodeIdType, Edge[]>>();
             for (const each of this.edgeMap.values()) {
-                const { srcNode: a, dstNode: b } = each;
+                const { srcId: a, dstId: b } = each;
                 let group = pairs.get(a)?.get(b) ?? pairs.get(b)?.get(a);
                 if (group === undefined) {
                     group = [];
-                    const inner = pairs.get(a) ?? new Map<Node, Edge[]>();
+                    const inner = pairs.get(a) ?? new Map<NodeIdType, Edge[]>();
                     inner.set(b, group);
                     pairs.set(a, inner);
                 }

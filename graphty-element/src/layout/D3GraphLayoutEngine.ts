@@ -612,6 +612,19 @@ export class D3GraphEngine extends LayoutEngine {
         // A row's `Node` built late takes over the row's body, where it already is.
         const body = this.rowBodies.get(n.id);
         this.rowBodies.delete(n.id);
+        // Already in the simulation: it keeps its place in the node list, and a settled simulation
+        // stays settled, since nothing it steps changed.
+        // ponytail: the next refresh lists it among the Nodes, ahead of the rows still with no Node,
+        // so a reheat after a mixed load orders bodies differently from the object path.
+        if (body !== undefined && isD3Node(body)) {
+            this.nodeMapping.set(n, body);
+            if (this.isHeld(n.index)) {
+                fixAt(body);
+            }
+
+            return;
+        }
+
         // A 2D simulation never initialises or moves z, so it starts, and stays, at 0.
         this.newNodeMap.set(n, body ?? (this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id }));
     }

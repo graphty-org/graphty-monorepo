@@ -1094,6 +1094,10 @@ export class Edge {
     set dstNode(node: Node_2);
     // @internal
     endRow(end: "source" | "target"): number;
+    // @internal
+    followRenumberedRows(): void;
+    // @internal
+    get followsRows(): boolean;
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;
@@ -8074,6 +8078,8 @@ export class UpdateManager implements Manager {
     // @internal
     repaintNodes(nodes: readonly Node_2[]): void;
     static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
+    // @internal
+    rowsRenumbered(): void;
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
     syncStyles(budgetMs?: number): void;

@@ -817,6 +817,10 @@ export class Edge {
     set dstNode(node: Node_2);
     // @internal
     endRow(end: "source" | "target"): number;
+    // @internal
+    followRenumberedRows(): void;
+    // @internal
+    get followsRows(): boolean;
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;

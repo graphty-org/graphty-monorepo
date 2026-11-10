@@ -1174,6 +1174,7 @@ export class UpdateManager implements Manager {
      * Bring a `Node` built for a row that was drawn with no `Node` into line with the masks already
      * applied to that row: the masks are applied as deltas, so a later one would not reach it.
      * @param node - The new `Node`.
+     * @internal
      */
     adoptViewMasks(node: Node): void {
         const masks = this.viewMasks ?? EMPTY_MASKS;

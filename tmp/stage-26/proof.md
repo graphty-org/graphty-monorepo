@@ -1,4 +1,14 @@
-# Stage 26, pull request 11 (work in progress, not ready)
+# Stage 26, pull request 11
+
+Summary at cfbe862cab (load average 5-6, 2026-11-10):
+- Load-peak gate (target: live heap after a forced GC during a 200k-node batched load under 1,500 B per node):
+  measured 250.1 MB peak = 1,250 B per node (session 7 measured 1,245 B). transformNodes 2, objectNodes 0.
+- Full render-parity project: 381 passed, 12 skipped, 1 failed: Gexf 1488 px on the batched path, which fails
+  without this branch too (see earlier sessions). Objects path clean.
+- npm run lint 0, npm run build 0, tsc clean, sonar gate clean, pinned browser and manager tests pass.
+- Both-path fix in this pull request: UpdateManager.repaintNodes re-places the edges of nodes a sprite shader
+  resizes (eighteenth session); the Sticker and Mandala objects images change (edges now reach the sticker).
+
 
 Proving test: test/browser/node-batch.test.ts, "load a graph under batched building no Node, drawing the picture its Nodes drew".
 
@@ -643,3 +653,43 @@ Commands and results (load average 5-12):
 Still open: the three 1 px stories (draw order by material creation, thirteenth session) and Gexf (both paths);
 2D/3D switch building every Node; edges with non-round ends building Nodes; placedEdgesAtRows walking every
 placed edge on each row-table move.
+
+## Pull request 11, nineteenth session (2026-11-10): the three 1 px stories fixed (draw order)
+
+Cause, probed (parity71-83.log): Babylon sorts opaque meshes by material uniqueId. On objects every node's
+`Node` is built at store time with the bootstrap look, making its source material (10) before the edges' (62, 65),
+and later paints keep that mesh (`Node.keepsMeshFor`: same key, or a deep-equal style and color). On batched the
+node batch's source was made at the first paint, from the final key (`s1`), after the edges (154 vs 148/151), so
+nodes drew after edges. In Louvain a Node built late (`DataManager.buildRow` -> `paintBuiltRow`) also rebuilt onto
+a new `s1` source, since it skipped the bootstrap-to-default step its row went through.
+
+Change (batched only: `NodeBatches` exists only on "batched", and no row is stored without a Node on objects):
+- `NodeBatches.prepareSource`, called where the store keeps a row with no Node (both store paths in DataManager):
+  makes the bootstrap look's source then.
+- `NodeBatches.paintRow` keeps a row's source across paints by the same rule as `Node.keepsMeshFor`; each
+  `ColumnRow` carries the paint its source was made for.
+- `buildRow` hands the row's look to the late Node: built from the row's source paint, then
+  `Node.takeDrawnPaint` (internal) takes the row's current paint.
+- `shaderPartOf` moved from Node.ts to StylePainter.ts (shared).
+
+Proving tests: the render-parity stories themselves. Before: CytoscapeSession, ForceAtlas2Weighted,
+LouvainMoreCommunitiesThanColours failed 1 px each (parity70.log). After: those plus BidirectionalArrows, Sticker,
+Mandala, ThreePaths 10 passed (parity84.log). No separate count test was added: the material order is what the
+picture comparison already pins.
+
+Commands (all through tools/low-priority.sh, in graphty-element):
+- `npx vitest run --project render-parity` (parity85.log): 381 passed, 12 skipped, 1 failed (Gexf 1488 px, batched,
+  pre-existing).
+- `npm run lint`: exit 0. `npm run build`: exit 0. `npx tsc --noEmit`: clean.
+- `npx vitest run --project browser` drawn-program-styles, every-element-leaves-the-bootstrap-paint,
+  shaders/sprite-edge-trim, edge-arrow-stack: 34 passed.
+- `npx vitest run` managers/UpdateManager, managers/DataManager, logging/DataManagerLogging: 55 passed.
+- `node tools/sonar-gate.mjs`: no new issue or hotspot on the changed lines.
+- Load-peak gate: bench build `stage26-pr11-d` from this worktree, served by servherd (stopped after), sampler
+  tmp/cosmos-impl/stages/stage26/poll-safe.mjs under the GPU lock, BENCH_RENDER_PATH=batched,
+  BENCH_LIMITS={"renderCeiling":2000000,"edgesDrawn":2000000}, lean, 200k nodes, 2k edges, POLL_MS=100, load
+  average 4.98: peak 250.1 MB, 1,250 B per node (log tmp/cosmos-impl/stages/stage26/poll-pr11-d.log).
+
+Still open (not regressions of this pull request): Gexf 1488 px on batched; `Graph.enterDimension` builds every
+Node; edges with non-round ends, or one end with no Node, build Nodes; `placedEdgesAtRows` walks every placed edge
+on each row-table move (marked ponytail); the one-off RefusedHttp ResizeObserver error (passed in parity85).

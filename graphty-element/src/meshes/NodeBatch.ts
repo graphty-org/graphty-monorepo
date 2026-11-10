@@ -1,6 +1,7 @@
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { type AbstractMesh, Mesh, type RawTexture, type TransformNode, VertexBuffer } from "@babylonjs/core";
+import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { Rgba } from "../catalog/types";
 import { batchableOf, type BatchView, type NodePaint } from "../managers/StylePainter";
@@ -436,7 +437,7 @@ export class ColumnRow {
      * @param paintedSourceMesh - The source mesh its paint draws from.
      */
     constructor(
-        readonly index: number,
+        public index: number,
         readonly paint: NodePaint,
         readonly paintedSourceMesh: Mesh,
     ) {}
@@ -777,8 +778,28 @@ export class NodeBatches {
         return this.columnRows.size;
     }
 
-    /** A freeze moved rows: every batch refills. */
-    rowsMoved(): void {
+    /**
+     * A freeze moved rows: every batch refills, and each row drawn with no `Node` takes its new row
+     * number, or goes when the freeze dropped it.
+     * @param remap - The freeze's node remap: old row to new, INVALID_INDEX for a dropped row;
+     *     null when no row moved.
+     */
+    rowsMoved(remap: ArrayLike<number> | null): void {
+        const rows = remap === null ? [] : [...this.columnRows.values()];
+        if (remap !== null) {
+            this.columnRows.clear();
+        }
+
+        for (const row of rows) {
+            const moved = remap?.[row.index] ?? INVALID_INDEX;
+            if (moved === INVALID_INDEX) {
+                this.leave(row);
+            } else {
+                row.index = moved;
+                this.columnRows.set(moved, row);
+            }
+        }
+
         for (const group of this.groups.values()) {
             group.stale = true;
             this.dirty.add(group);

@@ -1188,7 +1188,7 @@ export class Graph implements GraphContext {
                 !dispatcher.graphWritesWaiting
             ) {
                 this.#placementOwed = false;
-                await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
+                await this.layoutManager.updatePositions([...dataManagerInternals.builtNodes(this.dataManager)]);
             }
 
             await this.paintGraphPass(target.styles, dirty, cause);
@@ -1268,7 +1268,7 @@ export class Graph implements GraphContext {
             }
 
             if (changed("selectionStyle") || changed("startingRows")) {
-                for (const node of this.dataManager.nodes.values()) {
+                for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                     node.refreshSelectionOverlay();
                 }
             }
@@ -1419,8 +1419,8 @@ export class Graph implements GraphContext {
         this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.#resident = event.next;
-                this.#rowTable?.replaced(event.report.nodeRemap, this.dataManager.nodes.values());
-                this.#nodeBatches?.rowsMoved();
+                this.#rowTable?.replaced(event.report.nodeRemap, dataManagerInternals.builtNodes(this.dataManager));
+                this.#nodeBatches?.rowsMoved(event.report.nodeRemap);
                 // The derived inputs of scoped runs are over the snapshot that has gone: released
                 // now unless a run still holds one, and then when it lets go.
                 peekDerivedInputs(this)?.freeze();
@@ -4735,6 +4735,11 @@ export class Graph implements GraphContext {
             }
         }
 
+        if (path === "objects") {
+            // Every row stored with no `Node` gets one: only a batch draws it otherwise.
+            dataManagerInternals.buildAll(this.dataManager);
+        }
+
         this.#renderPath = path;
         this.#limits.honor(path === "batched");
         if (path === "objects") {
@@ -4837,7 +4842,7 @@ export class Graph implements GraphContext {
                     view: () => ({
                         flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
                     }),
-                    nodes: () => this.dataManager.nodes.values(),
+                    nodes: () => dataManagerInternals.builtNodes(this.dataManager),
                     sourceOf: ({ meshKey, style }) =>
                         NodeMesh.source(
                             this.dataManager.meshCache,
@@ -4916,7 +4921,7 @@ export class Graph implements GraphContext {
     openRowTable(): RowTable {
         if (this.#rowTable === null) {
             this.#rowTable = new RowTable(this.scene, () => this.dataManager[WRITABLE_LANE]);
-            this.#rowTable.replaced(null, this.dataManager.nodes.values());
+            this.#rowTable.replaced(null, dataManagerInternals.builtNodes(this.dataManager));
             openRowScan(
                 this.scene,
                 this.#rowTable,
@@ -5506,7 +5511,7 @@ export class Graph implements GraphContext {
         // Glyphs are shared by style through the mesh cache: forget them once, and each node builds its own again.
         forgetGlyphs(this.dataManager.meshCache, families);
         let rebuilt = this.#annotations?.refreshFonts(families) === true;
-        for (const node of this.dataManager.nodes.values()) {
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
             rebuilt = node.refreshFonts(families) || rebuilt;
         }
 
@@ -5640,7 +5645,7 @@ export class Graph implements GraphContext {
         this.#edgeBandMeshes.clear();
         this.#nodeMeshes.clear();
         if (mapped) {
-            for (const node of this.dataManager.nodes.values()) {
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                 this.#nodeMeshes.add(node.drawnSourceMesh);
             }
         }

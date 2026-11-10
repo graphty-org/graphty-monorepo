@@ -39,7 +39,7 @@ import type { EdgeAgeFade } from "../session/time/ageFade";
 import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { mapCorners } from "./BasemapManager";
-import { type DataManager, disposeReleased } from "./DataManager";
+import { type DataManager, dataManagerInternals, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
@@ -1513,7 +1513,7 @@ export class UpdateManager implements Manager {
         const painted: [Node, NodePaint][] = [];
 
         for (const index of painter.takeNodes(size)) {
-            const node = rows.get(index);
+            const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
             const paint = node === undefined ? null : painter.nodePaint(index);
 
             if (node !== undefined && paint !== null) {
@@ -1522,6 +1522,27 @@ export class UpdateManager implements Manager {
         }
 
         return painted;
+    }
+
+    /**
+     * Draw a row stored with no `Node` from its paint, and build its `Node` only for a paint the
+     * batches cannot draw (`NodeBatches.paintRow`).
+     * @param painter - Where the paint is read from.
+     * @param index - The row.
+     * @returns The row's new `Node` to paint, or undefined when the batches drew it or no row is stored there.
+     */
+    private unbuiltPainted(painter: StylePainter, index: number): Node | undefined {
+        const id = dataManagerInternals.unbuiltAt(this.dataManager, index);
+        const paint = id === undefined ? null : painter.nodePaint(index);
+        if (
+            id === undefined ||
+            paint === null ||
+            this.graphContext.getNodeBatches?.()?.paintRow(index, paint) === true
+        ) {
+            return undefined;
+        }
+
+        return dataManagerInternals.buildRow(this.dataManager, id);
     }
 
     /** How many nodes the last node batch painted a millisecond, or 0 before one has been timed. */
@@ -1631,7 +1652,7 @@ export class UpdateManager implements Manager {
         if (this.paintIndex.rows?.version !== nodeVersion) {
             const map = new Map<number, Node>();
 
-            for (const node of this.dataManager.nodes.values()) {
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                 map.set(node.index, node);
             }
 

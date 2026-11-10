@@ -1188,4 +1188,33 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.isAtMost(Vector3.Distance(centre, Vector3.Center(table.centerOf(4), table.centerOf(9))), 1e-4);
         assert.notInclude(reads, 4, "no read of row 4's Node");
     });
+    it("load a graph under batched building no Node, drawing the picture its Nodes drew", async () => {
+        const objects = await mounted(renderer);
+        await loaded(objects, "3d");
+        const before = await frameOn(objects.graph, "batched");
+        objects.remove();
+
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d");
+        const manager = graph.getDataManager();
+        assert.equal(overBar(before, await readFrame(graph)), 0, "the same picture");
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "no Node built at load");
+        assert.equal(graph.getNodeBatches()?.columnRowCount, NODES.length);
+        assert.equal(manager.nodes.size, NODES.length);
+        assert.isTrue(manager.nodes.has(4));
+
+        // Asking for a row's Node builds that one, and the same one each time.
+        const node = graph.getNode(4);
+        assert.isDefined(node);
+        assert.strictEqual(manager.nodes.get(4), node);
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 1);
+        assert.equal(overBar(before, await readFrame(graph)), 0, "drawn by its Node now, the same picture");
+
+        // Leaving the path builds every Node, and draws the same picture.
+        await frameOn(graph, "objects");
+        assert.equal(dataManagerInternals.nodesBuilt(manager), NODES.length);
+        assert.equal(overBar(before, await readFrame(graph)), 0);
+    });
 });

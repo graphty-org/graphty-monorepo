@@ -142,12 +142,16 @@ export {
 } from "./src/catalog/shaders";
 export { shaderTemplate, type ShaderTemplatePlace } from "./src/catalog/shaderTemplate";
 export {
+    bindShaderParamClock,
     changeShaderParamType,
     formatShaderDraft,
     formatShaderText,
     parseShaderText,
     removeShaderParam,
     renameShaderParam,
+    retypeShaderParam,
+    type ShaderParamClock,
+    shaderParamClock,
     shaderParamPlainName,
     type ShaderTextOptions,
     splitShaderText,

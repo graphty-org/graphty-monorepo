@@ -248,6 +248,30 @@ describe("session.shaders", () => {
         );
     });
 
+    it("with asNew, a text equal to a project shader's is a clash, renamed or refused", async () => {
+        const { session: s } = await session();
+        const { draft, body } = splitShaderText(await s.shaders.source("uncertainty-aura", { duplicate: true }));
+        const text = formatShaderDraft({ ...draft, id: "user/tint" }, body);
+        assert.isTrue((await s.shaders.add(text, { asNew: true })).ok);
+        const refused = await s.shaders.add(text, { asNew: true, onTaken: "refuse" });
+        assert.strictEqual(refused.ok ? "" : refused.problems[0].code, "shader.id-taken");
+        const renamed = await s.shaders.add(text, { asNew: true, onTaken: "rename" });
+        assert.strictEqual(renamed.ok ? renamed.descriptor.id : "", "user/tint-2");
+        assert.deepEqual(
+            s.shaders.list().map((shader) => shader.id),
+            ["user/tint", "user/tint-2"],
+        );
+    });
+
+    it("a preset's copy keeps its low-detail body as shadeFar", async () => {
+        const { session: s } = await session();
+        for (const id of ["glass-marble", "gemstone", "disco-ball", "lantern"]) {
+            const text = await s.shaders.source(id, { duplicate: true, derived: "omit" });
+            assert.include(text, "shadeFar", id);
+            assert.deepEqual(splitShaderText(text).problems, [], id);
+        }
+    });
+
     it("with asNew, a body matching a known shader joins anyway, and a clash follows onTaken", async () => {
         const { session: s } = await session();
         const { draft, body } = splitShaderText(await s.shaders.source("uncertainty-aura", { duplicate: true }));

@@ -257,6 +257,9 @@ export interface BindingStop {
 }
 
 // @public
+export function bindShaderParamClock(param: ShaderParamDraft, by: ShaderClock | undefined): ShaderParamDraft;
+
+// @public
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[];
 
 // @public
@@ -2081,10 +2084,10 @@ export interface ReadableValue {
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 
 // @public
-export function removeShaderParam(draft: ShaderTextDraft, name: string): ShaderTextDraft;
+export function removeShaderParam(draft: ShaderTextDraft, name: string, index?: number): ShaderTextDraft;
 
 // @public
-export function renameShaderParam(draft: ShaderTextDraft, from: string, to: string): ShaderTextDraft;
+export function renameShaderParam(draft: ShaderTextDraft, from: string, to: string, index?: number): ShaderTextDraft;
 
 // @public
 export function resolveFeatures(requested?: readonly string[]): EnabledFeatures;
@@ -2104,6 +2107,9 @@ export interface ResultItem {
 
 // @public
 export type ResultShape = (typeof RESULT_SHAPES)[number];
+
+// @public
+export function retypeShaderParam(draft: ShaderTextDraft, index: number, type: ShaderParamDescriptor["type"], labels?: readonly string[]): ShaderTextDraft;
 
 // @public
 export interface Rgba {
@@ -2571,6 +2577,16 @@ export interface ShaderParamChoice {
 }
 
 // @public
+export interface ShaderParamClock {
+    readonly by: ShaderClock;
+    readonly domain: readonly [number, number];
+    readonly range?: readonly [unknown, unknown];
+}
+
+// @public
+export function shaderParamClock(param: ShaderParamDraft): ShaderParamClock | undefined;
+
+// @public
 export type ShaderParamDescriptor = OptionDescriptor & {
     readonly varies?: boolean;
     readonly primary?: boolean;
@@ -2593,6 +2609,7 @@ export type ShaderParams = Readonly<Record<string, number | string | boolean>>;
 export function shaderParamShape(type: ShaderParamDescriptor["type"]): {
     readonly default: unknown;
     readonly fields: readonly ("min" | "max" | "step" | "values" | "varies")[];
+    readonly clock: boolean;
 };
 
 // @public

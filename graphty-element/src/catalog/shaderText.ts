@@ -47,6 +47,7 @@ import {
     SHADER_MIN_SIZE_RANGE,
     SHADER_PARAM_TYPES,
     SHADER_REACH_RANGE,
+    type ShaderClock,
     type ShaderMotion,
     type ShaderParamDescriptor,
     type ShaderParamDraft,
@@ -1097,10 +1098,14 @@ export function parseShaderText(text: ShaderText, options?: ShaderTextOptions): 
  * @param text - The text: GLSL with a `graphty-shader 1` header, or a body alone.
  * @returns The header's keys and the body. A text with no header gets a placeholder draft and is
  *   all body. A header that is not a JSON object, or whose `params` is not a list of objects, has
- *   no draft.
+ *   no draft. A value that is not a string has no draft and a `shader.header-missing` problem.
  * @since 3.49.0
  */
 export function splitShaderText(text: ShaderText): ShaderTextParts {
+    if (typeof text !== "string") {
+        return { headed: false, problems: [{ code: "shader.header-missing", params: {} }], body: "", bodyLine: 1 };
+    }
+
     const split = splitHeader(text);
     if (split === null) {
         return { headed: false, draft: { id: "user/shader", params: [] }, problems: [], body: text, bodyLine: 1 };
@@ -1203,6 +1208,106 @@ export function changeShaderParamType(
 }
 
 /**
+ * Change the type of one parameter row of a header, as {@link changeShaderParamType} does, and drop
+ * what else in the header names that row when the new type cannot serve it: `reachParam` needs a
+ * number or an integer, a loop's `speedParam` a number.
+ * @param draft - The header.
+ * @param index - The row's place in `params`.
+ * @param type - The new type.
+ * @param labels - An enum's choices, as {@link changeShaderParamType} takes them.
+ * @returns The header; the same object when there is no such row.
+ * @since 3.49.0
+ */
+export function retypeShaderParam(
+    draft: ShaderTextDraft,
+    index: number,
+    type: ShaderParamDescriptor["type"],
+    labels: readonly string[] = [],
+): ShaderTextDraft {
+    const params = draft.params ?? [];
+    const row = params[index];
+    if (row === undefined) {
+        return draft;
+    }
+
+    const next: Record<string, unknown> = {
+        ...draft,
+        params: params.map((each, at) => (at === index ? changeShaderParamType(each, type, labels) : each)),
+    };
+    if (draft.reachParam === row.name && type !== "number" && type !== "integer") {
+        next.reachParam = undefined;
+    }
+
+    const { motion } = draft;
+    if (isRecord(motion) && isRecord(motion.loop) && motion.loop.speedParam === row.name && type !== "number") {
+        next.motion = { ...motion, loop: { ...motion.loop, speedParam: undefined } };
+    }
+
+    return next;
+}
+
+/** The seconds a new clock binding maps, as the starters write it. */
+const CLOCK_START_DOMAIN: readonly [number, number] = [0, 0.3];
+
+/**
+ * A parameter's default bound to a clock, as an editor shows it. @since 3.49.0
+ */
+export interface ShaderParamClock {
+    /** The clock. */
+    readonly by: ShaderClock;
+    /** The seconds mapped; the starters' `[0, 0.3]` when the header has no pair. */
+    readonly domain: readonly [number, number];
+    /** A color's two ends, as written. */
+    readonly range?: readonly [unknown, unknown];
+}
+
+/**
+ * The clock a parameter row's default is bound to, read leniently so a half-typed binding can be
+ * edited: any `by` that is one of `SHADER_CLOCKS`. Whether a type may be bound at all is
+ * `shaderParamShape(type).clock`.
+ * @param param - The row as written.
+ * @returns The binding, or undefined for a plain default.
+ * @since 3.49.0
+ */
+export function shaderParamClock(param: ShaderParamDraft): ShaderParamClock | undefined {
+    const value = param.default;
+    if (!isRecord(value) || !SHADER_CLOCKS.includes(value.by as never)) {
+        return undefined;
+    }
+
+    const { by, domain, range } = value;
+    return {
+        by: by as ShaderClock,
+        domain: Array.isArray(domain) ? (domain as [number, number]) : CLOCK_START_DOMAIN,
+        ...(Array.isArray(range) ? { range: range as [unknown, unknown] } : {}),
+    };
+}
+
+/**
+ * Bind a parameter row's default to a clock, or take the binding off. A new binding maps the
+ * starters' seconds, and a color's range starts at its current color at both ends; a binding
+ * already there keeps its seconds and range. Taking it off puts back the type's default, or a
+ * color's first range color.
+ * @param param - The row; its type should take a clock (`shaderParamShape(type).clock`).
+ * @param by - The clock, or undefined for none.
+ * @returns The row.
+ * @since 3.49.0
+ */
+export function bindShaderParamClock(param: ShaderParamDraft, by: ShaderClock | undefined): ShaderParamDraft {
+    const bound = shaderParamClock(param);
+    const isColor = param.type === "color";
+    if (by === undefined) {
+        const first = bound?.range?.[0];
+        const plain = shaderParamShape(param.type as ShaderParamDescriptor["type"]).default;
+        return { ...param, default: isColor && first !== undefined ? first : plain };
+    }
+
+    const color = typeof param.default === "string" ? param.default : shaderParamShape("color").default;
+    const range = isColor ? { range: bound?.range ?? [color, color] } : {};
+    return { ...param, default: { by, domain: [...(bound?.domain ?? CLOCK_START_DOMAIN)], ...range } };
+}
+
+/**
  * The header keys that name a parameter, moved to another name or dropped, unless another row still
  * answers to the old name.
  * @param draft - The header.
@@ -1239,36 +1344,41 @@ function carryParamReferences(draft: ShaderTextDraft, from: string, to: string |
 /**
  * Rename a parameter of a header, and what else in the header names it (a loop's speed, the reach
  * parameter, the preview's values). The body is not touched. Of two rows with one name, the last,
- * which is the one a duplicate's problem marks.
+ * which is the one a duplicate's problem marks, unless `index` names the row. A rename onto a name
+ * another row already has moves no reference, so the duplicate is reported and renaming back loses
+ * nothing.
  * @param draft - The header.
  * @param from - The row's name.
  * @param to - Its new name.
- * @returns The header; the same object when no row has the name.
+ * @param index - The row's place in `params`, for a row whose name is not its own (a duplicate, or
+ *   empty); absent, the last row named `from`.
+ * @returns The header; the same object when there is no such row.
  * @since 3.49.0
  */
-export function renameShaderParam(draft: ShaderTextDraft, from: string, to: string): ShaderTextDraft {
+export function renameShaderParam(draft: ShaderTextDraft, from: string, to: string, index?: number): ShaderTextDraft {
     const params = draft.params ?? [];
-    const at = params.map((row) => row.name).lastIndexOf(from);
-    if (at === -1 || from === to) {
+    const at = index ?? params.map((row) => row.name).lastIndexOf(from);
+    if (params[at] === undefined || from === to) {
         return draft;
     }
 
-    const renamed = params.map((row, index) => (index === at ? { ...row, name: to } : row));
-    return carryParamReferences({ ...draft, params: renamed }, from, to);
+    const renamed = { ...draft, params: params.map((row, each) => (each === at ? { ...row, name: to } : row)) };
+    return params.some((row) => row.name === to) ? renamed : carryParamReferences(renamed, from, to);
 }
 
 /**
  * Remove a parameter of a header, and what else in the header names it. The body is not touched.
- * Of two rows with one name, the last.
+ * Of two rows with one name, the last, unless `index` names the row.
  * @param draft - The header.
  * @param name - The row's name.
- * @returns The header; the same object when no row has the name.
+ * @param index - The row's place in `params`; absent, the last row named `name`.
+ * @returns The header; the same object when there is no such row.
  * @since 3.49.0
  */
-export function removeShaderParam(draft: ShaderTextDraft, name: string): ShaderTextDraft {
+export function removeShaderParam(draft: ShaderTextDraft, name: string, index?: number): ShaderTextDraft {
     const params = draft.params ?? [];
-    const at = params.map((row) => row.name).lastIndexOf(name);
-    if (at === -1) {
+    const at = index ?? params.map((row) => row.name).lastIndexOf(name);
+    if (params[at] === undefined) {
         return draft;
     }
 
@@ -1279,15 +1389,21 @@ export function removeShaderParam(draft: ShaderTextDraft, name: string): ShaderT
 // Writing text
 // ---------------------------------------------------------------------------------------------
 
+/** The character that starts a JSON escape. */
+const BACKSLASH = String.fromCodePoint(0x5c);
+
 /**
  * A header and a body as shader text. `*` `/` inside a JSON string is written `*\/`, which reads
- * back equal and does not end the comment.
+ * back equal and does not end the comment, and a character above 0x7E is written as a `\uXXXX`
+ * escape, which reads back equal and keeps the header ASCII.
  * @param header - The header's keys.
  * @param body - The body.
  * @returns The text.
  */
 function composeText(header: Readonly<Record<string, unknown>>, body: string): ShaderText {
-    const json = JSON.stringify(header, null, 4).replaceAll("*/", String.raw`*\/`);
+    const json = JSON.stringify(header, null, 4)
+        .replaceAll("*/", String.raw`*\/`)
+        .replaceAll(/[\u007f-\uffff]/g, (char) => `${BACKSLASH}u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
     return `/* ${SHADER_TEXT_MAGIC}\n${json}\n*/\n${body}`;
 }
 

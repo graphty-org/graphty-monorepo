@@ -210,7 +210,9 @@ export interface SessionShaders {
     /**
      * A shader's text, presets and registered shaders too. The text keeps the shader's id, so it
      * pastes back (`add`, `check`) as that shader with its values; `duplicate` gives it the `user/`
-     * namespace instead, so it is added as a new shader to edit.
+     * namespace instead, so it is added as a new shader to edit. A low-detail body is written as
+     * `shadeFar`, for a project shader whenever the text is rewritten (`params` or `derived`; until
+     * 3.49.0 it was left out there) and for a preset or a registered shader always.
      * @param id - Any shader the catalog lists.
      * @param options - What to write.
      * @param options.params - Parameter values the copy carries as its defaults, such as the ones a
@@ -1263,7 +1265,8 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         problems.push(...targetProblems(read.descriptor.target, options));
         let shader = read;
         const wanted = shader.descriptor.id;
-        if (taken(wanted, shader.text)) {
+        // A text joining as new clashes even with an equal text already in the project.
+        if (taken(wanted, options.asNew === true ? undefined : shader.text)) {
             const free = freeId(wanted, (candidate) => taken(candidate));
             if (options.onTaken === "rename") {
                 shader = readText(read.copyOf === undefined ? text : read.text, options, free) as ReadText;
@@ -1494,7 +1497,9 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
             const name = id.includes("/") ? id.slice(id.indexOf("/") + 1) : id;
             const copyId = options.duplicate === true ? `user/${name}` : id;
-            return copyText(descriptor, body, copyId, params, undefined, options.derived);
+            const { lowDetail } = (await loadShaderSource(id)?.catch(() => undefined)) ?? {};
+            const far = typeof lowDetail === "string" ? lowDetail : undefined;
+            return copyText(descriptor, body, copyId, params, far, options.derived);
         },
 
         list() {

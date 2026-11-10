@@ -262,30 +262,81 @@ back. Neither judges anything, so a half-typed form survives the trip and `check
 wrong with it, field by field.
 
 ```ts
+import type { Graphty } from "@graphty/graphty-element";
 import { formatShaderDraft, shaderParamShape, splitShaderText } from "@graphty/graphty-element/catalog";
 
-export async function saveEdited(g: HTMLElementTagNameMap["graphty-element"], text: string): Promise<void> {
-    const { draft, body } = splitShaderText(text); // fill your form from draft and body
-    if (draft === undefined) return;
+export async function saveEdited(g: Graphty, text: string): Promise<void> {
+    const { draft, body, problems } = splitShaderText(text); // fill your form from draft and body
+    if (draft === undefined) {
+        console.log(problems); // the header is not a JSON object: show the whole text and these
+        return;
+    }
     const glow = { name: "glow", type: "number", default: shaderParamShape("number").default };
     const edited = formatShaderDraft({ ...draft, name: "My paint", params: [...(draft.params ?? []), glow] }, body);
-    const checked = await g.session.shaders.check(edited, { asNew: true, picture: true });
+    const options = { asNew: true, onTaken: "rename" } as const;
+    const checked = await g.session.shaders.check(edited, { ...options, picture: true });
     if (!checked.ok) {
         console.log(checked.problems); // { code, params }: your words, your list
         return;
     }
-    await g.session.shaders.add(edited, { asNew: true, onTaken: "rename" });
+    await g.session.shaders.add(edited, options);
 }
 ```
 
-`asNew` means the text joins the project as a new shader even when its id or body matches a known
-one. Without it, an unchanged copy of a known shader reports that shader through `sameAs` and adds
-nothing.
+**What a split gives.** `body` is the GLSL after the header. `draft` is the header's keys as
+written, typed `unknown` because a reader may have typed anything: narrow each one before showing
+it. A text with no header (`headed: false`) is all body, with the placeholder draft
+`{ id: "user/shader", params: [] }`. A header that is not a JSON object, or whose `params` is not a
+list of objects, has no draft: `problems` says why, and an editor shows the whole text instead of a
+form. Otherwise `problems` lists what `check` will refuse in the header, and the draft is kept as
+written, wrong values included.
 
-`changeShaderParamType`, `renameShaderParam` and `removeShaderParam` edit a parameter row of a draft
-and keep what else in the header names that row correct. `shaderParamShape` says which fields a type
-has, and a valid default for it. `session.shaders.source(id, { duplicate: true, derived: "omit" })`
-gives a copy of a shader to start from, leaving out what is worked out from its body.
+| Draft key                                                                                  | Holds when well formed                                                                                                                                               |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `name`                                                                               | Strings                                                                                                                                                              |
+| `place`, `places`                                                                          | A place, a list of places                                                                                                                                            |
+| `reach`, `minSize`                                                                         | Numbers, within `SHADER_REACH_RANGE` and `SHADER_MIN_SIZE_RANGE`                                                                                                     |
+| `reachParam`                                                                               | The name of a Number or Integer row                                                                                                                                  |
+| `params`                                                                                   | A list of rows: `name`, `type` and `default`, and `min`, `max`, `step`, `values`, `varies`, `plainName`, `description`, `primary`, `choices` where the type has them |
+| `motion`, `preview`                                                                        | `"still"`, `"loop"` or `{ loop: { speedParam } }`; `{ params, time }`                                                                                                |
+| `categories`, `cost`, `thumbnail`, `blend`, `form`, `bloom`, `requires`, `reads`, `webgpu` | As `defineShader` takes them                                                                                                                                         |
+
+**Editing rows.** A row's `default`, `min`, `max`, `step`, `plainName` and `varies` are edited by
+replacing the field on the row, as in `{ ...row, default: 0.5 }`: nothing else in the header
+depends on them. A row's type, name and removal go through `retypeShaderParam`,
+`renameShaderParam` and `removeShaderParam`, which also keep `reachParam`, a loop's `speedParam`
+and `preview.params` right. Pass the row's index to them, so a row whose name is a duplicate or
+empty is the one that changes. `shaderParamShape` says which fields a type has, a valid default,
+and whether its default may be bound to a clock (`clock`); `bindShaderParamClock` binds or unbinds
+one, and `shaderParamClock` reads a binding back.
+
+**Placing problems.** Each problem is `{ code, params }`. `params.line` and `params.column` count
+from the start of the whole text, so an editor that shows only the body subtracts `bodyLine - 1`,
+where `bodyLine` comes from splitting the text that was checked. `shader.header-key` names the key
+in `params.key`. `shader.param-invalid` names the row in `params.param` (its name, or `#<index>`
+for a row with no name; of two rows with one name, the last) and its field in `params.field`;
+`shader.reserved` names the row in `params.param`.
+
+**`asNew` and `onTaken`** mean the same in `check` and `add`, so pass both the same options and
+`check` reports what `add` will do.
+
+- Without `asNew`, text whose body equals a known shader's reports that shader as `sameAs`, with
+  `params` holding the defaults the text differs by. An unchanged copy under the shader's own id
+  (Copy code's text, or `source` without `duplicate`) adds nothing: with `apply`, those values are
+  written to the layer, and without it nothing is written. Any other text is added.
+- With `asNew`, there is no `sameAs` and the text always joins the project as a new shader. A
+  preset's bare id reads as `user/<id>`.
+- When the id is taken (a preset, a registered shader, or a project shader, an equal text included
+  under `asNew`), `onTaken: "refuse"`, the default, fails with `shader.id-taken` and
+  `{ id, free }`; `onTaken: "rename"` adds it under `free`, and the result's `descriptor.id` is the
+  id it got.
+
+**Saving and starting.** `session.shaders.replace(id, text)` saves an edit over a project shader in
+place, keeping its id and the layers that draw it. `check` compiles the text and draws a test frame
+when a canvas is attached; `compile: false` gives the static checks alone.
+`session.shaders.source(id, { duplicate: true, derived: "omit" })` gives a copy of a shader to start
+from, with a `user/` id and without `reads`, `cost` and a still `motion`, which are worked out again
+from the edited body.
 
 ## Parameters
 

@@ -381,25 +381,27 @@ export const SHADER_PARAM_TYPES: readonly ShaderParamDescriptor["type"][] = Obje
 /** What each parameter type holds. */
 const PARAM_SHAPES: Readonly<Partial<Record<ShaderParamDescriptor["type"], ReturnType<typeof shaderParamShape>>>> =
     Object.freeze({
-        number: { default: 1, fields: ["min", "max", "step", "varies"] },
-        integer: { default: 1, fields: ["min", "max", "step", "varies"] },
-        boolean: { default: false, fields: [] },
-        enum: { default: undefined, fields: ["values"] },
-        color: { default: "#ffffff", fields: ["varies"] },
+        number: { default: 1, fields: ["min", "max", "step", "varies"], clock: true },
+        integer: { default: 1, fields: ["min", "max", "step", "varies"], clock: false },
+        boolean: { default: false, fields: [], clock: false },
+        enum: { default: undefined, fields: ["values"], clock: false },
+        color: { default: "#ffffff", fields: ["varies"], clock: true },
     });
 
 /**
  * What a parameter of one type holds, for an editor to build its row from.
  * @param type - The type.
- * @returns A valid default, undefined for `"enum"`, which needs choices; and the fields that apply
- *   to the type, in no display order.
+ * @returns A valid default, undefined for `"enum"`, which needs choices; the fields that apply
+ *   to the type, in no display order; and `clock`, whether its default may be bound to a clock
+ *   (`bindShaderParamClock`).
  * @since 3.49.0
  */
 export function shaderParamShape(type: ShaderParamDescriptor["type"]): {
     readonly default: unknown;
     readonly fields: readonly ("min" | "max" | "step" | "values" | "varies")[];
+    readonly clock: boolean;
 } {
-    return PARAM_SHAPES[type] ?? { default: undefined, fields: [] };
+    return PARAM_SHAPES[type] ?? { default: undefined, fields: [], clock: false };
 }
 
 /** One named value of an integer shader parameter, with a picture of what it draws. @since 3.36.0 */

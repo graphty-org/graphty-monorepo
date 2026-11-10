@@ -21,12 +21,15 @@ import {
 } from "../../src/catalog/shaders";
 import { shaderTemplate } from "../../src/catalog/shaderTemplate";
 import {
+    bindShaderParamClock,
     changeShaderParamType,
     formatShaderDraft,
     formatShaderText,
     parseShaderText,
     removeShaderParam,
     renameShaderParam,
+    retypeShaderParam,
+    shaderParamClock,
     shaderParamPlainName,
     splitShaderText,
 } from "../../src/catalog/shaderText";
@@ -379,5 +382,98 @@ describe("renameShaderParam and removeShaderParam", () => {
         const draft = header();
         assert.strictEqual(renameShaderParam(draft, "none", "b"), draft);
         assert.strictEqual(removeShaderParam(draft, "none"), draft);
+    });
+});
+
+describe("editing rows a reader can see only by place", () => {
+    const pair = (): ShaderTextDraft => ({
+        id: "user/a",
+        reachParam: "a",
+        preview: { params: { a: 1, b: 2 } },
+        params: [
+            { name: "a", type: "number", default: 1 },
+            { name: "b", type: "color", default: "#000000" },
+        ],
+    });
+
+    it("renames and removes the row an index names, not the last of its name", () => {
+        const twins: ShaderTextDraft = {
+            id: "user/a",
+            params: [
+                { name: "x", type: "number", default: 1 },
+                { name: "x", type: "color", default: "#000000" },
+            ],
+        };
+        assert.deepEqual(
+            renameShaderParam(twins, "x", "y", 0).params?.map((row) => [row.name, row.type]),
+            [
+                ["y", "number"],
+                ["x", "color"],
+            ],
+        );
+        assert.deepEqual(
+            removeShaderParam(twins, "x", 0).params?.map((row) => row.type),
+            ["color"],
+        );
+        assert.strictEqual(renameShaderParam(twins, "x", "y", 5), twins);
+    });
+
+    it("a rename onto a name another row has moves no reference, and renaming back loses nothing", () => {
+        const onto = renameShaderParam(pair(), "a", "b", 0);
+        assert.strictEqual(onto.reachParam, "a");
+        assert.deepEqual(onto.preview, { params: { a: 1, b: 2 } });
+        const back = renameShaderParam(onto, "b", "a", 0);
+        assert.deepEqual(back, pair());
+    });
+
+    it("a type change drops a reference the new type cannot serve", () => {
+        const looped: ShaderTextDraft = { ...pair(), motion: { loop: { speedParam: "a" } } };
+        const integer = retypeShaderParam(looped, 0, "integer");
+        assert.strictEqual(integer.reachParam, "a", "an integer still serves reachParam");
+        assert.deepEqual(splitShaderText(formatShaderDraft(integer, BODY)).draft?.motion, { loop: {} });
+        const toggled = retypeShaderParam(looped, 0, "boolean");
+        assert.notProperty(splitShaderText(formatShaderDraft(toggled, BODY)).draft ?? {}, "reachParam");
+        assert.strictEqual(toggled.params?.[0]?.default, false);
+        assert.strictEqual(retypeShaderParam(looped, 9, "boolean"), looped);
+    });
+
+    it("binds a Number or Color default to a clock and takes it off", () => {
+        assert.isTrue(shaderParamShape("number").clock && shaderParamShape("color").clock);
+        assert.isFalse(shaderParamShape("integer").clock || shaderParamShape("boolean").clock);
+        const color = bindShaderParamClock({ name: "tint", type: "color", default: "#ff0000" }, "since.selected");
+        assert.deepEqual(color.default, { by: "since.selected", domain: [0, 0.3], range: ["#ff0000", "#ff0000"] });
+        assert.deepEqual(shaderParamClock(color), {
+            by: "since.selected",
+            domain: [0, 0.3],
+            range: ["#ff0000", "#ff0000"],
+        });
+        assert.strictEqual(bindShaderParamClock(color, undefined).default, "#ff0000");
+        const number = bindShaderParamClock({ name: "glow", type: "number", default: 2 }, "since.hovered");
+        assert.deepEqual(number.default, { by: "since.hovered", domain: [0, 0.3] });
+        assert.strictEqual(bindShaderParamClock(number, undefined).default, shaderParamShape("number").default);
+        assert.isUndefined(shaderParamClock({ name: "glow", type: "number", default: 2 }));
+    });
+});
+
+describe("text an editor is handed", () => {
+    it("a valid header that escapes a non-ASCII character stays valid through split and format", () => {
+        const original = `/* graphty-shader 1\n{ "id": "user/a", "name": "caf\\u00e9" }\n*/\n${BODY}`;
+        assert.isTrue(parseShaderText(original).ok);
+        const { draft, body, problems } = splitShaderText(original);
+        assert.deepEqual(problems, []);
+        const written = formatShaderDraft(draft ?? {}, body);
+        const parsed = parseShaderText(written);
+        assert.isTrue(parsed.ok, JSON.stringify(parsed));
+        assert.strictEqual(parsed.ok ? parsed.registration.descriptor.plainName : "", "caf\u00e9");
+    });
+
+    it("a value that is not a string splits as a header-missing problem, as parsing reports it", () => {
+        const parts = splitShaderText(undefined as unknown as string);
+        assert.isFalse(parts.headed);
+        assert.isUndefined(parts.draft);
+        assert.deepEqual(
+            parts.problems.map((problem) => problem.code),
+            ["shader.header-missing"],
+        );
     });
 });

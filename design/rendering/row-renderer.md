@@ -1059,6 +1059,13 @@ A second correction: a repack from the lane also changes w, when a row the layou
 (w 0 to 1) or a row is unplaced. The kernel keeps the ring's w, so such a row stayed at w 0 on the card until the layout
 settled. A repack that changes a row's w now mirrors that row into the ring and uploads it once, since the landing
 already copied holds the old w.
+Correction (2026-11-09 re-profile): the 187-205 ms `renderer="webgpu"` layout frame measured for this stage was not a
+layout frame. On WebGPU the render loop did not pace its frames (only WebGL fenced them), so a still 100k + 1M scene queued
+a frame every 0.8-3 ms against about 89 ms of GPU work each; the layout's position readback waited behind that backlog
+and never landed, the layout stopped moving, and the frames timed the zoom-to-fit walk over a stalled layout. With frames
+paced the real layout frame was 1.07-1.28 s, CPU-bound. Since cosmos-gap stage 113, under renderPath "batched" the loop
+skips a tick while the last frame's `queue.onSubmittedWorkDone()` is unresolved (`RenderManager.fenceWebGpuFrame`), and
+the benchmark refuses a layout-frame row in which no GPU batch landed.
 
 As built (stage 25, fourth pull request): a loss needed no code of its own. The controller's rebuild on the engine's
 new device goes through `replaceSimulation`, whose load attaches a new ring seeded from `rowPosition`, and the

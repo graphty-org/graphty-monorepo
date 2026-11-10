@@ -364,10 +364,13 @@ const OFF_SHARDS = [
     {
         shard: "graphty-element-webgpu",
         package: "graphty-element",
-        "test-command": `cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader pnpm exec vitest run --project=browser test/browser/webgpu-renderer.test.ts ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader pnpm exec vitest run --project=browser test/browser/webgpu-renderer.test.ts test/browser/webgpu-frame-pacing.test.ts ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         local: "when-paths-change",
-        "local-paths": ["graphty-element/test/browser/webgpu-renderer.test.ts"],
+        "local-paths": [
+            "graphty-element/test/browser/webgpu-renderer.test.ts",
+            "graphty-element/test/browser/webgpu-frame-pacing.test.ts",
+        ],
     },
     // The WebGPU device destroyed and the GPU process crashed under the element, on the full Chromium build.
     {

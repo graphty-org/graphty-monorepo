@@ -39,3 +39,47 @@ SnapshotLayoutEngine). No other test file run yet.
   unstable objects loads. The failing stories are listed in parity-batched-failures.txt (algorithm style stories,
   Data/FileStyles Xgmml, network sources, Traversal BFS/DFS, ...). Not yet diagnosed.
 - tsc --noEmit and eslint clean on every touched file. sonar-gate not run yet.
+
+## Session 2026-11-09 (third)
+
+Diagnosed the batched-path picture differences by dumping both canvases per story (a temporary dump in
+the render-parity test, not committed) and tracing body creation in the layout engines. Causes found and
+fixed (all under renderPath "batched" only):
+
+1. Building an edge built both end Nodes: Edge.pullsLine -> endBehindEdges -> srcNode/dstNode. Every row
+   of a data-source load got a Node, in edge order, so ngraph made its bodies in edge order and a seeded
+   layout drew another picture (Traversal BFS, Data Json and the algorithm stories). An end stored with
+   no Node is now read from its row (Edge.unbuiltEnd). DataManager.test.ts "builds an edge on the batched
+   path reading each end's Node once" now counts 0 Node reads, not 2 (stricter: no end is built).
+2. A new d3/ngraph engine got edges before Node-less rows (LayoutManager), and rows arriving with edges
+   in the same ingest chunk reached the running engine after the edges (DataManager.edgeStored): bodies
+   now come first in both.
+3. A Node built late for a row ngraph already held reset the settled simulation (_stepCount 0), which
+   stepped again and moved every node a little: a take-over now keeps it settled.
+4. A Node built late (graph.getNodes() in story checks) sat at the hidden template (0,-10000,0) until the
+   next frame: DataManager.paintBuiltRow now calls node.update() after painting it. This fixed the story
+   play errors "nodes not where the file put them" and "nodes drawn on top of another node".
+5. Zoom-to-fit framed column rows at last frame's RowTable place (the table takes the lane at draw time,
+   after the update that frames): framing now reads the lane place unless the row is held.
+6. A column row cannot draw a label (it has no Node to hang one from): ColumnRow.drawable now refuses a
+   paint with a drawn label. This was hidden while edges built every Node; UpdateManager.zoomToFit
+   "takes in every node label" failed under forced-batched until fixed.
+
+Commands and results (graphty-element, through tools/low-priority.sh):
+- npx vitest run --project render-parity test/render-parity/stories.test.ts: 11 failed, 314 passed,
+  12 skipped (was 65 failed). No story unstable between two objects loads. Log: tmp/stage-26/parity7.log,
+  list: tmp/stage-26/parity-batched-failures.txt.
+- npx vitest run (DataManager, UpdateManager, UpdateManager.zoomToFit, node-batch, row-table-shadow,
+  object-roster, snapshot-contract, ngraph-parallel-edges, ngraph-settle-budget): 12 files, 206 passed
+  (browser, forced-batched, render-parity and default projects).
+- tsc --noEmit clean; eslint clean on touched files; node tools/sonar-gate.mjs: no new issue (two findings
+  from the first run fixed in a refactor commit).
+
+Remaining 11 batched differences, not yet diagnosed: Layout D3 (33398 px) and Layout2D ClusterBy (53055;
+d3 reheat on late build and clusterBy reading only Nodes are suspects), OpenAlexCiting (164224),
+AuraOverTheCap (17865), Gexf (1488), ThreePaths (325), LouvainMoreCommunitiesThanColours, and four of
+1 pixel (Bidirectional, CytoscapeSession -- an edge/node depth tie at one pixel --, ForceAtlas2Weighted,
+AuraAndSatellites).
+
+Target (load-peak heap under 1.5 KB/node at 200k) not measured this pull request: anchor removal and the
+heap gate are not started.

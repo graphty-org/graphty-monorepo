@@ -213,6 +213,26 @@ describe("data.prepareJoins", () => {
         assert.deepEqual(session.data.joins(), []);
     });
 
+    it("matches a key written as text to the number it spells", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", phone: 15550142 },
+            { id: "b", phone: 15550199 },
+        ]);
+        const recipe = session.data.prepareJoins();
+        const watchlist = recipe.hold({
+            name: "watchlist.csv",
+            rows: [{ value: "+15550142" }, { value: "+1 555 0123" }, { value: "Zoe Reyes" }],
+        });
+        const step = recipe.add({
+            from: watchlist,
+            choices: { shape: "node-values", keys: [{ file: "value", graph: "data.phone" }] },
+        });
+
+        assert.strictEqual(recipe.outcome(step).report?.matched, 1);
+        recipe.discard();
+    });
+
     it("commits no step that changes nothing, so a key matching nothing adds no source", async () => {
         const session = await doors();
         const before = session.data.sources().map((source) => source.name);

@@ -31,6 +31,10 @@
                 --boot-ink: #2a3045;
                 --boot-accent: #97c800;
                 --boot-error: #c92a2a;
+                --boot-text: #2a3045;
+                --boot-muted: #5f667a;
+                --boot-done: #2b7a36;
+                --boot-warn: #8a5a00;
                 position: fixed;
                 inset: 0;
                 z-index: 10000;
@@ -52,6 +56,10 @@
                     --boot-ink: #9aa3b8;
                     --boot-accent: #c4f23a;
                     --boot-error: #ff8787;
+                    --boot-text: #d5dae6;
+                    --boot-muted: #8a92a6;
+                    --boot-done: #69db7c;
+                    --boot-warn: #ffd43b;
                 }
             }
             #boot > svg {
@@ -66,36 +74,24 @@
                 overflow: hidden;
                 background: color-mix(in srgb, var(--boot-ink) 20%, transparent);
             }
-            #boot .bar::after {
-                content: "";
+            #boot .fill {
                 display: block;
-                width: 40%;
+                width: 0;
                 height: 100%;
                 border-radius: 2px;
                 background: var(--boot-accent);
-                animation: boot-slide 1.2s ease-in-out infinite;
-            }
-            @keyframes boot-slide {
-                from {
-                    transform: translateX(-100%);
-                }
-                to {
-                    transform: translateX(250%);
-                }
+                transition: width 200ms;
             }
             @media (prefers-reduced-motion: reduce) {
-                #boot .bar::after,
-                #boot-log .is-running .meter::after {
-                    animation: none;
-                    width: 100%;
-                    opacity: 0.5;
+                #boot .fill {
+                    transition: none;
                 }
                 #boot .log-toggle svg {
                     transition: none;
                 }
             }
             #boot .failed,
-            #boot.failed .bar::after {
+            #boot.failed .bar .fill {
                 display: none;
             }
             #boot.failed .failed {
@@ -167,7 +163,7 @@
                     Menlo,
                     Consolas,
                     monospace;
-                color: var(--boot-ink);
+                color: var(--boot-text);
                 background: color-mix(in srgb, var(--boot-ink) 6%, transparent);
                 border: 1px solid color-mix(in srgb, var(--boot-ink) 20%, transparent);
                 border-radius: 4px;
@@ -202,7 +198,10 @@
             }
             #boot-log .is-waiting,
             #boot-log .detail {
-                color: color-mix(in srgb, var(--boot-ink) 85%, transparent);
+                color: var(--boot-muted);
+            }
+            #boot-log .is-done {
+                color: var(--boot-done);
             }
             #boot-log .is-waiting .meter,
             #boot-log .is-waiting .time,
@@ -211,12 +210,16 @@
             }
             #boot-log .detail,
             #boot-log .error,
+            #boot-log .warn,
             #boot-log .gap {
                 grid-column: 2 / -1;
             }
             #boot-log .is-failed,
             #boot-log .error {
                 color: var(--boot-error);
+            }
+            #boot-log .warn {
+                color: var(--boot-warn);
             }
             #boot-log .time {
                 white-space: nowrap;
@@ -229,22 +232,7 @@
                 overflow: hidden;
                 background: color-mix(in srgb, var(--boot-ink) 20%, transparent);
             }
-            #boot-log .meter::after {
-                content: "";
-                display: block;
-                height: 100%;
-                border-radius: 2px;
-                background: var(--boot-accent);
-            }
-            #boot-log .is-running .meter::after {
-                width: 40%;
-                animation: boot-slide 1.2s ease-in-out infinite;
-            }
-            #boot-log .is-done .meter::after,
-            #boot-log .is-failed .meter::after {
-                width: 100%;
-            }
-            #boot-log .is-failed .meter::after {
+            #boot-log .is-failed .fill {
                 background: var(--boot-error);
             }
             #boot-log .log-copy {
@@ -255,15 +243,15 @@
                 border-radius: 2px;
                 background: none;
                 font: inherit;
-                color: color-mix(in srgb, var(--boot-ink) 85%, transparent);
+                color: var(--boot-muted);
                 cursor: pointer;
             }
             #boot-log .log-copy:hover,
             #boot-log .log-copy:focus-visible {
-                color: var(--boot-ink);
+                color: var(--boot-text);
             }
             #boot-log .log-copy:focus-visible {
-                outline: 2px solid var(--boot-ink);
+                outline: 2px solid var(--boot-text);
             }
         </style>
         <script>
@@ -278,13 +266,17 @@
             var bootEntryFailed = false;
             var bootTicker = 0;
             var bootCopyReset = 0;
+            var bootObserver = null;
+            // The console as it was, so the log's own lines are not heard again as warnings.
+            var bootSay = { info: console.info, warn: console.warn, error: console.error };
+            var bootHeard = {};
             // The log must never be why the page fails to load.
             function bootGuard(f) {
                 return function (...args) {
                     try {
                         return f(...args);
                     } catch (e) {
-                        console.warn("[graphty loading] the log failed: " + e);
+                        bootSay.warn.call(console, "[graphty loading] the log failed: " + e);
                     }
                 };
             }
@@ -312,8 +304,9 @@
             function bootList() {
                 return document.querySelector("#boot-log ul");
             }
-            function bootConsole(text, when, isError) {
-                console[isError ? "error" : "info"](
+            function bootConsole(text, when, level) {
+                bootSay[level].call(
+                    console,
                     "[graphty loading] " +
                         ("      " + Math.round(when)).slice(-7) +
                         "  +" +
@@ -389,7 +382,11 @@
             function bootReveal() {
                 var list = bootList();
                 var errors = list.querySelectorAll(".error");
-                var mark = errors[errors.length - 1] || list.querySelector(".is-failed, .is-running");
+                var warnings = list.querySelectorAll(".warn");
+                var mark =
+                    errors[errors.length - 1] ||
+                    warnings[warnings.length - 1] ||
+                    list.querySelector(".is-failed, .is-running");
                 if (mark) {
                     var bottom = mark.offsetTop - list.offsetTop + mark.offsetHeight + 8;
                     list.scrollTop = Math.max(list.scrollTop, bottom - list.clientHeight);
@@ -398,17 +395,48 @@
             function bootTime(ms) {
                 return ms < 1000 ? Math.round(ms) + " ms" : (ms / 1000).toFixed(1) + " s";
             }
+            // How much of a step's files has arrived, by their size in the build, or null when
+            // nothing measures it. Floored, so it reads 100 only when every file is in.
+            function bootPercent(row) {
+                return row.total ? Math.floor((100 * row.got) / row.total) : null;
+            }
+            // The bar under the logo: the share of the steps finished, a running step counting for
+            // as much of its files as has arrived.
+            function bootOverall() {
+                var fill = document.querySelector("#boot .bar .fill");
+                if (!fill) {
+                    return;
+                }
+                var steps = bootFind(function () {
+                    return true;
+                });
+                var finished = 0;
+                steps.forEach(function (r) {
+                    finished += r.status === "done" ? 1 : r.status === "running" ? (bootPercent(r) || 0) / 100 : 0;
+                });
+                fill.style.width = (100 * finished) / steps.length + "%";
+            }
             // In place, because replacing the elements would clear what the reader has selected.
             function bootPaint(row) {
+                var percent = bootPercent(row);
+                var whole = row.status === "done" || (row.status === "failed" && percent === null);
                 row.el.className = "step is-" + row.status;
-                row.time.data = row.status === "waiting" ? "" : bootTime(row.took);
+                row.fill.style.width = (whole ? 100 : percent || 0) + "%";
+                row.time.data =
+                    row.status === "waiting"
+                        ? ""
+                        : (row.status !== "done" && percent !== null ? percent + "%  " : "") + bootTime(row.took);
+                bootOverall();
             }
             function bootMakeStep(name, status) {
                 var row = { kind: "step", name: name, status: status, took: 0, el: bootEl("li", "", "") };
                 var time = bootEl("span", "time", "");
+                var meter = bootEl("span", "meter", "");
+                row.fill = bootEl("span", "fill", "");
+                meter.append(row.fill);
                 row.time = document.createTextNode("");
                 time.appendChild(row.time);
-                row.el.append(bootEl("span", "name", name), bootEl("span", "meter", ""), time);
+                row.el.append(bootEl("span", "name", name), meter, time);
                 bootPaint(row);
                 return row;
             }
@@ -444,13 +472,52 @@
                 // Copy's own button is the keyboard's way to the click; the list scrolls, so it takes focus.
                 bootList().tabIndex = 0;
                 document.getElementById("boot-log").addEventListener("click", bootPanelClick);
+                bootMeasure();
             }
+            // The files each step loads and their sizes, written into the page by the build
+            // (vite.boot-files.ts). Each one counts once its request has finished; the dev server
+            // writes none, so there its steps have no measure.
+            var bootMeasure = bootGuard(function () {
+                var spec = document.getElementById("graphty-boot-files");
+                var files = spec ? JSON.parse(spec.textContent) : {};
+                Object.keys(files).forEach(function (name) {
+                    var row = bootNamed(name);
+                    if (row) {
+                        row.files = files[name];
+                        row.seen = {};
+                        row.got = 0;
+                        row.count = 0;
+                        row.total = 0;
+                        Object.keys(row.files).forEach(function (path) {
+                            row.total += row.files[path] || 1;
+                        });
+                        bootPaint(row);
+                    }
+                });
+                if (Object.keys(files).length && PerformanceObserver.supportedEntryTypes.indexOf("resource") >= 0) {
+                    bootObserver = new PerformanceObserver(bootArrived);
+                    bootObserver.observe({ type: "resource", buffered: true });
+                }
+            });
+            var bootArrived = bootGuard(function (list) {
+                list.getEntries().forEach(function (r) {
+                    var path = new URL(r.name).pathname;
+                    bootFind(function (row) {
+                        return row.files && path in row.files && !row.seen[path];
+                    }).forEach(function (row) {
+                        row.seen[path] = true;
+                        row.got += row.files[path] || 1;
+                        row.count++;
+                        bootPaint(row);
+                    });
+                });
+            });
             // A step has finished. "at" is when, if that was before now. Words after a step's name
             // are a detail; a line that names no step is a row of its own, in the order it happened.
             var bootStep = bootGuard(function (text, at) {
                 var when = at === undefined ? performance.now() : Math.max(at, bootLast);
                 var clean = bootClean(text);
-                bootConsole(clean, when, false);
+                bootConsole(clean, when, "info");
                 if (bootGone) {
                     return;
                 }
@@ -475,16 +542,57 @@
             // Something went wrong, under the step that was under way.
             var bootError = bootGuard(function (text) {
                 var clean = "ERROR " + bootClean(text);
-                bootConsole(clean, performance.now(), true);
+                bootConsole(clean, performance.now(), "error");
                 if (!bootGone) {
                     bootAfter(bootAnchor(), "error", clean);
                     bootReveal();
                 }
             });
+            // A warning or an error the page wrote to the console, or the browser raised, under
+            // the step that was under way. It is in the console already.
+            var bootNotice = bootGuard(function (level, said) {
+                if (!bootGone) {
+                    var text = typeof said === "string" ? said : bootFormat(said);
+                    bootAfter(bootAnchor(), level, (level === "error" ? "ERROR " : "WARN ") + bootClean(text));
+                    bootReveal();
+                }
+            });
+            // console.warn("%s failed", x) as the console would show it.
+            function bootFormat(args) {
+                var rest = Array.prototype.slice.call(args);
+                var first = String(rest.shift());
+                var text = first.replaceAll(/%[sdifoOc]/g, function (mark) {
+                    if (!rest.length) {
+                        return mark;
+                    }
+                    var value = rest.shift();
+                    return mark === "%c" ? "" : String(value);
+                });
+                return [text].concat(rest.map(String)).join(" ");
+            }
+            ["warn", "error"].forEach(function (level) {
+                var own = console[level];
+                bootHeard[level] = function () {
+                    own.apply(console, arguments);
+                    if (!bootGone) {
+                        // Only code that has arrived writes to the console, so the entry has.
+                        bootEntryArrived(true);
+                        bootNotice(level, arguments);
+                    }
+                };
+                bootHeard[level].own = own;
+                console[level] = bootHeard[level];
+            });
+            addEventListener("securitypolicyviolation", function (e) {
+                bootNotice(
+                    "warn",
+                    "blocked by the content security policy (" + e.violatedDirective + "): " + e.blockedURI,
+                );
+            });
             // A fact that is not a step, under the step it belongs to.
             var bootDetail = bootGuard(function (text, name) {
                 var clean = bootClean(text);
-                bootConsole(clean, performance.now(), false);
+                bootConsole(clean, performance.now(), "info");
                 if (!bootGone) {
                     bootAfter(name ? bootNamed(name) : bootAnchor(), "detail", clean);
                 }
@@ -535,7 +643,21 @@
                     } else if (i.kind !== "step") {
                         lines.push("    " + i.text);
                     } else if (i.status !== "waiting") {
-                        lines.push(bootPad(words[i.status]) + i.name + "  " + bootTime(i.took));
+                        lines.push(
+                            bootPad(words[i.status]) +
+                                i.name +
+                                "  " +
+                                bootTime(i.took) +
+                                (i.status !== "done" && i.total
+                                    ? "  " +
+                                      bootPercent(i) +
+                                      "% (" +
+                                      i.count +
+                                      " of " +
+                                      Object.keys(i.files).length +
+                                      " files)"
+                                    : ""),
+                        );
                     } else if (!gaveUp) {
                         lines.push(bootPad(words.waiting) + i.name);
                     }
@@ -632,6 +754,15 @@
                 bootGone = true;
                 clearInterval(bootTicker);
                 clearTimeout(bootCopyReset);
+                if (bootObserver) {
+                    bootObserver.disconnect();
+                }
+                // The console back as it was, unless something has wrapped it since.
+                Object.keys(bootHeard).forEach(function (level) {
+                    if (console[level] === bootHeard[level]) {
+                        console[level] = bootHeard[level].own;
+                    }
+                });
                 var boot = document.getElementById("boot");
                 if (boot) {
                     boot.remove();
@@ -639,7 +770,7 @@
                 bootRequests();
                 // Back to the browser's own limit, now that the log has what it needs.
                 performance.setResourceTimingBufferSize(250);
-                bootConsole("loading screen removed", performance.now(), false);
+                bootConsole("loading screen removed", performance.now(), "info");
             }
             function bootShow(open) {
                 document.getElementById("boot-log").hidden = !open;
@@ -822,7 +953,7 @@
                 >
                     <svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1 0l6 4-6 4z" fill="currentColor" /></svg>
                 </button>
-                <span class="bar"></span>
+                <span class="bar"><span class="fill"></span></span>
                 <div id="boot-log" hidden>
                     <ul aria-live="off" aria-label="Loading steps"></ul>
                     <button type="button" class="log-copy">Copy</button>

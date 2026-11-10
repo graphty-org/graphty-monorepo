@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 
 import { aliases } from "./vite.aliases";
+import { bootFilesPlugin } from "./vite.boot-files";
 import { buildStampPlugin } from "./vite.build-stamp";
 import { sampleDataPlugin } from "./vite.sample-data";
 
@@ -64,6 +65,8 @@ export default defineConfig(({ mode }) => {
         unversionedDepsNotImmutable(),
         // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
         buildStampPlugin(),
+        // The files each loading step waits for, so the loading screen's log can measure them.
+        bootFilesPlugin(),
         // graph-samples' datasets at graphty.app's path, from this machine (dev server only).
         sampleDataPlugin(),
         // The remote logger's script, first in the page so it hears a load that fails before the

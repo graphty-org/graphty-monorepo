@@ -1113,6 +1113,8 @@ export class Graph implements GraphContext {
                 baselineWindow: true,
                 // Late-bound on purpose: a change of renderer replaces the render manager.
                 renderedFrame: () => this.renderManager.frameDrawn(),
+                // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
+                batched: () => this.#renderPath === "batched",
             },
         );
 

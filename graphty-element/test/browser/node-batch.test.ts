@@ -30,7 +30,7 @@ import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
 import { defineLayout } from "../../src/simple/defineLayout";
-import { drag, hover, nextFrame, wheel } from "../helpers/real-input";
+import { click, drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 import { nextModelEvent } from "./models/helpers";
 
@@ -1591,4 +1591,51 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(dataManagerInternals.nodesBuilt(manager), NODES.length);
         assert.equal(overBar(before, await readFrame(graph)), 0);
     });
+});
+
+describe.each(RENDERERS)("the scene objects of a batched graph on %s (cosmos-gap G6)", (renderer) => {
+    /**
+     * Load rows on the batched path in a view, hover, select and drag one, and count the scene's transform nodes.
+     * @param view - The view, entered before the load.
+     * @param count - How many rows.
+     * @returns `scene.transformNodes.length` once the drag has settled.
+     */
+    async function transformNodesAfterUse(view: "2d" | "3d", count: number): Promise<number> {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        // Before the load: a view switch over stored rows still builds every row's Node.
+        await element.setViewMode(view);
+        const rows = Array.from({ length: count }, (_, id) => ({
+            id,
+            position: { x: (id % 100) * 1.2, y: Math.floor(id / 100) * 1.2, z: 0 },
+        }));
+        await element.session.data.addNodes(rows);
+        await graph.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        const node = graph.getNode(0);
+        assert.isDefined(node);
+        const at = element.worldToScreen(node.drawnWorldPosition);
+        await hover(element, at);
+        await click(element, at);
+        const { x } = node.drawnPosition;
+        await drag(element, at, { x: at.x + 30, y: at.y + 20 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.notEqual(node.drawnPosition.x, x, "the drag reached the row");
+        assert.equal(graph.rowCounts.batchedNodes, count, "every row is still drawn batched");
+        return graph.getScene().transformNodes.length;
+    }
+
+    it.each(["3d", "2d"] as const)(
+        "grow by a constant from 1,000 to 10,000 rows in %s after a hover, a select and a drag",
+        async (view) => {
+            const small = await transformNodesAfterUse(view, 1_000);
+            const large = await transformNodesAfterUse(view, 10_000);
+            // One per row was 100,002 at 100k rows before rows were stored with no Node.
+            assert.isAtMost(large - small, 20);
+        },
+    );
 });

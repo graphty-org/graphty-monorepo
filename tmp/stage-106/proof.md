@@ -1,48 +1,60 @@
-# cosmos-gap G6, pull request 1: paint a row with no Node from one style per mesh key
+# cosmos-gap G6, pull request 2: uniform mesh-key fill and the scene-object guard
 
-Change: `StylePainter.rowPaint(index)` caches one `NodePaint` per node look (mesh key, opacity, visible flag,
-color alpha, gradient start, checked against the interned mesh style as the edge cache is) and returns the
-shared style with the row's own color. `UpdateManager.unbuiltPainted`, the only path that paints a row stored with
-no `Node` (such rows exist only under renderPath "batched"), uses it. `nodePaint` is unchanged, so every `Node` and
-the whole objects path build a style per node as on master. Rollback: one line in `unbuiltPainted`
-(`rowPaint` back to `nodePaint`). No public API change.
+Commit be7a0ac541 (Refs #6389).
+
+Change: when every mesh-keying channel is absent or one value over a repaint's dirty set, `internDirty`
+(`src/session/styles/repaint.ts`) interns one sequence and only moves each row's retain count, instead of hashing
+every row. Switch: `RepaintSources.uniformFill` (absent = off), which `GraphSession` takes from
+`SessionInternals.batched` and `Graph` sets to `renderPath === "batched"`. Under "objects" nothing sets it, so the
+pass is the per-row path as on master. Rollback: drop the `batched` line in `Graph.ts`. No public API change
+(`npm run api:report` left api/ unchanged).
+
+Correction (recorded in design/rendering/row-renderer.md 4.6): the switch comes from the session, not from the
+ingest host's `batched` flag as cosmos-gap.md 3.3 item 3 says -- the repaint is built by the session, which never
+sees the ingest host.
 
 ## Proving tests (written first)
-- `test/managers/style-painter.test.ts`, new "row paints, one look per mesh key": rowPaint deep-equals nodePaint for
-  every row; four rows of one shape under a color ramp share 1 style and keep 4 colors; a data-driven size gives a
-  style per row; a label is never shared; nodePaint still builds a style per node. 66 passed.
-- `test/browser/node-batch.test.ts` "load a batched graph with no Node...": distinct paint styles across the 12
-  batched rows = 2 (two sizes). With the call site reverted to nodePaint it fails `expected 12 to equal 2`; with
-  the change 57 passed. `nodesBuilt` 0 after load holds.
+- `test/session/styles/repaint.test.ts`, "a uniform mesh-key fill (cosmos-gap G6)": 40 rows, one shape:
+  interner comparisons off = 39, on <= 1 (failed before the code: `expected 39 to be at most 1`); keys, mesh
+  styles and meshCount equal on and off; a data-driven shape keeps 3 meshes and per-row keys; removing the
+  layer moves every row back to key 0.
+- `test/browser/node-batch.test.ts`, scene-object guard: under "batched", 1k and 10k rows, real hover, click and
+  drag (the drag is asserted to move the row), `scene.transformNodes` grows by at most 20, in 3D and 2D. Passes.
+  FINDING: written first with the view switched AFTER the load, it failed `expected 9000 to be at most 20`:
+  `Graph.enterDimension` reads `getNodes()`, which builds a Node for every lean row. A defect of the batched
+  path from stage 26, not of this change; the test enters the view before the load, and the defect is recorded
+  in row-renderer.md 4.6, not fixed here.
 
-## Checks (all through tools/low-priority.sh)
-- render-parity project, full, run 1 (load 4.5): 380 passed, 12 skipped, 2 failed: Gexf 1488 px on batched (fails
-  on master too, known since stage 26) and NodeModels StlTurnedUpright 14919 px on batched.
-  StlTurnedUpright then passed alone with and without the change (NodeModels file: 5 passed both ways), in a
-  `Node|Model` subset (34 passed), and in full run 2 (load 5.8-6.8): 381 passed, 1 failed (Gexf only).
-  Its mechanism is NOT found: it is intermittent in a full run only, and the change does not reach it as far as I
-  can trace (a model row is not drawable by a batch, so it gets a `Node` painted by `nodePaint` exactly as before).
-  Recorded as open, not dismissed.
-- Browser: channel-paints, node-id-target, element-clear-data, edge-ends-cached, limits-option, time-changed-rows,
-  pulled-edges-batched: 614 passed, 1 skipped. Default: UpdateManager, pending-work-inventory: 3 passed.
-- npm run lint (eslint + tsc + strict-consumer typecheck): clean. nx build graphty-element: success.
+## Checks (through tools/low-priority.sh)
+- npm run lint (eslint, tsc, strict-consumer): exit 0. nx build graphty-element: success.
+- Unit: test/session/styles/, mesh-detail, style-painter, style-painter-removed-color: 56 files, 969 passed.
+- Browser: node-batch, channel-paints: 628 passed.
+- render-parity, full (load 11.4 -> 8.7): 383 passed, 12 skipped, 1 failed: Gexf, 1488 px on the batched path,
+  the same failure and count as on master and in pull request 1.
 - node tools/sonar-gate.mjs: no new issue or hotspot on the changed lines.
 
-## Measurement (benchmarks/compare, lean-m-few = 100k nodes + 1k edges, records, batched, RTX 4070 SUPER, GPU lock)
-Interleaved 3 rounds; g6-off is the same tree with the call site reverted (rows marked dirty).
+## Measurement (benchmarks/compare, lean-m-few = 100k nodes + 1k edges, batched, RTX 4070 SUPER, GPU lock)
+| run | load avg before | first frame | JS heap used |
+|-----|-----------------|-------------|--------------|
+| 1   | 4.95            | 1029 ms     | 136 MB       |
+| 2   | 5.83            | 1010 ms     | 136 MB       |
+| 3   | 5.77            | 976 ms      | 136 MB       |
+Target: first frame at most 2.0 s -- met. Pull request 1 measured about 1.4 s on its tree in another session;
+that is not an interleaved A/B, so no gain is claimed for this change from it. rowCounts: batchedNodes 100000,
+objectNodes 0.
 
-| round | load avg | g6-on first frame | g6-off first frame | g6-on JS heap used | g6-off JS heap used |
-|-------|----------|-------------------|--------------------|--------------------|---------------------|
-| 1     | 6.3      | 1623 ms           | 1420 ms            | 137 MB             | 195 MB              |
-| 2     | 5.0/4.2  | 1390 ms           | 1402 ms            | 137 MB             | 195 MB              |
-| 3     | 4.0/3.7  | 1442 ms           | 1433 ms            | 137 MB             | 195 MB              |
+## Not built
+- Writing the color straight from the color column into the batch buffer (one small Rgba per row remains):
+  the target is met without it.
 
-Target: first frame at most 2.0 s -- met on both (about 1.4 s); stage 26 had already met it, and this change does not
-move the first frame. It removes about 58 MB of heap at 100k rows. rowCounts: batchedNodes 100000, objectNodes 0.
-Correction recorded in design/rendering/row-renderer.md section 4.6.
-
-## Not in this pull request (pull request 2 of the stage)
-- `repaint.ts` uniform mesh-key fill under the ingest host's batched flag (with "a data-driven size still interns
-  per row" and the objects mesh-key / retain-release equality tests).
-- The scene-object guard (`scene.transformNodes` at 1k and 10k rows equal within a constant after hover, select, drag).
-- Writing the color straight from the color column into the batch buffer (one small Rgba per row remains).
+## Review fix: an effect switched off never shares a mesh with a transparent color
+The uniform fill compared colors by r, g, b and a only, so an outline written "none" (stored as rgba 0,0,0,0
+with hex "none") and a real transparent black were judged the same and put on one mesh, while the per-row
+path keys them apart. `sameMeshValue` in graphty-element/src/session/styles/repaint.ts now also requires both
+or neither value to be the switched-off color. Test first, in repaint.test.ts ("never shares a mesh between an
+effect switched off and a transparent colour", over "#00000000", "rgba(0,0,0,0)" and "transparent"):
+- before the fix: failed, "expected [0,0,0,0,0,0] to deeply equal [0,0,1,1,0,1]" (fill on vs fill off).
+- after: repaint.test.ts 45/45 passed.
+- Every test file importing styles/repaint (8 files, 140 tests): passed.
+- npm run lint: exit 0. npm run build: exit 0. node tools/sonar-gate.mjs: no new issue on the changed lines.
+The objects path never sets uniformFill, so it is unaffected; no public API change.

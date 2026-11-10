@@ -465,6 +465,8 @@ interface SessionInternals {
     readonly baselineWindow?: boolean;
     /** Settles on the next drawn frame, or at once when no frame is coming; absent with no renderer. */
     readonly renderedFrame?: () => Promise<void>;
+    /** Whether the element draws on the `"batched"` render path, which allows the repaint's uniform mesh-key fill. */
+    readonly batched?: () => boolean;
 }
 
 /**
@@ -3558,6 +3560,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // With the base look in the Everything row, what no shown layer paints is not drawn.
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),
+            ...(internals.batched === undefined ? {} : { uniformFill: internals.batched }),
         }),
         snapshot,
     );

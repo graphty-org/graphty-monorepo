@@ -163,7 +163,13 @@ function* framedBoxes(
             continue;
         }
 
+        // Where the lane puts it now: the table takes this frame's lane only when it is drawn, after
+        // this measure, as a `Node` is placed before it. A row held off the lane is where it was put.
         const local = table.centerOf(row);
+        if (!table.isHeld(row) && !table.laneOf(row, local)) {
+            local.copyFrom(table.centerOf(row));
+        }
+
         const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         if (extent === "centers") {
             yield { min: center, max: center.clone() };

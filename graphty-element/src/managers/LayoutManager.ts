@@ -1386,9 +1386,13 @@ export class LayoutManager implements Manager {
             // Add all existing nodes and edges to the new engine
             const nodeArray = this.nodesWithBodies(engine);
             const edgeArray = [...this.dataManager.edges.values()];
+            // Every body before any edge, as on the object path: an edge reaching ngraph first
+            // makes its ends' bodies in edge order, and a seeded simulation draws another picture.
+            // ponytail: built Nodes go before Node-less rows, not in row order; a load mixing the
+            // two (a labelled row) orders bodies differently from the object path.
             layoutEngineInternals.addNodes(engine, nodeArray);
-            layoutEngineInternals.addEdges(engine, edgeArray);
             this.addColumnRows(engine);
+            layoutEngineInternals.addEdges(engine, edgeArray);
 
             this.engine = engine;
             this.engineDimension = dimension;

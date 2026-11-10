@@ -1577,16 +1577,16 @@ export class DataManager implements Manager {
                 this.buildNode(id, record, index);
             },
             edgeStored: (edge) => {
+                // The rows stored before this edge get their bodies first, as each one's `Node`
+                // would have at store time: an edge reaching the layout first makes its ends'
+                // bodies in edge order, and a seeded simulation then draws another picture.
+                this.layOutArrivedRows();
                 this.buildEdge(edge);
             },
             ceilings: () => this.renderLimits?.ceilings(),
             batched: () => this.renderLimits?.batched() ?? false,
             nodesArrived: (count) => {
-                const rows = this.arrivedRows;
-                this.arrivedRows = [];
-                if (rows.length > 0) {
-                    this.layoutRows?.(rows);
-                }
+                this.layOutArrivedRows();
 
                 // Request layout start and zoom to fit
                 this.shouldStartLayout = true;
@@ -1991,6 +1991,17 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Hand the layout the rows stored with no `Node` since it was last handed any.
+     */
+    private layOutArrivedRows(): void {
+        const rows = this.arrivedRows;
+        this.arrivedRows = [];
+        if (rows.length > 0) {
+            this.layoutRows?.(rows);
+        }
+    }
+
+    /**
      * The record keys of the render objects built from the element's own defaults whose rows no
      * pass has painted since. An import builds each chunk as it reads it, ahead of the pass that
      * paints it; until that pass has painted them and a frame's update has applied the paint, no
@@ -2154,6 +2165,8 @@ export class DataManager implements Manager {
         }
 
         node.applySessionPaint(paint);
+        // and at its place, which a frame's update would otherwise write only at the next frame
+        node.update();
     }
 
     /**

@@ -697,7 +697,24 @@ export class Edge {
             return this.context.is2D() && (row.paint.style.shape?.zIndex ?? 0) < 0;
         }
 
+        // A row stored with no `Node` and not painted yet holds the bootstrap paint, as its `Node`
+        // would, which is never behind edges. Asking its `Node` would build one.
+        if (this.unbuiltEnd(end) !== INVALID_INDEX) {
+            return false;
+        }
+
         return (end === "source" ? this.srcNode : this.dstNode).isDrawnBehindEdges;
+    }
+
+    /**
+     * One end's row when it is stored with no `Node`.
+     * @param end - Which end.
+     * @returns The row, or INVALID_INDEX when a `Node` draws it.
+     */
+    private unbuiltEnd(end: "source" | "target"): number {
+        const manager = this.context.getDataManager();
+        const row = dataManagerInternals.rowOf(manager, end === "source" ? this.srcId : this.dstId);
+        return dataManagerInternals.unbuiltAt(manager, row) === undefined ? INVALID_INDEX : row;
     }
 
     /**
@@ -706,7 +723,8 @@ export class Edge {
      * @returns The row.
      */
     private endRow(end: "source" | "target"): number {
-        return this.columnEnd(end)?.index ?? (end === "source" ? this.srcNode : this.dstNode).index;
+        const row = this.columnEnd(end)?.index ?? this.unbuiltEnd(end);
+        return row === INVALID_INDEX ? (end === "source" ? this.srcNode : this.dstNode).index : row;
     }
 
     /**

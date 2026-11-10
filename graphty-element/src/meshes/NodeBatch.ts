@@ -4,6 +4,7 @@ import { type AbstractMesh, Mesh, type RawTexture, type TransformNode, VertexBuf
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { Rgba } from "../catalog/types";
+import { drawnText } from "../config/RichTextStyle";
 import { batchableOf, type BatchView, type NodePaint } from "../managers/StylePainter";
 import type { Node } from "../Node";
 import type { RowMeasure } from "../render/RowTable";
@@ -447,15 +448,21 @@ export class ColumnRow implements RowMeasure {
     ) {}
 
     /**
-     * Whether a paint can be drawn with no `Node`: a batch draws it, and it names no model or
-     * picture, which a `Node` loads. A group region or a shader path is the caller's to rule out.
+     * Whether a paint can be drawn with no `Node`: a batch draws it, and it names no model,
+     * picture or drawn label, which a `Node` loads. A group region or a shader path is the caller's to rule out.
      * @param paint - The paint.
      * @param view - The scene state it is drawn in.
      * @returns True when it can.
      */
     static drawable(paint: NodePaint, view: BatchView): boolean {
-        const { shape, texture } = paint.style;
-        return shape?.model === undefined && (texture?.image ?? "") === "" && batchableOf(paint, view);
+        const { shape, texture, label } = paint.style;
+        // A label hangs from a `Node` (`Node.labelTarget`): a row with no `Node` would draw none.
+        return (
+            shape?.model === undefined &&
+            (texture?.image ?? "") === "" &&
+            drawnText(label) === undefined &&
+            batchableOf(paint, view)
+        );
     }
 
     /**

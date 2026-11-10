@@ -759,8 +759,10 @@ export class NGraphEngine extends LayoutEngine {
         const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, { parentNode: n });
         this.nodeMapping.set(n, ngraphNode);
         this.clustersStale = true;
-        // A row's `Node` built late takes over the row's body, where it already is.
-        if (!this.rowNodes.delete(n.id)) {
+        // A row's `Node` built late takes over the row's body, where it already is: the
+        // simulation is unchanged, so a settled one stays settled.
+        const tookOver = this.rowNodes.delete(n.id);
+        if (!tookOver) {
             this.place(n.id);
         }
 
@@ -770,9 +772,11 @@ export class NGraphEngine extends LayoutEngine {
             this.weigh(n.index, n.id);
         }
 
-        this._settled = false;
-        this._stepCount = 0;
-        this._lastMoves = [];
+        if (!tookOver) {
+            this._settled = false;
+            this._stepCount = 0;
+            this._lastMoves = [];
+        }
     }
 
     /**

@@ -280,6 +280,20 @@ describe("union, intersection and difference of two graphs (compare)", () => {
         session.dispose();
     });
 
+    it("counts as the compared graph's only the nodes it holds, not the ones it marks only-onto", async () => {
+        const session = await graphOf("tumor.csv", TUMOR);
+        const draft = await table(session, "normal.csv", NORMAL);
+        await draft.load({ join: { keys, shape: "merge", compare: true } });
+        const joined = session.data.sources().at(-1);
+        assert.strictEqual(joined?.counts.nodes, 3, "G2, G3 and G4: the three nodes normal.csv holds");
+        assert.deepEqual(session.data.sourcesOf("G1"), [session.data.sources()[0].key]);
+        assert.strictEqual(session.data.node("G1")?.membership, "only-onto");
+        await session.data.removeSource(joined?.key ?? "");
+        assert.isUndefined(session.data.node("G1")?.membership, "removing the join takes the mark back");
+        assert.isOk(session.data.node("G1"), "and keeps the node");
+        session.dispose();
+    });
+
     it("names the column membership by default", async () => {
         const session = await graphOf("tumor.csv", TUMOR);
         const draft = await table(session, "normal.csv", NORMAL);

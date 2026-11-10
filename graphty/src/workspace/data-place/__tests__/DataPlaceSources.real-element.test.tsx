@@ -201,4 +201,44 @@ describe("the Sources tab with two loads", () => {
         const other = await sectionOf(cf);
         assert.isNull(within(other).queryByRole("list", { name: "Filters" }));
     });
+    it("lists a location column only under the load whose rows carry it", async () => {
+        await page.viewport(1440, 1000);
+        const store = createWorkspaceStore({ project: { name: "Places", id: 1 }, place: "data" });
+        render(<Workspace store={store} registrations={REGISTRATIONS} />);
+        const session = await waitFor(() => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            return found;
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.import({
+            type: "csv",
+            name: "accounts.csv",
+            config: { data: "id,country\na,France\nb,Germany\nc,Spain\n" },
+        });
+        await session.data.import(
+            { type: "csv", name: "watchlist.csv", config: { data: "id,risk\nd,high\ne,low\n" } },
+            { mode: "merge" },
+        );
+        const [accounts, watchlist] = await waitFor(() => {
+            const loads = session.data.sources();
+            assert.lengthOf(loads, 2);
+            return loads;
+        });
+        await waitFor(() => {
+            assert.strictEqual(session.layout.locationColumns().kinds.country, "country");
+        });
+        const own = await sectionOf(accounts);
+        await opened(own);
+        await within(own).findByRole("combobox", { name: "Node country column" });
+        const other = await sectionOf(watchlist);
+        await opened(other);
+        await within(other).findByText("Nodes", { exact: true });
+        assert.isNull(
+            within(other).queryByRole("combobox", { name: "Node country column" }),
+            "watchlist.csv has no country column",
+        );
+    });
 });

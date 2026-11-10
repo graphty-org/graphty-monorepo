@@ -102,6 +102,7 @@ import {
     type RunOptions,
     type RunPainting,
     type RunPhase,
+    type RunReader,
     type RunRemoval,
     type RunsApi,
     type RunScopeFacts,
@@ -190,6 +191,12 @@ interface RunLayerBindings {
      * @param layerIds - The layers to remove.
      */
     remove?(layerIds: readonly LayerId[]): void;
+    /**
+     * The selections that read a run's values in a step.
+     * @param runId - The run.
+     * @returns The readers.
+     */
+    readers?(runId: RunId): readonly RunReader[];
 }
 
 /** Everything the runs API is built from. */
@@ -327,6 +334,12 @@ export interface SessionRunsApi extends RunsApi {
      */
     isDerivedId(id: RunId): boolean;
     /**
+     * Mark a run a project open brought back under its saved id as one whose id the element
+     * minted, as it was when saved.
+     * @param id - The run id.
+     */
+    restoreDerived(id: RunId): void;
+    /**
      * Start one algorithm through a dispatch of the caller's: a transaction's, so the run joins
      * its step, or the one a command hands its deferred members.
      * @param dispatch - Where the run's command is dispatched.
@@ -347,6 +360,29 @@ export interface SessionRunsApi extends RunsApi {
      * @returns The captures; empty for a run this session does not hold.
      */
     heldOf(id: RunId): HeldCaptures;
+    /**
+     * Start one algorithm as `start()` does, except that a listed run of other settings is never
+     * re-run in place: a run of these settings is reused, or a new one is started under the next
+     * free id (`louvain_2`). What a selection step reads, so changing a step's settings never
+     * changes a run the reader made or another step reads.
+     * @param algorithm - Which algorithm to run.
+     * @param params - Its parameters.
+     * @param options - The scope, the seed and the rest; `as` is not read.
+     * @returns The run.
+     */
+    startOwn(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
+    /**
+     * The finished run `startOwn()` would hand back without computing, or undefined.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - As `startOwn()` takes them.
+     * @returns The run, or undefined.
+     */
+    answeredOwn(
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options?: StartOptions,
+    ): Run | undefined;
     /** Cancel everything still running and forget every run this session held. */
     dispose(): void;
 }
@@ -923,6 +959,18 @@ class Runs implements SessionRunsApi {
         return this.startRun(via, algorithm, params, options, undefined);
     }
 
+    startOwn(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options: StartOptions = {}): Run {
+        return this.startRun(this.dispatch, algorithm, params, options, undefined, true);
+    }
+
+    answeredOwn(
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options: StartOptions = {},
+    ): Run | undefined {
+        return this.answer(algorithm, params, options, true);
+    }
+
     /**
      * Start several algorithms as one piece of work, with one progress stream and one cancel.
      *
@@ -1003,7 +1051,24 @@ class Runs implements SessionRunsApi {
         params?: Readonly<Record<string, unknown>>,
         options: StartOptions = {},
     ): Run | undefined {
-        const { identity, result, id } = this.resolve(algorithm, params, options);
+        return this.answer(algorithm, params, options, false);
+    }
+
+    /**
+     * The finished run a start would hand back without computing, or undefined.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - As `start()` takes them.
+     * @param own - Whether it is a `startOwn()`.
+     * @returns The run, or undefined.
+     */
+    private answer(
+        algorithm: AlgorithmKey,
+        params: Readonly<Record<string, unknown>> | undefined,
+        options: StartOptions,
+        own: boolean,
+    ): Run | undefined {
+        const { identity, result, id } = this.resolve(algorithm, params, options, own);
         const existing = this.runs.get(id);
 
         if (
@@ -1122,6 +1187,24 @@ class Runs implements SessionRunsApi {
         return this.derivedIds.has(id);
     }
 
+    /**
+     * Mark a run a project open brought back under its saved id as one the element minted, as it
+     * was when saved (#6227). Without this a later unnamed start of the same question -- Analyze
+     * again, or a filter step reading the result -- found no minted run answering it and minted a
+     * second id beside the restored one.
+     * @param id - The run id.
+     */
+    restoreDerived(id: RunId): void {
+        const run = this.runs.get(id);
+
+        if (run === undefined) {
+            return;
+        }
+
+        this.derivedIds.add(id);
+        this.names.set(id, suggestRunName(this.descriptorFor(run.algorithm), run.params));
+    }
+
     heldOf(id: RunId): HeldCaptures {
         return this.runs.get(id)?.held ?? NO_HELD;
     }
@@ -1179,6 +1262,7 @@ class Runs implements SessionRunsApi {
      * @param params - Its parameters.
      * @param options - The scope, the seed, the id and the rest.
      * @param hold - The batch whose painting holds this run's.
+     * @param own - Whether a listed run of other settings is left alone (`startOwn()`).
      * @returns The run.
      */
     private startRun(
@@ -1187,6 +1271,7 @@ class Runs implements SessionRunsApi {
         params: Readonly<Record<string, unknown>> | undefined,
         options: StartOptions,
         hold: PaintHold | undefined,
+        own = false,
     ): Run {
         this.refuseWhenDisposed();
 
@@ -1215,9 +1300,13 @@ class Runs implements SessionRunsApi {
             algorithm,
             params,
             options,
+            own,
         );
         // The scope as admitted: session edge ids made stable, so a re-run reads the same edges.
-        const command = runCommand(algorithm, params, options, options.scope === undefined ? undefined : spec);
+        const asked = runCommand(algorithm, params, options, options.scope === undefined ? undefined : spec);
+        // A run of its own under a counted id: its command names that id, or carrying it out would
+        // derive the shared id again and re-run that run in place.
+        const command = own ? this.pinnedTo(id, asked) : asked;
         const launch: Launch = { via, command, beside: options.queue === "now" };
         const existing = this.runs.get(id);
 
@@ -1281,12 +1370,14 @@ class Runs implements SessionRunsApi {
      * @param algorithm - Which algorithm to run.
      * @param params - Its parameters.
      * @param options - The scope, the seed, the id and the rest.
+     * @param own - Whether a minted id skips runs of other settings (`startOwn()`).
      * @returns The run's descriptor, identity, scope and id.
      */
     private resolve(
         algorithm: AlgorithmKey,
         params: Readonly<Record<string, unknown>> | undefined,
         options: StartOptions,
+        own = false,
     ): ResolvedRun {
         const descriptor = this.descriptorFor(algorithm);
         this.checkParams(descriptor, params);
@@ -1312,7 +1403,7 @@ class Runs implements SessionRunsApi {
         const canonical = canonicalResultIdentity(result);
         const spelled = canonicalResultIdentity({ ...result, scope: freezeScope(spec, () => null) });
 
-        if (options.as !== undefined) {
+        if (options.as !== undefined && !own) {
             return {
                 descriptor,
                 identity,
@@ -1332,7 +1423,7 @@ class Runs implements SessionRunsApi {
             result: canonical,
             spelled,
             spec,
-            id: this.mintId(name, canonical),
+            id: this.mintId(name, canonical, own ? identity : undefined),
             derived: true,
             name,
         };
@@ -1343,11 +1434,16 @@ class Runs implements SessionRunsApi {
      * else the name itself, counting up from `_2` past every id something else holds.
      * @param name - The name the algorithm suggested.
      * @param result - The canonical identity of the result.
+     * @param settings - For `startOwn()`: only a run of these params and seed is the one.
      * @returns The id.
      */
-    private mintId(name: SuggestedName, result: string): RunId {
+    private mintId(name: SuggestedName, result: string, settings?: RunIdentity): RunId {
         for (const id of this.derivedIds) {
-            if (this.identities.get(id) === result && this.names.get(id)?.id === name.id) {
+            if (
+                this.identities.get(id) === result &&
+                this.names.get(id)?.id === name.id &&
+                (settings === undefined || this.sameSettings(id, settings))
+            ) {
                 return id;
             }
         }
@@ -1359,6 +1455,21 @@ class Runs implements SessionRunsApi {
                 return id;
             }
         }
+    }
+
+    /**
+     * Whether the run under an id was started with these params and seed.
+     * @param id - The run id.
+     * @param settings - The params and seed.
+     * @returns True when they match.
+     */
+    private sameSettings(id: RunId, settings: RunIdentity): boolean {
+        const run = this.runs.get(id);
+        return (
+            run !== undefined &&
+            canonicalize(run.params) === canonicalize(settings.params) &&
+            run.seed === settings.seed
+        );
     }
 
     /**
@@ -2385,8 +2496,21 @@ class Runs implements SessionRunsApi {
      */
     private removalOf(id: RunId): RunRemoval {
         const layerIds = Object.freeze([...(this.options.layers?.bindings(id) ?? [])]);
+        const gone = new Set<string>(layerIds);
+        const selections = Object.freeze(
+            this.readers(id).filter((reader) => reader.kind !== "layer" || !gone.has(reader.id)),
+        );
 
-        return Object.freeze({ removedLayers: layerIds.length, layerIds });
+        return Object.freeze({ removedLayers: layerIds.length, layerIds, selections });
+    }
+
+    /**
+     * The selections that read a run's values in a step.
+     * @param id - The run id.
+     * @returns The readers.
+     */
+    readers(id: RunId): readonly RunReader[] {
+        return Object.freeze([...(this.options.layers?.readers?.(id) ?? [])]);
     }
 
     // -- the queue ----------------------------------------------------------------------------

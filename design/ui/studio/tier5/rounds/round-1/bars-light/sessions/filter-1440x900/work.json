@@ -1,0 +1,47 @@
+{
+ "start": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "pagerank_1 PageRank",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "volunteers.graphml"
+  ]
+ },
+ "end": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "pagerank_1 PageRank",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [
+   "filter-1 on {\"kind\":\"union\",\"side\":\"nodes\",\"within\":\"graph\",\"branches\":[{\"id\":\"bmw0n9nd51\",\"start\":\"all\",\"steps\":[{\"id\":\"smw0n9ohj2\",\"op\":\"except\",\"rule\":{\"kind\":\"categories\",\"attribute\":\"data.role\",\"values\":[\"staff\"]}}],\"color\":\"#009E73\",\"name\":\"A\"},{\"id\":\"bmw0n9r4a3\",\"start\":\"none\",\"steps\":[{\"id\":\"smw0n9sk64\",\"op\":\"add\",\"rule\":{\"kind\":\"hops\",\"max\":2,\"of\":{\"nodes\":[\"v02\"]}}}],\"name\":\"B\",\"color\":\"#D55E00\"}]}"
+  ],
+  "sources": [
+   "volunteers.graphml"
+  ]
+ },
+ "gone": {}
+}

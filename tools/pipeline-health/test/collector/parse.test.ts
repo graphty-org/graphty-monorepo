@@ -6,6 +6,7 @@ import rates from "../../config/rates.json" with { type: "json" };
 import {
     canaryAttempts,
     classifyCancel,
+    coverageAsOf,
     failedInRow,
     family,
     fixedCosts,
@@ -394,6 +395,7 @@ describe("pull requests and issues", () => {
                                         __typename: "CheckRun",
                                         name,
                                         conclusion: "FAILURE",
+                                        signatures: ["graphty/test/a.test.ts > opens"],
                                     })),
                                 },
                             },
@@ -438,6 +440,7 @@ describe("release lanes", () => {
         );
         expect(a.tested).toBe(false);
         expect(a.lanes.ci).toBe("skipped");
+        expect(a.coverage).not.toBe("passed");
         expect(a.red).toEqual([]);
     });
 
@@ -479,6 +482,31 @@ describe("release lanes", () => {
         const skippedEarly = [j("CI / Build", "cancelled"), j("Red early (CI)", "skipped")];
         expect(releaseAttempt({ ...run, conclusion: "cancelled" }, skippedEarly).lanes.ci).toBe("failed");
         expect(releaseAttempt(run, skippedEarly).lanes.ci).toBe("failed");
+    });
+
+    it("judges coverage against the last full run that reached its Coverage job (#6119)", () => {
+        const h = 3600_000;
+        const built = Date.parse("2026-11-06T00:44:00Z");
+        const run = (created: number, at: number, coverage?: string) => ({ created, at, coverage });
+        // Red full runs skip Coverage: nothing newer to publish, so the source is current as of the newest of them.
+        expect(
+            coverageAsOf(built, [
+                run(built + 20 * h, built + 22 * h, "skipped"),
+                run(built + h, built + 2 * h, "skipped"),
+            ]),
+        ).toBe(built + 22 * h);
+        // The build came from the run that reached Coverage: current as of that run's end.
+        expect(coverageAsOf(built, [run(built - h, built + h, "passed")])).toBe(built + h);
+        // A run that reached Coverage after the build but published nothing leaves the build's own time.
+        expect(
+            coverageAsOf(built, [
+                run(built + 20 * h, built + 22 * h, "skipped"),
+                run(built + h, built + 2 * h, "failed"),
+            ]),
+        ).toBe(built);
+        // Attempts read before the Coverage result was kept count as reaching it.
+        expect(coverageAsOf(built, [run(built + h, built + 2 * h)])).toBe(built);
+        expect(coverageAsOf(built, [])).toBe(built);
     });
 
     it("ages untested master by its first-parent line, not a branch's own merge of master", () => {

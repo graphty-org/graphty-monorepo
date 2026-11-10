@@ -31,7 +31,6 @@ export {
     type RuleTree,
     runPass,
     runPassInSlices,
-    type TimeInstants,
     type TimePlayback,
     type TimeResultsPolicy,
     type TimeStep,
@@ -49,4 +48,5 @@ export {
     type VisibilityChange,
     type VisibilitySources,
     type VisibilitySummary,
+    type WindowWalk,
 } from "./VisibilityApi";

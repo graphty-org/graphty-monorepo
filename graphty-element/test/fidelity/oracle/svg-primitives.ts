@@ -15,6 +15,8 @@ import {
     dashAsDrawn,
     dashClassOf,
     dented,
+    type FramedBand,
+    framedBand,
     isLettering,
     outlinePaintedAsFill,
     PAINTED_OUTLINE,
@@ -25,13 +27,22 @@ import {
     type PStroke,
     type Pt,
     type PText,
+    rampAngleOnScreen,
     solidOuter,
+    spacedAlong,
+    spreadStops,
 } from "./primitives";
 
 const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "polygon", "path"]);
 const CLOSED = new Set(["rect", "circle", "ellipse", "polygon"]);
 /** Points an outline is sampled to, by arc length. */
 const SAMPLES = 48;
+/**
+ * The widest, in the drawing's own units, a band yEd draws round a framed edge is read to be: its line's width. A thin
+ * node or label box (yEd's 17 high labels and 30 high nodes, graphml-synthetic-nodes, the yEd specimen sheets) is a
+ * closed outline as long and straight as a band, told apart only by how wide it is.
+ */
+const FRAMED_WIDEST = 10;
 /** Points a curved figure's outline is sampled to (`Prim.fine`): a few to a pixel round a node. */
 const FIGURE_SAMPLES = 512;
 /** Points an open path (an edge's line) is sampled to, by arc length: enough for a route's wave or bend. */
@@ -97,7 +108,8 @@ export function straightPathVertices(d: string): Pt[] | null {
     const num = (): number => Number(tokens[i++]);
     while (i < tokens.length) {
         const t = tokens[i];
-        if (/[A-Za-z]/.test(t)) {
+        // a command is one letter: a number's exponent (`3.55e-15`, yEd Live's arrow tip) is no command
+        if (/^[A-Za-z]$/.test(t)) {
             cmd = t;
             i++;
             if (cmd === "Z" || cmd === "z") {
@@ -147,6 +159,49 @@ export function straightPathVertices(d: string): Pt[] | null {
 }
 
 /**
+ * The corners of an open path drawn as cubics that are each a straight segment, its two control points on the chord
+ * between its ends (Graphviz's `splines=polyline` and `splines=ortho` lines: `M p0 C p0' p1 p1 ...`), in its user
+ * space, or null when it has any other command or a cubic that bends. Sampled by arc length such a line loses its
+ * corners: a short leg's two corners fall between samples and the leg is read as a slant (dot-synth-edges-clusters
+ * c2_3->c9_4, whose label beside a 10 pt leg was read as off the line before it).
+ * @param d - the path data
+ * @returns the corners, the start first
+ */
+export function straightCubicVertices(d: string): Pt[] | null {
+    const m = /^\s*M\s*([^MmCc]+)C([^A-BD-Za-z]+)$/.exec(d);
+    if (m === null) {
+        return null;
+    }
+    const num = (s: string): number[] => (s.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? []).map(Number);
+    const start = num(m[1]);
+    const rest = num(m[2]);
+    if (start.length !== 2 || rest.length === 0 || rest.length % 6 !== 0) {
+        return null;
+    }
+    const out: Pt[] = [[start[0], start[1]]];
+    for (let i = 0; i < rest.length; i += 6) {
+        const a = out[out.length - 1];
+        const b: Pt = [rest[i + 4], rest[i + 5]];
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const L = Math.hypot(dx, dy);
+        for (const c of [
+            [rest[i], rest[i + 1]],
+            [rest[i + 2], rest[i + 3]],
+        ]) {
+            const [cx, cy] = [c[0] - a[0], c[1] - a[1]];
+            // off the chord, or before or past its ends, is a bend; a zero chord is straight only with both controls on it
+            const off = L < 1e-9 ? Math.hypot(cx, cy) : Math.abs(dx * cy - dy * cx) / L;
+            const t = L < 1e-9 ? 0 : (cx * dx + cy * dy) / (L * L);
+            if (off > 1e-2 || t < -1e-3 || t > 1 + 1e-3) {
+                return null;
+            }
+        }
+        out.push(b);
+    }
+    return out;
+}
+
+/**
  * A gradient attribute as a number: a percentage as a fraction, a length in user units.
  * @param el - the gradient element
  * @param name - the attribute
@@ -167,12 +222,16 @@ function gradientAttr(el: Element, name: string, fallback: number): number {
 
 /**
  * The gradient a `url(#id)` paint names, with its stops resolved and, for a linear one, the screen direction it runs
- * in: its vector (x1, y1) to (x2, y2) through its gradientTransform, its element's box (objectBoundingBox units, the
- * default) and the element's matrix to the root's pixels.
+ * in, through its gradientTransform, its element's box (objectBoundingBox units, the default) and the element's matrix
+ * to the root's pixels. A fill's is the direction its color changes along across the area it paints
+ * (`rampAngleOnScreen`: yEd Live's corner-to-corner ramp on a 220 x 94 box changes color along 66.9 degrees, not along
+ * its 23.1-degree vector); a stroke's is its vector (x1, y1) to (x2, y2) on screen, which an edge's is judged against
+ * its line's chord by.
  * @param paint - the computed fill or stroke
  * @param doc - the root
  * @param el - the painted element, or null when its direction is not wanted
  * @param m - the element's matrix to the root's pixels
+ * @param across - read the direction its color changes along (a fill), not its vector (a stroke)
  * @returns the gradient, or null for a flat paint
  */
 function gradientOf(
@@ -180,6 +239,7 @@ function gradientOf(
     doc: Element,
     el: SVGGraphicsElement | null = null,
     m: DOMMatrix | null = null,
+    across = false,
 ): PGradient | null {
     const id = /url\(["']?#([^"')]+)["']?\)/.exec(paint)?.[1];
     if (id === undefined) {
@@ -199,7 +259,7 @@ function gradientOf(
         }
         source = next;
     }
-    const stops = [...source.querySelectorAll("stop")].map((s) => {
+    let stops = [...source.querySelectorAll("stop")].map((s) => {
         const cs = getComputedStyle(s);
         const c = parseCssColor(cs.stopColor) ?? { hex: "#000000", alpha: 0 };
         const off = s.getAttribute("offset") ?? "0";
@@ -214,18 +274,53 @@ function gradientOf(
         const transform =
             (g as SVGLinearGradientElement).gradientTransform.baseVal.consolidate()?.matrix ?? new DOMMatrix();
         const b = el.getBBox();
-        const toUser = (u: number, v: number): Pt => {
-            const t = new DOMPoint(u, v).matrixTransform(transform);
-            return userSpace ? [t.x, t.y] : [b.x + t.x * b.width, b.y + t.y * b.height];
-        };
-        const [x1, y1] = toUser(gradientAttr(g, "x1", 0), gradientAttr(g, "y1", 0));
-        const [x2, y2] = toUser(gradientAttr(g, "x2", userSpace ? 0 : 1), gradientAttr(g, "y2", 0));
-        const a = at(m, x1, y1);
-        const z = at(m, x2, y2);
-        angle =
-            Math.hypot(z[0] - a[0], z[1] - a[1]) > 1e-9
-                ? r3((Math.atan2(z[1] - a[1], z[0] - a[0]) * 180) / Math.PI)
-                : null;
+        const [u1, v1] = [gradientAttr(g, "x1", 0), gradientAttr(g, "y1", 0)];
+        const [u2, v2] = [gradientAttr(g, "x2", userSpace ? 0 : 1), gradientAttr(g, "y2", 0)];
+        if (across) {
+            // the gradient's units to the root's pixels: its transform, its element's box, the element's matrix
+            const box = userSpace ? new DOMMatrix() : new DOMMatrix([b.width, 0, 0, b.height, b.x, b.y]);
+            const t = m.multiply(box).multiply(transform);
+            const deg = rampAngleOnScreen([u2 - u1, v2 - v1], [t.a, t.b, t.c, t.d]);
+            angle = deg === null ? null : r3(deg);
+            // a reflected or repeated ramp is judged by the colors it paints across its element's box, from where the
+            // box starts along the ramp to where it ends (t over the box's corners in the gradient's own units)
+            // ponytail: spreadMethod is read off this gradient only, not inherited through href
+            const spread = g.getAttribute("spreadMethod") ?? "pad";
+            const [du, dv] = [u2 - u1, v2 - v1];
+            const len2 = du * du + dv * dv;
+            if (spread !== "pad" && len2 > 1e-12) {
+                const inv = transform.inverse();
+                const corners: Pt[] = userSpace
+                    ? [
+                          [b.x, b.y],
+                          [b.x + b.width, b.y],
+                          [b.x, b.y + b.height],
+                          [b.x + b.width, b.y + b.height],
+                      ]
+                    : [
+                          [0, 0],
+                          [1, 0],
+                          [0, 1],
+                          [1, 1],
+                      ];
+                const ts = corners.map(([x, y]) => {
+                    const p = new DOMPoint(x, y).matrixTransform(inv);
+                    return ((p.x - u1) * du + (p.y - v1) * dv) / len2;
+                });
+                stops = spreadStops(stops, spread, Math.min(...ts), Math.max(...ts));
+            }
+        } else {
+            const toUser = (u: number, v: number): Pt => {
+                const t = new DOMPoint(u, v).matrixTransform(transform);
+                return userSpace ? [t.x, t.y] : [b.x + t.x * b.width, b.y + t.y * b.height];
+            };
+            const a = at(m, ...toUser(u1, v1));
+            const z = at(m, ...toUser(u2, v2));
+            angle =
+                Math.hypot(z[0] - a[0], z[1] - a[1]) > 1e-9
+                    ? r3((Math.atan2(z[1] - a[1], z[0] - a[0]) * 180) / Math.PI)
+                    : null;
+        }
     }
     return { kind, stops, angle };
 }
@@ -241,7 +336,7 @@ function fillOf(
     if (cs.fill === "none" || el.localName === "line") {
         return null;
     }
-    const gradient = gradientOf(cs.fill, doc, el, m);
+    const gradient = gradientOf(cs.fill, doc, el, m, true);
     const flat = parseCssColor(cs.fill);
     const first = gradient?.stops[0];
     const color = flat?.hex ?? first?.color;
@@ -565,6 +660,19 @@ const at = (m: DOMMatrix, x: number, y: number): Pt => {
     return [r3(p.x), r3(p.y)];
 };
 
+/**
+ * The box an embedded `<svg>` draws in, in its own user space (through its viewBox): the viewBox when it has one, else
+ * its width and height from its origin.
+ * @param svg - the embedded SVG
+ * @returns the box
+ */
+function viewportOf(svg: SVGSVGElement): DOMRect {
+    const view = svg.viewBox.baseVal as SVGRect | null;
+    return view !== null && view.width > 0 && view.height > 0
+        ? new DOMRect(view.x, view.y, view.width, view.height)
+        : new DOMRect(0, 0, svg.width.baseVal.value, svg.height.baseVal.value);
+}
+
 function boxThrough(m: DOMMatrix, b: DOMRect): PBox {
     return boxOfPoints([
         at(m, b.x, b.y),
@@ -649,6 +757,180 @@ function clippedBand(el: Element, root: SVGSVGElement): "inside" | "outside" | n
     // the outline's own path data ends the clip's; svgcanvas writes its first move as a line from the box's last point
     const tail = own.replace(/^[Mm]\s*/, "");
     return evenodd && d.length > tail.length && d.endsWith(tail) ? "outside" : null;
+}
+
+/**
+ * The box a filled shape's own clip keeps of it, where the clip is a box on the screen that cuts the shape: yEd paints
+ * an entity relationship node twice, each time whole, and clips one to its header and the other to the rest. Any other
+ * clip, a box the shape lies inside or one it lies outside, is null: the shape is read whole.
+ * @param el - the shape
+ * @param root - the SVG
+ * @param m - the shape's matrix, which the clip's user space shares
+ * @param shape - the shape's box
+ * @returns the box kept, or null
+ */
+function clipCut(el: Element, root: SVGSVGElement, m: DOMMatrix, shape: PBox): PBox | null {
+    const ref = /url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(el.getAttribute("clip-path") ?? "");
+    const clip = ref === null ? null : root.querySelector(`clipPath[id="${ref[1]}"] > path:only-child`);
+    const corners = straightPathVertices(clip?.getAttribute("d") ?? "")?.map(([x, y]) => at(m, x, y));
+    const box = corners === undefined || corners.length < 4 ? null : boxOfPoints(corners);
+    if (box === null || !corners?.every(([x, y]) => (x === box.x0 || x === box.x1) && (y === box.y0 || y === box.y1))) {
+        return null;
+    }
+    const kept = {
+        x0: Math.max(box.x0, shape.x0),
+        y0: Math.max(box.y0, shape.y0),
+        x1: Math.min(box.x1, shape.x1),
+        y1: Math.min(box.y1, shape.y1),
+    };
+    const cuts = kept.x0 > shape.x0 || kept.y0 > shape.y0 || kept.x1 < shape.x1 || kept.y1 < shape.y1;
+    return cuts && kept.x0 < kept.x1 && kept.y0 < kept.y1 ? kept : null;
+}
+
+/**
+ * The part of a picture that draws anything: the box round its pixels that are not wholly transparent, in the image
+ * element's own units. A picture's PNG is often larger than what it paints: yEd draws a node's soft shadow in a PNG as
+ * wide as the node and its labels, so a 35 by 55 artifact's shadow in `graphml-galaxy-lcms-workflow` is a 113 by 76
+ * PNG whose pixels are transparent outside columns 6 to 48 and rows 6 to 69, and in `yed-graphml-specimen-node-shapes-p3`
+ * a 36 by 36 event's shadow is a 77 by 57 PNG; the reader sees the shadow, not the PNG's edges. Read only where the
+ * pixels are stretched over the element's box (`preserveAspectRatio="none"`, or a box of the PNG's own proportions).
+ * @param pixels - the decoded picture
+ * @param b - the image element's box in its own units
+ * @param stretched - whether it stretches the pixels over its box whatever their proportions
+ * @returns the part that draws, or null where that cannot be read or is the whole picture
+ */
+export function inkedPart(pixels: Pixels, b: Rect, stretched: boolean): Rect | null {
+    const { width: w, height: h, data } = pixels;
+    if (
+        w === 0 ||
+        h === 0 ||
+        b.width <= 0 ||
+        b.height <= 0 ||
+        (!stretched && Math.abs(w / h - b.width / b.height) > 1e-3)
+    ) {
+        return null;
+    }
+    let [x0, y0, x1, y1] = [w, h, 0, 0];
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            if (data[4 * (y * w + x) + 3] > 0) {
+                [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x + 1), Math.max(y1, y + 1)];
+            }
+        }
+    }
+    if (x1 <= x0 || (x0 === 0 && y0 === 0 && x1 === w && y1 === h)) {
+        return null;
+    }
+    const [sx, sy] = [b.width / w, b.height / h];
+    return { x: b.x + x0 * sx, y: b.y + y0 * sy, width: (x1 - x0) * sx, height: (y1 - y0) * sy };
+}
+
+/** A box as an image element gives it: its corner and its size. */
+interface Rect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+/**
+ * The pictures, with each picture a program draws in pieces read as one: consecutive images whose whole boxes meet edge
+ * to edge, in any order, no piece over another. yEd paints a node's soft shadow as nine-slice PNGs, eight images of one shadow
+ * whose boxes meet exactly (`yed-graphml-specimen-node-shapes-p2`, `BevelNode3`: 783 to 815, 815 to 839 and 839 to 871
+ * across, 769.444 to 801.444, 801.444 to 805.444 and 805.444 to 837.444 down), and yEd Live a group's shadow the same
+ * way (`yfiles-dropshadow-image`, `yed-live-graphml-specimen-groups-p3`). Each piece read as a picture of its own is a
+ * shadow's corner or side no reader sees apart from the rest.
+ * @param prims - the primitives, in drawing order
+ * @param wholes - each picture's whole box, by its index
+ * @returns the primitives, each picture drawn in pieces one picture over the boxes its pieces draw
+ */
+export function joinedPictures(prims: readonly Prim[], wholes: ReadonlyMap<number, PBox>): Prim[] {
+    const eps = 0.01;
+    const meet = (a: PBox, b: PBox): boolean => {
+        const across = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > eps;
+        const down = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > eps;
+        return (
+            (across && (Math.abs(a.x1 - b.x0) < eps || Math.abs(b.x1 - a.x0) < eps)) ||
+            (down && (Math.abs(a.y1 - b.y0) < eps || Math.abs(b.y1 - a.y0) < eps))
+        );
+    };
+    const over = (a: PBox, b: PBox): boolean =>
+        Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > eps && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > eps;
+    const wholeOf = (p: Prim): PBox => wholes.get(p.index) ?? p.box;
+    // runs of consecutive pictures, each split into the pieces that meet edge to edge in whatever order they are drawn
+    const runs: Prim[][] = [];
+    for (const p of prims) {
+        const last = runs.at(-1);
+        if (p.kind === "image" && wholes.has(p.index) && last?.[0].kind === "image" && wholes.has(last[0].index)) {
+            last.push(p);
+        } else {
+            runs.push([p]);
+        }
+    }
+    const out: Prim[] = [];
+    for (const run of runs) {
+        const groups: Prim[][] = [];
+        for (const p of run) {
+            const touching = groups.filter((g) => g.some((q) => meet(wholeOf(q), wholeOf(p))));
+            const merged = [...touching.flat(), p];
+            const lapped = merged.some((a, i) => merged.slice(i + 1).some((b) => over(wholeOf(a), wholeOf(b))));
+            if (touching.length === 0 || lapped) {
+                groups.push([p]);
+                continue;
+            }
+            for (const g of touching) {
+                groups.splice(groups.indexOf(g), 1);
+            }
+            groups.push(merged.sort((a, b) => a.index - b.index));
+        }
+        for (const g of groups.sort((a, b) => a[0].index - b[0].index)) {
+            out.push(g.length === 1 ? g[0] : joined(g));
+        }
+    }
+    return out;
+}
+
+/**
+ * One picture over the boxes its pieces draw, read otherwise as its first piece; one picture of several PNGs is no one
+ * PNG's gradient.
+ * @param pieces - the pieces, the first drawn first
+ * @returns the picture
+ */
+function joined(pieces: readonly Prim[]): Prim {
+    const box = {
+        x0: Math.min(...pieces.map((p) => p.box.x0)),
+        y0: Math.min(...pieces.map((p) => p.box.y0)),
+        x1: Math.max(...pieces.map((p) => p.box.x1)),
+        y1: Math.max(...pieces.map((p) => p.box.y1)),
+    };
+    const picture: Prim = {
+        ...pieces[0],
+        box,
+        quad: [
+            [box.x0, box.y0],
+            [box.x1, box.y0],
+            [box.x1, box.y1],
+            [box.x0, box.y1],
+        ],
+    };
+    delete picture.gradient;
+    return picture;
+}
+
+/**
+ * The shapes without a cut fill painted over by a solid fill of the same box: nothing of it shows (yEd's panel group
+ * clips a flat fill to its label's band and draws the band over it).
+ * @param prims - the shapes, in drawing order
+ * @returns the shapes a reader sees
+ */
+function withoutHiddenCuts(prims: readonly Prim[]): Prim[] {
+    const same = (a: PBox, b: PBox): boolean =>
+        Math.max(Math.abs(a.x0 - b.x0), Math.abs(a.y0 - b.y0), Math.abs(a.x1 - b.x1), Math.abs(a.y1 - b.y1)) <= 0.5;
+    return prims.filter(
+        (p, i) =>
+            p.uncut === undefined ||
+            !prims.slice(i + 1).some((q) => q.fill !== null && q.fill.opacity === 1 && same(q.box, p.box)),
+    );
 }
 
 /**
@@ -812,13 +1094,40 @@ function lineDropOf(el: SVGTextElement, size: number, box: DOMRect): number {
     return big.height > 0 ? box.y + box.height / 2 - middle : 0;
 }
 
+/**
+ * The style a text's words are drawn in: the text's own, or, where every word sits in `<tspan>`s that agree on
+ * their weight, slant, size and fill, theirs. yEd Live 8.5.16 draws a MarkupLabelStyle's `<b>Bold</b>` as
+ * `<text font-weight="normal"><tspan style="font-weight: bold;">Bold</tspan></text>`
+ * (yed-live-graphml-specimen-labels-p5.svg): every glyph is bold, though the text element says normal.
+ * @param el - the text
+ * @param cs - its computed style
+ * @returns the style its words are drawn in
+ */
+function wordsStyleOf(el: SVGTextElement, cs: CSSStyleDeclaration): CSSStyleDeclaration {
+    const spans: CSSStyleDeclaration[] = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+        if ((node.textContent ?? "").trim() === "") {
+            continue;
+        }
+        const parent: Element | null = node.parentElement;
+        if (parent === null || parent === el) {
+            return cs;
+        }
+        spans.push(getComputedStyle(parent));
+    }
+    const look = (s: CSSStyleDeclaration): string => [s.fontWeight, s.fontStyle, s.fontSize, s.fill].join("|");
+    return spans.length > 0 && spans.every((s) => look(s) === look(spans[0])) ? spans[0] : cs;
+}
+
 function textOf(
     el: SVGTextElement,
     m: DOMMatrix,
-    cs: CSSStyleDeclaration,
+    textStyle: CSSStyleDeclaration,
     opacity: number,
     scale: number,
 ): PText | null {
+    const cs = wordsStyleOf(el, textStyle);
     const content = textContentOf(el);
     // An unfilled text is a label's outline (Cytoscape.js strokes `text-outline` as its own text
     // before it fills the label over it): the label is the filled text, not this one
@@ -928,7 +1237,9 @@ function geometryPoints(el: SVGGeometryElement, m: DOMMatrix, samples: number): 
         return [at(m, l.x1.baseVal.value, l.y1.baseVal.value), at(m, l.x2.baseVal.value, l.y2.baseVal.value)];
     }
     if (tag === "path") {
-        const straight = straightPathVertices(el.getAttribute("d") ?? "");
+        const d = el.getAttribute("d") ?? "";
+        // only an open line: an outline's samples feed the figure readers, which read corners off them
+        const straight = straightPathVertices(d) ?? (samples === PATH_SAMPLES ? straightCubicVertices(d) : null);
         if (straight !== null && straight.length > 0) {
             return straight.map(([x, y]) => at(m, x, y));
         }
@@ -942,6 +1253,35 @@ function geometryPoints(el: SVGGeometryElement, m: DOMMatrix, samples: number): 
     for (let i = 0; i < samples; i++) {
         const p = el.getPointAtLength((len * i) / (samples - 1));
         out.push(at(m, p.x, p.y));
+    }
+    // a rect's sides and, square-cornered, its corners exactly, each in place of the sample nearest it: samples evenly
+    // spaced round a long thin box miss its ends by up to a step (graphml-cla-checker-graph's group band, 7076 x 21,
+    // read 130 units short of its right end, so its label's middle fell outside it; its rounded group as short)
+    if (tag === "rect") {
+        const r = el as unknown as SVGRectElement;
+        const [x, y, w, h] = [r.x.baseVal.value, r.y.baseVal.value, r.width.baseVal.value, r.height.baseVal.value];
+        const square = r.rx.baseVal.value === 0 && r.ry.baseVal.value === 0;
+        const sides: Pt[] = [
+            [x + w / 2, y],
+            [x + w, y + h / 2],
+            [x + w / 2, y + h],
+            [x, y + h / 2],
+        ];
+        const corners: Pt[] = square
+            ? [
+                  [x, y],
+                  [x + w, y],
+                  [x + w, y + h],
+                  [x, y + h],
+              ]
+            : [];
+        for (const c of [...sides, ...corners].map(([px, py]) => at(m, px, py))) {
+            const gap = (q: Pt): number => Math.hypot(q[0] - c[0], q[1] - c[1]);
+            const near = out.reduce((best, q, i) => (gap(q) < gap(out[best]) ? i : best), 0);
+            out[near] = c;
+        }
+        // the outline closes where it starts
+        out[out.length - 1] = out[0];
     }
     return out;
 }
@@ -1117,6 +1457,74 @@ function panelFillOf(el: Element, root: Element, opacities: Map<Element, number>
 }
 
 /** The SVG primitives of a document, in document order. */
+/**
+ * What a framed edge draws, as the primitives an edge drawn in strokes gives: its line through the band's middle, in
+ * the paint of the band's inside, as wide as the inside, with the outline as a band along it (`lineOutline`) as wide
+ * as the band and its outline together; where the inside is not painted, the line is that band. Each arrowhead is a
+ * closed shape, filled as the band is, outlined as it is.
+ * @param band - the band read off the outline
+ * @param stroke - the outline's stroke
+ * @param inside - the fill painted inside the outline, or null for none
+ * @param index - the outline's document index, the line's
+ * @param next - takes the next document index, for each further primitive
+ * @param hint - what the markup says the outline belongs to
+ * @returns the primitives, in drawing order
+ */
+function framedEdgePrims(
+    band: FramedBand,
+    stroke: PStroke,
+    inside: PFill | null,
+    index: number,
+    next: () => number,
+    hint: Prim["hint"],
+): Prim[] {
+    const whole = { ...stroke, width: r3(band.width + stroke.width) };
+    const painted = inside !== null && band.width > stroke.width;
+    const out: Prim[] = [
+        {
+            index,
+            tag: "path",
+            kind: "path",
+            box: boxOfPoints(band.route),
+            points: band.route.map(([x, y]): Pt => [x, y]),
+            closed: false,
+            corners: 0,
+            fill: null,
+            stroke: painted
+                ? {
+                      color: inside.color,
+                      opacity: inside.opacity,
+                      width: r3(band.width - stroke.width),
+                      dash: null,
+                      dashClass: "solid",
+                  }
+                : whole,
+            text: null,
+            markers: { start: false, end: false },
+            hint,
+            ...(painted ? { lineOutline: { color: whole.color, opacity: whole.opacity, width: whole.width } } : {}),
+        },
+    ];
+    for (const head of band.heads) {
+        const points = spacedAlong([...head.outline, head.outline[0]], SAMPLES);
+        out.push({
+            index: next(),
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(points),
+            points,
+            closed: true,
+            corners: head.outline.length,
+            fill: inside,
+            stroke,
+            text: null,
+            markers: { start: false, end: false },
+            hint,
+        });
+    }
+    return out;
+}
+
 export interface SvgPrimitives {
     width: number;
     height: number;
@@ -1157,8 +1565,17 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             throw new Error("the oracle SVG has no screen matrix");
         }
         const prims: Prim[] = [];
+        // each picture's whole box, transparent pixels and all, by its index: where the next piece of a picture drawn
+        // in pieces must lie (`joinedPictures`)
+        const pictureBoxes = new Map<number, PBox>();
         // the `d` of the last filled path read, whose outline a stroke-only twin may draw
         let lastFilledPath = "";
+        // the primitive read from that filled path, which a framed edge's outline drawn next takes for its band's inside
+        let lastFilledPrim: Prim | null = null;
+        // yEd's own writer, ySVG, says so in a comment at the root: only yEd draws a framed edge
+        const ySvg = [...root.childNodes].some(
+            (n) => n.nodeType === Node.COMMENT_NODE && n.nodeValue?.includes("ySVG"),
+        );
         // the geometry read last (a path's `d`, matrix and sample count) and its points
         let lastGeometry: { key: string; points: Pt[] } = { key: "", points: [] };
         const opacities = new Map<Element, number>();
@@ -1170,7 +1587,14 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
         let index = 0;
         for (const el of root.querySelectorAll<SVGGraphicsElement>("*")) {
             const tag = el.localName;
-            if (!GEOMETRY.has(tag) && tag !== "text" && tag !== "image") {
+            // a picture the program embeds as an SVG of its own (yEd's SVGNode) is one picture, as an `<image>` is: what
+            // it draws inside is the picture's content, not shapes of the drawing (graphty draws the picture as one)
+            const embedded = el.parentElement?.closest("svg");
+            if (embedded !== root && embedded?.closest(`[${STAMPED}]`) === null) {
+                continue;
+            }
+            const picture = tag === "svg" && el !== root && el.closest(`[${STAMPED}]`) === null;
+            if (!GEOMETRY.has(tag) && tag !== "text" && tag !== "image" && !picture) {
                 continue;
             }
             // #PajekSig: the spider logo Pajek adds to every SVG export, not part of the network
@@ -1235,11 +1659,16 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 }
                 continue;
             }
-            if (tag === "image") {
+            if (tag === "image" || picture) {
                 const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
                 const pixels = href === null ? undefined : pictures.get(unbrokenHref(href));
                 const gradient = pixels === undefined ? null : pictureGradient(pixels);
-                const b = el.getBBox();
+                // an embedded SVG's viewport, in the coordinates its own matrix (which holds its viewBox) maps from
+                const whole = picture ? viewportOf(el as unknown as SVGSVGElement) : el.getBBox();
+                const stretched = el.getAttribute("preserveAspectRatio")?.trim() === "none";
+                const inked = pixels === undefined ? null : inkedPart(pixels, whole, stretched);
+                const b = inked === null ? whole : new DOMRect(inked.x, inked.y, inked.width, inked.height);
+                pictureBoxes.set(i, boxThrough(m, whole));
                 prims.push({
                     ...(gradient === null ? {} : { gradient }),
                     index: i,
@@ -1274,6 +1703,31 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             const d = tag === "path" ? (el.getAttribute("d") ?? "") : "";
             const outlineOfFill = fill === null && d !== "" && d === lastFilledPath;
             lastFilledPath = fill !== null ? d : lastFilledPath;
+            // yEd's framed edge (com.yworks.edge.framed): one closed outline round a band as wide as the edge's line,
+            // its arrowheads part of the outline, drawn over a fill of the same outline just before it
+            // (graphml-galaxy-lcms-workflow) or alone (graphml-synthetic-edges): the edge's line, its outline and its
+            // arrowheads, not a shape
+            const framed =
+                ySvg &&
+                tag === "path" &&
+                fill === null &&
+                stroke !== null &&
+                d.split(/[Mm]/).length === 2 &&
+                /[Zz]\s*$/.test(d)
+                    ? framedBand(straightPathVertices(d) ?? [], PATH_SAMPLES)
+                    : null;
+            if (framed !== null && framed.width <= FRAMED_WIDEST && stroke !== null) {
+                const twin = outlineOfFill && lastFilledPrim !== null && prims.at(-1) === lastFilledPrim;
+                const inside = twin ? (prims.pop()?.fill ?? null) : null;
+                const onScreen = (pts: readonly Pt[]): Pt[] => pts.map(([x, y]) => at(m, x, y));
+                const band = {
+                    route: onScreen(framed.route),
+                    width: framed.width * scale,
+                    heads: framed.heads.map((h) => ({ ...h, outline: onScreen(h.outline) })),
+                };
+                prims.push(...framedEdgePrims(band, stroke, inside, i, () => index++, hintOf(el)));
+                continue;
+            }
             const open =
                 fill === null && !outlineOfFill && !CLOSED.has(tag) && !/[Zz]\s*$/.test(el.getAttribute("d") ?? "");
             // a path drawn again at once with the same geometry (vis-network's outline over its fill) is not sampled
@@ -1288,6 +1742,14 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             if (band !== null && stroke !== null) {
                 points = bandCenter(points, band === "inside" ? -stroke.width / 4 : stroke.width / 4);
                 stroke = { ...stroke, width: r3(stroke.width / 2) };
+            }
+            const uncut = boxOfPoints(points);
+            const cut = fill !== null && stroke === null ? clipCut(el, root, m, uncut) : null;
+            if (cut !== null) {
+                points = points.map(([x, y]) => [
+                    Math.min(cut.x1, Math.max(cut.x0, x)),
+                    Math.min(cut.y1, Math.max(cut.y0, y)),
+                ]);
             }
             // yEd fills a bar arrowhead's line there and back before stroking it: a fill with nothing inside paints
             // nothing, and the stroke after it stays next to its line (`index` is what says what follows a line)
@@ -1350,7 +1812,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                     ? subpathsOf(el, m)
                     : null;
             const panel = panelFillOf(el, root, opacities, m);
-            prims.push({
+            const prim: Prim = {
                 index: i,
                 tag: painted === null ? tag : PAINTED_OUTLINE,
                 kind: closed ? "shape" : "path",
@@ -1374,9 +1836,18 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 ...(twoStrokes !== null && crossedStrokes(twoStrokes) ? { subpaths: twoStrokes } : {}),
                 ...(lettering ? { lettering: true as const } : {}),
                 ...(panel === null ? {} : { panel }),
-            });
+                ...(cut === null ? {} : { uncut }),
+            };
+            prims.push(prim);
+            if (fill !== null && d !== "") {
+                lastFilledPrim = prim;
+            }
         }
-        return { width: r3(rect.width), height: r3(rect.height), prims };
+        return {
+            width: r3(rect.width),
+            height: r3(rect.height),
+            prims: withoutHiddenCuts(joinedPictures(prims, pictureBoxes)),
+        };
     } finally {
         host.remove();
     }

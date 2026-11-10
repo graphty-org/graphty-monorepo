@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { type BrowserContext, chromium, firefox, webkit } from "playwright";
+import { type BrowserContext, chromium, firefox, type Page, webkit } from "playwright";
 import { assert } from "vitest";
 
 import { WAIT_GUARD_MS } from "../../../tools/test-wait-guard.mjs";
@@ -82,6 +82,24 @@ function open(
               env: chromeEnv(),
           })
         : webkit.launchPersistentContext(userDataDir, { headless: true, timeout: WAIT_GUARD_MS });
+}
+
+/**
+ * Duplicate a tab the way a reader's browser does for the tests: the opener calls `window.open`, which
+ * copies its session storage into the new tab. The call runs in a task of its own after the evaluate
+ * has returned. Called inside the evaluate, WebKit keeps the opener's evaluate open until Playwright
+ * has set up and resumed the paused popup (they share one web process), then returns the popup's whole
+ * window, which Playwright walks property by property because it comes from another realm; the
+ * opener's evaluate then depends on everything the popup's startup does (issue #6188).
+ * @param context - The context the tab opens in.
+ * @param opener - The tab to duplicate.
+ * @param url - The duplicate's address.
+ * @returns The duplicate.
+ */
+export async function duplicateTab(context: BrowserContext, opener: Page, url: string): Promise<Page> {
+    const opened = context.waitForEvent("page");
+    await opener.evaluate(`void setTimeout(() => { window.open(${JSON.stringify(url)}); }, 0)`);
+    return opened;
 }
 
 /**

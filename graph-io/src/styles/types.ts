@@ -234,6 +234,11 @@ export interface NodeStyleValues {
      */
     readonly labelWrapSpaceCount: number;
     /**
+     * Whether a blank line before or between lines of words is drawn one line of the label's font tall, as a text
+     * layout sets it (yEd's "\nCS" is two lines tall). Unset or false, a blank line takes no height.
+     */
+    readonly labelKeepBlankLines: boolean;
+    /**
      * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
      * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).
      */
@@ -293,6 +298,10 @@ export interface NodeStyleValues {
     readonly shapeLines: string;
     /** How wide `shapeLines` are drawn; unset, the border's width. */
     readonly shapeLineWidth: number;
+    /** The color of a wider line drawn under each of `shapeLines`, down the same path: a yFiles bevel's lighter line. */
+    readonly shapeLineHaloColor: StyleColor;
+    /** How wide that line under `shapeLines` is drawn; unset or 0, none. */
+    readonly shapeLineHaloWidth: number;
     /**
      * Further texts drawn on the node in its label's font, size and color, each one line centered on its point: a JSON
      * list of `[x, y, text]`, the point as `shapeParts` writes one (Graphviz's record fields, `[[-0.5, 0, "a"], [0.5,
@@ -337,6 +346,20 @@ export interface NodeStyleValues {
     readonly raisedBorderLightColor: StyleColor;
     /** A raised border's color on the node's bottom and right. */
     readonly raisedBorderDarkColor: StyleColor;
+    /**
+     * The color of the shadow drawn beneath the node: the node's own shape, moved by `shadowOffsetX` and
+     * `shadowOffsetY` and softened over `shadowBlur` (yEd's `y:DropShadow` and its configurations painted with a
+     * shadow); drawn only with a `shadowOpacity` above 0.
+     */
+    readonly shadowColor: StyleColor;
+    /** The opacity of the shadow where it is solid, 0..1; 0 draws none. */
+    readonly shadowOpacity: number;
+    /** How far the shadow's edge fades in and out on each side of the moved outline (a length); 0 draws a hard edge. */
+    readonly shadowBlur: number;
+    /** How far right of the node the shadow is drawn (a length). */
+    readonly shadowOffsetX: number;
+    /** How far down from the node the shadow is drawn (a length). */
+    readonly shadowOffsetY: number;
     /**
      * The color of a filled shape drawn beneath the node, `underlayPadding` beyond its box on every side (Cytoscape.js
      * `underlay-*`); drawn only with an `underlayOpacity` above 0.
@@ -916,6 +939,8 @@ export interface EdgeStyleValues {
     readonly labelWrapAnywhere: boolean;
     /** How many blanks a blank between two words counts as against `labelWrapWidth`; see the node's. */
     readonly labelWrapSpaceCount: number;
+    /** Whether a blank line before or between lines of words is drawn one line tall; see the node's. */
+    readonly labelKeepBlankLines: boolean;
     /**
      * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
      * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).
@@ -956,6 +981,14 @@ export interface EdgeStyleValues {
      * side, in the units of `labelSize`; 0 puts the border against the words. Unset, the drawing program's default.
      */
     readonly labelPadding: number;
+    /**
+     * The label laid out as a table of cells, as JSON in the form the node's `labelTable` takes (lengths in the units
+     * of `labelSize`). The table is then the label's box: `labelBackground` is its fill, `labelBorderColor` and
+     * `labelBorderWidth` its outline (and `labelBorderColor` its cells' outlines), and `labelPadding` the room from
+     * its outline to the words of a table of one cell, for a reader that does not lay the table out. `label` holds
+     * its words.
+     */
+    readonly labelTable: string;
     /** How far the corners of the box behind the label's words are rounded, in the units of `labelSize`. Unset, square. */
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */

@@ -2,11 +2,11 @@ import type { StyleRow } from "@graphty/graphty-element/session";
 import { Menu } from "@mantine/core";
 import React, { Fragment } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { ROW_COMMANDS, type RowCommand } from "./commands";
-import { isBaseRow } from "./rows";
 
 /** The row menu's groups, top to bottom; a divider falls between two that draw something. */
 const GROUPS: readonly RowCommand["group"][] = ["edit", "pin", "view", "remove"];
@@ -35,18 +35,15 @@ export function RowMenuItems({
     onMoveTo: (folderId: string | null) => void;
 }>): React.JSX.Element {
     const workspace = useWorkspace();
-    // A reason several rows share is drawn once, under the first of them.
-    const said = new Set<string>();
+    // The `selection-workspace` experiment's menus draw no sentences: the row stays disabled, and says
+    // why on hover.
+    const calm = selectionWorkspaceOn(workspace.session);
     const groups = GROUPS.map((group) => {
         const items = ROW_COMMANDS.filter((command) => command.group === group && command.applies(row)).map(
             (command) => {
                 const icon = typeof command.icon === "function" ? command.icon(row) : command.icon;
                 const Glyph = GLYPHS[icon];
                 const reason = command.disabled(row, workspace.session);
-                const drawn = reason === null || !said.has(reason);
-                if (reason !== null) {
-                    said.add(reason);
-                }
                 return (
                     <CommandMenuItem
                         key={command.id}
@@ -54,7 +51,7 @@ export function RowMenuItems({
                         icon={<Glyph size={14} aria-hidden />}
                         shortcut={command.rowKeys[0]}
                         reason={reason}
-                        reasonDrawn={drawn}
+                        reasonDrawn={!calm}
                         onRun={() => {
                             void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
                         }}
@@ -62,7 +59,7 @@ export function RowMenuItems({
                 );
             },
         );
-        if (group === "edit" && !isBaseRow(workspace.session, row.id)) {
+        if (group === "edit") {
             // Move to folder follows Duplicate, as in Figma's layer menu.
             items.push(<MoveToFolder key="row.move" tree={tree} row={row} parent={parent} onMoveTo={onMoveTo} />);
         }

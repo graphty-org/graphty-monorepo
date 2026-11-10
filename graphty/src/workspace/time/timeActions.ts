@@ -3,10 +3,21 @@
  * a call on graphty-element's `session.time` and the words the app writes about it.
  */
 
-import type { CodedFact, GraphSession, TimeField, TimeNoticeCode, TimeUnit } from "@graphty/graphty-element/session";
+import type {
+    CodedFact,
+    GraphSession,
+    TimeField,
+    TimeNoticeCode,
+    TimeStepEvent,
+    TimeUnit,
+} from "@graphty/graphty-element/session";
 
+import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { countWords, instantWords, intervalOf, noticeOf, refusalWords, unitLabel, windowWords } from "./timeWords";
+
+/** Where the dock gives way to the phone's: the width frame.css folds the workspace's columns at. */
+export const PHONE_WIDTH = "(max-width: 720px)";
 
 /**
  * Whether the timeline experiment is on, as graphty-element reports it.
@@ -27,19 +38,64 @@ export function unitOf(session: GraphSession): TimeUnit {
     return field?.edges?.unit ?? field?.nodes?.unit ?? "ms";
 }
 
+/** How many elements a move brought into the window and took out of it. */
+interface WindowMoved {
+    readonly entered: number;
+    readonly left: number;
+}
+
+/** A play the reader started: what it moved so far, and how to stop counting. */
+interface PlayTally {
+    entered: number;
+    left: number;
+    stop: () => void;
+}
+
+/** Each session's play, from Play to the Pause that reads it. */
+const plays = new WeakMap<GraphSession, PlayTally>();
+
 /**
- * Says where the window is on the status line, for a step and a pause (never every playback frame).
+ * What one move brought in and took out.
+ * @param event - the move.
+ * @returns the counts.
+ */
+function movedBy(event: TimeStepEvent): WindowMoved {
+    return { entered: event.entered.nodes + event.entered.edges, left: event.left.nodes + event.left.edges };
+}
+
+/**
+ * Starts counting what a play moves, frame by frame: a pause has only the sum to report, since
+ * `time.changes()` then holds the last frame alone.
+ * @param session - the element's session.
+ */
+function tallyPlay(session: GraphSession): void {
+    plays.get(session)?.stop();
+    const tally: PlayTally = { entered: 0, left: 0, stop: () => undefined };
+    tally.stop = session.on("time:step", (event) => {
+        const moved = movedBy(event);
+        tally.entered += moved.entered;
+        tally.left += moved.left;
+    });
+    plays.set(session, tally);
+}
+
+/**
+ * Says where the window is on the status line (never every playback frame), and what entered and
+ * left it after a step or a pause.
  * @param session - the element's session.
  * @param store - the chrome store.
+ * @param moved - what entered and left; left out where no count describes the move.
  */
-export function announceWindow(session: GraphSession, store: WorkspaceStore): void {
+export function announceWindow(session: GraphSession, store: WorkspaceStore, moved?: WindowMoved): void {
     const window = session.time.current;
     if (window === null) {
         return;
     }
     const { visibleNodes, visibleEdges } = session.visibility.summary;
+    const counts =
+        moved === undefined ? "" : `, ${formatCount(moved.entered)} entered, ${formatCount(moved.left)} left`;
     store.set({
-        announcement: `${windowWords(window, unitOf(session))}: ${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}`,
+        announcement: `${windowWords(window, unitOf(session), session.time.timeZone)}: ${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}${counts}`,
     });
 }
 
@@ -52,13 +108,22 @@ export function announceWindow(session: GraphSession, store: WorkspaceStore): vo
 export function stepWindow(session: GraphSession, store: WorkspaceStore, count: number): void {
     session.time.pause();
     session.time.stepBy(count).then(
-        () => {
-            announceWindow(session, store);
+        (event) => {
+            announceWindow(session, store, movedBy(event));
         },
         () => {
             store.set({ notice: { message: "The time window could not move." } });
         },
     );
+}
+
+/**
+ * Starts playback at a speed. Stepped playback waits for each frame, so it never outruns the drawing.
+ * @param session - the element's session.
+ * @param speed - the speed.
+ */
+export function playAt(session: GraphSession, speed: number): void {
+    session.time.play({ interval: intervalOf(speed), waitForRender: true });
 }
 
 /**
@@ -70,11 +135,15 @@ export function togglePlay(session: GraphSession, store: WorkspaceStore): void {
     const { time } = session;
     if (time.playing) {
         time.pause();
-        announceWindow(session, store);
+        const tally = plays.get(session);
+        tally?.stop();
+        plays.delete(session);
+        announceWindow(session, store, tally);
         return;
     }
+    tallyPlay(session);
     try {
-        time.play({ interval: intervalOf(store.get().timeSpeed) });
+        playAt(session, store.get().timeSpeed);
     } catch {
         store.set({ notice: { message: "The timeline could not play." } });
     }
@@ -185,8 +254,8 @@ export function designate(session: GraphSession, store: WorkspaceStore, field: T
 export function seekEdge(session: GraphSession, store: WorkspaceStore, end: "start" | "end"): void {
     session.time.pause();
     session.time.seek(end).then(
-        () => {
-            announceWindow(session, store);
+        (event) => {
+            announceWindow(session, store, movedBy(event));
         },
         () => {
             store.set({ notice: { message: "The time window could not move." } });
@@ -194,9 +263,78 @@ export function seekEdge(session: GraphSession, store: WorkspaceStore, end: "sta
     );
 }
 
-/** Puts focus on the dock's brush, at the window's start. */
-export function focusBrush(): void {
+/**
+ * The time span of the selection, with the edges at its nodes.
+ * @param session - the element's session.
+ * @returns the span; null with nothing selected or nothing in it timed.
+ */
+export function selectionSpan(session: GraphSession): { readonly from: number; readonly to: number } | null {
+    const { nodes, edges } = session.selection;
+    return nodes.length + edges.length === 0 ? null : session.time.spanOf({ nodes, edges, incident: true });
+}
+
+/**
+ * Sets the window to the selection's span, and says where it went. With no span it does nothing:
+ * `window(null)` would clear the reader's window.
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ */
+export function jumpToSelection(session: GraphSession, store: WorkspaceStore): void {
+    const span = selectionSpan(session);
+    if (span === null) {
+        return;
+    }
+    session.time.pause();
+    session.time.window(span).then(() => {
+        announceWindow(session, store);
+    }, reportTimeError(store));
+}
+
+/**
+ * Whether the window is a phone's, where the brush lives in a sheet and the dock replaces the panels.
+ * @returns true on a phone.
+ */
+function onPhone(): boolean {
+    return globalThis.matchMedia(PHONE_WIDTH).matches;
+}
+
+/**
+ * What going to a place writes besides the place: a phone's open dock hides the panels the place
+ * shows in, so it closes.
+ * @returns the store's change.
+ */
+export function panelsInView(): { readonly timelineOpen?: boolean } {
+    return onPhone() ? { timelineOpen: false } : {};
+}
+
+/** Puts focus on the brush, at the window's start. */
+export function focusWindowStart(): void {
     document.querySelector<HTMLElement>('.tl-dock [role="slider"][aria-label="Window start"]')?.focus();
+}
+
+/**
+ * Brings up the phone's sheet, paused, since nothing in it could stop a play. The dock comes with
+ * it: the sheet is the dock's.
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ */
+export function openTimeSheet(session: GraphSession, store: WorkspaceStore): void {
+    session.time.pause();
+    store.set({ timelineOpen: true, timeSheetOpen: true });
+}
+
+/**
+ * Takes the reader to the brush: focus on the dock's, or the sheet that holds a phone's, which
+ * focuses it as it comes up.
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ */
+export function focusBrush(session: GraphSession, store: WorkspaceStore): void {
+    if (onPhone()) {
+        openTimeSheet(session, store);
+    } else {
+        focusWindowStart();
+    }
 }
 
 /**
@@ -234,5 +372,5 @@ export function timeValue(session: GraphSession, value: unknown, date: boolean):
     } else if (typeof value === "string" || typeof value === "number") {
         at = session.time.parse(String(value));
     }
-    return at === null ? value : instantWords(at, "ms");
+    return at === null ? value : instantWords(at, "ms", undefined, session.time.timeZone);
 }

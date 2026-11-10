@@ -77,6 +77,7 @@ import {
     type Run,
     type RunBody,
     type RunDefinition,
+    type RunExecutionContext,
     type RunOptions,
     type RunQueueContext,
     type RunSurroundings,
@@ -99,6 +100,7 @@ import type { SetWatch } from "../sets/notify";
 import type { HistoryCause } from "../types";
 import {
     assertConditions,
+    assertNotCircular,
     combinedRule,
     conditionOf,
     conditionsOfSteps,
@@ -119,11 +121,13 @@ import {
     type TimePlayback,
     type TimeWindow,
     windowBounds,
+    windowInstants,
     windowNeedsTimeline,
     windowReadsRecords,
 } from "./filter";
 import { bytesOf, type FilterBytes, slideCounters, type SlideCounts, type SlideTarget, WindowSlider } from "./slide";
 import { assertSteps } from "./steps";
+import { WindowCounter } from "./windowCount";
 
 // ---------------------------------------------------------------------------------------------
 // What visibility answers with
@@ -522,6 +526,20 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     slideWindow(window: TimeWindow | null): SlideCounts | null;
     /**
+     * A run that moves windows of its own, so nothing on screen, in the project or in history moves. It describes the graph and the filter as they stand when `work` opens the walk.
+     * @param algorithm - What the run is.
+     * @param params - What it was asked for.
+     * @param options - A signal, and a progress handler.
+     * @param work - The work: opens the walk when it is ready to, and returns the result.
+     * @returns The run; never in the runs list.
+     */
+    windowRun<T>(
+        algorithm: string,
+        params: Readonly<Record<string, unknown>>,
+        options: Pick<RunOptions, "signal" | "onProgress">,
+        work: (open: () => WindowWalk, context: RunExecutionContext) => Promise<T>,
+    ): Run<T>;
+    /**
      * What the filter alone keeps, with no window: the same object until the filter or the data
      * changes, so a reader can key a cache on it.
      * @returns Each kind's bytes, read on first use, null for a kind the filter says nothing of.
@@ -562,6 +580,14 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @returns The bytes, or null while not ghosting.
      */
     ghosts(): { readonly node: Uint8Array; readonly edge: Uint8Array } | null;
+    /**
+     * Hold one filter condition while a reader edits it (`styles.showBranches` with `hold`): it
+     * still decides what is visible, but what it would remove stays drawn, as ghosts. Records no
+     * step. Null lets it go.
+     * @param id - The condition, or null.
+     * @param all - Lift every condition, not only this one: the view is drawn over the full graph.
+     */
+    hold(id: string | null, all?: boolean): void;
 }
 
 /** What is drawn, one mask per kind. */
@@ -621,8 +647,11 @@ export interface VisibilitySources extends FilterSources {
      * @param change - The counts, the unresolved paths, and what produced the change.
      */
     readonly onChange?: (change: VisibilityChange) => void;
-    /** Told after the time cursor slid the masks, which no step records. */
-    readonly onSlide?: () => void;
+    /**
+     * Told after the drawn masks moved without a step: the time cursor slid them, or a condition is held.
+     * @param moved - What a slide changed; absent when a held condition moved the masks.
+     */
+    readonly onSlide?: (moved?: SlideCounts) => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
     /**
@@ -650,7 +679,7 @@ export interface VisibilitySources extends FilterSources {
 }
 
 /** The selection as select conditions reach it. */
-export interface ConditionSelection {
+interface ConditionSelection {
     /**
      * The ids selected now.
      * @returns The ids.
@@ -754,6 +783,22 @@ const IMMEDIATE: RunQueueContext = {
 /** An edit's run has nothing on a queue to cancel. */
 const NO_TICKET: RunTicket = { cancel: () => undefined };
 
+/** Windows moved one after another, later each time, away from what is on screen. */
+export interface WindowWalk {
+    /** Whether the graph walked is directed. */
+    readonly directed: boolean;
+    /**
+     * Move to a window no earlier than the last. The first move compares with nothing showing.
+     * @param window - The window.
+     * @returns What it shows, and what came and went.
+     */
+    move(window: TimeWindow): {
+        readonly visible: Readonly<{ nodes: number; edges: number }>;
+        readonly entered: Readonly<{ nodes: number; edges: number }>;
+        readonly left: Readonly<{ nodes: number; edges: number }>;
+    };
+}
+
 /** The snapshot, and the two identity spaces every mask over it reads ids through. */
 interface VisibilityFrame {
     /** The snapshot this frame describes. */
@@ -808,6 +853,9 @@ const NOTHING_FILTERED: FilterBytes = Object.freeze({ nodes: null, edges: null }
 
 /** Nothing read besides the graph. */
 const NO_INPUTS: readonly unknown[] = Object.freeze([]);
+
+/** No condition: what a view over the full graph draws by. One array, so the combined rule is kept. */
+const NO_CONDITIONS: readonly FilterCondition[] = Object.freeze([]);
 
 /**
  * Whether two tags name the same masks.
@@ -948,6 +996,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let lastDurationMs = 0;
     /** The time window a cursor slid through the masks, which the masks hold until the next pass. */
     const slider = new WindowSlider();
+    let recordsRead: { readonly key: readonly unknown[]; readonly reads: boolean } | null = null;
     let slid = false;
     /** What the last slide wrote the masks from, so recording that window can adopt them. */
     let slidTo: (MaskTag & { readonly snapshot: GraphSnapshot; readonly window: TimeWindow }) | null = null;
@@ -1011,6 +1060,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let drawnTag: {
         readonly graph: GraphSnapshot;
         readonly filter: RuleTree | null;
+        readonly window: TimeWindow | null;
         readonly inputs: readonly unknown[];
     } | null = null;
 
@@ -1440,10 +1490,56 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * Whether ghosts are drawn now.
      * @returns True while the `outside` setting is `"ghost"` and a window is in force.
      */
-    const ghostingNow = (): boolean =>
+    const timeGhosting = (): boolean =>
         sources.timeline?.() !== false &&
         dispatcher.state.visibility.playback?.outside === "ghost" &&
         (dispatcher.state.visibility.window !== null || slid);
+
+    /** The condition a reader is editing, whose removals stay drawn as ghosts (`hold`). */
+    let held: string | null = null;
+    /** Whether every condition is lifted while one is held (a view over the full graph). */
+    let heldAll = false;
+    /** The held condition's rule-less stand-in: the rule the rest draws by, by its inputs. */
+    let heldRule: {
+        readonly conditions: readonly FilterCondition[];
+        readonly filter: RuleTree | null;
+        readonly held: string;
+        readonly all: boolean;
+        readonly rule: RuleTree | null;
+    } | null = null;
+
+    /**
+     * What is drawn by: the rule in force, or while a condition that removes anything is held,
+     * the rule without it. The same object until its inputs move.
+     * @returns The rule.
+     */
+    const drawnRuleNow = (): RuleTree | null => {
+        const { filter, conditions } = dispatcher.state.visibility;
+        const holding = conditions.find((each) => each.id === held);
+        const lifts = heldAll ? held !== null : holding !== undefined && holding.on && holding.effect !== "select";
+        if (held === null || !lifts) {
+            return ruleNow();
+        }
+
+        if (
+            heldRule?.conditions !== conditions ||
+            heldRule.filter !== filter ||
+            heldRule.held !== held ||
+            heldRule.all !== heldAll
+        ) {
+            heldRule = {
+                conditions,
+                filter,
+                held,
+                all: heldAll,
+                rule: combinedRule(filter, heldAll ? NO_CONDITIONS : conditions.filter((each) => each.id !== held)),
+            };
+        }
+
+        return heldRule.rule;
+    };
+
+    const ghostingNow = (): boolean => timeGhosting() || drawnRuleNow() !== ruleNow();
 
     /**
      * Bring the drawn masks up to date: what the filter keeps with no window.
@@ -1451,9 +1547,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      */
     const drawnUpToDate = (): VisibilityFrame => {
         const active = upToDate();
-        const filter = ruleNow();
-        const inputs = inputsFor(filter, null);
-        if (drawnTag?.graph === active.graph && drawnTag.filter === filter && sameInputs(drawnTag.inputs, inputs)) {
+        const filter = drawnRuleNow();
+        // Time ghosts are drawn whatever the window says; a held condition alone keeps the window.
+        const window = timeGhosting() ? null : dispatcher.state.visibility.window;
+        const inputs = inputsFor(filter, window);
+        if (
+            drawnTag?.graph === active.graph &&
+            drawnTag.filter === filter &&
+            drawnTag.window === window &&
+            sameInputs(drawnTag.inputs, inputs)
+        ) {
             return active;
         }
 
@@ -1461,21 +1564,50 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         drawnEdges.grow(active.graph.edgeCount);
         drawnNodes.clear();
         drawnEdges.clear();
-        if (filter === null) {
+        if (filter === null && window === null) {
             drawnNodes.fill();
             drawnEdges.fill();
         } else {
-            const compiled = compileVisibility(active.graph, filter, null, passSources(active.graph));
+            const compiled = compileVisibility(active.graph, filter, window, passSources(active.graph));
             runPass({ compiled, edges: drawnEdges, graph: active.graph, nodes: drawnNodes });
         }
 
-        drawnTag = { graph: active.graph, filter, inputs };
+        drawnTag = { graph: active.graph, filter, window, inputs };
 
         return active;
     };
 
     let ghostCache: { readonly key: readonly unknown[]; readonly node: Uint8Array; readonly edge: Uint8Array } | null =
         null;
+
+    /**
+     * Bring the kept ghosts forward by the rows a slide moved, in place: with the drawn masks
+     * unmoved, those are the only rows that can have become or stopped being ghosts.
+     * @param key - The key of what is asked for.
+     * @returns The ghosts, or null when more than that moved.
+     */
+    const ghostsAfterSlide = (key: readonly unknown[]): typeof ghostCache => {
+        if (ghostCache === null || key.slice(2).some((part, at) => part !== ghostCache?.key[at + 2])) {
+            return null;
+        }
+
+        const { key: kept, node, edge } = ghostCache;
+        const nodeRows = nodeMaskValue.changedSince(kept[0] as number);
+        const edgeRows = edgeMaskValue.changedSince(kept[1] as number);
+        if (nodeRows === null || edgeRows === null) {
+            return null;
+        }
+
+        for (const row of nodeRows) {
+            node[row] = nodeMaskValue.has(row) ? 0 : 1;
+        }
+
+        for (const row of edgeRows) {
+            edge[row] = edgeMaskValue.has(row) ? 0 : 1;
+        }
+
+        return { key, node, edge };
+    };
 
     /**
      * One byte per element, 1 for a ghost, or null while not ghosting. Kept until a mask, the
@@ -1493,10 +1625,18 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             edgeMaskValue.version,
             state.graph.token,
             ruleNow(),
+            drawnRuleNow(),
+            state.visibility.window,
             state.runs,
             sources.snapshot(),
         ];
         if (ghostCache?.key.length === key.length && ghostCache.key.every((part, at) => part === key[at])) {
+            return ghostCache;
+        }
+
+        const carried = ghostsAfterSlide(key);
+        if (carried !== null) {
+            ghostCache = carried;
             return ghostCache;
         }
 
@@ -1682,6 +1822,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             }
 
             const rule = sources.admit === undefined ? shaped.rule : sources.admit(shaped.rule);
+            assertNotCircular(rule);
             assertVisibility(rule, null, sources.dependencies);
             return Object.freeze(conditionOf(shaped, rule));
         });
@@ -1910,34 +2051,44 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @param active - The frame.
      * @param rule - The rule.
      * @param drawn - What is drawn, to count among; null for the whole graph.
+     * @param source - The load to count over (a condition's `source`); every element when absent.
      * @returns The count, without an id.
      */
     const countRule = (
         active: VisibilityFrame,
         rule: RuleTree,
         drawn: Drawn | null,
+        source?: SourceKey,
     ): Omit<FilterConditionCount, "id"> => {
         const compiled = compiledOver(active, rule);
+        // A condition of one load is counted over that load's elements.
+        const mine = source === undefined ? null : compiledOver(active, { kind: "source", sources: [source] });
         const tally = (
             test: ((index: number) => boolean) | null,
             count: number,
             among: ElementMask<NodeId> | ElementMask<EdgeId> | undefined,
+            within: ((index: number) => boolean) | null,
         ): FilterConditionMatches | null => {
             if (test === null) {
                 return null;
             }
 
             let matched = 0;
+            let total = 0;
             for (let at = 0; at < count; at++) {
-                matched += (among === undefined || among.has(at)) && test(at) ? 1 : 0;
+                if (within === null || within(at)) {
+                    total++;
+                    matched += (among === undefined || among.has(at)) && test(at) ? 1 : 0;
+                }
             }
 
-            // One basis for every condition: the whole graph's count, so a Select card and a Filter
-            // to card beside it are read against the same number.
-            return Object.freeze({ matched, total: count });
+            // One basis for every condition: the whole graph's count (its load's, for a condition
+            // of one load), so a Select card and a Filter to card beside it are read against the
+            // same number.
+            return Object.freeze({ matched, total });
         };
-        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes);
-        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges);
+        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes, mine?.node ?? null);
+        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges, mine?.edge ?? null);
 
         return Object.freeze({ nodes, edges, unresolved: compiled.unresolvedPaths() });
     };
@@ -1988,11 +2139,17 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 const signature = each[at];
                 // A rule reading a set whose inputs cannot be enumerated is counted every time.
                 // By id too, so a condition nothing changed hands back the same object.
+                // A condition of one load reads provenance, which has no revision: counted every time.
                 const key =
-                    signature === null ? null : `${condition.id}\n${JSON.stringify(condition.rule)}\n${signature}`;
+                    signature === null || condition.source !== undefined
+                        ? null
+                        : `${condition.id}\n${JSON.stringify(condition.rule)}\n${signature}`;
                 const drawn = inPicture(condition) ? { nodes: nodeMaskValue, edges: edgeMaskValue } : null;
                 let count = key === null ? undefined : bucket.byRule.get(key);
-                count ??= Object.freeze({ id: condition.id, ...countRule(active, condition.rule, drawn) });
+                count ??= Object.freeze({
+                    id: condition.id,
+                    ...countRule(active, condition.rule, drawn, condition.source),
+                });
 
                 if (key !== null) {
                     kept.set(key, count);
@@ -2030,6 +2187,97 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
+     * Whether a window reads records, kept while the index stands: asking scans every record of a
+     * kind the field does not time, and any change to the data drops the index.
+     * @param graph - The snapshot.
+     * @param window - The window.
+     * @param instants - The designated field's index.
+     * @returns True when an index alone cannot say what the window keeps.
+     */
+    const readsRecords = (graph: GraphSnapshot, window: TimeWindow, instants: SlideTarget["instants"]): boolean => {
+        const key = [graph, window.attribute, window.end, window.spells, instants?.node, instants?.edge];
+        if (recordsRead === null || !sameInputs(recordsRead.key, key)) {
+            recordsRead = { key, reads: windowReadsRecords(graph, window, sources) };
+        }
+
+        return recordsRead.reads;
+    };
+
+    /**
+     * What a slide moves.
+     * @param graph - The snapshot.
+     * @param rule - The filter's rule.
+     * @param nodes - The node mask.
+     * @param edges - The edge mask.
+     * @param instants - The designated field's index.
+     * @param evaluateWindow - Write the masks in one full pass.
+     * @returns The target.
+     */
+    const slideTarget = (
+        graph: GraphSnapshot,
+        rule: RuleTree | null,
+        nodes: ElementMask<NodeId>,
+        edges: ElementMask<EdgeId>,
+        instants: SlideTarget["instants"],
+        evaluateWindow: SlideTarget["evaluate"],
+    ): SlideTarget => ({
+        graph,
+        filter: [dispatcher.state.visibility.filter, rule, graph, ...inputsFor(rule, null)],
+        nodes,
+        edges,
+        filterBytes: () => filterBytesOf(graph),
+        bounds: (moved) => windowBounds(moved, sources),
+        evaluate: evaluateWindow,
+        readsRecords: (moved) => readsRecords(graph, moved, instants),
+        instants,
+    });
+
+    /**
+     * Windows counted away from what is on screen, from the graph and the filter as they stand: by
+     * the index alone when it says what a window keeps, else by a full pass over masks of their own.
+     * The index is read at the first move and kept, so a graph that changes under a walk does not
+     * reach it.
+     * @returns The walk.
+     */
+    const openWalk = (): WindowWalk => {
+        const active = upToDate();
+        const { graph } = active;
+        const rule = ruleNow();
+        const nodes = new ElementMask<NodeId>(() => active.nodeSpace, Math.max(1, graph.nodeCount));
+        const edges = new ElementMask<EdgeId>(() => active.edgeSpace, Math.max(1, graph.edgeCount));
+        nodes.grow(graph.nodeCount);
+        edges.grow(graph.edgeCount);
+        const walker = new WindowSlider();
+        let target: SlideTarget | null = null;
+        let counter: WindowCounter | null | undefined;
+
+        return {
+            directed: graph.directed,
+            move(window) {
+                target ??= slideTarget(graph, rule, nodes, edges, windowInstants(window, sources), (moved) => {
+                    slideCounters.full++;
+                    nodes.clear();
+                    edges.clear();
+                    const compiled = compileVisibility(graph, rule, moved, passSources(graph));
+                    runPass({ compiled, edges, graph, nodes });
+                });
+                counter = counter === undefined ? WindowCounter.open(target, window) : counter;
+                if (counter !== null) {
+                    return counter.move(window, target);
+                }
+
+                const { entered, left } = walker.move(target, window);
+
+                return {
+                    visible: Object.freeze({ nodes: nodes.size, edges: edges.size }),
+                    entered: Object.freeze({ nodes: entered.nodes, edges: entered.edges }),
+                    left: Object.freeze({ nodes: left.nodes, edges: left.edges }),
+                };
+            },
+        };
+    };
+
+    /**
      * An edit's run is never queued: the command is dispatched as the run starts.
      * @param label - What to call it.
      * @returns The surroundings a run asks of whoever holds it.
@@ -2048,6 +2296,35 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             return NO_TICKET;
         },
+    });
+
+    /**
+     * What every run here shares.
+     * @param algorithm - Its name.
+     * @param params - What it was asked for.
+     * @param caveats - What qualifies its numbers.
+     * @returns The common part of its definition.
+     */
+    const factRun = (
+        algorithm: string,
+        params: Readonly<Record<string, unknown>>,
+        caveats: Caveats,
+    ): Omit<RunDefinition<never>, "execute"> => ({
+        algorithm,
+        caveats,
+        engine,
+        exact: null,
+        fields: NO_FIELDS,
+        id: deriveRunId({ algorithm, exact: null, params, sample: null, scope: WHOLE_GRAPH, seed: null }),
+        params,
+        sample: null,
+        seed: null,
+        // "fact" rather than "node-set": an edit publishes two counts about the graph, not a set of
+        // elements to paint. Calling it a node-set would make it eligible to become an exclusive
+        // highlight layer, and hiding something is not highlighting it.
+        shape: "fact",
+        style: false,
+        timeBoxMs: null,
     });
 
     /**
@@ -2082,30 +2359,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         }
 
         const label = labelFor(filter, window);
-        const params = Object.freeze({ filter, window });
         const definition: RunDefinition<FilterResult & TExtra> = {
-            algorithm: VISIBILITY_ALGORITHM,
-            caveats: caveatsFor(filter, window),
-            engine,
-            exact: null,
-            fields: NO_FIELDS,
-            id: deriveRunId({
-                algorithm: VISIBILITY_ALGORITHM,
-                exact: null,
-                params,
-                sample: null,
-                scope: WHOLE_GRAPH,
-                seed: null,
-            }),
-            params,
-            sample: null,
-            seed: null,
-            // "fact" rather than "node-set": an edit publishes two counts about the graph, not a
-            // set of elements to paint. Calling it a node-set would make it eligible to become an
-            // exclusive highlight layer, and hiding something is not highlighting it.
-            shape: "fact",
-            style: false,
-            timeBoxMs: null,
+            ...factRun(VISIBILITY_ALGORITHM, Object.freeze({ filter, window }), caveatsFor(filter, window)),
             // A cancel settles the run with the edit applied rather than rejecting it.
             publishOnCancel: true,
             execute: async (context) => {
@@ -2361,7 +2616,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             assertVisibility(null, window);
             const active = upToDate();
-            const { filter } = dispatcher.state.visibility;
             const rule = ruleNow();
             slid = true;
             slidTo = {
@@ -2373,23 +2627,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             };
 
             const startedAt = performance.now();
-            const instants = sources.instants?.(window.attribute) ?? null;
+            const instants = windowInstants(window, sources);
             let passed = false;
             const counts = slider.move(
-                {
-                    graph: active.graph,
-                    filter: [filter, rule, active.graph, ...inputsFor(rule, null)],
-                    nodes: nodeMaskValue,
-                    edges: edgeMaskValue,
-                    filterBytes: () => filterBytesOf(active.graph),
-                    bounds: (moved) => windowBounds(moved, sources),
-                    evaluate: (moved) => {
-                        passed = true;
-                        evaluate(active.graph, rule, moved);
-                    },
-                    readsRecords: (moved) => windowReadsRecords(active.graph, moved, sources),
-                    instants,
-                },
+                slideTarget(active.graph, rule, nodeMaskValue, edgeMaskValue, instants, (moved) => {
+                    passed = true;
+                    evaluate(active.graph, rule, moved);
+                }),
                 window,
             );
             lastDurationMs = Math.round(performance.now() - startedAt);
@@ -2397,9 +2641,27 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 unresolvedValue = unresolvedOfSlide(window, instants);
             }
 
-            sources.onSlide?.();
+            sources.onSlide?.(counts);
 
             return { ...counts, graph: active.graph };
+        },
+
+        windowRun<T>(
+            algorithm: string,
+            params: Readonly<Record<string, unknown>>,
+            options: Pick<RunOptions, "signal" | "onProgress">,
+            work: (open: () => WindowWalk, context: RunExecutionContext) => Promise<T>,
+        ): Run<T> {
+            const definition: RunDefinition<T> = {
+                ...factRun(algorithm, Object.freeze(params), caveatsFor(ruleNow(), null)),
+                execute: async (context) => ({ result: await work(openWalk, context) }),
+                ...(options.signal === undefined ? {} : { signal: options.signal }),
+                ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
+            };
+            const run = new ManagedRun<T>(definition, surroundingsFor(algorithm));
+            run.start();
+
+            return run;
         },
 
         filterBytes(): FilterBytes {
@@ -2488,6 +2750,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         ghosted(target: "node" | "edge", index: number): boolean {
             const ghosts = ghostsNow();
             return ghosts !== null && ghosts[target][index] === 1;
+        },
+
+        hold(id: string | null, all = false): void {
+            if (held === id && heldAll === (id !== null && all)) {
+                return;
+            }
+
+            held = id;
+            heldAll = id !== null && all;
+            sources.onSlide?.();
         },
     };
 }

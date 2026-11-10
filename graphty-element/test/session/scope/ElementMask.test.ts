@@ -284,26 +284,94 @@ describe("ElementMask, as bytes for a worker", () => {
         assert.notStrictEqual(mask.bytes(), bytes, "and the next read is a fresh copy too");
     });
 
-    it("keeps what a rewrite changed until another write, and none past its cap", () => {
-        const mask = maskOf(["a", "b", "c", "d"]);
-        const write = (bytes: Uint8Array): { entered: number[]; left: number[] } => {
-            bytes[1] = 1;
-            bytes[2] = 1;
-            return { entered: [1, 2], left: [] };
+    describe("changedSince", () => {
+        const move = (row: number): ((bytes: Uint8Array) => { entered: number[]; left: number[] }) => {
+            return (bytes) => {
+                bytes[row] = 1 - bytes[row];
+                return bytes[row] === 1 ? { entered: [row], left: [] } : { entered: [], left: [row] };
+            };
         };
-        assert.isNull(mask.lastRows);
-        const rows = mask.rewrite(write);
-        assert.strictEqual(mask.lastRows, rows);
 
-        mask.rewrite(() => ({ entered: [], left: [] }));
-        assert.strictEqual(mask.lastRows, rows, "still what brought the mask to this version");
+        it("answers across rewrites from any version the log still holds", () => {
+            const mask = maskOf(["a", "b", "c", "d"]);
+            const start = mask.version;
+            assert.isNull(mask.changedSince(start - 1), "no rewrite yet");
+            assert.deepEqual(mask.changedSince(start), [], "nothing since now");
 
-        mask.add(0);
-        assert.isNull(mask.lastRows, "another write");
+            mask.rewrite(move(1));
+            mask.rewrite(() => ({ entered: [], left: [] }));
+            mask.rewrite(move(2));
+            mask.rewrite(move(1));
 
-        mask.clear();
-        mask.rewrite(write, 1);
-        assert.isNull(mask.lastRows, "over the cap");
+            assert.deepEqual(mask.changedSince(start), [1, 2, 1], "once per move, for a reader three behind");
+            assert.deepEqual(mask.changedSince(start + 2), [1]);
+            assert.deepEqual(mask.changedSince(mask.version), []);
+            assert.isNull(mask.changedSince(start - 1), "before the log began");
+            assert.isNull(mask.changedSince(mask.version + 1), "a version the mask never held");
+        });
+
+        it("is null across any other write, and starts again with the next rewrite", () => {
+            const writes: readonly ((mask: ElementMask<string>) => void)[] = [
+                (mask) => mask.add(3),
+                (mask) => mask.fill(),
+                (mask) => mask.invert(),
+                (mask) => {
+                    mask.load(new Uint8Array([1, 0, 1, 0]));
+                },
+                (mask) => {
+                    mask.remap(new Uint32Array([0, 1, 2, 3]), 4);
+                },
+                (mask) => mask.union(fillWith(maskOf(["a", "b", "c", "d"]), ["d"])),
+                (mask) => {
+                    mask.grow(1);
+                    mask.grow(4);
+                },
+            ];
+            for (const write of writes) {
+                const mask = fillWith(maskOf(["a", "b", "c", "d"]), ["a"]);
+                const before = mask.version;
+                mask.rewrite(move(1));
+                write(mask);
+                assert.isNull(mask.changedSince(before), String(write));
+
+                const after = mask.version;
+                mask.rewrite(move(2));
+                assert.deepEqual(mask.changedSince(after), [2], String(write));
+                assert.isNull(mask.changedSince(before), String(write));
+            }
+        });
+
+        it("lets go of the oldest moves past the cap, and of a move over it", () => {
+            const mask = maskOf(["a", "b", "c", "d"]);
+            const start = mask.version;
+            mask.rewrite(move(0), 2);
+            mask.rewrite(move(1), 2);
+            mask.rewrite(move(2), 2);
+
+            assert.isNull(mask.changedSince(start), "the oldest went");
+            assert.deepEqual(mask.changedSince(start + 1), [1, 2], "a reader keeping up still reads rows");
+
+            const before = mask.version;
+            const write = (bytes: Uint8Array): { entered: number[]; left: number[] } => {
+                bytes[3] = 1;
+                bytes[0] = 0;
+                bytes[1] = 0;
+                return { entered: [3], left: [0, 1] };
+            };
+            mask.rewrite(write, 2);
+            assert.isNull(mask.changedSince(before), "over the cap");
+            assert.deepEqual(mask.changedSince(mask.version), []);
+        });
+
+        it("answers on a read-only copy from the live mask", () => {
+            const mask = maskOf(["a", "b"]);
+            const start = mask.version;
+            mask.rewrite(move(1));
+            const copy = mask.readOnlyCopy();
+            assert.deepEqual(copy.changedSince(start), [1]);
+            mask.clear();
+            assert.isNull(copy.changedSince(start));
+        });
     });
 
     it("rewrites rows in one version bump, and none when nothing changed", () => {

@@ -10,7 +10,7 @@
 import { unknownFormat } from "../catalog/detect";
 import type { NodeId } from "../catalog/types";
 import { CSVDataSource, readGephiTypeColumn } from "../data/CSVDataSource";
-import { DataSource, type DeclaredDirection } from "../data/DataSource";
+import { DataSource, type DeclaredDirection, TIMELINE_READERS } from "../data/DataSource";
 import { readEndpoint, resolveEndpoints } from "../data/endpoints";
 import type { DataLoadingError } from "../data/ErrorAggregator";
 import type { LoadReport } from "../data/report";
@@ -26,6 +26,9 @@ import { historyMark } from "./loadLine";
 import { HELD_KINDS, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
 import { HELD_READERS } from "./styles/fileStyles/apply";
+import { looksLikeTime } from "./time/parse";
+import { columnSpan } from "./time/timeIndex";
+import { isTimeZone, UTC_ZONE } from "./time/zone";
 import type {
     ColumnRole,
     DraftColumn,
@@ -48,6 +51,7 @@ import type {
     SessionDataConfig,
     TableMapping,
     TableMappingRead,
+    TimeFound,
 } from "./types";
 
 /** Dispatches a command as the session's next step. */
@@ -398,6 +402,7 @@ function errorsOf(reader: DataSource): Pick<ReadSource, "errors" | "errorLimit">
  * @param signal - Abandons the read.
  * @param progress - Told the rows read so far, after each table or chunk, and, for a CSV file,
  *     the share of its text read.
+ * @param timeline - Whether the timeline experiment is on, so the reader keeps the time data it reads.
  * @returns What it holds.
  * @throws What the source's reader throws, with its code.
  */
@@ -405,12 +410,17 @@ export async function readSource(
     source: ImportSource,
     signal?: AbortSignal,
     progress: (rows: number, fraction?: number) => void = () => undefined,
+    timeline = false,
 ): Promise<ReadSource> {
     const type = source.type ?? "";
     const config = source.config ?? {};
     const reader = DataSource.get(type, config);
     if (reader === null) {
         throw unknownFormat(type);
+    }
+
+    if (timeline) {
+        TIMELINE_READERS.add(reader);
     }
 
     const named = source.name ?? type;
@@ -625,14 +635,23 @@ function repeatingEnds(
 
 /**
  * The numeric column an edge table's weight is most likely read from, when no header names one:
- * a confidence, score or strength, else the one numeric column it has.
+ * a confidence, score or strength, else the one numeric column it has. With the timeline on, a
+ * column that looks like time is no weight: the draft reports it instead.
  * @param held - The table.
  * @param ends - The source and target columns, which are never the weight.
+ * @param config - The data configuration.
+ * @param timeline - Whether the timeline is on.
  * @returns The column, or null.
  */
-function guessedWeight(held: HeldTable, ends: readonly string[] | undefined): string | null {
+function guessedWeight(
+    held: HeldTable,
+    ends: readonly string[] | undefined,
+    config: SessionDataConfig,
+    timeline: boolean,
+): string | null {
     const numeric = held.table.columns
         .filter((column) => (column.type === "number" || column.type === "integer") && !ends?.includes(column.name))
+        .filter((column) => !timeline || timeSpan(held, column, config, "edges") === undefined)
         .map((column) => column.name);
     const named = numeric.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
     return named ?? (numeric.length === 1 ? numeric[0] : null);
@@ -659,6 +678,7 @@ function nearlyUniqueKey(held: HeldTable, values: ReadonlyMap<string, ReadonlySe
  * @param source - The source's options, for the deprecated CSV column aliases.
  * @param config - The data configuration.
  * @param guess - `"values"` also reads the values when no header names the roles.
+ * @param timeline - Whether the timeline is on.
  * @returns The table's roles.
  */
 function guessTable(
@@ -667,6 +687,7 @@ function guessTable(
     source: Readonly<Record<string, unknown>>,
     config: SessionDataConfig,
     guess: DraftGuess = "names",
+    timeline = false,
 ): TableMappingRead {
     const has = (name: unknown): name is string => typeof name === "string" && held.order.includes(name);
     const present = (name: string | null): string | null => (has(name) ? name : null);
@@ -687,7 +708,7 @@ function guessTable(
         return guessNodeRoles(held, idColumn, config, guess, { has, present });
     }
 
-    return guessEdgeRoles(held, pair, config, guess, present);
+    return guessEdgeRoles(held, pair, config, guess, present, timeline);
 }
 
 /** A table's column tests, shared by {@link guessTable}'s helpers. */
@@ -787,6 +808,7 @@ function guessNodeRoles(
  * @param config - The data configuration.
  * @param guess - `"values"` also guesses a weight column.
  * @param present - The name when it is one of the table's columns, else null.
+ * @param timeline - Whether the timeline is on.
  * @returns The table's roles.
  */
 function guessEdgeRoles(
@@ -795,12 +817,13 @@ function guessEdgeRoles(
     config: SessionDataConfig,
     guess: DraftGuess,
     present: (name: string | null) => string | null,
+    timeline: boolean,
 ): TableMappingRead {
     const { knownFields } = config;
     const weight =
         present(knownFields.edgeWeightPath) ??
         present("value") ??
-        (guess === "values" ? guessedWeight(held, pair) : null);
+        (guess === "values" ? guessedWeight(held, pair, config, timeline) : null);
     return {
         rowsAre: "edges",
         ...(pair === undefined ? {} : { source: { column: pair[0] }, target: { column: pair[1] } }),
@@ -864,6 +887,7 @@ export class Draft implements LoadDraft {
     readonly mapping: LoadMappingRead;
     readonly graphtyDocument?: "project" | "document";
     readonly styles: LoadDraft["styles"];
+    readonly findings: LoadDraft["findings"];
 
     private read: ReadSource | null;
     private readonly host: DraftHost;
@@ -893,20 +917,24 @@ export class Draft implements LoadDraft {
         this.tables = Object.freeze(read.tables.map((held) => Object.freeze(held.table)));
         const config = host.config();
         const options = read.source.config ?? {};
-        let guesses = read.tables.map((held) => guessTable(held, undefined, options, config, guess));
+        const timeline = host.timeline();
+        let guesses = read.tables.map((held) => guessTable(held, undefined, options, config, guess, timeline));
         if (guesses.length === 2 && guesses[0].rowsAre === guesses[1].rowsAre) {
             // Both files of a pair read as the same kind: the order they were handed over in decides.
             guesses = read.tables.map((held) =>
-                guessTable(held, held.table.id as "nodes" | "edges", options, config, guess),
+                guessTable(held, held.table.id as "nodes" | "edges", options, config, guess, timeline),
             );
         }
 
         const tables = Object.fromEntries(read.tables.map((held, at) => [held.table.id, Object.freeze(guesses[at])]));
         this.mapping = Object.freeze({ tables: Object.freeze(tables) });
+        const findings: TimeFound[] = [];
         this.tables = Object.freeze(
             read.tables.map((held) => {
                 const roles = suggestedRoles(this.mapping.tables[held.table.id]);
                 const own = this.mapping.tables[held.table.id];
+                const found = timeline ? timeFindings(held, roles, config, own.rowsAre) : [];
+                findings.push(...found);
                 const weightCandidate = weightCandidateOf(
                     held,
                     own.rowsAre === "edges" ? own : guessTable(held, "edges", read.source.config ?? {}, config),
@@ -917,12 +945,18 @@ export class Draft implements LoadDraft {
                     columns: Object.freeze(
                         held.table.columns.map((column) => {
                             const suggested = roles.get(column.name);
-                            return Object.freeze(suggested === undefined ? column : { ...column, suggested });
+                            const plain = suggested === undefined ? column : { ...column, suggested };
+                            return Object.freeze(
+                                found.some((fact) => fact.params.column === column.name)
+                                    ? { ...plain, looksLike: "time" as const }
+                                    : plain,
+                            );
                         }),
                     ),
                 });
             }),
         );
+        this.findings = Object.freeze(findings);
     }
 
     /**
@@ -1209,7 +1243,7 @@ export class Draft implements LoadDraft {
         const tables: Record<string, TableMappingRead> = { ...this.mapping.tables };
         for (const [id, choice] of Object.entries(given)) {
             const held = this.table(read, id);
-            if (held.table.fixed) {
+            if (held.table.fixed && !(this.host.timeline() && namesOnlyTime(choice))) {
                 throw badCommand(`The format sets the roles of table ${JSON.stringify(id)}.`, { table: id });
             }
 
@@ -1217,7 +1251,14 @@ export class Draft implements LoadDraft {
             const base =
                 choice.rowsAre === undefined || choice.rowsAre === guessed.rowsAre
                     ? guessed
-                    : guessTable(held, choice.rowsAre, read.source.config ?? {}, this.host.config(), this.guess);
+                    : guessTable(
+                          held,
+                          choice.rowsAre,
+                          read.source.config ?? {},
+                          this.host.config(),
+                          this.guess,
+                          this.host.timeline(),
+                      );
             tables[id] = withChoice(held, base, choice);
             if (!this.host.timeline()) {
                 refuseNewTime(tables[id], base, choice, this.host.config().knownFields);
@@ -1479,6 +1520,93 @@ function suggestedRoles(roles: TableMappingRead): Map<string, NonNullable<DraftC
     set("edgeId", roles.edgeId);
     set("kind", roles.kind);
     return out;
+}
+
+/**
+ * The zone a designation of a table's time column reads text with no offset in.
+ * @param config - The data configuration.
+ * @param rowsAre - What the table's rows become.
+ * @returns The configured zone, else UTC.
+ */
+function parseZone(config: SessionDataConfig, rowsAre: "nodes" | "edges"): string {
+    const { nodeTimeParseZone, edgeTimeParseZone } = config.knownFields;
+    const zone = rowsAre === "nodes" ? nodeTimeParseZone : edgeTimeParseZone;
+
+    return typeof zone === "string" && isTimeZone(zone) ? zone : UTC_ZONE;
+}
+
+/**
+ * The span a designation of a column reads, when it looks like time: the sample decides whether to
+ * look, and every row the span. A unit the configuration holds applies to a designation that names
+ * none, and a column it reads as plain steps has no span.
+ * @param held - The table.
+ * @param column - The column.
+ * @param column.name - Its name.
+ * @param column.sampleValues - Its sampled values.
+ * @param config - The data configuration.
+ * @param rowsAre - What the table's rows become.
+ * @returns The span, or undefined.
+ */
+function timeSpan(
+    held: HeldTable,
+    { name, sampleValues }: Pick<DraftColumn, "name" | "sampleValues">,
+    config: SessionDataConfig,
+    rowsAre: "nodes" | "edges",
+): { readonly from: number; readonly to: number } | undefined {
+    if (!looksLikeTime(name, sampleValues)) {
+        return undefined;
+    }
+
+    const { nodeTimeUnit, edgeTimeUnit } = config.knownFields;
+    const unit = (rowsAre === "nodes" ? nodeTimeUnit : edgeTimeUnit) ?? undefined;
+
+    return columnSpan(
+        held.rows.map((row) => row[name]),
+        parseZone(config, rowsAre),
+        unit,
+    );
+}
+
+/**
+ * The columns of a table that look like time, with the span a designation would read from them. A
+ * column the element already gave a role is not offered as anything else.
+ * @param held - The table.
+ * @param roles - The role of each column.
+ * @param config - The data configuration.
+ * @param rowsAre - What the table's rows become.
+ * @returns One finding per column.
+ */
+function timeFindings(
+    held: HeldTable,
+    roles: ReadonlyMap<string, unknown>,
+    config: SessionDataConfig,
+    rowsAre: "nodes" | "edges",
+): readonly TimeFound[] {
+    const found: TimeFound[] = [];
+    for (const column of held.table.columns) {
+        const { name } = column;
+        const span = roles.has(name) ? undefined : timeSpan(held, column, config, rowsAre);
+        if (span !== undefined) {
+            found.push(
+                Object.freeze({
+                    code: "time.found",
+                    params: Object.freeze({ table: held.table.id, column: name, ...span }),
+                }),
+            );
+        }
+    }
+
+    return found;
+}
+
+/**
+ * Whether a choice names a time column and nothing else, all a table whose format sets its roles
+ * takes: the format says what a file's columns are, and no format says which one is its time.
+ * @param choice - The reader's choice.
+ * @returns True when it does.
+ */
+function namesOnlyTime(choice: TableMapping): boolean {
+    return Object.keys(choice).every((role) => role === "time" || role === "timeUnit");
 }
 
 /**

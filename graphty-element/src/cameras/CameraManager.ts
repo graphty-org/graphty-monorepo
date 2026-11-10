@@ -59,6 +59,8 @@ export interface CameraController {
     fitPadding?: number;
     /** Turn the view on its own by an angle, for `camera.autoRotate`; a camera that never turns has none. */
     autoTurn?(radians: number): void;
+    /** Stand where a camera of the same kind on another scene stands. */
+    takeView?(from: this): void;
 }
 
 interface InputHandler {
@@ -312,6 +314,20 @@ export class CameraManager {
      */
     public getController(key: CameraKey): CameraController | undefined {
         return this.controllers.get(key);
+    }
+
+    /**
+     * Put each camera where the same camera of another manager stands, for a scene built to
+     * replace that manager's.
+     * @param previous - The manager being replaced.
+     */
+    public takeViewOf(previous: CameraManager): void {
+        for (const [key, controller] of this.controllers) {
+            const from = previous.controllers.get(key);
+            if (from !== undefined) {
+                controller.takeView?.(from);
+            }
+        }
     }
 
     /**

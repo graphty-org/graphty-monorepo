@@ -153,6 +153,11 @@
     margin-inline: auto;
 }
 
+/* Hidden while the selection workspace lies over it. */
+.ws-toolbar-dock[hidden] {
+    display: none;
+}
+
 /* 8 px above the toolbar (48 tall, 12 up). */
 .ws-notice-slot {
     position: absolute;
@@ -170,6 +175,10 @@
     z-index: 2;
     min-height: 0;
     border-top: 1px solid var(--cm-border);
+}
+
+.ws-dock[data-covered] {
+    visibility: hidden;
 }
 
 .ws-page {

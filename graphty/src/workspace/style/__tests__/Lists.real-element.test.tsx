@@ -16,6 +16,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
@@ -152,9 +153,20 @@ describe("the app's lists", () => {
             selector: { match: "everything" },
             set: { "node.color": "#d55e00" },
         });
+        // One layer alone edits its rule in the selection editor; the cards' Add a condition list
+        // is what two selected layers share.
+        await session.styles.add({
+            name: "Mine too",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#d55e00" },
+        });
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Mine, / }));
+        await userEvent.keyboard("{Control>}");
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Mine too, / }));
+        await userEvent.keyboard("{/Control}");
         if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
             await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         }
@@ -218,6 +230,12 @@ describe("the app's lists", () => {
         });
         assert.closeTo(filter.getBoundingClientRect().top, top, 1, "the filter box stays where it opened");
     });
+});
+
+describe("a filter card's list", () => {
+    // The filter card's own text box; the selection workspace edits a filter card in its modal
+    // instead, as Filters.real-element.test.tsx pins.
+    withFeatures([]);
 
     it("a filter card's text box lists every value that holds the typed text", async () => {
         const names = [

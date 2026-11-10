@@ -71,8 +71,9 @@ await graph.loadFromUrl("https://example.com/proteins.cx2", { styles: "file" });
 
 `loadFromFile`, the element's `dataSourceConfig` (`{ url, styles: "file" }`) and
 `session.data.import(source, { styles: "file" })` take the same choice. Without it, the default
-`"none"`, a load reads the data alone. See [Styles from Files](./file-styles) for what the layers
-look like, the choices that shape them and how to save them back into a file.
+`"none"`, a load reads the data alone. Styles from files are the `file-styles` experiment, off
+unless the page switches it on. See [Styles from Files](./file-styles) for what the layers look
+like, the choices that shape them and how to save them back into a file.
 
 ## Text or Bytes
 
@@ -179,7 +180,7 @@ names they gave. The field is there only when at least one row was left out.
 
 Loads land in the order you ask for them, whichever finishes reading first. Every door that loads
 into the graph takes its place in one line when you call it: `session.data.import`, `generate`,
-`loadDataset`, `loadSample`, `more`, `expand`, `runPendingSourceLoad`, a prepared draft's
+`loadDataset`, `loadExample`, `more`, `expand`, `runPendingSourceLoad`, a prepared draft's
 `load()`, the element's `addDataFromSource`, `loadFromFile` and `loadFromUrl`, its `data-source`
 attributes and its `nodeData` and `edgeData` properties. That holds for a load that adds to the
 graph as much as for one that replaces it. So a dataset you pick while another is still downloading

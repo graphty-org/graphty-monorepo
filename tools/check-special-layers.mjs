@@ -11,7 +11,7 @@
  *   lint             graphty/eslint-rules/no-special-layers.js: code that branches on a layer's identity
  *   api              tools/api-report.mjs: the public API marking a layer as protected or owned
  *
- * What fails today is listed, row by row with its reason, in tools/special-layers-baseline.json. A
+ * What fails today is listed, row by row with its reason, in graphty/special-layers-baseline.json. A
  * check passes only for rows listed there. This script keeps that list shrinking. It fails when:
  *
  *   - the baseline gains a row, or a lint row's count rises, compared with the merge base with the
@@ -41,7 +41,7 @@ import { pushBaseRef } from "./push-base.mjs";
 import { scratchWorkspace } from "./scratch-workspace.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const BASELINE = "tools/special-layers-baseline.json";
+const BASELINE = "graphty/special-layers-baseline.json";
 const ISSUE = "#5905";
 
 /** Each section of the baseline and the fields that say which exception a row is. */

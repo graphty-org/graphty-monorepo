@@ -13,8 +13,10 @@ import {
     type ReadableValue,
     type ReadableValueKind,
     type RuleTree,
+    type Scope,
     selectorRule,
     type SourceKey,
+    type ValueHistogram,
 } from "@graphty/graphty-element/session";
 
 import { sourceName } from "../data-place/words";
@@ -27,7 +29,7 @@ export type Selector = Layer["selector"];
 export type Side = "node" | "edge";
 
 /** The heading a field is listed under in the add menu. */
-export type FieldGroup = "Data" | "Results" | "Structure";
+type FieldGroup = "Data" | "Results" | "Structure";
 
 /** One value a card can test: an entry of `session.data.readableValues()`, named for a reader. */
 export interface CardField {
@@ -41,8 +43,32 @@ export interface CardField {
     readonly name: string;
     readonly group: FieldGroup;
     readonly range?: { readonly min: number; readonly max: number };
+    /** graphty-element says it holds whole numbers only (a count, a rank), so a slider steps by 1. */
+    readonly integer?: boolean;
     /** One fact that tells it from its neighbors in a list ("1 to 36", "6 values"), as the Vary by list says it. */
     readonly fact?: string;
+    /** The elements a card counts over (a selection's base); absent, the whole graph. */
+    readonly within?: "graph" | "visible";
+    /**
+     * What a checklist counts its values over when that is narrower than `within`: a Keep or
+     * Except step's input, so each value's count is what the step would keep of it.
+     */
+    readonly counted?: Scope;
+    /** How many of them have no value, when the card cannot read it by its path. */
+    readonly missing?: number;
+    /**
+     * How the values are spread, when no path names them (a selection step's own computation, on
+     * So far or over its Links): its bars are drawn from this instead of a column.
+     */
+    readonly spread?: ValueHistogram;
+    /** The values and counts of a selection step's own computation, when no path names them. */
+    readonly listed?: Extract<ValueHistogram, { kind: "categorical" }>;
+    /** A selection step's Links: the edge condition a structure value (degree) is counted over. */
+    readonly links?: RuleTree;
+    /** Plain words for what it is, as the picker's tooltip (selection spec 3.5). */
+    readonly tip?: string;
+    /** Other words the picker's search finds it by ("links" for Degree). */
+    readonly aliases?: readonly string[];
 }
 
 /** How a text or a name card compares. */
@@ -67,6 +93,10 @@ export type Card =
           readonly min?: number;
           readonly max?: number;
           readonly top?: number;
+          /** Which end By position counts from: the highest values (the default) or the lowest. */
+          readonly from?: "high" | "low";
+          /** By position's count is a share of all the elements, in percent. */
+          readonly percent?: boolean;
       }
     | {
           readonly type: "category";
@@ -100,7 +130,8 @@ export type Card =
           readonly type: "yes-no";
           readonly key: string;
           readonly field: CardField;
-          readonly match: "yes" | "no" | Presence;
+          /** `"unset"`: nothing picked yet, so the card makes no leaf. */
+          readonly match: "yes" | "no" | "unset" | Presence;
       }
     | {
           /** The loads an element came from (`data.sources()` keys), ticked ones being alternatives. */
@@ -113,16 +144,11 @@ export type Card =
     | {
           readonly type: "fixed";
           readonly key: string;
-          /** The leaf it holds, or null for a whole selector that stands alone (selected, hovered). */
+          /** The leaf it holds, or null for a whole selector that stands alone (edges picked by hand). */
           readonly leaf: RuleTree | null;
           readonly selector?: Selector;
           readonly words: string;
       };
-
-/** A side's cards, and the edge reading the Ends card writes. */
-export interface SideCards {
-    readonly cards: readonly Card[];
-}
 
 /** The Data source field's path: not a column, the load an element came from (a `source` leaf). */
 export const SOURCE_PATH = "@source";
@@ -184,9 +210,28 @@ function fieldOf(session: GraphSession, value: ReadableValue, time = false): Car
         kind: time && value.kind !== "number" ? "date" : value.kind,
         name: readableName(session, value).name,
         group: groups[value.from],
+        // A result is found by its field's name too ("Label propagation: community").
+        ...(value.from === "run" ? { aliases: [value.path.split(".").at(-1) ?? ""] } : {}),
         ...(value.range === undefined ? {} : { range: value.range }),
+        ...(value.kind === "number" && wholeNumbers(session, value.path) ? { integer: true } : {}),
         ...withFact(span ?? valueFact(value)),
     };
+}
+
+/**
+ * Whether what a path reads holds whole numbers only (a count, a rank), as graphty-element types it:
+ * an integer column or an integer run field.
+ * @param session - the element's session
+ * @param path - what is read
+ * @returns true for an integer column or run result
+ */
+export function wholeNumbers(session: GraphSession, path: string): boolean {
+    if (session.data.attributes().some((column) => column.path === path && column.type === "integer")) {
+        return true;
+    }
+    return session.runs
+        .list()
+        .some((run) => run.fields.some((f) => f.type === "integer" && session.results.path(run.id, f.name) === path));
 }
 
 /**
@@ -357,6 +402,9 @@ export function leafOf(card: Card): RuleTree | null {
         case "category":
             return categoryLeaf(card, path);
         case "yes-no":
+            if (card.match === "unset") {
+                return null;
+            }
             return {
                 kind: "text",
                 reads: path,
@@ -399,7 +447,15 @@ function dateLeaf(card: CardOf<"date">, path: string): RuleTree | null {
  */
 function numberLeaf(card: CardOf<"number">, path: string): RuleTree | null {
     if (card.match === "top") {
-        return card.top === undefined || card.top < 1 ? null : { kind: "threshold", path, top: card.top, ties: "all" };
+        const from = card.from === "low" ? { from: "low" as const } : {};
+        if (card.percent === true) {
+            return card.top === undefined || card.top <= 0 || card.top > 100
+                ? null
+                : { kind: "threshold", path, percentile: card.top, ...from };
+        }
+        return card.top === undefined || card.top < 1
+            ? null
+            : { kind: "threshold", path, top: card.top, ties: "all", ...from };
     }
     return {
         kind: "range",
@@ -449,7 +505,7 @@ function textLeaf(card: CardOf<"text">, path: string): RuleTree | null {
 
 /**
  * Whether a card is finished: it makes a leaf, it is the Ends card, or it holds a whole selector
- * that stands alone (edges picked by hand, the selected or hovered elements).
+ * that stands alone (edges picked by hand).
  * @param card - the card.
  * @returns true when finished.
  */
@@ -472,8 +528,6 @@ function leavesOf(session: GraphSession, selector: Selector): Leaves {
     switch (selector.match) {
         case "everything":
             return { leaves: [] };
-        case "state":
-            return { whole: selector, words: `On the canvas: ${selector.state}` };
         case "ids": {
             // Ids picked by hand (a layer made from a selection): the nodes are a member leaf, so
             // a condition can be added beside them; edge ids have no leaf form and stand alone.
@@ -487,7 +541,7 @@ function leavesOf(session: GraphSession, selector: Selector): Leaves {
             return { leaves: [{ kind: "member", of: selector.of }] };
         default: {
             // A rule typed in find (`donations >= \`10000\``) reads as its cards too.
-            const rule = selectorRule(selector, { comparisons: true });
+            const rule = selectorRule(selector, { comparisons: true, states: true });
             if (rule === undefined) {
                 return selector.match === "expression"
                     ? { leaves: [{ kind: "expression", where: selector.where }] }
@@ -516,7 +570,7 @@ export const isPicked = (card: Card): boolean =>
  * @param edges - how many edges it lists.
  * @returns the words.
  */
-export function pickedWords(nodes: number, edges: number): string {
+function pickedWords(nodes: number, edges: number): string {
     const part = (n: number, one: string): string[] =>
         n === 0 && one === "edge" ? [] : [`${String(n)} ${one}${n === 1 ? "" : "s"}`];
     const parts = edges > 0 && nodes === 0 ? part(edges, "edge") : [...part(nodes, "node"), ...part(edges, "edge")];
@@ -593,6 +647,10 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
             return expressionCard(leaf, field, elsewhere);
         case "categories": {
             const f = field(leaf.attribute);
+            if (f?.kind === "yes-no" && leaf.values.length === 0) {
+                // A yes-or-no value with nothing picked yet: its card, showing no choice.
+                return { type: "yes-no", key: keyOf(f), field: f, match: "unset" };
+            }
             return f === undefined
                 ? elsewhere
                 : { type: "category", key: keyOf(f), field: f, match: "values", values: leaf.values, gaps: false };
@@ -608,6 +666,8 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
         }
         case "member":
             return memberCard(session, leaf, elsewhere);
+        case "state":
+            return { ...elsewhere, words: `On the canvas: ${leaf.state}` };
         default:
             return elsewhere;
     }
@@ -676,8 +736,12 @@ function thresholdCard(leaf: LeafOf<"threshold">, field: FieldFinder, elsewhere:
         // "Above 16" has no card of its own (a range card keeps its ends); it is said, kept as it is.
         return { ...elsewhere, words: `${f.name} above ${num(leaf.above)}` };
     }
+    const from = leaf.from === "low" ? { from: "low" as const } : {};
+    if (leaf.percentile !== undefined && leaf.top === undefined && leaf.above === undefined) {
+        return { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.percentile, percent: true, ...from };
+    }
     return leaf.top !== undefined && leaf.above === undefined
-        ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top }
+        ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top, ...from }
         : elsewhere;
 }
 
@@ -861,6 +925,10 @@ export function selectorOf(cards: readonly Card[], ends: readonly RuleTree[] = [
     if (leaves.length === 0) {
         return { match: "everything" };
     }
+    // The bare state is the one selector the element tests per element, with no rule to resolve.
+    if (leaves.length === 1 && leaves[0].kind === "state") {
+        return { match: "state", state: leaves[0].state };
+    }
     const where: RuleTree = leaves.length === 1 ? leaves[0] : { kind: "all", of: leaves };
     return endsCard?.type === "ends" && endsCard.reading === "incident"
         ? { match: "rule", where, edges: "incident" }
@@ -914,7 +982,12 @@ export function cardWords(session: GraphSession, card: Card): string {
         case "category":
             return categoryWords(session, card, name, path);
         case "yes-no":
-            return `${name}: ${card.match}`;
+            // Yes and No as the table and the field write them.
+            if (card.match === "unset") {
+                return `${name}: pick yes or no`;
+            }
+
+            return `${name}: ${card.match === "yes" ? "Yes" : "No"}`;
         default: {
             if (card.match === "list") {
                 return pickedWords((card.ids ?? []).length, 0);
@@ -959,10 +1032,14 @@ function numberWords(session: GraphSession, card: CardOf<"number">, name: string
         if (card.top === undefined) {
             return `${name}: how many?`;
         }
+        const end = card.from === "low" ? "bottom" : "top";
+        if (card.percent === true) {
+            return `${end} ${num(card.top)}% by ${name}`;
+        }
         // A count of every element there is keeps them all, and says so.
         const stats = session.data.statistics();
         const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
-        return card.top >= total ? `${name}: all ${String(total)}` : `top ${String(card.top)} by ${name}`;
+        return card.top >= total ? `${name}: all ${String(total)}` : `${end} ${String(card.top)} by ${name}`;
     }
     if (card.min !== undefined && card.max !== undefined) {
         return `${name} ${num(card.min)} to ${num(card.max)}`;
@@ -1177,4 +1254,43 @@ export function selectionName(session: GraphSession): string {
         return edgeName(session, edge);
     }
     return countName(nodes.length, edges.length);
+}
+
+/** How many value rows a checklist draws in all, whatever the column holds (spec 4.3). */
+export const SHOWN_VALUES = 8;
+
+/** A value of a checklist: its value, its name and how many carry it. */
+export interface Listed {
+    readonly value: string;
+    readonly label: string;
+    readonly count: number;
+}
+
+/**
+ * The rows a checklist draws, never more than {@link SHOWN_VALUES} (spec 4.3): with nothing typed
+ * the checked values first, then the largest unchecked; while typing, the matches, checked or not.
+ * @param named - every value, largest first.
+ * @param checked - the checked values.
+ * @param typed - the search, lower case.
+ * @returns the rows, how many more are checked than drawn, and the matches and unchecked counts.
+ */
+export function checklistRows(
+    named: readonly Listed[],
+    checked: ReadonlySet<string>,
+    typed: string,
+): { rows: Listed[]; moreChecked: number; matches: readonly Listed[]; unchecked: number } {
+    if (typed !== "") {
+        const matches = named.filter((each) => each.label.toLowerCase().includes(typed));
+        return { rows: matches.slice(0, SHOWN_VALUES), moreChecked: 0, matches, unchecked: 0 };
+    }
+    const ticked = named.filter((each) => checked.has(each.value));
+    const rest = named.filter((each) => !checked.has(each.value));
+    // The checked never fill the list: the two largest unchecked stay reachable without a search.
+    const pinned = ticked.slice(0, SHOWN_VALUES - Math.min(2, rest.length));
+    return {
+        rows: [...pinned, ...rest.slice(0, SHOWN_VALUES - pinned.length)],
+        moreChecked: ticked.length - pinned.length,
+        matches: named,
+        unchecked: rest.length,
+    };
 }

@@ -13,12 +13,44 @@ import type { GraphSession, RuleTree } from "@graphty/graphty-element/session";
 import { assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { GRAPH_FILE_GML } from "../../data-place/fixtures";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+withFeatures([]);
+
+/**
+ * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
+ * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
+ * new step's Value field, or the selected row's pane button And... (spec 3.0, 3.2).
+ * @param scope - where to look.
+ */
+async function startCondition(scope?: HTMLElement): Promise<void> {
+    const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
+    const row = within(where).queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ });
+    if (row !== null) {
+        await userEvent.click(row);
+        return;
+    }
+    if (document.querySelector(".sel-ws") === null) {
+        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+    }
+    const control = await waitFor(() => {
+        const ws = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(ws, "the workspace is open");
+        const found =
+            within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
+            within(ws ?? document.body).queryByRole("button", { name: /^(And|Add)\.\.\.$/ });
+        assert.isNotNull(found, "a new step's Value field or And...");
+        return found;
+    });
+    await userEvent.click(control);
+}
 
 /** Install dates for the small graph's nodes, in node order: three before 2005. */
 const INSTALLED = ["1998-05-12", "2003-07-01", "2004-12-31", "2005-01-01", "2010-09-09", "2018-06-27"];
@@ -71,6 +103,15 @@ async function typeBefore2005(card: HTMLElement): Promise<void> {
     await userEvent.keyboard("2005");
 }
 
+/**
+ * The first step's rule of a selection.
+ * @param rule - the selection.
+ * @returns the step's rule, or undefined.
+ */
+function stepOf(rule: RuleTree): RuleTree | undefined {
+    return rule.kind === "union" ? rule.branches[0]?.steps[0]?.rule : undefined;
+}
+
 describe("the date condition card", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -85,14 +126,20 @@ describe("the date condition card", () => {
         const session = await openWithDates("data", false);
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         await userEvent.click(await screen.findByRole("option", { name: /^installed(,|$)/ }));
-        const list = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", { name: "Filters" });
-        const card = await within(list).findByRole("group", { name: /^installed/ });
-        const box = within(card).getByRole("combobox", { name: "installed before, a date or a year" });
+        // The new card's step is edited in the selection workspace (selection spec 3.0).
+        const card = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found);
+            return found;
+        });
+        const box = await within(card ?? document.body).findByRole("combobox", {
+            name: "installed before, a date or a year",
+        });
         await userEvent.click(box);
         await userEvent.keyboard("Jan 1, 2005{Enter}");
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.conditions.map((each) => each.rule),
+                session.visibility.conditions.map((each) => stepOf(each.rule)),
                 [BEFORE_2005],
             );
         });
@@ -104,30 +151,21 @@ describe("the date condition card", () => {
         const option = await screen.findByRole("option", { name: /^installed(,|$)/ });
         assert.isNotNull(option.querySelector("svg.lucide-calendar"), "listed with the calendar glyph");
         await userEvent.click(option);
-        const list = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", { name: "Filters" });
-        const card = await within(list).findByRole("group", { name: /^installed/ });
-        await typeBefore2005(card);
-        // The card counts while the reader types; Enter writes it.
-        await waitFor(() => {
-            assert.match(card.textContent ?? "", /3 of \d+/u);
+        // The new card's step is edited in the selection workspace (selection spec 3.0).
+        const card = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found);
+            return found;
         });
+        await typeBefore2005(card);
         await userEvent.keyboard("{Enter}");
+        // A card says what stays: All nodes, then Keep the range.
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.conditions.map((each) => each.rule),
+                session.visibility.conditions.map((each) => stepOf(each.rule)),
                 [BEFORE_2005],
             );
         });
-        // A new card selects; Filter to keeps only what it matches.
-        const radio = within(
-            await within(list).findByRole("group", { name: /^installed/ }),
-        ).getByRole<HTMLInputElement>("radio", { name: /^Filter to:/ });
-        // A segmented control's input is hidden: the reader clicks its label.
-        const label = radio.labels?.[0];
-        assert.isDefined(label);
-        if (label !== undefined) {
-            await userEvent.click(label);
-        }
         await waitFor(() => {
             assert.strictEqual([...session.visibility.nodes].length, 3);
         });
@@ -144,22 +182,141 @@ describe("the date condition card", () => {
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Old, / }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
-        const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await startCondition();
         const option = await screen.findByRole("option", { name: /^installed(,|$)/ });
         assert.isNotNull(option.querySelector("svg.lucide-calendar"), "listed with the calendar glyph");
         await userEvent.click(option);
-        const card = await within(region).findByRole("group", { name: /^installed/ });
+        const card = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-step-pane]");
+            assert.isNotNull(found);
+            return found;
+        });
         await typeBefore2005(card);
+        await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             const selector = session.styles.get(layer.id)?.selector;
-            assert.deepEqual(selector?.match === "rule" ? selector.where : undefined, BEFORE_2005);
+            assert.deepEqual(selector?.match === "rule" ? stepOf(selector.where) : undefined, BEFORE_2005);
         });
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(layer.id).matched, 3);
+    });
+
+    it.each([
+        ["the inline editor", ["timeline"]],
+        ["the selection workspace", ["timeline", "selection-workspace"]],
+    ])(
+        "in %s: says how many have no date as a chip, and a typed non-date as a short field message",
+        async (_where, features) => {
+            await siteFeatures(features);
+            await openWithDates("data");
+            await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+            // The selection workspace opens on an empty card: its Value field lists the attributes.
+            const list = await waitFor(() => {
+                const found =
+                    screen.queryByRole("option", { name: /^installed(,|$)/ }) ??
+                    screen.queryByRole("button", { name: "Value" });
+                assert.isNotNull(found, "the attribute list, or the card's Value field");
+                return found;
+            });
+            if (list?.getAttribute("role") !== "option") {
+                await userEvent.click(list ?? document.body);
+            }
+            await userEvent.click(await screen.findByRole("option", { name: /^installed(,|$)/ }));
+            const card = await waitFor(() => {
+                const found = document.querySelector<HTMLElement>("[data-card-body]");
+                assert.isNotNull(found);
+                return found;
+            });
+            // Eight nodes, six with an install date: the card says how many it leaves out, as a chip.
+            const said = await waitFor(() => {
+                const text = card?.textContent ?? "";
+                assert.match(text, /Not measured|left out/, "the card says the two without a date");
+                return text;
+            });
+            assert.notInclude(said, "left out", "no sentence");
+            assert.include(said, "Not measured: 2");
+            await userEvent.click(
+                within(card ?? document.body).getByRole("combobox", { name: "installed before, a date or a year" }),
+            );
+            await userEvent.keyboard("abc{Enter}");
+            const alert = await within(card ?? document.body).findByRole("alert");
+            assert.strictEqual(alert.textContent, "Not a date");
+        },
+    );
+
+    it("keeps the mode picked, and the date typed, across Before, After and Between", async () => {
+        const session = await openWithDates("graph");
+        const layer = await session.styles.add({
+            name: "Span",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#d55e00" },
+        });
+        await session.styles.settled();
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Span, / }));
+        await startCondition();
+        await userEvent.click(await screen.findByRole("option", { name: /^installed(,|$)/ }));
+        const card = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-step-pane]");
+            assert.isNotNull(found);
+            return found;
+        });
+        const mode = (): HTMLInputElement => within(card).getByRole("combobox", { name: "installed: how to match" });
+        const pick = async (label: string): Promise<void> => {
+            await userEvent.click(mode());
+            await userEvent.click(await screen.findByRole("option", { name: label }));
+        };
+        const step = (): { rule?: RuleTree; mode?: string } | undefined => {
+            const selector = session.styles.get(layer.id)?.selector;
+            return selector?.match === "rule" && selector.where.kind === "union"
+                ? selector.where.branches[0]?.steps[0]
+                : undefined;
+        };
+        // After, with no date yet, stays After: the step holds it.
+        await pick("After");
         await waitFor(() => {
-            assert.match(card.getAttribute("aria-label") ?? "", /, 3 nodes$/);
+            assert.strictEqual(step()?.mode, "after");
+        });
+        assert.strictEqual(mode().value, "After");
+        const after = within(card).getByRole("combobox", { name: "installed after, a date or a year" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, after, "focus goes on to the date");
+        });
+        // Before 2005, then Between: 2005 stays, as Between's "to".
+        await pick("Before");
+        await typeBefore2005(card);
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepEqual(step()?.rule, BEFORE_2005);
+        });
+        await pick("Between");
+        await waitFor(() => {
+            assert.strictEqual(mode().value, "Between");
+            assert.strictEqual(
+                within(card).getByRole<HTMLInputElement>("combobox", { name: "installed to, a date or a year" }).value,
+                "2005",
+            );
+        });
+        assert.strictEqual(step()?.mode, "between");
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(layer.id).matched, 4, "through the end of 2005");
+        await userEvent.click(within(card).getByRole("combobox", { name: "installed from, a date or a year" }));
+        await userEvent.keyboard("2000{Enter}");
+        await waitFor(() => {
+            const rule = step()?.rule as { min?: number; max?: number };
+            assert.deepEqual([rule.min, rule.max], [Date.UTC(2000, 0, 1), Date.UTC(2006, 0, 1) - 1]);
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(layer.id).matched, 3, "2003, 2004 and 2005");
+        // Back to After: Between's "from" is After's date.
+        await pick("After");
+        await waitFor(() => {
+            assert.strictEqual(
+                within(card).getByRole<HTMLInputElement>("combobox", { name: "installed after, a date or a year" })
+                    .value,
+                "2000",
+            );
         });
     });
 });

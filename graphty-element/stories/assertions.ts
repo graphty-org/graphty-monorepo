@@ -24,21 +24,22 @@
  * proves a value was stored. `instancedBuffers.color == [1,0,0,1]` proves a red node was drawn.
  */
 
-import {
-    type AbstractMesh,
-    DynamicTexture,
-    type InstancedMesh,
-    Matrix,
-    type StandardMaterial,
-    Vector3,
-} from "@babylonjs/core";
-import { expect, waitFor } from "storybook/test";
+import { type AbstractMesh, DynamicTexture, Matrix, type StandardMaterial, Vector3 } from "@babylonjs/core";
+import { configure, expect, waitFor } from "storybook/test";
 
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
 import { isVisualCapture } from "./helpers";
+
+// Outside Storybook (render-parity, and every test that runs a story's play) nothing has run
+// .storybook/preview.ts, so storybook/test's waitFor would keep Testing Library's 1000 ms default
+// and a busy machine would fail a story's wait (#6368). Give it the one hang guard here, where
+// every story's waits come from. Not in test/setup.ts: loading storybook/test there replaces
+// vitest's global expect for every test, and `expect.getState().currentTestName` goes empty.
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 
 /** How opaque a pixel of a label's own texture must be to count as ink. */
 const INK_ALPHA = 16;
@@ -276,6 +277,23 @@ export async function eventually(done: () => boolean, complaint: string): Promis
  * The colour a node is actually drawn in, read from the buffer the GPU is handed.
  * @param mesh - The node's mesh.
  * @returns The colour as `#rrggbb`, or null when the mesh carries no instance colour.
+ */
+function hexOfRgba(color: { r: number; g: number; b: number } | null): string | null {
+    return color === null
+        ? null
+        : `#${[color.r, color.g, color.b]
+              .map((c) =>
+                  Math.round(Math.min(255, Math.max(0, c)))
+                      .toString(16)
+                      .padStart(2, "0"),
+              )
+              .join("")}`;
+}
+
+/**
+ * The colour an instance carries in its own buffer, as #rrggbb.
+ * @param mesh - The instance.
+ * @returns The colour, or null when it carries none.
  */
 function instanceHex(mesh: AbstractMesh): string | null {
     const colour = (mesh as unknown as { instancedBuffers?: { color?: { r: number; g: number; b: number } } })
@@ -551,24 +569,29 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     };
 
     const nodes: DrawnNode[] = graph.getNodes().map((node, index) => {
-        const source = (node.mesh as InstancedMesh).sourceMesh as InstancedMesh["sourceMesh"] | undefined;
-        const box = node.mesh.getBoundingInfo().boundingBox.extendSizeWorld;
+        // drawnPickMesh, not mesh: reading `mesh` would hold the node off the batch (see Node.mesh).
+        // A row a batch draws has no mesh: its shape is its source's, its place its anchor's.
+        const mesh = node.drawnPickMesh;
+        const anchor = node.drawnAnchor;
+        const source = node.drawnSourceMesh;
+        const box = node.drawnBoundingInfo.boundingBox.extendSizeWorld;
+        const color = node.drawnInstanceColor;
         const plane = node.label?.labelMesh ?? null;
         const label = labelInk(plane);
 
         return {
             id: String(node.id),
             index,
-            shape: source?.name ?? node.mesh.name,
-            geometryKey: `${source?.name ?? node.mesh.name}#${String(source?.uniqueId ?? node.mesh.uniqueId)}`,
-            vertexCount: source?.getTotalVertices() ?? node.mesh.getTotalVertices(),
-            geometryDigest: digestOf(source ?? node.mesh),
-            wireframe: source?.material?.wireframe ?? false,
-            enabled: node.mesh.isEnabled(),
-            opacity: node.mesh.visibility,
+            shape: source.name,
+            geometryKey: `${source.name}#${String(source.uniqueId)}`,
+            vertexCount: source.getTotalVertices(),
+            geometryDigest: digestOf(source),
+            wireframe: mesh === source ? false : (source.material?.wireframe ?? false),
+            enabled: anchor.isEnabled(),
+            opacity: node.drawnOpacity,
             radius: Number(box.x.toFixed(4)),
-            hex: instanceHex(node.mesh),
-            position: [node.mesh.absolutePosition.x, node.mesh.absolutePosition.y, node.mesh.absolutePosition.z],
+            hex: mesh === null ? hexOfRgba(color) : instanceHex(mesh),
+            position: [anchor.absolutePosition.x, anchor.absolutePosition.y, anchor.absolutePosition.z],
             hasLabelMesh: plane !== null && !plane.isDisposed() && plane.isEnabled(),
             labelInk: label.ink,
             labelColours: label.colours,

@@ -49,6 +49,32 @@ export const SQUARE_PLACES: readonly ShaderPlace[] = Object.freeze(["replace", "
 /** The places `minSize` applies at: the square-drawn places that reach outside the node. */
 const MIN_SIZE_PLACES: ReadonlySet<ShaderPlace> = new Set<ShaderPlace>(["replace", "around", "behind"]);
 
+/** The places whose drawn size `reach` sets. */
+const REACH_PLACES: ReadonlySet<ShaderPlace> = new Set<ShaderPlace>(["replace", "around", "behind", "along"]);
+
+/**
+ * The values a shader's `reach` may take. @since 3.49.0
+ */
+export const SHADER_REACH_RANGE: { readonly min: number; readonly max: number } = Object.freeze({ min: 1, max: 6 });
+
+/**
+ * The values a shader's `minSize` may take, in CSS pixels. @since 3.49.0
+ */
+export const SHADER_MIN_SIZE_RANGE: { readonly min: number; readonly max: number } = Object.freeze({
+    min: 0,
+    max: 512,
+});
+
+/**
+ * Whether `reach` changes what a shader draws at a place.
+ * @param place - The place.
+ * @returns True for `replace`, `around`, `behind` and `along`.
+ * @since 3.49.0
+ */
+export function shaderPlaceUsesReach(place: ShaderPlace): boolean {
+    return REACH_PLACES.has(place);
+}
+
 /** The places each target's shaders may be used at. */
 export const PLACES_BY_TARGET: Readonly<Record<ShaderTarget, readonly ShaderPlace[]>> = Object.freeze({
     node: Object.freeze<ShaderPlace[]>(["paint", ...SQUARE_PLACES]),
@@ -71,6 +97,7 @@ export function defaultPlaces(place: ShaderPlace): readonly ShaderPlace[] {
  * Whether `minSize` can apply at any of these places.
  * @param places - The places a shader allows.
  * @returns True when one of them draws a square reaching outside the node.
+ * @since 3.49.0
  */
 export function minSizeApplies(places: readonly ShaderPlace[]): boolean {
     return places.some((place) => MIN_SIZE_PLACES.has(place));
@@ -278,7 +305,7 @@ export type ShaderClock =
     | "since.matched"
     | "since.unmatched";
 
-/** Every clock a parameter may be bound to. */
+/** Every clock a parameter may be bound to. @since 3.49.0 */
 export const SHADER_CLOCKS: readonly ShaderClock[] = Object.freeze([
     "since.selected",
     "since.deselected",
@@ -341,6 +368,41 @@ export type ShaderParamDescriptor = OptionDescriptor & {
      */
     readonly choices?: readonly ShaderParamChoice[];
 };
+
+/** The parameter types a shader may declare. @since 3.49.0 */
+export const SHADER_PARAM_TYPES: readonly ShaderParamDescriptor["type"][] = Object.freeze([
+    "number",
+    "integer",
+    "boolean",
+    "enum",
+    "color",
+]);
+
+/** What each parameter type holds. */
+const PARAM_SHAPES: Readonly<Partial<Record<ShaderParamDescriptor["type"], ReturnType<typeof shaderParamShape>>>> =
+    Object.freeze({
+        number: { default: 1, fields: ["min", "max", "step", "varies"], clock: true },
+        integer: { default: 1, fields: ["min", "max", "step", "varies"], clock: false },
+        boolean: { default: false, fields: [], clock: false },
+        enum: { default: undefined, fields: ["values"], clock: false },
+        color: { default: "#ffffff", fields: ["varies"], clock: true },
+    });
+
+/**
+ * What a parameter of one type holds, for an editor to build its row from.
+ * @param type - The type.
+ * @returns A valid default, undefined for `"enum"`, which needs choices; the fields that apply
+ *   to the type, in no display order; and `clock`, whether its default may be bound to a clock
+ *   (`bindShaderParamClock`).
+ * @since 3.49.0
+ */
+export function shaderParamShape(type: ShaderParamDescriptor["type"]): {
+    readonly default: unknown;
+    readonly fields: readonly ("min" | "max" | "step" | "values" | "varies")[];
+    readonly clock: boolean;
+} {
+    return PARAM_SHAPES[type] ?? { default: undefined, fields: [], clock: false };
+}
 
 /** One named value of an integer shader parameter, with a picture of what it draws. @since 3.36.0 */
 export interface ShaderParamChoice {
@@ -520,6 +582,7 @@ export type ShaderProblemCode =
     | "shader.unknown"
     | "shader.target-mismatch"
     | "shader.place-unsupported"
+    | "shader.uses-not-a-list"
     | "shader.min-size-place"
     | "shader.held"
     | "shader.quarantined"
@@ -607,6 +670,37 @@ export type ShaderTextResult =
       }
     | { readonly ok: false; readonly problems: readonly ShaderProblem[] };
 
+/**
+ * One parameter of a header as written: nothing is cleaned or filled in, and any value may be wrong.
+ * @since 3.49.0
+ */
+export interface ShaderParamDraft {
+    readonly [key: string]: unknown;
+}
+
+/**
+ * A header's keys as written: nothing is cleaned or filled in, and any value may be wrong.
+ * @since 3.49.0
+ */
+export interface ShaderTextDraft {
+    readonly params?: readonly ShaderParamDraft[];
+    readonly [key: string]: unknown;
+}
+
+/** What `splitShaderText` finds: a text's header as written, and its body. @since 3.49.0 */
+export interface ShaderTextParts {
+    /** Whether the text starts with a `graphty-shader 1` header. */
+    readonly headed: boolean;
+    /** The header's keys; absent only when the header is not a JSON object. */
+    readonly draft?: ShaderTextDraft;
+    /** Why `draft` is absent, and any value at fault in it. */
+    readonly problems: readonly ShaderProblem[];
+    /** The text after the header, exactly; the whole text when it has no header. */
+    readonly body: string;
+    /** The 1-based line of the text the body starts on. */
+    readonly bodyLine: number;
+}
+
 /** The channels the shape rows draw, which a `replace` shader draws instead. */
 const CARD_COVERS: readonly Channel[] = [
     "node.shape",
@@ -680,7 +774,7 @@ export function shaderCovers(
 const SHADER_ID = /^[a-z\d]+(?:-[a-z\d]+)*(?:\/[a-z\d]+(?:-[a-z\d]+)*)?$/;
 
 /** The longest shader id. */
-export const SHADER_ID_MAX = 40;
+const SHADER_ID_MAX = 40;
 
 /**
  * Whether a string is a well-formed shader id.
@@ -710,6 +804,26 @@ export function isShaderParamName(name: unknown): name is string {
         !name.startsWith("gl_") &&
         !name.startsWith("graphty_")
     );
+}
+
+/**
+ * The id a new shader takes from its name.
+ * @param name - The name.
+ * @returns A `user/` id: "My paint" gives `user/my-paint`, a name with no usable characters
+ *   `user/shader`.
+ * @since 3.49.0
+ */
+export function shaderIdForName(name: string): string {
+    const namespace = "user/";
+    const slug = name
+        .toLowerCase()
+        .split(/[^a-z\d]+/)
+        .filter((word) => word !== "")
+        .join("-")
+        .slice(0, SHADER_ID_MAX - namespace.length)
+        .replace(/-$/, "");
+
+    return `${namespace}${slug === "" ? "shader" : slug}`;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { assert, describe, it, vi } from "vitest";
 
-import { intervalOf, noticeOf, rangeWords, windowWords } from "../timeWords";
+import { intervalOf, noticeOf, rangeWords, windowWords, zoneChoices } from "../timeWords";
 
 const DAY = 86_400_000;
 const MAR_10 = Date.UTC(2025, 2, 10);
@@ -18,6 +18,25 @@ describe("the timeline's words", () => {
         } finally {
             made.mockRestore();
         }
+    });
+
+    it("writes dates in the zone it is given, and a zone only on readouts finer than a day", () => {
+        const midnight = Date.UTC(2025, 2, 10);
+        assert.equal(
+            rangeWords(midnight, midnight + DAY, "ms", "day", "America/New_York"),
+            "Mar 9, 2025 - Mar 10, 2025",
+        );
+        const hour = { attribute: "data.sent", from: midnight, to: midnight + 3_600_000, step: "hour" } as const;
+        assert.match(windowWords(hour, "ms"), / UTC$/);
+        assert.match(windowWords(hour, "ms", "America/New_York"), / E[DS]T$/);
+        const day = { ...hour, to: midnight + DAY, step: "day" } as const;
+        assert.notMatch(windowWords(day, "ms", "America/New_York"), /E[DS]T/);
+    });
+
+    it("offers a zone set elsewhere under its own name, beside UTC", () => {
+        const labels = zoneChoices("Asia/Tokyo").map((choice) => choice.label);
+        assert.equal(labels[0], "UTC");
+        assert.include(labels, "Asia/Tokyo");
     });
 
     it("writes a half-open date window with its last included day", () => {

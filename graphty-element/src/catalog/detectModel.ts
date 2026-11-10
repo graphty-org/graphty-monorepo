@@ -72,7 +72,7 @@ const BUILT_IN_EXTENSIONS: Readonly<Record<string, BuiltInModelFormat>> = {
  * @param filename - The name.
  * @returns The extension, or "" when there is none.
  */
-export function extensionOf(filename: string | undefined): string {
+function extensionOf(filename: string | undefined): string {
     if (filename === undefined) {
         return "";
     }
@@ -89,7 +89,7 @@ export function extensionOf(filename: string | undefined): string {
  * @param offset - Where to look.
  * @returns True on a match.
  */
-export function startsWithAscii(bytes: Uint8Array, text: string, offset = 0): boolean {
+function startsWithAscii(bytes: Uint8Array, text: string, offset = 0): boolean {
     if (bytes.length < offset + text.length) {
         return false;
     }

@@ -161,6 +161,8 @@ export interface RepaintSources {
     readonly measured?: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /** Whether the file styles experiment is on, which decides the values a binding spreads over; absent reads on. */
+    readonly fileStyles?: () => boolean;
     /**
      * Whether an element no enabled layer paints anything on is drawn hidden (`visible: false`),
      * read at the start of every pass. The project setting `editableBase` turns it on, so hiding
@@ -256,6 +258,11 @@ export interface ElementPaint {
      * @returns The dense indices, in the order they were marked.
      */
     lastPainted(target: SelectorTarget): ArrayLike<number>;
+    /**
+     * Whether the last pass was asked for with `rowsOnly`. Read as {@link ElementPaint.lastPainted} is.
+     * @returns True when what it painted is all that changed.
+     */
+    lastPaintRowsOnly(): boolean;
     /**
      * Be told what a pass painted, at the end of that pass and before any other can begin.
      *
@@ -471,6 +478,24 @@ const NO_PREPARED_BINDINGS: readonly PreparedBinding[] = Object.freeze([]);
 
 /** How long the pass may hold the thread before it hands it back, in milliseconds. */
 const SLICE_MS = 8;
+
+/**
+ * The share of the time the thread was away that the next slice may take, when that is more than
+ * {@link SLICE_MS}. A slice hands the thread back so frames keep drawing, and a frame that takes
+ * 4 s (50,000 nodes on software rendering) then gave the pass 8 ms in every 4 s: a repaint of 300 ms
+ * of work took two and a half minutes to reach the screen (#5816). The same quarter as a repaint's
+ * share of a slow frame (`STYLE_FRAME_SHARE` in UpdateManager.ts).
+ */
+const SLICE_SHARE = 0.25;
+
+/**
+ * How long a pass's next slice may hold the thread.
+ * @param awayMs - How long the thread was away after the last slice handed it back.
+ * @returns The slice, in milliseconds: {@link SLICE_MS} on a page that answers at once.
+ */
+export function sliceAfter(awayMs: number): number {
+    return Math.max(SLICE_MS, awayMs * SLICE_SHARE);
+}
 
 /** Rows a store holds before its first growth. */
 const INITIAL_CAPACITY = 1024;
@@ -1150,6 +1175,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     /** Who is told what a pass painted, in the order they asked. */
     const painted = new Set<() => void>();
 
+    /** Whether the pass announcing was asked for with `rowsOnly`. */
+    let rowsOnly = false;
+
     /**
      * Tell everyone what this pass painted, while its dirty set is still its own.
      *
@@ -1388,6 +1416,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     channel: name as Channel,
                     binding,
                     scales,
+                    fileStyles: sources.fileStyles?.() !== false,
                     order: indexOrder(layer.id, name),
                     columnOf: (read) => readWholeColumn(store, read).values,
                     ...(column === undefined ? {} : { column: column.values, unmeasured: column.unmeasured }),
@@ -1602,6 +1631,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * A macrotask rather than a microtask, for the reason the visibility pass gives: a microtask
      * lets progress fire while starving the event loop, so the bar moves, the frame never paints
      * and the Cancel button's handler does not run until the work it was meant to stop is done.
+     * The next slice grows with how long the thread was away; see {@link SLICE_SHARE}.
      * @param context - The signal to stop on.
      * @param deadline - When this slice runs out.
      * @returns The next slice's deadline.
@@ -1612,6 +1642,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             return deadline;
         }
 
+        const left = now();
         await new Promise<void>((resume) => {
             setTimeout(resume, 0);
         });
@@ -1620,7 +1651,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
         }
 
-        return now() + SLICE_MS;
+        const back = now();
+        return back + sliceAfter(back - left);
     };
 
     /**
@@ -1981,6 +2013,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         context.report({ phase: "painting", completed: node.painted, total });
         const edge = await paintTarget(edges, stack, context, node.deadline, skipBelow);
         context.report({ phase: "painting", completed: total, total });
+        rowsOnly = context.rowsOnly === true;
         announcePainted();
 
         return { nodes: node.painted, edges: edge.painted };
@@ -2297,6 +2330,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
         meshCount(target: SelectorTarget): number {
             return stores[target].meshes.size;
+        },
+
+        lastPaintRowsOnly(): boolean {
+            return rowsOnly;
         },
 
         lastPainted(target: SelectorTarget): ArrayLike<number> {

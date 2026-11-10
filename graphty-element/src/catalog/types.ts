@@ -23,6 +23,7 @@ import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graph-samples";
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { ChannelDescriptor } from "../session/styles/channels";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { LabelStyle } from "./label-style";
@@ -475,6 +476,37 @@ export interface FieldDescriptor {
      * @since 3.26.0
      */
     directedOnly?: boolean;
+    /**
+     * The fixed range its values fall in, when the measure defines one (a share is 0 to 1), so a
+     * histogram keeps a fixed axis. Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    domain?: { readonly min: number; readonly max: number };
+    /**
+     * Which end counts as more: `"lower"` for a distance or a rank, where 1 is the top.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    polarity?: "higher" | "lower";
+    /**
+     * The declared order of an ordered value's levels, lowest first.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    order?: readonly (string | number)[];
+    /**
+     * What an element with no value means: `"unreached"` for a search the element was not reached
+     * by. Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    missing?: "unreached" | "unmeasured" | (string & {}); // NOSONAR(S4335): keeps the named codes in autocomplete while open to others
+    /**
+     * Present (true) when its values are names a re-run may spell differently (a community's
+     * number), so a group is saved by a member it holds rather than by its number.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    unstable?: true;
     path: Path;
 }
 
@@ -687,6 +719,11 @@ export type Channel =
     | "node.raisedBorderWidth"
     | "node.raisedBorderLightColor"
     | "node.raisedBorderDarkColor"
+    | "node.shadowColor"
+    | "node.shadowOpacity"
+    | "node.shadowBlur"
+    | "node.shadowOffsetX"
+    | "node.shadowOffsetY"
     | "node.underlayColor"
     | "node.underlayOpacity"
     | "node.underlayPadding"
@@ -708,6 +745,8 @@ export type Channel =
     | "node.shapeTexts"
     | "node.labelTable"
     | "node.shapeLineWidth"
+    | "node.shapeLineHaloColor"
+    | "node.shapeLineHaloWidth"
     | "node.labelFit"
     | "node.labelPaddingX"
     | "node.labelPaddingY"
@@ -817,6 +856,8 @@ export type Channel =
     | "edge.patternCount"
     | "edge.waveAmplitude"
     | "edge.wavePeriod"
+    | "edge.dashLength"
+    | "edge.dashGap"
     | "edge.curvature"
     | "edge.bends"
     | "edge.fanSpacing"
@@ -942,6 +983,7 @@ export type Channel =
     | "edge.labelOutlineOpacity"
     | "edge.labelBorderOpacity"
     | "edge.labelPadding"
+    | "edge.labelTable"
     | "edge.labelCornerRadius"
     | "edge.labelLineHeight"
     | "edge.labelOffsetX"
@@ -1249,10 +1291,11 @@ export type Selector =
      * edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
      * (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
      * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
-     * follows each change with no step.
+     * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
+     * `selectorRule` reads this selector as with its `states` option.
      * @since 3.26.0
      */
-    | { match: "state"; state: "selected" | "hovered" | "ghosted" | "pinned" }
+    | { match: "state"; state: ElementState }
     /**
      * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
      * or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
@@ -1297,6 +1340,7 @@ export interface LayerSpec {
      * Where a layer made from a file's styles came from: the element's facts about it, set when
      * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
      * Absent on every other layer. An update that does not name it keeps it.
+     * @experimental file-styles
      */
     fileStyle?: FileStyleOrigin;
     /**
@@ -1386,6 +1430,12 @@ export interface AlgorithmDescriptor {
     technicalName: string;
     description: string;
     category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction" | (string & {});
+    /**
+     * Other words a reader may search for it by (`union`, `bridges`), so a picker finds it by more
+     * than its name. Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    keywords?: readonly string[];
     shape: ResultShape;
     fields: readonly FieldDescriptor[];
     options: readonly OptionDescriptor[];
@@ -1526,6 +1576,7 @@ export interface FormatDescriptor {
      * styles (`styles: "file"` on a load), and what its writer keeps of a graph's styles --
      * `"rules"` (the layers come back as layers when the file is read again), `"values"` (only
      * each element's values) or `"none"`. Absent means `{ read: false, write: "none" }`.
+     * @experimental file-styles
      */
     styles?: FormatStyles;
     /**
@@ -1539,7 +1590,10 @@ export interface FormatDescriptor {
     description?: string;
 }
 
-/** What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}. */
+/**
+ * What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}.
+ * @experimental file-styles
+ */
 export interface FormatStyles {
     /** Whether the reader can draw a file's own styles. */
     readonly read: boolean;
@@ -1775,6 +1829,18 @@ export interface AttributeDescriptor {
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 
 /**
+ * What a value is, for the control that tests it: an amount (`"number"`), an instant (`"time"`),
+ * levels with a declared order (`"ordered"`), groups (`"category"`), a list of labels (`"tags"`),
+ * yes or no (`"flag"`) or free text (`"text"`). Derived by the element from the value's type, what
+ * it measures, a declared order and list values.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type ValueKind = "number" | "time" | "ordered" | "category" | "tags" | "flag" | "text";
+
+/**
  * The kinds of channel value a {@link ReadableValue} can drive, as a style channel's `accepts`
  * names them.
  * @since 3.26.0
@@ -1813,6 +1879,20 @@ export interface ReadableValue {
     readonly runId?: RunId;
     /** What kind of value it is. A partition's group is a category however its ids are spelled. */
     readonly kind: ReadableValueKind;
+    /**
+     * What a value is, for the control that tests it: see {@link ValueKind}.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly valueKind?: ValueKind;
+    /**
+     * A run field's declared facts: its fixed range, which end counts as more, its levels' order,
+     * what a missing value means, and whether its values are unstable names. Absent for a data
+     * column, and for a field that declares none.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly facts?: Pick<FieldDescriptor, "domain" | "polarity" | "order" | "missing" | "unstable">;
     /** The lowest and highest value, for a number. */
     readonly range?: { readonly min: number; readonly max: number };
     /**
@@ -1882,6 +1962,12 @@ export interface StructureValue {
     readonly plainName: string;
     /** The name a technical reader knows it by: "degree", "inDegree" or "outDegree". */
     readonly technicalName: string;
+    /**
+     * What a value is: a count, so `"number"`. See {@link ValueKind}.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly valueKind?: ValueKind;
 }
 
 /**
@@ -2010,6 +2096,12 @@ export type RuleTree =
           readonly as?: "time";
           /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
           readonly nodes?: AttributeLeafNodes;
+          /**
+           * Whether an element with no value (absent, NaN or infinite) passes. Default `"exclude"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly missing?: MissingValues;
       }
     | {
           readonly kind: "categories";
@@ -2017,6 +2109,19 @@ export type RuleTree =
           readonly values: readonly string[];
           /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
           readonly nodes?: AttributeLeafNodes;
+          /**
+           * Whether an element with no value passes. Default `"exclude"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly missing?: MissingValues;
+          /**
+           * How a list value is read: `"any"` passes when it holds any of `values`, `"all"` when it
+           * holds every one. Absent, a value is read as one category, as before.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly match?: "any" | "all";
       }
     | {
           readonly kind: "degree";
@@ -2041,6 +2146,7 @@ export type RuleTree =
      */
     | { readonly kind: "repeated-edge" }
     | { readonly kind: "edges"; readonly where: Query }
+    | StateLeaf
     /**
      * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed
      * set is read from its kept record, so removing a set never changes what a rule holds.
@@ -2066,6 +2172,26 @@ export type RuleTree =
           readonly ties?: TopTies;
           /** Strictly above this value. Exactly one cut. */
           readonly above?: number;
+          /**
+           * The share of the population, from 0 to 100, kept from the `from` end; whole tie groups
+           * only, as `top` keeps them. Exactly one cut.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly percentile?: number;
+          /**
+           * Which end `top` and `percentile` count from: the highest values (`"high"`, the default)
+           * or the lowest. `above` reads it as "below" when `"low"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly from?: "high" | "low";
+          /**
+           * Whether an element with no value passes. Default `"exclude"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly missing?: MissingValues;
       }
     /**
      * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -2104,9 +2230,269 @@ export type RuleTree =
            */
           readonly side?: RuleSide;
       }
+    | UnionLeaf
+    | HopsLeaf
+    | TouchingLeaf
+    | NonemptyLeaf
+    | SameValueLeaf
+    | BySizeLeaf
+    | MeasureLeaf
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
+
+/**
+ * What a reader is doing to an element now: selected, under the pointer, drawn outside the time
+ * window, or pinned in place.
+ * @since 3.36.0
+ */
+export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+
+/**
+ * The elements in a state now, as a calculated value: what `{ match: "state", state }` paints,
+ * written as a condition, so it sits beside others in an `all`, a `not` or a union step (Add, Keep,
+ * Except). Speaks nodes and edges, each half on its own: a selected edge stays held whether or not
+ * its ends are selected. `"hovered"` and `"pinned"` hold no edge. Live: a layer reading it repaints
+ * as the state moves, with no undo step, so a kept set or a visibility filter, which do not follow
+ * the reader, refuse it.
+ * @since 3.36.0
+ */
+export interface StateLeaf {
+    readonly kind: "state";
+    /** Which state. */
+    readonly state: ElementState;
+}
+
+/**
+ * Whether an element with no value for a leaf's path (absent, NaN or infinite) passes the leaf.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type MissingValues = "include" | "exclude";
+
+/**
+ * What a step's leaf is relative to: a {@link Scope}, or one of two forms that exist only inside a
+ * {@link UnionStep}: `"hovered-or-selected"` (the hovered node, else a lone selected node: what a
+ * `{ match: "hover", orSelected: true }` selector follows) and `"so-far"` (the step's input: its
+ * branch before this step). A reference that holds no node matches nothing; it is never read as
+ * an unset option.
+ *
+ * OPEN UNION: forms may be added in a minor release; handle unknown forms.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type StepReference = Scope | "hovered-or-selected" | "so-far";
+
+/**
+ * A selection built from branches, each folded from a start by ordered steps, the way a vector
+ * editor combines shapes: the result is everything in ANY branch that is on.
+ *
+ * A branch starts with all of `side` within the base, or with none, then each step that is on
+ * adds what its leaf matches (`add`), keeps only what it matches (`keep`), or removes it
+ * (`except`). Every population a leaf ranks or counts over (a threshold's top, a percentile, a
+ * category's size) is the base, or the step's input when it is computed on `"so-far"`. A node
+ * branch reads an edge leaf as the nodes touching a passing edge; an edge branch reads a node leaf
+ * by its step's `ends`. A leaf silent on `side` changes nothing.
+ *
+ * Speaks `side` only. `session.scope.watchSteps` reads every branch's and step's count and state.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface UnionLeaf {
+    readonly kind: "union";
+    /** Which half the branches select. */
+    readonly side: "nodes" | "edges";
+    /**
+     * The base: `"visible"` (what the visibility filter leaves drawn) or `"graph"` (everything
+     * loaded). A visibility filter condition must read `"graph"`.
+     */
+    readonly within: "graph" | "visible";
+    /**
+     * Narrows the base to the nodes and edges these loads supplied (`session.data.sources()`
+     * keys, what `session.data.sourcesOf(id)` lists): a branch that starts with `"all"` starts
+     * with theirs, a step adds only theirs, and a reading's totals count only theirs. Absent:
+     * every load's. A load that is gone supplies nothing.
+     * @since 3.36.0
+     */
+    readonly sources?: readonly SourceKey[];
+    /** The branches, in order. */
+    readonly branches: readonly UnionBranch[];
+}
+
+/**
+ * One branch of a {@link UnionLeaf}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface UnionBranch {
+    /** Its id, unique in the leaf; filled by the element on write, always present on read. */
+    readonly id?: string;
+    /** Its name, the consumer's. */
+    readonly name?: string;
+    /** Its color, filled from the branch palette on write (`session.scope.options.branchPalette`). */
+    readonly color?: string;
+    /** Whether it counts. Default true. */
+    readonly on?: boolean;
+    /** What it starts with before its first step: all of the side within the base, or none. */
+    readonly start: "all" | "none";
+    /** The steps, folded in order. */
+    readonly steps: readonly UnionStep[];
+}
+
+/**
+ * One step of a {@link UnionBranch}: a verb and one leaf.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface UnionStep {
+    /** Its id, unique in the leaf; filled by the element on write. */
+    readonly id?: string;
+    /** `add`: the branch so far plus the matches; `keep`: only the matches; `except`: minus them. */
+    readonly op: "add" | "keep" | "except";
+    /** Whether it applies. Default true. */
+    readonly on?: boolean;
+    /** What it matches. A `union` is refused here. */
+    readonly rule: RuleTree;
+    /** What its populations are: the base (default) or the branch before this step. */
+    readonly computedOn?: "base" | "so-far";
+    /**
+     * An edge-side rule: the step's computation (a `measure`, a degree path, `hops`, `touching`)
+     * reads only the edges that pass it, within the step's input -- "ignore links with weight
+     * under 2" for one step, where the visibility filter would hide those links for every reader.
+     * Like So far, such a computation belongs to the step: cached by definition, never a
+     * `session.runs` entry. A rule holding a `union` or a node-only leaf is refused
+     * (`E_BAD_COMMAND`, reason `links-not-edges`). Absent: every edge of the input.
+     */
+    readonly links?: RuleTree;
+    /** On an edge branch, how a node leaf is read: both ends pass (default), or either. */
+    readonly ends?: "both" | "either";
+    /** Written by the element when it froze a live reference on a write that cannot follow one. */
+    readonly frozenFrom?: "selection" | "hovered-or-selected";
+    /**
+     * The consumer's own name for how the step's test is edited -- a mode picked before any bound
+     * is set, say. The element keeps it with the step (copies, saves, undo) and never reads it.
+     */
+    readonly mode?: string;
+}
+
+/**
+ * The nodes at most `max` hops from a reference, the reference included; without `max`, every
+ * node it reaches. `direction` follows arcs out of, into, or either way (default) on a directed
+ * graph. Speaks nodes. A step leaf: valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface HopsLeaf {
+    readonly kind: "hops";
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly of?: StepReference;
+    readonly max?: number;
+    readonly direction?: SelectionDirection;
+}
+
+/**
+ * The edges with `"either"`, `"both"` or exactly `"one"` end in a reference. Speaks edges. A step
+ * leaf: valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface TouchingLeaf {
+    readonly kind: "touching";
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly of?: StepReference;
+    readonly ends: "either" | "both" | "one";
+}
+
+/**
+ * Everything while a reference holds a node, else nothing. Speaks nodes and edges. A step leaf:
+ * valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface NonemptyLeaf {
+    readonly kind: "nonempty";
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly of?: StepReference;
+}
+
+/**
+ * The elements whose value for `path` equals (or, for a list, shares) a value a reference node
+ * holds: "the community of Valjean". Speaks the halves that carry the path. A step leaf: valid
+ * only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface SameValueLeaf {
+    readonly kind: "same-value";
+    /** A value path: `data.<field>`, `results.<run>.<field>` or `graphty.degree`. */
+    readonly path: Path;
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly as?: StepReference;
+}
+
+/**
+ * The elements whose category for `path` has a member count in `min..max`, or is among the `top`
+ * categories by size (whole tie groups, as a threshold's `top`), counted over the population.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface BySizeLeaf {
+    readonly kind: "by-size";
+    readonly path: Path;
+    readonly min?: number;
+    readonly max?: number;
+    readonly top?: number;
+    /** Which end `top` counts from: the largest categories (default) or the smallest. */
+    readonly from?: "high" | "low";
+    readonly ties?: TopTies;
+}
+
+/**
+ * The test a {@link MeasureLeaf} puts to its field: the body of a `range`, `threshold`,
+ * `categories`, `text`, `by-size` or `same-value` leaf without its path.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type MeasureTest =
+    | Omit<Extract<RuleTree, { kind: "range" }>, "attribute" | "nodes">
+    | Omit<Extract<RuleTree, { kind: "threshold" }>, "path">
+    | Omit<Extract<RuleTree, { kind: "categories" }>, "attribute" | "nodes">
+    | Omit<Extract<RuleTree, { kind: "text" }>, "reads" | "nodes">
+    | Omit<BySizeLeaf, "path">
+    | Omit<SameValueLeaf, "path">;
+
+/**
+ * The elements whose value of an algorithm's field passes `test`. The element reads the session
+ * run with the same algorithm, params and base, or starts one (without suggested styles), so the
+ * leaf saves the algorithm, not a run id. `bind` maps the algorithm's node options to references,
+ * resolved to node ids before it is called. A step leaf: valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface MeasureLeaf {
+    readonly kind: "measure";
+    /** The algorithm's key, as `session.catalog.algorithms` lists it. */
+    readonly algorithm: string;
+    readonly params?: Readonly<Record<string, unknown>>;
+    readonly bind?: Readonly<Record<string, StepReference>>;
+    /** The result field to test. */
+    readonly field: string;
+    /** The test. Absent, every element the field measures passes, as a range with neither bound does. */
+    readonly test?: MeasureTest;
+    /**
+     * The scope of the session run the step reads, as that run's `scope.spec` gives it: a step
+     * picked from a run's results stays bound to that run, whatever the step's base. The step reads
+     * the newest listed run with this algorithm, params and scope, as the run left it (a later
+     * change to what the scope holds does not re-run it), and starts one over the scope only when
+     * none is listed. Absent, the step's base. Ignored for a step computed on So far, with `links`
+     * or bound to a live reference: those compute their own.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly scope?: Scope;
+}
 
 /**
  * Which half of the graph a `source` rule leaf speaks: its nodes or its edges.
@@ -2178,6 +2564,26 @@ export interface FilterCondition {
      * @since 3.33.0
      */
     readonly within?: FilterSelectWithin;
+    /**
+     * The condition's name, as the reader typed it; absent, an application names it from its rule.
+     * The element never reads it: it is kept, saved and restored with the condition, and a change
+     * to it alone is one undo step (`updateCondition(id, { name })`).
+     * @since 3.36.0
+     */
+    readonly name?: string;
+    /**
+     * The load the condition belongs to (`session.data.sources()` key): it judges only the nodes
+     * and edges that load supplied (`session.data.sourcesOf(id)`) and leaves every other load's
+     * elements as they are. A keep condition hides only that load's elements its rule does not
+     * match, an exclude condition hides only that load's matches, and a select condition selects
+     * only among that load's elements; `conditionCounts()` counts it over that load's elements.
+     * An element two loads supplied belongs to both. Absent: the condition judges every element.
+     * A load that is gone supplies nothing, so its conditions then do nothing. The `steps` view
+     * shows such a condition's rule without its load. To have a selection's totals read the same
+     * load, narrow its `union` leaf with {@link UnionLeaf.sources}.
+     * @since 3.36.0
+     */
+    readonly source?: SourceKey;
 }
 
 /**
@@ -2403,6 +2809,17 @@ export interface CatalogApi {
     algorithms(): readonly AlgorithmDescriptor[];
     layouts(): readonly LayoutDescriptor[];
     formats(): readonly FormatDescriptor[];
+    /**
+     * The style channels this session offers for nodes or for edges, in table order. With the
+     * `file-styles` experiment on it is the same array `channelsFor(target)` returns; with it off it
+     * leaves out the channels the experiment added and the values it added to the rest (node shapes,
+     * arrowheads, line patterns, a size mode). A style editor builds its pickers from it. A layer that
+     * writes a value it leaves out is still accepted and drawn.
+     * @param target - Nodes or edges.
+     * @returns The channels, the same array on every call with the same target.
+     * @since 3.36.0
+     */
+    channels(target: "node" | "edge"): readonly ChannelDescriptor[];
     palettes(): readonly PaletteDescriptor[];
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];

@@ -190,8 +190,21 @@ describe("accessible names in the workspace", () => {
             selector: { match: "everything" },
             set: { "node.color": "#d55e00" },
         });
+        // One layer alone edits its rule in the selection editor; the cards' Add a condition list
+        // is what two selected layers share.
+        await session.styles.add({
+            name: "Mine too",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#d55e00" },
+        });
         await session.styles.settled();
         await openStyle("Mine");
+        await userEvent.keyboard("{Control>}");
+        await userEvent.click(
+            within(screen.getByRole("tree", { name: "Style layers" })).getByRole("treeitem", { name: /^Mine too, / }),
+        );
+        await userEvent.keyboard("{/Control}");
         if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
             await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         }

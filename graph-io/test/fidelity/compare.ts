@@ -61,7 +61,7 @@ export interface PropertyResult {
     note?: string;
 }
 
-export interface Counts {
+interface Counts {
     refNodes: number;
     subjectNodes: number;
     matchedNodes: number;

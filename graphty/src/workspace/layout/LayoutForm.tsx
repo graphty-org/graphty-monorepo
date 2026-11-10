@@ -7,7 +7,8 @@ import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { costLine, optionWords } from "../analyze/words";
-import { OptionsForm } from "../options/OptionsForm";
+import { selectionWorkspaceOn } from "../features";
+import { OptionRow, OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
 import { engineOf, isDrawn, LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
@@ -130,7 +131,7 @@ function ApplyRow({
     differs,
 }: Readonly<{ reason: string | null; seconds: number; differs: boolean }>): React.JSX.Element {
     return (
-        <Group justify="space-between" wrap="nowrap">
+        <Group justify="space-between" wrap="nowrap" className="ws-layout-apply">
             <Text size="xs" c={reason === null ? "dimmed" : "red"}>
                 {reason ?? costLine(seconds)}
             </Text>
@@ -173,30 +174,42 @@ function shapePicked(
  * @param props.id - The layout's id, for the label's id
  * @param props.shape - The shape asked for
  * @param props.onPick - Called with the shape picked
+ * @param props.row - Drawn as a line of the `selection-workspace` forms
  * @returns The field
  */
 function ShapeField({
     id,
     shape,
     onPick,
-}: Readonly<{ id: string; shape: "2d" | "3d"; onPick: (picked: "2d" | "3d") => void }>): React.JSX.Element {
-    return (
+    row,
+}: Readonly<{
+    id: string;
+    shape: "2d" | "3d";
+    onPick: (picked: "2d" | "3d") => void;
+    row: boolean;
+}>): React.JSX.Element {
+    const control = (
+        <SegmentedControl
+            {...(row ? { "aria-label": "Shape" } : { "aria-labelledby": `layout-shape-${id}` })}
+            fullWidth
+            value={shape}
+            data={[
+                { value: "3d", label: "3D" },
+                { value: "2d", label: "2D" },
+            ]}
+            onChange={(picked) => {
+                onPick(picked === "2d" ? "2d" : "3d");
+            }}
+        />
+    );
+    return row ? (
+        <OptionRow label="Shape">{control}</OptionRow>
+    ) : (
         <Stack gap={2}>
             <Text size="xs" id={`layout-shape-${id}`}>
                 Shape
             </Text>
-            <SegmentedControl
-                aria-labelledby={`layout-shape-${id}`}
-                fullWidth
-                value={shape}
-                data={[
-                    { value: "3d", label: "3D" },
-                    { value: "2d", label: "2D" },
-                ]}
-                onChange={(picked) => {
-                    onPick(picked === "2d" ? "2d" : "3d");
-                }}
-            />
+            {control}
         </Stack>
     );
 }
@@ -207,18 +220,45 @@ function ShapeField({
  * @param props.values - The form's values
  * @param props.edit - Writes the form's values
  * @param props.onReshuffle - Applies the layout with a new random seed
+ * @param props.row - Drawn as a line of the `selection-workspace` forms
  * @returns The fields
  */
 function SeedField({
     values,
     edit,
     onReshuffle,
+    row,
 }: Readonly<{
     values: Record<string, unknown>;
     edit: (next: Record<string, unknown>) => void;
     onReshuffle: () => void;
+    row: boolean;
 }>): React.JSX.Element {
     const seed = typeof values.seed === "number" ? values.seed : undefined;
+    if (row) {
+        return (
+            <OptionRow
+                label="Seed"
+                after={
+                    <Button size="compact-xs" variant="default" onClick={onReshuffle}>
+                        Reshuffle
+                    </Button>
+                }
+            >
+                <PanelField
+                    label="Seed"
+                    kind="number"
+                    width="fill"
+                    value={seed ?? LAYOUT_SEED}
+                    step={1}
+                    decimalScale={0}
+                    onChange={(next) => {
+                        edit({ ...values, seed: Number(next) });
+                    }}
+                />
+            </OptionRow>
+        );
+    }
     return (
         <Group gap={8} wrap="nowrap" align="flex-end">
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -378,8 +418,6 @@ export function LayoutForm({
     const { engine } = start;
     const [error, setError] = useState<string | null>(null);
     const formRef = useRef<HTMLFormElement>(null);
-    // The end of the header row, where the Advanced button goes.
-    const [headerEnd, setHeaderEnd] = useState<HTMLDivElement | null>(null);
     // Focus starts on the button so Enter applies; on the first control when it is disabled
     // ("Applied"), so focus stays in the form and Esc still steps back.
     useEffect(() => {
@@ -443,8 +481,10 @@ export function LayoutForm({
     const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => optionWords(descriptor.id, option);
 
     const takesSeed = descriptor.options.some((o) => o.name === "seed");
+    const row = selectionWorkspaceOn(session);
     const seed = takesSeed ? (
         <SeedField
+            row={row}
             values={values}
             edit={edit}
             onReshuffle={() => {
@@ -467,17 +507,14 @@ export function LayoutForm({
                 }
             }}
         >
-            <Stack gap={8}>
-                <Group justify="space-between" wrap="nowrap">
-                    {header}
-                    <div ref={setHeaderEnd} />
-                </Group>
-                {descriptor.description === "" ? null : (
+            <Stack gap={row ? 4 : 8} className={row ? "ws-options-rows" : undefined}>
+                {header}
+                {descriptor.description === "" || row ? null : (
                     <Text size="xs" c="dimmed">
                         {descriptor.description}
                     </Text>
                 )}
-                {showShape ? <ShapeField id={descriptor.id} shape={shape} onPick={pickShape} /> : null}
+                {showShape ? <ShapeField id={descriptor.id} shape={shape} onPick={pickShape} row={row} /> : null}
                 {current.dimension === "3d" && descriptor.maxDimensions === 2 ? (
                     <Text size="xs" c="dimmed">
                         Draws flat
@@ -510,8 +547,7 @@ export function LayoutForm({
                     onChange={(name, value) => {
                         edit({ ...values, [name]: value });
                     }}
-                    advanced={seed}
-                    advancedTarget={headerEnd}
+                    after={seed}
                     choiceNote={(_option, refusal) => columnFitWords(refusal) ?? ""}
                 />
                 <TransitionRow session={session} />

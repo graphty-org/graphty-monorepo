@@ -3,7 +3,8 @@ import type { Observable, Scene } from "@babylonjs/core";
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
 import type { MeshCache } from "../meshes/MeshCache";
-import type { RowTable } from "../render/RowTable";
+import type { NodeBatches } from "../meshes/NodeBatch";
+import type { DrawnTarget, RowTable } from "../render/RowTable";
 import type { GraphSession } from "../session/types";
 import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
@@ -78,6 +79,21 @@ export interface GraphContext {
     getRowTable?(): RowTable | null;
 
     /**
+     * Whether a straight pulled line draws the lean program (`EDGE_PULLED_LEAN`): only with
+     * `antialias` false and the `"batched"` path's batches open. Optional, as `getRowTable` is.
+     * @returns True when it does.
+     * @internal
+     */
+    leansLines?(): boolean;
+
+    /**
+     * The node batches, on the `"batched"` render path.
+     * @returns The batches, or null.
+     * @internal
+     */
+    getNodeBatches?(): NodeBatches | null;
+
+    /**
      * Get the Babylon.js Scene
      */
     getScene(): Scene;
@@ -145,6 +161,13 @@ export interface GraphContext {
      * @since 2.0.0
      */
     getAcceleration?(): AccelerationController;
+
+    /**
+     * The row table a layout on the drawing device fills on the card, under renderPath "batched"
+     * on a device shared with the accelerator; null otherwise.
+     * @internal
+     */
+    getDrawnTarget?(): DrawnTarget | null;
 
     /**
      * The frame loop's manager; absent on a context built without a graph. A node whose surface

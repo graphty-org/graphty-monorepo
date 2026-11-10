@@ -12,6 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -71,6 +72,11 @@ function trackDrawn(element: Element, id: string): () => { x: number; y: number 
     };
 }
 
+// TEMPORARY (#6125): with the selection workspace on, the layout popover is short and the
+// Transition list is cut to a strip whose scroll chevrons cover Glide, so the click never lands.
+// Remove this pin when compact-mantine opens such a list toward the room.
+withFeatures([]);
+
 describe("the layout form's Transition", () => {
     beforeAll(async () => {
         await page.viewport(1024, 768);
@@ -93,9 +99,10 @@ describe("the layout form's Transition", () => {
             assert.deepEqual(session.config.layoutTransition, { transition: "glide" });
         });
 
-        // Its settings: the easing, written with it.
-        await userEvent.click(within(popover).getByRole("button", { name: "Glide settings" }));
-        const easing = await screen.findByRole("combobox", { name: "Easing" });
+        // Its settings are drawn under the row, in the Layout popover: the easing, written with it.
+        assert.isNull(within(popover).queryByRole("button", { name: "Glide settings" }));
+        assert.isNotNull(within(popover).getByRole("textbox", { name: /^Seconds/ }));
+        const easing = await within(popover).findByRole("combobox", { name: "Easing" });
         await userEvent.click(easing);
         await userEvent.click(await screen.findByRole("option", { name: "Linear" }));
         await waitFor(() => {

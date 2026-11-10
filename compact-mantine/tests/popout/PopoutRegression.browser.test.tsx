@@ -525,7 +525,8 @@ describe("Popout Regression Tests", () => {
      * NOTE: Testing the actual floating UI click behavior is unreliable in jsdom
      * because Mantine's Combobox/Select relies on focus and pointer events that
      * jsdom doesn't fully support. The key regression protection is:
-     * 1. MANTINE_FLOATING_SELECTORS in useClickOutside.ts covers all Mantine portals
+     * 1. useClickOutside.ts counts a press in a Menu, a Tooltip or any portal or dialog that does
+     *    not host the open pop-out as inside
      * 2. Manual verification via ComponentCompatibility story in Storybook
      */
     describe("Issue: Clicking floating UI elements should not close Popout (click-outside)", () => {
@@ -986,7 +987,7 @@ describe("Popout Regression Tests", () => {
      *
      * Requirement: Popout panels MUST use minWidth for flexible sizing.
      *
-     * PopoutRegression.layout.test.tsx guards the other half of the same
+     * PopoutRegression.layout.browser.test.tsx guards the other half of the same
      * requirement: while the panel is free to grow, its position is measured
      * from the box it renders at. Positioning from the declared width instead let a 280px panel that
      * rendered 337px wide grow 57px over the sidebar it was anchored to and

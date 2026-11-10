@@ -20,6 +20,7 @@ import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { wholeNumbers } from "./cards";
 import { GroupList, LayerGroupList } from "./Groups";
 import { type DataBinding, type DataChoice, type LayerBinding, startingValue, topmostRow } from "./row";
 import { focusLineNext } from "./useFocusLine";
@@ -40,7 +41,7 @@ const PER_VALUE_MOST = 24;
  * What a categorical color binding does with more values than its palette tells apart. Repeated
  * colors always come with a second cue, a node's shape or an edge's pattern, never color alone.
  */
-export const OVERFLOW_WORDS = {
+const OVERFLOW_WORDS = {
     node: [
         { value: "other", label: "Fold into Other" },
         { value: "shape", label: "Repeat colors, change shape" },
@@ -948,21 +949,6 @@ function Ramp({
 }
 
 /**
- * Whether what a binding reads holds whole numbers only (a count, a rank), so its ramp steps by 1.
- * @param session - the element's session
- * @param path - what the binding reads
- * @returns true for an integer column or run result
- */
-function wholeNumbers(session: GraphSession, path: string): boolean {
-    if (session.data.attributes().some((column) => column.path === path && column.type === "integer")) {
-        return true;
-    }
-    return session.runs
-        .list()
-        .some((run) => run.fields.some((f) => f.type === "integer" && session.results.path(run.id, f.name) === path));
-}
-
-/**
  * The clamp: cut the extent at two percentiles, so outliers paint as the ends. The ramp shades
  * and counts what falls outside.
  * @param props - Component props
@@ -1200,7 +1186,7 @@ function QuietButton({
  * @param props.patch - writes a change
  * @returns The two fields
  */
-export function Range({
+function Range({
     descriptor,
     range,
     patch,

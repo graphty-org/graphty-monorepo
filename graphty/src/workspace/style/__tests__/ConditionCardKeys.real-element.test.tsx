@@ -18,6 +18,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
@@ -58,8 +59,7 @@ async function openLayer(
     }
     const layer = await session.styles.add({ name, target: "node", selector, set: { "node.color": "#d55e00" } });
     await session.styles.settled();
-    const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await selectWithTwin(session, name);
     return { session, store, id: layer.id };
 }
 
@@ -111,7 +111,9 @@ describe("keys in the condition cards, on the real element", () => {
     it("a card's Tab order is its remove button, its match, its values, then Add a condition and Done", async () => {
         await openLayer("Poster", POSTER);
         const region = await openCards();
-        const card = within(region).getByRole("group", { name: /^name/ });
+        // The count arrives after the card draws (the element counts asynchronously): wait for the
+        // card to say it, as a reader would, then read the header.
+        const card = await within(region).findByRole("group", { name: /^name, 3 nodes$/ });
         // The header names its count with its noun.
         assert.include(card.querySelector(".ws-card-head")?.textContent ?? "", "3 nodes");
         // Focus opened on the text box: two steps back is the remove button, drawn first.
@@ -129,6 +131,40 @@ describe("keys in the condition cards, on the real element", () => {
             );
         }
         assert.deepEqual(order, ["name: how to match", "name: text to match", "Match case", "Add a condition", "Done"]);
+    });
+
+    it("a change the count does not read, a color, leaves the card's count said while it counts again", async () => {
+        const { session, id } = await openLayer("Poster", POSTER);
+        const region = await openCards();
+        const card = await within(region).findByRole("group", { name: /^name, 3 nodes$/ });
+        const heard: string[] = [];
+        const watch = new MutationObserver(() => {
+            heard.push(
+                `${card.getAttribute("aria-label") ?? ""} | ${card.querySelector(".ws-card-head")?.textContent ?? ""}`,
+            );
+        });
+        watch.observe(card, { subtree: true, childList: true, characterData: true, attributes: true });
+        const { version } = session.history;
+        await session.styles.update(id, { set: { "node.color": "#0072b2" } });
+        await session.styles.settled();
+        assert.isAbove(session.history.version, version, "the color is a step");
+        // The card counts again after the step: once that count is in, the card says 3 nodes.
+        await session.scope.count({
+            define: {
+                kind: "rule",
+                where: { kind: "text", reads: "data.name", mode: "substring", text: "Mlle" },
+                reading: "clipped",
+            },
+        });
+        await waitFor(() => {
+            assert.strictEqual(card.getAttribute("aria-label"), "name, 3 nodes");
+        });
+        watch.disconnect();
+        assert.deepEqual(
+            heard.filter((each) => !each.includes("3 nodes")),
+            [],
+            "the count never blinked out",
+        );
     });
 
     it("opening a card leaves its list closed, so ArrowDown and Enter keep the rule", async () => {
@@ -152,8 +188,8 @@ describe("keys in the condition cards, on the real element", () => {
         const box = await screen.findByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
         // A suggestion taken from the list (not typing, which the box's own undo would take back).
         await userEvent.keyboard("{ArrowDown}");
-        await screen.findByRole("listbox");
-        await userEvent.keyboard("{ArrowDown}{Enter}");
+        const list = await screen.findByRole("listbox");
+        await userEvent.click(within(list).getAllByRole("option", { name: /^Mlle ./ })[0]);
         await waitFor(() => {
             assert.match(textOf(session, id) ?? "", /^Mlle ./);
         });

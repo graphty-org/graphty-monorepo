@@ -104,6 +104,7 @@ export type {
     HistoryClearOptions,
     HistoryCode,
     HistoryOutcome,
+    HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
     ImportOptions,
@@ -156,6 +157,7 @@ export type {
     RowUpdate,
     RunPlacement,
     SessionAttributes,
+    SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
     SessionDataApi,
@@ -173,6 +175,7 @@ export type {
     StyleProblem,
     TableMapping,
     TableMappingRead,
+    TimeFound,
     TransactionOptions,
     TransactionScope,
     TypeChangePreview,
@@ -323,6 +326,7 @@ export type {
     RunPhase,
     RunProgressReport,
     RunQueue,
+    RunReader,
     RunRecord,
     RunRemoval,
     RunsApi,
@@ -397,6 +401,22 @@ export function defaultReading(result: RunResult, options: ReadingOptions): stri
 
 export type { SavedScope, ScopeApi, ScopeCount, ScopeCountOptions } from "./src/session/scope";
 export { DEFAULT_SCOPE_SAMPLE } from "./src/session/scope";
+// A selection built from branches and ordered steps, read live (`scope.watchSteps`). @beta
+export type {
+    BranchReading,
+    BranchState,
+    ScopeEdit,
+    ScopeStepOptions,
+    StepCheckOptions,
+    StepReading,
+    StepReasonCode,
+    StepsReading,
+    StepState,
+    StepsWatch,
+    ValueHistogram,
+    ValueHistogramOptions,
+} from "./src/session/scope";
+export { DEFAULT_BRANCH_PALETTE } from "./src/session/scope";
 
 // ---------------------------------------------------------------------------------------------
 // Kept sets: named groups, kept selections, communities and paths, as `session.sets`
@@ -489,7 +509,26 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // What is visible: the data scope, never the render set
 // ---------------------------------------------------------------------------------------------
 
-export type { RuleSide, SourceKey, TextMatchMode } from "./src/catalog/types";
+export type {
+    BySizeLeaf,
+    ElementState,
+    HopsLeaf,
+    MeasureLeaf,
+    MeasureTest,
+    MissingValues,
+    NonemptyLeaf,
+    RuleSide,
+    SameValueLeaf,
+    SourceKey,
+    StateLeaf,
+    StepReference,
+    TextMatchMode,
+    TouchingLeaf,
+    UnionBranch,
+    UnionLeaf,
+    UnionStep,
+    ValueKind,
+} from "./src/catalog/types";
 export type {
     AttributeLeafNodes,
     FilterCondition,
@@ -527,9 +566,13 @@ export type {
     TimeField,
     TimeFieldResult,
     TimeIds,
+    TimeMeasure,
     TimeNoticeCode,
     TimePlayMode,
     TimePlayOptions,
+    TimeSeries,
+    TimeSeriesOptions,
+    TimeSeriesRow,
     TimeSettings,
     TimeSource,
     TimeStepEvent,
@@ -641,6 +684,7 @@ export type {
     AgreementOptions,
     BindingPreview,
     BindingPreviewBin,
+    BranchesView,
     ChannelAgreement,
     ChannelCovers,
     ChannelExplanation,
@@ -724,6 +768,7 @@ export {
     renamePaths,
     rulePath,
     selectorRule,
+    selectorStates,
 } from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------
@@ -746,7 +791,7 @@ export type {
     XrUnavailableReason,
 } from "./src/acceleration";
 export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
-export type { DefaultableLimits } from "./src/session";
+export type { DefaultableLimits, LimitsOption } from "./src/session";
 export { DEFAULT_LIMITS } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------

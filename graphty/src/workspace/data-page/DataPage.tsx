@@ -42,10 +42,11 @@ import {
     Title,
     Tooltip,
 } from "@mantine/core";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
+import { fileStylesOn } from "../features";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
@@ -70,6 +71,7 @@ import {
     setRowsAre,
     setTimeUnit,
     setWeightMeaning,
+    timeMarked,
     weightHolder,
 } from "./choices";
 import { canReplace, rememberLoad, takeDataPageRequest, whileDataPageOpen } from "./request";
@@ -100,6 +102,8 @@ import {
     replaceWords,
     roleWords,
     SEPARATORS,
+    SUGGESTED_TIME,
+    TIMELINE_CANDIDATE,
     tooLargeRefusal,
     UNMATCHED_HINTS,
 } from "./words";
@@ -426,7 +430,13 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                       }
                       store.set({ page: "panels" });
                       const incoming = { name: file.name, source: sourceInput(source, settings) };
-                      void replaceWith(store, session, sources[0].key, incoming, loadChoices(draft, choices, "merge"))
+                      void replaceWith(
+                          store,
+                          session,
+                          sources[0].key,
+                          incoming,
+                          loadChoices(draft, choices, "merge", fileStylesOn(session)),
+                      )
                           .then(() => {
                               rememberLoad(session, { files: [file], choices });
                           })
@@ -1026,6 +1036,33 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
 }
 
 /**
+ * A role option as a column that looks like time shows it: Time carries the mark.
+ * @param option - The option.
+ * @param option.value - Its role.
+ * @param option.label - Its words.
+ * @returns The option, marked when it is Time.
+ */
+function markTimeOption(option: { value: string; label: string }): { value: string; label: string } {
+    return option.value === "time" ? { ...option, label: SUGGESTED_TIME } : option;
+}
+
+/**
+ * The roles a column offers. A column of a table the file sets can only become the time column.
+ * @param options - Every role of the table.
+ * @param fixed - Whether the file sets the table's roles.
+ * @param marked - Whether the column shows the mark.
+ * @returns The options.
+ */
+function roleChoices(
+    options: readonly { value: string; label: string }[],
+    fixed: boolean,
+    marked: boolean,
+): { value: string; label: string }[] {
+    const offered = fixed ? options.filter(({ value }) => value === "time" || value === "attribute") : [...options];
+    return marked ? offered.map(markTimeOption) : offered;
+}
+
+/**
  * Each column's role (section 2.10, item 4). The grid's header cannot hold a menu, so the roles
  * are listed above it, one per column, in the grid's order.
  * @param props - Component props
@@ -1060,8 +1097,11 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                 const own = elementRole(draft, table, column.name, page.choices);
                 const chosen = page.choices.tables[table.id]?.roles[column.name];
                 const current = chosen ?? own ?? "auto";
+                const marked = timeMarked(draft, table, column, page.choices);
                 // A role the file sets is a fact, not a choice: plain words, never a box to open.
-                if (table.fixed) {
+                // Only a column that looks like time stays open, as no file says which is its time.
+                const fileSet = table.fixed && column.looksLike !== "time";
+                if (fileSet) {
                     return (
                         <div key={column.name} className="dp-role" data-testid="fixed-role">
                             <Text size="xs" fw={500}>
@@ -1081,7 +1121,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                                 label={column.name}
                                 aria-label={`Role of ${column.name}`}
                                 value={current}
-                                data={options}
+                                data={roleChoices(options, table.fixed, marked)}
                                 allowDeselect={false}
                                 style={{ flex: 1 }}
                                 onChange={(value) => {
@@ -1099,6 +1139,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                         </Group>
                         <Text size="xs" c="dimmed">
                             {TYPE_WORDS[column.type] ?? column.type}
+                            {marked ? `, ${TIMELINE_CANDIDATE}` : ""}
                         </Text>
                         {/* A number column holding times says how its numbers read: epoch or years. */}
                         {timelineOn(session) &&
@@ -1111,7 +1152,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                                 value={page.choices.tables[table.id]?.timeUnit ?? "ms"}
                                 data={UNIT_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
                                 allowDeselect={false}
-                                disabled={table.fixed}
+                                disabled={fileSet}
                                 onChange={(value) => {
                                     if (value !== null) {
                                         page.setChoices(setTimeUnit(table, value as TimeUnit, page.choices));
@@ -1148,27 +1189,51 @@ const COLUMN_MAX = 320;
 
 let measurer: CanvasRenderingContext2D | null = null;
 
+/** How wide a column must be to show its header and every value given, whole, in pixels. */
+type FitWidth = (header: string, values: readonly string[]) => number;
+
 /**
- * How wide a column must be to show its header and every value given, whole.
- * @param header - the column's name.
- * @param values - its shown values.
- * @returns the width in pixels.
+ * Measures with the faces loaded now. Inter swaps in after first paint, so a width measured before
+ * it arrived is the fallback font's; each font load hands out a new one, and the grid measures
+ * again (#6127).
+ * @returns the measure.
  */
-function fitWidth(header: string, values: readonly string[]): number {
-    measurer ??= document.createElement("canvas").getContext("2d");
-    if (measurer === null) {
-        return COLUMN_MIN;
-    }
-    const family = getComputedStyle(document.body).fontFamily;
-    measurer.letterSpacing = CELL_TRACKING;
-    measurer.font = `600 ${CELL_FONT} ${family}`;
-    let widest = measurer.measureText(header).width + HEADER_PAD;
-    measurer.font = `450 ${CELL_FONT} ${family}`;
-    for (const value of values) {
-        widest = Math.max(widest, measurer.measureText(value).width + CELL_PAD);
-    }
-    // One pixel more: the cell lays text out on subpixels and rounds its own box down.
-    return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.ceil(widest) + 1));
+function makeFitWidth(): FitWidth {
+    return (header, values) => {
+        measurer ??= document.createElement("canvas").getContext("2d");
+        if (measurer === null) {
+            return COLUMN_MIN;
+        }
+        const family = getComputedStyle(document.body).fontFamily;
+        measurer.letterSpacing = CELL_TRACKING;
+        measurer.font = `600 ${CELL_FONT} ${family}`;
+        let widest = measurer.measureText(header).width + HEADER_PAD;
+        measurer.font = `450 ${CELL_FONT} ${family}`;
+        for (const value of values) {
+            widest = Math.max(widest, measurer.measureText(value).width + CELL_PAD);
+        }
+        // One pixel more: the cell lays text out on subpixels and rounds its own box down.
+        return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.ceil(widest) + 1));
+    };
+}
+
+let fitWidthNow = makeFitWidth();
+// Swapped whether or not a grid is subscribed yet: one that rendered before the load and
+// subscribes after it still sees a new measure.
+document.fonts.addEventListener("loadingdone", () => {
+    fitWidthNow = makeFitWidth();
+});
+
+/**
+ * Follows the page's font loads.
+ * @param onChange - called after each load.
+ * @returns the unsubscribe.
+ */
+function subscribeFonts(onChange: () => void): () => void {
+    document.fonts.addEventListener("loadingdone", onChange);
+    return () => {
+        document.fonts.removeEventListener("loadingdone", onChange);
+    };
 }
 
 /**
@@ -1193,6 +1258,7 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
             row.missingEnds?.some((end) => endColumns?.[end]?.column === name) === true,
         [endColumns],
     );
+    const fitWidth = useSyncExternalStore(subscribeFonts, () => fitWidthNow);
     const columns = useMemo<DataTableColumn<DraftRow>[]>(() => {
         // A yes-or-no reads Yes or No, as it does everywhere else once loaded.
         const types = new Map(table.columns.map((column) => [column.name, column.type]));
@@ -1238,7 +1304,7 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                 };
             }),
         ];
-    }, [table, rows, missingIn]);
+    }, [table, rows, missingIn, fitWidth]);
     const what = page.filter === "unmatched" ? "unmatched row" : "row that could not be read";
     const missingNames = rows.flatMap((row) =>
         (row.missingEnds ?? []).flatMap((end) => {
@@ -1488,6 +1554,7 @@ function Footer({
     onCancel: () => void;
     onLoad: () => void;
 }): React.JSX.Element {
+    const { session } = useWorkspace();
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
     const replaceButton = useRef<HTMLButtonElement>(null);
@@ -1547,7 +1614,7 @@ function Footer({
                     });
                 }}
             />
-            {draft !== null && offersStyles(draft) ? (
+            {draft !== null && fileStylesOn(session) && offersStyles(draft) ? (
                 <Checkbox
                     label="Import styles from the file"
                     size="xs"

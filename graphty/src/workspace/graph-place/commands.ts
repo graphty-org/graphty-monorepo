@@ -1,12 +1,14 @@
 import type { GraphSession, StyleRow, StyleRowPin } from "@graphty/graphty-element/session";
 
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
+import { selectionWorkspaceOn } from "../features";
 import { focusInspectorTitle, focusIsLost } from "../frame/focus";
 import type { GLYPHS } from "../glyphs";
 import { errorWords } from "../project/words";
+import { panelsInView } from "../time/timeActions";
 import { addLayer, deleteRow, duplicateRow, orNotice, selectWhatItPaints, ungroup } from "./actions";
 import { FIND_BOX_ID } from "./FindBox";
-import { findTreeRow, isBaseRow } from "./rows";
+import { findTreeRow } from "./rows";
 
 /**
  * A command on one row of the style tree. Every door to it -- the row's context menu, the
@@ -32,11 +34,6 @@ export interface RowCommand {
     readonly run: (ctx: CommandContext, row: StyleRow) => void | Promise<void>;
 }
 
-/** Why the Everything row holding the base look never moves or goes. */
-const BASE_STAYS = "Everything holds the base look and stays at the bottom";
-/** Why the base layer cannot be deleted: its own reason, drawn under Delete. */
-const BASE_KEPT = "Everything holds the base look, so it cannot be deleted";
-
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;
 
@@ -56,10 +53,7 @@ function pinCommand(pin: StyleRowPin, label: string, icon: keyof typeof GLYPHS):
         rowKeys: [],
         // Unpin only where there is a pin to take off.
         applies: (row) => pin !== "none" || row.pin !== "none",
-        disabled: (row, session) => {
-            if (isBaseRow(session, row.id)) {
-                return BASE_STAYS;
-            }
+        disabled: (row) => {
             if (row.pin !== pin) {
                 return null;
             }
@@ -97,6 +91,53 @@ function runOfFolder(session: GraphSession | null, row: StyleRow): string | unde
     return runs.size === 1 ? only : undefined;
 }
 
+/**
+ * A Move up or Move down command: one place up or down its list as the tree draws it (the tree is
+ * bottom first, drawn top first), the same keys as a selection's rows.
+ * @param by - +1 up the drawn list, -1 down it.
+ * @returns the command.
+ */
+function moveCommand(by: 1 | -1): RowCommand {
+    const up = by === 1;
+    const place = (
+        session: GraphSession | null,
+        row: StyleRow,
+    ): { parent: StyleRow | undefined; siblings: readonly StyleRow[]; at: number } => {
+        const found = session === null ? undefined : findTreeRow(session.styles.tree(), row.id);
+        const parent = found?.folders.at(-1);
+        const siblings = parent?.children ?? session?.styles.tree() ?? [];
+        return { parent, siblings, at: siblings.findIndex((each) => each.id === row.id) };
+    };
+    return {
+        id: up ? "row.move-up" : "row.move-down",
+        label: up ? "Move up" : "Move down",
+        icon: up ? "moveUp" : "moveDown",
+        group: "edit",
+        // Figma: Bring forward Ctrl+], Send backward Ctrl+[.
+        rowKeys: [up ? "Mod+]" : "Mod+["],
+        applies: () => true,
+        disabled: (row, session) => {
+            const { siblings, at } = place(session, row);
+            // A pin is a band: a row moved out of its own goes back (graphty-element's tree).
+            if (siblings[at + by]?.pin !== row.pin) {
+                return up ? "Already at the top" : "Already at the bottom";
+            }
+            return null;
+        },
+        run: async ({ session, workspace }, row) => {
+            if (session === null) {
+                return;
+            }
+            const { parent, at } = place(session, row);
+            await orNotice(
+                workspace,
+                `move ${row.name}`,
+                session.styles.moveRow(row.id, { parent: parent?.id ?? null, index: at + by }),
+            );
+        },
+    };
+}
+
 /** The row commands, in menu order. */
 export const ROW_COMMANDS: readonly RowCommand[] = [
     {
@@ -111,7 +152,7 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
             // A menu hands focus back to its opener 10 ms after it closes (Mantine's
             // useFocusReturn), which would blur the new field and close it at once.
             setTimeout(() => {
-                workspace.set({ page: "panels", place: "graph", renamingRow: row.id });
+                workspace.set({ page: "panels", place: "graph", renamingRow: row.id, ...panelsInView() });
             }, MENU_FOCUS_RETURN_MS);
         },
     },
@@ -139,6 +180,8 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
             }
         },
     },
+    moveCommand(1),
+    moveCommand(-1),
     {
         // A run's group folder: its settings and Rerun are on the run's own page.
         id: "row.open-run",
@@ -179,7 +222,13 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
                 `select what ${row.name} paints`,
                 selectWhatItPaints(session, row).then(({ nodes, edges }) => {
                     if (nodes + edges === 0) {
-                        workspace.set({ notice: { message: `${row.name} paints nothing, so nothing was selected` } });
+                        workspace.set({
+                            notice: {
+                                message: selectionWorkspaceOn(session)
+                                    ? `${row.name}: nothing painted`
+                                    : `${row.name} paints nothing, so nothing was selected`,
+                            },
+                        });
                     }
                 }),
             );
@@ -246,7 +295,7 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
         group: "remove",
         rowKeys: ["Delete", "Backspace"],
         applies: () => true,
-        disabled: (row, session) => (isBaseRow(session, row.id) ? BASE_KEPT : null),
+        disabled: () => null,
         run: async ({ session, workspace }, row) => {
             if (session !== null) {
                 await orNotice(workspace, `delete ${row.name}`, deleteRow(session, workspace, row));
@@ -316,7 +365,7 @@ export const registration = defineRegistration({
             keywords: ["search", "node", "name"],
             disabled: ({ session }) => (session === null ? "Nothing is open" : null),
             run: ({ workspace }) => {
-                workspace.set({ page: "panels", place: "graph" });
+                workspace.set({ page: "panels", place: "graph", ...panelsInView() });
                 // The Graph place may only now be drawn; focus once it is. Text already in the box
                 // is selected, so the next search replaces it, as every find key does.
                 requestAnimationFrame(() => {

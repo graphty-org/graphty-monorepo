@@ -52,9 +52,32 @@ describe("DOT styles: an edge label Graphviz places itself", () => {
         expect(await edges(doc, "labelPosition")).toEqual(["center", null]);
     });
 
-    it("leaves dot's own label place, a label of a loop, and a stored lp alone", async () => {
+    it("hangs it from the middle of the line Graphviz draws, which stops short of each arrowhead", async () => {
+        const nodes = `node [shape=circle, width=0.1667, fixedsize=true]; a [pos="0,0!"]; b [pos="76,0!"]`;
+        const offset = async (kind: string, attrs: string): Promise<readonly unknown[]> =>
+            edges(
+                `${kind} { layout=neato; ${nodes}; a ${kind === "digraph" ? "->" : "--"} b [label="l"${attrs}] }`,
+                "labelOffsetX",
+            );
+        // from the outline at 6 to the head's arrow at 70 - 10: its middle 5 short of the centers' 38
+        expect(await offset("digraph", "")).toEqual([-5]);
+        expect(await offset("digraph", ", arrowsize=2")).toEqual([-10]);
+        expect(await offset("digraph", ", dir=back, arrowtail=tee")).toEqual([2.5]);
+        expect(await offset("digraph", ", dir=both")).toEqual([null]);
+        expect(await offset("graph", "")).toEqual([null]);
+    });
+
+    it("hangs a loop's label outside the loop, its box's left side on the loop's far point (selfRight)", async () => {
+        const doc = `digraph { a -> a [label="lbl"]; b -> b; c -> c [label="lbl", tailport=n]; d [pos="0,0"];
+            d -> d [label="lbl", pos="e,0,0 1,1 2,2 3,3 4,4"] }`;
+        expect(await edges(doc, "labelShiftX")).toEqual([0.5, null, null, null]);
+        expect(await edges(doc, "labelShiftY")).toEqual([null, null, null, null]);
+        expect(await edges(doc, "labelPosition")).toEqual(["center", null, null, null]);
+        expect(await edges(`digraph { splines=ortho; a -> a [label="lbl"] }`, "labelShiftX")).toEqual([null]);
+    });
+
+    it("leaves dot's own label place and a stored lp alone", async () => {
         expect(await edges(`digraph { a -> b [label="lbl"] }`, "labelShiftX")).toEqual([null]);
-        expect(await edges(`digraph { layout=neato; a -> a [label="lbl"] }`, "labelShiftX")).toEqual([null]);
         const stored = `digraph { layout=neato; a [pos="0,0"]; b [pos="100,0"];
             a -> b [label="lbl", pos="e,90,0 10,0 40,0 60,0 80,0", lp="50,10"] }`;
         expect(await edges(stored, "labelShiftX")).toEqual([null]);
@@ -77,5 +100,46 @@ describe("DOT styles: an edge with both a label and an xlabel (issue #5288)", ()
         expect(written).toMatch(/xlabel="x a->c"/);
         expect(await edges(written, "label")).toEqual(["x", "l"]);
         expect(await edges(written, "xlabel")).toEqual([null, "x a->c"]);
+    });
+});
+
+describe("DOT styles: an edge label that is an HTML-like table", () => {
+    const doc = `digraph {
+        a -> b [color="#505050", label=<<TABLE BGCOLOR="#ffd700"><TR><TD>t</TD></TR></TABLE>>]
+        c -> d [label=<<TABLE BORDER="2" COLOR="red" CELLSPACING="0" CELLBORDER="0"><TR><TD BGCOLOR="blue" CELLPADDING="5">t</TD></TR></TABLE>>]
+        e -> f [label=<<TABLE BORDER="0" CELLBORDER="0"><TR><TD>t</TD></TR></TABLE>>]
+        g -> h [label=<<TABLE STYLE="invis"><TR><TD>t</TD></TR></TABLE>>]
+        i -> j [label=<<B>t</B>>]
+        k -> l [label="t"]
+    }`;
+
+    it("draws the table's fill, the table's or else a lone cell's", async () => {
+        expect(await edges(doc, "labelBackground")).toEqual(["#ffd700", "#0000ff", null, null, null, null]);
+    });
+
+    it("outlines it and its cells in the table's color, else the edge's, as wide as its BORDER", async () => {
+        expect(await edges(doc, "labelBorderColor")).toEqual(["#505050", "#ff0000", "#000000", null, null, null]);
+        expect(await edges(doc, "labelBorderWidth")).toEqual([1, 2, null, null, null, null]);
+    });
+
+    it("keeps the words as far in as its border, spacing, cell border and padding put them", async () => {
+        expect(await edges(doc, "labelPadding")).toEqual([6, 7, 2 + 2, null, null, null]);
+    });
+
+    it("hands the table itself over as labelTable, its lines set as Graphviz sets them", async () => {
+        const tables = (await edges(doc, "labelTable")).map((t) =>
+            typeof t === "string" ? (JSON.parse(t) as unknown) : t,
+        );
+        expect(tables.slice(2)).toEqual([expect.objectContaining({ border: 0, cellBorder: 0 }), null, null, null]);
+        expect(tables[0]).toMatchObject({
+            border: 1,
+            cellBorder: 1,
+            cellSpacing: 2,
+            cellPadding: 2,
+            fill: "#ffd700",
+            lineHeight: "font",
+            baseline: 0.95,
+            rows: [{ cells: [{ lines: [{ runs: [expect.objectContaining({ text: "t" })] }] }] }],
+        });
     });
 });

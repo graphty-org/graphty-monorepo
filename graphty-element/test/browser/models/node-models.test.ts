@@ -1,7 +1,8 @@
 /**
  * @file Nodes drawn as loaded 3D models (`node.model`, design/rendering/node-models.md): the
  * design's first example, failures and refusals reported once per model, URL provenance, fit,
- * instancing, picking, tint, freeing a template, and the frame cost at a thousand nodes.
+ * instancing, picking, tint, freeing a template, and the frame cost at a thousand nodes, where an
+ * idle frame asks none of them what it draws.
  *
  * Every model here is built as bytes by `test/fixtures/models/fixtures.ts`. The one URL on the web,
  * the design's own `https://example.com/models/rack.glb`, is answered by a stub of `fetch`, so the
@@ -14,6 +15,7 @@ import { assert, describe, it, vi } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";
 import { ModelCache } from "../../../src/models/ModelCache";
+import { Node } from "../../../src/Node";
 import { sphereGlb } from "../../fixtures/models/fixtures";
 import { drawnAsModel, modelEvents, mount, nextModelEvent, stubFetch } from "./helpers";
 
@@ -546,5 +548,58 @@ describe("nodes drawn as models", () => {
             1,
             "the file's origin is the pivot, so the model sits to one side",
         );
+    });
+
+    it("asks none of 1,000 model nodes what it draws on an idle frame, and still frees the model after", async () => {
+        const element = await mount();
+        const { graph } = element;
+        const asset = await element.session.assets.add(sphereGlb(12, 6));
+        await graph.addNodes(
+            Array.from({ length: 1000 }, (_, i) => ({
+                id: `n${String(i)}`,
+                model: asset.id,
+                position: { x: (i % 40) * 2, y: Math.floor(i / 40) * 2, z: 0 },
+            })),
+        );
+        await graph.setLayout("fixed", { dim: 3 });
+        const drawn = nextModelEvent(element, (change) => change.state === "drawn");
+        // Named from a data column, so no layer names the model and only its nodes keep it.
+        const layer = await element.session.styles.add({
+            name: "models from the data",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.model": { by: "data.model", scale: "passthrough" } },
+        });
+        await drawn;
+        // A later change that repaints no node finds no layer naming the model, so the cache watches
+        // it for idle frames while its nodes keep drawing it.
+        await element.session.styles.add({
+            name: "a later change",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.width": 2 },
+        });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const models = [...graph.getDataManager().nodes.keys()].filter((id) => drawnAsModel(graph, String(id)));
+        assert.lengthOf(models, 1000, "every node draws the model");
+
+        const asked = vi.spyOn(Node.prototype, "modelDrawn");
+        const askedImage = vi.spyOn(Node.prototype, "imageDrawn");
+        for (let frame = 0; frame < 12; frame++) {
+            graph.scene.render();
+        }
+        assert.equal(asked.mock.calls.length, 0, "an idle frame asks no node what model it draws");
+        assert.equal(askedImage.mock.calls.length, 0, "nor what picture it draws");
+        asked.mockRestore();
+        askedImage.mockRestore();
+        const cache = ModelCache.of(graph);
+        assert.isNotNull(cache);
+        assert.equal(cache.size, 1, "past the idle frames, kept: its nodes draw it");
+
+        await element.session.styles.remove(layer.id);
+        await vi.waitFor(() => {
+            assert.equal(cache.size, 0, "freed once no node draws it");
+        });
     });
 });

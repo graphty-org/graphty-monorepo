@@ -20,6 +20,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
@@ -61,8 +62,7 @@ async function openCard(): Promise<{
         set: { "node.color": "#d55e00" },
     });
     await session.styles.settled();
-    const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Busy, / }));
+    await selectWithTwin(session, "Busy");
     await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
     const region = await screen.findByRole("group", { name: "Which nodes" });
     await openConditions(region);

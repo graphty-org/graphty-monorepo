@@ -4,12 +4,14 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
-import { type PasteInit, PasteShaderDialog } from "./PasteShaderDialog";
+import { shownChannel } from "./offered";
 import { Field, type RowContext } from "./PropertyRow";
 import { carriedOpacity, lineIn, partlySet, startingAdds, writeIn } from "./row";
+import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
 import { addShader, moveShader, shaderEntries, writeWireframe } from "./shaderSlots";
@@ -89,7 +91,9 @@ function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDe
         return blocked;
     }
     if (ctx.side === "node" && spec.id === "shape" && set.some((d) => d.channel === "node.outline")) {
-        return "Every outline is drawn at one width, set in Graph settings. For a ring this layer sizes, use Halo.";
+        return selectionWorkspaceOn(ctx.session)
+            ? "Width: Graph settings"
+            : "Every outline is drawn at one width, set in Graph settings. For a ring this layer sizes, use Halo.";
     }
     return null;
 }
@@ -124,9 +128,13 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     // The properties "+" added that the row does not set yet, waiting for a value, so adding one
     // writes nothing until the reader picks one.
     const [waiting, setWaiting] = useState<readonly string[]>([]);
-    const descriptors = spec.channels.flatMap(
-        (channel) => channelsFor(ctx.side).find((d) => d.channel === channel && d.renderable) ?? [],
-    );
+    // What the element offers, and a property the row already sets even when it is not offered,
+    // so the reader can see it and take it out.
+    const descriptors = spec.channels.flatMap((channel) => {
+        const held = channelsFor(ctx.side).find((d) => d.channel === channel && d.renderable);
+        const shown = held === undefined ? undefined : shownChannel(ctx.session, ctx.side, channel, isSet(ctx, held));
+        return shown?.renderable === true ? [shown] : [];
+    });
     const set = descriptors.filter((d) => isSet(ctx, d));
     const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
     const note = sectionNote(ctx, spec, set);
@@ -371,6 +379,14 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     const fail = (verb: string) => (error: unknown) => {
         store.set({ notice: { message: failureWords(spec.title, verb, error), error: true } });
     };
+    // Show in Style on a notice asks for this side's "+": it takes focus once the section is drawn.
+    const shaderNext = useWorkspaceState((state) => state.shaderNext);
+    useEffect(() => {
+        if (shaderNext === tab) {
+            store.set({ shaderNext: null });
+            sectionBox.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
+        }
+    }, [shaderNext, tab, store]);
     const pick = (id: string): Promise<void> => {
         const name = ctx.session.catalog.shaders().find((each) => each.id === id)?.plainName ?? id;
         return addShader(ctx, id).then(() => {
@@ -472,7 +488,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                 </Popout.Panel>
             </Popout>
             {code !== null && (
-                <PasteShaderDialog
+                <ShaderEditorDialog
                     session={ctx.session}
                     tab={tab}
                     put={(scope, id, params) => addShader({ ...ctx, session: scope }, id, params)}
@@ -547,7 +563,7 @@ export function AddButton({
     expanded,
     inRow = false,
 }: Readonly<{
-    kind: "node" | "edge";
+    kind: "node" | "edge" | "background";
     title: string;
     options: readonly AddOption[];
     onAdd: (key: string) => void;

@@ -1762,8 +1762,8 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         const stripeAt = (y0: number, y1: number): ReturnType<typeof compareOracle> => {
             const o = sceneOf("oracle", 600, 400, grid());
             o.nodes[0].faces = [
-                { x0: 80, y0: 80, x1: 120, y1: 90 },
-                { x0: 80, y0: 90, x1: 120, y1: 120 },
+                { box: { x0: 80, y0: 80, x1: 120, y1: 90 }, color: "#ff0000" },
+                { box: { x0: 80, y0: 90, x1: 120, y1: 120 }, color: "#0000ff" },
             ];
             const g = sceneOf("graphty", 600, 400, grid());
             g.strays = [
@@ -1781,6 +1781,30 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         };
         assert.notInclude(failing(stripeAt(80, 90)), "stray.extra");
         assert.deepEqual(stripeAt(300, 330).failures["stray.extra"], ["graphty:annotation-shape#0"]);
+    });
+
+    it("fails a piece of a node's face in another color that graphty draws nowhere (#6176)", () => {
+        // a node filled side by side in two colors: its own red, judged as its fill, and a blue stripe, which graphty
+        // draws as an annotation over the face, or not at all
+        const judge = (faces: NonNullable<PNode["faces"]>, strays: PScene["strays"] = []): string[] => {
+            const o = sceneOf("oracle", 600, 400, grid());
+            o.nodes[0].faces = faces;
+            return (
+                compareOracle("t", o, { ...sceneOf("graphty", 600, 400, grid()), strays }).failures["stray.present"] ??
+                []
+            );
+        };
+        const red = { box: { x0: 80, y0: 80, x1: 100, y1: 120 }, color: "#ff0000" };
+        const stripe = { x0: 100, y0: 80, x1: 120, y1: 120 };
+        assert.deepEqual(judge([red, { box: stripe, color: "#0000ff" }]), ["face@100,80,120,120"]);
+        const annotation = { index: 0, tag: "annotation-shape", kind: "shape" as const, box: stripe };
+        assert.deepEqual(
+            judge([red, { box: stripe, color: "#0000ff" }], [{ ...annotation, fill: null, stroke: null, text: null }]),
+            [],
+        );
+        // pieces drawn over one another are no fill in pieces: a drop shadow under the face, an overlay on it
+        const shadow = { box: { x0: 84, y0: 84, x1: 124, y1: 124 }, color: "#c8c8c8" };
+        assert.deepEqual(judge([{ box: { x0: 80, y0: 80, x1: 120, y1: 120 }, color: "#ff0000" }, shadow]), []);
     });
 
     it("fails words graphty draws that the program draws nowhere near, a body-less node's label among them", () => {

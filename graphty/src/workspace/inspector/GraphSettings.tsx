@@ -17,8 +17,9 @@ import {
 } from "@graphty/graphty-element/schema";
 import type { GraphSession, GraphSettingKey } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { useSizeBound } from "../frame/useSizeBound";
 import { GLYPHS } from "../glyphs";
 import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
@@ -199,9 +200,11 @@ export function GraphSettings(): React.JSX.Element | null {
                                     />
                                 </FieldRow>
                             </PanelLabelsProvider>
-                            <Text size="xs" c="dimmed">
-                                Every outline is drawn at this width. For a ring whose width a layer sets, use Halo.
-                            </Text>
+                            {!selectionWorkspaceOn(session) && (
+                                <Text size="xs" c="dimmed">
+                                    Every outline is drawn at this width. For a ring whose width a layer sets, use Halo.
+                                </Text>
+                            )}
                         </div>
                     )}
                 </Stack>
@@ -269,6 +272,8 @@ function backgroundOf({ color, image, shader }: BackgroundParts): GraphBackgroun
  * @returns The section
  */
 function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const plusId = useId();
     const [waiting, setWaiting] = useState<readonly BackgroundKind[]>([]);
     const { background, backgroundColor } = session.config;
     const parts: BackgroundParts = {
@@ -365,6 +370,14 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
                 );
         }
     };
+    // Show in Style on a notice about a background shader asks for this "+".
+    const shaderNext = useWorkspaceState((state) => state.shaderNext);
+    useEffect(() => {
+        if (shaderNext === "background") {
+            store.set({ shaderNext: null });
+            document.getElementById(plusId)?.focus();
+        }
+    }, [shaderNext, plusId, store]);
     const addButton = (
         <Menu position="bottom-end">
             <Menu.Target>
@@ -374,6 +387,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
                         size="sm"
                         className="cm-section-add"
                         aria-label={BACKGROUND_SECTION_WORDS.add}
+                        id={plusId}
                         data-plus
                     >
                         <GLYPHS.add size={14} aria-hidden />

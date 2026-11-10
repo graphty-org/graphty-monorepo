@@ -14,7 +14,7 @@ export function focusIsLost(): boolean {
  * Data page closes), so focus lands where the reader goes next, not on the drawing's outline or
  * on the page.
  */
-export function focusCurrentPlace(): void {
+function focusCurrentPlace(): void {
     const rowOf = (): HTMLElement | null =>
         document.querySelector<HTMLElement>('.ws-left [role="tree"] [role="treeitem"][tabindex="0"]');
     const row = rowOf();
@@ -152,7 +152,7 @@ const FOCUSABLE = 'a[href], button, input, select, textarea, summary, [tabindex]
  * @param element - the element.
  * @returns true when it can take focus.
  */
-function canFocus(element: Element): boolean {
+export function canFocus(element: Element): boolean {
     return (
         element instanceof HTMLElement &&
         element.isConnected &&
@@ -174,11 +174,15 @@ export function tabStops(root: ParentNode): HTMLElement[] {
     );
 }
 
+/** The drawing's F6 stop. */
+const CANVAS = ".ws-canvas graphty-element";
+
 /**
  * The regions F6 and Shift+F6 move between, in order, as a desktop application's do -- the one
  * place the app's F6 ring is defined: the top bar, the places rail, the left panel, then the
- * inspector that edits what it picks (one press from a layer to its style), the drawing, the
- * timeline dock while a time field is designated, the canvas toolbar, the table while it is open,
+ * selection workspace's header and its body while it is open, the inspector that edits what it picks (one press from a
+ * layer to its style), the drawing (right after the workspace while it is open: it is the
+ * preview), the timeline dock while a time field is designated, the canvas toolbar, the table while it is open,
  * the Data page while it stands in for the panels, and the status bar; then round to the top bar.
  * A hidden one is passed over. Inside each region Tab follows the order the region is drawn in
  * (document order: the app sets no positive tabindex), so a region's Tab order is its markup's.
@@ -187,8 +191,12 @@ const PANELS = [
     ".ws-header",
     ".ws-rail",
     ".ws-left",
+    // The selection workspace, between the panel it covers and the one beside it (spec 3.0): its
+    // header (Done, Cancel, Clear) is a stop of its own, then its outline and pane.
+    ".sel-ws-head",
+    ".sel-ws-body",
     ".ws-right",
-    ".ws-canvas graphty-element",
+    CANVAS,
     // The timeline dock while a time field is designated: its brush is where focus lands.
     ".tl-dock",
     ".ws-toolbar-dock",
@@ -217,13 +225,23 @@ export function cyclePanel(step: 1 | -1): void {
     if (modal) {
         return;
     }
-    const panels = PANELS.map((selector) => ({
-        selector,
-        element: document.querySelector<HTMLElement>(selector),
-    })).filter(
-        (panel): panel is { selector: string; element: HTMLElement } =>
-            panel.element !== null && canFocus(panel.element),
-    );
+    // While the selection workspace is open the drawing is its preview: its stop comes right after
+    // the workspace's, before the side panel beside it (ws-polish 3).
+    const order =
+        document.querySelector(".sel-ws") === null
+            ? PANELS
+            : PANELS.filter((each) => each !== CANVAS).flatMap((each) =>
+                  each === ".sel-ws-body" ? [each, CANVAS] : [each],
+              );
+    const panels = order
+        .map((selector) => ({
+            selector,
+            element: document.querySelector<HTMLElement>(selector),
+        }))
+        .filter(
+            (panel): panel is { selector: string; element: HTMLElement } =>
+                panel.element !== null && canFocus(panel.element),
+        );
     if (panels.length === 0) {
         return;
     }

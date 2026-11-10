@@ -57,6 +57,9 @@ export class LimitStop extends Error {
     }
 }
 
+/** The User-Agent a request from Node carries when the caller gives none. */
+const DEFAULT_USER_AGENT = "graphty-graph-io (+https://graphty.app)";
+
 /**
  * Where code is running. Node is checked first, since a test may stub a `document`.
  * @returns the runtime
@@ -127,7 +130,7 @@ interface Pacer {
 const PACERS = new Map<string, Pacer>();
 
 /** What the runner reads back from a context after a load. */
-export interface ContextState {
+interface ContextState {
     /** Requests sent. */
     requests: number;
     /** Decoded response bytes read. */
@@ -519,8 +522,10 @@ class SourceFetcher {
     private async request(url: URL, init: SourceRequestInit, attach: boolean): Promise<Request> {
         const { options, report } = this.input;
         const headers = new Headers(init.headers);
-        if (options.userAgent !== undefined && this.runtime === "node") {
-            headers.set("User-Agent", options.userAgent);
+        // Browsers forbid setting it; Node sends none of its own, and some services (Wikidata)
+        // answer 403 without one.
+        if (this.runtime === "node") {
+            headers.set("User-Agent", options.userAgent ?? headers.get("User-Agent") ?? DEFAULT_USER_AGENT);
         }
         const { retry: _retry, idempotent: _idempotent, allowStatus: _allowStatus, ...requestInit } = init;
         const guarded: RequestInit = {

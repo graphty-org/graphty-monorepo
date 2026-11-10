@@ -1,7 +1,7 @@
 /**
  * The timeline's words. graphty-element gives numbers (epoch milliseconds, or plain numbers for
- * ordinal time) and codes; the app writes every date and label. Dates are read in UTC, because
- * the element lines up calendar steps and bins in UTC.
+ * ordinal time) and codes; the app writes every date and label. Dates read in the zone the caller
+ * passes, the one the element lines up its calendar steps and bins in (`session.time.timeZone`), else UTC.
  */
 
 import type {
@@ -57,7 +57,7 @@ export function autoLabel(picked: TimeStep | undefined): string {
  * @param step - the step.
  * @returns true for an hour or less.
  */
-export function finerThanDay(step: TimeStep | undefined): boolean {
+function finerThanDay(step: TimeStep | undefined): boolean {
     return step === "hour" || (typeof step === "number" && step < DAY);
 }
 
@@ -144,34 +144,87 @@ export const OUTSIDE_CHOICES = [
     { value: "ghost", label: "Ghost" },
 ] as const;
 
+const UTC = "UTC";
+
 /**
- * The date formats, each made once: a formatter costs far more to make than to use, and the dock
- * writes two dates for every bar of its histogram on every frame of a play (#4196).
+ * The reader's own zone.
+ * @returns its IANA name.
  */
-const DATE_FORMATS = {
-    minute: new Intl.DateTimeFormat(undefined, { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }),
-    month: new Intl.DateTimeFormat(undefined, { timeZone: "UTC", year: "numeric", month: "short" }),
-    year: new Intl.DateTimeFormat(undefined, { timeZone: "UTC", year: "numeric" }),
-    day: new Intl.DateTimeFormat(undefined, { timeZone: "UTC", dateStyle: "medium" }),
-};
+function readerZone(): string {
+    return new Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+/**
+ * The Zone choices: UTC, the reader's own, and a zone set some other way, as a project saved in
+ * another place holds, under its own name.
+ * @param current - the zone in force.
+ * @returns the choices.
+ */
+export function zoneChoices(current: string): readonly { readonly value: string; readonly label: string }[] {
+    const local = readerZone();
+    return [
+        { value: UTC, label: UTC },
+        ...(local === UTC ? [] : [{ value: local, label: "Local" }]),
+        ...(current === UTC || current === local ? [] : [{ value: current, label: current }]),
+    ];
+}
+
+/**
+ * A zone's date formats.
+ * @param timeZone - the zone.
+ * @returns one per grain, and one that gives the zone's short name.
+ */
+function makeFormats(
+    timeZone: string,
+): Readonly<Record<"minute" | "month" | "year" | "day" | "name", Intl.DateTimeFormat>> {
+    return {
+        minute: new Intl.DateTimeFormat(undefined, { timeZone, dateStyle: "medium", timeStyle: "short" }),
+        month: new Intl.DateTimeFormat(undefined, { timeZone, year: "numeric", month: "short" }),
+        year: new Intl.DateTimeFormat(undefined, { timeZone, year: "numeric" }),
+        day: new Intl.DateTimeFormat(undefined, { timeZone, dateStyle: "medium" }),
+        name: new Intl.DateTimeFormat(undefined, { timeZone, timeZoneName: "short" }),
+    };
+}
+
+/**
+ * The date formats, each made once per zone: a formatter costs far more to make than to use, and
+ * the dock writes two dates for every bar of its histogram on every frame of a play (#4196).
+ */
+const ZONE_FORMATS = new Map([[UTC, makeFormats(UTC)]]);
+
+/**
+ * The date formats of a zone.
+ * @param zone - the zone.
+ * @returns its formats, made on first use.
+ */
+function formatsIn(zone: string): ReturnType<typeof makeFormats> {
+    let formats = ZONE_FORMATS.get(zone);
+    if (formats === undefined) {
+        formats = makeFormats(zone);
+        ZONE_FORMATS.set(zone, formats);
+    }
+    return formats;
+}
 
 /**
  * How finely a date is written for a step: to the minute below a day, to the month for months
  * and quarters, to the year for years, else to the day.
  * @param step - the window's step, or undefined.
+ * @param zone - the zone it reads in.
  * @returns the formatter.
  */
-function dateFormat(step: TimeStep | undefined): Intl.DateTimeFormat {
+function dateFormat(step: TimeStep | undefined, zone: string): Intl.DateTimeFormat {
+    const formats = formatsIn(zone);
     if (step === "hour" || (typeof step === "number" && step < DAY)) {
-        return DATE_FORMATS.minute;
+        return formats.minute;
     }
     if (step === "month" || step === "quarter") {
-        return DATE_FORMATS.month;
+        return formats.month;
     }
     if (step === "year") {
-        return DATE_FORMATS.year;
+        return formats.year;
     }
-    return DATE_FORMATS.day;
+    return formats.day;
 }
 
 /**
@@ -179,15 +232,16 @@ function dateFormat(step: TimeStep | undefined): Intl.DateTimeFormat {
  * @param at - epoch milliseconds, or a plain number for ordinal time.
  * @param unit - how the field reads numbers.
  * @param step - the window's step, which sets how finely a date is written.
+ * @param zone - the zone it reads in.
  * @returns "Mar 10, 2025", or "1995" for ordinal time and for years.
  */
-export function instantWords(at: number, unit: TimeUnit, step?: TimeStep): string {
+export function instantWords(at: number, unit: TimeUnit, step?: TimeStep, zone: string = UTC): string {
     if (unit === "ordinal") {
         return String(Math.round(at * 1000) / 1000);
     }
     // A field of years is written as years unless a step finer than a year asks for more.
     const grain = unit === "year" && (step === undefined || stepAtLeastYear(step)) ? "year" : step;
-    return Number.isFinite(at) ? dateFormat(grain).format(at) : "";
+    return Number.isFinite(at) ? dateFormat(grain, zone).format(at) : "";
 }
 
 /**
@@ -207,26 +261,50 @@ function stepAtLeastYear(step: TimeStep): boolean {
  * @param to - the window's end, excluded.
  * @param unit - how the field reads numbers.
  * @param step - the window's step.
+ * @param zone - the zone it reads in.
  * @returns the words; one instant when both ends read the same.
  */
-export function rangeWords(from: number, to: number, unit: TimeUnit, step?: TimeStep): string {
+export function rangeWords(from: number, to: number, unit: TimeUnit, step?: TimeStep, zone: string = UTC): string {
     // A date window and a whole-number window both end one unit before `to`.
     const last = unit === "ordinal" && !(Number.isInteger(from) && Number.isInteger(to)) ? to : to - 1;
-    const start = instantWords(from, unit, step);
-    const end = instantWords(Math.max(from, last), unit, step);
+    const start = instantWords(from, unit, step, zone);
+    const end = instantWords(Math.max(from, last), unit, step, zone);
     return start === end ? start : `${start} - ${end}`;
+}
+
+/**
+ * A range for a readout: finer than a day, a date reads with its zone's name.
+ * @param range - the range, `[from, to)`.
+ * @param unit - how the field reads numbers.
+ * @param step - the window's step.
+ * @param zone - the zone it reads in.
+ * @returns the words.
+ */
+export function readoutRange(
+    range: readonly [number, number],
+    unit: TimeUnit,
+    step: TimeStep | undefined,
+    zone: string = UTC,
+): string {
+    const words = rangeWords(range[0], range[1], unit, step, zone);
+    if (unit === "ordinal" || !finerThanDay(step)) {
+        return words;
+    }
+    const name = formatsIn(zone)
+        .name.formatToParts(range[0])
+        .find((part) => part.type === "timeZoneName")?.value;
+    return `${words} ${zone === UTC ? UTC : (name ?? zone)}`;
 }
 
 /**
  * A window's readout.
  * @param window - the window.
  * @param unit - how the field reads numbers.
+ * @param zone - the zone it reads in.
  * @returns the words.
  */
-export function windowWords(window: TimeWindow, unit: TimeUnit): string {
-    const words = rangeWords(Number(window.from), Number(window.to), unit, window.step);
-    // Readouts finer than a day name their zone: the element's calendar is UTC.
-    return unit !== "ordinal" && finerThanDay(window.step) ? `${words} UTC` : words;
+export function windowWords(window: TimeWindow, unit: TimeUnit, zone?: string): string {
+    return readoutRange([Number(window.from), Number(window.to)], unit, window.step, zone);
 }
 
 /**

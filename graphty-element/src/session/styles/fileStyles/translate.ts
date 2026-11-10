@@ -79,7 +79,10 @@ const MAX_TABLE_KEYS = 256;
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
 export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 
-/** How a file's styles are turned into layers: choices another consumer may make differently. */
+/**
+ * How a file's styles are turned into layers: choices another consumer may make differently.
+ * @experimental file-styles
+ */
 export interface FileStyleOptions {
     /**
      * How lengths are scaled: `"median"` (the default) scales every length by one factor, so the
@@ -88,8 +91,8 @@ export interface FileStyleOptions {
      * proportions; `"file"` keeps the file's numbers as they are; `"spacing"` scales every length by one factor too,
      * chosen so the spacing the writing program's own layout leaves between nodes once it settles (graph-io's
      * `layoutSpacing`) is drawn at the spacing the element's force layout settles at, so a file that stores no
-     * positions is laid out with its nodes as large beside the gaps as the program draws them. A program with no stated spacing is scaled
-     * as `"median"` is.
+     * positions is laid out with its nodes as large beside the gaps as the program draws them. A file that stores
+     * positions, or one from a program with no stated spacing, is scaled as `"median"` is.
      */
     readonly lengths?: "median" | "file" | "spacing";
     /**
@@ -147,7 +150,10 @@ export function pictureUrl(src: string, base: string | undefined): string {
     }
 }
 
-/** One note of a translation: a code and the facts it is about. */
+/**
+ * One note of a translation: a code and the facts it is about.
+ * @experimental file-styles
+ */
 export interface FileStyleNote {
     /** What happened. */
     readonly code: FileStyleNoteCode;
@@ -184,10 +190,12 @@ export interface TranslateInput {
      * the unit of its other lengths.
      */
     readonly labelPxPerUnit?: number;
+    /** Whether the file stored a usable position for any node, so no program's own layout placed it. */
+    readonly positionsStored?: boolean;
 }
 
 /** One layer the translation made. */
-export interface TranslatedLayer {
+interface TranslatedLayer {
     /** The layer. */
     readonly spec: LayerSpec;
     /**
@@ -502,7 +510,7 @@ function termsOf(where: Predicate): number {
  * @param where - The expression.
  * @returns The count.
  */
-export function expressionTerms(where: string): number {
+function expressionTerms(where: string): number {
     let terms = 0;
     let at = 0;
     while (at < where.length) {
@@ -595,6 +603,12 @@ function channelPlans(
         identity: factor === 1,
     });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
+    // a field of the label style with no channel of its own
+    const keepBlankLines = (target: StyleTarget): ChannelPlan => ({
+        channel: `${target}.labelStyle`,
+        convert: (value) => (typeof value === "boolean" ? { keepBlankLines: value } : null),
+        identity: false,
+    });
     const stack = (channel: Channel): ChannelPlan => ({
         channel,
         convert: (value) => arrowStackOf(value),
@@ -653,9 +667,10 @@ function channelPlans(
     // ponytail: one ratio for every label size; per element against its own label size if outlines of very different
     // sizes need it
     // A label box's border width is a whole stroke's width, so it is not halved.
+    // label units per file length, as a label's padding and border are drawn
+    const labelScale = onScreen.label || factors.label === null ? 1 : factors.label(14) / 14;
     const labelLength = (channel: Channel, half = true): ChannelPlan => {
-        const px = onScreen.label ? null : factors.label;
-        const ratio = (px === null ? 1 : px(14) / 14) / (half ? 2 : 1);
+        const ratio = labelScale / (half ? 2 : 1);
         return {
             channel,
             convert: (value) => (typeof value === "number" ? round(value * ratio) : null),
@@ -719,6 +734,8 @@ function channelPlans(
                 ],
             ],
             ["shapeLineWidth", [length("node.shapeLineWidth")]],
+            ["shapeLineHaloColor", [id("node.shapeLineHaloColor")]],
+            ["shapeLineHaloWidth", [length("node.shapeLineHaloWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
             [
                 "image",
@@ -809,6 +826,11 @@ function channelPlans(
             ["raisedBorderWidth", [length("node.raisedBorderWidth")]],
             ["raisedBorderLightColor", [id("node.raisedBorderLightColor")]],
             ["raisedBorderDarkColor", [id("node.raisedBorderDarkColor")]],
+            ["shadowColor", [id("node.shadowColor")]],
+            ["shadowOpacity", [id("node.shadowOpacity")]],
+            ["shadowBlur", [length("node.shadowBlur")]],
+            ["shadowOffsetX", [length("node.shadowOffsetX")]],
+            ["shadowOffsetY", [length("node.shadowOffsetY")]],
             ["underlayColor", [id("node.underlayColor")]],
             ["underlayOpacity", [id("node.underlayOpacity")]],
             ["underlayPadding", [length("node.underlayPadding")]],
@@ -845,6 +867,7 @@ function channelPlans(
             ["labelWrapEllipsis", [id("node.labelWrapEllipsis")]],
             ["labelWrapAnywhere", [id("node.labelWrapAnywhere")]],
             ["labelWrapSpaceCount", [id("node.labelWrapSpaceCount")]],
+            ["labelKeepBlankLines", [keepBlankLines("node")]],
             ["labelRunAlign", [id("node.labelRunAlign")]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
@@ -1038,6 +1061,7 @@ function channelPlans(
         ["labelWrapEllipsis", [id("edge.labelWrapEllipsis")]],
         ["labelWrapAnywhere", [id("edge.labelWrapAnywhere")]],
         ["labelWrapSpaceCount", [id("edge.labelWrapSpaceCount")]],
+        ["labelKeepBlankLines", [keepBlankLines("edge")]],
         ["labelRunAlign", [id("edge.labelRunAlign")]],
         ["labelRotation", [label("labelRotation")]],
         ["labelBackground", [label("labelBackground")]],
@@ -1050,6 +1074,17 @@ function channelPlans(
         ["labelOutlineOpacity", [label("labelOutlineOpacity")]],
         ["labelBorderOpacity", [label("labelBorderOpacity")]],
         ["labelPadding", [labelLength("edge.labelPadding", false)]],
+        // its lengths in label units, as its padding is
+        [
+            "labelTable",
+            [
+                {
+                    channel: "edge.labelTable",
+                    convert: (value) => labelTableForElement(value, labelScale, imageBase),
+                    identity: false,
+                },
+            ],
+        ],
         ["labelCornerRadius", [labelLength("edge.labelCornerRadius", false)]],
         ["labelLineHeight", [label("labelLineHeight")]],
         // moved in the scene's units, as a wrap width is
@@ -1846,7 +1881,11 @@ function sceneScaleOf(input: TranslateInput): number {
     // size of the element's own node with its label, as a file that sizes its nodes does.
     const labelMedian = nodeMedian === null ? median(resolved("node", "labelSize")) : null;
     const labelBase = typeof base.node["node.labelSize"] === "number" ? base.node["node.labelSize"] : DEFAULT_LABEL_PX;
-    const spacing = input.options.lengths === "spacing" ? programSpacing(extracted.styles.source.tool) : null;
+    // The program's layout spacing says nothing about a file that stores its own positions: it is drawn as "median"
+    const spacing =
+        input.options.lengths === "spacing" && input.positionsStored !== true
+            ? programSpacing(extracted.styles.source.tool, snapshot.nodeCount)
+            : null;
     if (spacing !== null) {
         return NGRAPH_SETTLED_SPACING / spacing;
     }
@@ -1860,12 +1899,19 @@ function sceneScaleOf(input: TranslateInput): number {
 }
 
 /**
- * How far apart the program that wrote a file leaves the nodes of its layout once it settles, in the file's units.
+ * How far apart the program that wrote a file leaves the nodes of its layout once it settles, in the file's units:
+ * its stated settled spacing, or, for a program that scatters the nodes over a square at random (Gephi), the median
+ * nearest-node distance of that many uniform points, side * sqrt(ln 2 / (pi n)).
  * @param tool - The program.
+ * @param nodes - How many nodes the file has.
  * @returns The spacing, or null when the program states none.
  */
-function programSpacing(tool: StyleTool | null): number | null {
-    const spacing = tool === null ? undefined : toolDefaults(tool)?.layoutSpacing?.value;
+function programSpacing(tool: StyleTool | null, nodes: number): number | null {
+    const defaults = tool === null ? undefined : toolDefaults(tool);
+    const side = defaults?.layoutScatterSide?.value;
+    const spacing =
+        defaults?.layoutSpacing?.value ??
+        (side === undefined || nodes < 2 ? undefined : side * Math.sqrt(Math.LN2 / (Math.PI * nodes)));
     return spacing !== undefined && spacing > 0 ? spacing : null;
 }
 
@@ -3093,6 +3139,7 @@ class KindTranslation {
         this.#labelRuns();
         if (this.#kind !== "node") {
             this.#arrowSizes();
+            this.#dashes();
             return;
         }
 
@@ -3166,6 +3213,60 @@ class KindTranslation {
                 this.#emitWith({ ...rule, id: `${rule.id}.labelRuns` }, top, "label", identity, sub);
             }
         }
+    }
+
+    /**
+     * Dash patterns in the writing program's own: each program draws its dashed and dotted lines in dashes and gaps of
+     * its own lengths, some in proportion to the line's width and some the same at any width (graph-io's
+     * `ToolDefaults.dashes`), so each edge's dash length and gap are worked out from its line style and width, in line
+     * widths, and drawn above the topmost rule that writes either.
+     */
+    #dashes(): void {
+        const { extracted, snapshot } = this.#input;
+        const { tool } = extracted.styles.source;
+        const dashes = tool === null ? undefined : toolDefaults(tool)?.dashes;
+        if (dashes === undefined) {
+            return;
+        }
+
+        const props = ["width", "lineStyle"] as const;
+        const writers = this.#rules
+            .map((rule, bucket) => ({ rule, bucket }))
+            .filter(({ rule }) => props.some((p) => rule.set?.[p] !== undefined || rule.map?.[p] !== undefined));
+        const last = writers.at(-1);
+        if (last === undefined || writers.every(({ rule }) => this.#rebuilt.has(rule))) {
+            return;
+        }
+
+        const [width, style] = props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
+        // each edge's dash and gap in its own line's widths, where its program draws its style in dashes
+        const pattern = style.map((value, i) => {
+            const w = width[i];
+            const dash = typeof value === "string" ? dashes[value as keyof typeof dashes]?.value : undefined;
+            return dash === undefined || typeof w !== "number" || Number.isNaN(w) || w <= 0 ? null : dash(w);
+        });
+        if (pattern.every((value) => value === null)) {
+            return;
+        }
+
+        const { rule, bucket } = last;
+        const layer = this.#layerFor(
+            { ...rule, id: `${rule.id}.dashes` },
+            bucket,
+            this.#scoped({ match: "everything" }),
+        );
+        layer.spec.name = `${rule.id}.dashes`;
+        layer.worth = 0;
+        const encode = (channel: Channel, part: "dash" | "gap"): void => {
+            const values = pattern.map((value, i) =>
+                value === null ? null : round(value[part] / (width[i] as number)),
+            );
+            const path = this.#keepNew(`${channel.slice(5)}.sized`, values);
+            layer.spec.encode[channel] = { by: path, scale: "passthrough" };
+            recordPaint(layer, channel, values);
+        };
+        encode("edge.dashLength", "dash");
+        encode("edge.dashGap", "gap");
     }
 
     /**

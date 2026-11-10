@@ -35,22 +35,32 @@ import type {
 } from "../visibility";
 import type { TimeInstants, TimePlayback, TimeResultsPolicy } from "../visibility/filter";
 import { diffCounts, type FilterBytes, type SlideCounts } from "../visibility/slide";
+import { ageFadeInactive, type AgeFadeInactiveReason, type EdgeAgeFade, normalizedStarts } from "./ageFade";
 import {
     addSteps,
     alignTo,
     calendarStepAtLeast,
     calendarStepNear,
+    candidateReading,
     isCalendarStep,
-    isNumericText,
+    newCandidateTally,
     niceAtLeast,
     niceNear,
     numericBound,
-    readInstant,
     readTimeValue,
     stepLength,
+    tallyCandidate,
     TIME_UNITS,
     type TimeUnit,
 } from "./parse";
+import {
+    assertMeasures,
+    assertSeriesBounds,
+    type TimeSeries,
+    type TimeSeriesOptions,
+    walkSeries,
+    windowsUntil,
+} from "./series";
 import {
     buildField,
     countBins,
@@ -59,14 +69,19 @@ import {
     type FieldPlan,
     type IndexWork,
     inSlices,
+    kindBounds,
+    type KindIndex,
     type KindPlan,
     mergeField,
     noticesOf,
+    rowBounds,
     SLICED_ROWS,
+    type SpanColumn,
 } from "./timeIndex";
 import { isTimeZone, UTC_ZONE, wallClock } from "./zone";
 
 export type { TimeUnit } from "./parse";
+export type { TimeMeasure, TimeSeries, TimeSeriesOptions, TimeSeriesRow } from "./series";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer reads and passes
@@ -80,6 +95,19 @@ export type { TimeUnit } from "./parse";
 export interface TimeSource {
     /** The column holding the instant, such as `sent` or `data.sent`. */
     readonly start: Path;
+    /**
+     * The column holding where each element ends, such as `left`: the element then exists for a
+     * span, and a window holds it when it starts before the window's `to` and ends after its
+     * `from`. A missing end is open; a missing start is open when an end is present. An end at or
+     * before its start reads as an instant at the start.
+     */
+    readonly end?: Path;
+    /**
+     * The column holding each element's list of `{ start, end }`, `[start, end]` or bare instants.
+     * An element with a non-empty list is timed by it alone, whatever `start` and `end` hold, and
+     * is inside while any of them overlaps the window; `start` may then name a column that is absent.
+     */
+    readonly spells?: Path;
     /**
      * How numbers in it are read. Strings and dates ignore it. Left out, the values decide: whole
      * numbers from 1000 to 2999 read as years, epochs in seconds as `"s"`, epochs in milliseconds
@@ -124,7 +152,7 @@ export interface TimeCounts {
  * @experimental timeline
  * @beta
  */
-export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect";
+export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect" | "time.age-fade-inactive";
 
 /**
  * What designating a field found.
@@ -147,7 +175,8 @@ export interface TimeFieldResult {
 }
 
 /**
- * The span of the data's time, half-open: `to` is just past the last instant.
+ * The span of the data's time, half-open: `to` is just past the last instant. Open ends do not
+ * stretch it: it runs over the finite bounds.
  * @experimental timeline
  * @beta
  */
@@ -159,7 +188,8 @@ export interface TimeExtent {
 }
 
 /**
- * One histogram bar: elements whose instant is in `[start, end)`.
+ * One histogram bar: elements whose instant is in `[start, end)`, or, for spans, the spans that
+ * overlap it, so an element can count in many bars and twice in one.
  * @experimental timeline
  * @beta
  */
@@ -307,6 +337,12 @@ export interface TimePlayOptions {
     readonly motion?: "smooth" | "steps";
     /** The IANA zone calendar steps read in; default the window's, else the setting's. */
     readonly timeZone?: string;
+    /**
+     * With stepped motion, wait for a drawn frame before timing the next step, so steps never
+     * outrun the renderer. Default false: steps keep to the timer. No frame coming (a hidden page,
+     * a stopped render loop, no renderer) does not hold a play up. Smooth motion never needs it.
+     */
+    readonly waitForRender?: boolean;
 }
 
 /**
@@ -327,6 +363,12 @@ export interface TimeSettings {
     readonly outside: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in, unless a call or the window names its own. */
     readonly timeZone: string;
+    /**
+     * Fade by age: the opacity of edges at the window's first instant, rising to 1 at its end;
+     * 1 (the default) draws no fade. See {@link TimePlayback.ageFade}.
+     * @experimental timeline
+     */
+    readonly ageFade: number;
 }
 
 /**
@@ -361,10 +403,12 @@ export interface TimeApi {
      * Designate the time field, or clear it with null: one undoable step, saved in the project.
      * The column's measurement becomes `"time"`. Clearing or changing the field, or its unit,
      * clears the window. A column designated again without a unit takes the unit it had before.
-     * @param field - Nodes, edges or both; both must name the same column.
+     * @param field - Nodes, edges or both; both must name the same column, and when both name an
+     *     `end` or `spells`, the same one. A kind naming neither keeps instants.
      * @returns What the values held.
-     * @throws `E_BAD_COMMAND` (`reason`: `"declared-not-time"`, `"time-paths-differ"`, `"unit"`,
-     *     `"time-zone"`, `"no-times"` for a column whose values hold no time at all).
+     * @throws `E_BAD_COMMAND` (`reason`: `"declared-not-time"`, `"time-paths-differ"` with `field`
+     *     naming `start`, `end` or `spells`, `"unit"`, `"time-zone"`, `"no-times"` for a column whose
+     *     values hold no time at all).
      */
     setField(field: TimeField | null): Promise<TimeFieldResult>;
     /**
@@ -376,7 +420,10 @@ export interface TimeApi {
      * What the designated field's values held: the same notices `setField` returns, also for a
      * field designated by an import or an element attribute. It starts no build it would wait on:
      * after a load, or over a column of 50,000 rows or more, wait on {@link TimeApi.ready} first.
-     * @returns The notices; empty with no field, and until the index is ready.
+     * With a field designated and `ageFade` under 1 where it cannot apply, it also holds
+     * `time.age-fade-inactive` (`{ reason }`: `"no-edge-time"`, `"spells"` or `"ghost"`), whether
+     * or not the index is ready.
+     * @returns The notices; empty with no field, and, but for that one, until the index is ready.
      */
     notices(): readonly CodedFact<TimeNoticeCode>[];
     /**
@@ -423,7 +470,8 @@ export interface TimeApi {
      * @param of.nodes - The nodes.
      * @param of.edges - The edges.
      * @param of.incident - Whether the edges at the given nodes count too.
-     * @returns The span, `to` just past the last instant; null when none of them has a time.
+     * @returns The span of all their spans, `to` just past the last bound and an open bound held to
+     *     {@link TimeApi.extent}'s, so it is always a usable window; null when none has a time.
      * @throws `E_FEATURE_OFF` with the experiment off.
      */
     spanOf(of: {
@@ -449,6 +497,11 @@ export interface TimeApi {
     readonly atStart: boolean;
     /** Whether the window reaches the end of the data. False with no window. */
     readonly atEnd: boolean;
+    /**
+     * The IANA zone the timeline reads in now: the window's, then the setting's, and always UTC over
+     * a year column. Write a date in this zone and it reads as the bins and the window do.
+     */
+    readonly timeZone: string;
     /** How windows move: results, mode, step and missing, with every default filled in. */
     readonly settings: TimeSettings;
     /**
@@ -456,8 +509,10 @@ export interface TimeApi {
      * A sliding window snaps to a new step; switching to cumulative grows the window from the start
      * of the data, and back to sliding keeps one step ending where it ended. A new `timeZone` is
      * written on the window, and snaps it as a new step does. With no window only the setting is
-     * stored. `results: "rerun"` re-runs the runs a window move left out of date.
+     * stored. `results: "rerun"` re-runs the runs a window move left out of date. `ageFade` moves
+     * no window: it changes only how edges in it are drawn.
      * @param settings - The settings that change.
+     * @throws `E_BAD_COMMAND` for a setting out of range (`field: "ageFade"` outside 0 to 1).
      */
     setSettings(settings: Partial<TimeSettings>): Promise<void>;
     /**
@@ -481,6 +536,19 @@ export interface TimeApi {
     play(options?: TimePlayOptions): void;
     /** Stop advancing, and record where the window stopped. */
     pause(): void;
+    /**
+     * Every window of a step at once, for a chart over time: each one step wide (cumulative: growing
+     * a step at a time), whatever the width of the window in force, as stepping from the first window
+     * of that step shows them. They are counted under the same filter, without moving what is on
+     * screen or touching history. Step, mode and zone left out come from the window in force, else
+     * the settings; `from` and `to` default to the start and end of the data.
+     * @param options - Step, mode, range, zone and measures.
+     * @returns A run resolving to the rows, one per window; it can be cancelled. It rejects with
+     *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows or for a
+     *     `from` or `to` that is not finite, and `E_BAD_COMMAND` (`reason: "measure"`) for a measure it does not have.
+     * @throws `E_FEATURE_OFF` with the experiment off.
+     */
+    series(options?: TimeSeriesOptions): Run<TimeSeries>;
     /**
      * Move the window by whole steps (negative goes back), stopping at the first and the last
      * window. With no window, a step forward opens the first window and a step back the last.
@@ -547,16 +615,25 @@ export interface TimeSources {
     readonly runs: () => readonly Run[];
     readonly digestOf: (spec: Scope) => string;
     readonly emit: <K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]) => void;
+    /**
+     * Settles on the next drawn frame, or at once when no frame is coming. Absent with no renderer.
+     * Asked only by a stepped play with `waitForRender`.
+     */
+    readonly renderedFrame?: () => Promise<void>;
 }
 
 /** The `data.knownFields` keys that hold the designation. */
-export interface KnownTimeFields {
+interface KnownTimeFields {
     readonly nodeTimePath: string | null;
     readonly nodeTimeUnit: TimeUnit | null;
     readonly nodeTimeParseZone: string | null;
+    readonly nodeTimeEndPath: string | null;
+    readonly nodeTimeSpellsPath: string | null;
     readonly edgeTimePath: string | null;
     readonly edgeTimeUnit: TimeUnit | null;
     readonly edgeTimeParseZone: string | null;
+    readonly edgeTimeEndPath: string | null;
+    readonly edgeTimeSpellsPath: string | null;
 }
 
 /** What the rest of the session reads back from the timeline. */
@@ -577,6 +654,11 @@ export interface TimeInternals {
     parsedCount(kind: "node" | "edge", column: string): number | undefined;
     /** Whether playback is running, so autosave can wait for a pause. */
     readonly playing: boolean;
+    /**
+     * What the renderer fades edges by age with: null while `ageFade` is 1, the timeline is off,
+     * the setting cannot apply or the index is not ready.
+     */
+    edgeAges(): EdgeAgeFade | null;
     /** Apply the `results` setting after a visibility change. */
     visibilityChanged(change: VisibilityChange): void;
     /** Stop playback for good. */
@@ -612,6 +694,7 @@ export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
         atStart: false,
         atEnd: false,
         playing: false,
+        timeZone: UTC_ZONE,
         settings: DEFAULT_TIME_SETTINGS,
         mode: DEFAULT_TIME_SETTINGS.mode,
         interval: DEFAULT_INTERVAL,
@@ -648,31 +731,15 @@ export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
 }
 
 /** Every timeline setting at its default. */
-export const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
+const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
     results: "stale",
     mode: "sliding",
     step: "auto",
     missing: "inside",
     outside: "hide",
     timeZone: UTC_ZONE,
+    ageFade: 1,
 });
-
-/**
- * Whether two settings say the same.
- * @param a - One.
- * @param b - The other.
- * @returns True when every member matches.
- */
-export function sameSettings(a: TimeSettings, b: TimeSettings): boolean {
-    return (
-        a.results === b.results &&
-        a.mode === b.mode &&
-        a.step === b.step &&
-        a.missing === b.missing &&
-        a.outside === b.outside &&
-        a.timeZone === b.timeZone
-    );
-}
 
 // ---------------------------------------------------------------------------------------------
 // Reading the index
@@ -687,10 +754,6 @@ const DEFAULT_INTERVAL = 1000;
 const ATTRIBUTE_PREFIX = "data.";
 /** How many windows an automatic step aims to cut the data's span into. */
 const AUTO_STEPS = 20;
-/** The range a whole number reads as a year in, for the `"ordinal"` suggestion. */
-const YEAR_LIKE = { min: -5000, max: 3000 } as const;
-/** A loose reading counts toward a candidate only with a four-digit year in it. */
-const HAS_YEAR = /\d{4}/;
 
 /**
  * A column name without the `data.` prefix a path carries.
@@ -699,6 +762,24 @@ const HAS_YEAR = /\d{4}/;
  */
 function columnOf(path: string): string {
     return path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
+}
+
+/**
+ * The end and spells columns of the designated field, when a window reads that field's start.
+ * @param field - The designated field, if any.
+ * @param attribute - The column the window reads.
+ * @returns The field's end and spells columns, or neither for another column.
+ */
+function fieldBoundsOf(
+    field: TimeField | null,
+    attribute: string,
+): { readonly end: TimeSource["end"]; readonly spells: TimeSource["spells"] } {
+    const designated = field?.edges ?? field?.nodes;
+    if (designated === undefined || columnOf(attribute) !== columnOf(designated.start)) {
+        return { end: undefined, spells: undefined };
+    }
+
+    return { end: field?.edges?.end ?? field?.nodes?.end, spells: field?.edges?.spells ?? field?.nodes?.spells };
 }
 
 /**
@@ -750,10 +831,26 @@ function assertTimeSource(source: TimeSource): void {
     if (source.parseZone !== undefined && !isTimeZone(source.parseZone)) {
         throw badZone("parseZone", source.parseZone);
     }
+
+    for (const field of ["end", "spells"] as const) {
+        const path = source[field];
+        if (path !== undefined && (typeof path !== "string" || path.length === 0)) {
+            throw badCommand(`A time source's \`${field}\` names a column.`, { field, reason: field, source });
+        }
+    }
 }
 
 /**
- * Whether two sources read the same timeline: the same column, unit and zone.
+ * A column a source may name, read the same whichever way it was written.
+ * @param path - The path, or undefined.
+ * @returns The column, or undefined.
+ */
+function optionalColumn(path: Path | undefined): string | undefined {
+    return path === undefined ? undefined : columnOf(path);
+}
+
+/**
+ * Whether two sources read the same timeline: the same columns, unit and zone.
  * @param a - One, or undefined for none.
  * @param b - The other.
  * @returns True when each reads as the other does.
@@ -761,6 +858,8 @@ function assertTimeSource(source: TimeSource): void {
 function sameReading(a: TimeSource | undefined, b: TimeSource | undefined): boolean {
     return (
         a?.start === b?.start &&
+        optionalColumn(a?.end) === optionalColumn(b?.end) &&
+        optionalColumn(a?.spells) === optionalColumn(b?.spells) &&
         (a?.unit ?? "ms") === (b?.unit ?? "ms") &&
         (a?.parseZone ?? UTC_ZONE) === (b?.parseZone ?? UTC_ZONE)
     );
@@ -772,7 +871,13 @@ function sameReading(a: TimeSource | undefined, b: TimeSource | undefined): bool
  * @returns The key.
  */
 function readingOf(field: TimeField): string {
-    return `${field.nodes?.start ?? ""}|${field.nodes?.unit ?? ""}|${field.nodes?.parseZone ?? ""}|${field.edges?.start ?? ""}|${field.edges?.unit ?? ""}|${field.edges?.parseZone ?? ""}`;
+    return [field.nodes, field.edges]
+        .map((source) =>
+            [source?.start, source?.unit, source?.parseZone, source?.end, source?.spells]
+                .map((part) => part ?? "")
+                .join("|"),
+        )
+        .join("|");
 }
 
 /**
@@ -806,6 +911,19 @@ function assertOneColumn(asked: { readonly nodes?: TimeSource; readonly edges?: 
             nodes: asked.nodes.start,
             edges: asked.edges.start,
         });
+    }
+
+    for (const field of ["end", "spells"] as const) {
+        const nodes = optionalColumn(asked.nodes?.[field]);
+        const edges = optionalColumn(asked.edges?.[field]);
+        if (nodes !== undefined && edges !== undefined && nodes !== edges) {
+            throw badCommand(`Nodes and edges name the same \`${field}\` column.`, {
+                field,
+                reason: "time-paths-differ",
+                nodes,
+                edges,
+            });
+        }
     }
 }
 
@@ -966,66 +1084,6 @@ function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: 
     return bounds;
 }
 
-/** What one column's values look like, counted. */
-interface TimeTally {
-    total: number;
-    parsed: number;
-    numbers: number;
-    epochMs: number;
-    epochS: number;
-    years: number;
-}
-
-/**
- * Count one number into a column's tally: is it an epoch in milliseconds or seconds, or a year.
- * @param tally - The tally so far.
- * @param value - The number.
- */
-function tallyNumber(tally: TimeTally, value: number): void {
-    tally.numbers++;
-    tally.epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
-    tally.epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
-    tally.years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
-}
-
-/**
- * Count one value into a column's tally.
- * @param tally - The tally so far.
- * @param value - The value.
- */
-function tallyValue(tally: TimeTally, value: unknown): void {
-    if (value === undefined || value === null || value === "") {
-        return;
-    }
-
-    tally.total++;
-    if (typeof value === "number") {
-        tallyNumber(tally, value);
-    } else if (typeof value === "string" && !isNumericText(value)) {
-        const reading = readInstant(value, "ms");
-        tally.parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
-    }
-}
-
-/**
- * The unit a column of numbers reads in. Numbers read as time only when every one of them looks
- * like an epoch or a year and the column is named for time: a weight of 1 to 10 is no timeline.
- * @param tally - The column's tally.
- * @param name - The column's name.
- * @returns The unit, or undefined when the numbers are not time.
- */
-function numberUnit(tally: TimeTally, name: string): TimeUnit | undefined {
-    if (tally.epochMs === tally.numbers) {
-        return "ms";
-    }
-
-    if (tally.epochS === tally.numbers) {
-        return "s";
-    }
-
-    return tally.years === tally.numbers && /year|date|time|when|period/i.test(name) ? "year" : undefined;
-}
-
 /**
  * One column as a time candidate: walks every value of it.
  * @param sources - What `session.time` reads.
@@ -1043,22 +1101,15 @@ function timeCandidate(
     const attribute = `${ATTRIBUTE_PREFIX}${name}`;
     const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
     const { values } = sources;
-    const tally: TimeTally = { total: 0, parsed: 0, numbers: 0, epochMs: 0, epochS: 0, years: 0 };
+    const tally = newCandidateTally();
     for (let row = 0; row < count; row++) {
-        tallyValue(tally, kind === "node" ? values.nodeValue(row, attribute) : values.edgeValue(row, attribute));
+        tallyCandidate(tally, kind === "node" ? values.nodeValue(row, attribute) : values.edgeValue(row, attribute));
     }
 
-    const { total, numbers } = tally;
-    const allNumbers = numbers > 0 && numbers === total;
-    const unit = allNumbers ? numberUnit(tally, name) : undefined;
-    // A column of numbers counts only when they read in a unit.
-    let { parsed } = tally;
-    if (allNumbers) {
-        parsed = unit === undefined ? 0 : numbers;
-    }
+    const { parsed, unit } = candidateReading(tally, name);
 
     return parsed > 0
-        ? Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) })
+        ? Object.freeze({ kind, column: name, parsed, total: tally.total, ...(unit === undefined ? {} : { unit }) })
         : undefined;
 }
 
@@ -1103,12 +1154,17 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let timer: ReturnType<typeof setTimeout> | null = null;
     /** The window on screen while it is played smoothly or dragged, before it is recorded. */
     let cursor: TimeWindow | null = null;
+    /** The edges' starts normalized over the extent, for the index and extent they were read from. */
+    let ageCache: { kind: KindIndex; from: number; to: number; ages: Float32Array } | null = null;
     let frame: number | null = null;
     let lastFrameAt = 0;
     let smooth = true;
     let playing = false;
     let interval = DEFAULT_INTERVAL;
     let loop = false;
+    let waitForRender = false;
+    /** How many plays have started, so a frame an earlier play waited on starts no timer. */
+    let plays = 0;
     /** The history step this play's moves merge into. */
     let playStep: HistoryStepId | null = null;
     /** How many times the window has slid, so a move can tell a newer slide took the cursor. */
@@ -1141,6 +1197,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             path: string | null,
             unit: TimeUnit | null,
             parseZone: string | null,
+            end: string | null,
+            spells: string | null,
         ): TimeSource | undefined =>
             path === null
                 ? undefined
@@ -1148,9 +1206,24 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                       start: path,
                       ...(unit === null ? {} : { unit }),
                       ...(parseZone === null ? {} : { parseZone }),
+                      // With the timeline off they stay saved and are not read.
+                      ...(end === null || sources.timeline?.() === false ? {} : { end }),
+                      ...(spells === null || sources.timeline?.() === false ? {} : { spells }),
                   });
-        const nodes = sourceOf(known.nodeTimePath, known.nodeTimeUnit, known.nodeTimeParseZone);
-        const edges = sourceOf(known.edgeTimePath, known.edgeTimeUnit, known.edgeTimeParseZone);
+        const nodes = sourceOf(
+            known.nodeTimePath,
+            known.nodeTimeUnit,
+            known.nodeTimeParseZone,
+            known.nodeTimeEndPath,
+            known.nodeTimeSpellsPath,
+        );
+        const edges = sourceOf(
+            known.edgeTimePath,
+            known.edgeTimeUnit,
+            known.edgeTimeParseZone,
+            known.edgeTimeEndPath,
+            known.edgeTimeSpellsPath,
+        );
 
         return nodes === undefined && edges === undefined
             ? null
@@ -1193,14 +1266,35 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const zoneFor = (source: TimeSource): string | undefined =>
             sources.timeline?.() === false ? undefined : (source.parseZone ?? UTC_ZONE);
         // With the timeline off the values are read as they always were.
-        const columnReader = (kind: "node" | "edge"): KindPlan["read"] | null =>
-            sources.timeline?.() === false ? null : (sources.column?.(kind, path) ?? null);
-        const kindOf = (source: TimeSource, count: number, read: KindPlan["read"]): KindPlan => ({
-            count,
-            read,
-            unit: source.unit,
-            zone: zoneFor(source),
-        });
+        const columnReader = (kind: "node" | "edge", column: string): KindPlan["read"] | null =>
+            sources.timeline?.() === false ? null : (sources.column?.(kind, column) ?? null);
+        const beside = (kind: "node" | "edge", path: Path | undefined): SpanColumn | undefined => {
+            if (path === undefined) {
+                return undefined;
+            }
+
+            const column = columnOf(path);
+            const named = `${ATTRIBUTE_PREFIX}${column}`;
+            const read =
+                columnReader(kind, column) ??
+                ((row: number) =>
+                    kind === "node" ? sources.values.nodeValue(row, named) : sources.values.edgeValue(row, named));
+
+            return { column, read };
+        };
+        const kindOf = (kind: "node" | "edge", source: TimeSource, count: number, read: KindPlan["read"]): KindPlan => {
+            const end = beside(kind, source.end);
+            const spells = beside(kind, source.spells);
+
+            return {
+                count,
+                read,
+                unit: source.unit,
+                zone: zoneFor(source),
+                ...(end === undefined ? {} : { end }),
+                ...(spells === undefined ? {} : { spells }),
+            };
+        };
 
         return {
             key: keyOf(field),
@@ -1212,17 +1306,19 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 field.nodes === undefined
                     ? null
                     : kindOf(
+                          "node",
                           field.nodes,
                           graph.nodeCount,
-                          columnReader("node") ?? ((row) => sources.values.nodeValue(row, attribute)),
+                          columnReader("node", path) ?? ((row) => sources.values.nodeValue(row, attribute)),
                       ),
             edge:
                 field.edges === undefined
                     ? null
                     : kindOf(
+                          "edge",
                           field.edges,
                           graph.edgeCount,
-                          columnReader("edge") ?? ((row) => sources.values.edgeValue(row, attribute)),
+                          columnReader("edge", path) ?? ((row) => sources.values.edgeValue(row, attribute)),
                       ),
         };
     };
@@ -1416,15 +1512,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const loadHoldsBuilds = (): boolean => sources.timeline?.() !== false && (sources.loading?.() ?? null) !== null;
 
     /**
-     * The unit the designated field reads in, for a read that needs only that. During a load it
-     * comes from the designation or the last index of this reading, since no build may start.
+     * The unit the designated field reads in, as far as is known without a build: the designation's,
+     * or the last index's of this reading.
      * @returns The unit, or undefined when nothing says yet.
      */
-    const unitNow = (): TimeUnit | undefined => {
-        if (!loadHoldsBuilds()) {
-            return indexNow()?.unit;
-        }
-
+    const unitKnown = (): TimeUnit | undefined => {
         const field = fieldNow();
         if (field === null) {
             return undefined;
@@ -1432,6 +1524,13 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         return (field.edges ?? field.nodes)?.unit ?? (index?.reading === readingOf(field) ? index.unit : undefined);
     };
+
+    /**
+     * The unit the designated field reads in, for a read that needs only that. During a load no
+     * build may start, so it is what is known already.
+     * @returns The unit, or undefined when nothing says yet.
+     */
+    const unitNow = (): TimeUnit | undefined => (loadHoldsBuilds() ? unitKnown() : indexNow()?.unit);
 
     /**
      * The index once a field is designated: the one built for it beforehand, when the data has not
@@ -1482,9 +1581,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         let from = Number.POSITIVE_INFINITY;
         let last = Number.NEGATIVE_INFINITY;
         for (const kind of [built.node, built.edge]) {
-            if (kind !== null && kind.sorted.length > 0) {
-                from = Math.min(from, kind.sorted[0]);
-                last = Math.max(last, kind.sorted[kind.sorted.length - 1]); // NOSONAR(S7755): noUncheckedIndexedAccess is off, so [length - 1] keeps the element type that .at() widens to undefined
+            const bounds = kind === null ? null : kindBounds(kind);
+            if (bounds !== null) {
+                from = Math.min(from, bounds[0]);
+                last = Math.max(last, bounds[1]);
             }
         }
 
@@ -1503,6 +1603,17 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @returns The extent, or null.
      */
     const extentNow = (): TimeExtent | null => extentOf(indexNow());
+
+    /**
+     * Why a fade by age set under 1 does nothing, with a field designated.
+     * @returns The reason, or null when it applies or is not set.
+     */
+    const ageFadeReason = (): AgeFadeInactiveReason | null => {
+        const field = fieldNow();
+        const { ageFade, outside } = settingsNow();
+
+        return field === null || ageFade >= 1 ? null : ageFadeInactive(field.edges, outside);
+    };
 
     /**
      * Whether the designated field reads plain numbers.
@@ -1668,6 +1779,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             field.nodes === undefined &&
             columnOf(attribute) === columnOf(field.edges.start);
         const nodes = input.nodes ?? (followsEdges ? "ends" : undefined);
+        const own = fieldBoundsOf(field, attribute);
+        const end = input.end ?? own.end;
+        const spells = input.spells ?? own.spells;
         const missing = input.missing ?? (settings.missing === "inside" ? undefined : settings.missing);
         const mode = input.mode ?? (settings.mode === "sliding" ? undefined : settings.mode);
         const timeZone = zoneOf(input.timeZone);
@@ -1679,6 +1793,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             from: numericBound(input.from, parseZone),
             to: numericBound(input.to, parseZone),
             step: input.step ?? stepFor(),
+            ...(end === undefined ? {} : { end: `${ATTRIBUTE_PREFIX}${columnOf(end)}` }),
+            ...(spells === undefined ? {} : { spells: `${ATTRIBUTE_PREFIX}${columnOf(spells)}` }),
             ...(nodes === undefined ? {} : { nodes }),
             ...(missing === undefined ? {} : { missing }),
             ...(mode === undefined ? {} : { mode }),
@@ -1704,7 +1820,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             from: mode === "cumulative" ? first : start,
             to: addSteps(start, step, 1, zone),
             step,
-            ...(mode === "cumulative" ? { mode } : {}),
+            ...(mode === settingsNow().mode ? {} : { mode }),
             ...zoned(options.timeZone),
         });
     };
@@ -1725,7 +1841,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             from: mode === "cumulative" ? (extent?.from ?? start) : start,
             to: addSteps(start, step, 1, zone),
             step,
-            ...(mode === "cumulative" ? { mode } : {}),
+            ...(mode === settingsNow().mode ? {} : { mode }),
             ...zoned(options.timeZone),
         });
     };
@@ -2055,6 +2171,21 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         frame = requestAnimationFrame(glide);
     };
 
+    /** Time the next playback step, past a drawn frame when the play waits for one. */
+    const nextStep = (): void => {
+        if (!waitForRender || sources.renderedFrame === undefined) {
+            timer = setTimeout(() => void tick(), interval);
+            return;
+        }
+
+        const play = plays;
+        void sources.renderedFrame().then(() => {
+            if (play === plays && playing && !disposed) {
+                timer = setTimeout(() => void tick(), interval);
+            }
+        });
+    };
+
     /** One playback step, then the next one on the timer. */
     const tick = async (): Promise<void> => {
         timer = null;
@@ -2093,7 +2224,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         if (playing && !disposed) {
-            timer = setTimeout(() => void tick(), interval);
+            nextStep();
         }
     };
 
@@ -2314,6 +2445,44 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
+     * The windows of a series: each one step wide (cumulative: growing a step at a time), as a play
+     * from the first window of that step shows them, up to the series' end.
+     * @param options - What the series asked for.
+     * @returns The windows; none when nothing has a time.
+     */
+    const seriesWindows = (options: TimeSeriesOptions): readonly TimeWindow[] => {
+        assertSeriesBounds(options);
+        const current = visibility.window;
+        const step = stepFor(options.step ?? current?.step);
+        const mode = options.mode ?? current?.mode ?? settingsNow().mode;
+        const timeZone = options.timeZone ?? current?.timeZone;
+        const opening = firstWindow({ step, mode, ...zoned(timeZone) });
+        const extent = extentNow();
+        if (extent === null) {
+            return [];
+        }
+
+        const zone = zoneOf(timeZone);
+        const begin = options.from ?? extent.from;
+        const start = alignAt(begin, step, zone);
+        const cumulative = mode === "cumulative";
+        const first: TimeWindow = Object.freeze({
+            ...opening,
+            from: cumulative ? begin : start,
+            to: addSteps(start, step, 1, zone),
+            ...(current?.nodes === undefined ? {} : { nodes: current.nodes }),
+            ...(current?.missing === undefined ? {} : { missing: current.missing }),
+        });
+        // A cumulative window grows from where it was told, which can lie before the data.
+        const next = (window: TimeWindow): TimeWindow =>
+            cumulative
+                ? Object.freeze({ ...window, to: addSteps(boundOf(window, "to"), step, 1, zone) })
+                : advanced(window, 1);
+
+        return windowsUntil(first, options.to ?? extent.to, next, (window) => boundOf(window, "to"));
+    };
+
+    /**
      * Designate a field, or clear it: the work of one `setField` call.
      * @param field - The field, or null.
      * @returns What it found.
@@ -2360,9 +2529,13 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                                 nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
                                 nodeTimeUnit: nodes?.unit ?? null,
                                 nodeTimeParseZone: nodes?.parseZone ?? null,
+                                nodeTimeEndPath: optionalColumn(nodes?.end) ?? null,
+                                nodeTimeSpellsPath: optionalColumn(nodes?.spells) ?? null,
                                 edgeTimePath: edges === undefined ? null : columnOf(edges.start),
                                 edgeTimeUnit: edges?.unit ?? null,
                                 edgeTimeParseZone: edges?.parseZone ?? null,
+                                edgeTimeEndPath: optionalColumn(edges?.end) ?? null,
+                                edgeTimeSpellsPath: optionalColumn(edges?.spells) ?? null,
                             },
                         },
                     },
@@ -2441,7 +2614,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         notices(): readonly CodedFact<TimeNoticeCode>[] {
-            return noticesOf(indexIfReady());
+            const notices = noticesOf(indexIfReady());
+            const reason = ageFadeReason();
+
+            return reason === null ? notices : [...notices, { code: "time.age-fade-inactive", params: { reason } }];
         },
 
         parse(text: string, options: { readonly timeZone?: string } = {}): number | null {
@@ -2529,16 +2705,26 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 const parsed = built?.[kind];
                 if (parsed !== null && parsed !== undefined) {
                     for (const row of rowsOf(kind, of)) {
-                        const at = parsed.rows[row];
-                        if (!Number.isNaN(at)) {
-                            from = Math.min(from, at);
-                            last = Math.max(last, at);
+                        const bounds = rowBounds(parsed, row);
+                        if (bounds !== null) {
+                            from = Math.min(from, bounds[0]);
+                            last = Math.max(last, bounds[1]);
                         }
                     }
                 }
             }
 
-            return from > last ? null : Object.freeze({ from, to: last + 1 });
+            if (from > last) {
+                return null;
+            }
+
+            // An open bound is infinite: hold it to the data, so the span is a window.
+            const extent = extentOf(built);
+
+            return Object.freeze({
+                from: Math.max(from, extent?.from ?? from),
+                to: Math.min(last + 1, extent?.to ?? last + 1),
+            });
         },
 
         changes(): TimeChanges {
@@ -2563,6 +2749,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return current !== null && isLast(current);
         },
 
+        get timeZone() {
+            const window = cursor ?? visibility.window;
+
+            return unitKnown() === "year" ? UTC_ZONE : (window?.timeZone ?? settingsNow().timeZone);
+        },
+
         get settings() {
             return settingsNow();
         },
@@ -2579,7 +2771,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             const current = visibility.window;
-            const moved = current !== null && extentNow() !== null ? windowUnder(current, next, patch.timeZone) : null;
+            // Fading by age changes only how the window is drawn, so it leaves the window where it is.
+            const drawingOnly = Object.keys(patch).every((key) => key === "ageFade");
+            const moved =
+                current !== null && extentNow() !== null && !drawingOnly
+                    ? windowUnder(current, next, patch.timeZone)
+                    : null;
             const before = masksNow();
             const playback: TimePlayback = Object.freeze(
                 Object.fromEntries(
@@ -2648,6 +2845,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             zoneOf(options.timeZone);
             interval = options.interval ?? interval;
             loop = options.loop ?? loop;
+            waitForRender = options.waitForRender ?? false;
+            plays++;
             smooth = (options.motion ?? (smooth ? "smooth" : "steps")) === "smooth";
             const current = cursor ?? visibility.window;
             playing = true;
@@ -2666,7 +2865,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 void move(start, "play")
                     .then(() => {
                         if (playing) {
-                            timer = setTimeout(() => void tick(), interval);
+                            nextStep();
                         }
                     })
                     .catch(() => {
@@ -2676,6 +2875,28 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             timer = setTimeout(() => void tick(), interval);
+        },
+
+        series(options: TimeSeriesOptions = {}): Run<TimeSeries> {
+            const { signal, onProgress, ...asked } = options;
+            const measures = asked.measures ?? [];
+
+            return visibility.windowRun(
+                "time.series",
+                asked,
+                { ...(signal === undefined ? {} : { signal }), ...(onProgress === undefined ? {} : { onProgress }) },
+                async (open, context) => {
+                    assertMeasures(measures);
+                    await follow();
+                    const windows = seriesWindows(asked);
+                    const bounds = (window: TimeWindow): readonly [number, number] => [
+                        boundOf(window, "from"),
+                        boundOf(window, "to"),
+                    ];
+
+                    return walkSeries(windows, open(), measures, bounds, context);
+                },
+            );
         },
 
         pause(): void {
@@ -2823,6 +3044,54 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         get playing() {
             return playing;
+        },
+
+        edgeAges(): EdgeAgeFade | null {
+            const { ageFade, outside } = settingsNow();
+            if (ageFade >= 1 || sources.timeline?.() === false) {
+                return null;
+            }
+
+            if (ageFadeInactive(fieldNow()?.edges, outside) !== null) {
+                return null;
+            }
+
+            // While a load or a merge rebuilds the index, the last ages stand: the fade stays on,
+            // and an edge added since reads past their end as untimed until the index lands.
+            const built = indexIfReady();
+            if (built !== null) {
+                const extent = extentOf(built);
+                const kind = built.edge ?? null;
+                if (kind === null || extent === null) {
+                    return null;
+                }
+
+                if (ageCache?.kind !== kind || ageCache.from !== extent.from || ageCache.to !== extent.to) {
+                    ageCache = {
+                        kind,
+                        from: extent.from,
+                        to: extent.to,
+                        ages: normalizedStarts(kind, extent.from, extent.to),
+                    };
+                }
+            }
+
+            if (ageCache === null) {
+                return null;
+            }
+
+            const window = cursor ?? visibility.window;
+            if (window === null) {
+                return { ages: ageCache.ages, from: 0, to: 1, fade: 1 };
+            }
+
+            const span = ageCache.to > ageCache.from ? ageCache.to - ageCache.from : 1;
+            return {
+                ages: ageCache.ages,
+                from: (boundOf(window, "from") - ageCache.from) / span,
+                to: (boundOf(window, "to") - ageCache.from) / span,
+                fade: ageFade,
+            };
         },
 
         visibilityChanged(change: VisibilityChange): void {

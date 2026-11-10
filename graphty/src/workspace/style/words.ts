@@ -184,6 +184,29 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
     ],
 };
 
+/** The Line properties the `cosmograph` experiment adds (issue #3247): the long-edge fade and blending. */
+const COSMOGRAPH_LINE_CHANNELS: readonly Channel[] = [
+    "edge.fadeEnd",
+    "edge.fadeStart",
+    "edge.fadeOpacity",
+    "edge.blending",
+];
+
+/** The edge sections with the `cosmograph` experiment on: Line ends with its fade and blending. */
+const COSMOGRAPH_EDGE_SECTIONS: readonly SectionSpec[] = SECTIONS.edge.map((section) =>
+    section.id === "line" ? { ...section, channels: [...section.channels, ...COSMOGRAPH_LINE_CHANNELS] } : section,
+);
+
+/**
+ * A group's sections, with what the experiments switched on add.
+ * @param kind - nodes or edges.
+ * @param cosmograph - whether the `cosmograph` experiment is on.
+ * @returns the sections, in their fixed order.
+ */
+export function sectionsFor(kind: Kind, cosmograph: boolean): readonly SectionSpec[] {
+    return cosmograph && kind === "edge" ? COSMOGRAPH_EDGE_SECTIONS : SECTIONS[kind];
+}
+
 /**
  * The opacity a color field carries in its opacity box: Fill's and Line's. Opacity has one source,
  * the opacity channel, so the color stays six digits and a row that set Opacity keeps it.
@@ -217,6 +240,10 @@ export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boo
     "edge.curvature": [
         [false, "Straight"],
         [true, "Curved"],
+    ],
+    "edge.blending": [
+        [true, "On"],
+        [false, "Off"],
     ],
 };
 
@@ -450,6 +477,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.raisedBorderWidth": "Raised border width",
     "node.raisedBorderLightColor": "Raised border light color",
     "node.raisedBorderDarkColor": "Raised border dark color",
+    "node.shadowColor": "Shadow color",
+    "node.shadowOpacity": "Shadow opacity",
+    "node.shadowBlur": "Shadow blur",
+    "node.shadowOffsetX": "Shadow offset X",
+    "node.shadowOffsetY": "Shadow offset Y",
     "node.underlayColor": "Underlay color",
     "node.underlayOpacity": "Underlay opacity",
     "node.underlayPadding": "Underlay padding",
@@ -520,6 +552,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shapeTexts": "Shape texts",
     "node.labelTable": "Label table",
     "node.shapeLineWidth": "Shape line width",
+    "node.shapeLineHaloColor": "Shape line halo color",
+    "node.shapeLineHaloWidth": "Shape line halo width",
     "node.gradientColors": "Gradient colors",
     "node.gradientStops": "Gradient stops",
     "node.gradientKind": "Gradient kind",
@@ -546,6 +580,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.gradientKind": "Gradient kind",
     "edge.waveAmplitude": "Wave amplitude",
     "edge.wavePeriod": "Wave period",
+    "edge.dashLength": "Dash length",
+    "edge.dashGap": "Dash gap",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
@@ -610,6 +646,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOutlineOpacity": "Label outline opacity",
     "edge.labelBorderOpacity": "Label border opacity",
     "edge.labelPadding": "Label padding",
+    "edge.labelTable": "Label table",
     "edge.labelCornerRadius": "Label corner radius",
     "edge.labelLineHeight": "Label line height",
     "edge.labelOffsetX": "Label offset x",
@@ -771,7 +808,8 @@ export function readableName(session: GraphSession, value: ReadableValue): { nam
  */
 export function groupRank(session: GraphSession, path: string, value: unknown): number | undefined {
     const run = session.runs.list().find((each) => session.results.path(each.id) === path);
-    return run?.result?.summary().groups?.find((g) => String(g.group) === String(value))?.rank;
+    // Every group's rank, not only the ten a summary lists, so a value is named one way.
+    return run?.result?.groupRanks()?.get(String(value));
 }
 
 /**
@@ -1256,7 +1294,7 @@ export function madeWords(name: string, nodes: number, edges: number): string {
  * @param edges - how many edges are selected.
  * @returns the words.
  */
-export function selectedWords(nodes: number, edges: number): string {
+function selectedWords(nodes: number, edges: number): string {
     const [first, ...rest] = pickedCount(nodes, edges).split(" and ");
     const [n, word] = first.split(" ");
     const selected = n === "1" ? `selected ${word}` : `${n} selected ${word}`;
@@ -1407,6 +1445,68 @@ export const OPTION_TILE_WORDS: Readonly<Record<"node" | "edge", string>> = {
     edge: "Line option",
 };
 
+/** The shader editor's words, each as a reader sees it. */
+export const EDITOR_WORDS = {
+    newTitle: "New shader",
+    editTitle: "Edit shader",
+    code: "Shader code",
+    preview: "Preview",
+    problems: "Problems",
+    add: "Add",
+    addToProject: "Add to project",
+    drawsOn: "Draws on",
+    targets: { node: "Node", edge: "Edge", background: "Background" },
+    showInStyle: "Show in Style",
+    addedToProject: (name: string) => `${name} added to This project`,
+    alreadyInGallery: (name: string) => `${name} is already in the gallery`,
+    name: "Name",
+    reach: "Reach",
+    minSize: "Minimum size",
+    fullText: "Full text",
+    copyCode: "Copy code",
+    copied: "Shader code copied",
+    copyFailed: "The code could not be copied",
+    close: "Close",
+    closeTip: "Close  Esc",
+    tabIndent: "Tab: Indent",
+    tabNextField: "Tab: Next field",
+    parameters: "Parameters",
+    unnamedParam: "Parameter",
+    displayName: "Display name",
+    min: "Min",
+    max: "Max",
+    step: "Step",
+    choices: "Choices",
+    varies: "Varies",
+    on: "On",
+    off: "Off",
+    starts: "Starts",
+    startsNone: "None",
+    from: "From",
+    to: "To",
+    insertNeedsCursor: "Click in the code first",
+    paramTypes: {
+        number: "Number",
+        integer: "Integer",
+        boolean: "Switch",
+        enum: "Choice",
+        color: "Color",
+    } as Readonly<Record<string, string>>,
+    seedChoices: ["One", "Two"],
+    nameOf: (param: string): string => `${param} name`,
+    typeOf: (param: string): string => `${param} type`,
+    defaultOf: (param: string): string => `${param} default`,
+    insert: (param: string): string => `Insert ${param}`,
+    settingsOf: (param: string): string => `${param} settings`,
+    closeSettings: (param: string): string => `Close ${param} settings`,
+    removeParam: (param: string): string => `Remove ${param}`,
+    choiceLabel: (param: string, index: number): string => `${param} choice ${String(index)}`,
+    removeChoice: (param: string, index: number): string => `Remove ${param} choice ${String(index)}`,
+    addChoice: (param: string): string => `Add a choice to ${param}`,
+    newChoice: (position: number): string => `Choice ${String(position)}`,
+    rangeColor: (param: string, at: number): string => `${param} color ${String(at + 1)}`,
+} as const;
+
 /** The code dialog's link to the published guide to writing a shader. */
 export const PASTE_GUIDE_WORDS = "How to write one";
 
@@ -1548,7 +1648,7 @@ export function effectOffWords(name: string): string {
 }
 
 /** The moments a clock counts from, as a bound parameter's value shows them. */
-const CLOCK_WORDS: Readonly<Record<string, string>> = {
+export const CLOCK_WORDS: Readonly<Record<string, string>> = {
     "since.matched": "When this layer starts applying",
     "since.unmatched": "When this layer stops applying",
     "since.selected": "When selected",

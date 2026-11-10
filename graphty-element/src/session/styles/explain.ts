@@ -242,6 +242,20 @@ export interface StyleCounts {
      */
     readonly matched: number;
     /**
+     * What the layer's selector selects among the elements drawn -- those no filter step hides --
+     * and how many of its kind are drawn: the same selection read over the graph the filter leaves,
+     * the base a style selector is shown against ("10 of 10" where `matched` says 24). Equal to
+     * `matched` and the graph's count with no filter on. Always present on counts graphty-element
+     * returns; optional only so that counts written by hand before it existed still type-check.
+     * @since 3.36.0
+     */
+    readonly visible?: {
+        /** How many of the elements drawn the layer selects. */
+        readonly matched: number;
+        /** How many elements of the layer's kind are drawn. */
+        readonly of: number;
+    };
+    /**
      * For each channel the layer writes, on how many of the matched elements it is the layer the
      * picture shows: the topmost layer that painted that channel there, worked out by the same walk
      * as `explain` and `agreement`. Every channel the layer writes has a key, 0 when a layer above
@@ -318,7 +332,7 @@ export interface StyleCounts {
 }
 
 /** How many covering layers {@link StyleCounts.covers} lists per channel before counting the rest. */
-export const COVERS_LISTED = 3;
+const COVERS_LISTED = 3;
 
 /**
  * The layers covering one channel of a layer: see {@link StyleCounts.covers}.

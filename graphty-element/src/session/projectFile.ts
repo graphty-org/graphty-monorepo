@@ -165,8 +165,9 @@ interface NetworkSourceRecords {
      * Take what an opened project's `graphty-sources` member held; its network loads wait until
      * they are run.
      * @param read - what the member held, or undefined when the file holds none
+     * @param autosave - whether the file is the reader's own work (`ProjectOpenOptions.ownWork`)
      */
-    restore(read: SourcesRead | undefined): void;
+    restore(read: SourcesRead | undefined, autosave: boolean): void;
 }
 
 /** The versions of a member kind this element reads, where they are not just {@link VERSION}. */
@@ -246,6 +247,14 @@ export interface ProjectOpenOptions {
      * @since 3.34.0
      */
     readonly draft?: { readonly onto?: "graph"; readonly guess?: "names" | "values" };
+    /**
+     * The file is the reader's own work coming back: a project this application saved to storage
+     * only it writes (its autosave, its own list of projects saved in the browser), never a file
+     * that came from anywhere else. Its network loads that already ran stay live, and only those
+     * still waiting when it was saved wait again. Default false: a file cannot approve its own
+     * fetches, so every network load it records waits for `session.data.runPendingSourceLoad`.
+     */
+    readonly ownWork?: boolean;
     readonly limits?: {
         /** The largest file to read, in bytes. Default 256 MiB. */
         readonly fileBytes?: number;
@@ -1584,6 +1593,10 @@ interface Opening {
     readonly restored: Set<ProjectSlice>;
     /** The timeline settings the session held before this open, which it clears. */
     readonly playback?: unknown;
+    /** The dispatcher's services, which let this open restore saved file style values. */
+    readonly services: Dispatcher["services"];
+    /** Marks a restored run as one whose id the element minted. */
+    readonly restoreDerived: (id: RunId) => void;
 }
 
 /**
@@ -1705,9 +1718,16 @@ async function readProject(
     // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
     if (Array.isArray(state.fileStyles)) {
         const loads = state.fileStyles as unknown[];
-        await attempt(opening, "graph", () =>
-            tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
-        );
+        // ponytail: a flag, not a per-command grant; a command another caller sends while this one
+        // awaits is let through too. Pass a grant through the dispatch if that ever matters.
+        opening.services.restoringFileStyles = true;
+        try {
+            await attempt(opening, "graph", () =>
+                tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
+            );
+        } finally {
+            opening.services.restoringFileStyles = false;
+        }
     }
 
     const layout = state.layout as
@@ -1811,7 +1831,7 @@ async function readProject(
                 canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
                 const { algorithm, params, scope, seed, sample, exact } = remap(run);
                 try {
-                    await tx.runs.start(algorithm, params, {
+                    const restoring = tx.runs.start(algorithm, params, {
                         as: run.id,
                         style: false,
                         ...(scope === undefined ? {} : { scope }),
@@ -1819,6 +1839,12 @@ async function readProject(
                         ...(sample === undefined ? {} : { sample }),
                         ...(exact === undefined ? {} : { exact }),
                     });
+                    // Before it is recorded: a minted id stays minted, so a later start of the
+                    // same question answers to it rather than minting a second one (#6227).
+                    if (run.derived === true) {
+                        opening.restoreDerived(run.id);
+                    }
+                    await restoring;
                 } finally {
                     canned.delete(run.id);
                 }
@@ -1897,9 +1923,15 @@ async function readFilterConditions(
     const steps = (Array.isArray(visibility.steps) ? visibility.steps : []).map((step: unknown) =>
         typeof step === "object" && step !== null ? { ...step, rule: remap((step as { rule?: unknown }).rule) } : step,
     ) as FilterStep[];
-    const read = readSavedConditions(visibility.conditions, steps, remap, (rule) => {
-        assertVisibility(rule, null);
-    });
+    const read = readSavedConditions(
+        visibility.conditions,
+        steps,
+        remap,
+        (rule) => {
+            assertVisibility(rule, null);
+        },
+        Array.isArray(visibility.steps),
+    );
     opening.problems.push(...read.problems);
     if (read.conditions !== null) {
         await (tx.visibility as SessionVisibilityApi).restoreConditions(read.conditions);
@@ -2064,6 +2096,8 @@ function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId |
 /** One finished run as a results member keeps it. */
 interface SavedRun {
     readonly id: RunId;
+    /** Whether the element minted the id rather than the author naming it. */
+    readonly derived?: boolean;
     readonly algorithm: string;
     readonly params?: Readonly<Record<string, unknown>>;
     readonly scope?: never;
@@ -2193,6 +2227,7 @@ function projectIdOf(value: unknown): string | undefined {
  * @param hooks - What the session lends it.
  * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
+ * @param hooks.restoreDerived - Marks a restored run's id as minted by the element.
  * @param hooks.sources - Writes and restores the loads from network sources.
  * @param hooks.projectChanged - Called once an open has read the project's id, before anything is
  *     fetched, and again once its source loads are restored.
@@ -2205,11 +2240,12 @@ export function projectOf(
     hooks: {
         readonly announce: (change: ProjectStatus) => void;
         readonly isDerived: (id: RunId) => boolean;
+        readonly restoreDerived: (id: RunId) => void;
         readonly sources?: NetworkSourceRecords;
         readonly projectChanged?: () => void;
     },
 ): ProjectApi {
-    const { announce, isDerived, sources: networkSources, projectChanged } = hooks;
+    const { announce, isDerived, restoreDerived, sources: networkSources, projectChanged } = hooks;
     let id = newProjectId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
@@ -2309,6 +2345,7 @@ export function projectOf(
      * @param discard - whether unsaved changes may be lost
      * @param problems - collects what could not be restored
      * @param restored - collects the slices that were
+     * @param ownWork - whether the file is the reader's own work (`ProjectOpenOptions.ownWork`)
      */
     const openProject = async (
         doc: ReadDocument,
@@ -2316,6 +2353,7 @@ export function projectOf(
         discard: boolean,
         problems: ProjectProblem[],
         restored: Set<ProjectSlice>,
+        ownWork: boolean,
     ): Promise<void> => {
         refuseUnsaved(isDirty(), discard);
 
@@ -2340,15 +2378,28 @@ export function projectOf(
             fact: { code: "project.open", params: { name: name ?? null } },
             starts: true,
         };
-        const loads = readSourcesMember(member, {
-            pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
-            data,
-            nodes: graph.nodes,
-            links: graph.links,
-            isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
-            isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
-            now: new Date().toISOString(),
-        });
+        // Only a member that holds a server load: file and inline loads are recorded there too.
+        const holdsServerLoad =
+            Array.isArray(member?.loads) &&
+            member.loads.some((entry: unknown) => (entry as { kind?: unknown } | null)?.kind === "source");
+        const networkOff = dispatcher.services.network?.() === false && holdsServerLoad;
+        // With the network-data experiment off, the member is kept exactly as the file held it.
+        const loads: SourcesRead = networkOff
+            ? {
+                  problems: [{ code: "E_FEATURE_OFF", params: { feature: "network-data", key: "graphty-sources" } }],
+                  records: [],
+                  facts: new Map(),
+                  skipped: member,
+              }
+            : readSourcesMember(member, {
+                  pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
+                  data,
+                  nodes: graph.nodes,
+                  links: graph.links,
+                  isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
+                  isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
+                  now: new Date().toISOString(),
+              });
         problems.push(...loads.problems);
         if (dispatcher.services.timeline?.() === false) {
             problems.push(...timelineLeftOff(state));
@@ -2364,7 +2415,14 @@ export function projectOf(
                 "Open project",
                 (tx) =>
                     readProject(
-                        { tx, problems, restored, playback: dispatcher.state.visibility.playback },
+                        {
+                            tx,
+                            problems,
+                            restored,
+                            playback: dispatcher.state.visibility.playback,
+                            services: dispatcher.services,
+                            restoreDerived,
+                        },
                         doc,
                         graph,
                         name,
@@ -2379,7 +2437,7 @@ export function projectOf(
             throw error;
         }
         // The network loads wait, fetching nothing, until the application runs them.
-        networkSources?.restore(member === undefined ? undefined : loads);
+        networkSources?.restore(member === undefined ? undefined : loads, ownWork);
         // Its restored source loads on the hosts remembered for it run now.
         projectChanged?.();
         fresh = false;
@@ -2408,7 +2466,7 @@ export function projectOf(
         await session.transaction(
             "Open document",
             async (tx) => {
-                const opening = { tx, problems, restored };
+                const opening = { tx, problems, restored, services: dispatcher.services, restoreDerived };
                 if (graph !== undefined) {
                     await importInto(tx, graph, data?.source, data?.sources);
                     restored.add("graph");
@@ -2511,7 +2569,7 @@ export function projectOf(
 
             await line.opening(turn, () =>
                 isProject
-                    ? openProject(doc, fileName, options.discard === true, problems, restored)
+                    ? openProject(doc, fileName, options.discard === true, problems, restored, options.ownWork === true)
                     : openDocument(doc, problems, restored, options.history === "start"),
             );
 

@@ -87,7 +87,7 @@ export class InputManager implements Manager {
      * @param config - Input manager configuration options
      */
     constructor(
-        private readonly context: ManagerContext,
+        private context: ManagerContext,
         private readonly config: InputManagerConfig = {},
     ) {
         // Create appropriate input system based on config
@@ -117,6 +117,21 @@ export class InputManager implements Manager {
         forward(system.onTouchEnd, this.onTouchEnd);
         forward(system.onKeyDown, this.onKeyDown);
         forward(system.onKeyUp, this.onKeyUp);
+    }
+
+    /**
+     * Move to a scene built to replace the one this manager listens to. Everything of the
+     * manager's own stays: its subscribers, its enabled state, its recording and its config.
+     * @param context - The new scene, and what goes with it.
+     * @internal
+     */
+    rebind(context: ManagerContext): void {
+        this.context = context;
+        if (this.inputSystem instanceof BabylonInputSystem) {
+            this.inputSystem.dispose();
+            this.inputSystem = new BabylonInputSystem(context.scene);
+            this.forwardInput(this.inputSystem);
+        }
     }
 
     /**

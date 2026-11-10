@@ -4,6 +4,118 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-02 -- Decided by the team: going back in the history with nothing left to redo (graphty-element)
+
+**What.** Additive. `session.history.restoreTo(step, { redo: "drop" })` (new optional
+`HistoryRestoreOptions`, exported from `./session`): moves to the state just after `step` (or the
+baseline for `null`), as `restoreTo` always has, and then discards the steps after it, as a new
+edit would. The default, `redo: "keep"`, is today's behavior.
+
+**Why.** `tier5/decided.md`, "Dry run pass 3", "Cancel on a new filter card leaves no undo step".
+A new filter card is written by its first tick and each edit is an undo step, as every edit is.
+Taking the card away with Cancel had only `removeCondition` to call, which records a third step,
+so Undo then put the card back. Going back with `restoreTo` alone leaves the card's steps to redo,
+so Redo put it back. A transaction cannot hold the card open instead, because the reader's Undo
+inside the card would then cancel the whole card rather than its last edit. Any consumer with an
+abandonable edit (a draft that writes as it goes) needs the same take-back, so it belongs in the
+element, as one option on the call that already moves the history.
+
+## 2026-11-02 -- Decided by the team: a selection step keeps its test's mode (graphty-element)
+
+**What.** Additive. `UnionStep.mode?: string`: the consumer's own name for how the step's test is
+edited. graphty-element validates it as a string, keeps it with the step (copies, saves, undo) and
+never reads it. Also a fix, no API change: a `measure` step's run no longer depends on its test, so
+setting or changing the test (from none to an untouched range, say) keeps the run the step reads.
+
+**Why.** `tier5/decided.md`, "Dry run pass 1", "A test's mode is the step's own": By value | By
+position and Before | After | Between are kept by the step from the moment they are picked, before
+any bound. The rule cannot say it: an untouched By position is the same inert leaf as an untouched
+By value, a date test with no date is the same leaf in all three modes, and Between with only its
+"to" is the same leaf as Before. A test-mode enum on the element would put the app's controls into
+the element's model, so the field is an opaque string, as a branch's `name` is. The run fix: the
+step's run was keyed by its whole rule, test included, so an inert test lost the run and the app
+had no values to draw the test with (T74 A and B).
+
+## 2026-11-02 -- Decided by the team: a layer's count over the graph the filter leaves (graphty-element)
+
+**What.** Additive. `StyleCounts.visible?: { matched, of }` -- what the layer's selector selects
+among the elements no filter step hides, and how many of its kind those are -- and a legend block's
+`scope.visible?: number`, how many of its kind are drawn. Both are always present on what
+graphty-element returns, optional only so hand-written values still type-check (as
+`StyleCounts.adjusted` is). `matched`, `scope.count` and `scope.of` return exactly what they did.
+
+**Why.** One layer was counted over two bases: the style tree row and Everything's "styles all N"
+read the whole graph (`matched`), the key's "of N" read the whole graph (`scope.of`), while Which
+nodes read the graph the filter leaves -- "24", "10 of 10" and "of 24" for one layer at once.
+`tier5/decided.md`, "Dry run pass 1", settles the base as the graph the filter leaves drawn and
+asks for the count additively. Changing `matched` or `scope.of` instead would change what existing
+APIs return, which is breaking. Named `visible` after the `"visible"` scope, which is that base.
+
+## 2026-10-31 -- For the owner: a filter condition that reads the selection goes stale (graphty-element)
+
+**What.** Not done; a question. `visibility.addCondition` accepts `{ kind: "member", of: "selection" }`
+(`session/visibility/filter.ts`, which refuses only `"visible"` and `"search"`), but nothing in the
+filter reacts to a selection change, so such a condition keeps the selection it first read and says
+nothing. Both fixes change what an existing API does, so both are breaking:
+
+- **Options.** (a) Refuse live view-state scopes in filter conditions with `E_BAD_COMMAND`, in the
+  next grouped major. (b) Freeze them to node ids on write, as the new `union` leaf does. (c) Make
+  the filter follow the selection (it would re-lay the graph on every click). (d) Leave it.
+- **Built meanwhile:** (d). The graphty app never writes it, and inside the tier 5 `union` leaf the
+  element freezes live references on write (`../selection-groups/element-api.md`, section 7).
+
+## 2026-10-31 -- Decided by the team: the selection groups API, revised after review (graphty-element)
+
+Replaces the shape in the entry "Decided by the team: the selection groups API" below, after three
+reviews (`tier5/spec-review-*.md`). Non-breaking, every item `@beta`; the contract is
+`../selection-groups/element-api.md`. Changes: the leaf is `{ kind: "union", side, within, branches }`
+(the glossary keeps "group" for partition parts), with `start`, `side` and `within` required; `Scope`
+is unchanged, and step references are a new `StepReference = Scope | "hovered-or-selected" |
+"so-far"`, because widening the returned `Scope` would break exhaustive switches; new leaves
+`measure`, `hops`, `touching`, `nonempty`, `same-value` and `by-size`; `threshold` gains `from`,
+`percentile`, `as` and `missing`, `range` and `categories` gain `missing`, `categories` gains `match`
+for list values, and degree paths are accepted; `scope.watchSteps` (live counts, states, reasons,
+member scopes, `branchOf`) replaces `countSteps`; `scope.asUnion`, `scope.checkStep`,
+`scope.allowRun`, `scope.cancelRun` and `scope.setOptions` (run limits, unset by default, and the
+branch palette); live references freeze when written into a filter or a set; the picking view is
+`styles.showBranches` (with `showingBranches` and `style:branches-shown-changed`), because
+`styles.preview` is already a public binding preview. Why: as first written the app would have
+compared estimates, sequenced runs, converted saved forms and worked out group membership itself.
+"Within k hops of" is now the `hops` leaf, not a preset over the bfs level, so the owner question
+below does not block it.
+
+## 2026-10-31 -- For the owner: algorithm levels read as ordered values (graphty-element)
+
+From the tier 5 selection-groups spec (`../selection-groups/spec.md`, section 10). The new condition
+card draws an ordered value with a "Pick levels" checklist and By value / By position, and a category
+with a checklist only. Three built-in fields are ordered levels but read today as categories or plain
+numbers: bfs `level` (its `layered-grouping` shape makes `fieldMeasurement` return categorical),
+k-core `value` and dfs `value`. Declaring them ordinal changes what `catalog` and `fieldMeasurement`
+return for existing consumers, so it is breaking.
+
+- **Options.** (a) Declare them ordinal in the next grouped major. (b) Leave them as they are; the card
+  offers them as today's kinds. (c) Add an optional per-field override a consumer can read, leaving the
+  existing outputs unchanged.
+- **Built meanwhile:** (b). "Within k hops of" works either way, because it is a preset over the bfs
+  level, not a test on its kind.
+
+## 2026-10-31 -- Decided by the team: the selection groups API (graphty-element)
+
+graphty-element, non-breaking, every item `@beta` beside the filter-conditions API
+(`../selection-groups/spec.md`, section 10): a `groups` rule leaf (groups of ordered add / keep /
+except steps, each optionally computed on "so far"); the Scope forms `"focus"` (hovered, else a lone
+selected node) and `"so-far"`; a `measure` leaf that runs, caches and reports an algorithm a condition
+reads; `threshold.from` and `missing` on the range, categories and threshold leaves;
+`scope.countSteps(rule)` (every group's and step's count, state, `{ code, params }` reason and
+resolved color in one pass); `scope.histogram(path, { within })` for any readable value;
+`styles.preview(input)` returning `{ end() }`, with `styles.previewing` and `style:preview-changed`
+(the picking view: layers suspended, group colors, never a layer, never saved); optional descriptor
+facts `valueKind`, `domain`, `polarity`, `order`, `missing`, `unstable` and `keywords`, and
+declaration fixes that change no existing output. Why: the app must not evaluate selections, count,
+sequence runs, pick colors or paint the canvas; every one of these would otherwise be an app
+workaround. The saved `groups` form becomes a file format once released, so it stays `@beta` until
+the tier 5 user study has run on it.
+
 ## 2026-10-30 -- For the owner: two compact-mantine behaviors the tier 4 round faulted (compact-mantine)
 
 From the tier 4 round 1 fix pass (`tier4/rounds/round-1/scores.md`). Both change how a Figma-locked
@@ -3571,3 +3683,190 @@ to hide it.
 
 **Why.** Code comments in `EdgeMesh.ts` and `CustomLineRenderer.ts` call the width pixels, which
 it is not, and the app's Width control shows the bare number with no unit.
+
+## 2026-11-01 -- For the owner: two compact-mantine targets below 24 px
+
+**What.** Not done; a question. The tier 5 accessibility review measured two Figma-locked targets
+below the 24 x 24 px WCAG asks: the split button's chevron (16 x 24 px) and the range slider's
+thumbs (10 x 10 px). Each is compact-mantine's Figma look, so changing it needs your Figma approval.
+The app's own number boxes moved to the default 24 px.
+
+**Why.** A small target is hard to hit by touch or with a tremor.
+
+## 2026-11-01 -- For the owner: compact-mantine's Chip, and a word on the split button
+
+**What is open.** Two looks only compact-mantine can change, and it is locked to Figma:
+
+- Mantine's bare Chip (the table's "With issues", the Data place's chips) draws white text on the
+  brand lime when checked: 1.98:1 in light, 1.3:1 in dark, under the 4.5:1 WCAG asks. compact-mantine
+  has no Chip theme. The table's "Matches only" moved to compact-mantine's segment ("Matches only |
+  All") meanwhile; "With issues" still uses the Chip.
+- The selection editor's step "+" is compact-mantine's SplitButton, which draws an icon only. The
+  studio wants the verb as a word on it ("+ Keep"); the build draws the verb's glyph on the button
+  and the word beside it.
+
+**Choices.** (a) A compact-mantine Chip theme in Figma's checked-row ink, and a SplitButton with an
+optional text label; (b) keep both as built.
+
+**Why.** Contrast below 3:1 fails WCAG 1.4.3 for every checked chip; a word on the split button is
+what the ease walk asked for.
+
+## 2026-11-01 -- For the owner: list fields ignore a caller's height cap, and disabled menu items
+
+**What is open.** Two compact-mantine behaviors that reach every screen, so the selection editor did
+not change them on its own:
+
+- compact-mantine's list fields (Select, Autocomplete, MultiSelect, TagsInput) scroll their list
+  with no ScrollArea (`withScrollArea: false`), and Mantine applies `maxDropdownHeight` only inside
+  its ScrollArea, so a caller's cap is ignored and a long list covers the whole panel. A theme
+  cannot read the prop (Mantine hands it only to the ScrollArea), so honoring it means a wrapper or
+  a different default. The selection editor's reference list caps itself at 240 px meanwhile, with
+  a comment naming this.
+- A menu item compact-mantine draws as disabled (`data-disabled`, the Move up / Move down items
+  with their "Already at the top" reasons) is skipped by the arrow keys, as Mantine skips it, so a
+  keyboard reader never hears why it is unavailable. Figma's menus also skip disabled items; a
+  focusable disabled item (`aria-disabled`) would let the reason be heard.
+
+**Choices.** (a) compact-mantine honors `maxDropdownHeight` and keeps disabled items reachable with
+`aria-disabled`; (b) keep both, and each screen caps its own lists.
+
+**Why.** A list over the card it fills hides the controls it was opened for (the Hops box), and a
+reason no keyboard reader can reach does not help them.
+
+## 2026-11-01 -- For the owner: three changes to what graphty-element already returns
+
+The selection editor's repolish review asked for three element changes that would change what an
+existing API returns, so they wait for you (each is a breaking change under the repository's rule).
+
+- **A node's name on a graph file with no `label` column.** `data.name` returns the `label` column,
+  else the id. A GraphML file whose nodes carry `name` (the 50,000-node test file) is named by id
+  everywhere: the reference picker, its token and the step row read "n17" for "Person 00017". The
+  element already names a sample's nodes by the first of label, name or title it holds. Choices:
+  (a) a graph file's load does the same (its drawn labels change too); (b) keep ids.
+- **A text column whose values repeat.** A string column is listed as text, so a 5,000-value
+  `team` column gets only Contains, never the counted checklist. Choices: (a) list a string column
+  as a category when its values repeat (at most half as many distinct values as records), which
+  changes `data.readableValues()` and the cards every app draws for such columns; (b) keep it.
+- **A saved Select card.** The review asked the element to rewrite a saved select condition as keep,
+  turned off, when it reads the project. `effect: "select"` is a public condition; rewriting it on
+  load changes what third parties' saved projects do. The app now draws a Select card's box as the
+  element holds it (on, while it still selects) and writes it as keep, off, on its first edit.
+  Choices: (a) rewrite on load; (b) keep the app's truthful box. (Repolish 2: until you choose, the
+  app shows a saved Select card read-only, "Select <condition>", counting what stays, all of it.)
+
+The step pane's number test is now compact-mantine's HistogramRow brush, and its thumbs are still
+below the 24 px target: the brush's start and end thumbs are 12 x 12 px (axe reports target-size in
+both themes). So the open question in the 2026-11-01 entry above (a 24 px hit area for slider
+thumbs) covers the step pane too, as well as the filter and style layer cards' RangeSlider. The app
+does not change the thumbs.
+
+## 2026-11-01 -- For the owner: a histogram of whole numbers draws hairlines in a step's pane
+
+**What.** Not done; a question. A step's number test draws its values' bars with compact-mantine's
+HistogramRow, each bar placed on the brush's scale from its bin's `from` to its `to`. For a column
+of whole numbers with few distinct values (a degree), graphty-element's histogram gives one bin per
+value with `from` equal to `to` (its documented per-value form), so every bar is placed with no
+width and HistogramRow draws its 1 px floor: a row of hairlines where the Values tab draws solid
+bars. The app must not widen the element's bins itself.
+
+**Choices.** (a) compact-mantine's HistogramRow gives a placed bin at least the brush's `step` of
+width (a Figma-locked component's behavior, so it needs your approval); (b) graphty-element adds an
+optional upper edge to a per-value bin (additive), which the app passes as `to`; this moves the
+last bar past the brush's maximum, so the brush's scale would also have to change; (c) keep the
+hairlines.
+
+**Why.** A bar the reader cannot see says nothing about how the values are spread, which is the
+reason the histogram is in the pane.
+
+## 2026-11-01 -- For the owner: compact-mantine now themes InputBase as its Select
+
+**What.** Done; recorded for the Figma lock. compact-mantine had no theme entry for Mantine's
+`InputBase`, so the selection editor's value, link value and reference fields (buttons built on
+`InputBase` that open a picker) drew at Mantine's default: 36 px tall, Mantine's border color and
+chevron, beside 24 px compact fields. `compact-mantine/src/theme/components/inputs.ts` now gives
+`InputBase` the Select's defaults: size sm, outlined, the compact caret in its 24 px slot, the
+Select's field classes. Only the selection editor uses `InputBase`; no token, spec or Figma test
+changed.
+
+**Choices.** (a) keep it (the fields match the Select they act as); (b) revert, and the app draws
+the three fields with compact-mantine's Select in a read-only mode instead.
+
+## 2026-11-01 -- For the owner: the canvas toolbar while the selection workspace is open
+
+**What.** Done, reversible. The workspace's columns and its matches table lie over the canvas
+toolbar, and F6 and Tab still reached its hidden buttons (WCAG 2.4.11). The toolbar is now hidden
+and inert while the workspace is open, and comes back when it closes; the workspace's Fit is its
+framing. **Choices.** (a) keep it hidden; (b) dock the toolbar above the matches table at the
+preview's bottom edge, centered on the preview.
+
+## 2026-11-01 -- For the owner: step verbs after "Select / Filter to / Filter out"
+
+**What.** Done, reversible. Your review read "Add / Keep / Except" as "Select / Filter to / Filter
+out" under new names. A narrowing step now says no verb anywhere (rows, panes, filter card names):
+Keep is never written. Its one choice is a compact **Except** switch in the step pane ("Except name
+contains Val" on the row). Add is chosen from the step's "..." (Add instead / Narrow instead), since
+Or... already widens; an Add step after a group's first step still writes "Add" on its row.
+**Choices.** (a) keep it; (b) drop Add from steps entirely (Or... is the only way to widen);
+(c) go back to the three-way segment.
+
+## 2026-11-01 -- For the owner: editing Which nodes changes the layer's kind and its edge line
+
+**What.** Not changed; a question. A new layer reads "Node and edge layer" with "Edges: nothing
+set". Once Which nodes has a step it reads "Node layer" with "Edges: not styled", and its icon
+changes: the layer's kind follows the halves it has built (`builtParts`, graph-place/rows.ts), and a
+condition counts as building the node half. **Choices.** (a) keep it; (b) name a layer's kind only
+by what it writes (a condition alone never changes it); (c) keep "Node and edge layer" until a
+property is set on one half.
+
+## 2026-11-01 -- For the owner: the Data place's attribute "+" on the count rows
+
+**What.** Not changed; a question. The Data column draws four "+" with three meanings: Data sources
+(adds a source), the node count row and the edge count row (add an attribute), and Filters (adds a
+card). decided.md kept the count rows' "+"; spec 4.1 says "+" only adds to the list under its
+header. **Choices.** (a) keep them; (b) move "Add attribute" into each count row's "..."; (c) an
+"Attributes" header with its own "+" above the two rows.
+
+## 2026-11-01 -- For the owner: a GraphML node's name (graphty-element)
+
+**What.** Not changed; a question, because it changes a default. `data.name(id)` reads
+`data.knownFields.nodeLabelPath` and only the GML importer sets it (to `label`). A GraphML file
+with a `name` key therefore names its nodes by id: the reference picker finds "Person 00017" (the
+row shows "name Person 00017") but the field and the row then say "n17". **Choices.** (a) the
+GraphML (and CSV) importers set `nodeLabelPath` to a `name` or `label` column when the file has
+one, as GML does (a changed default for those formats); (b) the app sets it from the Data place's
+Name role, which the reader picks; (c) leave it.
+
+## 2026-11-01 -- For the owner: the workspace now resizes the canvas and may frame once
+
+**What.** Done, reversible. Spec 3.0 said opening the workspace never re-frames or resizes the
+drawing. On 50,000 nodes the overlay hid a third to half of the graph. While the workspace is open
+graphty-element's canvas now takes the preview cell's box (beside the columns, above the strip); on
+open the graph is framed once when more than a quarter of the nodes drawn fall outside the cell;
+on close the canvas takes its whole box and the camera goes back where it was. **Choices.**
+(a) keep it; (b) resize but never frame (Fit only); (c) the old overlay.
+
+## 2026-11-01 -- For the owner: "Condition... / Or..." or "And... / Or..."
+
+**What.** Not changed; a word choice. The pane's first row reads "Condition... Or...": the first
+adds a step to the selected group, the second a group. The owner-lens review found "Condition" a
+word a reader has to guess at. **Choices.** (a) keep "Condition... / Or..."; (b) "And... / Or...",
+which says how each combines with what is there; (c) "Narrow... / Or...".
+
+## 2026-11-01 -- For the owner: the preview key is gone; No match is the outline's last row
+
+**What.** Done, reversible. The key over the preview's top left covered the top of the graph and
+repeated the outline's group rows. It is no longer drawn in the workspace: the outline's group rows
+carry the chit, letter and count, "No match N" is the outline's last row (dimmed, faint chit) while
+group colors are drawn, "1, under A" is the group row's tooltip, and "Drawing" sits after the
+header's count until graphty-element has drawn the last repaint batch (its new `waitForPainted()`).
+The graph is not framed around anything: the canvas is the frame. **Choices.** (a) keep it; (b) the
+key back, outside the preview cell.
+
+## 2026-11-01 -- For the owner: smaller wording and layout changes in the selection editor
+
+**What.** Done, reversible. A step with a value and no test reads as its value alone (no "No
+test"); a text step's Match case moved into Advanced, named on its right when set; a step's "N so
+far" sits on its value field's row when there is no Except switch above; a checklist's footer says
+how many values are not drawn ("32 more", as "2,077 more checked"); a list of more than nine values
+is drawn short ("1.9k values") and said in full; the sidebar's read-only outline drops its 40 px
+verb column and its step indent. **Choices.** (a) keep them; (b) name the ones to undo.

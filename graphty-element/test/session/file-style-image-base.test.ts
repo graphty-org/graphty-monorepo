@@ -7,6 +7,9 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const DOT = `digraph { a [image="img/a.png"]; b [image="https://other.test/b.png"]; }`;
 

@@ -15,6 +15,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { readableName } from "../../style/words";
 import { Workspace } from "../../Workspace";
@@ -90,6 +91,10 @@ async function finished(session: GraphSession, algorithm: string): Promise<RunId
     }
     return found;
 }
+
+// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
+// (covered by its own tests): the experiment stays off here.
+withFeatures([]);
 
 describe("tier 1 tasks from the toolbar, on the real element", () => {
     // The design's frame, 1366 x 768. At the runner's default 414 px the panels leave the canvas
@@ -550,7 +555,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             name: "Filters",
         });
         const cardWords = `within 2 hops of ${name}`;
-        await userEvent.click(within(filters).getByRole("checkbox", { name: `Apply ${cardWords}` }));
+        await userEvent.click(within(filters).getByRole("checkbox", { name: /^Use / }));
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, 34);
             assert.deepEqual(
@@ -558,7 +563,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 [false],
             );
         });
-        assert.isNotNull(within(filters).getByRole("group", { name: `${cardWords}, Filter to` }));
+        assert.isNotNull(within(filters).getByRole("group", { name: new RegExp(`^${cardWords}`, "i") }));
         // With the card off, the command is enabled again.
         await waitFor(() => {
             assert.isNull(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"));

@@ -9,6 +9,7 @@ import { type ChronicJob, readSnapshot } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
 import { words } from "./flaky.js";
 import type { GitHub } from "./github.js";
+import { AGGREGATORS } from "./snapshots.js";
 
 /** A job's newest runs this many, judged by the failure share. */
 export const LAST_RUNS = 10;
@@ -77,7 +78,8 @@ function activeFor(runs: JobRun[]): number {
 
 /**
  * The jobs failing chronically: failed in at least half of their newest LAST_RUNS runs (MIN_RUNS at least), or
- * failed in every run for STREAK_MS. Worst first.
+ * failed in every run for STREAK_MS. Worst first. An aggregator (All Checks Pass) is not judged: it fails whenever any
+ * job it summarizes fails, so its share is the union of theirs and it was chronic while no job of its own was (#6068).
  * @param histories - jobHistories
  * @param now - the current time, in ms
  * @returns the chronic jobs, worst first
@@ -86,7 +88,7 @@ export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] 
     const out: ChronicJob[] = [];
     for (const h of histories) {
         const newest = h.runs[0];
-        if (!newest || now - newest.at > activeFor(h.runs)) {
+        if (!newest || now - newest.at > activeFor(h.runs) || AGGREGATORS.has(shortName(h.job))) {
             continue;
         }
         const last = h.runs.slice(0, LAST_RUNS);
@@ -119,7 +121,7 @@ export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] 
  */
 export const shortName = (job: string): string => job.split(" / ").at(-1) ?? job;
 
-/** Run kinds a title may name a workflow's runs by, beside the workflow's own name ("Full run: ..." is release.yml). */
+/** Run kinds a title may name a workflow's runs by, beside the workflow's own name ("Full run: ..." is release.yml); the plural matches too. */
 const RUN_KINDS: Record<string, string[]> = { "release.yml": ["full run"], "ci.yml": ["master"] };
 
 /**
@@ -147,7 +149,8 @@ export function titleOwnsJob(title: string, job: Pick<ChronicJob, "workflow" | "
     }
     const rest = words(title.replace(/^[a-z]+(\([^)]*\))?!?:/, ""));
     const names = [job.workflow.replace(/\.ya?ml$/, ""), ...(RUN_KINDS[job.workflow] ?? [])];
-    return names.some((n) => rest.includes(words(n)));
+    // A title names runs in the plural as often as the singular ("red in 9 of 10 full runs", "fails in releases").
+    return names.some((n) => rest.includes(words(n)) || rest.includes(words(`${n}s`)));
 }
 
 /**

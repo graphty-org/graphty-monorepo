@@ -1,0 +1,149 @@
+{
+ "counts": {
+  "totalEdges": 63,
+  "totalNodes": 24,
+  "visibleEdges": 31,
+  "visibleNodes": 24,
+  "selectedNodes": 0,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "volunteers-shifts.graphml",
+   "kind": "file",
+   "counts": {
+    "nodes": 24,
+    "edges": 63
+   },
+   "recount": {
+    "nodes": 24,
+    "edges": 63
+   },
+   "chips": null,
+   "join": null,
+   "leftOut": null,
+   "mapping": null
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": "label",
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.name",
+   "name": "name",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.role",
+   "name": "role",
+   "type": "category",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.hours",
+   "name": "hours",
+   "type": "integer",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.trained",
+   "name": "trained",
+   "type": "boolean",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.phone",
+   "name": "phone",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "edge",
+   "path": "data.shifts",
+   "name": "shifts",
+   "type": "integer",
+   "roles": [],
+   "hidden": false
+  }
+ ],
+ "filters": [
+  {
+   "id": "filter-1",
+   "effect": "keep",
+   "on": true,
+   "within": null,
+   "rule": {
+    "kind": "union",
+    "side": "edges",
+    "within": "graph",
+    "branches": [
+     {
+      "id": "bmw0o5vfy2",
+      "start": "all",
+      "steps": [
+       {
+        "id": "smw0o66j33",
+        "op": "keep",
+        "rule": {
+         "kind": "range",
+         "attribute": "data.shifts",
+         "min": 2
+        },
+        "mode": "range"
+       }
+      ],
+      "color": "#009E73"
+     }
+    ]
+   },
+   "count": {
+    "id": "filter-1",
+    "nodes": null,
+    "edges": {
+     "matched": 31,
+     "total": 63
+    },
+    "unresolved": []
+   },
+   "chips": null
+  }
+ ],
+ "filter": null,
+ "window": null
+}

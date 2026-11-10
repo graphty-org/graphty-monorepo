@@ -22,6 +22,7 @@ import {
     chromiumEnv,
     CLOCK_START,
     clip,
+    cpuModel,
     EMPTY,
     fileName,
     hasBaselines,
@@ -166,7 +167,7 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
         capturedAt: new Date().toISOString(),
         clock: { start: CLOCK_START, running: true },
         scale: SCALE,
-        environment: { harness: "story-test", mode: "production", fonts: null, tool: toolVersion() },
+        environment: { harness: "story-test", mode: "production", cpu: null, fonts: null, tool: toolVersion() },
         items: [],
     };
     let renames = new Map();
@@ -176,6 +177,9 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
         hasBaselines(baselines).then((s) => (results.seeded = s)),
         loadRenames(baselines).then((r) => (renames = r)),
         fontconfig && pinnedFonts(fontconfig).then((f) => (results.environment.fonts = f)),
+        // Which CPU drew this shard's pictures: a story the re-capture finds unstable is told apart from one drawn on
+        // another CPU model only by this (#6351).
+        cpuModel().then((c) => (results.environment.cpu = c)),
     ]).then(() => {
         // The retry of the failed story files (tools/test-quarantine.mjs) writes into the same
         // directory: it keeps the first run's items and replaces only those it shoots again.
@@ -195,8 +199,11 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
     const tests = new Map();
     const record = (item) => {
         const earlier = results.items.find((i) => i.file === item.file);
-        // A story unstable before its retry stays on record as unstable, whatever the retry drew.
-        if (item.status !== "unstable" && (earlier?.status === "unstable" || earlier?.unstableFirst)) {
+        // A story unstable or flaky before its retry stays on record as unstable, whatever the retry drew.
+        if (
+            item.status !== "unstable" &&
+            (earlier?.status === "unstable" || earlier?.flaky || earlier?.unstableFirst)
+        ) {
             item.unstableFirst = true;
         }
         const test = tests.get(item.id) ?? earlier?.test;
@@ -242,8 +249,6 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
         // first is kept, so a story that draws two pictures can be seen the first time it flips.
         if (r.flaky) {
             writeFileSync(join(out, "flaky", file), first);
-        } else {
-            rmSync(join(out, "flaky", file), { force: true });
         }
         if (r.status === "unstable") {
             console.log(`visual-review: ${unstableLine(project, { file })}`);
@@ -268,7 +273,7 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
             reason: null,
             console: lines,
         });
-        return r.status;
+        return r;
     };
 
     const commands = {
@@ -346,8 +351,9 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
          *     the command's context: vitest's page and the tester iframe
          * @param {{ id: string, mode: string | null, chromatic: object, console: string[] }} shot the
          *     story, its mode, its parameters.chromatic and the console lines since its render
-         * @returns {Promise<{ status?: string, again?: boolean }>} the item's status, or a request
-         *     for a second render
+         * @returns {Promise<{ status?: string, flaky?: boolean, again?: boolean }>} the item's status
+         *     (`flaky` when the first shot differed from the baseline and the second matched), or a
+         *     request for a second render
          */
         async visualShot(ctx, { id, mode, chromatic, console }) {
             const file = fileName(id, mode);
@@ -356,9 +362,8 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
             const held = pending.get(file);
             if (held) {
                 pending.delete(file);
-                return {
-                    status: await finish(held.job, held.first, png, [...held.console, ...console], held.result),
-                };
+                const r = await finish(held.job, held.first, png, [...held.console, ...console], held.result);
+                return { status: r.status, ...(r.flaky && { flaky: true }) };
             }
             const job = { id, mode, file, ...(await baselineOf(id, mode)), s: await settings(id, chromatic) };
             const r = classify({
@@ -371,7 +376,7 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
                 pending.set(file, { job, first: png, console, result: r });
                 return { again: true };
             }
-            return { status: await finish(job, png, null, console) };
+            return { status: (await finish(job, png, null, console)).status };
         },
         /**
          * Records a story and its modes as failed: a failed play, a render error, a console rule.

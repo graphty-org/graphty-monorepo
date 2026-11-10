@@ -53,7 +53,8 @@ describe("reading session styles", () => {
             by: { data: "interaction" },
             table: [
                 ["pp", "solid"],
-                ["pd", "dashed"],
+                // LONG_DASH, dashes twice as long as EQUAL_DASH's
+                ["pd", "long-dash"],
             ],
         });
         expect(new Set(resolveStyles(ex, "node", "fill", snapshot))).toEqual(new Set(["#ccccff"]));

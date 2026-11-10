@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
+import { selectionWorkspaceOn } from "../features";
 import { Workspace } from "../Workspace";
 import { AUTH_LOG_CSV, GRAPH_FILE_GML, HOSTS_CSV, PLAIN_JSON } from "./fixtures";
 
@@ -175,10 +176,42 @@ export const TwoSources: Story = {
         const element = await loadLog(canvasElement);
         await element.session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await element.waitForStableFrame();
-        await userEvent.click(await within(canvasElement).findByRole("button", { name: "Add filter" }));
+        await openPicker(canvasElement);
         await within(document.body).findByRole("option", { name: "Data source" });
     },
 };
+
+/**
+ * The open selection workspace, waited for.
+ * @returns its modal.
+ */
+async function workspace(): Promise<HTMLElement> {
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>(".sel-ws");
+        if (found === null) {
+            throw new Error("waiting for the selection workspace");
+        }
+        return found;
+    });
+}
+
+/**
+ * Opens a new filter card's value picker from the Filters "+", as a reader does.
+ * @param canvasElement - the story's root.
+ */
+async function openPicker(canvasElement: HTMLElement): Promise<void> {
+    const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
+    // With the Sources tab (the selection workspace) and two loads, each load's section has its own
+    // "+" too: the first is the one under Data sources, for the filters of every load.
+    const [plus] = await place.findAllByRole("button", { name: "Add filter" });
+    await userEvent.click(plus);
+    // With the selection workspace on, the new card opens in its modal on the Card list: Value
+    // turns its picker to the attributes, as a reader picks one.
+    const element = canvasElement.querySelector("graphty-element");
+    if (element !== null && selectionWorkspaceOn(element.session)) {
+        await userEvent.click(await within(await workspace()).findByRole("button", { name: "Value" }));
+    }
+}
 
 /**
  * Adds a filter card from the Filters "+", as a reader does.
@@ -186,8 +219,7 @@ export const TwoSources: Story = {
  * @param item - the "+" list's item.
  */
 async function addFilter(canvasElement: HTMLElement, item: string): Promise<void> {
-    const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-    await userEvent.click(await place.findByRole("button", { name: "Add filter" }));
+    await openPicker(canvasElement);
     const named = new RegExp(`^${item}(,|$)`);
     await userEvent.click(await within(document.body).findByRole("option", { name: named }));
 }
@@ -206,9 +238,28 @@ async function holds(element: GraphtyElement, n: number): Promise<void> {
 }
 
 /**
- * Filter cards, each added by clicks: a Filter to card on group, a Select card on the largest
- * component, a Neighbors card on the selected node, and a card a rule no card edits holds (an
- * old filter step), read-only (design/data/filter-cards.md section 5).
+ * With the selection workspace on, a new card opens in a modal over the whole app, whose scrim
+ * takes every click until it closes: Done closes it, as a reader would, before the next "Add filter".
+ * Off, the card opens in the Data place and there is nothing to close.
+ * @param element - the element.
+ */
+async function done(element: GraphtyElement): Promise<void> {
+    if (!selectionWorkspaceOn(element.session)) {
+        return;
+    }
+    const modal = await workspace();
+    await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+    await waitFor(() => {
+        if (document.querySelector(".sel-ws") !== null) {
+            throw new Error("waiting for the selection workspace to close");
+        }
+    });
+}
+
+/**
+ * Filter cards, each added by clicks: a card on group, a card on the largest component, a
+ * Neighbors card on the selected node, and an old filter step, each read as what stays (All, then
+ * Keep or Except; design/ui/selection-groups/spec.md section 3.3).
  */
 export const FilterCards: Story = {
     args: { initialState: OPEN },
@@ -217,20 +268,18 @@ export const FilterCards: Story = {
         const { session } = element;
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
 
-        // Filter to: group 2 or more, typed in its From box and committed; a new card starts on
-        // Select, so its toggle is switched to Filter to.
+        // Group 2 or more, typed in its From box and committed.
         await addFilter(canvasElement, "group");
-        const from = await place.findByRole("textbox", { name: "group from, number" });
+        const from = await within(document.body).findByRole("textbox", { name: "group from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "2{Enter}");
         await holds(element, 1);
-        const group = await place.findByRole("group", { name: /^group is/ });
-        await userEvent.click(within(group).getByRole("radio", { name: /^Filter to:/ }));
+        await done(element);
 
-        // Select: the largest component, as a new card starts.
+        // The largest component.
         await addFilter(canvasElement, "Largest component");
         await holds(element, 2);
-        await place.findByRole("group", { name: /^in the largest component, Select/ });
+        await done(element);
 
         // Neighbors of the selected node.
         const marius = session.data.nodes().find((node) => String(node.id) === "4")?.id;
@@ -239,13 +288,14 @@ export const FilterCards: Story = {
         }
         await addFilter(canvasElement, "Neighbors of selection");
         await holds(element, 3);
+        await done(element);
 
-        // An old filter step, as a saved project opens it: kept, read-only.
+        // An old filter step, as a saved project opens it: All, then Except.
         await session.visibility.addCondition({
             effect: "keep",
             rule: { kind: "not", of: { kind: "text", reads: "data.label", mode: "substring", text: "Cos" } },
         });
-        await place.findByRole("group", { name: /^not: label contains Cos/ });
+        await place.findByRole("group", { name: /label contains Cos/ });
         await element.waitForStableFrame();
     },
 };

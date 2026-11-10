@@ -2,6 +2,7 @@ import {
     Autocomplete,
     Combobox,
     FileInput,
+    InputBase,
     InputClearButton,
     InputWrapper,
     JsonInput,
@@ -115,9 +116,10 @@ function fieldClassNames(fallback: "filled" | "outlined", extra = "") {
 
 /**
  * The listbox's classNames (spec 6.5). The dropdown is also a `cm-menu`: it scrolls itself
- * (no ScrollArea) and takes the menus' 24px scroll chevron rows (overlayBehavior.ts).
+ * (no ScrollArea) and takes the menus' 24px scroll chevron rows (overlayBehavior.ts). Exported for
+ * a list built on Mantine's `Combobox` directly, so it draws as every Select's does.
  */
-const LISTBOX_CLASS_NAMES = {
+export const LISTBOX_CLASS_NAMES = {
     dropdown: "cm-menu-surface cm-menu cm-listbox",
     options: "cm-listbox-options",
     option: "cm-menu-row cm-listbox-option",
@@ -190,6 +192,16 @@ function listVars(
     return { root: {}, wrapper: compactVarsForSize(scale, size) };
 }
 
+/**
+ * Whether an InputBase is drawn as a button (a trigger that opens a picker): its polymorphic
+ * `component`, which InputBase's props type does not name.
+ * @param props - the field's props
+ * @returns true for a button
+ */
+function isButtonTrigger(props: unknown): boolean {
+    return (props as { component?: unknown } | undefined)?.component === "button";
+}
+
 export const inputComponentExtensions = {
     // Every field's wrapper is also styled under this name (Mantine's useStyles names it
     // ["InputWrapper", "Select"]), so this one entry themes the label of every field.
@@ -229,6 +241,21 @@ export const inputComponentExtensions = {
             return listVars(compactInputScale, props?.size);
         },
         classNames: listFieldClassNames("outlined", "cm-select"),
+    }),
+
+    // A trigger built on InputBase as a button (a value or reference field that opens a picker):
+    // the Select's field and size, so it reads as the select it acts as. Only a button: TextInput
+    // and NumberInput render InputBase too, and keep their own look. The caller draws FieldCaret.
+    InputBase: InputBase.extend({
+        vars: (_theme, props) => {
+            if (!isButtonTrigger(props)) {
+                return { root: {}, wrapper: {} };
+            }
+            ensureFocusModality();
+            return listVars(compactInputScale, props.size);
+        },
+        classNames: (theme, props) =>
+            isButtonTrigger(props) ? listFieldClassNames("outlined", "cm-select")(theme, props) : {},
     }),
 
     NativeSelect: NativeSelect.extend({

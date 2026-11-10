@@ -122,7 +122,7 @@ export function Sections({ sections }: Readonly<{ sections: readonly (readonly s
  * the one open now is checked and says so.
  * @returns The rows
  */
-export function SampleItems(): React.JSX.Element {
+function SampleItems(): React.JSX.Element {
     const workspace = useWorkspace();
     // The sample the graph was loaded from, read from where the element says it came from.
     const loaded = workspace.session?.data.source()?.config?.url;
@@ -170,7 +170,7 @@ function SampleMenu(): React.JSX.Element {
 
 /**
  * The main menu, the app's one menu: Back to start | New project, Open, Open sample, Open recent
- * | the File list | Rename | Settings, Keyboard shortcuts, Help. The start screen's copy leaves
+ * | the File list | Add Shader..., Rename | Settings, Keyboard shortcuts, Help. The start screen's copy leaves
  * out the rows that need a project (Back to start, the File list, Rename) rather than
  * drawing them disabled.
  * @param props - Component props
@@ -203,7 +203,7 @@ export function MainMenu({ start = false }: Readonly<{ start?: boolean }>): Reac
                     sections={
                         start
                             ? [["settings.open", "help.shortcuts"]]
-                            : [FILE_LIST, ["project.rename"], ["settings.open", "help.shortcuts"]]
+                            : [FILE_LIST, ["shader.add", "project.rename"], ["settings.open", "help.shortcuts"]]
                     }
                 />
                 <Menu.Sub>

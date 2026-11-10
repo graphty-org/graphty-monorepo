@@ -432,7 +432,14 @@ export {
 // =============================================================================
 // Renderer
 // =============================================================================
-export type { ActiveRenderer, PixelRatio, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
+export type {
+    ActiveRenderer,
+    LayoutDevice,
+    PixelRatio,
+    RendererRequest,
+    RendererStatus,
+} from "./src/managers/RenderManager";
+export type { RenderPath, RowCounts } from "./src/meshes/NodeBatch";
 
 // =============================================================================
 // Acceleration

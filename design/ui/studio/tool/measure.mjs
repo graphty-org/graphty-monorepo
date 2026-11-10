@@ -152,6 +152,43 @@ export function styleTree(withCounts = true) {
         layers: s.styles.list().map((l) => (withCounts ? { ...plain(l), counts: counts(l.id) } : plain(l))),
     };
 }
+// Each layer's members as the element paints them now, counted element by element through
+// graphty-element's public explain (independent of the layer's own counts): how many nodes or edges
+// the layer painted anything on (members), and on how many it is the topmost writer of each channel
+// (wins); whether a branches view (the selection editor's preview) is drawn, which suspends every
+// layer; and whether the app's selection workspace is open. The end-state check (endstate.mjs) holds
+// each layer's counts against these. null when no graph is open. Self-contained: it runs in the page.
+export function layerMembers() {
+    const s = document.querySelector("graphty-element")?.session;
+    if (!s) return null;
+    const layers = {};
+    const of = (id) => (layers[id] ??= { members: 0, wins: {} });
+    let unreadable = 0;
+    const read = (items, key) => {
+        for (const it of items) {
+            let e;
+            try {
+                e = s.styles.explain({ [key]: it.id });
+            } catch {
+                unreadable++;
+                continue;
+            }
+            for (const c of e.contributions) of(c.layerId).members++;
+            for (const ch of e.channels) {
+                const w = of(ch.layerId).wins;
+                w[ch.channel] = (w[ch.channel] ?? 0) + 1;
+            }
+        }
+    };
+    read(s.data.nodes(), "node");
+    try {
+        read([...s.data.edges()], "edge");
+    } catch {
+        // a graph with no edge list: nodes only
+    }
+    const ws = [...document.querySelectorAll(".sel-ws")].some((e) => e.checkVisibility({ visibilityProperty: true }));
+    return { showingBranches: s.styles.showingBranches === true, workspaceOpen: ws, unreadable, layers };
+}
 // The node colors drawn now, distinct and sorted, read through graphty-element's public explain (the
 // color every layer together gives each node); null when no graph is open. Bar 4 stops its clock at
 // the first screenshot where this holds one color that is not the start's. Self-contained: it runs
@@ -280,8 +317,13 @@ export function workGone(start, end) {
 // Bar 9: the app's own words on screen -- visible light-DOM text outside graphty-element, one entry
 // per word -- with the data's words and numbers left out: ids and values, and the names the session
 // holds for the data (each source's name, its file name without the extension, its tables, the
-// columns the file brought, each node's name; "Ava's" is the name Ava)
-export function wordsOnScreen() {
+// columns the file brought, each node's name; "Ava's" is the name Ava). With a selector, only the
+// words inside the first visible element it matches (tier 5 counts the workspace apart from the
+// screen behind it), or null when none is shown. headings: each heading (h1 to h6, role=heading,
+// legend) with its app words, for the words-at-rest rule "every heading 3 words at most".
+export function wordsOnScreen(within) {
+    const root = within ? [...document.querySelectorAll(within)].find((e) => e.checkVisibility()) : document.body;
+    if (!root) return null;
     const el = document.querySelector("graphty-element");
     const data = new Set();
     const add = (v) => {
@@ -309,10 +351,16 @@ export function wordsOnScreen() {
     const isData = (w) => data.has(w.toLowerCase()) || names.has(w) || names.has(w.replace(/['\u2019]s$/, ""));
     const words = [];
     const left = [];
-    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const heads = new Map();
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let t = walk.nextNode(); t; t = walk.nextNode()) {
         const p = t.parentElement;
-        if (!p || p.closest("script, style, graphty-element, [role=tooltip], #studio-planted") || !p.checkVisibility())
+        // a planted failure is left out, but for the one planted to be counted (data-count)
+        if (
+            !p ||
+            p.closest("script, style, graphty-element, [role=tooltip], #studio-planted:not([data-count])") ||
+            !p.checkVisibility()
+        )
             continue;
         // text a screen reader hears but nobody sees (a visually hidden status line) is not on screen
         let clipped = false;
@@ -326,14 +374,20 @@ export function wordsOnScreen() {
         const b = r.getBoundingClientRect();
         if (b.width < 1 || b.height < 1 || b.right < 0 || b.bottom < 0 || b.left > innerWidth || b.top > innerHeight)
             continue;
+        const head = p.closest("h1, h2, h3, h4, h5, h6, [role=heading], legend");
+        if (head && !heads.has(head)) heads.set(head, []);
         for (const raw of t.textContent.split(/\s+/)) {
             const w = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
             if (!w) continue;
             if (/\d/.test(w) || isData(w)) left.push(w);
-            else words.push(w);
+            else {
+                words.push(w);
+                heads.get(head)?.push(w);
+            }
         }
     }
-    return { words, left };
+    const headings = [...heads.values()].filter((h) => h.length).map((h) => h.join(" "));
+    return { words, left, headings };
 }
 
 // Bar 10's two scripted counts, outside graphty-element, each with the element it is in:
@@ -455,6 +509,114 @@ export function activeInView() {
     return { option: o.textContent.replace(/\s+/g, " ").trim().slice(0, 80), inView };
 }
 
+// "Large graphs" (../tier5/criteria.md): every list drawn now, with how many items it renders,
+// whether it says how many there are and whether it can be searched. A list is an open listbox or
+// menu, a table or grid, a tree, or a checklist (three or more checkboxes under one parent). Its
+// region is its nearest popover, dialog or pane; a count is a number the region shows beside the
+// list ("32 more", "8 of 10,000", "Check 26", "Search 40", "(12)") or the "N of M" in the header of
+// the workspace or dialog that holds it, a search a text box in the region. A list
+// is judged when it renders more than BIG_LIST_BOUND items (unbounded) or shows only part of what
+// it holds ("N more", "of N" above what it renders), or renders at least LONG_LIST items: such a list
+// needs a bound, a count and a search. Self-contained: it runs in the page.
+export const BIG_LIST_BOUND = 200;
+export function largeLists(bound = 200, long = 20) {
+    const vis = (e) => e.checkVisibility({ visibilityProperty: true });
+    const lists = new Map();
+    const add = (el, kind, items) => {
+        if (!lists.has(el)) lists.set(el, { kind, items });
+    };
+    for (const e of document.querySelectorAll("[role=listbox]"))
+        if (vis(e)) add(e, "list", e.querySelectorAll("[role=option]").length);
+    for (const e of document.querySelectorAll("[role=menu]"))
+        if (vis(e)) add(e, "menu", e.querySelectorAll("[role^=menuitem]").length);
+    for (const e of document.querySelectorAll("[role=tree]"))
+        if (vis(e)) add(e, "tree", e.querySelectorAll("[role=treeitem]").length);
+    for (const e of document.querySelectorAll("table, [role=grid], [role=table]"))
+        if (vis(e) && !e.parentElement?.closest("table, [role=grid], [role=table]"))
+            add(e, "table", Math.max(0, e.querySelectorAll("tr, [role=row]").length - 1));
+    // a checklist: the nearest ancestor of a checkbox that holds three or more of them
+    const BOX = "input[type=checkbox], [role=checkbox]";
+    for (const c of document.querySelectorAll(BOX)) {
+        if (c.closest("[role=listbox], [role=menu], [role=tree], table, [role=grid]")) continue;
+        let p = c.parentElement;
+        while (p && p !== document.body && p.querySelectorAll(BOX).length < 3) p = p.parentElement;
+        if (p && p !== document.body && vis(p)) add(p, "checklist", p.querySelectorAll(BOX).length);
+    }
+    // one checklist per list: a container that holds another checklist is a pane around it
+    for (const [el, { kind }] of [...lists])
+        if (kind === "checklist" && [...lists].some(([o, x]) => o !== el && x.kind === "checklist" && el.contains(o)))
+            lists.delete(el);
+    const PANE =
+        ".mantine-Popover-dropdown, .mantine-Combobox-dropdown, [role=dialog]:not(.sel-ws), .sel-pane-box, .sel-ws-center, .sel-ws-outline, aside, section";
+    const said = (r) =>
+        [
+            r.innerText,
+            ...[...r.querySelectorAll("input, [role=combobox], [role=searchbox], [role=textbox]")].map(
+                (i) => `${i.getAttribute("placeholder") ?? ""} ${i.getAttribute("aria-label") ?? ""}`,
+            ),
+        ].join(" ");
+    const name = (e) =>
+        (
+            e.getAttribute("aria-label") ||
+            e.closest("[aria-label]")?.getAttribute("aria-label") ||
+            e.className?.toString?.().split(" ")[0] ||
+            e.tagName.toLowerCase()
+        )
+            .replace(/\s+/g, " ")
+            .slice(0, 60);
+    const out = [];
+    for (const [el, { kind, items }] of lists) {
+        const region = el.closest(PANE) ?? el.parentElement?.parentElement ?? el;
+        const text = said(region).replace(/\s+/g, " ");
+        const nums = [...text.matchAll(/\b(\d{1,3}(?:,\d{3})+|\d+)\s+more\b|\bof\s+(\d{1,3}(?:,\d{3})+|\d+)\b/g)].map(
+            (m) => Number((m[1] ?? m[2]).replaceAll(",", "")),
+        );
+        // a virtualized grid renders a window of its rows and says how many it holds in aria-rowcount
+        const rc = (el.closest("[aria-rowcount]") ?? el.querySelector("[aria-rowcount]"))?.getAttribute(
+            "aria-rowcount",
+        );
+        const total = rc ? Number(rc) - 1 : null;
+        const partial = nums.some((n) => n > items) || /\b\d[\d,]*\s+more\b/.test(text) || (total ?? 0) > items;
+        // the matches a workspace or dialog lists are counted in its header ("35,960 of 50,000")
+        const outer = el.closest(".sel-ws, [role=dialog]");
+        const headed =
+            outer &&
+            outer !== region &&
+            /\bof\s+\d[\d,]*\b/.test(outer.querySelector("header, [role=heading], h1, h2, h3")?.innerText ?? "");
+        const count =
+            headed ||
+            nums.length > 0 ||
+            /\b(Check|Search)\s+\d|\(\d[\d,]*\)|\b\d[\d,]*\s+(nodes|edges|values|results|matches)\b/.test(text);
+        const search = [
+            ...region.querySelectorAll(
+                "input:not([type]), input[type=text], input[type=search], [role=combobox], [role=searchbox]",
+            ),
+        ].some(vis);
+        const judged = items > bound || partial || items >= long;
+        out.push({
+            list: `${kind} ${name(el)}`,
+            items,
+            ...(total === null ? {} : { holds: total }),
+            judged,
+            bounded: items <= bound,
+            count,
+            search,
+            ok: !judged || (items <= bound && count && search),
+        });
+    }
+    return out;
+}
+// The catalog's search keywords: every word a picker finds an algorithm by besides its name (its
+// keywords and technical name), read through graphty-element's public catalog.algorithms(), for the
+// wording check. Self-contained: it runs in the page.
+export function catalogKeywords() {
+    const s = document.querySelector("graphty-element")?.session;
+    if (!s) return [];
+    return s.catalog
+        .algorithms()
+        .flatMap((a) => [...(a.keywords ?? []), a.technicalName, ...(a.fields ?? []).map((f) => f.plainName)])
+        .filter(Boolean);
+}
 // Planted failures, so a check that cannot fail is caught: an image with no text alternative (axe),
 // two buttons of one name, focus dropped to the page, a clipped name and an element code (bar 10),
 // and the active option scrolled out of its list ("unscroll")
@@ -488,7 +650,12 @@ export function plant(kind) {
             // a long name in a narrow box, ellipsized, with no title, name or tooltip giving it whole
             cut: '<span style="display:block;width:90px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Planted cut Northern Regional Distribution Center 01</span>',
             raw: "<p>The rule was refused: E_BAD_SELECTOR</p>",
+            // sixty words and a five-word heading, counted as the app's own (words at rest)
+            wordy: `<h3>Planted heading of many words</h3><p>${"planted words at rest ".repeat(15)}</p>`,
+            // a list of 2,000 names, every one rendered, with no count and no search ("Large graphs")
+            biglist: `<section><div role="listbox" aria-label="Planted long list" style="max-height:40px;overflow:auto">${Array.from({ length: 2000 }, (_, i) => `<div role="option">Planted ${i}</div>`).join("")}</div></section>`,
         }[kind] ?? '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="8" height="8">';
+    if (kind === "wordy") d.dataset.count = "1";
     document.body.append(d);
 }
 export function unplant() {
@@ -650,6 +817,44 @@ export const BAR5_TIER4 = {
 export const BAR5_TIER4_PLANTS = ["axe", "shared names", "focus"];
 export function tier4Gaps(seen, sizes) {
     return walkGaps(BAR5_TIER4, BAR5_TIER4_PLANTS, "bar 5", seen, sizes);
+}
+// Tier 5: the scripted walk of the tier 5 screens (item 5 of ../tier5/criteria.md's "Before the first
+// session"), both hosts and the 50,000-node lists; bars.mjs WALKS5 walks them at every size
+const HOSTS5 = ["style", "filter"];
+const EDITOR5 = [
+    "a new rule, its picker open",
+    "a step pane",
+    "the Except switch on",
+    "an Or group, its picker open",
+    "the reference picker, closed",
+    "the reference picker, open",
+    "the reference picker, typed",
+    "the reference picker, a result chosen",
+    "Advanced with Edges where",
+    "No match",
+    "the matches strip's Group column",
+    "the read-only outline at rest",
+];
+export const BAR5_TIER5 = {
+    screens: [
+        ...HOSTS5.flatMap((h) => EDITOR5.map((x) => `${h}: ${x}`)),
+        "50,000: the checklist",
+        "50,000: Check N",
+        "50,000: the outline of a step with many values",
+        "50,000: the reference picker, closed",
+        "50,000: the reference picker, open",
+        "50,000: the reference picker, typed",
+        "50,000: the reference picker, a result chosen",
+        "50,000: Selected (N)",
+        "50,000: Hovered or selected",
+        "50,000: the outline at rest",
+    ],
+    focus: [],
+    typed: [],
+};
+export const BAR5_TIER5_PLANTS = ["axe", "shared names", "focus", "large lists", "words at rest"];
+export function tier5Gaps(seen, sizes) {
+    return walkGaps(BAR5_TIER5, BAR5_TIER5_PLANTS, "item 5", seen, sizes);
 }
 function walkGaps(list, plants, bar, seen, sizes) {
     const out = [];

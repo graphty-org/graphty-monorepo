@@ -254,6 +254,32 @@ describe("the timeline on the real element", () => {
         assert.isNull(session.time.current);
     });
 
+    it("waits for each frame through a stepped play, and through a change of speed", async () => {
+        const { session } = await open();
+        const dock = await designateSent(session);
+        await pickIn("Step", "Week");
+        await act(async () => {
+            await session.time.setSettings({ results: "rerun" });
+        });
+        // Each wait for a frame listens for the page being hidden: the one sign of it outside the
+        // element, and session.time is frozen. A play on the timer alone adds none.
+        const listening = vi.spyOn(document, "addEventListener");
+        const waits = (): number => listening.mock.calls.filter(([type]) => type === "visibilitychange").length;
+
+        await userEvent.click(within(dock).getByRole("button", { name: "Speed 1x" }));
+        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await waitFor(() => {
+            assert.isAbove(waits(), 0);
+        });
+        await userEvent.click(within(dock).getByRole("button", { name: "Speed 2x" }));
+        const before = waits();
+        await waitFor(() => {
+            assert.isAtLeast(waits(), before + 2);
+        });
+        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        listening.mockRestore();
+    });
+
     it("steps by button and key, opening the first window, and stops at the end of the data", async () => {
         const { session } = await open();
         const dock = await designateSent(session);
@@ -545,6 +571,64 @@ describe("the Overview and the import of time", () => {
         await waitFor(() => {
             assert.isTrue(Number.isInteger(Number(session.time.current?.from)));
             assert.isAtLeast(Number(session.time.current?.from), 1990);
+        });
+    });
+
+    it("makes the field one of intervals from the End row, and the window holds what spans it", async () => {
+        const store = createWorkspaceStore({ project: { name: "Spans", id: 1 }, place: "data" });
+        render(<Workspace store={store} registrations={REGISTRATIONS} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const data = "source,target,began,ended\na,b,2025-01-01,2025-03-01\nb,c,2025-02-01,2025-02-02\n";
+        await session.data.import({ type: "csv", config: { data }, name: "Spans" });
+        await pickField("began");
+        await userEvent.click(await dataPlace().findByRole("combobox", { name: "Edge time end" }));
+        await userEvent.click(await screen.findByRole("option", { name: "ended" }));
+        const live = session;
+        await waitFor(() => {
+            assert.deepEqual(live.time.field?.edges, { start: "began", end: "ended" });
+        });
+
+        // Feb 15 is inside the first edge's span and after the second one ended.
+        await live.time.window({ from: Date.UTC(2025, 1, 15), to: Date.UTC(2025, 1, 16) });
+        assert.deepEqual([...live.visibility.edgeMask()], [1, 0]);
+    });
+
+    it("keeps the Unit picked when the End row changes", async () => {
+        const store = createWorkspaceStore({ project: { name: "Steps", id: 1 }, place: "data" });
+        render(<Workspace store={store} registrations={REGISTRATIONS} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const data = "source,target,began,ended\na,b,1,5\nb,c,2,3\n";
+        await session.data.import({ type: "csv", config: { data }, name: "Steps" });
+        await pickField("began");
+        await userEvent.click(await dataPlace().findByRole("combobox", { name: "Edge time unit" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Number" }));
+        const live = session;
+        await waitFor(() => {
+            assert.equal(live.time.field?.edges?.unit, "ordinal");
+        });
+        await userEvent.click(await dataPlace().findByRole("combobox", { name: "Edge time end" }));
+        await userEvent.click(await screen.findByRole("option", { name: "ended" }));
+        await waitFor(() => {
+            assert.deepEqual(live.time.field?.edges, { start: "began", unit: "ordinal", end: "ended" });
+        });
+        await userEvent.click(await dataPlace().findByRole("combobox", { name: "Edge time end" }));
+        await userEvent.click(await screen.findByRole("option", { name: "None" }));
+        await waitFor(() => {
+            assert.deepEqual(live.time.field?.edges, { start: "began", unit: "ordinal" });
         });
     });
 

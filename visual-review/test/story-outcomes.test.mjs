@@ -83,7 +83,7 @@ describe("story outcomes", () => {
         const part = tempDir("story-outcomes-part-");
         const v = visualStoryTest({ project: "graphty-element", out: part, root });
         // The first shot differs from the baseline, the second matches it: unchanged, but flaky.
-        expect(await shoot(v, root, "a--flips", [png(200), png(10)])).toEqual({ status: "unchanged" });
+        expect(await shoot(v, root, "a--flips", [png(200), png(10)])).toEqual({ status: "unchanged", flaky: true });
         await report(v, root, { files: ["a.stories.ts"], ran: { "a.stories.ts": ["a--flips"] } });
         expect(read(part).items[0]).toMatchObject({ status: "unchanged", flaky: true, firstChangedPixels: 16 });
         expect(readFileSync(join(part, "flaky/a--flips.png"))).toEqual(png(200));

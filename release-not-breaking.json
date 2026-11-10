@@ -1,0 +1,10 @@
+{
+    "notBreaking": [
+        {
+            "commit": "805bb3033be3f34e307c3439ce740513d126372d",
+            "project": "graphty-element",
+            "reason": "owner 2026-11-09: the AI assistant API is experimental; experimental APIs may change in a minor release",
+            "since": "2026-11-09"
+        }
+    ]
+}

@@ -12,6 +12,7 @@ import { LABEL_STYLE_FIELDS } from "../src/catalog/label-style";
 import type { Channel, Encoding, LabelStyle, LayerSpec, StaticStyle } from "../src/catalog/types";
 import { type GraphBackgroundConfig, NodeShapes, type ViewMode } from "../src/config";
 import type { AlgorithmOnLoad } from "../src/config/DataConfig";
+import { pageDefaultFeatures } from "../src/features/resolve";
 import type { Graphty } from "../src/graphty-element";
 
 // Global storage for event promises set up by decorators
@@ -258,6 +259,8 @@ interface StorySetup {
     stepMultiplier?: number;
     /** Hide labels whose words would overlap: the element's `labels.declutter` behaviour. */
     declutterLabels?: boolean;
+    /** How node labels draw their words: the element's `labels.labelText` behaviour. */
+    labelText?: "canvas" | "glyphs";
 }
 
 /**
@@ -457,9 +460,13 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
 
     // One document, written once: two assignments would leave only the second, and a story that
     // declutters its labels used to lose its pre-steps that way.
-    const { preSteps, stepMultiplier, declutterLabels } = setup;
+    const { preSteps, stepMultiplier, declutterLabels, labelText } = setup;
+    const labels = {
+        ...(declutterLabels === undefined ? {} : { declutter: declutterLabels }),
+        ...(labelText === undefined ? {} : { labelText }),
+    };
 
-    if (preSteps !== undefined || stepMultiplier !== undefined || declutterLabels !== undefined) {
+    if (preSteps !== undefined || stepMultiplier !== undefined || Object.keys(labels).length > 0) {
         element.layoutBehavior = {
             ...(preSteps === undefined && stepMultiplier === undefined
                 ? {}
@@ -469,7 +476,7 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
                           ...(stepMultiplier === undefined ? {} : { stepMultiplier }),
                       },
                   }),
-            ...(declutterLabels === undefined ? {} : { labels: { declutter: declutterLabels } }),
+            ...(Object.keys(labels).length === 0 ? {} : { labels }),
         };
     }
 
@@ -505,6 +512,12 @@ type RenderArg2 = Parameters<NonNullable<Meta["render"]>>[1];
 
 export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => {
     const g = document.createElement("graphty-element");
+
+    // First, as a page sets the attribute: the experiments are read when the element's session is
+    // made. Added to the page's own (`?features=` on the preview), which an element's list replaces.
+    if (Array.isArray(args.features)) {
+        g.features = [...pageDefaultFeatures(), ...(args.features as string[])];
+    }
 
     // Set runAlgorithmsOnLoad BEFORE setting data, because data loading triggers
     // the algorithm-run operation which checks this property
@@ -553,6 +566,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
 
         if (
             ![
+                "features",
                 "dataSource",
                 "dataSourceConfig",
                 "layout",

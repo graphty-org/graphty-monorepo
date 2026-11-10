@@ -11,6 +11,7 @@
 //                                     closed, one bisect dispatched, the outcome announced
 //       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
 //           (the version dry run's held projects), CAPTURES (a directory of results.json),
+//           GITHUB_RUN_ID and GITHUB_RUN_ATTEMPT (a failed T4 job's steps: a refused runner is an owner item),
 //           RUN_ID, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, FORWARD (the held commit, when SHA is a held head past
 //           it: red goes to the hold issue only, no "Full run red" issue and no bisect)
 //   node tools/full-run.mjs lane-red  files or updates the red issue the moment one lane ends red, so a fix that
@@ -310,9 +311,10 @@ function slotOn(sha, { judged, firstParents, stray, sameBaselines, onNightly, ha
  * @param ownerItem why a red LLM lane is the owner's to fix (a refused key or balance), or empty
  * @param held the projects the version dry run held for want of a release-approvals.json entry, or empty: the
  *   version job leaves them and their dependents out (RELEASE_HOLD_ALSO), so the dry run's failure passes
+ * @param t4Item why a red T4 lane is the owner's to fix (t4Refusal), or empty
  * @returns `{ state, red }`: red lists the lanes that did not pass, in LANES order
  */
-export function verdictOf(lanes, images, ownerItem = "", held = "") {
+export function verdictOf(lanes, images, ownerItem = "", held = "", t4Item = "") {
     if ((lanes.pick ?? "success") !== "success") return { state: "red", red: ["pick"] };
     // only the LLM lane may be skipped (not due that day); any other lane that did not run is not a pass. The
     // captures come from the CI lane, so they are judged only when CI passed: a red CI explains a missing one
@@ -325,7 +327,8 @@ export function verdictOf(lanes, images, ownerItem = "", held = "") {
         (l === "version_dry_run" && lanes[l] === "failure" && !!held) ||
         ((l === "captures" || l === "recapture") && lanes.ci !== "success");
     const red = Object.keys(LANES).filter((l) => !passed(l));
-    if (red.length === 1 && red[0] === "llm" && ownerItem) return { state: "owner-item", red };
+    const owned = (l) => (l === "llm" && !!ownerItem) || (l === "t4" && !!t4Item);
+    if (red.length && red.every(owned)) return { state: "owner-item", red };
     if (red.length) return { state: "red", red };
     return { state: images === 0 ? "green-clean" : "green-images", red };
 }
@@ -358,9 +361,23 @@ export function deferred({ attempt, mode, state, red, lanes, actor }) {
  * The lanes that were red on the attempt before and passed on this one: flaky, filed, never blocking.
  * @param before the earlier attempt's red lanes
  * @param red this attempt's red lanes
+ * @param refused the earlier attempt's lanes that an account refused: nothing of theirs ran, so passing now says
+ *   nothing about the code
  * @returns LANES keys
  */
-export const flakyLanes = (before, red) => before.filter((l) => l !== "pick" && !red.includes(l));
+export const flakyLanes = (before, red, refused = []) =>
+    before.filter((l) => l !== "pick" && !red.includes(l) && !refused.includes(l));
+
+/**
+ * Why the T4 job never ran, when its runner provider refused it. Machine reports a refusal (out of credit) only as a
+ * failed step of its own named "Machine: <why>", with no log and no annotation; no step of gpu.yml has that name.
+ * @param failedSteps the names of the T4 job's failed steps
+ * @returns the owner's item, or ""
+ */
+export function t4Refusal(failedSteps) {
+    const step = failedSteps.find((s) => s.startsWith("Machine: "));
+    return step ? `machine.dev refused the T4 job: ${step.slice("Machine: ".length)}` : "";
+}
 
 /**
  * The held head's verdicts a newer green run replaces (#5052): nothing waits on the owner's review of them. Never
@@ -1114,9 +1131,10 @@ export function fileFlakies(env, lanes, stories, run = sh) {
 }
 
 // The red path: bisect once, file or update the red issue
-async function fileRedVerdict(cfg, { sha, good, runId, runUrl, red, lanes }) {
+async function fileRedVerdict(cfg, { sha, good, runId, runUrl, red, lanes, refused = [] }) {
     const failures = cfg ? await read(cfg, `/v1/failures?run=${runId}&good=${good}`) : null;
-    const bisect = tryBisect(bisectPlan({ red, sha, good, run: runId, failures }));
+    const coded = red.filter((l) => !refused.includes(l));
+    const bisect = tryBisect(bisectPlan({ red: coded, sha, good, run: runId, failures }));
     const body = redIssue({ sha, red, lanes, run: runUrl, bisect });
     const issue = bestEffort(
         () => fileRed(body),
@@ -1142,12 +1160,13 @@ const readJson = (file) => {
  * @param o.lanes every lane's result
  * @param o.changed differingImages' changed
  * @param o.env LLM_OWNER_ITEM and VERSION_HELD
+ * @param o.t4Item the T4 lane's owner item, or empty
  * @returns the line
  */
-function whatOf({ state, red, lanes, changed, env }) {
+function whatOf({ state, red, lanes, changed, env, t4Item }) {
     const held = heldLine(env.VERSION_HELD);
     let what = state;
-    if (state === "owner-item") what = env.LLM_OWNER_ITEM;
+    if (state === "owner-item") what = [env.LLM_OWNER_ITEM, t4Item].filter(Boolean).join("; ");
     else if (state === "red")
         what = red.map((l) => (l === "captures" ? `${LANES[l].name} ${lanes[l]}` : LANES[l].name)).join(", ");
     else if (state === "green-images") what = changedSummary(changed);
@@ -1164,6 +1183,21 @@ export const heldLine = (held) =>
         ? `${held} held with the projects that depend on it (a major or a first publish): add its release-approvals.json entry to release them`
         : "";
 
+// this attempt's T4 owner item; a job list that cannot be read leaves the lane red, as a failure always was
+function t4OwnerItem(env, result) {
+    if (result !== "failure") return "";
+    const jobs = `repos/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}/attempts/${env.GITHUB_RUN_ATTEMPT}/jobs`;
+    const steps = `.jobs[] | select(.name | startswith("${LANES.t4.name} /")) | .steps[] | select(.conclusion == "failure") | .name`;
+    return bestEffort(
+        () => t4Refusal(retry(() => sh("gh", ["api", jobs, "--jq", steps, "--paginate"])).split("\n")),
+        "reading the T4 job's steps",
+        () => "",
+    );
+}
+
+// the lanes an account refused, so nothing of theirs ran
+const refusedLanes = (env, t4Item) => [env.LLM_OWNER_ITEM && "llm", t4Item && "t4"].filter(Boolean);
+
 async function verdictMain(env) {
     const cfg = config(env);
     // one group per phase: a step that stops printing names the phase it stopped in
@@ -1172,17 +1206,27 @@ async function verdictMain(env) {
     const projects = Object.keys(JSON.parse(readFileSync("visual-review.config.json", "utf8")).projects ?? {});
     const { changed, missing } = differingImages(env.CAPTURES, projects);
     lanes.captures = captureLane(missing);
-    const { state, red } = verdictOf(lanes, changed.length, env.LLM_OWNER_ITEM, env.VERSION_HELD);
+    const t4Item = t4OwnerItem(env, lanes.t4);
+    const { state, red } = verdictOf(lanes, changed.length, env.LLM_OWNER_ITEM, env.VERSION_HELD, t4Item);
     // unset (a run by hand): no attempt to wait for, so it decides at once
     const attempt = Number(env.RUN_ATTEMPT || 0);
     const wait = deferred({ attempt, mode: env.MODE, state, red, lanes, actor: actorOf(env) });
     let issue = null;
     let bisect = "";
-    const what = whatOf({ state, red, lanes, changed, env });
+    const what = whatOf({ state, red, lanes, changed, env, t4Item });
     // a held head past its commit (FORWARD) is the hold issue's to report, never a "Full run red" one: master
     // does not hold it, so neither a bisect nor a restart on master could help
     const forward = !!env.FORWARD;
-    const facts = { sha: env.SHA, good: env.GOOD, runId: env.RUN_ID, runUrl: env.RUN_URL, red, lanes, forward };
+    const facts = {
+        sha: env.SHA,
+        good: env.GOOD,
+        runId: env.RUN_ID,
+        runUrl: env.RUN_URL,
+        red,
+        lanes,
+        forward,
+        refused: refusedLanes(env, t4Item),
+    };
     console.log("::endgroup::");
     console.log("::group::verdict: red issue, bisect or close");
     if (wait) {
@@ -1200,7 +1244,7 @@ async function verdictMain(env) {
     const before = attempt > 1 ? readJson(join(env.RECORDS ?? "", `verdict-${attempt - 1}.json`)) : null;
     console.log("::endgroup::");
     console.log("::group::verdict: flaky lanes and stories");
-    if (!wait) fileFlakies(env, flakyLanes(before?.red ?? [], red), flakyStories(env.CAPTURES));
+    if (!wait) fileFlakies(env, flakyLanes(before?.red ?? [], red, before?.refused), flakyStories(env.CAPTURES));
     // green-images: the owner reviews these (release.yml announces it); the files go to the run's log
     if (state === "green-images") console.log(`::notice::${what}\n${changed.join("\n")}`);
     // a failed pick judged no commit: recording red on one would make the next slot skip it. A deferred red is
@@ -1292,7 +1336,7 @@ function laneRedMain(env) {
         console.log(`::notice::attempt 1: the verdict decides after the one same-commit re-run`);
         return;
     }
-    if (env.OWNER_ITEM) {
+    if (env.OWNER_ITEM || (env.LANE === "t4" && t4OwnerItem(env, env.RESULT))) {
         console.log(`::notice::${LANES[env.LANE].name} is red with an owner item: the verdict decides it`);
         return;
     }

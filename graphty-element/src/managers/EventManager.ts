@@ -536,11 +536,13 @@ export class EventManager implements Manager {
             case "data-loading-complete":
             case "zoom-to-fit-complete":
             case "graph-frame-stable":
+            case "graph-first-frame":
             case "elements-removed":
             case "selection-changed":
             case "graph-started":
             case "layout-changed":
             case "layout-warning":
+            case "limits-warning":
             case "basemap-status":
             case "operation-cancelled":
             case "stats-update":

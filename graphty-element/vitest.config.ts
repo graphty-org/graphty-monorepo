@@ -81,6 +81,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/groups-follow-members.test.ts",
     "test/browser/label-declutter.test.ts",
     "test/browser/curves-rest-the-same-however-frames-split.test.ts",
+    "test/browser/node-gap-rests-the-same-however-frames-split.test.ts",
     "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
     "test/browser/a-layer-added-later-paints.test.ts",
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
@@ -211,10 +212,16 @@ const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...GRAPHVIZ, .
 
 /** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
 const XR_BROWSER_TESTS = [
+    "test/browser/node-batch-xr.test.ts",
     "test/browser/xr-session.test.ts",
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",
 ];
+
+/** The files "forced-batched" leaves out, each with its reason. */
+const forcedBatchedSkips = JSON.parse(
+    readFileSync(new URL("test/forced-batched/skipped.json", import.meta.url), "utf8"),
+) as readonly { readonly file: string; readonly reason: string }[];
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
@@ -451,6 +458,21 @@ const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
         "--enable-features=Vulkan",
         "--use-vulkan=swiftshader",
         "--disable-vulkan-surface",
+    ],
+    // SwiftShader with the frame rate unlimited, as `benchmarks/compare/run.mjs` launches the
+    // real card: the loop's ticks then outrun the GPU, so a test can build a queue of frames on
+    // the device (test/browser/webgpu-frame-pacing.test.ts). With the limit on, Chromium holds
+    // the page's frames to the GPU's pace and no queue builds.
+    "swiftshader-unthrottled": [
+        "--enable-unsafe-webgpu",
+        "--use-angle=swiftshader",
+        "--enable-unsafe-swiftshader",
+        "--use-webgpu-adapter=swiftshader",
+        "--enable-features=Vulkan",
+        "--use-vulkan=swiftshader",
+        "--disable-vulkan-surface",
+        "--disable-gpu-vsync",
+        "--disable-frame-rate-limit",
     ],
     // The host matrix on macOS: Dawn's Metal backend when headless Chromium reaches the VM's
     // device with the blocklist ignored, SwiftShader otherwise.
@@ -712,6 +734,8 @@ const config = defineConfig({
                         "test/lifecycle/**",
                         // These lose the GPU device: see the "gpu-loss" project
                         "test/gpu-loss/**",
+                        // These read pixels: see the "render-parity" project
+                        "test/render-parity/**",
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",
@@ -895,6 +919,9 @@ const config = defineConfig({
                 // sets timing rows' project below, which never runs in CI.
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED, force: true },
+                // Puts GRAPHTY_BROWSER_GPU on `import.meta.env`, so a benchmark whose numbers mean
+                // nothing on the software renderer (timeline-frame-bench.ts) skips itself without it.
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 test: {
                     name: "browser-bench",
                     setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
@@ -1030,6 +1057,77 @@ const config = defineConfig({
                             },
                         }),
                         instances: [{ browser: "chromium" }],
+                    },
+                },
+            },
+            {
+                // The `"batched"` render path against `"objects"`, on SwiftShader with both engines
+                // (design/rendering/row-renderer.md 7). Neither this nor "forced-batched" joins a pull
+                // request or the full run: a stage runs the files it touches, and
+                // .github/workflows/render-proof.yml dispatches the whole of both.
+                define: { ...define },
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                resolve: {
+                    alias: {
+                        "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
+                    },
+                },
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: PREBUNDLED, force: true },
+                test: {
+                    name: "render-parity",
+                    setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
+                    include: ["test/render-parity/**/*.test.ts", "test/browser/node-batch.test.ts"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: mapTileCommands,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright({
+                            launchOptions: {
+                                args: [...BROWSER_GPU_FLAGS[browserGpu === "" ? "swiftshader" : browserGpu]],
+                                channel: "chromium",
+                                env: browserLaunchEnv(),
+                            },
+                        }),
+                        instances: [{ browser: "chromium" }],
+                    },
+                },
+            },
+            {
+                // The browser, interaction and XR suites with `"batched"` as the default path.
+                // test/forced-batched/skipped.json lists the files that inspect mesh structure.
+                define: { ...define },
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                resolve: {
+                    alias: {
+                        "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
+                    },
+                },
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
+                test: {
+                    name: "forced-batched",
+                    setupFiles: [MAP_TILES_SETUP, "./test/setup.ts", "./test/forced-batched/setup.ts"],
+                    include: ["test/browser/**/*.test.ts", "test/interactions/**/*.test.ts"],
+                    exclude: [
+                        "test/browser/**/*.bench.test.ts",
+                        ...forcedBatchedSkips.map(({ file }) => file),
+                        "**/*~/**",
+                        "**/*~",
+                        "**/node_modules/**",
+                    ],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: { ...mapTileCommands, ...samplePictureCommands, ...heldRequestCommands },
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [browserInstance()],
                     },
                 },
             },

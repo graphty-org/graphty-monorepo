@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { sortedBars } from "../../web/src/charts.js";
+import { cellHtml } from "../../web/src/render.js";
 import { refText, sentence, stateChip } from "../../web/src/text.js";
 
 describe("refText", () => {
@@ -696,5 +698,113 @@ describe("the Issues page", () => {
         expect(sentence({ code: "issues.github_open", params: { stored: 512, github: 510 } })).toContain(
             "no longer in the repository",
         );
+    });
+});
+
+describe("tags stripped from cells", () => {
+    it("links a state cell around the chip's words, with no nested tags", () => {
+        const html = cellHtml({ t: "state", state: "info", link: "/data-sources/not-set-up" });
+        expect(html).toContain(">for information</a>");
+    });
+
+    it("keeps only the words of a label in the hidden table of a bar chart", () => {
+        const html = sortedBars([{ label: { t: "name", v: "ab", bold: true }, n: 1, unit: "count" }], cellHtml, "cap");
+        expect(html).toContain("<td>ab</td>");
+    });
+});
+
+describe("label text in a hidden table and an aria label", () => {
+    const bar = (v: string) => ({ label: { t: "name" as const, v }, n: 1, unit: "count" as const });
+    const issuesPage = (sections: unknown[]) =>
+        ({ page: "issues", range: "28d", generated: "2026-10-25T23:30:00Z", notes: [], sections }) as never;
+
+    it("escapes a bar's label exactly once, and a script stays inert", () => {
+        const html = sortedBars([bar("a<b"), bar("<script>x</script>"), bar("&#60;")], cellHtml, "cap");
+        expect(html).toContain("<td>a&#60;b</td>");
+        expect(html).toContain("<td>&#60;script&#62;x&#60;/script&#62;</td>");
+        expect(html).toContain("<td>&#38;#60;</td>");
+        expect(html).not.toContain("<script");
+        expect(html).not.toContain("&#38;#60;b");
+    });
+
+    it("escapes a series name once in the chart's table, legend, end label and hover title", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "issues", range: "28d", q: new URLSearchParams() });
+        const series = (key: string) => ({ key, values: [1, 2, 3] });
+        const html = pageView(
+            issuesPage([
+                {
+                    kind: "series",
+                    id: "backlog",
+                    chart: "lines",
+                    step: "1d",
+                    start: "2026-10-01T00:00:00Z",
+                    series: [series("a<b"), series("<script>")],
+                },
+            ]),
+        );
+        expect(html).toContain('<th scope="col">a&#60;b</th>');
+        expect(html).toContain('<th scope="col">&#60;script&#62;</th>');
+        expect(html).toContain("</span>a&#60;b</span>");
+        expect(html).toContain("3 a&#60;b");
+        expect(html).toContain("a&#60;b: 1");
+        expect(html).toContain('class="k-&#60;script&#62;"');
+        expect(html).not.toContain("<script");
+        expect(html).not.toContain("&#38;");
+    });
+
+    it("keeps a label's words, without its tags, in a series table", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "issues", range: "28d", q: new URLSearchParams() });
+        const html = pageView(
+            issuesPage([
+                {
+                    kind: "series",
+                    id: "backlog",
+                    chart: "stacked",
+                    step: "1d",
+                    start: "2026-10-01T00:00:00Z",
+                    series: [{ key: "issues.total", values: [1, 2] }],
+                },
+            ]),
+        );
+        expect(html).toContain('<th scope="col">Total</th>');
+    });
+
+    it("escapes a heading's text once in the caption of a group of bars", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "issues", range: "28d", q: new URLSearchParams() });
+        const group = { head: { code: "sla.red_now" }, items: [bar("x")] };
+        const html = pageView(issuesPage([{ kind: "bars", id: "holders", groups: [group, group] }]));
+        expect(html).toContain("<caption>&#62;= 15 min or 2 builds</caption>");
+    });
+
+    it("escapes a status block's text once in its aria label", async () => {
+        const { overviewView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
+        const html = overviewView({
+            generated: "2026-10-25T23:30:00Z",
+            range: "1h",
+            categories: [
+                {
+                    id: "master",
+                    state: "bad",
+                    others: [],
+                    setBy: { member: "master.red_now", value: null, fact: { code: "sla.red_now" } },
+                    headline: {
+                        id: "master.red_now",
+                        state: "bad",
+                        window: "1h",
+                        value: { n: 1 },
+                        sla: null,
+                        link: "/master",
+                    },
+                },
+            ],
+            episodes: [],
+        } as never);
+        expect(html).toContain('aria-label="Master: ');
+        expect(html).toContain("&#62;= 15 min or 2 builds");
+        expect(html).not.toContain("&#38;");
     });
 });

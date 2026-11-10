@@ -46,7 +46,7 @@ import { earClip, type Point2 } from "./shapeOutlines";
 export interface NodeDecorationPiece {
     readonly kind: "shape" | "image" | "body";
     readonly box: PieceBox;
-    /** A body piece's fill: red, green and blue, 0..1, and its opacity. */
+    /** A colored piece's fill: red, green and blue, 0..1, and its opacity. */
     readonly fill?: Pick<ColorPiece, "rgb" | "opacity">;
 }
 
@@ -96,7 +96,7 @@ const FRONT_STEP = 0.0005;
  * @param o - The style.
  * @returns True with a pie, stripes, an image, or a database's rim.
  */
-export function hasDecoration(o: NodeDecorationOptions): boolean {
+function hasDecoration(o: NodeDecorationOptions): boolean {
     return (
         o.pie?.colors !== undefined ||
         o.stripes?.colors !== undefined ||
@@ -474,7 +474,7 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
             .map((p) => ({
                 kind: p.body === true ? "body" : "shape",
                 box: p.box ?? boxOf(p.outline),
-                ...(p.body === true ? { fill: { rgb: p.rgb, opacity: p.opacity } } : {}),
+                fill: { rgb: p.rgb, opacity: p.opacity },
             })),
     };
     mesh.metadata = metadata;

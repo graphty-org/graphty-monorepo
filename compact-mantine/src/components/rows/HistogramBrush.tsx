@@ -48,8 +48,11 @@ export const BRUSH_ROW_HEIGHT = 16;
  * @returns The moved range.
  */
 function shiftRange(range: readonly [number, number], by: number, brush: HistogramBrushProps): [number, number] {
-    const delta = Math.max(brush.min - range[0], Math.min(brush.max - range[1], by));
-    return [range[0] + delta, range[1] + delta];
+    const toMin = brush.min - range[0];
+    const toMax = brush.max - range[1];
+    const delta = Math.max(toMin, Math.min(toMax, by));
+    // Stopped at an end, it is that end exactly: range[1] + (max - range[1]) can miss max in floating point.
+    return [delta === toMin ? brush.min : range[0] + delta, delta === toMax ? brush.max : range[1] + delta];
 }
 
 /**
@@ -180,7 +183,8 @@ export function HistogramBrush({
                 min={brush.min}
                 max={brush.max}
                 step={brush.step}
-                minRange={brush.step}
+                // Both thumbs reach both ends, so the range can hold the last value alone.
+                minRange={0}
                 value={[range[0], range[1]]}
                 label={brush.thumbLabel === undefined ? null : (value: number) => brush.thumbLabel?.(value, 0)}
                 thumbFromLabel={brush.startLabel}

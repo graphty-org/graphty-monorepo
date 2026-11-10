@@ -56,7 +56,7 @@ export const SCENE_MEMBERS = [
 ] as const;
 
 /** The uniforms of the sample program beside the parameters. */
-export const SAMPLE_UNIFORMS = ["graphty_sampleColor", "graphty_sampleSize", "graphty_sampleReach"] as const;
+const SAMPLE_UNIFORMS = ["graphty_sampleColor", "graphty_sampleSize", "graphty_sampleReach"] as const;
 
 /** The prefix of a body's own names. */
 const BODY_PREFIX = "graphty_u_";

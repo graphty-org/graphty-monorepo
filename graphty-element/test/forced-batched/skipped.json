@@ -1,0 +1,20 @@
+[
+    {
+        "file": "test/browser/edge-trim-mirror.test.ts",
+        "reason": "Holds the row trim against the mesh path's, which a batched row no longer has a mesh for"
+    },
+    { "file": "test/browser/node-batch.test.ts", "reason": "Starts each check on the objects path by hand" },
+    {
+        "file": "test/browser/render-budget.test.ts",
+        "reason": "Its baseline is the objects path: the row tables add two textures"
+    },
+    {
+        "file": "test/browser/row-scan-parity.test.ts",
+        "reason": "Holds the row scan against a pick of each row's mesh, which a batched row no longer has"
+    },
+    { "file": "test/browser/row-table-shadow.test.ts", "reason": "Asserts a graph on objects opens no table" },
+    {
+        "file": "test/browser/time-ghost.test.ts",
+        "reason": "Reads mesh.visibility, which a hidden proxy answers with 0 until stage 11"
+    }
+]

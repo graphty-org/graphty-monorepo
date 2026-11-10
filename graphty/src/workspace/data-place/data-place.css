@@ -182,8 +182,28 @@
     flex: 1;
     min-width: 0;
     display: flex;
+    align-items: center;
+    gap: 6px;
+    align-self: stretch;
     font: inherit;
     text-align: start;
+}
+
+/* A collapsed card's name is cut only when its count would otherwise leave the row. */
+.dp-filter-title {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+/* Focus on a resting card's name rings the whole row, as a tree row is ringed: a ring round the
+   name alone reads as a rename box. */
+.dp-filter-row .dp-filter-name:focus-visible {
+    outline: none;
+}
+
+.dp-filter-row:has(.dp-filter-name:focus-visible) {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: -1px;
 }
 
 /* A resting card's summary line, under its switches. */
@@ -202,4 +222,131 @@
 /* The row's issues chip stays drawn on hover and focus: it is a door, not a count the actions replace. */
 .dp-source-issues {
     flex: none;
+}
+
+/* The Calculated tab (the selection-workspace experiment): one row a result, its name taking the
+   room, then its quiet marks (what uses it, an unusual scope or out of date), then "..." on hover
+   or focus, in a slot that keeps its width so the marks never move. */
+.dp-run-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 28px;
+    padding-inline: 8px 4px;
+    border-radius: 4px;
+}
+
+.dp-run-head:hover,
+.dp-run-head[data-selected] {
+    background: var(--mantine-color-default-hover);
+}
+
+/* The row's press: its icon, its name and its marks; "..." stays its own control. */
+.dp-run-main {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    align-self: stretch;
+    font: inherit;
+    text-align: start;
+}
+
+.dp-run-main:focus-visible {
+    outline: none;
+}
+
+.dp-run-head:has(.dp-run-main:focus-visible) {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: -1px;
+}
+
+.dp-run-glyph {
+    display: inline-flex;
+    flex: none;
+    color: var(--mantine-color-dimmed);
+}
+
+.dp-runs {
+    margin: 0;
+    padding: 4px 8px;
+    list-style: none;
+}
+
+.dp-run-name {
+    flex: 1;
+    min-width: 0;
+}
+
+/* What uses it, and an unusual state: secondary ink, no fill, never wrapping. */
+.dp-run-uses,
+.dp-run-mark {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+    color: var(--mantine-color-dimmed);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dp-run-more {
+    flex: none;
+    opacity: 0;
+}
+
+.dp-run-head:is(:hover, :has(:focus-visible), :has([data-expanded])) .dp-run-more {
+    opacity: 1;
+}
+
+.dp-results-empty {
+    padding: 8px 16px;
+}
+
+/* With tabs, Filters stay put over them and only the chosen tab's body scrolls. */
+.dp[data-tabs] {
+    overflow: hidden;
+}
+
+.dp-tabs {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.dp-tab-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* In the selection workspace a resting filter row is drawn as a result row and a source row are:
+   flat, a background on hover, its "..." on hover, focus or while its menu is open. An open card
+   keeps its box. */
+.dp[data-tabs] .dp-filter:not([data-open]) {
+    min-height: 28px;
+    padding: 2px 4px;
+    box-shadow: none;
+}
+
+.dp[data-tabs] .dp-filter:not([data-open]):hover {
+    background: var(--mantine-color-default-hover);
+}
+
+/* A long description wraps to a second line before it is cut short; its count stays at the end. */
+.dp[data-tabs] .dp-filter-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.dp[data-tabs] .dp-filter-more {
+    flex: none;
+    opacity: 0;
+}
+
+.dp[data-tabs] .dp-filter:is(:hover, :has(:focus-visible), :has([data-expanded])) .dp-filter-more {
+    opacity: 1;
 }

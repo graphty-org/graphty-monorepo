@@ -182,6 +182,21 @@ export interface CompactMantineLabels {
      */
     treeMoved: (name: string, parent: string | null, position: string, count: string) => string;
 
+    // CardList
+
+    /** CardList: accessible name of a card's grip, which drags it. */
+    moveCard: (title: string) => string;
+    /** CardList: tooltip of a card's grip. */
+    reorderCard: string;
+    /** CardList: accessible name of a folded card's fold button. */
+    expandCard: (title: string) => string;
+    /** CardList: accessible name of an open card's fold button. */
+    collapseCard: (title: string) => string;
+    /** CardList: accessible name of a card's title button and of its rename field. */
+    renameCard: (title: string) => string;
+    /** CardList: accessible name and tooltip of a card's x. */
+    deleteCard: (title: string) => string;
+
     // CompactColorInput
 
     /**
@@ -553,6 +568,13 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     sortedBy: (descending: boolean): string => (descending ? "sorted descending" : "sorted ascending"),
     yes: "Yes",
     no: "No",
+
+    moveCard: (title: string): string => `Move ${title}`,
+    reorderCard: "Drag to reorder",
+    expandCard: (title: string): string => `Expand ${title}`,
+    collapseCard: (title: string): string => `Collapse ${title}`,
+    renameCard: (title: string): string => `Rename ${title}`,
+    deleteCard: (title: string): string => `Delete ${title}`,
 
     closePanel: "Close panel",
     settings: "Settings",

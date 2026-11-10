@@ -25,6 +25,7 @@ import {
     type PFill,
     type PGradient,
     type PGroup,
+    PICTURE_WHOLE,
     type PNode,
     type PScene,
     type PStray,
@@ -386,6 +387,26 @@ function annotationOver<T extends { box: PBox }>(box: PBox, shapes: readonly T[]
         }
     }
     return best;
+}
+
+/** The most of the smaller of two pieces of a node's face the other may cover while the two lie side by side. */
+const SIDE_BY_SIDE_OVERLAP = 0.5;
+
+/**
+ * The pieces of a node's face, where they lie side by side (stripes, wedges, a pie's slices); none where any piece
+ * covers most of another (a drop shadow and the face over it, an overlay, a table's cells over its background).
+ * @param faces - the pieces, each with its box
+ * @returns the pieces, or none
+ */
+function sideBySide<F extends { box: PBox }>(faces: readonly F[]): readonly F[] {
+    const area = (b: PBox): number => Math.max(0, boxW(b)) * Math.max(0, boxH(b));
+    const shared = (a: PBox, b: PBox): number =>
+        Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) *
+        Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+    const layered = faces.some((a, i) =>
+        faces.some((b, k) => k > i && shared(a.box, b.box) > SIDE_BY_SIDE_OVERLAP * Math.min(area(a.box), area(b.box))),
+    );
+    return layered ? [] : faces;
 }
 
 /**
@@ -1050,12 +1071,15 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
  * How far one route is from another: where its two ends are, and its shape, each route seen in its own chord's frame
  * (its start at the origin, its end at (1, 0), across in chord lengths), so the shape is judged relative to its own
  * ends: an arc against a sine wave between the same two nodes is as far apart as the arc's height and the wave's
- * together. A loop's chord is next to nothing; it is judged as drawn, against its length instead.
+ * together. A loop's chord is next to nothing, or only as long as its arrowhead leaves between its ends, and a share of
+ * that says nothing of the loop (dot-synth-edges-clusters f3 -> f3: the same loop read 1.6 chords apart); it is judged
+ * as drawn, where it sits on its node, against its length instead.
  * @param o - the oracle's route
  * @param g - graphty's, in the oracle's frame and direction
  * @param shift - how far graphty's source and target nodes sit from the oracle's, each end's own: an end is judged
  *     where it sits on its node, and where the node sits is node.position's to judge (dot-synth-nodes n_alpha ->
  *     n_hsv: two straight lines, 10 px apart because their nodes are)
+ * @param loop - whether the route runs from a node back to it
  * @returns the larger of the ends' distance and the shapes' Frechet distance over `pathSamples` samples, as a share
  *     of `unit` oracle pixels
  */
@@ -1066,6 +1090,7 @@ export function routeShape(
         [0, 0],
         [0, 0],
     ],
+    loop = false,
 ): { gap: number; unit: number } {
     const N = ORACLE_TOLERANCES.pathSamples;
     const length = pathLength(o);
@@ -1080,6 +1105,12 @@ export function routeShape(
         return Math.hypot(b[0] - pts[0][0], b[1] - pts[0][1]);
     };
     const chord = chordOf(o);
+    if (loop) {
+        const unit = Math.max(length, 1e-9);
+        const [sx, sy] = shift[0];
+        const onNode = g.map(([x, y]): Pt => [x - sx, y - sy]);
+        return { gap: frechet(resample(o, N), resample(onNode, N)) / unit, unit };
+    }
     if (o.length < 2 || g.length < 2 || chord < 0.25 * length || chordOf(g) < 1e-9) {
         const unit = Math.max(length, 1e-9);
         return { gap: frechet(resample(o, N), resample(g, N)) / unit, unit };
@@ -2360,7 +2391,7 @@ export function compareOracle(
             meet(o.points[0], whole[0], shifts[0]) &&
             meet(o.points.at(-1), whole.at(-1), shifts[1]);
         const [vo, vg] = sliver ? [[...o.points], whole] : visible(o, g);
-        const { gap, unit } = routeShape(vo, vg, [shifts[0], shifts[1]]);
+        const { gap, unit } = routeShape(vo, vg, [shifts[0], shifts[1]], o.source === o.target);
         // a share of a long chord is more than a node: a line sent through another node on the way passed
         // (dot-synth-nodes n_html3 -> n_unfilled, 1044 px long, through the middle of a 33 x 22 node). The allowance
         // is no more than the smaller side of the smaller of its two end nodes
@@ -2635,8 +2666,13 @@ export function compareOracle(
             j.add("edge.route", "edge", id, Math.max(0, gap / near - 1), R(near), R(gap));
         }
         // how far each route bends between its own nodes, a ratio no frame changes
-        const oc = curvatureOf(vo);
-        const gc = curvatureOf(vg);
+        // a loop bends or it does not: its chord is what its arrowhead leaves open, and the route judges its shape
+        const bendOf = (pts: readonly Pt[]): number => {
+            const c = curvatureOf(pts);
+            return o.source === o.target ? Number(c > T.curvature) : c;
+        };
+        const oc = bendOf(vo);
+        const gc = bendOf(vg);
         // and no difference under a pixel deep over the shorter of the two chords, which no reader sees: a line
         // between two nodes that nearly touch (gexf-sigma-ediaspora's 63 -> 66, 9 px long, bent under a pixel off
         // straight; 141 -> 112, a squiggle under a pixel long). A loop's chord is next to nothing: judged as it is.
@@ -3118,6 +3154,24 @@ export function compareOracle(
         ...oracle.nodes.flatMap((n) =>
             (n.pictures ?? []).map((box) => ({ tag: "picture", box, fill: null, stroke: null, text: null })),
         ),
+        // so is each piece of a fill the program draws side by side in pieces, in another color than the node's fill
+        // (Graphviz's stripes and wedges), which graphty draws as pieces over the node's face: only graphty's pieces
+        // over a program's were judged (no extra), so a stripe graphty left out passed (dot-synth-nodes n_striped,
+        // #6176). A piece in the node's own fill is that fill, judged as the node's; pieces drawn over one another (a
+        // shadow under the face, an overlay or a table's cells over it) are no fill in pieces, and a piece a clip cuts
+        // (`bands`, below) is judged there.
+        ...oracle.nodes.flatMap((n) =>
+            sideBySide(n.faces ?? [])
+                .filter((f) => n.fill === null || deltaE(f.color, n.fill.color) > T.colorDeltaE)
+                .filter((f) => !(n.bands ?? []).some((b) => shapeId("", b.box) === shapeId("", f.box)))
+                .map((f) => ({ tag: "face", box: f.box, fill: f.color, stroke: null, text: null })),
+        ),
+        // so is each piece of a group's fill drawn in pieces (Graphviz's striped cluster), the first being its fill
+        ...oracle.groups.flatMap((g) =>
+            sideBySide(g.faces ?? [])
+                .filter((f) => g.fill === null || deltaE(f.color, g.fill.color) > T.colorDeltaE)
+                .map((f) => ({ tag: "face", box: f.box, fill: f.color, stroke: null, text: null })),
+        ),
         // the band of a yFiles group's frame round its panel: drawn, and not the group's fill
         ...oracle.groups.flatMap((g) =>
             g.panel === undefined || g.panel.color === g.fill?.color
@@ -3140,13 +3194,25 @@ export function compareOracle(
             j.add("stray.present", "stray", id, matched ? 0 : 1, s.text ?? s.fill ?? s.stroke, matched);
             return { ...s, matched };
         });
+    // a band a clip cuts from a node's paint (`bands`): graphty draws a piece over that part of the face, in its color
+    for (const n of oracle.nodes) {
+        for (const b of n.bands ?? []) {
+            const shown = gShapes.some(
+                ({ s, box }) =>
+                    strayIou(box, b.box) >= T.strayIoU && s.fill !== null && deltaE(s.fill, b.color) <= T.colorDeltaE,
+            );
+            const { x0, y0, x1, y1 } = b.box;
+            const at = [x0, y0, x1, y1].map(Math.round).join(",");
+            j.add("stray.present", "stray", `band@${at}`, shown ? 0 : 1, b.color, shown);
+        }
+    }
     // an annotation graphty draws where the oracle draws nothing like it: a box, or words the oracle draws nowhere near;
     // a picture or a stripe graphty draws over a node's face is drawn where the program draws one as part of a node
     const oBoxes = [
         ...oracle.strays.map((s) => s.box),
-        ...oracle.nodes.flatMap((n) => [...(n.pictures ?? []), ...(n.faces ?? [])]),
+        ...oracle.nodes.flatMap((n) => [...(n.pictures ?? []), ...(n.faces ?? []).map((f) => f.box)]),
         ...oracle.texts.map((t) => t.box),
-        ...oracle.groups.map((g) => g.box),
+        ...oracle.groups.flatMap((g) => [g.box, ...(g.faces ?? []).map((f) => f.box)]),
     ];
     const oTexts = [
         ...oracle.nodes.map((n) => n.label),
@@ -3157,6 +3223,7 @@ export function compareOracle(
     for (const s of oracle.nodesOnly === true ? [] : [...graphty.strays].sort((a, b) => a.index - b.index)) {
         const box = toO(s.box);
         const drawn =
+            s.tag === PICTURE_WHOLE ||
             shapesDrawn.has(s.index) ||
             oBoxes.some((b) => strayIou(b, box) >= T.strayIoU) ||
             (s.text !== null && textDrawn(s.text, box, oTexts));
@@ -3493,8 +3560,21 @@ export function lineAlign(t: PText): "start" | "middle" | "end" | null {
         lines.some(
             (a) => under(wide, a) && lines.some((b) => b !== a && under(wide, b) && sameRow(a, b) && !under(a, b)),
         );
+    const kept = lines.filter((l) => !spans(l));
+    // Cells side by side share a row. Lines each on a row of its own, set close under the one above, are one column
+    // however little they overlap across (Graphviz's `\l` and `\r` lines, dot-synth-nodes n_ljust): read as cells, no
+    // cell held two lines and the label's alignment went unjudged (#6176). A line set off by more than half a font size
+    // is another text (a node's xlabel), not a further line.
+    const rows = [...kept].sort((p, q) => p.y0 - q.y0);
+    const column =
+        rows.length >= 2 &&
+        rows.every((a, i) => rows.every((b, k) => k <= i || !sameRow(a, b))) &&
+        rows.every((b, i) => i === 0 || b.y0 - rows[i - 1].y1 <= ORACLE_TOLERANCES.lineAlignOfSize * t.sizePx);
+    if (column) {
+        return alignOfLines(rows, t.sizePx);
+    }
     const cells: PBox[][] = [];
-    for (const b of lines.filter((l) => !spans(l)).sort((p, q) => p.x0 - q.x0)) {
+    for (const b of kept.sort((p, q) => p.x0 - q.x0)) {
         const last = cells.at(-1);
         if (last !== undefined && b.x0 < Math.max(...last.map((l) => l.x1))) {
             last.push(b);

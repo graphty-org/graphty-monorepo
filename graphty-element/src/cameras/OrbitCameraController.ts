@@ -37,6 +37,9 @@ const DEFAULT_NEAR_PLANE = 1;
 /** The nearest the near clip plane comes, close to a globe, so depth keeps its precision. */
 const MIN_NEAR_PLANE = 0.01;
 
+/** How squarely the line of sight must face a {@link OrbitCameraController.surfacePlane} to reach it. */
+const MIN_PLANE_FACING = 0.01;
+
 /** No room kept clear: framing uses the whole canvas. */
 const NO_INSETS: FitInsets = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
 
@@ -298,6 +301,14 @@ export class OrbitCameraController {
     public farReach: { readonly radius: number } | null = null;
 
     /**
+     * The plane z = 0 of a flat map under a map layout: the pivot stays on it, so a turn is about
+     * a point of the map and the camera's distance from the pivot is its distance from the map,
+     * however far framing or a zoom toward the pointer put the pivot off it. `floor` is the least
+     * distance from the map. Null for none.
+     */
+    public surfacePlane: { readonly floor: number } | null = null;
+
+    /**
      * Turn the view so the point of the {@link grabSphere} under one spot of the canvas moves to
      * another, as a hand turns a globe.
      * @param from - The pointer's last spot, CSS pixels from the canvas's top-left corner.
@@ -350,7 +361,7 @@ export class OrbitCameraController {
     #floor(): number {
         const floor = this.surfaceFloor;
         if (floor === null) {
-            return this.config.minZoomDistance;
+            return Math.min(this.config.minZoomDistance, this.surfacePlane?.floor ?? Infinity);
         }
 
         return Math.max(this.config.minZoomDistance, this.#outside(floor.radius));
@@ -380,8 +391,10 @@ export class OrbitCameraController {
      * @returns Whether the pivot moved.
      */
     public followPoint(point: Vector3, frames = 1): boolean {
-        this.pivotController.center = point;
-        const moved = glideTowards(this.pivot.position, point, frames);
+        // The point's own place on a map's plane: what stands above the map, the pivot never reaches.
+        const target = this.#onPlane(point);
+        this.pivotController.center = target;
+        const moved = glideTowards(this.pivot.position, target, frames);
         this.updateCameraPosition();
         return moved;
     }
@@ -391,6 +404,8 @@ export class OrbitCameraController {
      * Parents camera to pivot and positions at negative Z distance.
      */
     public updateCameraPosition(): void {
+        this.#settleOnPlane();
+
         // Parent the camera to the pivot for proper transformation
         this.camera.parent = this.pivot;
 
@@ -433,12 +448,71 @@ export class OrbitCameraController {
     #nearPlane(): number {
         const sphere = this.grabSphere ?? this.surfaceFloor;
         if (sphere === null) {
-            return DEFAULT_NEAR_PLANE;
+            return this.surfacePlane === null
+                ? DEFAULT_NEAR_PLANE
+                : Scalar.Clamp(this.cameraDistance / 4, MIN_NEAR_PLANE, DEFAULT_NEAR_PLANE);
         }
 
         const eye = Vector3.TransformCoordinates(this.camera.position, this.pivot.computeWorldMatrix(true));
         const height = eye.length() - sphere.radius;
         return Math.max(Scalar.Clamp(height / 4, MIN_NEAR_PLANE, DEFAULT_NEAR_PLANE), height / 16);
+    }
+
+    /**
+     * The way the camera looks, in world space.
+     * @returns The unit vector.
+     */
+    #forward(): Vector3 {
+        // Not forced: a forced rebuild stamps the pivot's matrix as new, the camera's view matrix
+        // follows it, and a scene asked every frame never reads as still, so it never freezes.
+        return Vector3.TransformNormal(Vector3.Forward(), this.pivot.computeWorldMatrix()).normalize();
+    }
+
+    /**
+     * How far along the line of sight a point is from the {@link surfacePlane}. Edge on, the line
+     * of sight meets the plane too far away to move to.
+     * @param point - The point, in world space.
+     * @returns The distance, signed; 0 with no plane, or edge on.
+     */
+    #alongToPlane(point: Vector3): number {
+        if (this.surfacePlane === null) {
+            return 0;
+        }
+
+        const facing = this.#forward().z;
+        return Math.abs(facing) < MIN_PLANE_FACING ? 0 : -point.z / facing;
+    }
+
+    /**
+     * Where the line of sight through a point meets the {@link surfacePlane}. Its z is exactly 0,
+     * not the last bits of a tilted view's sum: a glide ends when the pivot equals its target.
+     * @param point - The point, in world space.
+     * @returns The place on the plane, or the point itself with no plane, or edge on.
+     */
+    #onPlane(point: Vector3): Vector3 {
+        const along = this.#alongToPlane(point);
+        if (along === 0) {
+            return point;
+        }
+
+        const place = point.add(this.#forward().scale(along));
+        place.z = 0;
+        return place;
+    }
+
+    /**
+     * Slide the pivot along the line of sight onto the {@link surfacePlane}, the camera staying
+     * where it is.
+     */
+    #settleOnPlane(): void {
+        const along = this.#alongToPlane(this.pivot.position);
+        if (along === 0) {
+            return;
+        }
+
+        this.pivot.position.copyFrom(this.#onPlane(this.pivot.position));
+        this.pivot.computeWorldMatrix(true);
+        this.cameraDistance = this.clampDistance(this.cameraDistance + along);
     }
 
     /**
@@ -456,6 +530,18 @@ export class OrbitCameraController {
         const moved = before.subtract(this.camera.position);
         this.pivot.position.addInPlace(Vector3.TransformNormal(moved, this.pivot.computeWorldMatrix(true)));
         this.pivot.computeWorldMatrix(true);
+    }
+
+    /**
+     * Stand where another orbit camera stands.
+     * @param from - The camera.
+     */
+    public takeView(from: OrbitCameraController): void {
+        this.pivot.position.copyFrom(from.pivot.position);
+        this.pivot.rotationQuaternion = from.pivot.rotationQuaternion?.clone() ?? null;
+        this.cameraDistance = from.cameraDistance;
+        this.pivot.computeWorldMatrix(true);
+        this.updateCameraPosition();
     }
 
     /**

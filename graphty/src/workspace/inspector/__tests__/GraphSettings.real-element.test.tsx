@@ -11,6 +11,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -143,7 +144,12 @@ describe("Graph settings", () => {
         await waitFor(() => {
             assert.strictEqual(element.layoutBehavior?.node?.outlineWidth, 3);
         });
-        assert.isNotNull(screen.getByText(/use Halo/));
+        // The Halo hint names the old outline-and-pane editor, so the selection workspace drops it.
+        if (selectionWorkspaceOn(element.session)) {
+            assert.isNull(screen.queryByText(/use Halo/));
+        } else {
+            assert.isNotNull(screen.getByText(/use Halo/));
+        }
     });
 
     it("hides Lighting and Same size at any depth in 2D, moves focus on, and the Values tab counts them", async () => {

@@ -1,0 +1,184 @@
+{
+ "counts": {
+  "totalEdges": 2084,
+  "totalNodes": 549,
+  "visibleEdges": 896,
+  "visibleNodes": 112,
+  "selectedNodes": 0,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "Graph researchers",
+   "kind": "url",
+   "counts": {
+    "nodes": 549,
+    "edges": 2084
+   },
+   "recount": {
+    "nodes": 549,
+    "edges": 2084
+   },
+   "chips": {
+    "nodes": 549,
+    "edges": 2084
+   },
+   "join": null,
+   "leftOut": null,
+   "mapping": null
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": "label",
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.name",
+   "name": "name",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "edge",
+   "path": "data.published",
+   "name": "published",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "edge",
+   "path": "data.paper",
+   "name": "paper",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  }
+ ],
+ "filters": [
+  {
+   "id": "filter-1",
+   "effect": "keep",
+   "on": true,
+   "within": null,
+   "rule": {
+    "kind": "union",
+    "side": "nodes",
+    "within": "graph",
+    "branches": [
+     {
+      "id": "bmw0o9ng11",
+      "start": "all",
+      "steps": [
+       {
+        "id": "smw0o9tyc2",
+        "op": "keep",
+        "rule": {
+         "kind": "range",
+         "attribute": "graphty.degree",
+         "min": 10
+        },
+        "mode": "range"
+       },
+       {
+        "id": "smw0oar183",
+        "op": "keep",
+        "rule": {
+         "kind": "member",
+         "of": "largest-component"
+        }
+       }
+      ],
+      "color": "#009E73"
+     }
+    ]
+   },
+   "count": {
+    "id": "filter-1",
+    "nodes": {
+     "matched": 112,
+     "total": 549
+    },
+    "edges": null,
+    "unresolved": []
+   },
+   "chips": {}
+  },
+  {
+   "id": "filter-2",
+   "effect": "keep",
+   "on": true,
+   "within": null,
+   "rule": {
+    "kind": "union",
+    "side": "nodes",
+    "within": "graph",
+    "branches": [
+     {
+      "id": "bmw0obbis4",
+      "start": "all",
+      "steps": [
+       {
+        "id": "smw0obj0t5",
+        "op": "keep",
+        "rule": {
+         "kind": "measure",
+         "algorithm": "components",
+         "params": {
+          "strength": "weak"
+         },
+         "field": "groupSize",
+         "test": {
+          "kind": "range",
+          "min": 50
+         }
+        },
+        "computedOn": "so-far",
+        "mode": "range"
+       }
+      ],
+      "color": "#009E73"
+     }
+    ]
+   },
+   "count": {
+    "id": "filter-2",
+    "nodes": {
+     "matched": 549,
+     "total": 549
+    },
+    "edges": null,
+    "unresolved": []
+   },
+   "chips": {}
+  }
+ ],
+ "filter": null,
+ "window": null
+}

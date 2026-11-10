@@ -1,7 +1,6 @@
-import { ControlSection, PanelField, Popout, PopoutButton, ToggleIconButton } from "@graphty/compact-mantine";
+import { ControlSection, PanelField, Popout, ToggleIconButton } from "@graphty/compact-mantine";
 import {
     type ChannelDescriptor,
-    channelsFor,
     LABEL_LOOKS,
     LABEL_STYLE_DEFAULTS,
     labelLookChanges,
@@ -12,12 +11,14 @@ import { ActionIcon, Button, Checkbox, Group, Stack, Text, TextInput, Tooltip } 
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import { SettingsPopout } from "../options/SettingsPopout";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { cardLines, cardSummary } from "./cardLines";
 import { CARD_LOOK, isCard } from "./cardLook";
 import { CardContents } from "./LabelCard";
 import { LabelSettings, type VaryField } from "./LabelSettings";
+import { offeredChannel, shownChannel } from "./offered";
 import { Field, type RowContext, VarySlot } from "./PropertyRow";
 import {
     type DataChoice,
@@ -235,7 +236,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
         const style = styleOf(styleLine);
         let write: Promise<unknown>;
         if (part === "size") {
-            const size = descriptorOf(target, kind.size);
+            const size = descriptorOf(session, target, kind.size);
             if (size === undefined) {
                 return;
             }
@@ -410,13 +411,19 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
 }
 
 /**
- * A channel's descriptor on one kind, when graphty-element draws it.
+ * A channel's descriptor on one kind, when the element offers it and draws it.
+ * @param session - the element's session.
  * @param target - nodes or edges.
  * @param channel - the channel.
  * @returns the descriptor, or undefined.
  */
-function descriptorOf(target: RowContext["side"], channel: Channel): ChannelDescriptor | undefined {
-    return channelsFor(target).find((d) => d.channel === channel && d.renderable);
+function descriptorOf(
+    session: RowContext["session"],
+    target: RowContext["side"],
+    channel: Channel,
+): ChannelDescriptor | undefined {
+    const descriptor = offeredChannel(session, target, channel);
+    return descriptor?.renderable === true ? descriptor : undefined;
 }
 
 /**
@@ -651,7 +658,7 @@ function partsOf(ctx: RowContext, kind: TextKindSpec): AddOption[] {
     if (style.look === undefined) {
         parts.push({ key: `${kind.id}:look`, label: "Look" });
     }
-    if (lineIn(ctx, kind.size) === undefined && descriptorOf(ctx.side, kind.size) !== undefined) {
+    if (lineIn(ctx, kind.size) === undefined && descriptorOf(ctx.session, ctx.side, kind.size) !== undefined) {
         parts.push({ key: `${kind.id}:size`, label: "Size" });
     }
     if (style.location === undefined) {
@@ -687,9 +694,9 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
     const style = styleOf(styleLine);
     const locked = (words ?? styleLine)?.layer.locked === true;
     const hidden = style.enabled === false;
-    const descriptors = channelsFor(target);
+    // What the element offers, and a setting the row already sets even when it is not offered.
     const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
-        descriptors.find((d) => d.channel === channel);
+        shownChannel(session, target, channel, lineIn(ctx, channel) !== undefined);
     const writeStyle = (patch: Partial<LabelStyle>): void => {
         const next = Object.fromEntries(
             Object.entries({ ...style, ...patch }).filter(([, value]) => value !== undefined),
@@ -784,51 +791,32 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     <EntryAdd ctx={ctx} kind={kind} locked={locked} onPart={onPart} />
                 </span>
                 {sourceControl}
-                <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
-                    <Popout.Trigger>
-                        <Tooltip label={`${where} settings`}>
-                            <PopoutButton
-                                icon={<GLYPHS.settings size={14} aria-hidden />}
-                                aria-label={`${where} settings`}
-                                aria-haspopup="dialog"
-                                aria-expanded={settingsOpen}
-                            />
-                        </Tooltip>
-                    </Popout.Trigger>
-                    <Popout.Panel
-                        width={SETTINGS_WIDTH}
-                        placement="left"
-                        alignment="start"
-                        boundaryTop={settingsOpen ? headerBottom() : 0}
-                        header={{ variant: "title", title: `${kind.name} settings` }}
-                        closeLabel={`Close ${kind.name} settings`}
-                    >
-                        <Popout.Content>
-                            {card && words !== undefined ? (
-                                <CardContents
-                                    session={session}
-                                    target={target}
-                                    channel={kind.words}
-                                    lines={cardLines(words)}
-                                    onLines={(lines) => {
-                                        writeLine(
-                                            session,
-                                            ctx.row,
-                                            target,
-                                            kind.words,
-                                            { template: lines },
-                                            ctx.fresh,
-                                        ).catch(onFail);
-                                    }}
-                                    onFail={(message) => {
-                                        onFail(new Error(message));
-                                    }}
-                                />
-                            ) : null}
-                            <LabelSettings style={style} onChange={writeStyle} vary={vary} />
-                        </Popout.Content>
-                    </Popout.Panel>
-                </Popout>
+                <SettingsPopout
+                    label={`${where} settings`}
+                    title={`${kind.name} settings`}
+                    opened={settingsOpen}
+                    onOpenChange={setSettingsOpen}
+                    width={SETTINGS_WIDTH}
+                    boundaryTop={settingsOpen ? headerBottom() : 0}
+                >
+                    {card && words !== undefined ? (
+                        <CardContents
+                            session={session}
+                            target={target}
+                            channel={kind.words}
+                            lines={cardLines(words)}
+                            onLines={(lines) => {
+                                writeLine(session, ctx.row, target, kind.words, { template: lines }, ctx.fresh).catch(
+                                    onFail,
+                                );
+                            }}
+                            onFail={(message) => {
+                                onFail(new Error(message));
+                            }}
+                        />
+                    ) : null}
+                    <LabelSettings style={style} onChange={writeStyle} vary={vary} />
+                </SettingsPopout>
                 <ToggleIconButton
                     variant="swap"
                     label={`Hide ${noun}`}

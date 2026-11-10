@@ -6,17 +6,22 @@ import React from "react";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
 /**
- * A select's choices, named as graphty-element's catalog names them.
+ * A select's choices, named as graphty-element's catalog names them. A value the layer holds that
+ * the session no longer offers (one an experiment that is off adds) is listed too, so it still
+ * reads as the value in force.
  * @param descriptor - the property.
+ * @param held - the value the layer holds, if any.
  * @returns the options.
  */
-function choiceOptions(descriptor: ChannelDescriptor): { value: string; label: string }[] {
+function choiceOptions(descriptor: ChannelDescriptor, held?: unknown): { value: string; label: string }[] {
     const two = TWO_WORDS[descriptor.channel];
     if (two !== undefined) {
         return two.map(([value, word]) => ({ value: String(value), label: word }));
     }
     const glyphs = GLYPH_TABLES[descriptor.channel];
-    return (descriptor.values ?? []).map((value) => {
+    const values = descriptor.values ?? [];
+    const extra = typeof held === "string" && held !== "" && !values.includes(held) ? [held] : [];
+    return [...values, ...extra].map((value) => {
         const glyph = glyphs?.find((g) => g.id === value);
         return {
             value,
@@ -55,6 +60,11 @@ interface ValueFieldProps {
     readonly shown: unknown;
     /** Whether the things the field stands for disagree: it reads "Mixed". */
     readonly mixed?: boolean;
+    /**
+     * A line just added, waiting for its first value: a color draws an empty swatch and an empty
+     * box, named "not set", and its picker opens at `shown`; Enter or Tab on it writes nothing.
+     */
+    readonly waiting?: boolean;
     /** A chit alone (a color) or a narrow field, for a row of a list. */
     readonly compact?: boolean;
     /** The swatches a color's picker offers; left out, the picker's own set. */
@@ -80,6 +90,7 @@ interface ValueFieldProps {
  * @param props.value - the value set here
  * @param props.shown - what it paints now
  * @param props.mixed - whether the things it stands for disagree
+ * @param props.waiting - a just-added line, waiting for its first value
  * @param props.compact - a chit or a narrow field, for a list row
  * @param props.swatches - the swatches a color's picker offers
  * @param props.extraChoices - choices a select lists after its own
@@ -92,13 +103,14 @@ export function ValueField({
     value,
     shown,
     mixed = false,
+    waiting = false,
     compact = false,
     swatches,
     extraChoices = [],
     onChange,
 }: Readonly<ValueFieldProps>): React.JSX.Element {
     const kind = valueFieldKind(descriptor);
-    const props = { descriptor, label, value, shown, mixed, compact, swatches, extraChoices, onChange };
+    const props = { descriptor, label, value, shown, mixed, waiting, compact, swatches, extraChoices, onChange };
     if (kind === "color") {
         return <ColorValueField {...props} />;
     }
@@ -119,7 +131,7 @@ export function ValueField({
 }
 
 /** ValueField's props, with its defaults filled in. */
-type KindFieldProps = Readonly<ValueFieldProps & { mixed: boolean; compact: boolean }>;
+type KindFieldProps = Readonly<ValueFieldProps & { mixed: boolean; waiting: boolean; compact: boolean }>;
 
 /**
  * A color: a chit for a row of a list, else a field.
@@ -127,9 +139,10 @@ type KindFieldProps = Readonly<ValueFieldProps & { mixed: boolean; compact: bool
  * @returns The field
  */
 function ColorValueField(props: KindFieldProps): React.JSX.Element {
-    const { label, value, shown, mixed, compact, swatches, onChange } = props;
+    const { label, value, shown, mixed, waiting, compact, swatches, onChange } = props;
     const hex = hexOf(value) ?? undefined;
-    const inForce = hex ?? hexOf(shown);
+    // A waiting line names no color: nothing it would draw is chosen yet.
+    const inForce = hex ?? (waiting ? null : hexOf(shown));
     return (
         <CompactColorInput
             variant={compact ? "chip" : "field"}
@@ -141,6 +154,10 @@ function ColorValueField(props: KindFieldProps): React.JSX.Element {
             color={mixed ? undefined : hex}
             defaultColor={hexOf(shown) ?? "#999999"}
             mixed={mixed}
+            // Waiting: an empty swatch and an empty box, never a color nobody chose (Enter on it
+            // would write it). `shown` is only where the picker opens.
+            emptySwatch={waiting && !mixed}
+            emptyText={waiting && !mixed ? "" : undefined}
             showOpacity={false}
             showReset={false}
             swatches={swatches}
@@ -227,7 +244,7 @@ function choiceName(
 function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
     const { descriptor, label, value, shown, mixed, extraChoices = [], onChange } = props;
     const boolean = descriptor.accepts === "boolean";
-    const options = choiceOptions(descriptor);
+    const options = choiceOptions(descriptor, value);
     // Nothing set here: the value shown is the one in force by default, and is read as that.
     const inForce = options.find((option) => option.value === choiceText(shown))?.label;
     const unset = value === undefined && !mixed && inForce !== undefined;

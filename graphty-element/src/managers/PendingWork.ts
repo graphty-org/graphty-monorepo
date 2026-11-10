@@ -89,6 +89,11 @@ export class PendingWork {
     /** In the order they were entered: the first pending one names the reason. */
     readonly #watches = new Set<Watch>();
     readonly #listeners = new Set<() => void>();
+    /**
+     * Whether the camera turned by itself on the last pass (`camera.autoRotate`): it never comes to
+     * rest, so nothing waits for work that only a rest ends.
+     */
+    cameraTurnsByItself = false;
 
     /**
      * The picture counter: moved on by every change to the picture and every token released.
@@ -189,6 +194,28 @@ export class PendingWork {
         }
 
         return null;
+    }
+
+    /**
+     * Whether work of one kind is still on its way: an open token of that kind, or a watch of it
+     * that says so.
+     * @param kind - The kind of work, e.g. `"shader"`.
+     * @returns True while such work is pending.
+     */
+    isPending(kind: string): boolean {
+        for (const item of this.#open.values()) {
+            if (item.kind === kind) {
+                return true;
+            }
+        }
+
+        for (const entry of this.#watches) {
+            if (entry.kind === kind && entry.pending()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -43,6 +43,21 @@ export function stripTags(h: string): string {
     return h.replaceAll(/<[^<>]*>/g, "");
 }
 
+const NAMED_ENTITY: Record<string, string> = { "&lt;": "<", "&gt;": ">", "&amp;": "&" };
+
+/**
+ * The plain text of esc-escaped HTML: no tags and no character references. It is not safe in a page until esc has
+ * escaped it, so it is what goes to a function that escapes its input, such as hiddenTable.
+ * @param h HTML whose text is already escaped.
+ * @returns The text a reader would see.
+ */
+export function plainText(h: string): string {
+    return stripTags(h).replaceAll(
+        /&(?:#\d{1,3}|lt|gt|amp);/g,
+        (e) => NAMED_ENTITY[e] ?? String.fromCodePoint(Number(e.slice(2, -1))),
+    );
+}
+
 // ---------------------------------------------------------------- clock
 
 /** The page's notion of now: the real clock, or the fixture's clock in fixture mode. */
@@ -524,7 +539,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "master.same_check": {
         name: "Most PRs failing one check",
         short: "most PRs failing one check",
-        def: "The largest number of open PRs failing the same check (or test group) right now; 1 or 0 means no failure is shared. Several PRs failing one check usually means master broke it, not the PRs. On the overview, 'worst' is the highest count reached.",
+        def: "The largest number of open PRs failing the same check (or test group) with the same failure (the same failed test or error line), or failing a check master's newest build fails too, right now; 1 or 0 means no failure is shared. A failure that names no test or error counts as the PR's own. Several PRs failing one check the same way usually means master broke it, not the PRs. On the overview, 'worst' is the highest count reached.",
         red: "3 or more PRs fail the same check: fix it on master first. See the ongoing rows of Shared failures below.",
     },
     "master.full_run_verdict": {
@@ -720,7 +735,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.bench_regressions": {
         name: "Benchmark regressions",
         short: "benchmark regressions",
-        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before, by more than one step of the timer's resolution. A benchmark with fewer than 13 runs is not judged, so the count stays 0 until benchmarks have that history.",
+        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before, by more than one step of the timer's resolution and by more than 3 times the median scatter of those 10 runs. A benchmark with fewer than 13 runs is not judged, so the count stays 0 until benchmarks have that history.",
         red: "3 or more: performance regressed. See Benchmarks below.",
     },
     "flaky.blocked": {
@@ -935,7 +950,7 @@ export const LABEL: Record<string, string> = {
     "stage.checks": "checks running",
     "stage.red": "red and being fixed",
     "stage.merging": "green to merged",
-    "cause.shared_check": "shared: the same check in 3 or more pull requests",
+    "cause.shared_check": "shared: the same check in 2 or more pull requests",
     "cause.shared_aggregator": "shared: an aggregator failing alone",
     "cause.change": "the change itself",
     "cause.flaky": "flaky",
@@ -1086,6 +1101,12 @@ const num = (p: P, k: string): number => Number(p[k] ?? 0);
 const str = (p: P, k: string): string => esc(p[k] ?? "");
 const arr = (p: P, k: string): (string | number)[] => (Array.isArray(p[k]) ? [...(p[k] as (string | number)[])] : []);
 /**
+ * The family note of a shared row.
+ * @param p - the fact's params, with `bins`
+ * @returns "; family of N bins" for a family of more than one bin, else empty
+ */
+const binsNote = (p: P): string => (num(p, "bins") > 1 ? `; family of ${fmtN(num(p, "bins"))} bins` : "");
+/**
  * A workflow error's fix: "; fix #N", and how long it waits on the owner when it does; empty with no fix.
  * @param p The fact's parameters, with `fix` and `waits_owner_s`.
  * @returns The words.
@@ -1209,7 +1230,7 @@ const S: Record<string, (p: P) => string> = {
     "section.no_detail": () => "Not collected yet: no writer records this detail.",
     "section.no_events": () => "Nothing recorded in this range.",
     "master.no_red_span": () => "No red span in the range.",
-    "master.no_shared": () => "No check failing in 3 or more pull requests in the last 24 h.",
+    "master.no_shared": () => "No check failing the same way in 2 or more pull requests in the last 24 h.",
     "runners.no_holders": () => "No job running or queued now.",
     "runners.no_superseded": () => "No superseded run still running.",
     "ci.no_chronic": () => "No job is failing chronically.",
@@ -1264,6 +1285,8 @@ const S: Record<string, (p: P) => string> = {
     "cause.workflow_error": (p) => `workflow error: ${str(p, "detail")}${workflowFix(p)}`,
     "check.family": (p) => `family of ${fmtN(num(p, "bins"))} bins`,
     "check.failed_alone": () => "failed alone",
+    "check.signature": (p) => `same failure: ${str(p, "signature")}${binsNote(p)}`,
+    "check.master_fails": (p) => `master's newest build fails it too${binsNote(p)}`,
     suspect: (p) => `${prLink(num(p, "pr"))} ${str(p, "title")}`,
     "fix.merged": (p) => `${prLink(num(p, "pr"))} merged ${at(p, "at")}`,
     "fix.open": (p) => `${prLink(num(p, "pr"))} fix open`,

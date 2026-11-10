@@ -4,24 +4,16 @@
  * and its sections, and the ways in, for a first visit and a returning reader. `StartScreen.real-element.test.tsx` opens the samples.
  */
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { commands, userEvent } from "vitest/browser";
+import { userEvent } from "vitest/browser";
 
 import { sampleTile } from "../../../test/samples-dialog";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { ariaKey, formatKey } from "../../keys/keys";
 import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-declare module "vitest/browser" {
-    interface BrowserCommands {
-        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
-        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
-    }
-}
 
 /** Where Sentry would start and stop: the usage data card's Share and No call these instead. */
 const initSentry = vi.fn();
@@ -77,7 +69,6 @@ describe("the start screen", () => {
             "Analyze any network.Free and open source.",
         );
         assert.isNotNull(screen.getByRole("button", { name: /^Open a file/ }));
-        assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
         assert.isNotNull(screen.getByRole("button", { name: "Samples" }));
         assert.isNotNull(screen.getByRole("button", { name: "New project" }));
         assert.isNotNull(screen.getByRole("link", { name: "MIT licensed on GitHub" }));
@@ -246,18 +237,21 @@ describe("the start screen", () => {
         assert.isTrue(scrolled);
     });
 
-    it("lists the network sources, and opens a graph from a link", async () => {
+    it("opens the network data form on an Untitled project with network data on", async () => {
+        await siteFeatures(["timeline", "network-data"]);
         const store = renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
-        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-        for (const source of ["NDEx", "Neo4j", "Web API"]) {
-            assert.isNotNull(within(dialog).getByText(source));
-        }
-        // Memgraph cannot be reached from an https page without a server, so it is not offered.
-        assert.isNull(within(dialog).queryByText("Memgraph"));
-        const field = within(dialog).getByRole("textbox", { name: "Web address of a graph file" });
-        // Enter on something that is not a web address opens nothing.
+
+        const state = store.get();
+        assert.equal(state.project?.name, "Untitled");
+        assert.equal(state.place, "data");
+        assert.equal(state.dialog, "server");
+    });
+
+    it("opens a graph from a typed web address, and nothing for words that are not one", async () => {
+        const store = renderStart();
+        const field = screen.getByRole("textbox", { name: "Web address of a graph file" });
         await userEvent.type(field, "trade routes{Enter}");
         assert.isNull(store.get().project);
 
@@ -270,48 +264,17 @@ describe("the start screen", () => {
 
     it("opens a typed web address from the Open button beside the box", async () => {
         const store = renderStart();
-        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
-        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-        const field = within(dialog).getByRole("textbox", { name: "Web address of a graph file" });
+        const field = screen.getByRole("textbox", { name: "Web address of a graph file" });
         await userEvent.type(field, "https://example.com/data/sites.csv");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Open" }));
+        await userEvent.click(screen.getByRole("button", { name: "Open" }));
         assert.equal(store.get().opening?.name, "sites");
     });
 
-    it("leads a reader who came with a file on this computer to Open a file", async () => {
-        const store = renderStart();
-
-        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
-        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-        // The browser's own file picker, as where a browser has no File System Access picker.
-        vi.stubGlobal("showOpenFilePicker", undefined);
-        await commands.chooseNextFile("my network.gml", "text/plain", "graph [ ]");
-        const open = within(dialog).getByRole("button", { name: /^Open a file/ });
-        // Its key is on the button, as every key is.
-        assert.equal(open.getAttribute("aria-keyshortcuts"), ariaKey("Mod+O"));
-        assert.include(open.textContent, formatKey("Mod+O"));
-        await userEvent.click(open);
-
-        await waitFor(() => {
-            assert.equal(store.get().project?.name, "my network");
-        });
-        // The chooser lives in the workspace, so it stays mounted until its close transition ends.
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }), "the chooser closed");
-        });
-    });
-
-    it("opens the server form on the Data place for a network source", async () => {
-        const store = renderStart();
-
-        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
-        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-        await userEvent.click(within(dialog).getByText("Neo4j"));
-
-        const state = store.get();
-        assert.equal(state.project?.name, "Untitled");
-        assert.equal(state.place, "data");
-        assert.equal(state.dialog, "server");
+    it("draws no Open network data with network data off", () => {
+        renderStart();
+        assert.isNull(screen.queryByRole("button", { name: "Open network data" }));
+        assert.isNotNull(screen.getByRole("button", { name: "Samples" }));
+        assert.isNotNull(screen.getByRole("button", { name: "New project" }));
     });
 
     it("opens a dropped file as a project named after it", async () => {

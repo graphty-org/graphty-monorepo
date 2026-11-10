@@ -88,9 +88,10 @@ export { quotePath, renamePaths, rulePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
 export type { RowEncoding, RowParts, RowSpec, RowStyle, RowTarget, RowWrite } from "./rows";
 export type { RuleSelector, Selector } from "./selector";
-export { selectorRule } from "./selector";
+export { selectorRule, selectorStates } from "./selector";
 export type {
     AgreementOptions,
+    BranchesView,
     DefaultPalettes,
     ElementLayerSpec,
     HighlightSpec,
@@ -101,6 +102,7 @@ export type {
     StyleBatchChange,
     StyleChange,
     StyleFileDocument,
+    StyleRefusal,
     StylesApi,
     StylesSources,
     StyleUpdateOptions,

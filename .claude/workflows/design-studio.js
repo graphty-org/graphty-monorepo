@@ -193,6 +193,7 @@ const GRADE = {
         model: { type: "string" },
         false_done: { type: "boolean" },
         truth_on_screen: { type: "boolean" },
+        tool_refusal: { type: "string" },
         wrong_turns: { type: "number" },
         steps: { type: "number" },
         problems: {
@@ -858,6 +859,40 @@ Start every session these checks need under ${WALKS}/${tag}/tool-check-${k}/, ne
     return false;
 }
 
+// The round's start gate (real.mjs --gate, tool/README.md "Before a round's first session: the
+// gate") must pass before any session: --start refuses every session of a round whose plan.md has no
+// "Gate evidence" section. Tier 5 round 1 never ran it and burned all 60 sessions (30 and their 30
+// re-runs) on that one refusal. A plain agent runs the gate and reports its exit; a fixer does what
+// each FAIL line names. Returns "" when the gate passed, else the stop reason.
+async function roundGate(tag, RD, phaseName) {
+    const GATE = `node ${SD}/tool/real.mjs --gate ${RD}`;
+    for (let k = 1; ; k++) {
+        const g = await agent(
+            `Run exactly this command from ${ST} and change nothing: ${GATE}. Return ok (true only if it exited 0 and ${RD}/plan.md now holds a "## Gate evidence" section) and every FAIL line it printed, verbatim, as problems.`,
+            { label: `${tag}: start gate ${k}`, phase: phaseName, effort: "low", schema: CHECK },
+        );
+        if (g?.ok) return "";
+        const fails = (g?.problems || ["no answer"]).join("\n");
+        log(`${tag}: start gate ${k} failed: ${fails.slice(0, 600)}`);
+        if (k === 3) return `the round's start gate (${GATE}) still fails after two fix passes:\n${fails}`;
+        await slot(() =>
+            agent(
+                `${RULES}\nThe ${NAME} ${tag} sessions may not start until \`${GATE}\` exits 0 (read ${SD}/tool/README.md, "Before a round's first session: the gate"). It printed these FAIL lines:\n${fails}\nDo what each one names (the walks, the bars runs, the documents it asks for), on the frozen build, then run the gate again; repeat until it exits 0. Never write the "Gate evidence" section yourself and never edit real.mjs to pass it. Stop and return what is left when a FAIL line needs an owner decision or a change to the build. Commit what you wrote under ${SD} (never walk screenshots). Return what you did and what is left.`,
+                { label: `${tag}: fix the start gate ${k}`, phase: phaseName, effort: "high" },
+            ),
+        );
+    }
+}
+
+// The refusal line every void grade shares, when there are at least two: a tool-side cause (a
+// refused start, a gate) that will refuse every other session too, so the round stops instead of
+// launching the rest and re-running each one.
+function sharedRefusal(grades) {
+    const g = grades.filter(Boolean);
+    const line = g[0]?.tool_refusal?.trim();
+    return g.length >= 2 && line && g.every((x) => x.grade === "VOID" && x.tool_refusal?.trim() === line) ? line : "";
+}
+
 const commitDocs = (msg, label, phaseName) =>
     agent(
         `${RULES}\nCommit the studio documents (${SD.replace(ST + "/", "")}/ except tmp/) as one signed commit "${msg}". Stage only that directory, and never a walk's screenshots or step files (they belong under ${WALKS}; .gitignore keeps them out of the pilot and dry-run folders).`,
@@ -988,6 +1023,7 @@ if (!SKIP_PREPARE) {
 
 // ---------------- Rounds ----------------
 const rounds = [];
+let stopReason = "";
 for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
     const P = `Round ${r}`;
     const RD = `${T}/rounds/round-${r}`;
@@ -1010,6 +1046,11 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
         log(
             `${NAME} stops before round ${r}'s sessions: the study tool or a bar's script failed its dry run twice (see ${RD}/tool-dry-run-*.md)`,
         );
+        break;
+    }
+    stopReason = await roundGate(`r${r}`, RD, "Round");
+    if (stopReason) {
+        log(`${NAME} stops before round ${r}'s sessions: ${stopReason}`);
         break;
     }
     log(`${P}: ${sessions.length} sessions on ${build?.url || "the frozen build"}`);
@@ -1079,7 +1120,7 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
         t
             ? slot(() =>
                   agent(
-                      `${RULES}\nGrade ${NAME} session ${s.id} (task ${s.task}, persona ${s.persona}) strictly by ${T}/criteria.md and the task's success definition in ${T}/answers.md, from the LAST screenshot and any saved files in ${RD}/sessions/${s.id}/ (downloads/ included), never from the participant's own rating. Record the participant model (sonnet if the transcript says so). VOID only if the tool or the run failed, or the participant opened a file outside its own folder: ${RD}/sessions/${s.id}/leaks.json (written at --end from the participant's tool calls) lists any leak (name each); if it is missing or found no transcript, run node ${SD}/tool/real.mjs --leaks ${RD}/sessions/${s.id} and decide from its output (say why).${followupCheck(s)} Count steps and wrong turns against the success path; record a false "done" whenever the participant claims done while the screen shows otherwise (truth_on_screen if the screen itself said so). List each problem with severity 0-4, kind and evidence (step and screenshot). A build defect you can reproduce with a scripted real.mjs path (under ${RD}/repro/${s.id}/, through the browser gate) is marked build-defect with the repro. Write ${RD}/sessions/${s.id}/grade.md.`,
+                      `${RULES}\nGrade ${NAME} session ${s.id} (task ${s.task}, persona ${s.persona}) strictly by ${T}/criteria.md and the task's success definition in ${T}/answers.md, from the LAST screenshot and any saved files in ${RD}/sessions/${s.id}/ (downloads/ included), never from the participant's own rating. Record the participant model (sonnet if the transcript says so). VOID only if the tool or the run failed, or the participant opened a file outside its own folder: ${RD}/sessions/${s.id}/leaks.json (written at --end from the participant's tool calls) lists any leak (name each); if it is missing or found no transcript, run node ${SD}/tool/real.mjs --leaks ${RD}/sessions/${s.id} and decide from its output (say why).${followupCheck(s)} Count steps and wrong turns against the success path; record a false "done" whenever the participant claims done while the screen shows otherwise (truth_on_screen if the screen itself said so). List each problem with severity 0-4, kind and evidence (step and screenshot). A build defect you can reproduce with a scripted real.mjs path (under ${RD}/repro/${s.id}/, through the browser gate) is marked build-defect with the repro. If real.mjs itself refused the session (a FAIL or refusal line from --start or --step, not something the app did), copy that line verbatim into tool_refusal, else leave tool_refusal empty. Write ${RD}/sessions/${s.id}/grade.md.`,
                       { label: `${P}: grade ${s.id}`, phase: "Round", schema: GRADE },
                   ),
               )
@@ -1091,8 +1132,19 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
                   false_done: false,
                   problems: [{ what: "all three attempts ended without a transcript", severity: 0 }],
               };
+    // The first two sessions go alone: if both are void on one tool refusal, no other session starts.
+    const HEAD = Math.min(2, sessions.length);
+    let refused = "";
     const both = await parallel([
-        () => pipeline(sessions, (s) => slot(() => participate(s)), grade),
+        async () => {
+            const head = (await pipeline(sessions.slice(0, HEAD), (s) => slot(() => participate(s)), grade)) || [];
+            refused = sharedRefusal(head);
+            if (refused) return head;
+            return [
+                ...head,
+                ...((await pipeline(sessions.slice(HEAD), (s) => slot(() => participate(s)), grade)) || []),
+            ];
+        },
         () =>
             parallel(
                 EXPERTS.map(
@@ -1108,6 +1160,24 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
             ),
     ]);
     const firstGrades = both[0] || [];
+    refused ||= sharedRefusal(firstGrades);
+    if (refused) {
+        stopReason = `round ${r}'s sessions were refused by the study tool with one line, so no more sessions and no re-runs: ${refused}`;
+        log(`${NAME} stops in round ${r}: ${stopReason}`);
+        rounds.push({
+            round: r,
+            sessions: firstGrades.length,
+            voids: firstGrades.length,
+            build: build?.sha,
+            stop: stopReason,
+        });
+        await commitDocs(
+            `docs(workspace): ${NAME} round ${r} stopped on a tool refusal`,
+            `${P}: commit documents`,
+            "Round",
+        );
+        break;
+    }
     // A void session is re-run once under a new id (r1-s04 -> r1-s04b), from the same briefing: in
     // round 1 a void session was never re-run and its task lost a participant.
     const rerun = sessions
@@ -1250,6 +1320,12 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
     }
 }
 
+// A round stopped before any session ran has nothing to report.
+if (stopReason && !rounds.length) {
+    await unlock();
+    return { rounds, stop: stopReason };
+}
+
 // ---------------- Report and landing ----------------
 phase("Report");
 const report = await agent(
@@ -1261,4 +1337,4 @@ await commitDocs(`docs(workspace): the ${NAME} report and studio notes`, "commit
 // the branch and waits; the launching session opens the pull request with tools/pr-open.sh.
 if (LAND) await landPass(`the ${NAME} report`, "Report", true);
 await unlock();
-return { rounds, report };
+return { rounds, report, stop: stopReason };

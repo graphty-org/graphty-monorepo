@@ -7,36 +7,36 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- (2026-10-30) Tier 4 round 1 closed at the 1-round cap: task success held, 0 severity 4, no
-  severity 3 survived the skeptic check. Again words were not the main cost -- order of choices,
-  defaults and one fact drawn two ways were.
-- (2026-10-30) Most severe open problem is a preview that does not say what the act will do: the
-  join preview marks "1 not in graph", which 3 of 4 read as "will be left out", yet Join adds it.
-  A preview's tag must name the outcome of the act, not the row's current state.
-- (2026-10-30) "Leave out" does not say it deletes; a reader backed off it for that reason. A
-  destructive choice's label names the effect (remove/delete), never a soft verb.
-- (2026-10-30) One fact, one drawing: a time column still showing the text glyph while the
-  timeline draws dates made four sessions check a second menu. Header glyph, chip and caption must
-  agree with what the program does; mismatch costs steps, not answers.
-- (2026-10-30) Counts must state their basis: filter chips count the whole graph under Hide and the
-  picture under Select; "12 nodes" sits beside an 11-row table. Same number word, two bases = doubt.
-- (2026-10-30) "Hide" alone is ambiguous; its tooltip ("Hide nodes that do not match") is right.
-  The planned "Select | Filter to | Filter out" renames the effect but keeps the take-out default:
-  the default, not the word, is the bigger cost.
-- (2026-10-30) Owner-approved text clipped out of sight ("17/19 rows joined", source name cut)
-  breaks the approved-surface rule; a layout fix, not a rewording. "17 of 19 joined" beside 18
-  edges reads self-contradictory -- the ratio's noun must match what was counted.
-- (2026-10-30) The inspector's "Set in Data" is a trap only when the column's kind matters; a
-  shortcut label that does half the job should say which half.
-- (2026-10-30) Study-tool caveat: hovers that open a popover were reported "tooltip: null", so
-  hover findings this round are suspect until the tool is fixed. Do not reword on them.
-- (2026-10-21) Fix by pointing, not prose; never fix a no-op with explanatory text.
-- (2026-10-21) Do not rename on model opinion or a task's wording; avoidance is not understanding.
-- (2026-10-21) Spoken color names name the hue family first; fix in compact-mantine.
-- (2026-10-13) Unset vs cover stay two acts with two wordings. Two row nouns only: layer, folder.
-- (2026-10-06) Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated users: fail strong,
-  pass weak. Element returns codes + params; the app writes every word.
-- (2026-10-30) Summarized: the tier 3 Top of mind (2026-10-21) is in git history of this file at 0c6bf1066b.
+- (2026-11-03) Tier 5 round 1 closed at the 1-round cap, bars 1, 3, 4, 8, 9 failing. 30 valid
+  sessions (28 pointer, 2 keyboard). My walk did not run, so bar 6 (owner's data rules) went
+  unmeasured: next round my walk is a feed, not optional.
+- (2026-11-03) Speech is content: speak only from the surface that is showing. The covered
+  inspector's "4 of 24" after the workspace's "15 of 24" was a severity 3 (fixed after the freeze).
+- (2026-11-03) A label must bind what it names. "Connected components, 3 values" described one run
+  and bound another; only a column header said "(visible)". Two runs need two names, from the
+  element's scope fact (code + params), worded by the app.
+- (2026-11-03) "Condition..." and "Or..." do not say "and" vs "or else": three sessions on three
+  halves, unprompted. Connector words must name the logic; readers fell back on watching the count.
+- (2026-11-03) An error must never contradict the screen: By position's "still use the highest 10"
+  while 24 of 24 matched (built from a default the step never applied). Words from state, not
+  fallbacks. The box also needs direction and unit (top/bottom, number/percent).
+- (2026-11-03) An empty input needs a cue of what it takes (the Fill color box: people typed color
+  names). Cue by the control's form, not help text.
+- (2026-11-03) A name must survive every act: Clear keeps the card name; a reference shows the
+  matched value, not "v02"; a card's name must keep describing it after Or or a second step.
+- (2026-11-03) "Filter not added" after Clear+Escape is truthful but loses saved work; words
+  cannot fix it -- the behavior must change (reopened card is never deleted by cancel).
+- (2026-11-03) Study wording is content too: T73's words and key disagree; "Would you rather it
+  had shown something else?" invites a wish. Neutral follow-ups before round 2.
+- (2026-11-03) Fixtures pre-colored in the task's color inflate "drowned" findings; never
+  generalize a word or color change from one fixture.
+- (2026-11-03) One surface, one number format; counts state their basis.
+- (2026-10-31) Term collisions still open: "group" vs glossary group, "Focus", "picked", "whole
+  graph" vs Full/Filtered graph.
+- (2026-10-30) A preview tag names the act's outcome; a destructive choice names its effect.
+- (2026-10-21) Fix by pointing, not prose; do not rename on model opinion or task wording.
+- (2026-10-06) Budgets: at rest <= 50 words (hand count only), inspector ~30 (max 40). Element
+  returns codes + params; the app writes every word. Earlier Top of mind: git history at 5738a5b4b2.
 
 ## Priorities and values
 
@@ -276,52 +276,11 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Sources
 
-- Tier 3 (2026-10-12): `.worktrees/mock-style-panel/design/ui/style-panel-organization.md`,
-  `StylePanelMock.stories.tsx` (RampSettings 2270-2520), `tier3/style-catalog.md` and
-  `tmp/style-catalog/catalog.md` sections 1, 2.1, 5, 6, 7, 9, 12; graphty-element
-  `catalog/types.ts` (Selector 670-691, AttributeDescriptor 985-1030, RuleTree 1110-1186),
-  `session/styles/predicate.ts` refusal reasons; compact-mantine `ControlSection.tsx` (summary,
-  collapsible), `GradientEditor.tsx`; glossary lines 79, 107, 187, 209.
-
-- `design/ui/studio/tier2/rounds/round-4/decisions.md` changes 3, 4, 8, 9, 12, held list (2026-10-11)
-- `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md` (bar 9 b, bar 10), `expert/`
-  (figma 2, 23; visual 1, 9, 26, 40; engineer 17, 30; a11y 5, 9, 18); screenshots
-  `expert/figma/find/08.png`, `expert/visual/find/09.png`, `expert/visual/path/22.png`; code
-  `graphty/src/workspace/canvas/legendWords.ts` rowName, `graph-place/FindBox.tsx` ruleFromText,
-  `graphty-element/src/session/styles/predicate.ts` suggestBackticks, `session/query.ts` atLeastOf
-  (2026-10-11)
-
-- `design/ui/studio/tier2/rounds/round-3/decisions.md`, `insights.md` (2026-10-11)
-
-- `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, `expert/` (figma 8-18, engineer
-  28, a11y 4, 9, 16; visual); screenshots `sessions/r3-s10/02.png`, `expert/figma/find/02.png` (2026-10-10)
-
-- `design/ui/studio/tier2/rounds/round-2/decisions.md` changes 4, 5, 8, 9, 11, 12, 15 and
-  "Not changed" (2026-10-10)
-
-- `design/ui/studio/tier2/rounds/round-2/insights.md`, `scores.md`, `preflight.md`, `expert/`
-  (figma 1, 2, 16, 23; engineer 5); screenshots `sessions/r2-s12/03.png`, `r2-s15/06.png`,
-  `expert/figma/path/06.png` (2026-10-09)
-- `design/ui/studio/tier2/rounds/round-1/insights.md`, `scores.md`, `expert/` (figma, a11y, visual);
-  screenshot `sessions/r1-s46/12.png`; transcripts r1-s05, r1-s19 (2026-10-09)
-
-- `design/ui/studio/rounds/round-1/insights.md`, `decisions.md`, `rounds/r1/pilot/all/pilot.md`
-  (2026-10-06)
-- `design/ui/studio/digests/decisions.md`, `tier1.md`, `framework.md`, `owner-voice.md`,
-  `study-rounds.md` (all 2026-10-06)
+- (2026-11-03) Summarized: tier 1-3 source lists (round insights, decisions, expert walks, owner
+  messages in `design/ui/studio/tmp/owner-all.jsonl`, framework docs) are in this file's git
+  history at e1237f47af.
 - `design/ui/framework/content-design.md`, `glossary.md`, `principles.md` (budgets, section 5)
-- `.worktrees/feat-tier1-real-app/design/ui/tier1-real-app/tier1-design.md` sections 2.11, 4,
-  5.T10-T12, "Adversarial review changes"
-- `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/round-8/insights.md`
-  findings 4, 5, 6, 13, 14, 15
-- `graphty/src/workspace/` in the studio worktree (strings checked 2026-10-06: start screen,
-  `style/LabelSection.tsx`, `analyze/AnalyzePopover.tsx`, `inspector/NodeValues.tsx`)
-- `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/workflows/`: content designer
-  runs `wf_6818e34f-76d` (round 4 triage, 2026-09-29), `wf_6959c5f6-35c` (round 6 triage and
-  gallery wording pass, 2026-09-29), `wf_93e7ffbb-6da` (round 8 triage and skeleton wording pass,
-  2026-10-03); extraction script `design/ui/studio/tmp/content_agents.py`
-- Owner messages: `design/ui/studio/tmp/owner-all.jsonl` (2026-09-05 text-heavy, 2026-09-26 terms,
-  2026-09-29 overfitting, 2026-10-01 toolbar tooltips, 2026-10-03 presentation neutrality)
+- `design/ui/studio/tier5/rounds/round-1/insights.md`, `scores.md` (2026-11-03)
 
 ## Tier 4 round 1 lessons (2026-10-30)
 
@@ -329,3 +288,23 @@ I read this file at the start of every session and update it as I decide and lea
 - Decided: a count or glyph shown in two places must share one basis and one kind. Evidence: problems 2, 16, 3.
 - Tried: tier 3 watch on words -- worked as a check; again no surviving insight was word-first.
 - Did not work: trusting hover findings from the study tool (popovers logged as null).
+
+## Tier 5 round 1 lessons (2026-11-03)
+
+- Decided: announcements follow what is visible. A covered panel stays silent (the selection
+  editor already does; the value picker did not). Reason: two messages into one live region, the
+  second wins, and it was the hidden one.
+- Decided: Clear keeps a card's name; a reference row shows the matched value beside its id.
+  Both are existing decided.md rules (631-632, 694); the build departs from them.
+- Tried: scripted word counts as the at-rest budget check -- did not work; it inflated three
+  screens with chrome, statistics and user layer names. Hand count remains the measure.
+- Thinking: the reference picker's silent search (no result count until ArrowDown) is a spoken
+  content gap caused by a second-built control; fix by one shared searchable combobox, not by
+  adding announcement text.
+- (2026-11-03, after the skeptic checks) Learned: of nine surviving editor insights, four are
+  word failures (run naming, Condition/Or connectors, By position's false error, reference ids)
+  and one is speech. Words were first-cause this round, unlike tier 3 and 4.
+- Did not work: leaving my walk out of the round -- bar 6 stayed unmeasured and the round could
+  not close on it.
+- Thinking: error and status sentences must be built from the state the step actually applies,
+  never from a `?? default`; a lint-able pattern worth a check in the app.

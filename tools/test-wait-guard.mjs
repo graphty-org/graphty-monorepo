@@ -18,6 +18,17 @@
  * A wait's guard is below the test's so a hung wait reports its last failure instead of a bare
  * "test timed out".
  *
+ * Those two guards are timers in the test's own thread, so they cannot end everything. A page that
+ * is blocked (a synchronous read from a software GPU, a loop), or a file whose imports never settle,
+ * never runs them; and a file of tests that each stay under TEST_GUARD_MS never reaches them, however
+ * long the file takes (#5816: a file of tests of ten minutes each ran on past an hour). So vitest's
+ * own process, which neither can block, holds a third guard: FILE_GUARD_MS on one test file
+ * (tools/vitest-file-guard.mjs). It sits above TEST_GUARD_MS so a test that hangs in a page that
+ * still runs is ended by the test guard, with its stack.
+ *
+ * Each file can stay under FILE_GUARD_MS while a job of several files outlasts the CI job, so CI's test job also
+ * stops the whole run itself and names what was running (TEST_STEP_LIMIT_MS, tools/results/run-group.mjs).
+ *
  * Measurements are not tests and carry no guard: an inline project whose name starts with
  * "bench" (graphty-element's bench and bench-browser, webgpu-graph-algorithms' noise-floor
  * recording) is started by hand, never by the gate, and runs with no time limit at all.
@@ -39,6 +50,9 @@ export const WAIT_GUARD_MS = 900_000;
 
 /** How long one test, hook or teardown may run. */
 export const TEST_GUARD_MS = 1_500_000;
+
+/** How long one test file may run, from the moment it is handed to its page or worker. */
+export const FILE_GUARD_MS = TEST_GUARD_MS + 60_000;
 
 /**
  * The guard setup file as an absolute path, so a config at any depth (a package, tools/pipeline-health,

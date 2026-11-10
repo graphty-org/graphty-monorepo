@@ -14,6 +14,7 @@ import { defineSource, type GraphSession, registerSource } from "@graphty/grapht
 import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -157,8 +158,8 @@ registerSource(
  */
 async function openForm(): Promise<HTMLElement> {
     await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Server..." }));
-    return screen.findByRole("form", { name: "Server" });
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
+    return screen.findByRole("form", { name: "Network data" });
 }
 
 /**
@@ -188,7 +189,8 @@ async function openDataPlace(): Promise<{ element: ElementTag; session: GraphSes
  */
 async function pick(form: HTMLElement, label: string, option: string): Promise<void> {
     await userEvent.click(within(form).getByRole("combobox", { name: label }));
-    await userEvent.click(await within(form).findByRole("option", { name: option }));
+    // The list opens in a portal, outside the form.
+    await userEvent.click(await screen.findByRole("option", { name: option }));
 }
 
 /**
@@ -207,68 +209,39 @@ async function pointOn(element: ElementTag, node: string): Promise<{ x: number; 
 }
 
 describe("server sources on the real element", () => {
+    withFeatures(["network-data"]);
+
     beforeAll(async () => {
         await page.viewport(1366, 900);
     });
 
-    it("opens Network data... from an open project, and each card opens the form on its own kind", async () => {
+    it("opens Network data... from an open project, on NDEx, the first listed", async () => {
         await openDataPlace();
-        for (const [card, kind] of [
-            ["Web API", "Web API"],
-            ["NDEx", "NDEx"],
-        ] as const) {
-            await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
-            const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-            // The address box has a label the reader can see.
-            assert.isNotNull(within(dialog).getByText("Web address"));
-            await userEvent.click(within(dialog).getByRole("button", { name: new RegExp(`^${card}`) }));
-            const form = await screen.findByRole("form", { name: "Server" });
-            await waitFor(() => {
-                assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).value, kind);
-            });
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("form", { name: "Server" }));
-            });
-        }
-    });
-
-    it("adds a graph file at a web address to the open project from Network data...", async () => {
-        const { session } = await openDataPlace();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
-        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-        const address = within(dialog).getByRole("textbox", { name: /Web address/ });
-        await userEvent.type(address, `${new URL("/samples/karate.gml", location.href).href}{Enter}`);
-        // The project stays open and the file is taken in as its source, not opened as a new project.
+        const form = await openForm();
         await waitFor(() => {
-            assert.deepEqual(
-                session.data.sources().map((source) => source.name),
-                ["karate.gml"],
-            );
-            assert.lengthOf(session.data.nodes(), 34);
+            assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).value, "NDEx");
         });
+        await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }));
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
-        assert.strictEqual(document.querySelector("graphty-element")?.session, session);
     });
 
     it("tests, loads with a limit, loads more, expands, collapses and refreshes", async () => {
         const { element, session } = await openDataPlace();
 
         await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Server..." }));
-        const form = await screen.findByRole("form", { name: "Server" });
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
+        const form = await screen.findByRole("form", { name: "Network data" });
         await pick(form, "Kind", "People server");
         // A server with a Start shows it; Query is its first, with the query box.
         assert.isNotNull(within(form).getByRole("radio", { name: "Query" }));
         assert.isNotNull(within(form).getByRole("textbox", { name: "Query" }));
-        assert.isNotNull(within(form).getByRole("checkbox", { name: "on double-click" }));
-        const limit = within(form).getByRole("textbox", { name: "Limit" });
+        assert.isNotNull(within(form).getByRole("checkbox", { name: "Expand on double-click" }));
+        const limit = within(form).getByRole("spinbutton", { name: "Limit" });
         await userEvent.clear(limit);
-        await userEvent.type(limit, "10");
+        // A number field commits on Tab, Enter or blur.
+        await userEvent.type(limit, "10{Tab}");
 
         await userEvent.click(within(form).getByRole("button", { name: "Test" }));
         const preview = await within(form).findByRole("group", { name: "Preview" });
@@ -276,7 +249,7 @@ describe("server sources on the real element", () => {
         assert.isNotNull(within(preview).getByRole("list", { name: "Columns" }));
         assert.lengthOf(session.data.sources(), 0, "Test loads nothing");
         // The preview wraps inside the pop-over; it never widens it past Load.
-        const dialog = screen.getByRole("dialog", { name: "Server" });
+        const dialog = screen.getByRole("dialog", { name: "Network data" });
         assert.isAtMost(dialog.getBoundingClientRect().width, 360);
         const loadButton = within(form).getByRole("button", { name: "Load" });
         assert.isAtMost(loadButton.getBoundingClientRect().right, window.innerWidth);
@@ -286,7 +259,7 @@ describe("server sources on the real element", () => {
             assert.lengthOf(session.data.nodes(), PAGE);
         });
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("form", { name: "Server" }), "the form closes once loaded");
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }), "the form closes once loaded");
         });
 
         const row = await screen.findByRole("listitem", { name: /^People server/ });
@@ -371,8 +344,8 @@ describe("server sources on the real element", () => {
     it("offers no Sign in, Start or Expand rows a source cannot use", async () => {
         await openDataPlace();
         await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Server..." }));
-        const form = await screen.findByRole("form", { name: "Server" });
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
+        const form = await screen.findByRole("form", { name: "Network data" });
         await pick(form, "Kind", "OpenAlex");
         assert.isNull(within(form).queryByRole("radio", { name: "Query" }), "OpenAlex has no Start");
         assert.isNull(within(form).queryByLabelText("Password"));
@@ -392,11 +365,11 @@ describe("server sources on the real element", () => {
 
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("form", { name: "Server" }));
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
     });
 
-    it("enables Test and Load only once the endpoint is filled, and keeps the Start an example does not own", async () => {
+    it("enables Test and Load only once the endpoint is filled, and takes an example's Start", async () => {
         await openDataPlace();
         const form = await openForm();
         await pick(form, "Kind", "Neo4j");
@@ -408,12 +381,14 @@ describe("server sources on the real element", () => {
         assert.isFalse(testButton.disabled);
         assert.isFalse(loadButton.disabled);
 
-        // Rarely used rows wait in Advanced.
-        assert.isNull(within(form).queryByRole("textbox", { name: "Database" }));
-        await pick(form, "Example", "Hetionet");
+        // Rarely used rows are drawn in the form too: nothing folds or opens from it.
+        assert.isNotNull(within(form).queryByRole("textbox", { name: "Database" }));
+        assert.isNull(within(form).queryByRole("button", { name: /Advanced/ }));
+        assert.isNull(within(form).queryByRole("button", { name: "Expand settings" }));
+        assert.isNotNull(within(form).getByLabelText("Expand limit"));
+        await pick(form, "Example", "Hetionet (end-of-life server)");
         await pick(form, "Example", "Neo4j demo: movies");
-        assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "Query" }).checked);
-        await userEvent.click(within(form).getByRole("button", { name: /Advanced/ }));
+        assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "Everything" }).checked);
         assert.equal(within(form).getByRole<HTMLInputElement>("textbox", { name: "Database" }).value, "movies");
         assert.equal(
             within(form).getByRole<HTMLInputElement>("combobox", { name: "Transport" }).value,
@@ -438,7 +413,7 @@ describe("server sources on the real element", () => {
             await pick(form, "Kind", "Busy server");
             await userEvent.click(within(form).getByRole("button", { name: "Test" }));
             const chip = await waitFor(() => {
-                const found = form.querySelector('.sv-actions [data-code="E_SOURCE_QUOTA"]');
+                const found = form.querySelector('[data-code="E_SOURCE_QUOTA"]');
                 assert.isNotNull(found);
                 return found;
             });

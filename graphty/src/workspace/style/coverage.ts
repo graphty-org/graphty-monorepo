@@ -167,6 +167,11 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.raisedBorderWidth": NOT_PLACED,
     "node.raisedBorderLightColor": NOT_PLACED,
     "node.raisedBorderDarkColor": NOT_PLACED,
+    "node.shadowColor": NOT_PLACED,
+    "node.shadowOpacity": NOT_PLACED,
+    "node.shadowBlur": NOT_PLACED,
+    "node.shadowOffsetX": NOT_PLACED,
+    "node.shadowOffsetY": NOT_PLACED,
     "node.underlayColor": NOT_PLACED,
     "node.underlayOpacity": NOT_PLACED,
     "node.underlayPadding": NOT_PLACED,
@@ -187,6 +192,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.shapeTexts": NOT_PLACED,
     "node.labelTable": NOT_PLACED,
     "node.shapeLineWidth": NOT_PLACED,
+    "node.shapeLineHaloColor": NOT_PLACED,
+    "node.shapeLineHaloWidth": NOT_PLACED,
     "node.labelFit": NOT_PLACED,
     "node.labelPaddingX": NOT_PLACED,
     "node.labelPaddingY": NOT_PLACED,
@@ -254,10 +261,10 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.chartBorderColor": NOT_PLACED,
     "node.chartBorderWidth": NOT_PLACED,
     "edge.minScreenWidth": NOT_PLACED,
-    "edge.fadeEnd": NOT_PLACED,
-    "edge.fadeStart": NOT_PLACED,
-    "edge.fadeOpacity": NOT_PLACED,
-    "edge.blending": NOT_PLACED,
+    "edge.fadeEnd": at("Edges, Line, Fade end (the cosmograph experiment)"),
+    "edge.fadeStart": at("Edges, Line, Fade end, Fade start (the cosmograph experiment)"),
+    "edge.fadeOpacity": at("Edges, Line, Fade end, Fade opacity (the cosmograph experiment)"),
+    "edge.blending": at("Edges, Line, Blending (the cosmograph experiment)"),
     "edge.outlineColor": NOT_PLACED,
     "edge.outlineWidth": NOT_PLACED,
     "edge.outlineOpacity": NOT_PLACED,
@@ -273,6 +280,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.gradientKind": NOT_PLACED,
     "edge.waveAmplitude": NOT_PLACED,
     "edge.wavePeriod": NOT_PLACED,
+    "edge.dashLength": NOT_PLACED,
+    "edge.dashGap": NOT_PLACED,
     "edge.fanSpacing": NOT_PLACED,
     "edge.fanned": NOT_PLACED,
     "edge.bendCurve": NOT_PLACED,
@@ -351,6 +360,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.labelOutlineOpacity": NOT_PLACED,
     "edge.labelBorderOpacity": NOT_PLACED,
     "edge.labelPadding": NOT_PLACED,
+    "edge.labelTable": NOT_PLACED,
     "edge.labelCornerRadius": NOT_PLACED,
     "edge.labelLineHeight": NOT_PLACED,
     "edge.labelOffsetX": NOT_PLACED,
@@ -454,6 +464,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     wrapEllipsis: NOT_PLACED,
     wrapAnywhere: NOT_PLACED,
     wrapSpaceCount: NOT_PLACED,
+    keepBlankLines: NOT_PLACED,
     runAlign: NOT_PLACED,
     rotation: NOT_PLACED,
     minScreenSize: NOT_PLACED,
@@ -477,7 +488,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
  * Why a property the Style tab draws has no vary glyph. These are decisions, not omissions: the
  * coverage test fails when a drawn property has neither a vary glyph nor a reason here.
  */
-export const VARY_DECISIONS = {
+const VARY_DECISIONS = {
     yesOrNo:
         "A yes-or-no property (wireframe, show, curved) has no vary by: picking which elements are on is what Which elements does, so a layer for those elements sets it",
     look: "A label's look is a set of fields, each set in its settings; its size, text color and background vary through their own properties",
@@ -496,6 +507,7 @@ export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
     "node.visible": VARY_DECISIONS.yesOrNo,
     "edge.visible": VARY_DECISIONS.yesOrNo,
     "edge.curvature": VARY_DECISIONS.yesOrNo,
+    "edge.blending": VARY_DECISIONS.yesOrNo,
     "node.labelStyle": VARY_DECISIONS.look,
     "node.tooltipStyle": VARY_DECISIONS.look,
     "edge.labelStyle": VARY_DECISIONS.look,
@@ -624,8 +636,8 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
         reason: "A palette, a ramp's colors, 'Use the values as colors', 'One color per value' on a number and 'More values (or layers) than colors' are color by nature: a number ramps through Range, a shape or pattern steps through the channel's own list (graphty-element's binding choices), and every per-group, per-layer and No value field is a ValueField for every kind",
     },
     "workspace/style/PropertyRow.tsx": {
-        count: 13,
-        reason: "The color field beside the number, choice and words fields; the document's colors offered as the color picker's swatches on every color field of the row, set or not; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name; the Layer source's pill counts 'colors' where other kinds count 'values', compares colors by hex, and puts its tooltip line on the color pill only (a pill without a swatch shows its detail in place of the token); a layer's line entry carries a color only for a color, every kind its words",
+        count: 14,
+        reason: "The color field beside the number, choice and words fields, a just-added color drawn as that same field (so its picker stays open over the first pick) where other kinds wait in their ValueField; the document's colors offered as the color picker's swatches on every color field of the row, set or not; a bound color's swatch strip, where other kinds show their source and range, and a pill without a swatch shows its source rather than the property's name; the Layer source's pill counts 'colors' where other kinds count 'values', compares colors by hex, and puts its tooltip line on the color pill only (a pill without a swatch shows its detail in place of the token); a layer's line entry carries a color only for a color, every kind its words",
     },
     "workspace/style/words.ts": {
         count: 2,
@@ -634,6 +646,10 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
     "workspace/style/row.ts": {
         count: 5,
         reason: "startFor reads a color beneath as its hex, and every other kind as it is; Vary by Layer starts a color on a palette with every layer its own color, a number on the app's range, a shape on the channel's own list with the distinct shapes first",
+    },
+    "workspace/style/ShaderParamRows.tsx": {
+        count: 2,
+        reason: "A Color shader parameter on a clock ramps between two colors it needs pickers for; a Number on a clock is the clock's own value and has no range to pick",
     },
     "workspace/style/StylePanel.tsx": {
         count: 1,

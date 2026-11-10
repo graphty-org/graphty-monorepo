@@ -14,10 +14,14 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { findTreeRow } from "../../graph-place/rows";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+withFeatures([]);
 
 /** The scene: the session, the store, and each run's tree row name. */
 interface Scene {
@@ -85,11 +89,11 @@ async function openRow(name: string, tab: "Style" | "Values"): Promise<HTMLEleme
 }
 
 /**
- * The Which nodes (or edges) row at rest of the open Style tab.
- * @returns the row's button.
+ * The Which nodes (or edges) outline at rest of the open Style tab.
+ * @returns the outline.
  */
 async function whichLine(): Promise<HTMLElement> {
-    return screen.findByRole("button", { name: /^Which (nodes|edges), / });
+    return screen.findByTestId("which-picker");
 }
 
 describe("one name per value, rules in words", () => {
@@ -102,8 +106,8 @@ describe("one name per value, rules in words", () => {
         }
         await openRow(rows.route, "Style");
         const line = await whichLine();
-        assert.include(line.textContent, "On the route: yes");
-        await userEvent.click(line);
+        assert.match(line.textContent, /On the route\s*Yes/);
+        await userEvent.click(within(line).getByRole("button", { name: /^Edit Which edges/ }));
         const card = await screen.findByRole("group", { name: /^On the route(,|$)/ });
         const match = within(card).getByRole<HTMLInputElement>("combobox", { name: "On the route is" });
         assert.equal(match.value, "Yes");
@@ -157,12 +161,12 @@ describe("one name per value, rules in words", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
-        // A new layer opens its picker on arrival.
-        const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
-        const card = await within(region).findByRole("group", { name: /^name(,|$)/ });
-        await userEvent.type(within(card).getByRole("combobox", { name: "name: text to match" }), "Mme");
+        // A new layer's Which nodes is edited in the selection workspace: its first step's value.
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.keyboard("name{Enter}");
+        await userEvent.type(await screen.findByRole("combobox", { name: "name: text to match" }), "Mme{Enter}");
         await waitFor(() => {
             const node = session.styles
                 .list()

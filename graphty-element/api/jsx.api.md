@@ -6,7 +6,9 @@
 
 import { AbstractMesh } from '@babylonjs/core';
 import { ActionManager } from '@babylonjs/core';
+import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
+import { BoundingInfo } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { ColumnHandle } from '@graphty/graph-format';
@@ -32,6 +34,7 @@ import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
+import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
@@ -71,6 +74,7 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
+import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
@@ -96,6 +100,7 @@ export interface GraphtyElementJSXProps {
     "edge-dst-id-path"?: string;
     "edge-id-path"?: string;
     "edge-src-id-path"?: string;
+    "edge-time-end-path"?: string;
     "edge-time-path"?: string;
     "edge-time-unit"?: string;
     "edge-weight-path"?: string;
@@ -108,6 +113,7 @@ export interface GraphtyElementJSXProps {
     "node-data"?: string;
     "node-id-path"?: string;
     "node-label-path"?: string;
+    "node-time-end-path"?: string;
     "node-time-path"?: string;
     "node-time-unit"?: string;
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
@@ -142,6 +148,8 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;
     "onelements-removed"?: (event: CustomEvent<EventOfType<"elements-removed">>) => void;
+    // (undocumented)
+    "ongraph-first-frame"?: (event: CustomEvent<EventOfType<"graph-first-frame">>) => void;
     // (undocumented)
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     // (undocumented)
@@ -191,6 +199,8 @@ export interface GraphtyElementJSXProps {
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
     // (undocumented)
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    // (undocumented)
+    "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
     "oninput:key-down"?: (event: CustomEvent<EventOfType<"input:key-down">>) => void;
     "oninput:key-up"?: (event: CustomEvent<EventOfType<"input:key-up">>) => void;
@@ -214,6 +224,7 @@ export interface GraphtyElementJSXProps {
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     // (undocumented)
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
+    "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     // (undocumented)
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     // (undocumented)
@@ -250,6 +261,7 @@ export interface GraphtyElementJSXProps {
     "pixel-ratio"?: string;
     "position-scale"?: string;
     "render-on-demand"?: boolean;
+    "render-path"?: string;
     "repeated-edges"?: string;
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
@@ -258,6 +270,7 @@ export interface GraphtyElementJSXProps {
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
+    antialias?: Graphty["antialias"];
     attributionOffset?: Graphty["attributionOffset"];
     autoFrame?: Graphty["autoFrame"];
     autoRotate?: Graphty["autoRotate"];
@@ -273,6 +286,7 @@ export interface GraphtyElementJSXProps {
     edgeDstIdPath?: Graphty["edgeDstIdPath"];
     edgeIdPath?: Graphty["edgeIdPath"];
     edgeSrcIdPath?: Graphty["edgeSrcIdPath"];
+    edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
     edgeTimePath?: Graphty["edgeTimePath"];
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     edgeWeightPath?: Graphty["edgeWeightPath"];
@@ -288,9 +302,11 @@ export interface GraphtyElementJSXProps {
     layoutConfig?: Graphty["layoutConfig"];
     layoutScope?: Graphty["layoutScope"];
     lighting?: Graphty["lighting"];
+    limits?: Graphty["limits"];
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];
+    nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
     nodeTimePath?: Graphty["nodeTimePath"];
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
     // (undocumented)
@@ -299,6 +315,7 @@ export interface GraphtyElementJSXProps {
     positionScale?: Graphty["positionScale"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];
+    renderPath?: Graphty["renderPath"];
     repeatedEdges?: Graphty["repeatedEdges"];
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];

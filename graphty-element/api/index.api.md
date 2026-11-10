@@ -11,6 +11,7 @@ import { ActionManager } from '@babylonjs/core';
 import { AwsCredentials } from '@graphty/graph-io';
 import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
+import { BoundingInfo } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
@@ -46,6 +47,7 @@ import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GlowLayer } from '@babylonjs/core';
 import { GML_LOSS } from '@graphty/graph-io';
+import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GraphChoiceOptions } from '@graphty/graph-io';
 import type { GraphExporter } from '@graphty/graph-io';
@@ -100,6 +102,7 @@ import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
+import { SourceExample } from '@graphty/graph-io';
 import { SourceFeature } from '@graphty/graph-io';
 import { SourceFile } from '@graphty/graph-io';
 import { SourceFinish } from '@graphty/graph-io';
@@ -121,7 +124,6 @@ import { SourceReportInfo } from '@graphty/graph-io';
 import { SourceRequestInit } from '@graphty/graph-io';
 import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
-import { SourceSample } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
@@ -885,6 +887,8 @@ export class DataManager implements Manager {
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
     get nodes(): ReadonlyMap<string | number, Node_2>;
+    // @internal
+    get nodesByIndex(): readonly (Node_2 | undefined)[];
     nodeVersion: number;
     // @internal
     notePaintDrawn(): void;
@@ -898,6 +902,11 @@ export class DataManager implements Manager {
     };
     removeEdge(edgeId: string): boolean;
     removeNodeAndIncidentEdges(nodeId: NodeIdType): readonly EdgeId[] | null;
+    // @internal
+    renderLimits: {
+        ceilings(): Readonly<Ceilings> | undefined;
+        batched(): boolean;
+    } | null;
     get seededNodeCount(): number;
     setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void;
     setGraphContext(context: GraphContext): void;
@@ -927,8 +936,12 @@ export abstract class DataSource {
     get declaredFileLayout(): FileLayout | null;
     get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    // @beta
+    get declaredTime(): TimeField | null;
     protected declareFileLayout(layout: FileLayout | null): void;
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
+    // @beta
+    protected declareTime(field: TimeField): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
@@ -1049,6 +1062,8 @@ export class Edge {
     get arrowTailStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowTailText: RichTextLabel | null;
+    // @internal
+    columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
     get drawnCaps(): {
@@ -1075,13 +1090,15 @@ export class Edge {
     get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
     readonly dstId: NodeIdType;
-    // (undocumented)
-    dstNode: Node_2;
+    get dstNode(): Node_2;
+    set dstNode(node: Node_2);
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;
     invalidatePositionCache(): void;
     isDisposed(): boolean;
+    // @internal
+    get isPulled(): boolean;
     isRenderVisible(): boolean;
     isSelected(): boolean;
     // (undocumented)
@@ -1105,10 +1122,12 @@ export class Edge {
     shaderDataChanged(): void;
     // (undocumented)
     readonly srcId: NodeIdType;
-    // (undocumented)
-    srcNode: Node_2;
+    get srcNode(): Node_2;
+    set srcNode(node: Node_2);
     // @internal
-    supportEdge(): SupportEdge | null;
+    supportEdge(centerOf?: (node: Node_2) => Readonly<Vector3>): SupportEdge | null;
+    // @internal
+    togglesOwnMeshes(): boolean;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     // @internal
@@ -1198,6 +1217,10 @@ export interface EdgePosition {
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
+    lineEnds?: {
+        readonly source: readonly [along: number, across: number];
+        readonly target: readonly [along: number, across: number];
+    };
     // (undocumented)
     src: Position;
     tailLabelAt?: readonly [along: number, across: number];
@@ -1290,6 +1313,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+            keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
                 hanging: "hanging";
@@ -1338,6 +1362,7 @@ export const EdgeStyle: z.ZodObject<{
                 color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
                 spacing: z.ZodNumber;
             }, z.core.$strict>>>;
+            table: z.ZodOptional<z.ZodString>;
             marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1564,6 +1589,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+            keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
                 hanging: "hanging";
@@ -1612,6 +1638,7 @@ export const EdgeStyle: z.ZodObject<{
                 color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
                 spacing: z.ZodNumber;
             }, z.core.$strict>>>;
+            table: z.ZodOptional<z.ZodString>;
             marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1878,6 +1905,8 @@ export const EdgeStyle: z.ZodObject<{
         patternCount: z.ZodOptional<z.ZodNumber>;
         waveAmplitude: z.ZodOptional<z.ZodNumber>;
         wavePeriod: z.ZodOptional<z.ZodNumber>;
+        dashLength: z.ZodOptional<z.ZodNumber>;
+        dashGap: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
         fade: z.ZodOptional<z.ZodObject<{
@@ -1987,6 +2016,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
             hanging: "hanging";
@@ -2035,6 +2065,7 @@ export const EdgeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -2208,6 +2239,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
             hanging: "hanging";
@@ -2256,6 +2288,7 @@ export const EdgeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -2548,7 +2581,7 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles";
 
 // @public
 export interface FindAtLeastRow {
@@ -2699,7 +2732,9 @@ export interface GlobeLook {
 
 // @public
 export class Graph implements GraphContext {
-    constructor(element: Element | string, useMockInput?: boolean);
+    constructor(element: Element | string, useMockInput?: boolean, options?: {
+        readonly antialias?: boolean;
+    });
     readonly acceleration: AccelerationController;
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
@@ -2712,6 +2747,7 @@ export class Graph implements GraphContext {
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     aiCommand(input: string): Promise<ExecutionResult>;
+    readonly antialias: boolean;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -2759,6 +2795,7 @@ export class Graph implements GraphContext {
     fetchEdges?: FetchEdgesFn;
     // (undocumented)
     fetchNodes?: FetchNodesFn;
+    get framing(): boolean;
     getAcceleration(): AccelerationController;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
@@ -2772,7 +2809,12 @@ export class Graph implements GraphContext {
     getCameraTransitionDuration(): number | undefined;
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
+    // @internal
+    getDrawnTarget(): DrawnTarget | null;
     getEdgeCount(): number;
+    // @internal
+    getEdgeIdTarget(): EdgeIdTarget | null;
+    getEdges(): Edge[];
     getEventManager(): EventManager;
     getGlobeLook(): GlobeLook;
     getLayoutBehavior(): GraphBehaviorConfig | undefined;
@@ -2781,7 +2823,11 @@ export class Graph implements GraphContext {
     getLighting(): Lighting;
     getMeshCache(): MeshCache;
     getNode(nodeId: string | number): Node_2 | undefined;
+    // @internal
+    getNodeBatches(): NodeBatches | null;
     getNodeCount(): number;
+    // @internal
+    getNodeIdTarget(): NodeIdTarget | null;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
     // @internal
@@ -2817,11 +2863,16 @@ export class Graph implements GraphContext {
     isARSupported(): Promise<boolean>;
     isCameraPlaced(): boolean;
     get isFrameStable(): boolean;
+    // @beta
+    get isGraphDrawn(): boolean;
     isNodeSelected(nodeId: string | number): boolean;
     isRunning(): boolean;
     isVoiceActive(): boolean;
     isVRSupported(): Promise<boolean>;
     labelOf(nodeId: string | number): NodeLabel | undefined;
+    // @internal
+    leansLines(): boolean;
+    get limits(): Readonly<LimitsOption>;
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -2875,6 +2926,7 @@ export class Graph implements GraphContext {
     render(): void;
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
+    get renderPath(): RenderPath;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
     // @internal
     resize(): void;
@@ -2884,6 +2936,7 @@ export class Graph implements GraphContext {
         extent?: CameraViewExtent;
     }): CameraState;
     retryLastAiCommand(): Promise<ExecutionResult>;
+    get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
     // @deprecated
     runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void>;
@@ -2939,9 +2992,11 @@ export class Graph implements GraphContext {
     setLayoutBehavior(behavior: GraphBehaviorConfig): void;
     setLayoutScope(scope: ScopeInput | undefined): Promise<void>;
     setLighting(lighting: Lighting): void;
+    setLimits(value: LimitsOption): void;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setPixelRatio(ratio: PixelRatio): void;
     setRenderer(request: RendererRequest): void;
+    setRenderPath(path: RenderPath): void;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
     setRunning(running: boolean): void;
     setSelectionStyle(selection: GraphSelectionStyleInput): void;
@@ -2973,6 +3028,8 @@ export class Graph implements GraphContext {
         id: string | number;
         [key: string]: unknown;
     }[], options?: QueueableOptions): Promise<void>;
+    // @beta
+    waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
     waitForStableFrame(options?: {
         timeoutMs?: number;
@@ -3035,9 +3092,13 @@ export interface GraphContext {
     getAcceleration?(): AccelerationController;
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
+    // @internal
+    getDrawnTarget?(): DrawnTarget | null;
     getEventManager?(): EventManager | undefined;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
+    // @internal
+    getNodeBatches?(): NodeBatches | null;
     // @internal
     getRowTable?(): RowTable | null;
     getScene(): Scene;
@@ -3051,6 +3112,8 @@ export interface GraphContext {
     getXRSessionManager?(): XRSessionManager | undefined;
     is2D(): boolean;
     isRunning(): boolean;
+    // @internal
+    leansLines?(): boolean;
     // @deprecated
     needsRayUpdate(): boolean;
     readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;
@@ -3116,7 +3179,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | BasemapStatusEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -3126,7 +3189,7 @@ export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
     // (undocumented)
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable";
+    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
 // @public (undocumented)
@@ -3179,6 +3242,8 @@ export class Graphty extends LitElement {
     aiCommand(message: string): Promise<ExecutionResult>;
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined;
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined);
+    get antialias(): boolean;
+    set antialias(value: boolean);
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
         params?: Readonly<Record<string, unknown>>;
@@ -3242,6 +3307,9 @@ export class Graphty extends LitElement {
     get edgeSrcIdPath(): string | undefined;
     set edgeSrcIdPath(value: string | undefined);
     // @beta
+    get edgeTimeEndPath(): string | undefined;
+    set edgeTimeEndPath(value: string | undefined);
+    // @beta
     get edgeTimePath(): string | undefined;
     set edgeTimePath(value: string | undefined);
     // @beta
@@ -3266,6 +3334,7 @@ export class Graphty extends LitElement {
     firstUpdated(changedProperties: Map<string, unknown>): void;
     get fitInsets(): FitInsets;
     set fitInsets(value: Partial<FitInsets>);
+    get framing(): boolean;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
     getApiKeyManager(): ApiKeyManager | null;
@@ -3309,6 +3378,8 @@ export class Graphty extends LitElement {
     isAnimationCapturing(): boolean;
     isARSupported(): Promise<boolean>;
     get isFrameStable(): boolean;
+    // @beta
+    get isGraphDrawn(): boolean;
     isNodeSelected(nodeId: string | number): boolean;
     isPinned(id: string | number): boolean;
     isRunning(): boolean;
@@ -3330,6 +3401,8 @@ export class Graphty extends LitElement {
     set layoutScope(value: ScopeInput | undefined);
     get lighting(): Lighting;
     set lighting(value: Lighting);
+    get limits(): Readonly<LimitsOption>;
+    set limits(value: LimitsOption);
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -3380,6 +3453,9 @@ export class Graphty extends LitElement {
     }): (string | number)[];
     nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
     // @beta
+    get nodeTimeEndPath(): string | undefined;
+    set nodeTimeEndPath(value: string | undefined);
+    // @beta
     get nodeTimePath(): string | undefined;
     set nodeTimePath(value: string | undefined);
     // @beta
@@ -3407,6 +3483,8 @@ export class Graphty extends LitElement {
     get rendererStatus(): RendererStatus | null;
     get renderOnDemand(): boolean;
     set renderOnDemand(value: boolean);
+    get renderPath(): RenderPath;
+    set renderPath(value: RenderPath);
     get renderQuality(): RenderQuality;
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
@@ -3417,6 +3495,7 @@ export class Graphty extends LitElement {
         extent?: CameraViewExtent;
     }): CameraState;
     retryLastAiCommand(): Promise<ExecutionResult>;
+    get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
     // @deprecated
     runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void>;
@@ -3497,6 +3576,8 @@ export class Graphty extends LitElement {
     set viewInsets(value: ViewInsets | undefined);
     get viewMode(): ViewMode | undefined;
     set viewMode(value: ViewMode | undefined);
+    // @beta
+    waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
     waitForStableFrame(options?: {
         timeoutMs?: number;
@@ -3526,7 +3607,7 @@ export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[];
 
 // @public
 export interface GraphtyCapabilitiesChangeDetail {
-    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
+    readonly capabilities: SessionCapabilities;
 }
 
 // @public
@@ -4358,6 +4439,12 @@ export type GraphtyWarningCode =
 */
 | "W_ALPHA_IGNORED"
 /**
+* The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
+* shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
+* @experimental cosmograph
+*/
+| "W_LIMITS_IGNORED"
+/**
 * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
 * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
 * size sits, and `params.value` the size.
@@ -4392,6 +4479,12 @@ export type GraphtyWarningCode =
 * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
 */
 | "W_DIMENSION_OVERRIDDEN"
+/**
+* `antialias` was changed after the element built its engine, which reads it only then: the
+* engine keeps the value it was built with. Raised as a `graphty-warning` event.
+* `params.requested` is the value given, `params.active` the one in use.
+*/
+| "W_ANTIALIAS_LATE"
 /**
 * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
 * `node.modelSourceUp` turns it.
@@ -4632,6 +4725,8 @@ export class InputManager implements Manager {
     readonly onTouchStart: Observable_2<TouchPoint[]>;
     // (undocumented)
     readonly onWheel: Observable_2<WheelInfo>;
+    // @internal
+    rebind(context: ManagerContext): void;
     requestPointerLock(): Promise<void>;
     setEnabled(enabled: boolean): void;
     startPlayback(events?: RecordedInputEvent[]): Promise<void>;
@@ -4713,6 +4808,9 @@ export interface LayoutChangedEvent {
 }
 
 // @public
+export type LayoutDevice = "shared" | "separate";
+
+// @public
 export abstract class LayoutEngine {
     // (undocumented)
     protected abstract addEdge(e: Edge): void;
@@ -4763,7 +4861,7 @@ export abstract class LayoutEngine {
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
     // @internal
-    protected publishColumn(n: Node_2 | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
+    protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -4776,6 +4874,11 @@ export abstract class LayoutEngine {
         y: number;
         z: number;
     }): boolean;
+    protected readRowPosition(row: number, out: {
+        x: number;
+        y: number;
+        z: number;
+    }): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
@@ -4783,6 +4886,8 @@ export abstract class LayoutEngine {
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    get spacesBySize(): boolean;
     // (undocumented)
     abstract step(): void;
     // (undocumented)
@@ -4855,6 +4960,8 @@ export class LayoutManager implements Manager {
     setScopeSource(source: LayoutScopeSource): void;
     step(): void;
     stepBatch(): void;
+    // @internal
+    steppedPublishes: number;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
 }
@@ -5002,6 +5109,10 @@ class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
+    batchableIn(view: BatchView): boolean;
+    // @internal
+    get batchLook(): string;
+    // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
     // @internal
@@ -5009,12 +5120,16 @@ class Node_2 implements ModelUser {
     dispose(): void;
     // (undocumented)
     dragging: boolean;
-    // (undocumented)
-    dragHandler?: NodeDragHandler;
+    get dragHandler(): NodeDragHandler | undefined;
+    set dragHandler(handler: NodeDragHandler | undefined);
     // @internal
-    drawInBatch(source: AbstractMesh | null): void;
+    drawInBatch(source: AbstractMesh | null, opacity?: number): void;
+    // @internal
+    get drawnAnchor(): TransformNode;
     // @internal
     get drawnBoundingBox(): BoundingBox;
+    // @internal
+    get drawnBoundingInfo(): BoundingInfo;
     // @internal
     get drawnBoundingRadius(): number;
     // @internal
@@ -5030,7 +5145,11 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnInBatch(): boolean;
     // @internal
-    get drawnPickMesh(): AbstractMesh;
+    get drawnInstanceColor(): Rgba | null;
+    // @internal
+    get drawnOpacity(): number;
+    // @internal
+    get drawnPickMesh(): AbstractMesh | null;
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
@@ -5075,11 +5194,14 @@ class Node_2 implements ModelUser {
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;
+    // @internal
+    imageDrawn(): BaseTexture | null;
     get index(): number;
     isDisposed(): boolean;
     // @internal
     get isDrawn(): boolean;
     get isDrawnAsGroup(): boolean;
+    get isDrawnBehindEdges(): boolean;
     // @internal
     isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;
@@ -5090,8 +5212,8 @@ class Node_2 implements ModelUser {
     get layoutRadius(): number;
     // @internal
     makeDrawnPickable(actions: ActionManager): void;
-    // (undocumented)
-    mesh: AbstractMesh;
+    get mesh(): AbstractMesh;
+    set mesh(value: AbstractMesh);
     // @internal
     modelDrawn(): {
         readonly template: ModelTemplate | null;
@@ -5108,6 +5230,8 @@ class Node_2 implements ModelUser {
     }>;
     // @internal
     get paintedColor(): Rgba | null;
+    // @internal
+    get paintedSourceMesh(): AbstractMesh;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
@@ -5124,6 +5248,8 @@ class Node_2 implements ModelUser {
     refreshSelectionOverlay(): void;
     // @internal
     refreshShaderPaint(): void;
+    // @internal
+    resampleLabel(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
@@ -5147,12 +5273,18 @@ class Node_2 implements ModelUser {
     // @internal
     syncXlabelPlace(): void;
     // @internal
-    get teardownMesh(): AbstractMesh;
+    get teardownMesh(): TransformNode;
+    // @internal
+    togglesOwnMeshes(): boolean;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
     update(): void;
     updateStyle(): void;
+    // @internal
+    get walksEachFrame(): boolean;
+    // @internal
+    get wholeScale(): number;
     // @internal
     get wordedLabel(): RichTextLabel | null;
     xlabelLabel?: RichTextLabel;
@@ -5276,6 +5408,7 @@ export interface NodeLabel {
 // @public
 export interface NodeLabelCounts {
     readonly hiddenByOverlap: number;
+    readonly hiddenBySampling?: number;
     readonly labeled: number;
     readonly nodeHidden: number;
 }
@@ -5303,29 +5436,6 @@ export const NodeShapes: z.ZodEnum<{
     cross: "cross";
     star: "star";
     sphere: "sphere";
-    ellipse: "ellipse";
-    rectangle: "rectangle";
-    triangle: "triangle";
-    pentagon: "pentagon";
-    hexagon: "hexagon";
-    octagon: "octagon";
-    parallelogram: "parallelogram";
-    trapezoid: "trapezoid";
-    house: "house";
-    man: "man";
-    woman: "woman";
-    "round-triangle": "round-triangle";
-    "round-diamond": "round-diamond";
-    "round-pentagon": "round-pentagon";
-    "round-hexagon": "round-hexagon";
-    "round-octagon": "round-octagon";
-    polygon: "polygon";
-    "round-polygon": "round-polygon";
-    "round-rectangle": "round-rectangle";
-    "top-round-rectangle": "top-round-rectangle";
-    "bottom-round-rectangle": "bottom-round-rectangle";
-    barrel: "barrel";
-    database: "database";
     cylinder: "cylinder";
     cone: "cone";
     capsule: "capsule";
@@ -5349,6 +5459,29 @@ export const NodeShapes: z.ZodEnum<{
     goldberg: "goldberg";
     icosphere: "icosphere";
     geodesic: "geodesic";
+    rectangle: "rectangle";
+    "round-rectangle": "round-rectangle";
+    "top-round-rectangle": "top-round-rectangle";
+    "bottom-round-rectangle": "bottom-round-rectangle";
+    ellipse: "ellipse";
+    triangle: "triangle";
+    pentagon: "pentagon";
+    hexagon: "hexagon";
+    octagon: "octagon";
+    parallelogram: "parallelogram";
+    trapezoid: "trapezoid";
+    polygon: "polygon";
+    house: "house";
+    man: "man";
+    woman: "woman";
+    "round-triangle": "round-triangle";
+    "round-diamond": "round-diamond";
+    "round-pentagon": "round-pentagon";
+    "round-hexagon": "round-hexagon";
+    "round-octagon": "round-octagon";
+    "round-polygon": "round-polygon";
+    barrel: "barrel";
+    database: "database";
 }>;
 
 // @public
@@ -5366,8 +5499,8 @@ export const NodeStyle: z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             scale: "scale";
-            diameter: "diameter";
             uniform: "uniform";
+            diameter: "diameter";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
             full: "full";
@@ -5381,29 +5514,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
-            rectangle: "rectangle";
-            triangle: "triangle";
-            pentagon: "pentagon";
-            hexagon: "hexagon";
-            octagon: "octagon";
-            parallelogram: "parallelogram";
-            trapezoid: "trapezoid";
-            house: "house";
-            man: "man";
-            woman: "woman";
-            "round-triangle": "round-triangle";
-            "round-diamond": "round-diamond";
-            "round-pentagon": "round-pentagon";
-            "round-hexagon": "round-hexagon";
-            "round-octagon": "round-octagon";
-            polygon: "polygon";
-            "round-polygon": "round-polygon";
-            "round-rectangle": "round-rectangle";
-            "top-round-rectangle": "top-round-rectangle";
-            "bottom-round-rectangle": "bottom-round-rectangle";
-            barrel: "barrel";
-            database: "database";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5427,6 +5537,29 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         width: z.ZodOptional<z.ZodNumber>;
         height: z.ZodOptional<z.ZodNumber>;
@@ -5444,6 +5577,8 @@ export const NodeStyle: z.ZodObject<{
         parts: z.ZodOptional<z.ZodString>;
         lines: z.ZodOptional<z.ZodString>;
         lineWidth: z.ZodOptional<z.ZodNumber>;
+        lineHaloColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        lineHaloWidth: z.ZodOptional<z.ZodNumber>;
         texts: z.ZodOptional<z.ZodString>;
         labelTable: z.ZodOptional<z.ZodString>;
         labelFit: z.ZodOptional<z.ZodEnum<{
@@ -5469,8 +5604,8 @@ export const NodeStyle: z.ZodObject<{
         modelTurn: z.ZodOptional<z.ZodNumber>;
         modelTint: z.ZodOptional<z.ZodUnion<readonly [z.ZodBoolean, z.ZodLiteral<"replace">]>>;
         modelFit: z.ZodOptional<z.ZodEnum<{
-            stretch: "stretch";
             contain: "contain";
+            stretch: "stretch";
         }>>;
         modelCenter: z.ZodOptional<z.ZodEnum<{
             bounds: "bounds";
@@ -5571,6 +5706,13 @@ export const NodeStyle: z.ZodObject<{
         lightColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     }, z.core.$strict>>;
+    shadow: z.ZodOptional<z.ZodObject<{
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        opacity: z.ZodOptional<z.ZodNumber>;
+        blur: z.ZodOptional<z.ZodNumber>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
     underlay: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
@@ -5583,29 +5725,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
-            rectangle: "rectangle";
-            triangle: "triangle";
-            pentagon: "pentagon";
-            hexagon: "hexagon";
-            octagon: "octagon";
-            parallelogram: "parallelogram";
-            trapezoid: "trapezoid";
-            house: "house";
-            man: "man";
-            woman: "woman";
-            "round-triangle": "round-triangle";
-            "round-diamond": "round-diamond";
-            "round-pentagon": "round-pentagon";
-            "round-hexagon": "round-hexagon";
-            "round-octagon": "round-octagon";
-            polygon: "polygon";
-            "round-polygon": "round-polygon";
-            "round-rectangle": "round-rectangle";
-            "top-round-rectangle": "top-round-rectangle";
-            "bottom-round-rectangle": "bottom-round-rectangle";
-            barrel: "barrel";
-            database: "database";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5629,6 +5748,29 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
@@ -5644,29 +5786,6 @@ export const NodeStyle: z.ZodObject<{
             cross: "cross";
             star: "star";
             sphere: "sphere";
-            ellipse: "ellipse";
-            rectangle: "rectangle";
-            triangle: "triangle";
-            pentagon: "pentagon";
-            hexagon: "hexagon";
-            octagon: "octagon";
-            parallelogram: "parallelogram";
-            trapezoid: "trapezoid";
-            house: "house";
-            man: "man";
-            woman: "woman";
-            "round-triangle": "round-triangle";
-            "round-diamond": "round-diamond";
-            "round-pentagon": "round-pentagon";
-            "round-hexagon": "round-hexagon";
-            "round-octagon": "round-octagon";
-            polygon: "polygon";
-            "round-polygon": "round-polygon";
-            "round-rectangle": "round-rectangle";
-            "top-round-rectangle": "top-round-rectangle";
-            "bottom-round-rectangle": "bottom-round-rectangle";
-            barrel: "barrel";
-            database: "database";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5690,6 +5809,29 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
+            ellipse: "ellipse";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
@@ -5784,9 +5926,9 @@ export const NodeStyle: z.ZodObject<{
         paddingRatio: z.ZodOptional<z.ZodNumber>;
         paddingOf: z.ZodOptional<z.ZodEnum<{
             width: "width";
-            height: "height";
             min: "min";
             max: "max";
+            height: "height";
             average: "average";
         }>>;
         minWidth: z.ZodOptional<z.ZodNumber>;
@@ -5828,6 +5970,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
             hanging: "hanging";
@@ -5876,6 +6019,7 @@ export const NodeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -6049,6 +6193,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
             hanging: "hanging";
@@ -6097,6 +6242,7 @@ export const NodeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -6270,6 +6416,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
             hanging: "hanging";
@@ -6318,6 +6465,7 @@ export const NodeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -6639,7 +6787,9 @@ export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072
 
 // @public
 export interface OperationCancelledEvent {
+    code: "queue-cleared" | "cancelled";
     id: string;
+    // @deprecated
     reason: string;
     // (undocumented)
     type: "operation-cancelled";
@@ -6831,6 +6981,7 @@ export interface ProjectOpenOptions {
     readonly limits?: {
         readonly fileBytes?: number;
     };
+    readonly ownWork?: boolean;
 }
 
 // @public
@@ -6930,6 +7081,7 @@ export type RendererRequest = "webgl" | "webgpu" | "auto";
 export interface RendererStatus {
     readonly active: ActiveRenderer;
     readonly drawing: boolean;
+    readonly layoutDevice: LayoutDevice | null;
     readonly reason: string | null;
     readonly requested: RendererRequest;
 }
@@ -6953,6 +7105,8 @@ export class RenderManager implements Manager {
     drawNow(): void;
     // (undocumented)
     engine: Engine | WebGPUEngine;
+    // @internal
+    frameDrawn(): Promise<void>;
     getRenderStats(): {
         fps: number;
         activeMeshes: number;
@@ -6982,6 +7136,9 @@ export class RenderManager implements Manager {
         gpuBehind: number;
     };
 }
+
+// @public
+export type RenderPath = "objects" | "batched";
 
 // @public
 export interface RenderQuality {
@@ -7049,6 +7206,7 @@ export const RichTextStyle: z.ZodObject<{
     wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
     wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
     wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+    keepBlankLines: z.ZodOptional<z.ZodBoolean>;
     runAlign: z.ZodOptional<z.ZodEnum<{
         baseline: "baseline";
         hanging: "hanging";
@@ -7097,6 +7255,7 @@ export const RichTextStyle: z.ZodObject<{
         color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
         spacing: z.ZodNumber;
     }, z.core.$strict>>>;
+    table: z.ZodOptional<z.ZodString>;
     marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -7240,6 +7399,14 @@ export const RichTextStyle: z.ZodObject<{
 
 // @public (undocumented)
 export type RichTextStyleType = z.infer<typeof RichTextStyle>;
+
+// @public
+export interface RowCounts {
+    readonly batchedNodes: number;
+    readonly objectEdges: number;
+    readonly objectNodes: number;
+    readonly pulledEdges: number;
+}
 
 // @public (undocumented)
 export interface RunAlgorithmOptions extends QueueableOptions {
@@ -7394,6 +7561,8 @@ export class SelectionManager implements Manager {
     dispose(): void;
     getSelectedNode(): Node_2 | null;
     getSelectedNodes(): Node_2[];
+    // @internal
+    highlightedNodes(): IterableIterator<Node_2>;
     hover(id: NodeIdType | null): void;
     init(): Promise<void>;
     isHovered(id: NodeIdType): boolean;
@@ -7565,6 +7734,8 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+export { SourceExample }
+
 // @public
 export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 
@@ -7718,8 +7889,6 @@ export { SourceRuntimeReason }
 // @public
 export const SOURCES_MEMBER_VERSION = 2;
 
-export { SourceSample }
-
 export { SourceValidators }
 
 // @public
@@ -7857,11 +8026,15 @@ export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
+    // @internal
+    columnFraming(): ColumnFraming | undefined;
     deriving: () => boolean;
     disableZoomToFit(): void;
     dispose(): void;
     drawArrivedPaint(frameMs?: number): void;
     enableZoomToFit(explicit?: boolean): void;
+    // @internal
+    endsByRadius(edge: Edge): void;
     // @internal
     fitAnnotations: (() => void) | null;
     forceEdgeWalk(): void;
@@ -7869,12 +8042,14 @@ export class UpdateManager implements Manager {
     // @internal
     framing: GraphFraming | undefined;
     getRenderFrameCount(): number;
+    get graphIsDrawn(): boolean;
     holdSelectionFollow(following?: readonly Node_2[]): void;
     init(): Promise<void>;
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    get nodesScaledByView(): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;

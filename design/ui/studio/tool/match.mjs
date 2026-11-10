@@ -29,7 +29,20 @@ const CONTROL =
 // ones, controls before containers, containers before text, a text box's placeholder only when no
 // name matches; a name several controls share is refused with the list of them. With no control of
 // that name, a node whose label is drawn on the canvas, at its center.
+// A shared name is looked at again for up to SETTLE_MS and refused only if it stays shared: the page
+// can hold a second control of a name for a moment (a list or popover still closing as the next one
+// opens), and a single look refused a name a person saw once (1 replay in 12 of the same route).
+export const SETTLE_MS = 1000;
 export async function find(page, raw) {
+    let f = await findOnce(page, raw);
+    const until = Date.now() + SETTLE_MS;
+    while (f.miss?.startsWith("ambiguous: ") && Date.now() < until) {
+        await page.evaluate(() => new Promise((ok) => setTimeout(ok, 50))).catch(() => {});
+        f = await findOnce(page, raw);
+    }
+    return f;
+}
+async function findOnce(page, raw) {
     let name = raw,
         role = null,
         nth = 0;
@@ -190,8 +203,13 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // "Graph" was refused when recorded; the replay checks the name, never acts (real.mjs, run)
 export const resolvedLine = (name, desc) => `"${name}" was refused when recorded; it names ${desc} now; not done`;
 // The name a printed line refused, or null
+// (a replay's own "was refused when recorded" note counts: a route an earlier replay recorded holds it)
 export function refusedName(line) {
-    return line.match(/^ambiguous: "(.*?)" (?:matches \d+ controls|picks by position)/)?.[1] ?? null;
+    return (
+        line.match(/^ambiguous: "(.*?)" (?:matches \d+ controls|picks by position)/)?.[1] ??
+        line.match(/^"(.*)" was refused when recorded; it names .* now; not done$/)?.[1] ??
+        null
+    );
 }
 // One line's facts: `refused "<name>": <candidates, sorted>` for a refusal (in any of its wordings,
 // or a name a replay found resolved where the recording refused it); any other line as it is

@@ -1208,6 +1208,21 @@ class Result implements RunResult {
         return this.#summary;
     }
 
+    groupRanks(): ReadonlyMap<string, number> | undefined {
+        const { sizes } = this.graph;
+        if (this.shape !== "community" || !Array.isArray(sizes)) {
+            return undefined;
+        }
+
+        // `sizes` is largest first, ties broken as the summary and the legend break them.
+        this.#groupRanks ??= new Map(
+            (sizes as readonly { readonly group: unknown }[]).map((row, position) => [String(row.group), position + 1]),
+        );
+        return this.#groupRanks;
+    }
+
+    #groupRanks: ReadonlyMap<string, number> | undefined;
+
     /**
      * What this result means, in one sentence of plain language.
      * @param options - The locale and how technical to be.

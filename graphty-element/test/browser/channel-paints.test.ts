@@ -42,6 +42,10 @@
  * a published list naming the channel and saying plainly that nothing draws it. A consumer reads
  * that list instead of discovering the gap by writing a layer that does nothing. A channel in
  * that list which HAS started painting fails too, so the entry cannot outlive the gap.
+ *
+ * THE BATCHED PATH GETS A PASS OF ITS OWN, at the end of this file. The node prerequisites above
+ * write a label and a border, either of which keeps a row off the batch, so the measurements here
+ * are of object rows whatever the render path.
  */
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
@@ -51,6 +55,7 @@ import { UNPAINTED_CHANNELS } from "../../src/catalog/unreachable";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 import { CHANNEL_DESCRIPTORS, type ChannelDescriptor } from "../../src/session/styles/channels";
+import { pixelsOverBar, readCanvas } from "../helpers/whole-canvas";
 
 /** Two nodes and the edge between them: enough for every channel, small enough to be quick. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
@@ -113,6 +118,9 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     // a wave that has a swing of its own.
     "edge.waveAmplitude": { "edge.style": "sinewave" },
     "edge.wavePeriod": { "edge.style": "sinewave", "edge.waveAmplitude": 1 },
+    // A dash length shapes only a dashed line, a gap only a dashed or dotted one.
+    "edge.dashLength": { "edge.style": "dash" },
+    "edge.dashGap": { "edge.style": "dot" },
     "node.borderWaveAmplitude": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1 },
     "node.borderWavePeriod": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1, "node.borderWaveAmplitude": 1 },
     // Where runs of different sizes meet changes only a line holding runs of different sizes.
@@ -122,6 +130,18 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "node.shapeParts": { "node.shape": "polygon", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
     "node.shapeLines": { "node.shape": "rectangle", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
     "node.shapeLineWidth": { "node.shape": "rectangle", "node.borderColor": "#000000", "node.shapeLines": "-1,0 1,0" },
+    "node.shapeLineHaloColor": {
+        "node.shape": "rectangle",
+        "node.borderColor": "#000000",
+        "node.shapeLines": "-1,0 1,0",
+        "node.shapeLineHaloWidth": 0.2,
+    },
+    "node.shapeLineHaloWidth": {
+        "node.shape": "rectangle",
+        "node.borderColor": "#000000",
+        "node.shapeLines": "-1,0 1,0",
+        "node.shapeLineHaloColor": "#ff0000",
+    },
     // An external label's place and look change only an external label there is: its words switch it on.
     "node.xlabelStyle": { "node.xlabel": "OUT" },
     "node.xlabelLocation": { "node.xlabel": "OUT" },
@@ -208,6 +228,10 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             // and its table label rows of cells
             if (descriptor.channel === "node.labelTable") {
                 return '{"cellBorder":0.1,"rows":[{"cells":[{"lines":[{"text":"CHANNEL PROBE WORDS"}]}]}]}';
+            }
+            // an edge label's table, in the label's own units (its font size's)
+            if (descriptor.channel === "edge.labelTable") {
+                return '{"cellBorder":4,"cellPadding":8,"rows":[{"cells":[{"lines":[{"text":"CHANNEL PROBE WORDS"}]}]}]}';
             }
             return "CHANNEL PROBE WORDS";
         case "boolean":
@@ -510,4 +534,77 @@ describe("every channel the table says is renderable", () => {
 
         assert.deepEqual(silent, [], `These waivers have an empty reason, which is the whole entry.`);
     });
+});
+
+describe("every node channel on a batched row", () => {
+    /** What a batch draws itself: each of these must keep its rows batched and change the picture. */
+    const DRAWN_BY_THE_BATCH = new Set([
+        "node.color",
+        "node.flat",
+        "node.meshDetail",
+        "node.shape",
+        "node.size",
+        "node.unlit",
+        "node.visible",
+        "node.wireframe",
+    ]);
+
+    let container: HTMLElement;
+    let graph: Graph;
+    let session: GraphSession;
+
+    beforeAll(async () => {
+        container = document.createElement("div");
+        container.style.width = `${String(WIDTH)}px`;
+        container.style.height = `${String(HEIGHT)}px`;
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        graph.setRenderPath("batched");
+        await graph.init();
+        session = graph.getSession();
+
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await graph.setLayout("circular", { scale: 0.2 });
+        await operationQueueOf(graph).waitForCompletion();
+    });
+
+    afterAll(() => {
+        graph.dispose();
+        container.remove();
+    });
+
+    // Every channel, not only the list: one that joins the batch later is compared with no edit here.
+    for (const descriptor of Object.values(CHANNEL_DESCRIPTORS).filter(
+        (entry) => entry.target === "node" && entry.renderable,
+    )) {
+        it(`draws what the objects path draws: ${descriptor.channel}`, async () => {
+            const before = await readCanvas(graph);
+            assert.equal(graph.rowCounts.batchedNodes, NODES.length, "the last channel left its rows off the batch");
+
+            const added = await session.styles.add({
+                name: `probe ${descriptor.channel}`,
+                target: "node",
+                selector: { match: "everything" },
+                set: { [descriptor.channel]: probeFor(descriptor) },
+            });
+            const batched = await readCanvas(graph);
+            const { batchedNodes } = graph.rowCounts;
+
+            graph.setRenderPath("objects");
+            const objects = await readCanvas(graph);
+            graph.setRenderPath("batched");
+
+            await session.styles.remove(added.id);
+            const restored = await readCanvas(graph);
+
+            if (DRAWN_BY_THE_BATCH.has(descriptor.channel)) {
+                assert.equal(batchedNodes, NODES.length, `${descriptor.channel} took its rows off the batch`);
+                assert.isAbove(pixelsOverBar(before, batched), 0, `${descriptor.channel} changed nothing`);
+            }
+
+            assert.equal(pixelsOverBar(batched, objects), 0, `${descriptor.channel} differs between the paths`);
+            assert.equal(pixelsOverBar(before, restored), 0, `removing ${descriptor.channel} left the picture changed`);
+        });
+    }
 });

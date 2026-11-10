@@ -159,6 +159,28 @@ describe("styles.add refuses a use the catalog does not draw", () => {
         session.dispose();
     });
 
+    it("refuses a list written as an object, and publishes the code for a run nobody awaits", async () => {
+        const session = await sessionOf();
+        const told: unknown[] = [];
+        session.on("style:refused", (refusal) => told.push(refusal));
+        const run = session.styles.add({
+            name: "Old shape",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shaders": { gemstone: {} } as unknown as ShaderUse[] },
+        });
+        const problem = await run.then(
+            () => null,
+            (error: unknown) => error,
+        );
+
+        assert.isTrue(isGraphtyError(problem) && problem.code === "E_BAD_LAYER");
+        assert.deepStrictEqual(told, [
+            { problems: [{ code: "shader.uses-not-a-list", params: { channel: "node.shaders", found: "object" } }] },
+        ]);
+        session.dispose();
+    });
+
     it("accepts an empty list, which adds nothing to what lies beneath", async () => {
         const session = await sessionOf();
         await session.styles.add(everything("Marbles", { "node.shaders": [{ shader: "acme/marble" }] }));

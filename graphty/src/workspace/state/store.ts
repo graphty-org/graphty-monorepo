@@ -15,6 +15,7 @@ import type {
     LoadDraft,
     NoteTargetInput,
     SourceKey,
+    UnionLeaf,
 } from "@graphty/graphty-element/session";
 import { type ReactNode, useSyncExternalStore } from "react";
 
@@ -95,6 +96,30 @@ export interface WorkspaceState {
      */
     readonly dockIssue: string | null;
     /**
+     * The selection open in an editor (a style layer's Which nodes / Which edges, or a filter
+     * card), as graphty-element holds it, and the group a filter's count chip narrowed the matches
+     * strip to; null while none is open. The canvas key's preview reads it; the data table never does.
+     */
+    readonly editingSelection: {
+        /** The editor that holds the slot: only it replaces or clears it. */
+        readonly owner: string;
+        readonly rule: UnionLeaf;
+        readonly branch: string | null;
+        /** What the canvas key's preview is titled by: "Which nodes", or a filter card's name. */
+        readonly title: string;
+    } | null;
+    /**
+     * The selection editor whose workspace is open over the canvas column
+     * (design/ui/selection-groups/spec.md, section 3.0): one at a time, so opening another
+     * switches it. Null while it is closed.
+     */
+    readonly selectionWorkspace: {
+        /** The editor that opened it: only it draws the workspace, and only it clears it. */
+        readonly owner: string;
+        /** Its host: a style layer's selector covers the left panel, a filter card the inspector. */
+        readonly host: "selector" | "filter";
+    } | null;
+    /**
      * A new filter card to open once the Filters section shows it: on a field
      * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the toolbar's
      * Filters); cleared by the section. Null when none is asked for.
@@ -131,11 +156,15 @@ export interface WorkspaceState {
     readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
     /** The Sources row the reader picked, kept while they visit another place; null: the newest load. */
     readonly pickedSource: SourceKey | null;
+    /** The Data place's tab: what was loaded or what was calculated; kept per project, Loaded first. */
+    readonly dataTab: "loaded" | "calculated";
     /**
      * Whether the timeline dock is shown under the canvas while a time field is set;
      * `timeline.toggle` (T) flips it. Shut until the reader asks: the canvas keeps its size.
      */
     readonly timelineOpen: boolean;
+    /** Whether the phone's Time window sheet is up over its dock. */
+    readonly timeSheetOpen: boolean;
     /**
      * Whether the Filters section holds the Time window card: added from Filters "+", dropped by
      * its remove button. A window put on from elsewhere (the dock, a key) shows the card too.
@@ -165,6 +194,11 @@ export interface WorkspaceState {
      */
     readonly textNext: Channel | null;
     /**
+     * Which Shaders "+" should take focus next, set by a notice's Show in Style (node, edge) or by
+     * the graph's Background section, and cleared by the section that takes it.
+     */
+    readonly shaderNext: "node" | "edge" | "background" | null;
+    /**
      * Graph settings, Labels: move a label off the nodes and edges it would cover, and with the
      * overlap rule on, hide one with no place clear of labels and nodes. On by default: without it a
      * name is drawn across the nodes in front of and behind it, which the overlap rule alone (labels
@@ -190,6 +224,8 @@ export interface WorkspaceState {
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
     readonly serverKind: string | null;
+    /** Whether the server form opened the project it sits in (the start screen's Open network data). */
+    readonly serverFromStart: boolean;
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
@@ -263,6 +299,8 @@ const INITIAL: WorkspaceState = {
     dockTab: "nodes",
     dockColumn: null,
     dockIssue: null,
+    editingSelection: null,
+    selectionWorkspace: null,
     filterDraft: null,
     fieldsEntry: null,
     dockMaximized: false,
@@ -270,13 +308,16 @@ const INITIAL: WorkspaceState = {
     editingJoin: null,
     ends: null,
     pickedSource: null,
+    dataTab: "loaded",
     timelineOpen: false,
+    timeSheetOpen: false,
     timeWindowCard: false,
     legendShown: true,
     keyHasEntries: false,
     legendAsked: false,
     allLabelsShown: false,
     textNext: null,
+    shaderNext: null,
     labelsAvoid: true,
     sameSizeAtAnyDepth: null,
     lighting: "studio",
@@ -284,6 +325,7 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     exportSource: null,
     serverKind: null,
+    serverFromStart: false,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,
@@ -440,7 +482,7 @@ export function tabFor(kind: InspectedKind | undefined, remembered: WorkspaceSta
 const PLACE_ITEM = "app.graphty.workspace.place";
 
 /** The part of the chrome a reload of this tab puts back: the page, the place, the tab and the row. */
-type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | "styleSide">;
+type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | "styleSide" | "dataTab">;
 
 /**
  * Keeps the reader's place in this tab's session storage while a project is open, so a reload
@@ -452,8 +494,8 @@ type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | 
 export function keepPlace(store: WorkspaceStore): () => void {
     let last = "";
     const write = (): void => {
-        const { project, page, place, inspected, tabs, styleSide } = store.get();
-        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide });
+        const { project, page, place, inspected, tabs, styleSide, dataTab } = store.get();
+        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide, dataTab });
         if (text === last) {
             return;
         }

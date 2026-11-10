@@ -100,7 +100,7 @@ export function textMatcher(
  * @returns The expression.
  * @throws A `GraphtyError` coded `E_BAD_COMMAND` naming the parse error.
  */
-export function compilePattern(text: string, flags = ""): RegExp {
+function compilePattern(text: string, flags = ""): RegExp {
     try {
         return new RegExp(text, flags);
     } catch (error) {

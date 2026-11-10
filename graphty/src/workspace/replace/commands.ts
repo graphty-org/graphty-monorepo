@@ -18,6 +18,7 @@ import { type CommandContext, defineRegistration } from "../commands/registry";
 import { sourceName } from "../data-place/words";
 import { type Incoming, incomingFiles, pickFiles } from "../start/open";
 import type { WorkspaceStore } from "../state/store";
+import { panelsInView } from "../time/timeActions";
 import { ReplaceReceipt } from "./ReplaceReceipt";
 import { countWords, unboundWords } from "./words";
 
@@ -29,11 +30,11 @@ import { countWords, unboundWords } from "./words";
 export function showUnbound(workspace: WorkspaceStore, fact: CodedFact<ReplaceUnboundCode>): void {
     const { layer, join } = fact.params as { layer?: unknown; join?: unknown };
     if (fact.code === "style-layer" && typeof layer === "string") {
-        workspace.set({ place: "graph", inspected: { kind: "layer-row", id: layer }, notice: null });
+        workspace.set({ place: "graph", inspected: { kind: "layer-row", id: layer }, notice: null, ...panelsInView() });
     } else if (fact.code === "join" && typeof join === "string") {
         workspace.set({ editingJoin: join, joining: null, notice: null });
     } else {
-        workspace.set({ place: "data", notice: null });
+        workspace.set({ place: "data", notice: null, ...panelsInView() });
     }
 }
 

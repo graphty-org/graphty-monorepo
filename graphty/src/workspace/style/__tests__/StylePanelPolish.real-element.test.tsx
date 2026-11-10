@@ -68,29 +68,33 @@ async function clickRow(name: string, { shift = false }: { shift?: boolean } = {
 }
 
 describe("the Style panel", () => {
-    it("never narrows the base layer: Everything reads all its nodes and offers no condition", async () => {
+    it("edits Everything's selection like any layer's", async () => {
         await openScene();
         await clickRow("Everything");
-        const picker = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-testid=which-picker][data-side=node]");
-            assert.isNotNull(found);
-            return found;
-        });
-        if (picker === null) {
-            throw new Error("no Which nodes");
-        }
-        assert.strictEqual(picker.dataset.base, "", "the base layer's line");
-        assert.strictEqual(
-            picker.textContent,
-            "Everything styles all 77 nodes: it is the base layer, under every other layer.",
-            "plain text that says why it holds every node",
-        );
-        assert.notInclude(picker.textContent ?? "", "add a condition");
-        assert.isNull(within(picker).queryByRole("button"), "nothing opens it");
-        assert.isNull(screen.queryByRole("button", { name: "Add a condition" }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+        const done = await screen.findByRole("button", { name: "Done" });
+        assert.isNotNull(done.closest(".sel-ws"), "it opens in the selection editor");
+        assert.isNotNull(screen.queryByRole("button", { name: "Value" }), "a step can be added");
     });
 
-    it("says All N nodes on any other layer as a plain line, not a warning", async () => {
+    it("moves Everything like any row, within its pin", async () => {
+        const { session } = await openScene();
+        const other = await session.styles.addRow({ name: "Low", target: "both", selector: { match: "everything" } });
+        await session.styles.pinRow(other.id, "bottom");
+        await session.styles.settled();
+        const place = (): number => session.styles.tree().findIndex((row) => row.name === "Everything");
+        const from = place();
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Everything, / }), {
+            button: "right",
+        });
+        await userEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Move up/ }));
+        await waitFor(() => {
+            assert.strictEqual(place(), from + 1, "one place up its list");
+        });
+    });
+
+    it("reads every node on any other layer as its count, with no sentence and no warning", async () => {
         const { session } = await openScene();
         await session.styles.add({
             name: "Plain",
@@ -100,10 +104,11 @@ describe("the Style panel", () => {
         });
         await session.styles.settled();
         await clickRow("Plain");
-        const row = await screen.findByRole("button", { name: /^Which nodes, / });
-        const hint = row.querySelector<HTMLElement>(".ws-which-hint");
-        assert.isNotNull(hint);
-        assert.strictEqual(hint?.textContent, "All 77 nodes: add a condition to narrow");
+        const row = await screen.findByRole("treeitem", { name: "Which nodes" });
+        // At rest the layer's row and the canvas key say its count; the outline does not say it again.
+        assert.strictEqual(row.getAttribute("aria-label"), "Which nodes");
+        assert.isNull(row.querySelector(".sel-count"), "no count at rest");
+        assert.notInclude(row.textContent ?? "", "add a condition");
         assert.isNull(document.querySelector("[data-warn]"), "no warning outline");
     });
 
@@ -159,23 +164,17 @@ describe("the Style panel", () => {
         assert.strictEqual((await screen.findByRole("tooltip", {})).textContent, reason);
     });
 
-    it("draws a reason several menu rows share once", async () => {
+    it("offers Everything's menu as any row's: it moves, unpins and deletes", async () => {
         await openScene();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Everything, / }), {
-            button: "right",
-        });
+        const everything = await within(tree).findByRole("treeitem", { name: /^Everything, / });
+        await userEvent.click(everything, { button: "right" });
         const menu = await screen.findByRole("menu");
-        const reason = "Everything holds the base look and stays at the bottom";
-        const drawn = within(menu)
-            .getAllByText(reason)
-            .filter((each) => each.getBoundingClientRect().width > 1);
-        assert.strictEqual(drawn.length, 1, "drawn under one row");
-        // Every row it keeps from running still carries it for a screen reader.
-        assert.isAtLeast(within(menu).getAllByText(reason).length, 2);
-        // Delete says why it cannot run, in words of its own, drawn under it.
-        const kept = within(menu).getByText("Everything holds the base look, so it cannot be deleted");
-        assert.isAbove(kept.getBoundingClientRect().width, 1, "Delete's reason is drawn");
+        for (const name of ["Delete", "Pin to top", "Unpin", "Move to folder"]) {
+            const item = within(menu).getByRole("menuitem", { name: new RegExp(`^${name}`) });
+            assert.notStrictEqual(item.getAttribute("aria-disabled"), "true", `${name} can be used`);
+        }
+        assert.isNull(within(menu).queryByText(/holds the base look/), "no reason keeps it apart");
     });
 
     it("says how many layers several are once, in the header", async () => {

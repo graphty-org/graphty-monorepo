@@ -150,6 +150,11 @@ afterAll(() => {
 // Cleanup after each test
 afterEach(async (context) => {
     const leakedEngines = releaseLeakedEngines(enginesBeforeTest, elementsBeforeTest);
+    // Let go of them: kept to the next test's beforeEach, they would hold a graph a file's
+    // afterAll removes -- its whole graph, 2.4 GB at 1,000,000 edges -- through the next
+    // beforeAll, so a second big graph in the same page ran out of memory (#6028).
+    enginesBeforeTest = new Set();
+    elementsBeforeTest = new Set();
 
     // Strict state's full sweep: no typed array state kept was written in place during the test.
     // Registered by src/session/project/strict.ts once a test has loaded it.

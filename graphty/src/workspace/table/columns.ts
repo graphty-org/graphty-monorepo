@@ -43,6 +43,8 @@ export interface TableColumnChoice {
     readonly grouping?: boolean;
     /** The attribute's name, for an attribute column. */
     readonly attribute?: string;
+    /** Read from the graph's structure (`attribute` holds its path), not from the record. */
+    readonly structure?: boolean;
     /** The run's id, for a result column. */
     readonly run?: string;
     /** The element's column, for an attribute column: what Type, Role, Rename and Hide change. */
@@ -155,7 +157,8 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
         });
     const results = session.data.resultColumns(kind).flatMap((column): TableColumnChoice[] => {
         const run = session.runs.get(column.run);
-        if (run === undefined) {
+        // A run cancelled or failed holds no values: it draws no empty column.
+        if (run === undefined || run.status === "canceled" || run.status === "failed") {
             return [];
         }
         return [

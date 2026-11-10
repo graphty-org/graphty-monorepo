@@ -178,6 +178,7 @@ export interface Layer {
      * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
      * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
      * bag is never shared with them. Never used to paint.
+     * @experimental file-styles
      */
     readonly fileStyle?: FileStyleOrigin;
 }
@@ -219,7 +220,9 @@ export interface LayerProblem {
     readonly candidates?: readonly string[];
     /**
      * A refused shader use, as a code and its values: `shader.place-unsupported`
-     * `{ shader, place, allowed }` or `shader.target-mismatch` `{ expected, found }`.
+     * `{ shader, place, allowed }`, `shader.target-mismatch` `{ expected, found }`, or
+     * `shader.uses-not-a-list` `{ channel, found }` for a shader list written as something else
+     * (`found` is the `typeof` it was written as, or `"null"`).
      * @since 3.36.0
      */
     readonly fact?: ShaderProblem;
@@ -319,6 +322,11 @@ export interface LayerCheckOptions {
      */
     readonly admitScope?: (scope: unknown) => unknown;
     /**
+     * A `{ match: "rule" }` selector's rule as the layer stores it: every union leaf given its
+     * branch and step ids and branch colors. Absent, the rule is stored as given.
+     */
+    readonly admitRule?: (rule: unknown) => unknown;
+    /**
      * Whether the layer may write no channel: an edit asked to keep a layer whose last value it
      * takes away, which then stays in place painting nothing, as a starting row that writes
      * nothing does.
@@ -417,6 +425,11 @@ export interface RepaintContext {
      * @param progress - What changed.
      */
     report(progress: RunProgressReport): void;
+    /**
+     * True when the elements named are all that changed, so the renderer places what is painted
+     * and visits nothing else: a time window's slide.
+     */
+    readonly rowsOnly?: boolean;
 }
 
 /** How much a repaint actually painted, which is what the change announcement carries. */
@@ -1319,7 +1332,18 @@ function checkSelector(
  * @returns The specification to check and build from.
  */
 function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
-    const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
+    const selector = spec.selector as { match?: unknown; of?: unknown; where?: unknown } | undefined;
+    if (options.admitRule !== undefined && typeof selector === "object" && selector?.match === "rule") {
+        try {
+            const where = options.admitRule(selector.where);
+            return where === selector.where ? spec : ({ ...spec, selector: { ...selector, where } } as LayerSpec);
+        } catch (error) {
+            report(log, problemFrom(error, "selector"));
+
+            return spec;
+        }
+    }
+
     if (options.admitScope === undefined || typeof selector !== "object" || selector?.match !== "member") {
         return spec;
     }
@@ -1686,6 +1710,10 @@ function checkShaderValue(
             code: "E_BAD_LAYER",
             message: `${descriptor.plainName} takes a list of shader uses, such as [{ shader: "lock-on-reticle" }].`,
             path,
+            fact: {
+                code: "shader.uses-not-a-list",
+                params: { channel: descriptor.channel, found: value === null ? "null" : typeof value },
+            },
         });
 
         return;

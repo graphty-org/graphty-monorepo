@@ -15,9 +15,13 @@ import { composeStories } from "@storybook/react";
 import React from "react";
 import { afterEach, assert, describe, it } from "vitest";
 
+import { withFeatures } from "../../test/features";
 import { AllProviders } from "../../test/test-providers";
 import * as graphPlaceStories from "../graph-place/GraphPlace.stories";
 import * as stylePanelStories from "../style/StylePanel.stories";
+
+// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+withFeatures([]);
 
 /** The app's providers, as the Storybook preview's decorator gives them. */
 const annotations = {
@@ -72,18 +76,22 @@ describe("a story is its picture when its play ends", () => {
         assert.isNotNull(root.querySelector(".ws-find-example"), root.querySelector(".ws-find")?.textContent ?? "");
     });
 
-    it("FootballConference draws the new layer's Which nodes cards open, rendered once or again (#3521)", async () => {
+    it("FootballConference draws the new layer's Which nodes the same, rendered once or again (#3521)", async () => {
         // The screenshot step renders a story again in the page its test ran in, once per mode.
+        // A new layer's Which nodes is its selection outline, drawn the same both times.
         const root = await runStory(FootballConference);
+        const drawn: string[] = [];
         for (const render of ["first", "second"]) {
             if (render === "second") {
                 await FootballConference.run({ canvasElement: root });
             }
             const picker = document.querySelector('[data-testid="which-picker"][data-side="node"]');
             assert.isNotNull(
-                picker?.querySelector(".ws-which-open"),
+                picker?.querySelector(".sel-rest"),
                 `${render} render: ${picker?.textContent ?? "no picker"}`,
             );
+            drawn.push(picker?.textContent ?? "");
         }
+        assert.strictEqual(drawn[1], drawn[0], "the second render draws what the first did");
     });
 });

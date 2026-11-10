@@ -17,6 +17,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
@@ -173,6 +174,8 @@ describe("focus after adding a line or a card", () => {
         });
         await session.styles.settled();
         await openStyle("Names");
+        // The cards of two selected layers: one alone opens the selection editor.
+        await selectWithTwin(session, "Names");
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));

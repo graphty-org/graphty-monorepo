@@ -343,7 +343,7 @@ interface OptionWords {
 const SAMPLE_SIZE: OptionWords = { label: "Sample size", empty: "Every node" };
 
 /**
- * The app's words for the key options (the ones drawn outside the Advanced fold), by
+ * The app's words for the key options (the ones not marked advanced), by
  * `<algorithm key>.<option name>` (a test holds that every key option the element ships has
  * words here).
  */
@@ -599,7 +599,7 @@ function hopWords(hops: number): string {
  * @param run - the path run.
  * @returns the words, or undefined.
  */
-export function pathLengthWords(run: Pick<Run, "result" | "caveats">): string | undefined {
+function pathLengthWords(run: Pick<Run, "result" | "caveats">): string | undefined {
     const { hops, cost } = run.result?.graph ?? {};
     const { weight } = run.caveats;
     if (weight?.meaning === "distance" && typeof cost === "number") {

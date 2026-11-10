@@ -112,6 +112,7 @@ import {
     NO_ISSUE_STATE,
 } from "./issues";
 import { frozen, type JoinGraph, type JoinPlan, joinReport, planJoin } from "./join";
+import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
@@ -160,8 +161,9 @@ import type {
     SourceRefreshReport,
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
+import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
-import { STRUCTURE_VALUES } from "./styles/sources";
+import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
 import type {
     ColumnHistogram,
     ColumnRole,
@@ -284,7 +286,12 @@ interface PageSources {
      * @param target - Nodes or edges
      * @returns The test
      */
-    textTest(text: string, mode: SelectionTextMode, target: "node" | "edge"): (index: number) => boolean;
+    textTest(
+        text: string,
+        mode: SelectionTextMode,
+        target: "node" | "edge",
+        only?: readonly Path[],
+    ): (index: number) => boolean;
     /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
@@ -317,6 +324,16 @@ interface PageSources {
      * @returns true when it is
      */
     timeline?(): boolean;
+    /**
+     * Whether the network-data experiment is on; absent reads on.
+     * @returns true when it is
+     */
+    network?(): boolean;
+    /**
+     * Whether the file styles experiment is on; absent reads on.
+     * @returns true when it is
+     */
+    fileStyles?(): boolean;
     /**
      * The visible masks, for statistics over the visible graph.
      * @returns The node and edge masks, 1 for visible.
@@ -742,6 +759,8 @@ export class SessionData implements SessionDataApi {
     private readonly neighborLists: RevisionCache<NeighborList>;
     /** The attribute walk, for the current data revision. */
     private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
+    /** Whether an edge column of a name exists, for the current data revision. */
+    private readonly edgeColumns: RevisionCache<boolean>;
     /** The descriptors with their declarations and roles laid over, and what they were laid from. */
     private attributeOverlay: {
         readonly described: readonly AttributeDescriptor[];
@@ -829,6 +848,7 @@ export class SessionData implements SessionDataApi {
         this.orders = new RevisionCache(() => pages.revision());
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
         this.attributeCache = new RevisionCache(() => pages.dataRevision());
+        this.edgeColumns = new RevisionCache(() => pages.dataRevision());
     }
 
     /**
@@ -931,6 +951,15 @@ export class SessionData implements SessionDataApi {
      */
     async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
+        if (source.source !== undefined) {
+            this.requireNetwork("import");
+        }
+
+        // Refused before anything is read, a network source's fetch included.
+        if (asksFileStyles({ ...options, source }) && this.pages.fileStyles?.() === false) {
+            throw featureOff("file-styles", "styles");
+        }
+
         // A network source's read honours the signal, so its wait for its turn does too.
         const turn = this.loadLine.join(source.source === undefined ? undefined : options.signal);
         try {
@@ -1225,6 +1254,11 @@ export class SessionData implements SessionDataApi {
      */
     testSource(source: SourceInput, options: SourceLoadOptions = {}): Promise<SourceProbe> {
         this.requireLive("testSource");
+        const off = this.networkOff("testSource");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.testSource(host, source, options));
     }
@@ -1242,6 +1276,11 @@ export class SessionData implements SessionDataApi {
         options: SourceLoadOptions = {},
     ): Promise<SourceListing> {
         this.requireLive("listSource");
+        const off = this.networkOff("listSource");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.listSource(host, source, query, options));
     }
@@ -1254,6 +1293,11 @@ export class SessionData implements SessionDataApi {
      */
     expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<SourceExpandResult> {
         this.requireLive("expand");
+        const off = this.networkOff("expand");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         // In line, as a load: its rows are dispatched after every load asked for before it, and a
         // load asked for after it waits for all of them, so it never adds to the graph that load
         // replaced (issue #3382).
@@ -1300,6 +1344,11 @@ export class SessionData implements SessionDataApi {
      */
     collapse(id: NodeId): Promise<CollapseResult> {
         this.requireLive("collapse");
+        const off = this.networkOff("collapse");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         // In line, as an edit: it removes what the graph holds once the loads ahead of it landed.
         // A clear asked for while it waits cancels it: it removes nothing, and the clear removes all.
         return this.inLine(
@@ -1321,6 +1370,11 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceMoreOptions = {}): Promise<void> {
         this.requireLive("more");
+        const off = this.networkOff("more");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         return this.inLine(options.signal, (host) =>
             import("./sources/load").then((module) => module.more(host, options)),
         );
@@ -1334,6 +1388,11 @@ export class SessionData implements SessionDataApi {
      */
     previewSource(source: SourceInput, options: SourcePreviewOptions = {}): Promise<SourcePreview> {
         this.requireLive("previewSource");
+        const off = this.networkOff("previewSource");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.previewSource(host, source, options));
     }
@@ -1346,6 +1405,11 @@ export class SessionData implements SessionDataApi {
      */
     checkSource(load: string, options: SourceLoadOptions = {}): Promise<SourceCheck> {
         this.requireLive("checkSource");
+        const off = this.networkOff("checkSource");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.checkSource(host, load, options));
     }
@@ -1358,21 +1422,28 @@ export class SessionData implements SessionDataApi {
      */
     refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
+        const off = this.networkOff("refresh");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.refreshSource(host, load, options));
     }
 
     /**
-     * Load a public sample a registered source lists, as one undoable step.
-     * @param id - The sample's id.
+     * Load one of a source's examples (its descriptor's `examples`), as one undoable step.
+     * @param source - The source id.
+     * @param example - The example's id within that source.
      * @param options - Anything `import` takes.
-     * @returns Settles once the sample is in the graph.
+     * @returns Settles once the example is in the graph.
      */
-    async loadSample(id: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
-        this.requireLive("loadSample");
+    async loadExample(source: string, example: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
+        this.requireLive("loadExample");
+        this.requireNetwork("loadExample");
         const turn = this.loadLine.join(options.signal);
         try {
-            await (await import("./sources/load")).loadSample(this.hostInTurn(turn), id, options);
+            await (await import("./sources/load")).loadExample(this.hostInTurn(turn), source, example, options);
         } finally {
             turn.leave();
         }
@@ -1409,7 +1480,7 @@ export class SessionData implements SessionDataApi {
      * @returns One entry per waiting load.
      */
     pendingSourceLoads(): readonly PendingSourceLoad[] {
-        return pendingSourceLoads(this.sourceHost());
+        return this.networkOn ? pendingSourceLoads(this.sourceHost()) : [];
     }
 
     /**
@@ -1420,6 +1491,11 @@ export class SessionData implements SessionDataApi {
      */
     runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("runPendingSourceLoad");
+        const off = this.networkOff("runPendingSourceLoad");
+        if (off !== null) {
+            return Promise.reject(off);
+        }
+
         return this.inLine(options.signal, (host) =>
             import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options)),
         );
@@ -1432,7 +1508,12 @@ export class SessionData implements SessionDataApi {
      * @returns the member and its ids
      */
     sourceFile(): SourcesWrite {
-        const write = writeSourcesMember({ sources: this.sources(), loads: this.loads(), facts: this.loadFacts });
+        const write = writeSourcesMember({
+            sources: this.sources(),
+            loads: this.loads(),
+            facts: this.loadFacts,
+            waiting: [...this.pendingLoads],
+        });
         const skipped = this.skippedMember;
         // A member the file held and this release skipped goes back in place while the loads are
         // the ones the file opened with.
@@ -1445,11 +1526,14 @@ export class SessionData implements SessionDataApi {
 
     /**
      * Take what an opened project's `graphty-sources` member held: its network loads are recorded
-     * and wait, fetching nothing, until `runPendingSourceLoad`. Internal: the project file calls it
-     * once the project's graph is in.
+     * and wait, fetching nothing, until `runPendingSourceLoad`. A project file cannot approve its
+     * own fetches, so every load of an opened file waits. The reader's own work coming back (an
+     * autosave, `project.open`'s `ownWork`): only the loads still waiting when it was written wait again.
+     * Internal: the project file calls it once the project's graph is in.
      * @param read - what the member held, or undefined when the file holds none
+     * @param autosave - whether the file is the reader's own work (`ProjectOpenOptions.ownWork`)
      */
-    restoreSourceMember(read: SourcesRead | undefined): void {
+    restoreSourceMember(read: SourcesRead | undefined, autosave = false): void {
         this.pendingLoads.clear();
         this.loadFacts.clear();
         this.skippedMember =
@@ -1461,8 +1545,12 @@ export class SessionData implements SessionDataApi {
             this.loadFacts.set(key, facts);
         }
 
+        // A member with no `waiting` list was written before the list existed: everything waits.
+        const waiting = read?.waiting === undefined ? null : new Set(read.waiting);
         for (const record of this.ledger.loads()) {
-            this.pendingLoads.add(record.key);
+            if (!autosave || waiting === null || waiting.has(record.key)) {
+                this.pendingLoads.add(record.key);
+            }
         }
     }
 
@@ -1638,8 +1726,14 @@ export class SessionData implements SessionDataApi {
     ): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
-        const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
-        const styles = await draftStyles(read, options.signal);
+        const read = await readWithProgress(
+            source,
+            options.signal,
+            (change) => this.writes.progress?.(change),
+            this.pages.timeline?.() === true,
+        );
+        // With the file styles experiment off a draft does not say what styles the file carries.
+        const styles = this.pages.fileStyles?.() === false ? null : await draftStyles(read, options.signal);
         const draft = new Draft(
             read,
             {
@@ -2206,6 +2300,19 @@ export class SessionData implements SessionDataApi {
         const touching = target === "edge" ? options.touching : undefined;
         const { sort } = options;
         const matching = matchingOf(options.matching);
+        // By name only: the id, and for a node the label column data.name reads.
+        const labelPath = this.readConfig().knownFields.nodeLabelPath;
+        let names: readonly Path[] | undefined;
+        if (options.matching?.names === true) {
+            // A node's name is its label column; a graph with none names its nodes in its other
+            // columns (a "name" column the table shows), so every searchable value is read, as
+            // without `names`. An edge is named by its id and its ends' ids.
+            if (target === "edge") {
+                names = [];
+            } else if (labelPath !== null) {
+                names = [labelPath];
+            }
+        }
         const { issue } = options;
         if (
             scope === undefined &&
@@ -2225,7 +2332,7 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey]);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey, names]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -2241,7 +2348,8 @@ export class SessionData implements SessionDataApi {
                                         )
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
-            const text = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
+            const text =
+                matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target, names);
             const flagged = issue === undefined ? null : this.issueRows(snapshot, target, issue);
             const matches =
                 flagged === null ? text : (index: number): boolean => flagged(index) && (text === null || text(index));
@@ -2311,7 +2419,11 @@ export class SessionData implements SessionDataApi {
     ): unknown {
         if (target === "node") {
             const id = snapshot.ids.idOf(index);
-            return key === "id" ? id : this.records?.nodeAttributes(index, id)?.[key];
+            if (key === "id") {
+                return id;
+            }
+            // A structure path (`graphty.degree`) sorts by the snapshot's own value.
+            return structureValuesOf(snapshot, key)?.[index] ?? this.records?.nodeAttributes(index, id)?.[key];
         }
 
         switch (key) {
@@ -3120,7 +3232,7 @@ export class SessionData implements SessionDataApi {
      */
     async matchesSource(source: DataSourceInput): Promise<SourceKey | null> {
         this.requireLive("matchesSource");
-        const read = await readWithProgress(source, undefined, () => undefined);
+        const read = await readWithProgress(source, undefined, () => undefined, this.pages.timeline?.() === true);
         if (read.tables.every((held) => held.table.fixed)) {
             return null;
         }
@@ -3643,8 +3755,19 @@ export class SessionData implements SessionDataApi {
      */
     loadedWeight(): LoadedWeight | null {
         const { edgeWeightPath, edgeWeightMeaning } = this.readConfig().knownFields;
+        // Whether the designated column is an edge column: the first edge holding it answers, with
+        // no description of every record (a run asks on every start).
         const attribute = designatedWeight(edgeWeightPath, this.lastImport()?.weights.attribute ?? null, (name) =>
-            this.attributes().some((c) => c.kind === "edge" && c.name === name),
+            this.edgeColumns.get(name, () => {
+                const { edgeCount } = this.current();
+                for (let index = 0; index < edgeCount; index++) {
+                    const record = this.records?.edgeAttributes(index);
+                    if (record !== undefined && Object.hasOwn(record, name)) {
+                        return true;
+                    }
+                }
+                return false;
+            }),
         );
         return attribute === null ? null : Object.freeze({ attribute, meaning: edgeWeightMeaning });
     }
@@ -3665,6 +3788,34 @@ export class SessionData implements SessionDataApi {
      */
     private get timelineOn(): boolean {
         return this.pages.timeline?.() !== false;
+    }
+
+    /**
+     * Whether the network-data experiment is on; a session built without the switch reads on.
+     * @returns True when it is on.
+     */
+    private get networkOn(): boolean {
+        return this.pages.network?.() !== false;
+    }
+
+    /**
+     * The refusal of a network-source verb while the network-data experiment is off.
+     * @param verb - The verb.
+     * @returns `E_FEATURE_OFF` naming the network-data experiment and `data.<verb>`, or null when it is on.
+     */
+    private networkOff(verb: string): GraphtyError | null {
+        return this.networkOn ? null : featureOff("network-data", `data.${verb}`);
+    }
+
+    /**
+     * Throw the refusal of a network-source verb while the network-data experiment is off.
+     * @param verb - The verb.
+     */
+    private requireNetwork(verb: string): void {
+        const off = this.networkOff(verb);
+        if (off !== null) {
+            throw off;
+        }
     }
 
     /**
@@ -3751,6 +3902,18 @@ export class SessionData implements SessionDataApi {
         return this.statistics().directedness === "directed"
             ? STRUCTURE_VALUES
             : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
+    }
+
+    /**
+     * One node's structure value, as a column of a table reads it.
+     * @param id - The node.
+     * @param path - A path {@link structureValues} lists (`graphty.degree`).
+     * @returns The value, or undefined for an unknown node or a path that is no structure value.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    structureValue(id: NodeId, path: Path): number | undefined {
+        const snapshot = this.current();
+        return snapshot.ids.has(id) ? structureValuesOf(snapshot, path)?.[snapshot.ids.indexOf(id)] : undefined;
     }
 
     /**
@@ -4422,9 +4585,16 @@ export class SessionData implements SessionDataApi {
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
         const counts = new Map<ColumnScalar, number>();
         let missing = 0;
+        // Degree, in-degree and out-degree are read from the snapshot, not a column.
+        const structure = kind === "node" ? structureValuesOf(snapshot, path) : undefined;
         for (let index = 0; index < total; index++) {
-            const value =
-                path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
+            let value: unknown;
+            if (structure !== undefined) {
+                value = structure[index];
+            } else {
+                value =
+                    path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
+            }
             if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
                 counts.set(value, (counts.get(value) ?? 0) + 1);
             } else {
@@ -5295,15 +5465,18 @@ function withoutEndpointKeys(record: SessionAttributes, report: ImportReport | n
  * @param store - The store.
  * @param dispatcher - The session's dispatcher.
  * @param readConfig - Reads the data configuration.
+ * @param ceilings - The ceilings a load is refused above.
  * @returns The service.
  */
 export function headlessDataService(
     store: GraphStore,
     dispatcher: Dispatcher,
     readConfig: () => SessionDataConfig,
+    ceilings?: RenderLimits,
 ): DataService {
     const ingest = new Ingest<{ readonly edgeIndex: number }>({
         store: () => store,
+        ceilings: () => ceilings?.overrides,
         dataConfig: readConfig,
         hasNode: (id) => dispatcher.graph.slice.nodes.has(id),
         nodeCount: () => store.builder.nodeCount,
@@ -5331,6 +5504,7 @@ export function headlessDataService(
         loadComplete: () => undefined,
         loadFailed: () => undefined,
         progress: (change) => dispatcher.services.progress?.(change),
+        timeline: () => dispatcher.services.timeline?.() === true,
     });
 
     return {
@@ -5415,6 +5589,7 @@ function fileOf(
  * @param source - What `prepare` takes.
  * @param signal - Abandons the read.
  * @param publish - Where the progress goes.
+ * @param timeline - Whether the timeline experiment is on, so the reader keeps the time data it reads.
  * @returns What was read.
  * @throws What reading throws, after the end is published.
  */
@@ -5422,6 +5597,7 @@ async function readWithProgress(
     source: DataSourceInput,
     signal: AbortSignal | undefined,
     publish: (change: ProgressChange) => void,
+    timeline = false,
 ): Promise<Awaited<ReturnType<typeof readSource>>> {
     const named = progressSource(source.config, source.name);
     let completed = 0;
@@ -5450,6 +5626,7 @@ async function readWithProgress(
                 fraction = share ?? null;
                 change("progress");
             },
+            timeline,
         );
         change("end", { outcome: "succeeded" });
         return read;

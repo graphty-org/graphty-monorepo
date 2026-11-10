@@ -1244,7 +1244,15 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.resultValue = outcome.result;
         this.resultExecutionValue = this.executionValue ?? undefined;
         this.summaryValue = outcome.summary;
-        this.fieldsValue = outcome.fields ? boundFields(outcome.fields, this.id) : this.fieldsValue;
+        // What the run published, with the facts the catalogue declares of each field (that a
+        // group's values are unstable names) kept.
+        const declared = new Map(this.fieldsValue.map((field) => [field.name, field]));
+        this.fieldsValue = outcome.fields
+            ? boundFields(
+                  outcome.fields.map((field) => ({ ...declared.get(field.name), ...field })),
+                  this.id,
+              )
+            : this.fieldsValue;
         this.caveatsValue = this.mergeCaveats(outcome, partial, timedOut);
         this.partialValue = partial;
         this.durationValue = Math.round(nowMs() - this.startedAtMs);

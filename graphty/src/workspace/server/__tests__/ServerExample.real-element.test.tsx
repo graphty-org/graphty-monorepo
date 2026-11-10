@@ -11,6 +11,7 @@ import "@graphty/graphty-element";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -32,8 +33,8 @@ async function openForm(): Promise<HTMLElement> {
         assert.isDefined(document.querySelector("graphty-element")?.session);
     });
     await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Server..." }));
-    const form = await screen.findByRole("form", { name: "Server" });
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
+    const form = await screen.findByRole("form", { name: "Network data" });
     await pick(form, "Kind", "Neo4j");
     return form;
 }
@@ -46,7 +47,8 @@ async function openForm(): Promise<HTMLElement> {
  */
 async function pick(form: HTMLElement, label: string, option: string): Promise<void> {
     await userEvent.click(within(form).getByRole("combobox", { name: label }));
-    await userEvent.click(await within(form).findByRole("option", { name: option }));
+    // The list opens in a portal, outside the form.
+    await userEvent.click(await screen.findByRole("option", { name: option }));
 }
 
 /**
@@ -72,6 +74,8 @@ function valueOf(form: HTMLElement, label: string): string {
 }
 
 describe("the server form's Example", () => {
+    withFeatures(["network-data"]);
+
     beforeAll(async () => {
         await page.viewport(1366, 900);
     });
@@ -91,7 +95,7 @@ describe("the server form's Example", () => {
 
     it("loads the endpoint, login and database the reader typed over an example, not the example's", async () => {
         const form = await openForm();
-        await pick(form, "Example", "Hetionet");
+        await pick(form, "Example", "Hetionet (end-of-life server)");
         await pick(form, "Example", "Neo4j demo: movies");
         await retype(form, "Endpoint", OWN);
         await retype(form, "User", "reader");
@@ -118,9 +122,8 @@ describe("the server form's Example", () => {
         await pick(form, "Example", "Neo4j demo: movies");
         assert.equal(valueOf(form, "Endpoint"), "https://demo.neo4jlabs.com:7473");
 
-        // The Select's own clear button (Mantine keeps it out of the accessibility tree).
         const example = within(form).getByRole<HTMLInputElement>("combobox", { name: "Example" });
-        await userEvent.click(within(form).getByLabelText("Clear Example"));
+        await pick(form, "Example", "None");
         assert.equal(example.value, "", "no example");
         assert.equal(valueOf(form, "Endpoint"), "");
         assert.equal(valueOf(form, "User"), "");

@@ -104,6 +104,16 @@ export class TwoDCameraController {
     }
 
     /**
+     * Stand where another 2D camera stands.
+     * @param from - The camera.
+     */
+    public takeView(from: TwoDCameraController): void {
+        this.config.initialOrthoSize = from.config.initialOrthoSize;
+        this.updateOrtho(from.camera.orthoRight ?? from.config.initialOrthoSize);
+        this.camera.position.copyFrom(from.camera.position);
+    }
+
+    /**
      * How far the view is turned: the angle the drawing is turned counterclockwise on screen, in
      * radians. The camera rolls the other way about the view's center, so the center stays put.
      * @returns The angle.

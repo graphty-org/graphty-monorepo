@@ -5,6 +5,8 @@
 
 import type { HistoryCode, NodeId, RuleTree } from "@graphty/graphty-element/session";
 
+import { formatCount } from "../settings/numberFormat";
+
 /** What the words read from the session: an attribute's name and a node's name. */
 export interface Namer {
     readonly attribute: (path: string) => string;
@@ -48,6 +50,16 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
             return rule.of.map((each) => ruleWords(each, names)).join(" and ");
         case "member":
             return rule.of === "largest-component" ? "in the largest component" : "in a set";
+        case "degree":
+            return degreeWords(rule);
+        case "isolated":
+            return "Isolated";
+        case "self-loop":
+            return "Self-loops";
+        case "repeated-edge":
+            return "Repeated edges";
+        case "component":
+            return `in component ${String(rule.id)}`;
         case "source":
             return `from ${rule.sources.map((key) => names.source?.(key) ?? key).join(" or ")}`;
         case "neighborhood": {
@@ -55,9 +67,41 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
             const who = rule.seeds.length === 1 ? names.node(rule.seeds[0]) : `${String(rule.seeds.length)} nodes`;
             return `within ${String(rule.depth)} ${rule.depth === 1 ? "hop" : "hops"} of ${who}`;
         }
+        case "union": {
+            // A selection built from steps: each group's steps in order, the groups joined by "or".
+            // A group starting with nothing reads its first Add as the rule itself ("degree 6 to 10").
+            const verbs = { add: "add", keep: "keep", except: "except" } as const;
+            const groups = rule.branches.map((branch) =>
+                branch.steps
+                    .map((step, at) => {
+                        const words = ruleWords(step.rule, names);
+                        return at === 0 && branch.start !== "all" && step.op === "add"
+                            ? words
+                            : `${verbs[step.op]} ${words}`;
+                    })
+                    .join(", "),
+            );
+            return groups.filter((each) => each !== "").join(" or ") || "a selection";
+        }
         default:
             return "a rule";
     }
+}
+
+/**
+ * A degree leaf as its step's row says it: "Degree min 4", "Degree 3 to 7", "In degree max 2".
+ * @param rule - the leaf.
+ * @returns the words.
+ */
+function degreeWords(rule: Extract<RuleTree, { kind: "degree" }>): string {
+    const name = { in: "In degree", out: "Out degree" }[rule.direction as string] ?? "Degree";
+    if (rule.min !== undefined && rule.max !== undefined) {
+        return `${name} ${formatCount(rule.min)} to ${formatCount(rule.max)}`;
+    }
+    if (rule.min !== undefined) {
+        return `${name} min ${formatCount(rule.min)}`;
+    }
+    return rule.max === undefined ? name : `${name} max ${formatCount(rule.max)}`;
 }
 
 /**
@@ -129,8 +173,8 @@ interface Showing {
  * @returns the words.
  */
 export function chipWords(showing: Showing, edges = false): string {
-    const nodes = `${String(showing.visibleNodes)} of ${String(showing.totalNodes)} nodes`;
-    return edges ? `${nodes}, ${String(showing.visibleEdges)} of ${String(showing.totalEdges)} edges` : nodes;
+    const nodes = `${formatCount(showing.visibleNodes)} of ${formatCount(showing.totalNodes)} nodes`;
+    return edges ? `${nodes}, ${formatCount(showing.visibleEdges)} of ${formatCount(showing.totalEdges)} edges` : nodes;
 }
 
 /**
@@ -141,7 +185,7 @@ export function chipWords(showing: Showing, edges = false): string {
  * @returns the words.
  */
 export function statusWords(on: boolean, showing: Showing): string {
-    return on ? `Filter on: ${chipWords(showing)}, ${String(showing.visibleEdges)} edges` : "Filter off";
+    return on ? `Filter on: ${chipWords(showing)}, ${formatCount(showing.visibleEdges)} edges` : "Filter off";
 }
 
 /** What each filter history code did, as Undo and Redo name it. */

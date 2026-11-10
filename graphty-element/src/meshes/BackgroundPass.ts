@@ -24,6 +24,7 @@ import {
     type Observer,
     type RenderTargetTexture,
     type Scene,
+    ThinTexture,
     Vector2,
     Vector3,
 } from "@babylonjs/core";
@@ -63,6 +64,8 @@ const BACKGROUND_FPS = { low: 15, medium: 30, high: 30 } as const;
 /** One background shader drawn behind a scene. */
 export class BackgroundPass {
     private readonly renderer: EffectRenderer;
+    /** The engine's own blank texture, bound while there is no image. */
+    private readonly noImage: ThinTexture;
     private readonly layer: Layer;
     private readonly observer: Observer<Scene>;
     private readonly afterObserver: Observer<Scene>;
@@ -131,6 +134,7 @@ export class BackgroundPass {
     ) {
         const engine = scene.getEngine();
         this.renderer = new EffectRenderer(engine);
+        this.noImage = new ThinTexture(engine.emptyTexture);
         this.layer = new Layer(BACKGROUND_LAYER, null, scene, true);
         this.layer.isEnabled = false;
         this.layer.onAfterRenderObservable.add(() => {
@@ -459,7 +463,8 @@ export class BackgroundPass {
             program.setFloat4("graphty_fallback", ...this.fallback);
             const image = this.image?.isReady() === true ? this.image : null;
             program.setFloat("graphty_hasImage", image === null ? 0 : 1);
-            program.setTexture("graphty_image", image);
+            // WebGPU refuses a bind group with a sampler left empty, so no image is still a texture.
+            program.setTexture("graphty_image", image ?? this.noImage);
             const tints = this.tintsDrawn;
             TINT_UNIFORMS.forEach((name, i) => {
                 program.setFloat4(name, tints[i * 8], tints[i * 8 + 1], tints[i * 8 + 2], tints[i * 8 + 3]);

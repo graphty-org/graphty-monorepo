@@ -42,6 +42,7 @@ describe("vitest.base.mjs", () => {
         assert.deepEqual(test.globalSetup, [
             join(ROOT, "tools/test-slots.mjs"),
             join(ROOT, "tools/vitest-deps-reload.mjs"),
+            join(ROOT, "tools/vitest-file-guard.mjs"),
             "own.mjs",
         ]);
         assert.equal(test.reporters[0], "verbose");

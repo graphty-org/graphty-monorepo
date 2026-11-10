@@ -10,13 +10,18 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { AttributeLeafNodes, FilterCondition, FilterEffect, FilterStep, RuleTree } from "../../catalog/types";
+import type {
+    AttributeLeafNodes,
+    FilterCondition,
+    FilterEffect,
+    FilterStep,
+    RuleTree,
+    SourceKey,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { CodedFact } from "../shared";
 import type { HistoryCode } from "../types";
-
-/** No conditions. */
-export const NO_CONDITIONS: readonly FilterCondition[] = Object.freeze([]);
+import { inertReason } from "./union";
 
 /** The effects this element knows. */
 const EFFECTS: ReadonlySet<string> = new Set<FilterEffect>(["keep", "exclude", "select"]);
@@ -26,7 +31,7 @@ const EFFECTS: ReadonlySet<string> = new Set<FilterEffect>(["keep", "exclude", "
  * @param effect - The value.
  * @returns True for keep, exclude or select.
  */
-export function knownEffect(effect: unknown): effect is FilterEffect {
+function knownEffect(effect: unknown): effect is FilterEffect {
     return typeof effect === "string" && EFFECTS.has(effect);
 }
 
@@ -55,7 +60,7 @@ export function assertConditions(conditions: unknown): asserts conditions is rea
     for (const condition of conditions as unknown[]) {
         if (!wellFormed(condition)) {
             throw bad(
-                'A filter condition is { id: a non-empty string, on: a boolean, effect: "keep", "exclude" or "select", rule: a filter, within?: "graph" or "picture" }.',
+                'A filter condition is { id: a non-empty string, on: a boolean, effect: "keep", "exclude" or "select", rule: a filter, within?: "graph" or "picture", name?: a string, source?: a load\'s key }.',
                 { condition },
             );
         }
@@ -71,14 +76,22 @@ export function assertConditions(conditions: unknown): asserts conditions is rea
 }
 
 /**
- * A condition's own fields with a new rule: `within` only when it was given.
+ * A condition's own fields with a new rule: `within` and `name` only when they were given.
  * @param condition - The condition.
  * @param rule - Its rule.
  * @returns The condition, unfrozen.
  */
 export function conditionOf(condition: FilterCondition, rule: RuleTree): FilterCondition {
-    const { id, on, effect, within } = condition;
-    return within === undefined ? { id, on, effect, rule } : { id, on, effect, rule, within };
+    const { id, on, effect, within, name, source } = condition;
+    return {
+        id,
+        on,
+        effect,
+        rule,
+        ...(within === undefined ? {} : { within }),
+        ...(name === undefined ? {} : { name }),
+        ...(source === undefined ? {} : { source }),
+    };
 }
 
 /**
@@ -98,7 +111,7 @@ export function selectsOverGraph(conditions: readonly FilterCondition[]): boolea
  * @returns True when it is.
  */
 export function wellFormed(condition: unknown): condition is FilterCondition {
-    const { id, on, effect, rule, within } = (condition ?? {}) as Partial<FilterCondition>;
+    const { id, on, effect, rule, within, name, source } = (condition ?? {}) as Partial<FilterCondition>;
     return (
         typeof id === "string" &&
         id !== "" &&
@@ -106,7 +119,9 @@ export function wellFormed(condition: unknown): condition is FilterCondition {
         knownEffect(effect) &&
         typeof rule === "object" &&
         rule !== null &&
-        (within === undefined || within === "graph" || within === "picture")
+        (within === undefined || within === "graph" || within === "picture") &&
+        (name === undefined || typeof name === "string") &&
+        (source === undefined || (typeof source === "string" && source !== ""))
     );
 }
 
@@ -155,8 +170,68 @@ function withReading(
  * @param condition - The condition.
  * @returns The rule.
  */
-export function effectiveRule(condition: Pick<FilterCondition, "effect" | "rule">): RuleTree {
+function effectiveRule(condition: Pick<FilterCondition, "effect" | "rule">): RuleTree {
     return condition.effect === "keep" ? withReading(condition.rule, (nodes) => nodes ?? "ends") : condition.rule;
+}
+
+/**
+ * Whether a rule is a selection none of whose steps can apply yet: every group off or empty, and
+ * every step off or not yet a test (no bound, no value picked, no reference). A keep or exclude
+ * condition holding one removes nothing, so a card can be written the moment its first step is
+ * added and still change nothing until that step has a test.
+ * @param rule - The condition's rule.
+ * @returns True for such a selection.
+ */
+function inertSelection(rule: RuleTree): boolean {
+    return (
+        rule.kind === "union" &&
+        rule.branches.every(
+            (branch) =>
+                branch.on === false ||
+                branch.steps.every((step) => step.on === false || inertReason(step.rule) !== null),
+        )
+    );
+}
+
+/**
+ * A rule that judges only the nodes and edges some loads supplied: for theirs it answers as `of`
+ * does, for every other element it answers `outside`. It is written as an `all` of one member, so
+ * every walker that follows a rule's members (dependencies, held runs, signatures) sees the rule
+ * inside; only the compiler reads `withinSources` (`compileOne` in `./filter`). Never accepted
+ * from a consumer: it is made here, from a condition's `source`.
+ */
+export interface SourceScopedRule {
+    readonly kind: "all";
+    readonly of: readonly [RuleTree];
+    /** The loads whose elements the rule judges. */
+    readonly withinSources: readonly SourceKey[];
+    /** What every other element answers: true passes it, false fails it. */
+    readonly outside: boolean;
+}
+
+/**
+ * Whether a rule is a {@link SourceScopedRule}.
+ * @param rule - The rule.
+ * @returns True when it is.
+ */
+export function isSourceScoped(rule: RuleTree): rule is RuleTree & SourceScopedRule {
+    return rule.kind === "all" && Array.isArray((rule as Partial<SourceScopedRule>).withinSources);
+}
+
+/**
+ * A rule that judges only one load's elements, or the rule itself when no load is named.
+ * @param rule - The rule.
+ * @param source - The load, or undefined for every element.
+ * @param outside - What every other element answers.
+ * @returns The rule.
+ */
+function scopedToSource(rule: RuleTree, source: SourceKey | undefined, outside: boolean): RuleTree {
+    if (source === undefined) {
+        return rule;
+    }
+
+    const scoped: SourceScopedRule = { kind: "all", of: [rule], withinSources: [source], outside };
+    return Object.freeze(scoped);
 }
 
 /** The rule last combined from each conditions list, with the filter it was combined with. */
@@ -180,14 +255,15 @@ export function combinedRule(filter: RuleTree | null, conditions: readonly Filte
 
     const rules: RuleTree[] = filter === null ? [] : [filter];
     for (const condition of conditions) {
-        if (!condition.on) {
+        if (!condition.on || inertSelection(condition.rule)) {
             continue;
         }
 
+        // A condition of one load leaves every other load's elements as they are.
         if (condition.effect === "keep") {
-            rules.push(effectiveRule(condition));
+            rules.push(scopedToSource(effectiveRule(condition), condition.source, true));
         } else if (condition.effect === "exclude") {
-            rules.push({ kind: "not", of: condition.rule });
+            rules.push(scopedToSource({ kind: "not", of: condition.rule }, condition.source, true));
         }
     }
 
@@ -206,7 +282,9 @@ export function combinedRule(filter: RuleTree | null, conditions: readonly Filte
  * @returns The rule every on select condition's rule ANDs into, or null.
  */
 export function selectRule(conditions: readonly FilterCondition[]): RuleTree | null {
-    const rules = conditions.filter((each) => each.on && each.effect === "select").map((each) => each.rule);
+    const rules = conditions
+        .filter((each) => each.on && each.effect === "select")
+        .map((each) => scopedToSource(each.rule, each.source, false));
     if (rules.length === 0) {
         return null;
     }
@@ -266,6 +344,8 @@ export function conditionsOfSteps(
 ): readonly FilterCondition[] {
     const selects = current.filter((each) => each.effect !== "keep" && each.effect !== "exclude");
     const taken = new Set(selects.map((each) => each.id));
+    // A step keeps the load its condition was made for.
+    const sourceOf = new Map(current.flatMap((each) => (each.source === undefined ? [] : [[each.id, each.source]])));
     const kept = steps.map((step): FilterCondition => {
         if (taken.has(step.id)) {
             throw bad(`The filter step "${step.id}" has the id of a select condition; an id is unique.`, {
@@ -273,11 +353,13 @@ export function conditionsOfSteps(
             });
         }
 
+        const source = sourceOf.get(step.id);
         return Object.freeze({
             id: step.id,
             on: step.on,
             effect: "keep",
             rule: withReading(step.rule, (nodes) => nodes ?? "all"),
+            ...(source === undefined ? {} : { source }),
         });
     });
 
@@ -285,7 +367,10 @@ export function conditionsOfSteps(
 }
 
 /** One condition or step, as a history fact reads it. */
-type Entry = Pick<FilterCondition, "id" | "on" | "rule"> & { readonly effect?: FilterEffect };
+type Entry = Pick<FilterCondition, "id" | "on" | "rule"> & {
+    readonly effect?: FilterEffect;
+    readonly source?: SourceKey;
+};
 
 /**
  * What one conditions or steps edit did, as a history fact: one added, edited, switched on or
@@ -386,7 +471,9 @@ function oneChanged(
 
     // By value: the entries are admitted as new objects on every edit.
     const sameBody = (a: Entry, b: Entry): boolean =>
-        a.effect === b.effect && (a.rule === b.rule || JSON.stringify(a.rule) === JSON.stringify(b.rule));
+        a.effect === b.effect &&
+        a.source === b.source &&
+        (a.rule === b.rule || JSON.stringify(a.rule) === JSON.stringify(b.rule));
     const changed = after.filter((entry, index) => entry.on !== before[index].on || !sameBody(entry, before[index]));
     if (changed.length !== 1) {
         return undefined;
@@ -425,6 +512,8 @@ export interface SavedConditions {
  * @param steps - The file's steps, their rules already rewritten for this session.
  * @param remap - Rewrites a saved rule for this session (the set ids it names).
  * @param check - Refuses a rule this session cannot hold.
+ * @param stepsSaved - Whether the file holds a steps list at all. A file with conditions and no
+ *   steps (tier 4's) has nothing to disagree with, so nothing is reported.
  * @returns The conditions and the problems.
  */
 export function readSavedConditions(
@@ -432,6 +521,7 @@ export function readSavedConditions(
     steps: readonly FilterStep[],
     remap: (rule: RuleTree) => RuleTree,
     check: (rule: RuleTree) => void,
+    stepsSaved = true,
 ): SavedConditions {
     if (saved === undefined) {
         return { conditions: null, problems: [] };
@@ -470,7 +560,7 @@ export function readSavedConditions(
         return { conditions: conditionsOfSteps(steps, selects), problems };
     }
 
-    if (JSON.stringify(stepsOf(read)) !== JSON.stringify(steps)) {
+    if (stepsSaved && JSON.stringify(stepsOf(read)) !== JSON.stringify(steps)) {
         problems.push({ code: "W_FILTER_STEPS_DIFFER", params: { slice: "visibility" } });
     }
 
@@ -501,5 +591,44 @@ function readable(
         return Object.freeze(conditionOf(entry, rule));
     } catch {
         return null;
+    }
+}
+
+/**
+ * Whether a rule holds a `measure` that reads a run over the visible graph. A filter condition
+ * decides what is visible, so such a measure would read its own output: each run over the new
+ * picture moves the picture again, and the runs never settle.
+ * @param rule - The rule, or any part of it.
+ * @returns True when one does.
+ */
+function readsVisibleRun(rule: unknown): boolean {
+    if (Array.isArray(rule)) {
+        return rule.some(readsVisibleRun);
+    }
+
+    if (typeof rule !== "object" || rule === null) {
+        return false;
+    }
+
+    const node = rule as Readonly<Record<string, unknown>>;
+    if (node.kind === "measure" && node.scope === "visible") {
+        return true;
+    }
+
+    return Object.values(node).some(readsVisibleRun);
+}
+
+/**
+ * Refuse a filter condition whose rule reads a run over the visible graph: the picture would
+ * depend on itself (see {@link readsVisibleRun}).
+ * @param rule - The condition's rule.
+ * @throws A `GraphtyError` (`E_BAD_COMMAND`) when it does.
+ */
+export function assertNotCircular(rule: RuleTree): void {
+    if (readsVisibleRun(rule)) {
+        throw bad(
+            'A filter condition cannot read a run over the visible graph ("scope": "visible"): what it hides would change the run it reads. Read the run over "graph", or name another scope.',
+            { rule },
+        );
     }
 }

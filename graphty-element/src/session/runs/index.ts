@@ -53,6 +53,7 @@ export type {
     RunOptions,
     RunPainting,
     RunPhase,
+    RunReader,
     RunRecord,
     RunRemoval,
     RunsApi,

@@ -534,6 +534,16 @@ describe("a community result", () => {
 
         assert.strictEqual(result.graph.groupCount, 100);
         assert.strictEqual(result.summary().groups?.length, SUMMARY_GROUP_LIMIT);
+        // Every group has a rank, not only the ones the summary lists.
+        const ranks = result.groupRanks();
+        assert.strictEqual(ranks?.size, 100);
+        assert.deepStrictEqual(
+            [...(ranks?.values() ?? [])].sort((x, y) => x - y),
+            Array.from({ length: 100 }, (_unused, index) => index + 1),
+        );
+        for (const group of result.summary().groups ?? []) {
+            assert.strictEqual(ranks?.get(String(group.group)), group.rank);
+        }
     });
 });
 

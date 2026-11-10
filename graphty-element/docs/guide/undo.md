@@ -82,7 +82,7 @@ session.history.clear({ pending: "keep" });
 ```
 
 To open a graph as a new project, pass `history: "start"` to any load: `session.data.import`,
-`generate`, `loadDataset`, `loadSample`, a load draft's `load`, or `session.project.open` for a
+`generate`, `loadDataset`, `loadExample`, a load draft's `load`, or `session.project.open` for a
 document that is not a project (a project file always starts the history). The loaded graph
 becomes the baseline: Undo and `history.restoreTo` never cancel the load while it is pending,
 and never undo it after. Steps recorded before the call are dropped once the load is in. Work
@@ -113,6 +113,8 @@ for (const step of session.history.steps) {
 }
 session.history.position; // how many steps are applied; steps[position..] can be redone
 await session.history.restoreTo(session.history.steps[1].id); // jump; null jumps to the baseline
+// Take back an abandoned edit (a draft the reader cancelled): jump back and leave nothing to redo.
+await session.history.restoreTo(before, { redo: "drop" });
 ```
 
 Every step's `fact.code` is one of the `HistoryCode` values, each documenting its `params`:

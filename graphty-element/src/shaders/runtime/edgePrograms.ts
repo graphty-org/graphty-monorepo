@@ -30,7 +30,7 @@ import {
 } from "./wrap";
 
 /** The plain uniforms an edge shader program declares beside the line's own. */
-export const EDGE_SHADER_UNIFORMS = ["graphty_freeze"] as const;
+const EDGE_SHADER_UNIFORMS = ["graphty_freeze"] as const;
 
 /** The fragment stage of an edge shader and what it declares beyond the line's own stages. */
 export interface EdgeShaderProgram {

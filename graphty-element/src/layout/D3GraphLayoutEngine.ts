@@ -1,4 +1,4 @@
-import type { NodeMask } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, type NodeMask } from "@graphty/graph-format";
 import {
     Edge as D3Edge,
     forceCenter,
@@ -14,6 +14,7 @@ import {
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import type { ElementPositions } from "../data/positions";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
 import {
@@ -76,6 +77,12 @@ const d3LayoutOptionsSchema = defineOptions({
         },
     },
 });
+
+/** Where a row drawn with no `Node` finds its row, and the element's array its body publishes into. */
+export interface D3RowSource {
+    getSnapshot(): GraphSnapshot;
+    readonly positions: ElementPositions;
+}
 
 interface D3InputNode extends Partial<D3Node> {
     id: NodeIdType;
@@ -199,6 +206,15 @@ export class D3GraphEngine extends LayoutEngine {
     /** The mapping's edges as an array, rebuilt after the mapping changes. See {@link edges}. */
     private edgeList: Edge[] | null = null;
     newNodeMap = new Map<Node, D3InputNode>();
+    /**
+     * The bodies of rows drawn with no `Node`, under renderPath "batched", keyed by node id: a freeze
+     * renumbers rows, an id stays. See {@link D3GraphEngine.addRows}.
+     */
+    private readonly rowBodies = new Map<NodeIdType, D3InputNode>();
+    /** Where a row body finds its row and publishes, once rows were added. */
+    private rowSource: D3RowSource | null = null;
+    /** Rows were added since the last refresh. */
+    private rowsAdded = false;
     newEdgeMap = new Map<Edge, D3InputEdge>();
     /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
     private readonly edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
@@ -219,7 +235,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @returns True if the graph needs to be refreshed
      */
     get graphNeedsRefresh(): boolean {
-        return !!this.newNodeMap.size || !!this.newEdgeMap.size;
+        return !!this.newNodeMap.size || !!this.newEdgeMap.size || this.rowsAdded;
     }
 
     /**
@@ -280,7 +296,8 @@ export class D3GraphEngine extends LayoutEngine {
         if (this.graphNeedsRefresh || this.reheat) {
             // update nodes
             let nodeList: (D3Node | D3InputNode)[] = [...this.nodeMapping.values()];
-            nodeList = nodeList.concat([...this.newNodeMap.values()]);
+            nodeList = nodeList.concat([...this.newNodeMap.values()], [...this.rowBodies.values()]);
+            this.rowsAdded = false;
             this.d3ForceLayout
                 .alpha(1) // re-heat the simulation
                 .nodes(nodeList)
@@ -346,6 +363,15 @@ export class D3GraphEngine extends LayoutEngine {
         }
 
         collideForce.radius((d) => radii.get((d as D3InputNode).id) ?? 0);
+    }
+
+    /**
+     * Whether `nodeGap` is set.
+     * @returns True when the engine spaces nodes by their drawn size.
+     * @internal
+     */
+    override get spacesBySize(): boolean {
+        return this.nodeGap !== null;
     }
 
     /**
@@ -449,7 +475,7 @@ export class D3GraphEngine extends LayoutEngine {
         for (let sweep = 0; collideForce !== null && sweep < MAX_FINAL_SWEEPS; sweep++) {
             collideForce(1);
             let moved = false;
-            for (const d3node of this.nodeMapping.values()) {
+            for (const d3node of this.bodies()) {
                 moved = this.moveAlong(d3node) || moved;
             }
 
@@ -487,6 +513,82 @@ export class D3GraphEngine extends LayoutEngine {
         for (const [node, d3node] of this.nodeMapping) {
             this.writeNodePosition(node, d3node.x, d3node.y, d3node.z);
         }
+
+        const source = this.rowSource;
+        if (source === null || this.rowBodies.size === 0) {
+            return;
+        }
+
+        const snapshot = source.getSnapshot();
+        const { rows, coords } = this.publishScratch(this.rowBodies.size);
+        let count = 0;
+        for (const [id, body] of this.rowBodies as Map<NodeIdType, D3Node>) {
+            const row = snapshot.ids.indexOf(id);
+            if (row === INVALID_INDEX) {
+                continue;
+            }
+
+            rows[count] = row;
+            coords[3 * count] = body.x;
+            coords[3 * count + 1] = body.y;
+            coords[3 * count + 2] = body.z;
+            count++;
+        }
+
+        this.publishColumn(source.positions, rows, coords, count);
+    }
+
+    /**
+     * Fix each held row body where it is and free the rest, and note each follower row's id.
+     * @param followers - The follower ids, which this adds to.
+     */
+    private holdRowBodies(followers: Set<NodeIdType>): void {
+        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
+            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
+            if (row === INVALID_INDEX) {
+                continue;
+            }
+
+            if (this.isFollower(row)) {
+                followers.add(id);
+            }
+
+            if (this.isHeld(row)) {
+                fixAt(body as D3Node);
+            } else {
+                body.fx = undefined;
+                body.fy = undefined;
+                body.fz = undefined;
+            }
+        }
+    }
+
+    /**
+     * Every body: each `Node`'s, then each row's drawn with no `Node`.
+     * @yields Each body, settled by the last refresh.
+     */
+    private *bodies(): Iterable<D3Node> {
+        yield* this.nodeMapping.values();
+        yield* this.rowBodies.values() as Iterable<D3Node>;
+    }
+
+    /**
+     * Under renderPath "batched", give the simulation a body for each row drawn with no `Node`.
+     * Such a row is unsized (no collision radius), in no `clusterBy` community and never pinned,
+     * since each of those is read from a `Node`; a hold reaches it by its row. A third party's
+     * engine is handed `Node`s only.
+     * @param ids - The rows' node ids.
+     * @param source - Where a body finds its row at publish, and the element's array it publishes into.
+     * @internal
+     */
+    addRows(ids: readonly NodeIdType[], source: D3RowSource): void {
+        this.rowSource = source;
+        for (const id of ids) {
+            this.rowBodies.set(id, this.dim === 2 ? { id, z: 0, vz: 0 } : { id });
+        }
+
+        this.rowsAdded = ids.length > 0 || this.rowsAdded;
     }
 
     /**
@@ -678,6 +780,8 @@ export class D3GraphEngine extends LayoutEngine {
             }
         }
 
+        this.holdRowBodies(followers);
+
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
@@ -739,7 +843,7 @@ export class D3GraphEngine extends LayoutEngine {
      */
     protected override edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
         const problems = heldEdgeProblems([...this.edgeMapping.keys(), ...this.newEdgeMap.keys()], drawn);
-        const nodes = new Set<unknown>(this.nodeMapping.values());
+        const nodes = new Set<unknown>(this.bodies());
         for (const [edge, link] of this.edgeMapping) {
             if (!nodes.has(link.source) || !nodes.has(link.target)) {
                 problems.push(`edge ${edge.id} links a node the simulation no longer holds`);

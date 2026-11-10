@@ -36,9 +36,15 @@ import {
     type ShaderText,
     type ShaderUse,
 } from "../catalog/shaders";
-import { formatShaderText, parseShaderText, SHADER_TEXT_MAGIC, type ShaderTextOptions } from "../catalog/shaderText";
+import {
+    formatShaderText,
+    parseShaderText,
+    SHADER_TEXT_MAGIC,
+    type ShaderTextOptions,
+    splitShaderText,
+} from "../catalog/shaderText";
 import type { LayerId, LayerSpec } from "../catalog/types";
-import { GraphtyError } from "../errors/GraphtyError";
+import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { sha256Hex } from "../utils/sha256";
 import type { Dispatcher } from "./project/Dispatcher";
 import type { ProjectState } from "./project/state";
@@ -47,7 +53,7 @@ import { type SessionStylesApi, setShaderTrust } from "./styles/StylesApi";
 import type { SessionEventMap } from "./types";
 
 /** The most shaders one project holds. */
-export const PROJECT_SHADER_LIMIT = 64;
+const PROJECT_SHADER_LIMIT = 64;
 
 /** The side of a drawn thumbnail, in pixels. */
 export const SHADER_THUMBNAIL_SIZE = 128;
@@ -120,6 +126,13 @@ export interface ShaderAddOptions {
      * shader on an edge layer) is refused with `shader.apply-target`.
      */
     readonly apply?: { readonly layer: LayerId };
+    /**
+     * This text joins the project as a new shader, even when its id or body matches a known one:
+     * `sameAs` is absent and nothing is decided against a known shader. A preset's bare id reads as
+     * `user/<id>`, and a clash follows `onTaken`.
+     * @since 3.49.0
+     */
+    readonly asNew?: boolean;
 }
 
 /** What adding or checking shader text found. @since 3.36.0 */
@@ -197,15 +210,27 @@ export interface SessionShaders {
     /**
      * A shader's text, presets and registered shaders too. The text keeps the shader's id, so it
      * pastes back (`add`, `check`) as that shader with its values; `duplicate` gives it the `user/`
-     * namespace instead, so it is added as a new shader to edit.
+     * namespace instead, so it is added as a new shader to edit. A low-detail body is written as
+     * `shadeFar`, for a project shader whenever the text is rewritten (`params` or `derived`; until
+     * 3.49.0 it was left out there) and for a preset or a registered shader always.
      * @param id - Any shader the catalog lists.
      * @param options - What to write.
      * @param options.params - Parameter values the copy carries as its defaults, such as the ones a
      *   layer sets; a name the shader does not declare, or a value of the wrong type, is skipped.
      * @param options.duplicate - Give a preset or a registered shader a `user/` id.
+     * @param options.derived - `"omit"` leaves out what the element computes from a body (`reads`,
+     *   `cost`, a still `motion`), so an edited copy has them computed again from its new body.
+     *   Absent, they are written.
      * @returns The text.
      */
-    source(id: string, options?: { readonly params?: ShaderParams; readonly duplicate?: boolean }): Promise<ShaderText>;
+    source(
+        id: string,
+        options?: {
+            readonly params?: ShaderParams;
+            readonly duplicate?: boolean;
+            readonly derived?: "omit";
+        },
+    ): Promise<ShaderText>;
     /** @returns The project's shaders, in the order they were added. */
     list(): readonly ProjectShader[];
     /**
@@ -406,7 +431,7 @@ export interface ShadersSources {
 }
 
 /** A shader with its descriptor complete and its bodies loaded: what the renderer compiles. */
-export interface LoadedRegistration {
+interface LoadedRegistration {
     readonly descriptor: ShaderRegistration["descriptor"] & Pick<ShaderDescriptor, "target">;
     readonly glsl: string;
     readonly wgsl?: string;
@@ -488,24 +513,6 @@ export function bindShadersController(session: object, controller: ShadersContro
  */
 export function shadersControllerOf(session: object): ShadersController | undefined {
     return CONTROLLERS.get(session);
-}
-
-/**
- * The 1-based line a body starts on in its text.
- * @param text - The whole text.
- * @param body - The body, a suffix of it.
- * @returns The line.
- */
-function bodyLineOf(text: string, body: string): number {
-    const start = text.endsWith(body) ? text.length - body.length : 0;
-    let line = 1;
-    for (let index = 0; index < start; index++) {
-        if (text.codePointAt(index) === 10) {
-            line++;
-        }
-    }
-
-    return line;
 }
 
 /**
@@ -603,6 +610,7 @@ function applyTargetProblem(spec: LayerSpec, layer: LayerId, drawsOn: ShaderTarg
  * @param id - The id to write.
  * @param params - Values to write as defaults; a name it does not declare, or a value of another type, is skipped.
  * @param lowDetail - Its low-detail body, written as `shadeFar`.
+ * @param derived - `"omit"` leaves out what the element computes from a body.
  * @returns The text.
  */
 function copyText(
@@ -611,14 +619,17 @@ function copyText(
     id: string,
     params: ShaderParams,
     lowDetail?: string,
+    derived?: "omit",
 ): ShaderText {
     const { origin: _origin, hash: _hash, thumbnail: _thumbnail, ...facts } = descriptor;
     const defaults = facts.params.map((param) => {
         const value = Object.hasOwn(params, param.name) ? params[param.name] : undefined;
         return value !== undefined && typeof value === typeof param.default ? { ...param, default: value } : param;
     });
+    const { reads: _reads, cost: _cost, motion, ...written } = facts;
+    const kept = derived === "omit" ? { ...written, ...(motion.loop === undefined ? {} : { motion }) } : facts;
     return formatShaderText({
-        descriptor: { ...facts, id, params: defaults },
+        descriptor: { ...kept, id, params: defaults },
         glsl,
         ...(lowDetail === undefined ? {} : { lowDetail }),
     });
@@ -712,7 +723,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                     text: stored,
                     registration,
                     hash,
-                    bodyLine: bodyLineOf(text, registration.glsl),
+                    bodyLine: splitShaderText(text).bodyLine,
                     descriptor: describePastedShader(registration, hash),
                 };
             } catch (error) {
@@ -811,6 +822,26 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     });
 
     /**
+     * Run work on a host, and again on the host that replaced it when the replacing cut it off:
+     * opening WebGPU swaps the host under whatever was started on the first scene. A host disposed
+     * with nothing after it is the graph going away, and that answer stands.
+     * @param from - The host to start on.
+     * @param work - The work.
+     * @returns What the work resolves with.
+     */
+    const onHost = async <T>(from: ShaderHost, work: (on: ShaderHost) => Promise<T>): Promise<T> => {
+        try {
+            return await work(from);
+        } catch (error) {
+            if (host === null || host === from || !isGraphtyError(error) || error.code !== "E_DISPOSED") {
+                throw error;
+            }
+
+            return onHost(host, work);
+        }
+    };
+
+    /**
      * Compile and test one shader on the host, once per hash.
      * @param shader - The shader.
      * @returns Null when it passes, else the problem; null with no host.
@@ -825,7 +856,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return Promise.resolve(null);
         }
 
-        const running = host.check(shader).then(
+        const running = onHost(host, (on) => on.check(shader)).then(
             (problem) => {
                 compiled.set(shader.hash, problem);
                 refresh();
@@ -1123,10 +1154,11 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     /**
      * The result of a check that passed.
      * @param shader - The shader.
+     * @param asNew - Whether it joins as a new shader, so nothing is decided against a known one.
      * @returns The result, with `sameAs` when a known shader has its body.
      */
-    const passed = async (shader: ReadText): Promise<ShaderAddResult> => {
-        const sameAs = await sameAsOf(shader);
+    const passed = async (shader: ReadText, asNew = false): Promise<ShaderAddResult> => {
+        const sameAs = asNew ? undefined : await sameAsOf(shader);
         return { ok: true, descriptor: shader.descriptor, ...(sameAs === undefined ? {} : { sameAs }) };
     };
 
@@ -1233,7 +1265,8 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         problems.push(...targetProblems(read.descriptor.target, options));
         let shader = read;
         const wanted = shader.descriptor.id;
-        if (taken(wanted, shader.text)) {
+        // A text joining as new clashes even with an equal text already in the project.
+        if (taken(wanted, options.asNew === true ? undefined : shader.text)) {
             const free = freeId(wanted, (candidate) => taken(candidate));
             if (options.onTaken === "rename") {
                 shader = readText(read.copyOf === undefined ? text : read.text, options, free) as ReadText;
@@ -1326,7 +1359,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         // transaction takes it as one of its members.
         if (content && !trusted(shader.hash)) {
             const done = write(shader, options.apply?.layer);
-            return done.then(() => passed(shader));
+            return done.then(() => passed(shader, options.asNew));
         }
 
         const { id } = shader.descriptor;
@@ -1344,8 +1377,30 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 publish("shader:approved", { id, hash: shader.hash });
             }
 
-            return passed(shader);
+            return passed(shader, options.asNew);
         });
+    };
+
+    /**
+     * Check text that names a catalog shader, read as a copy of it: its target, and its picture when asked.
+     * @param copy - The copy.
+     * @param copy.id - The catalog shader's id.
+     * @param copy.params - The values the copy carries.
+     * @param options - The check's options.
+     * @returns What the check found.
+     */
+    const checkCopy = async (
+        copy: { readonly id: string; readonly params: ShaderParams },
+        options: ShaderAddOptions & { readonly picture?: boolean },
+    ): Promise<ShaderAddResult> => {
+        const descriptor = shaderDescriptor(copy.id) as ShaderDescriptor;
+        const problems = targetProblems(descriptor.target, options);
+        if (problems.length > 0) {
+            return { ok: false, problems };
+        }
+
+        const shown = options.picture === true ? await api.thumbnail(copy.id, copy.params) : undefined;
+        return { ok: true, descriptor, sameAs: copy, ...(shown instanceof Blob ? { picture: shown } : {}) };
     };
 
     const api: SessionShaders = {
@@ -1358,7 +1413,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             const read = first as ReadText;
             // ponytail: a copy of a catalog shader is decided after its body loads, so a held add of one
             // is not synchronous; every other add is.
-            if (namesCatalog(read)) {
+            if (options.asNew !== true && namesCatalog(read)) {
                 return copyOfCatalog(read).then((copy) =>
                     copy === undefined ? addNew(read, text, options) : addCopy(copy, options),
                 );
@@ -1374,16 +1429,9 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             }
 
             const read = first as ReadText;
-            const copy = namesCatalog(read) ? await copyOfCatalog(read) : undefined;
+            const copy = options.asNew !== true && namesCatalog(read) ? await copyOfCatalog(read) : undefined;
             if (copy !== undefined) {
-                const descriptor = shaderDescriptor(copy.id) as ShaderDescriptor;
-                const problems = targetProblems(descriptor.target, options);
-                if (problems.length > 0) {
-                    return { ok: false, problems };
-                }
-
-                const shown = options.picture === true ? await api.thumbnail(copy.id, copy.params) : undefined;
-                return { ok: true, descriptor, sameAs: copy, ...(shown instanceof Blob ? { picture: shown } : {}) };
+                return checkCopy(copy, options);
             }
 
             const { shader, problems } = admit(read, text, options);
@@ -1399,7 +1447,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 return { ok: false, problems };
             }
 
-            const result = await passed(shader);
+            const result = await passed(shader, options.asNew);
             // Only text that compiled and passed its test frame is drawn; held text never runs.
             const drawer = host;
             if (options.picture !== true || drawer === null || held || options.compile === false) {
@@ -1444,19 +1492,29 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             const entry = state().shaders.get(id);
             if (entry !== undefined) {
                 const shader = projectShader(id);
-                return shader === undefined || Object.keys(params).length === 0
+                return shader === undefined || (Object.keys(params).length === 0 && options.derived === undefined)
                     ? entry.text
-                    : copyText(shader.descriptor, shader.registration.glsl, id, params);
+                    : copyText(
+                          shader.descriptor,
+                          shader.registration.glsl,
+                          id,
+                          params,
+                          shader.registration.lowDetail,
+                          options.derived,
+                      );
             }
 
             const descriptor = shaderDescriptor(id);
-            const body = await bodyOf(id);
-            if (descriptor === undefined || body === undefined) {
+            // A body or low-detail body that fails to load rejects the call, so a copy never
+            // silently loses its shadeFar.
+            const loaded = isRegisteredShader(id) ? await loadShaderSource(id) : undefined;
+            if (descriptor === undefined || loaded === undefined) {
                 throw unknownShader(id, [...state().shaders.keys(), ...shaderDescriptors().map((each) => each.id)]);
             }
 
             const name = id.includes("/") ? id.slice(id.indexOf("/") + 1) : id;
-            return copyText(descriptor, body, options.duplicate === true ? `user/${name}` : id, params);
+            const copyId = options.duplicate === true ? `user/${name}` : id;
+            return copyText(descriptor, loaded.glsl, copyId, params, loaded.lowDetail, options.derived);
         },
 
         list() {
@@ -1614,10 +1672,12 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         const time = descriptor.preview?.time ?? THUMBNAIL_TIME;
         const key = [drawn.hash, SHADER_THUMBNAIL_SIZE, drawer.theme ?? "", time, stableJson(values)].join("\u0000");
         return cached(key, () =>
-            drawer.thumbnail(
-                { id, hash: drawn.hash, registration: drawn.registration, bodyLine: drawn.bodyLine },
-                values,
-                time,
+            onHost(drawer, (on) =>
+                on.thumbnail(
+                    { id, hash: drawn.hash, registration: drawn.registration, bodyLine: drawn.bodyLine },
+                    values,
+                    time,
+                ),
             ),
         ) as Promise<Blob>;
     };

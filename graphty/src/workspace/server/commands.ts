@@ -1,8 +1,9 @@
 /**
- * Server sources (data prototype spec section 3.9): the Sources "+" Server... door, the Expand...
- * and Collapse verbs on a node a server load brought, and how the form's rows become one
+ * Network data (data prototype spec section 3.9): the Sources "+" Network data... door, the
+ * Expand... and Collapse verbs on a node a server load brought, and how the form's rows become one
  * `data.import` call. graphty-element reads the server, pages, refreshes and expands; this file
- * only turns what the reader picked into its inputs.
+ * only turns what the reader picked into its inputs. Every door here is drawn only with the
+ * `network-data` experiment on.
  */
 
 import { type SourceCatalogEntry, sourceDescriptors } from "@graphty/graphty-element/catalog";
@@ -17,17 +18,16 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { networkOn } from "../features";
 import { newProjectId, type WorkspaceStore } from "../state/store";
-import { kindName } from "./words";
+import { panelsInView } from "../time/timeActions";
+import { codeWords, failureOf, kindName } from "./words";
 
 /** The `dialog` value that opens the server form beside the Sources section. */
 export const SERVER_DIALOG = "server";
 
 /** The `dialog` value that opens Expand... for the selected node. */
 export const EXPAND_DIALOG = "server-expand";
-
-/** The graph-samples source: its datasets are files, listed in Samples, not a server. */
-const GRAPH_SAMPLES = "graph-samples";
 
 /** What each Start value is called; the element's own name for a value not listed here. */
 export const START_WORDS: Readonly<Record<string, string>> = {
@@ -37,20 +37,17 @@ export const START_WORDS: Readonly<Record<string, string>> = {
 };
 
 /** A query to start from, per query language, so Test has something to run. */
-export const STARTER_QUERY: Readonly<Record<string, string>> = {
+const STARTER_QUERY: Readonly<Record<string, string>> = {
     cypher: "MATCH (n)-[r]->(m) RETURN n, r, m",
     sparql: "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }",
 };
 
 /**
- * The servers the form offers: every registered source this browser can reach, without the
- * graph-samples datasets.
+ * The servers the form offers: every registered source this browser can reach.
  * @returns the catalog entries.
  */
 export function serverKinds(): readonly SourceCatalogEntry[] {
-    return sourceDescriptors().filter(
-        (each) => each.id !== GRAPH_SAMPLES && each.descriptor.runtimes?.browser?.supported !== false,
-    );
+    return sourceDescriptors().filter((each) => each.descriptor.runtimes?.browser?.supported !== false);
 }
 
 /** What the form holds. */
@@ -147,9 +144,21 @@ export function formReady(entry: SourceCatalogEntry, form: ServerFormState): boo
 }
 
 /**
- * The form filled from one of the source's examples: its endpoint, sign-in and params, with the
- * params the previous example set cleared first and the transport always the example's (a source
- * picks it from the endpoint when the example names none). The reader's Start is kept.
+ * The cap a form holds for an example: its first page when it is too big to load whole, else none,
+ * so the form loads what the example promises.
+ * @param example - the example.
+ * @param example.firstPage - its first page, if it has one.
+ * @returns the form's Limit.
+ */
+function exampleLimit(example: { readonly firstPage?: number | undefined }): number {
+    return example.firstPage ?? 0;
+}
+
+/**
+ * The form filled from one of the source's examples: its endpoint, sign-in, params (its Start
+ * among them) and its own cap, with the params the previous example set cleared first and the
+ * transport always the example's (a source picks it from the endpoint when the example names
+ * none). Load then loads what the example promises, as `session.data.loadExample` does.
  * @param entry - the source.
  * @param form - the form now.
  * @param id - the example's id; null clears the example.
@@ -159,31 +168,19 @@ export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id
     if (id === null) {
         return withoutExample(entry, form);
     }
-    const samples = entry.descriptor.samples ?? [];
-    const sample = samples.find((each) => each.id === id);
-    if (sample === undefined) {
+    const examples = entry.descriptor.examples ?? [];
+    const example = examples.find((each) => each.id === id);
+    if (example === undefined) {
         return form;
-    }
-    const prior = samples.find((each) => each.plainName === form.example);
-    const owned = new Set([...Object.keys(prior?.params ?? {}), "transport"]);
-    const params: Record<string, unknown> = Object.fromEntries(
-        Object.entries(form.params).filter(([name]) => !owned.has(name)),
-    );
-    for (const [name, value] of Object.entries(sample.params)) {
-        if (name !== "mode") {
-            params[name] = value;
-        }
-    }
-    if (form.params.mode !== undefined) {
-        params.mode = form.params.mode;
     }
     return {
         ...form,
-        example: sample.plainName,
-        endpoint: sample.endpoint ?? "",
-        params,
-        user: sample.publicLogin?.username ?? "",
-        secret: sample.publicLogin?.password ?? "",
+        example: example.plainName,
+        limit: exampleLimit(example),
+        endpoint: example.endpoint ?? "",
+        params: { ...example.params },
+        user: example.publicLogin?.username ?? "",
+        secret: example.publicLogin?.password ?? "",
     };
 }
 
@@ -207,21 +204,23 @@ function untouched(held: unknown, filled: unknown): boolean {
  */
 export function withoutExample(entry: SourceCatalogEntry, form: ServerFormState): ServerFormState {
     const { example, ...rest } = form;
-    const sample = (entry.descriptor.samples ?? []).find((each) => each.plainName === example);
-    if (sample === undefined) {
+    const filled = (entry.descriptor.examples ?? []).find((each) => each.plainName === example);
+    if (filled === undefined) {
         return rest;
     }
-    const fresh = freshForm(entry).params;
-    const params: Record<string, unknown> = { ...form.params };
-    for (const [name, value] of Object.entries(sample.params)) {
-        if (name !== "mode" && untouched(params[name], value)) {
+    const freshOne = freshForm(entry);
+    const fresh = freshOne.params;
+    const params: Record<string, unknown> = { ...fresh, ...form.params };
+    for (const [name, value] of Object.entries(filled.params)) {
+        if (untouched(params[name], value)) {
             params[name] = fresh[name];
         }
     }
-    const login = sample.publicLogin;
+    const login = filled.publicLogin;
     return {
         ...rest,
-        endpoint: untouched(form.endpoint, sample.endpoint ?? "") ? "" : form.endpoint,
+        limit: form.limit === exampleLimit(filled) ? freshOne.limit : form.limit,
+        endpoint: untouched(form.endpoint, filled.endpoint ?? "") ? "" : form.endpoint,
         params: Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
         user: untouched(form.user, login?.username ?? "") ? "" : form.user,
         secret: untouched(form.secret, login?.password ?? "") ? "" : form.secret,
@@ -318,11 +317,14 @@ export function serverRequest(
     entry: SourceCatalogEntry,
     form: ServerFormState,
 ): { input: SourceInput; options: SourceLoadOptions } {
+    // A param the descriptor does not declare (an example's template values) goes as it is.
+    const declared = new Map(entry.descriptor.params.map((param) => [param.name, param.type]));
     const config: Record<string, unknown> = {};
-    for (const param of entry.descriptor.params) {
-        const value = paramValue(param.type, form.params[param.name]);
+    for (const [name, typed] of Object.entries(form.params)) {
+        const type = declared.get(name);
+        const value = type === undefined ? typed : paramValue(type, typed);
         if (value !== undefined) {
-            config[param.name] = value;
+            config[name] = value;
         }
     }
     const endpoint = form.endpoint.trim();
@@ -350,15 +352,17 @@ export function serverRequest(
  * Opens the server form on the Data place, opening an empty project first when none is open
  * (the start screen's Open network data).
  * @param store - the workspace store.
- * @param kind - the source the form opens on (Open network data's card), or none for its first.
+ * @param kind - the source the form opens on, or none for its first.
  */
 export function openServerForm(store: WorkspaceStore, kind: string | null = null): void {
     store.set((state) => ({
         ...(state.project === null ? { project: { name: "Untitled", id: newProjectId(state) }, inspected: null } : {}),
         page: "panels",
         place: "data",
+        ...panelsInView(),
         dialog: SERVER_DIALOG,
         serverKind: kind,
+        serverFromStart: state.project === null,
     }));
 }
 
@@ -369,7 +373,7 @@ export function openServerForm(store: WorkspaceStore, kind: string | null = null
  * @param id - the node.
  * @returns the load's source id, or undefined.
  */
-export function expandableSource(session: GraphSession | null, id: NodeId): string | undefined {
+function expandableSource(session: GraphSession | null, id: NodeId): string | undefined {
     const loads = session?.data.node(id)?.["_source.loads"];
     if (!Array.isArray(loads) || session === null) {
         return undefined;
@@ -386,7 +390,7 @@ export function expandableSource(session: GraphSession | null, id: NodeId): stri
  * @param id - the node.
  * @returns the count, or null when unknown or none.
  */
-export function hiddenNeighbors(session: GraphSession | null, id: NodeId): number | null {
+function hiddenNeighbors(session: GraphSession | null, id: NodeId): number | null {
     const hidden = session?.data.node(id)?.["_source.hidden"];
     return typeof hidden === "number" && hidden > 0 ? hidden : null;
 }
@@ -398,7 +402,7 @@ export function hiddenNeighbors(session: GraphSession | null, id: NodeId): numbe
  * @param id - the node.
  * @returns true when Collapse applies.
  */
-export function collapsible(session: GraphSession | null, id: NodeId): boolean {
+function collapsible(session: GraphSession | null, id: NodeId): boolean {
     const expansion = session?.data.node(id)?.["_source.expansion"];
     return expansion === "partial" || expansion === "complete";
 }
@@ -419,21 +423,25 @@ function selectedNode(ctx: CommandContext): NodeId | undefined {
  * @param session - the session.
  * @param id - the node.
  */
-export function collapseNode(workspace: WorkspaceStore, session: GraphSession, id: NodeId): void {
-    session.data.collapse(id).catch(() => {
-        workspace.set({ notice: { message: "Not collapsed" } });
+function collapseNode(workspace: WorkspaceStore, session: GraphSession, id: NodeId): void {
+    session.data.collapse(id).catch((error: unknown) => {
+        workspace.set({ notice: { message: `Not collapsed: ${codeWords(failureOf(error))}` } });
     });
 }
 
-/** The server package's registration: Server... on the Sources "+", and Expand... and Collapse. */
+/**
+ * The server package's registration: Network data... on the Sources "+", and Expand... and
+ * Collapse; each drawn only with the network-data experiment on.
+ */
 export const registration = defineRegistration({
     owner: "server",
     commands: [
         {
             id: "data.add-server",
-            label: "Server...",
+            label: "Network data...",
             group: "Data",
-            keywords: ["add", "source", "database", "neo4j", "cypher", "sparql", "ndex", "openalex", "rest"],
+            keywords: ["add", "source", "server", "database", "neo4j", "cypher", "sparql", "ndex", "openalex", "rest"],
+            shown: (ctx) => networkOn(ctx.session),
             run: (ctx) => {
                 openServerForm(ctx.workspace);
             },
@@ -450,7 +458,7 @@ export const registration = defineRegistration({
             },
             shown: (ctx) => {
                 const id = selectedNode(ctx);
-                return id !== undefined && expandableSource(ctx.session, id) !== undefined;
+                return networkOn(ctx.session) && id !== undefined && expandableSource(ctx.session, id) !== undefined;
             },
             run: (ctx) => {
                 ctx.workspace.set({ dialog: EXPAND_DIALOG });
@@ -463,7 +471,7 @@ export const registration = defineRegistration({
             keywords: ["neighbors", "server"],
             shown: (ctx) => {
                 const id = selectedNode(ctx);
-                return id !== undefined && collapsible(ctx.session, id);
+                return networkOn(ctx.session) && id !== undefined && collapsible(ctx.session, id);
             },
             run: (ctx) => {
                 const id = selectedNode(ctx);

@@ -1204,13 +1204,23 @@ function readNodeStyle(
     putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
     putIntrinsicSize(refs, style, shape, size, put);
+    putShapeCorner(shape, size, put);
+    if (style.tag === "GroupNodeStyle" && size !== null) {
+        readGroupPanel(refs, style, size, collapsed, put, at);
+    }
+}
+
+/**
+ * Puts the corner radius a ShapeNodeStyle's shape draws: a round rectangle's fixed corner, a pill's half-circle ends.
+ * @param shape - the shape's lookup key, or null
+ * @param size - the node's size
+ * @param put - receives the values
+ */
+function putShapeCorner(shape: string | null, size: Size | null, put: PutValue): void {
     if (shape === "round-rectangle") {
         put("cornerRadius", ROUND_RECTANGLE_CORNER);
     } else if (shape === "pill" && size !== null) {
         put("cornerRadius", Math.min(size.width, size.height) / 2);
-    }
-    if (style.tag === "GroupNodeStyle" && size !== null) {
-        readGroupPanel(refs, style, size, collapsed, put, at);
     }
 }
 
@@ -2761,7 +2771,7 @@ function readYfiles3Target(
     target: StyleTarget,
     kinds: Map<KeyKind, string>,
 ): ReturnType<typeof valueColumns>["values"] {
-    const { snapshot, notes, budget, refs, boxes, ports } = ctx;
+    const { snapshot, notes, budget } = ctx;
     const isNode = target === "node";
     const table = isNode ? snapshot.nodes : snapshot.edges;
     const n = isNode ? snapshot.nodeCount : snapshot.edgeCount;
@@ -2784,19 +2794,51 @@ function readYfiles3Target(
             put("visible", false);
         }
         if (isNode) {
-            const collapsed = cell(expanded, i) === false;
-            const folder = collapsed ? folderLayout(cell(viewState, i)) : null;
-            const size =
-                geometry === undefined ? null : readNodeGeometry(folder ?? cell(geometry, i), i, boxes, put, at);
-            if (style !== undefined) {
-                readNodeStyle(refs, cell(style, i), put, at, size, collapsed, cell(ports, i));
-            }
-            readLabels(refs, cell(labels, i), put, at, size, null);
+            readYfiles3Node(ctx, i, { style, labels, geometry, expanded, viewState }, (name) => cell(name, i), put, at);
         } else {
             readYfiles3Edge(ctx, i, { style, labels, geometry }, (name) => cell(name, i), put, at);
         }
     }
     return out.values;
+}
+
+/**
+ * Reads one node's yFiles 3 geometry, style and labels; a collapsed group's geometry is its folder's.
+ * @param ctx - the shared state
+ * @param i - the node
+ * @param columns - the node table's columns, each undefined where the file has none
+ * @param columns.style - the style column
+ * @param columns.labels - the labels column
+ * @param columns.geometry - the geometry column
+ * @param columns.expanded - the `Expanded` column
+ * @param columns.viewState - the `NodeViewState` column
+ * @param cell - the node's cell of a column
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readYfiles3Node(
+    ctx: Yfiles3Context,
+    i: number,
+    columns: {
+        style: string | undefined;
+        labels: string | undefined;
+        geometry: string | undefined;
+        expanded: string | undefined;
+        viewState: string | undefined;
+    },
+    cell: (name: string | undefined) => unknown,
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const { refs, boxes, ports } = ctx;
+    const collapsed = cell(columns.expanded) === false;
+    const folder = collapsed ? folderLayout(cell(columns.viewState)) : null;
+    const size =
+        columns.geometry === undefined ? null : readNodeGeometry(folder ?? cell(columns.geometry), i, boxes, put, at);
+    if (columns.style !== undefined) {
+        readNodeStyle(refs, cell(columns.style), put, at, size, collapsed, cell(ports));
+    }
+    readLabels(refs, cell(columns.labels), put, at, size, null);
 }
 
 /**

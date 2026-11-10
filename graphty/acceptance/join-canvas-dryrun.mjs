@@ -509,6 +509,15 @@ class Visit {
         return this.dataPlace.getByRole("list", { name: "Data sources" }).getByRole("listitem").count();
     }
 
+    // Join + is on the Sources tab whenever two or more sources are listed, joins included.
+    async joinRowStays() {
+        await this.check("Join + stays on the Sources tab after Done", async () => {
+            const sources = await this.sourceCount();
+            const shown = await this.dataPlace.getByRole("button", { name: "Join", exact: true }).isVisible();
+            return eq(shown, sources >= 2, `Join + with ${sources} sources`);
+        });
+    }
+
     async rowsRange() {
         return (await this.dialog.locator(".jw-rows-range").innerText()).trim();
     }
@@ -1007,6 +1016,7 @@ const SCENARIOS = [
                     );
                 return eq(nodes.filter((n) => n.log2FC !== undefined).length, ci.joined, "nodes with log2FC");
             });
+            await v.joinRowStays();
             await v.shot("after-done");
         },
     },
@@ -1227,6 +1237,7 @@ const SCENARIOS = [
                     );
                 return `${sp.maxRating.size} merged nodes carry the higher rating`;
             });
+            await v.joinRowStays();
             await v.shot("after-done");
         },
     },
@@ -1236,6 +1247,7 @@ const SCENARIOS = [
             await v.openFirst("tumor.graphml");
             const before = await v.graph();
             const nodesBefore = await v.graphNodes();
+            const sourcesBefore = await v.sourceCount();
             await v.toWorkspace("normal.graphml");
             await v.dragColumns("normal.graphml", "logFC", "tumor.graphml", "id");
             await v.tile("Put values on nodes");
@@ -1247,6 +1259,9 @@ const SCENARIOS = [
             });
             await v.key("Mod+Enter");
             await v.dialog.waitFor({ state: "detached" });
+            await v.check("Done with a wrong key adds no source", async () =>
+                eq(await v.sourceCount(), sourcesBefore, "sources listed"),
+            );
             await v.check("Done with a wrong key adds nothing", async () => {
                 const g = await v.graph();
                 eq({ nodes: g.nodes, edges: g.edges }, { nodes: before.nodes, edges: before.edges }, "graph");

@@ -7,12 +7,23 @@
 
 import type { EdgeId, NodeId, SourceKey } from "../catalog/types";
 import { GraphtyError, type GraphtyErrorCode } from "../errors";
-import { joinClashes, type JoinGraph, type JoinPlan, joinReport, type JoinTable, planJoin, suggestJoin } from "./join";
+import {
+    columnSamples,
+    joinClashes,
+    type JoinGraph,
+    type JoinPlan,
+    joinReport,
+    type JoinTable,
+    keyMatchesOf,
+    planJoin,
+    suggestJoin,
+} from "./join";
 import type {
     JoinChoices,
     JoinClash,
     JoinElementFate,
     JoinInput,
+    JoinKeyMatch,
     JoinLookup,
     JoinPage,
     JoinPreview,
@@ -473,6 +484,30 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
             const graph = before === undefined ? (run().at(-1)?.after ?? start) : stepRun(before).before;
             const table = tableOf(from, graph);
             return suggestJoin(table ?? { name: from, columns: [], rows: [] }, joinGraph(graph));
+        },
+        samples(from: string, column: string): readonly unknown[] {
+            live("read an input's values");
+            checkFrom({ from, choices: { keys: [] } });
+            const table = tableOf(from, run().at(-1)?.after ?? start);
+            return Object.freeze(table === undefined ? [] : columnSamples(table, column));
+        },
+        keyMatches(from, column, options = {}): readonly JoinKeyMatch[] {
+            live("match a column");
+            checkFrom({ from, choices: { keys: [] } });
+            const graph =
+                options.before === undefined ? (run().at(-1)?.after ?? start) : stepRun(options.before).before;
+            const table = tableOf(from, graph);
+            if (table === undefined) {
+                return Object.freeze([]);
+            }
+
+            const read = joinGraph(graph);
+            const loose = { ignoreCase: options.ignoreCase === true, ignoreSpaces: options.ignoreSpaces === true };
+            return Object.freeze(
+                keyMatchesOf(table, column, options.target === "edge" ? read.edges : read.nodes, loose).map((each) =>
+                    Object.freeze({ ...each, samples: Object.freeze(each.samples) }),
+                ),
+            );
         },
         outcome(id: string): JoinStepOutcome {
             live("count a step");

@@ -283,6 +283,43 @@ describe("data.prepareJoins", () => {
     });
 });
 
+describe("picking a key by hand", () => {
+    it("reads an input's sample values and how a column meets each graph value", async () => {
+        const session = await doors();
+        const recipe = session.data.prepareJoins();
+        const entries = recipe.hold({ name: "door_entries.csv", rows: ENTRIES });
+
+        assert.deepEqual(recipe.samples(entries, "buildingId"), ["bldg-01", "bldg-02", "BLDG-03"]);
+        const matches = recipe.keyMatches(entries, "buildingId");
+        assert.strictEqual(matches[0].graph, "id");
+        const byId = matches.find((each) => each.graph === "id");
+        // bldg-01 x3, bldg-02 x2, bldg-03 x1 match; BLDG-03 only ignoring case; bldg-09 never.
+        assert.strictEqual(byId?.rows, 6);
+        assert.strictEqual(byId?.loose, 1);
+        const loose = recipe
+            .keyMatches(entries, "buildingId", { ignoreCase: true })
+            .find((each) => each.graph === "id");
+        assert.strictEqual(loose?.rows, 7);
+        assert.strictEqual(loose?.loose, 0);
+        const person = recipe.keyMatches(entries, "personId").find((each) => each.graph === "data.person_id");
+        assert.strictEqual(person?.rows, 7);
+        assert.deepEqual(person?.samples, ["P001", "P002", "P003"]);
+        recipe.discard();
+    });
+
+    it("compares with the graph before a step", async () => {
+        const session = await doors();
+        const recipe = session.data.prepareJoins();
+        const entries = recipe.hold({ name: "door_entries.csv", rows: ENTRIES });
+        const step = recipe.add({ from: entries, choices: EDGES });
+        // The step adds P066 and bldg-09 as new nodes: the graph it leaves holds them.
+        const after = recipe.keyMatches(entries, "personId").find((each) => each.graph === "id");
+        const before = recipe.keyMatches(entries, "personId", { before: step }).find((each) => each.graph === "id");
+        assert.isAbove(after?.rows ?? 0, before?.rows ?? 0);
+        recipe.discard();
+    });
+});
+
 describe("join recipe cost", () => {
     it("JoinsDraft.commit: no more than linear in the graph", async () => {
         await assertScalesLinearly(

@@ -1,7 +1,7 @@
 import "../selection/selection.css";
 import "./join-workspace.css";
 
-import type { GraphSession, JoinLookup, JoinsDraft } from "@graphty/graphty-element/session";
+import type { GraphSession, JoinLookup, JoinRegion, JoinRowFate, JoinsDraft } from "@graphty/graphty-element/session";
 import { Button, SegmentedControl, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -12,6 +12,7 @@ import { ariaKey, formatKey, isTypingTarget, matchesKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { JoinBody } from "./Body";
 import { type JoinSide, type JoinWorkspaceApi, JoinWorkspaceContext } from "./context";
+import { keepRule } from "./keeps";
 import { JOIN_KEYS } from "./words";
 
 /** Where a key belongs to an open list or menu, which closes itself on Escape. */
@@ -70,6 +71,8 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
     const [step, select] = useState<string | null>(null);
     const [side, setSide] = useState<JoinSide>("after");
     const [closing, setClosing] = useState(false);
+    const [fate, setFate] = useState<JoinRowFate | null>(null);
+    const [keeps, setKeeps] = useState<ReadonlyMap<string, readonly JoinRegion[]>>(new Map());
     const api: JoinWorkspaceApi = useMemo(
         () => ({
             session,
@@ -93,8 +96,22 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
                     read.dispose();
                 }
             },
+            fate,
+            setFate,
+            keeps,
+            setKeep: (id, regions) => {
+                setKeeps((now) => {
+                    const next = new Map(now);
+                    if (regions === null) {
+                        next.delete(id);
+                    } else {
+                        next.set(id, regions);
+                    }
+                    return next;
+                });
+            },
         }),
-        [session, draft, version, step, side],
+        [session, draft, version, step, side, fate, keeps],
     );
 
     const close = (how: "done" | "cancel"): void => {
@@ -107,7 +124,17 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
             onClose();
             return;
         }
-        void draft.commit().finally(onClose);
+        // The regions a compare step keeps become a keep filter on its membership column, once
+        // the join has written it.
+        const keep = keepRule(draft.steps, keeps);
+        void draft
+            .commit()
+            .then(async () => {
+                if (keep !== null) {
+                    await session.visibility.addCondition({ effect: "keep", rule: keep });
+                }
+            })
+            .finally(onClose);
     };
     const closeRef = useRef(close);
     closeRef.current = close;
@@ -238,7 +265,8 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
                         Done
                     </Button>
                 </header>
-                <JoinBody />
+                {/* The draft cannot be read once Done or Cancel lets it go. */}
+                {closing ? null : <JoinBody />}
             </section>
         </JoinWorkspaceContext.Provider>,
         frame,

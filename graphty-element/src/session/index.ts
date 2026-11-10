@@ -118,6 +118,8 @@ export type {
     JoinElementFate,
     JoinInput,
     JoinKey,
+    JoinKeyMatch,
+    JoinKeyMatchOptions,
     JoinLink,
     JoinLookup,
     JoinMapping,

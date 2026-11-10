@@ -1,7 +1,8 @@
-import type { GraphSession, JoinElementFate, JoinPreview, NodeId } from "@graphty/graphty-element/session";
+import type { GraphSession, JoinElementFate, JoinPreview, NodeId, RuleTree } from "@graphty/graphty-element/session";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { shownStep, useJoinWorkspace } from "./context";
+import { keepRule } from "./keeps";
 import { FATE_COLORS } from "./words";
 
 /** The preview's layout: the graph drawn flat, the same drawing on every opening. */
@@ -15,8 +16,13 @@ const PREVIEW_LAYOUT_CONFIG = { dim: 2, seed: 7 } as const;
  */
 export function PreviewPane(): React.JSX.Element {
     const api = useJoinWorkspace();
-    const { draft, version, side } = api;
+    const { draft, version, side, keeps } = api;
     const step = shownStep(api);
+    // The regions the compare steps drawn keep: the preview's own element hides the rest.
+    const { keep } = useMemo(() => {
+        const at = draft.steps.findIndex((each) => each.id === step);
+        return { version, keep: keepRule(draft.steps.slice(0, side === "before" ? at : at + 1), keeps) };
+    }, [draft, version, step, side, keeps]);
     // Read again on every edit to the draft.
     const { preview } = useMemo(
         () => ({ version, preview: draft.preview(step === undefined ? {} : { step, before: side === "before" }) }),
@@ -38,9 +44,9 @@ export function PreviewPane(): React.JSX.Element {
     }, []);
     useEffect(() => {
         if (session !== null) {
-            void draw(session, preview);
+            void draw(session, preview, keep);
         }
-    }, [session, preview]);
+    }, [session, preview, keep]);
     return (
         <div
             className="jw-preview"
@@ -66,8 +72,9 @@ const drawnLayers = new WeakMap<GraphSession, string[]>();
  * Draws a preview in the preview's own element: its graph replaced, one layer per fate.
  * @param session - the preview element's session.
  * @param preview - the graph to draw.
+ * @param keep - the filter keeping a compare step's chosen regions, or null.
  */
-async function draw(session: GraphSession, preview: JoinPreview): Promise<void> {
+async function draw(session: GraphSession, preview: JoinPreview, keep: RuleTree | null): Promise<void> {
     const byFate = new Map<JoinElementFate, NodeId[]>();
     const edgeFates = new Map<JoinElementFate, string[]>();
     for (const node of preview.nodes) {
@@ -110,4 +117,5 @@ async function draw(session: GraphSession, preview: JoinPreview): Promise<void> 
         }
         drawnLayers.set(session, layers);
     });
+    await session.visibility.set(keep);
 }

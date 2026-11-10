@@ -1790,3 +1790,89 @@ export function frozen<T>(value: T): T {
 
     return value;
 }
+
+/** How many distinct sample values a column reads out. */
+const SAMPLES = 3;
+
+/**
+ * The first few distinct values a list holds, blanks skipped.
+ * @param values - The values, in order.
+ * @param limit - The most to read.
+ * @returns The values.
+ */
+function samplesOf(values: Iterable<unknown>, limit: number): unknown[] {
+    const seen = new Set<string>();
+    const out: unknown[] = [];
+    for (const value of values) {
+        if (out.length >= limit) {
+            break;
+        }
+
+        const text = absent(value) ? undefined : JSON.stringify(value);
+        if (text !== undefined && !seen.has(text)) {
+            seen.add(text);
+            out.push(value);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The first few distinct values of a table's column.
+ * @param table - The table.
+ * @param column - The column.
+ * @param limit - The most to read.
+ * @returns The values.
+ */
+export function columnSamples(table: JoinTable, column: string, limit = SAMPLES): unknown[] {
+    return samplesOf(
+        (function* rows() {
+            for (const row of table.rows) {
+                yield row[column];
+            }
+        })(),
+        limit,
+    );
+}
+
+/**
+ * How one column of a table meets each graph value of the elements: the rows whose value one
+ * of them holds, as compared, the more rows found ignoring case and spaces, and a few of the
+ * graph value's own values.
+ * @param table - The table.
+ * @param column - Its column.
+ * @param elements - The nodes or edges.
+ * @param loose - How the join compares.
+ * @returns One entry per graph value, the id first.
+ */
+export function keyMatchesOf(
+    table: JoinTable,
+    column: string,
+    elements: readonly JoinElement[],
+    loose: Loose,
+): { graph: string; rows: number; loose: number; samples: unknown[] }[] {
+    const loosest = { ignoreCase: true, ignoreSpaces: true };
+    return pathsOf(elements).map((path) => {
+        const strict = indexOf(elements, [path], loose);
+        const wide = indexOf(elements, [path], loosest);
+        let rows = 0;
+        let more = 0;
+        for (const row of table.rows) {
+            const exact = norm(row[column], loose);
+            if (exact !== undefined && strict.has(exact)) {
+                rows += 1;
+            } else {
+                const either = norm(row[column], loosest);
+                more += either !== undefined && wide.has(either) ? 1 : 0;
+            }
+        }
+
+        const values = (function* values() {
+            for (const element of elements) {
+                yield graphValue(element, path);
+            }
+        })();
+        return { graph: path, rows, loose: more, samples: samplesOf(values, SAMPLES) };
+    });
+}

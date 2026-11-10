@@ -34,3 +34,11 @@ export const ROW_FATE_WORDS: Readonly<Record<JoinRowFate, string>> = {
     linked: "Linked",
     "over-cap": "Over cap",
 };
+
+/** Each element fate's word in the nodes and edges tables. */
+export const ELEMENT_FATE_WORDS: Readonly<Record<JoinElementFate, string>> = {
+    matched: "Matched",
+    updated: "Updated",
+    added: "Added",
+    merged: "Merged",
+};

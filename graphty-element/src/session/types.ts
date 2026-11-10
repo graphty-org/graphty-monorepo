@@ -2985,6 +2985,39 @@ export interface JoinPageOptions {
 }
 
 /**
+ * How one column of an input meets one graph value ({@link JoinsDraft.keyMatches}), for picking a
+ * key by hand.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinKeyMatch {
+    /** The graph value: `"id"` or `"data.<column>"`, as {@link JoinKey.graph}. */
+    readonly graph: Path;
+    /** The input's rows whose value the graph value holds, compared as the options say. */
+    readonly rows: number;
+    /** The more rows that would match ignoring case and spaces too. */
+    readonly loose: number;
+    /** A few of the graph value's own values, blanks skipped. */
+    readonly samples: readonly unknown[];
+}
+
+/**
+ * Which graph {@link JoinsDraft.keyMatches} compares a column with, and how.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinKeyMatchOptions {
+    /** A step: compare with the graph before it. The graph the recipe leaves when absent. */
+    readonly before?: string;
+    /** The nodes (the default) or the edges. */
+    readonly target?: "node" | "edge";
+    /** Compare whatever the letter case. Default false. */
+    readonly ignoreCase?: boolean;
+    /** Compare whatever spaces the values hold. Default false. */
+    readonly ignoreSpaces?: boolean;
+}
+
+/**
  * A join recipe held as a draft: `session.data.prepareJoins()`. Its steps run in order on a copy
  * of the graph, each matching the graph the steps before it leave, so nothing changes until
  * `commit()`. The draft keeps its own history: `undo()` and `redo()` step through its edits.
@@ -3045,6 +3078,24 @@ export interface JoinsDraft {
      * @returns The suggestion.
      */
     suggest(from: string, before?: string): JoinSuggestion;
+    /**
+     * A few of an input's values in one column, blanks skipped: what a column picker shows.
+     * @param from - The input's key.
+     * @param column - The column.
+     * @returns Up to three distinct values, in table order.
+     * @since 3.37.0
+     */
+    samples(from: string, column: string): readonly unknown[];
+    /**
+     * How one column of an input meets each graph value: the rows each would match as a key, so
+     * a reader can pick a key by hand.
+     * @param from - The input's key.
+     * @param column - The column.
+     * @param options - Which graph, and how to compare.
+     * @returns One entry per graph value, the id first.
+     * @since 3.37.0
+     */
+    keyMatches(from: string, column: string, options?: JoinKeyMatchOptions): readonly JoinKeyMatch[];
     /**
      * What a step does: its report, or why it cannot run.
      * @param id - The step.

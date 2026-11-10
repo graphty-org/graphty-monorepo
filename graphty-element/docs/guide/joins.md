@@ -221,6 +221,15 @@ await recipe.commit(); // or recipe.discard()
 reference list names (`{ columns: [], flag: "watchlisted" }`), and `split` reads a cell holding
 several values (`{ tags: ";" }`). `recipe.clashes(step, column)` lists the clashes of a column.
 
+To let a reader pick a key by hand, `recipe.samples(input, column)` reads a few of a column's
+values, and `recipe.keyMatches(input, column)` counts, for each graph value, the rows that column
+would match (and how many more ignoring case and spaces), with a few of the graph value's own
+values:
+
+```ts
+recipe.keyMatches(entries, "building_id"); // [{ graph: "id", rows: 240, loose: 12, samples: ["bldg-01", ...] }, ...]
+```
+
 ## Naming what a join writes
 
 A join derives some names: a reduction's `<column> (<reduction>)`, a clashing column's

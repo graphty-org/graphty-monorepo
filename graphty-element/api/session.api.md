@@ -2795,6 +2795,22 @@ export interface JoinKey {
     readonly graph: Path;
 }
 
+// @beta
+export interface JoinKeyMatch {
+    readonly graph: Path;
+    readonly loose: number;
+    readonly rows: number;
+    readonly samples: readonly unknown[];
+}
+
+// @beta
+export interface JoinKeyMatchOptions {
+    readonly before?: string;
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+    readonly target?: "node" | "edge";
+}
+
 // @public
 export interface JoinLink {
     readonly as?: "edges" | "nodes";
@@ -2939,6 +2955,7 @@ export interface JoinsDraft {
     discard(): void;
     hold(table: JoinLookup): string;
     readonly inputs: readonly JoinInput[];
+    keyMatches(from: string, column: string, options?: JoinKeyMatchOptions): readonly JoinKeyMatch[];
     move(id: string, to: number): void;
     outcome(id: string): JoinStepOutcome;
     preview(options?: {
@@ -2950,6 +2967,7 @@ export interface JoinsDraft {
     rows(id: string, options?: JoinPageOptions & {
         readonly fate?: JoinRowFate;
     }): JoinPage<JoinPreviewRow>;
+    samples(from: string, column: string): readonly unknown[];
     readonly steps: readonly JoinStepEntry[];
     suggest(from: string, before?: string): JoinSuggestion;
     undo(): void;

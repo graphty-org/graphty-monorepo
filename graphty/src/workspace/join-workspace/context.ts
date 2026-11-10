@@ -4,7 +4,7 @@
  * and Before or After. Every edit to the draft goes through `edit`, so the panes draw it again.
  */
 
-import type { GraphSession, JoinsDraft } from "@graphty/graphty-element/session";
+import type { GraphSession, JoinRegion, JoinRowFate, JoinsDraft } from "@graphty/graphty-element/session";
 import { createContext, useContext } from "react";
 
 /** Which graph the preview draws: the one before the shown step, or the one it leaves. */
@@ -44,6 +44,24 @@ export interface JoinWorkspaceApi {
      * @returns the held table's key, an input of the draft.
      */
     readonly addTable: (file: File) => Promise<string>;
+    /** The row fate the rows pane shows only, or null for every row. */
+    readonly fate: JoinRowFate | null;
+    /**
+     * Shows only the rows of one fate in the rows pane.
+     * @param fate - the fate, or null for every row.
+     */
+    readonly setFate: (fate: JoinRowFate | null) => void;
+    /**
+     * The regions each compare step keeps, by step: Done keeps only them, with a filter on the
+     * step's membership column. A step absent keeps every region.
+     */
+    readonly keeps: ReadonlyMap<string, readonly JoinRegion[]>;
+    /**
+     * Sets the regions a compare step keeps.
+     * @param step - the step.
+     * @param regions - the regions, or null for every one.
+     */
+    readonly setKeep: (step: string, regions: readonly JoinRegion[] | null) => void;
 }
 
 /** The workspace's state, provided by the shell. */

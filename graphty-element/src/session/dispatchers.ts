@@ -7,7 +7,16 @@ import type { Dispatcher } from "./project/Dispatcher";
 import type { GraphSession } from "./types";
 
 /** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
-export const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
+const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
+
+/**
+ * Record the dispatcher a session was built with.
+ * @param session - The session.
+ * @param dispatcher - Its dispatcher.
+ */
+export function registerDispatcher(session: GraphSession, dispatcher: Dispatcher): void {
+    DISPATCHERS.set(session, dispatcher);
+}
 
 /**
  * The dispatcher behind a session. Not published: the element's own tests spy on it and read the

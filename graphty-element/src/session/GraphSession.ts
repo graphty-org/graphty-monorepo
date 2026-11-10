@@ -66,7 +66,7 @@ import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./command
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
-import { dispatcherOf, DISPATCHERS } from "./dispatchers";
+import { dispatcherOf, registerDispatcher } from "./dispatchers";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
@@ -723,7 +723,7 @@ class Session implements ElementSession {
                 }
             },
         };
-        DISPATCHERS.set(this, this.dispatcher);
+        registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
         SESSION_RUNS.set(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);

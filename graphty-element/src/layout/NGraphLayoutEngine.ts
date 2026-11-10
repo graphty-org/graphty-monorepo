@@ -872,10 +872,12 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
-        const leftOut = [link.fromId, link.toId].some((id) => {
-            const node = (this.ngraph.getNode(id)?.data as { parentNode?: Node } | undefined)?.parentNode;
-            return node !== undefined && this.isLeftOut(node.index);
-        });
+        const leftOut =
+            [link.fromId, link.toId].some((id) => {
+                const node = (this.ngraph.getNode(id)?.data as { parentNode?: Node } | undefined)?.parentNode;
+                return node !== undefined && this.isLeftOut(node.index);
+            }) ||
+            (pairOf(link).edges.size > 0 && [...pairOf(link).edges].every((edge) => this.isEdgeLeftOut(edge)));
         if (leftOut) {
             spring.coefficient = FOLLOWER_MASS;
         } else if (spring.coefficient === FOLLOWER_MASS) {

@@ -681,7 +681,8 @@ export class D3GraphEngine extends LayoutEngine {
         }
 
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
-        // A link to a node the layout leaves out pulls nothing (see `LayoutEngine.setLeftOut`).
+        // A link to a node the layout leaves out, or one the filter hides, pulls nothing (see
+        // `LayoutEngine.setLeftOut`).
         const leftOut = new Set<NodeIdType>();
         for (const node of this.nodeMapping.keys()) {
             if (this.isLeftOut(node.index)) {
@@ -689,10 +690,19 @@ export class D3GraphEngine extends LayoutEngine {
             }
         }
 
+        const hiddenLinks = new Set<unknown>();
+        for (const [edge, link] of [...this.edgeMapping, ...this.newEdgeMap]) {
+            if (this.isEdgeLeftOut(edge)) {
+                hiddenLinks.add(link);
+            }
+        }
+
         const endId = (end: unknown): unknown =>
             typeof end === "object" && end !== null ? (end as D3InputNode).id : end;
         this.linkForce.strength((l) =>
-            leftOut.has(endId(l.source) as NodeIdType) || leftOut.has(endId(l.target) as NodeIdType)
+            hiddenLinks.has(l) ||
+            leftOut.has(endId(l.source) as NodeIdType) ||
+            leftOut.has(endId(l.target) as NodeIdType)
                 ? 0
                 : LINK_STRENGTH,
         );

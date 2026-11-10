@@ -1663,7 +1663,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns The graph to load, and the `weight` option, undefined when the model reads none.
      */
     #loadable(snapshot: GraphSnapshot): { graph: GraphSnapshot; weight: boolean | string | undefined } {
-        const graph = this.#dataManager.undirected(snapshot).snapshot;
+        const undirected = this.#dataManager.undirected(snapshot).snapshot;
+        // An edge the filter hides between two shown nodes pulls nothing (see `LayoutEngine.setLeftOut`).
+        const keptEdges = this.keptEdges(undirected);
+        const graph = keptEdges === null ? undirected : undirected.filterEdges(keptEdges).snapshot;
         if ((this.#options.model as { weight?: unknown }).weight !== true) {
             return { graph, weight: undefined };
         }

@@ -1,4 +1,5 @@
 import {
+    type EdgeMask,
     type F32,
     type GraphSnapshot,
     INVALID_INDEX,
@@ -352,8 +353,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      * @returns the answer over every row
      */
     #computeKept(input: SnapshotLayoutInput): SnapshotLayoutAnswer {
-        const kept = this.keptRows(input.graph.nodeCount);
-        const part = kept === null ? null : keptPart(input, kept);
+        const part = this.#keptPartOf(input);
         if (part === null) {
             return this.compute(input);
         }
@@ -362,6 +362,49 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         const answer = this.compute(part.input);
         const spread = (positions: F32): F32 => spreadRows(positions, part.origin, input);
         return answer instanceof Promise ? answer.then(spread) : spread(answer);
+    }
+
+    /**
+     * The part of an input the layout keeps, when it leaves rows or edges out.
+     * @param input - the input over every row
+     * @returns the part, or null when it keeps everything
+     */
+    #keptPartOf(input: SnapshotLayoutInput): KeptPart | null {
+        const rows = this.keptRows(input.graph.nodeCount);
+        const edges = this.keptEdges(input.graph);
+        if (rows === null && edges === null) {
+            return null;
+        }
+
+        return keptPart(input, rows ?? makeMask(input.graph.nodeCount, true), {
+            graph: edges,
+            stored: edges === null ? null : this.keptEdges(input.stored),
+        });
+    }
+
+    /**
+     * Read something about the graph being arranged in the part the layout keeps, outside a run:
+     * what a run would have arranged had it run now (see `LayoutEngine.setLeftOut`). Inside a run,
+     * or when the layout keeps everything, `graph` already answers that.
+     * @param read - what to read, through `graph`, `sourceGraph` and `_nodes`
+     * @returns what it read
+     */
+    protected inKeptPart<T>(read: () => T): T {
+        if (this.#part !== null) {
+            return read();
+        }
+
+        const part = this.#keptPartOf(this.#input(this.graph, this.sourceGraph, new AbortController()));
+        if (part === null) {
+            return read();
+        }
+
+        this.#part = part;
+        try {
+            return read();
+        } finally {
+            this.#part = null;
+        }
     }
 
     /** An emptied graph has nothing to arrange, so an answer still being computed for it is called off. */
@@ -628,18 +671,26 @@ interface KeptPart {
 }
 
 /**
- * The input over only the kept rows: the induced subgraph, and every per-row array and mask
- * gathered to its rows.
+ * The input over only the kept rows and edges: the induced subgraph of the kept rows less the
+ * edges left out, and every per-row array and mask gathered to its rows.
  * @param input - the input over every row
  * @param kept - the rows to keep
- * @returns the part, or null when every row is kept
+ * @param edges - the edges to keep, of `input.graph` and of `input.stored`; null keeps every edge
+ * @param edges.graph - those of `input.graph`
+ * @param edges.stored - those of `input.stored`
+ * @returns the part
  */
-function keptPart(input: SnapshotLayoutInput, kept: NodeMask): KeptPart | null {
-    const derived = input.graph.inducedSubgraph({ mask: kept });
-    const { nodeOrigin: origin, nodeRemap: remap } = derived;
-    if (origin === null || remap === null) {
-        return null;
-    }
+function keptPart(
+    input: SnapshotLayoutInput,
+    kept: NodeMask,
+    edges: { readonly graph: EdgeMask | null; readonly stored: EdgeMask | null },
+): KeptPart {
+    const withEdges = (graph: GraphSnapshot, mask: EdgeMask | null): GraphSnapshot =>
+        mask === null ? graph : graph.filterEdges(mask).snapshot;
+    const derived = withEdges(input.graph, edges.graph).inducedSubgraph({ mask: kept });
+    const n = input.graph.nodeCount;
+    const origin = derived.nodeOrigin ?? Uint32Array.from({ length: n }, (_, row) => row);
+    const remap = derived.nodeRemap ?? origin;
 
     const m = origin.length;
     const dim = input.dimensions;
@@ -667,7 +718,7 @@ function keptPart(input: SnapshotLayoutInput, kept: NodeMask): KeptPart | null {
         input: {
             ...input,
             graph: derived.snapshot,
-            stored: input.stored.inducedSubgraph({ mask: kept }).snapshot,
+            stored: withEdges(input.stored, edges.stored).inducedSubgraph({ mask: kept }).snapshot,
             scope: whole ? null : scope,
             fixed: { rows: mask(input.fixed.rows), positions: rows(input.fixed.positions, dim) },
             initial: rows(input.initial, dim),

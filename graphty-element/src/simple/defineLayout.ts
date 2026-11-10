@@ -30,7 +30,7 @@
 // input carries neither.
 
 import { mulberry32 } from "@graphty/algorithms";
-import type { NodeMask } from "@graphty/graph-format";
+import { type EdgeMask, makeMask, type NodeMask } from "@graphty/graph-format";
 
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
@@ -425,7 +425,12 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             const source = viewSourceOf(session);
             // A node the layout leaves out (see `LayoutEngine.setLeftOut`) is not in the view `place` reads.
             const kept = this.keptRows(source.snapshot.nodeCount);
-            const view = createGraphView(kept === null ? source : keptSource(source, kept), {
+            const keptEdges = this.keptEdges(source.snapshot);
+            const narrowed =
+                kept === null && keptEdges === null
+                    ? source
+                    : keptSource(source, kept ?? makeMask(source.snapshot.nodeCount, true), keptEdges);
+            const view = createGraphView(narrowed, {
                 id,
                 directed: false,
                 source: "layout",
@@ -494,19 +499,25 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
 }
 
 /**
- * A view source over only the kept rows of another: their induced subgraph, each value read
- * from the row it came from.
+ * A view source over only the kept rows and edges of another: their induced subgraph, each value
+ * read from the row it came from.
  * @param source - The source over every row.
  * @param kept - The rows to keep.
+ * @param keptEdges - The edges to keep, or null for every edge between kept rows.
  * @returns The source over the kept rows.
  */
-function keptSource(source: ViewSource, kept: NodeMask): ViewSource {
-    const derived = source.snapshot.inducedSubgraph({ mask: kept });
-    const { nodeOrigin, edgeOrigin } = derived;
+function keptSource(source: ViewSource, kept: NodeMask, keptEdges: EdgeMask | null): ViewSource {
+    const filtered = keptEdges === null ? null : source.snapshot.filterEdges(keptEdges);
+    const derived = (filtered?.snapshot ?? source.snapshot).inducedSubgraph({ mask: kept });
+    const { nodeOrigin } = derived;
+    const edgeOrigin = (row: number): number => {
+        const inFiltered = derived.edgeOrigin === null ? row : derived.edgeOrigin[row];
+        return filtered === null || filtered.edgeOrigin === null ? inFiltered : filtered.edgeOrigin[inFiltered];
+    };
     return {
         snapshot: derived.snapshot,
         nodeValue: (row, path) => source.nodeValue(nodeOrigin === null ? row : nodeOrigin[row], path),
-        edgeValue: (row, path) => source.edgeValue(edgeOrigin === null ? row : edgeOrigin[row], path),
+        edgeValue: (row, path) => source.edgeValue(edgeOrigin(row), path),
         ...(source.attributeNames === undefined
             ? {}
             : { attributeNames: (target) => source.attributeNames?.(target) ?? [] }),

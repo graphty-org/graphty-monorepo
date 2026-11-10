@@ -1059,6 +1059,13 @@ A second correction: a repack from the lane also changes w, when a row the layou
 (w 0 to 1) or a row is unplaced. The kernel keeps the ring's w, so such a row stayed at w 0 on the card until the layout
 settled. A repack that changes a row's w now mirrors that row into the ring and uploads it once, since the landing
 already copied holds the old w.
+Correction (2026-11-09 re-profile): the 187-205 ms `renderer="webgpu"` layout frame measured for this stage was not a
+layout frame. On WebGPU the render loop did not pace its frames (only WebGL fenced them), so a still 100k + 1M scene queued
+a frame every 0.8-3 ms against about 89 ms of GPU work each; the layout's position readback waited behind that backlog
+and never landed, the layout stopped moving, and the frames timed the zoom-to-fit walk over a stalled layout. With frames
+paced the real layout frame was 1.07-1.28 s, CPU-bound. Since cosmos-gap stage 113, under renderPath "batched" the loop
+skips a tick while the last frame's `queue.onSubmittedWorkDone()` is unresolved (`RenderManager.fenceWebGpuFrame`), and
+the benchmark refuses a layout-frame row in which no GPU batch landed.
 
 As built (stage 25, fourth pull request): a loss needed no code of its own. The controller's rebuild on the engine's
 new device goes through `replaceSimulation`, whose load attaches a new ring seeded from `rowPosition`, and the
@@ -1074,6 +1081,12 @@ leaves the texture differing from the CPU copy (worst relative difference about 
 agree. The mechanism is not yet explained (a batch of the replaced simulation, or its draw transform, landing after
 the swap is the likely one). `shared-device-drawn-moves.test.ts` compares at the second copy and points here; until
 this is fixed the texture can hold the wrong rows for one landing after a layout is replaced. Issue #6422.
+Explained and fixed (cosmos-gap stage 113): the layout manager disposes the replaced engine after the new one's `init()`
+has attached its ring, and the replaced engine's detach set the table's `drawnMirror` to null, the new engine's
+mirror included. Every row the table wrote after the swap (the move's end putting rows back on the lane, a w change)
+then reached neither the new ring nor its told-row resend, so a copied landing held stale values for those rows.
+With WebGPU frames paced the second copy was wrong too (worst relative difference 1.39). A detach now clears only
+its own mirror, and the test compares at the first copy.
 
 As built (stage 25, fifth pull request): a correction to "a settling batch repacks from the lane, so the rest
 picture matches the upload path". It did not always. `RowTable` remembers a copied landing with one flag until

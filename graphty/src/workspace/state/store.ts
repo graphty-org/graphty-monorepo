@@ -194,12 +194,23 @@ export interface WorkspaceState {
      */
     readonly textNext: Channel | null;
     /**
+     * Which Shaders "+" should take focus next, set by a notice's Show in Style (node, edge) or by
+     * the graph's Background section, and cleared by the section that takes it.
+     */
+    readonly shaderNext: "node" | "edge" | "background" | null;
+    /**
      * Graph settings, Labels: move a label off the nodes and edges it would cover, and with the
      * overlap rule on, hide one with no place clear of labels and nodes. On by default: without it a
      * name is drawn across the nodes in front of and behind it, which the overlap rule alone (labels
      * against labels) never looks at.
      */
     readonly labelsAvoid: boolean;
+    /**
+     * The layout form's "Shown nodes only": a layout runs over only what the filter shows, and runs
+     * again when the filter changes (graphty-element's `layout.visibleOnly`). On by default, so a
+     * filtered graph fills the space; off, the shown nodes keep the places the whole graph gave them.
+     */
+    readonly layoutShownOnly: boolean;
     /**
      * Graph settings, Same size at any depth: null follows whether a node size is bound to data;
      * true or false is the reader's own choice.
@@ -312,7 +323,9 @@ const INITIAL: WorkspaceState = {
     legendAsked: false,
     allLabelsShown: false,
     textNext: null,
+    shaderNext: null,
     labelsAvoid: true,
+    layoutShownOnly: true,
     sameSizeAtAnyDepth: null,
     lighting: "studio",
     outlineWidth: null,

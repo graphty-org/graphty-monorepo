@@ -210,16 +210,7 @@ export class AnnotationMeshes {
             const mesh = this.draw(a.kind === "arrow" ? leaveText(a, read.annotations) : a, read.scale);
             if (mesh !== null) {
                 this.meshes.push(mesh);
-                if (a.kind === "text" && a.beside !== undefined) {
-                    const metadata = mesh.metadata as AnnotationMeshMetadata;
-                    this.besides.push({
-                        mesh,
-                        beside: a.beside,
-                        home: { x: mesh.position.x, y: mesh.position.y },
-                        metadata,
-                        offset: null,
-                    });
-                }
+                this.noteBeside(a, mesh);
             }
         }
 
@@ -232,6 +223,25 @@ export class AnnotationMeshes {
                 this.meshes.push(entry.mesh);
             }
         }
+    }
+
+    /**
+     * Keep a text annotation drawn beside a node, to be placed there once the nodes are drawn.
+     * @param a - The annotation.
+     * @param mesh - Its mesh.
+     */
+    private noteBeside(a: DrawnAnnotation, mesh: Mesh): void {
+        if (a.kind !== "text" || a.beside === undefined) {
+            return;
+        }
+
+        this.besides.push({
+            mesh,
+            beside: a.beside,
+            home: { x: mesh.position.x, y: mesh.position.y },
+            metadata: mesh.metadata as AnnotationMeshMetadata,
+            offset: null,
+        });
     }
 
     /**

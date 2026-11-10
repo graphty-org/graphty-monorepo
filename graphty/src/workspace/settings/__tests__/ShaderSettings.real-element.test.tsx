@@ -221,7 +221,10 @@ describe("the graph's shader settings", () => {
         const gallery = await screen.findByTestId("shader-gallery", {});
         await userEvent.click(within(gallery).getByRole("button", { name: "New shader..." }));
         const dialog = await screen.findByRole("dialog", { name: "New shader" });
-        const box = within(dialog).getByRole<HTMLTextAreaElement>("textbox", { name: "Shader code" });
+        await waitFor(() => {
+            assert.isNotNull(dialog.querySelector('[data-editor="ready"]'), "the code editor has loaded");
+        });
+        const box = within(dialog).getByRole("textbox", { name: "Shader code" });
         await userEvent.fill(box, text);
         const steps = element.session.history.position;
         const add = within(dialog).getByRole("button", { name: "Add" });

@@ -1092,6 +1092,8 @@ export class Edge {
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
     set dstNode(node: Node_2);
+    // @internal
+    endRow(end: "source" | "target"): number;
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;
@@ -4844,11 +4846,15 @@ export abstract class LayoutEngine {
     static honoursWeights: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
+    protected isEdgeLeftOut(edge: Edge): boolean;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
+    protected isLeftOut(index: number): boolean;
     isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
+    protected keptEdges(graph: GraphSnapshot): EdgeMask | null;
+    protected keptRows(rows: number): NodeMask | null;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;
@@ -4885,6 +4891,7 @@ export abstract class LayoutEngine {
     static scoped: boolean;
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
+    protected setLeftOut(mask: NodeMask | null, rows: number, edges?: ReadonlySet<Edge> | null): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // @internal
     get spacesBySize(): boolean;
@@ -4937,6 +4944,8 @@ export class LayoutManager implements Manager {
     placeGroups(): void;
     // @internal
     get preStepsInFlight(): boolean;
+    // @internal
+    relayoutForVisibility(): void;
     // @internal
     releaseDetachedScope(): void;
     replacing: () => boolean;

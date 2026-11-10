@@ -363,6 +363,17 @@ export class RowTable {
     }
 
     /**
+     * Send a row's CPU copy at the next flush, over the landing just copied: the layout's ring held
+     * something else for the row when that batch landed.
+     * @param row - The row.
+     */
+    resend(row: number): void {
+        if (row < this.rows) {
+            this.positions.touch(row);
+        }
+    }
+
+    /**
      * A layout published by upload after a landing was copied and before the repack: the copy no
      * longer holds the lane, so the next repack sends every row it writes. Without this a settling
      * batch that landed in the same frame as the last copy never went up, and the texture rested

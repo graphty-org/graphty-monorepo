@@ -7,12 +7,14 @@
  * `styles.counts`); nothing here decides it.
  */
 
-import type {
-    ShaderDescriptor,
-    ShaderParams as Params,
-    ShaderParamValue,
-    ShaderPlace,
-    ShaderUse,
+import {
+    formatShaderDraft,
+    type ShaderDescriptor,
+    type ShaderParams as Params,
+    type ShaderParamValue,
+    type ShaderPlace,
+    type ShaderUse,
+    splitShaderText,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, Encoding } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
@@ -20,7 +22,18 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import type { RowContext } from "./PropertyRow";
 import { type DataBinding, EVERYTHING_KEY, lineIn, writeLine } from "./row";
 import { focusLineNext } from "./useFocusLine";
-import { SHADER_STEP_WORDS } from "./words";
+import { copyNameWords, SHADER_STEP_WORDS } from "./words";
+
+/**
+ * A known shader's source as a copy of it, named the way Duplicate and edit names one.
+ * @param source - the source text.
+ * @param name - the shader's name.
+ * @returns the text.
+ */
+export function namedCopy(source: string, name: string): string {
+    const { draft, body } = splitShaderText(source);
+    return draft === undefined ? source : formatShaderDraft({ ...draft, name: copyNameWords(name) }, body);
+}
 
 /** What one value on a layer writes; undefined takes the channel off the layer. */
 type Writes = Partial<Record<Channel, ChannelValue | undefined>>;

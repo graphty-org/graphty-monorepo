@@ -718,11 +718,13 @@ export class Edge {
     }
 
     /**
-     * One end's row: read from the row itself for an end drawn with no `Node`.
+     * One end's row: read from the row itself for an end drawn with no `Node`, so asking for it
+     * never builds one.
      * @param end - Which end.
      * @returns The row.
+     * @internal
      */
-    private endRow(end: "source" | "target"): number {
+    endRow(end: "source" | "target"): number {
         const row = this.columnEnd(end)?.index ?? this.unbuiltEnd(end);
         if (row !== INVALID_INDEX) {
             return row;
@@ -2774,9 +2776,7 @@ export class Edge {
             style,
             scene,
             () => rows.positionTexture,
-            this.isLoop,
-            this.routeOf(style),
-            this.context.leansLines?.() ?? false,
+            { loop: this.isLoop, route: this.routeOf(style), lean: this.context.leansLines?.() ?? false },
         );
         const piece = batch.acquire();
         // As `createStaticLine` hands the plain line's material its look.

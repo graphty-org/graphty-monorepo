@@ -1381,6 +1381,28 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         });
     };
 
+    /**
+     * Check text that names a catalog shader, read as a copy of it: its target, and its picture when asked.
+     * @param copy - The copy.
+     * @param copy.id - The catalog shader's id.
+     * @param copy.params - The values the copy carries.
+     * @param options - The check's options.
+     * @returns What the check found.
+     */
+    const checkCopy = async (
+        copy: { readonly id: string; readonly params: ShaderParams },
+        options: ShaderAddOptions & { readonly picture?: boolean },
+    ): Promise<ShaderAddResult> => {
+        const descriptor = shaderDescriptor(copy.id) as ShaderDescriptor;
+        const problems = targetProblems(descriptor.target, options);
+        if (problems.length > 0) {
+            return { ok: false, problems };
+        }
+
+        const shown = options.picture === true ? await api.thumbnail(copy.id, copy.params) : undefined;
+        return { ok: true, descriptor, sameAs: copy, ...(shown instanceof Blob ? { picture: shown } : {}) };
+    };
+
     const api: SessionShaders = {
         add(text, options = {}) {
             const first = readText(text, options);
@@ -1409,14 +1431,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             const read = first as ReadText;
             const copy = options.asNew !== true && namesCatalog(read) ? await copyOfCatalog(read) : undefined;
             if (copy !== undefined) {
-                const descriptor = shaderDescriptor(copy.id) as ShaderDescriptor;
-                const problems = targetProblems(descriptor.target, options);
-                if (problems.length > 0) {
-                    return { ok: false, problems };
-                }
-
-                const shown = options.picture === true ? await api.thumbnail(copy.id, copy.params) : undefined;
-                return { ok: true, descriptor, sameAs: copy, ...(shown instanceof Blob ? { picture: shown } : {}) };
+                return checkCopy(copy, options);
             }
 
             const { shader, problems } = admit(read, text, options);

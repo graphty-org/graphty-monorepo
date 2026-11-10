@@ -1403,7 +1403,10 @@ const BACKSLASH = String.fromCodePoint(0x5c);
 function composeText(header: Readonly<Record<string, unknown>>, body: string): ShaderText {
     const json = JSON.stringify(header, null, 4)
         .replaceAll("*/", String.raw`*\/`)
-        .replaceAll(/[\u007f-\uffff]/g, (char) => `${BACKSLASH}u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
+        .replaceAll(
+            /[\u007f-\uffff]/g,
+            (char) => `${BACKSLASH}u${(char.codePointAt(0) ?? 0).toString(16).padStart(4, "0")}`,
+        );
     return `/* ${SHADER_TEXT_MAGIC}\n${json}\n*/\n${body}`;
 }
 

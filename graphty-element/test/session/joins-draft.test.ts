@@ -213,6 +213,31 @@ describe("data.prepareJoins", () => {
         assert.deepEqual(session.data.joins(), []);
     });
 
+    it("names each committed step's load by the step's own name, else by its input's", async () => {
+        const session = await doors();
+        const recipe = session.data.prepareJoins();
+        const [people] = recipe.inputs;
+        const ends = { file: "person_id", graph: "data.person_id" } as const;
+        const kind = recipe.add({
+            from: people.key,
+            name: "people.csv kind",
+            choices: { shape: "node-values", keys: [ends], columns: ["dept"] },
+        });
+        recipe.add({ from: people.key, choices: { shape: "node-values", keys: [ends], columns: ["name"] } });
+        assert.strictEqual(recipe.steps.find((each) => each.id === kind)?.name, "people.csv kind");
+        await recipe.commit();
+
+        assert.deepEqual(
+            session.data.joins().map((join) => join.table.name),
+            ["people.csv kind", "people.csv"],
+        );
+        const named = session.data
+            .sources()
+            .filter((each) => each.join !== undefined)
+            .map((each) => each.name);
+        assert.deepEqual(named, ["people.csv kind", "people.csv"]);
+    });
+
     it("reads a loaded source as its records, and a held mapping table as via", async () => {
         const session = await doors();
         const recipe = session.data.prepareJoins();

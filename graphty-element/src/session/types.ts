@@ -2874,6 +2874,11 @@ export interface JoinStep {
      * keys match the graph as the steps before this one leave it.
      */
     readonly choices: JoinChoices;
+    /**
+     * The name the step's load goes by once committed (in `sources()` and `joins()`). Default: its
+     * input's name, so two steps reading one input share it unless each is named.
+     */
+    readonly name?: string;
 }
 
 /**
